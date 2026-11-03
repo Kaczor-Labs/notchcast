@@ -1,0 +1,28 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Notchcast <notchcast@users.noreply.github.com>
+Date: Tue, 3 Nov 2026 15:08:17 +0100
+Subject: [PATCH] Notchcast: read releases from kaczordodgers/notchcast
+
+The fork re-releases every upstream release under the same tag, signed with
+its own identity; the in-app updater must never offer upstream's builds,
+whose leaf certificate differs.
+---
+ Tinycast/Features/Updates/Model/ReleaseFeed.swift | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/Tinycast/Features/Updates/Model/ReleaseFeed.swift b/Tinycast/Features/Updates/Model/ReleaseFeed.swift
+index 4773a89a..4e364233 100644
+--- a/Tinycast/Features/Updates/Model/ReleaseFeed.swift
++++ b/Tinycast/Features/Updates/Model/ReleaseFeed.swift
+@@ -12,7 +12,7 @@ struct AvailableRelease: Codable, Hashable, Sendable {
+ /// Nothing throws: an unusable body means nothing to install, and the pump retries.
+ enum ReleaseFeed {
+     /// Where releases come from, and what every `@handle` and `#304` in their notes points at.
+-    static let repository = "abue-ammar/tinycast"
++    static let repository = "kaczordodgers/notchcast"
+ 
+     /// The only artifact with an x86_64 slice, so the only one an Intel Mac can install.
+     private static let universalMarker = "-Universal-"
+-- 
+2.56.0
+

@@ -1,0 +1,85 @@
+#!/bin/bash
+# Notchcast updater: install the newest kaczordodgers/notchcast release of the installed app's channel and restart it.
+# Runs from launchd (notchcast.update). It installs only a build whose bundle id matches the installed
+# app and whose leaf certificate is SIGN_SHA1, and only when the installed copy is not ours yet or its version differs
+# from the newest release. Once ours is installed, the in-app updater (patch 0001) also takes our releases.
+# It replaces only the .app bundle: the old one goes to the Trash; settings, data and Keychain items are never touched.
+# Usage: notchcast-update.sh [--dry-run] [app path]
+set -euo pipefail
+export PATH="/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"
+
+DRY=0
+if [ "${1:-}" = "--dry-run" ]; then DRY=1; shift; fi
+APP="${1:-/Applications/Tinycast Beta.app}"
+HERE="$(cd "$(dirname "$0")/.." && pwd)"
+# shellcheck disable=SC1091
+source "$HERE/config.env"
+log() { printf '%s %s\n' "$(date +%Y-%m-%dT%H:%M:%S%z)" "$*"; }
+
+leaf_sha1() {
+    local d
+    d="$(mktemp -d)"
+    codesign -d --extract-certificates="$d/c" "$1" 2>/dev/null || { rm -rf "$d"; return 0; }
+    shasum -a 1 "$d/c0" | awk '{print toupper($1)}'
+    rm -rf "$d"
+}
+plist() { /usr/libexec/PlistBuddy -c "Print :$2" "$1/Contents/Info.plist" 2>/dev/null || true; }
+
+[ -d "$APP" ] || { log "no app at $APP; nothing to update"; exit 0; }
+BUNDLE_ID="$(plist "$APP" CFBundleIdentifier)"
+INSTALLED="$(plist "$APP" CFBundleShortVersionString)"
+case "$BUNDLE_ID" in
+    com.tinycast.app.beta) PRE=true ;;
+    com.tinycast.app) PRE=false ;;
+    *) log "unknown bundle id '$BUNDLE_ID' at $APP; not touching it"; exit 0 ;;
+esac
+OURS=0
+[ "$(leaf_sha1 "$APP")" = "$SIGN_SHA1" ] && OURS=1
+
+TAG="$(gh release list -R "$FORK_REPO" -L 30 --json tagName,isDraft,isPrerelease,publishedAt \
+    --jq "[.[] | select(.isDraft | not) | select(.isPrerelease == $PRE)] | sort_by(.publishedAt) | last | .tagName // empty")"
+[ -n "$TAG" ] || { log "no $FORK_REPO release for this channel yet"; exit 0; }
+WANT="${TAG#v}"
+if [ "$OURS" = 1 ] && [ "$INSTALLED" = "$WANT" ]; then
+    log "up to date: $INSTALLED (ours)"
+    exit 0
+fi
+log "installing $TAG over $INSTALLED ($([ "$OURS" = 1 ] && echo ours || echo "not ours"))"
+[ "$DRY" = 1 ] && exit 0
+
+WORK="$(mktemp -d "${TMPDIR:-/tmp}/notchcast-update.XXXXXX")"
+trap 'rm -rf "$WORK"' EXIT
+gh release download "$TAG" -R "$FORK_REPO" -D "$WORK" -p "Tinycast-${WANT}.zip"
+mkdir "$WORK/x"
+ditto -x -k "$WORK/Tinycast-${WANT}.zip" "$WORK/x"
+NEW="$(find "$WORK/x" -maxdepth 1 -name '*.app' | head -1)"
+[ -n "$NEW" ] || { log "no app in the release zip"; exit 1; }
+xattr -dr com.apple.quarantine "$NEW" 2>/dev/null || true
+codesign --verify --deep --strict "$NEW"
+[ "$(plist "$NEW" CFBundleIdentifier)" = "$BUNDLE_ID" ] || { log "bundle id mismatch; refusing"; exit 1; }
+[ "$(plist "$NEW" CFBundleShortVersionString)" = "$WANT" ] || { log "version mismatch; refusing"; exit 1; }
+[ "$(leaf_sha1 "$NEW")" = "$SIGN_SHA1" ] || { log "not signed by $SIGN_IDENTITY; refusing"; exit 1; }
+
+EXE="$APP/Contents/MacOS/$(plist "$APP" CFBundleExecutable)"
+RUNNING=0
+if pgrep -f "^$EXE( |$)" >/dev/null; then
+    RUNNING=1
+    osascript -e "tell application id \"$BUNDLE_ID\" to quit" >/dev/null 2>&1 || true
+    for _ in $(seq 1 20); do pgrep -f "^$EXE( |$)" >/dev/null || break; sleep 0.5; done
+    if pgrep -f "^$EXE( |$)" >/dev/null; then pkill -TERM -f "^$EXE( |$)" || true; sleep 2; fi
+fi
+# The old bundle goes to the Trash, never rm; a failed copy is trashed too and the old bundle put back.
+TRASHED="$HOME/.Trash/$(basename "$APP" .app) $INSTALLED $(date +%Y%m%d-%H%M%S).app"
+mv "$APP" "$TRASHED"
+if ! ditto "$NEW" "$APP"; then
+    [ -e "$APP" ] && mv "$APP" "$TRASHED.failed-copy.app"
+    mv "$TRASHED" "$APP"
+    log "copy failed; previous version restored"
+    exit 1
+fi
+log "previous app moved to $TRASHED"
+log "installed $TAG at $APP"
+if [ "$RUNNING" = 1 ]; then
+    open "$APP"
+    log "relaunched"
+fi

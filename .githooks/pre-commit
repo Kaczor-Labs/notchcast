@@ -1,0 +1,4 @@
+#!/bin/bash
+# Refuse a commit whose staged changes contain a secret. Enable once per clone: git config core.hooksPath .githooks
+PATH="/opt/homebrew/bin:$PATH"
+exec gitleaks git --pre-commit --staged --redact --no-banner --exit-code 1 .
