@@ -35,7 +35,7 @@ alert_failures() {
     if [ ! -f "$seen" ]; then [ "$DRY" = 1 ] || printf '%s\n' "$refs" > "$seen"; return 0; fi
     for ref in $(comm -13 "$seen" <(printf '%s\n' "$refs")); do
         if [ "$DRY" = 1 ]; then log "would alert: $ref"; continue; fi
-        printf 'Notchcast sync failed: %s. Nothing was published; it retries when upstream or the notchcast branch changes. Runs: https://github.com/%s/actions/workflows/sync.yml\n' \
+        printf 'Notchcast sync failed: %s. Nothing was published; it retries when upstream or the queue branch changes. Runs: https://github.com/%s/actions/workflows/sync.yml\n' \
             "${ref#refs/notchcast-failed/}" "$FORK_REPO" | chad-opus ping failure - >/dev/null
         echo "$ref" >> "$seen"
         log "alerted Chad: $ref"

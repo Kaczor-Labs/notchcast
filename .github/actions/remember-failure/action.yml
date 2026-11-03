@@ -1,5 +1,5 @@
 name: Remember a failure
-description: Record refs/notchcast-failed/<key> so the same input is not rebuilt until upstream or the notchcast branch changes.
+description: Record refs/notchcast-failed/<key> so the same input is not rebuilt until upstream or the queue branch changes.
 inputs:
   key:
     required: true

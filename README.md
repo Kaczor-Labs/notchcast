@@ -1,6 +1,6 @@
 # Notchcast
 
-A public fork of [abue-ammar/tinycast](https://github.com/abue-ammar/tinycast) (AGPL-3.0, see `LICENSE`) with a small patch queue. This branch (`notchcast`, the default branch) holds the queue, the CI and the updater; `main` is generated and never edited by hand.
+A public fork of [abue-ammar/tinycast](https://github.com/abue-ammar/tinycast) (AGPL-3.0, see `LICENSE`) with a small patch queue. This branch (`queue`, the default branch) holds the queue, the CI and the updater; `main` is generated and never edited by hand.
 
 - `main` = upstream `main` + `patches/series`. `.github/workflows/sync.yml` checks every 10 minutes (and on every push to this branch); when upstream `main` or the queue moved, it applies the queue, builds Debug and runs upstream's `Scripts/run-tests.sh` on a GitHub-hosted `xcode-27` runner, and only when green force-updates `main` (with a lease). That workflow is the only thing that ever force-updates a branch here. The top commit of `main` records `Notchcast-Upstream:` and `Notchcast-Queue:`.
 - Every upstream release from `BASELINE_TAG` (in `config.env`) on is rebuilt from its tag + the queue, tested, built Release, signed with `Notchcast Self-Signed` and published here under the same tag, title and prerelease flag, as `Tinycast-<version>.zip` and `.dmg`. Name, bundle id, version and build number are read from upstream's own zip; the fork never has a version of its own. Upstream's tag is mirrored unchanged; the release notes record the queue commit.

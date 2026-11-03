@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Notchcast CI helper, run by .github/workflows/sync.yml from a checkout of the notchcast branch.
+"""Notchcast CI helper, run by .github/workflows/sync.yml from a checkout of the queue branch.
 
     notchcast-ci.py plan                 decide what this run builds; writes job outputs
     notchcast-ci.py apply <tree> <base>  apply patches/series on <base> in the upstream checkout <tree>
@@ -20,8 +20,8 @@ from pathlib import Path
 QUEUE = Path(__file__).resolve().parent.parent
 PATCHES = QUEUE / "patches"
 GIT_ID = {
-    "GIT_AUTHOR_NAME": "Notchcast", "GIT_AUTHOR_EMAIL": "notchcast@users.noreply.github.com",
-    "GIT_COMMITTER_NAME": "Notchcast", "GIT_COMMITTER_EMAIL": "notchcast@users.noreply.github.com",
+    "GIT_AUTHOR_NAME": "github-actions[bot]", "GIT_AUTHOR_EMAIL": "41898282+github-actions[bot]@users.noreply.github.com",
+    "GIT_COMMITTER_NAME": "github-actions[bot]", "GIT_COMMITTER_EMAIL": "41898282+github-actions[bot]@users.noreply.github.com",
 }
 
 

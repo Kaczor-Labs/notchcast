@@ -6,7 +6,7 @@ on:
     - cron: "*/10 * * * *"
   workflow_dispatch:
   push:
-    branches: [notchcast]
+    branches: [queue]
 
 permissions:
   contents: read
@@ -34,7 +34,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
         with:
-          ref: notchcast
+          ref: queue
           persist-credentials: false
       - id: plan
         env:
@@ -191,7 +191,7 @@ jobs:
           key: ${{ secrets.DEPLOY_KEY }}
       # Upstream's tag, unchanged; GITHUB_TOKEN cannot push commits that touch workflows. A deploy-key push
       # triggers workflows, but the tagged tree's upstream workflows cannot read the secrets: they live in the
-      # `sync` environment, which only the notchcast branch may use.
+      # `sync` environment, which only the queue branch may use.
       - name: Mirror the tag
         working-directory: src
         run: |
