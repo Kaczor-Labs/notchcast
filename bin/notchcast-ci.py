@@ -11,6 +11,7 @@ commit or tag is retried only when upstream moves or this branch changes.
 import json
 import os
 import plistlib
+import re
 import subprocess
 import sys
 import tempfile
@@ -46,12 +47,16 @@ def ls_remote(url, *patterns):
     return refs
 
 
+TAG_RE = re.compile(r"v(\d+)\.(\d+)\.(\d+)(?:-[a-z]+\.(\d+))?")
+
+
 def version_key(tag):
-    """v0.12.6-beta.130 -> ((0, 12, 6), 0, 130); a stable release sorts after its betas."""
-    core, _, pre = tag.removeprefix("v").partition("-")
-    nums = tuple(int(x) for x in core.split("."))
-    last = pre.rsplit(".", 1)[-1]
-    return (nums, 1, 0) if not pre else (nums, 0, int(last) if last.isdigit() else 0)
+    """v0.12.6-beta.130 -> ((0, 12, 6), 0, 130); a stable release sorts after its betas; None if unparsable."""
+    m = TAG_RE.fullmatch(tag)
+    if not m:
+        return None
+    nums = tuple(int(x) for x in m.group(1, 2, 3))
+    return (nums, 1, 0) if m.group(4) is None else (nums, 0, int(m.group(4)))
 
 
 def output(**values):
@@ -75,8 +80,10 @@ def plan():
 
     origin_main = origin.get("refs/heads/main", "")
     main_key = f"main-{upstream_main}-{branch_tree}"
-    run("git", "fetch", "-q", "--depth=1", fork, "refs/heads/main")
-    message = run("git", "log", "-1", "--format=%B", "FETCH_HEAD")
+    message = ""
+    if origin_main:
+        run("git", "fetch", "-q", "--depth=1", fork, "refs/heads/main")
+        message = run("git", "log", "-1", "--format=%B", "FETCH_HEAD")
     current = f"Notchcast-Upstream: {upstream_main}" in message and f"Notchcast-Queue: {patches_tree}" in message
     if current:
         print(f"main: up to date (upstream {upstream_main[:10]}, patches {patches_tree[:10]})")
@@ -91,7 +98,7 @@ def plan():
                             "--json", "tagName,name,isDraft,isPrerelease"))
     baseline = version_key(cfg["BASELINE_TAG"])
     releases = []
-    for r in sorted(theirs, key=lambda r: version_key(r["tagName"])):
+    for r in sorted((r for r in theirs if version_key(r["tagName"])), key=lambda r: version_key(r["tagName"])):
         tag = r["tagName"]
         if r["isDraft"] or tag in ours or tag not in upstream_tags or version_key(tag) < baseline:
             continue
@@ -102,6 +109,7 @@ def plan():
         releases.append({"tag": tag, "title": r["name"], "prerelease": r["isPrerelease"]})
 
     output(main="false" if current or main_key in failed else "true", upstream_main=upstream_main,
+           queue_commit=run("git", "rev-parse", "HEAD"),
            origin_main=origin_main, main_key=main_key, branch_tree=branch_tree, patches_tree=patches_tree,
            releases=json.dumps(releases, separators=(",", ":")))
 

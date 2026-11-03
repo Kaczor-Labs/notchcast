@@ -29,11 +29,13 @@ jobs:
       origin_main: ${{ steps.plan.outputs.origin_main }}
       main_key: ${{ steps.plan.outputs.main_key }}
       branch_tree: ${{ steps.plan.outputs.branch_tree }}
+      queue_commit: ${{ steps.plan.outputs.queue_commit }}
       releases: ${{ steps.plan.outputs.releases }}
     steps:
       - uses: actions/checkout@v7
         with:
           ref: notchcast
+          persist-credentials: false
       - id: plan
         env:
           GH_TOKEN: ${{ github.token }}
@@ -44,11 +46,13 @@ jobs:
     if: needs.plan.outputs.main == 'true'
     runs-on: xcode-27
     timeout-minutes: 120
+    environment: sync
     steps:
       - uses: actions/checkout@v7
         with:
-          ref: notchcast
+          ref: ${{ needs.plan.outputs.queue_commit }}
           path: queue
+          persist-credentials: false
       - uses: actions/checkout@v7
         with:
           repository: abue-ammar/tinycast
@@ -88,6 +92,7 @@ jobs:
     if: needs.plan.outputs.releases != '[]'
     runs-on: xcode-27
     timeout-minutes: 120
+    environment: sync
     permissions:
       contents: write
     strategy:
@@ -101,8 +106,9 @@ jobs:
     steps:
       - uses: actions/checkout@v7
         with:
-          ref: notchcast
+          ref: ${{ needs.plan.outputs.queue_commit }}
           path: queue
+          persist-credentials: false
       - uses: actions/checkout@v7
         with:
           repository: abue-ammar/tinycast
@@ -187,7 +193,9 @@ jobs:
       - uses: ./queue/.github/actions/deploy-key
         with:
           key: ${{ secrets.DEPLOY_KEY }}
-      # Upstream's tag, unchanged; GITHUB_TOKEN cannot push commits that touch workflows.
+      # Upstream's tag, unchanged; GITHUB_TOKEN cannot push commits that touch workflows. A deploy-key push
+      # triggers workflows, but the tagged tree's upstream workflows cannot read the secrets: they live in the
+      # `sync` environment, which only the notchcast branch may use.
       - name: Mirror the tag
         working-directory: src
         run: |

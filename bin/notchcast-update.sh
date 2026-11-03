@@ -36,12 +36,17 @@ esac
 OURS=0
 [ "$(leaf_sha1 "$APP")" = "$SIGN_SHA1" ] && OURS=1
 
-TAG="$(gh release list -R "$FORK_REPO" -L 30 --json tagName,isDraft,isPrerelease,publishedAt \
-    --jq "[.[] | select(.isDraft | not) | select(.isPrerelease == $PRE)] | sort_by(.publishedAt) | last | .tagName // empty")"
+# Versions compare as (x, y, z, stable-after-beta, beta number); never install a lower version than the installed one.
+VKEY='def vkey: ltrimstr("v") | capture("^(?<a>[0-9]+)[.](?<b>[0-9]+)[.](?<c>[0-9]+)(-[a-z]+[.](?<n>[0-9]+))?$")
+    | [(.a|tonumber), (.b|tonumber), (.c|tonumber), (if .n then 0 else 1 end), ((.n // "0")|tonumber)];'
+TAG="$(gh release list -R "$FORK_REPO" -L 30 --json tagName,isDraft,isPrerelease \
+    --jq "$VKEY [.[] | select(.isDraft | not) | select(.isPrerelease == $PRE) | select(.tagName | test(\"^v[0-9]+[.][0-9]+[.][0-9]+(-[a-z]+[.][0-9]+)?$\"))]
+          | sort_by(.tagName | vkey) | last | .tagName // empty")"
 [ -n "$TAG" ] || { log "no $FORK_REPO release for this channel yet"; exit 0; }
 WANT="${TAG#v}"
-if [ "$OURS" = 1 ] && [ "$INSTALLED" = "$WANT" ]; then
-    log "up to date: $INSTALLED (ours)"
+CMP="$(jq -nr --arg want "$WANT" --arg have "$INSTALLED" "$VKEY"' if ($want|vkey) > ($have|vkey) then "newer" elif ($want|vkey) == ($have|vkey) then "same" else "older" end')"
+if [ "$CMP" = older ] || { [ "$CMP" = same ] && [ "$OURS" = 1 ]; }; then
+    log "nothing to install: newest release $WANT, installed $INSTALLED ($([ "$OURS" = 1 ] && echo ours || echo "not ours"))"
     exit 0
 fi
 log "installing $TAG over $INSTALLED ($([ "$OURS" = 1 ] && echo ours || echo "not ours"))"
