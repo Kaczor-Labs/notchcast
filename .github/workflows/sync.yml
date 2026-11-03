@@ -71,6 +71,14 @@ jobs:
       - name: Upstream tests
         working-directory: src
         run: ./Scripts/run-tests.sh
+      # run-tests.sh replays failed harness logs only when its dispatch finishes; a crash can stop that.
+      - name: Failed harness logs
+        if: failure()
+        run: |
+          for f in "${TMPDIR:-/tmp}"/tinycast-harness/*.failed; do
+            [ -e "$f" ] || continue
+            n="$(basename "$f" .failed)"; echo "::group::$n"; cat "${f%.failed}.log"; echo "::endgroup::"
+          done
       - uses: ./queue/.github/actions/deploy-key
         with:
           key: ${{ secrets.DEPLOY_KEY }}
@@ -125,6 +133,14 @@ jobs:
       - name: Upstream tests
         working-directory: src
         run: ./Scripts/run-tests.sh
+      # run-tests.sh replays failed harness logs only when its dispatch finishes; a crash can stop that.
+      - name: Failed harness logs
+        if: failure()
+        run: |
+          for f in "${TMPDIR:-/tmp}"/tinycast-harness/*.failed; do
+            [ -e "$f" ] || continue
+            n="$(basename "$f" .failed)"; echo "::group::$n"; cat "${f%.failed}.log"; echo "::endgroup::"
+          done
       - name: Import the signing identity
         env:
           P12_BASE64: ${{ secrets.SIGNING_P12_BASE64 }}
