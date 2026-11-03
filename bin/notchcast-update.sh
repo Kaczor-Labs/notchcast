@@ -6,7 +6,7 @@
 # It replaces only the .app bundle: the old one goes to the Trash; settings, data and Keychain items are never touched.
 # Usage: notchcast-update.sh [--dry-run] [app path]
 set -euo pipefail
-export PATH="/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"
+export PATH="/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:$HOME/.local/bin"
 
 DRY=0
 if [ "${1:-}" = "--dry-run" ]; then DRY=1; shift; fi
@@ -24,6 +24,24 @@ leaf_sha1() {
     rm -rf "$d"
 }
 plist() { /usr/libexec/PlistBuddy -c "Print :$2" "$1/Contents/Info.plist" 2>/dev/null || true; }
+
+# Tell Chad once per failed sync input (a new refs/notchcast-failed/* ref; GitHub also emails the failed run).
+# Only where chad-opus exists (the MBA), so one Mac sends. The first run records the existing failures silently.
+alert_failures() {
+    command -v chad-opus >/dev/null || return 0
+    local seen="$HOME/Library/Application Support/notchcast/alerted-failures" refs ref
+    refs="$(git ls-remote "https://github.com/$FORK_REPO.git" 'refs/notchcast-failed/*' | cut -f2 | sort)"
+    mkdir -p "$(dirname "$seen")"
+    if [ ! -f "$seen" ]; then [ "$DRY" = 1 ] || printf '%s\n' "$refs" > "$seen"; return 0; fi
+    for ref in $(comm -13 "$seen" <(printf '%s\n' "$refs")); do
+        if [ "$DRY" = 1 ]; then log "would alert: $ref"; continue; fi
+        printf 'Notchcast sync failed: %s. Nothing was published; it retries when upstream or the notchcast branch changes. Runs: https://github.com/%s/actions/workflows/sync.yml\n' \
+            "${ref#refs/notchcast-failed/}" "$FORK_REPO" | chad-opus ping failure - >/dev/null
+        echo "$ref" >> "$seen"
+        log "alerted Chad: $ref"
+    done
+}
+alert_failures || log "failure alert check failed; retried next run"
 
 [ -d "$APP" ] || { log "no app at $APP; nothing to update"; exit 0; }
 BUNDLE_ID="$(plist "$APP" CFBundleIdentifier)"

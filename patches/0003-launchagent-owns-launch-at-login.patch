@@ -9,16 +9,23 @@ environment. Under it, the SMAppService login item is unregistered at
 launch and cannot be turned back on, and Relaunch only quits: launchd
 starts the new process. Either would otherwise start a second instance.
 ---
- Tinycast/App/AppCore.swift            | 3 ++-
- Tinycast/App/AppDelegate.swift        | 1 +
+ Tinycast/App/AppCore.swift            | 4 +++-
  Tinycast/Platform/LaunchAtLogin.swift | 7 ++++++-
- 3 files changed, 9 insertions(+), 2 deletions(-)
+ 2 files changed, 9 insertions(+), 2 deletions(-)
 
 diff --git a/Tinycast/App/AppCore.swift b/Tinycast/App/AppCore.swift
-index 6af5eefc..31a141f6 100644
+index 6af5eefc..b6418e2c 100644
 --- a/Tinycast/App/AppCore.swift
 +++ b/Tinycast/App/AppCore.swift
-@@ -615,7 +615,8 @@ final class AppCore {
+@@ -285,6 +285,7 @@ final class AppCore {
+     }
+ 
+     func start(launchedByUser: Bool) {
++        if LaunchAtLogin.managedByLaunchd { LaunchAtLogin.set(false) }
+         Signposts.interval("AppCore.start") {
+             // Shorten AppKit's ~2–3s tooltip delay; registration domain, so a user default wins.
+             UserDefaults.standard.register(defaults: ["NSInitialToolTipDelay": 250])
+@@ -615,7 +616,8 @@ final class AppCore {
          mcpOAuth.stop()
          mcp.stop()
          installedAI.stop()
@@ -28,18 +35,6 @@ index 6af5eefc..31a141f6 100644
      }
  
      /// Only the tool whose own path or variables changed is checked again; the rest keep running.
-diff --git a/Tinycast/App/AppDelegate.swift b/Tinycast/App/AppDelegate.swift
-index 6aed41b0..eef8f8a8 100644
---- a/Tinycast/App/AppDelegate.swift
-+++ b/Tinycast/App/AppDelegate.swift
-@@ -9,6 +9,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
-     }
- 
-     func applicationDidFinishLaunching(_ notification: Notification) {
-+        if LaunchAtLogin.managedByLaunchd { LaunchAtLogin.set(false) }
-         AppCore.shared.start(launchedByUser: isUserLaunch)
-     }
- 
 diff --git a/Tinycast/Platform/LaunchAtLogin.swift b/Tinycast/Platform/LaunchAtLogin.swift
 index f21dbece..2fa87144 100644
 --- a/Tinycast/Platform/LaunchAtLogin.swift
