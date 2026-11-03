@@ -19,7 +19,7 @@ To change a patch: check out upstream main, apply the series (`bin/notchcast-ci.
 
 Actions secrets: `SIGNING_P12_BASE64` and `SIGNING_P12_PASSWORD` (the self-signed code-signing identity) and `DEPLOY_KEY` (write deploy key `notchcast-actions`; `GITHUB_TOKEN` cannot push commits that touch workflow files). The same material is kept outside git on the maintainer's Mac. The public leaf fingerprint is `SIGN_SHA1` in `config.env`.
 
-Gitleaks runs in CI and as a pre-commit hook: `git config core.hooksPath .githooks` once per clone.
+Gitleaks and `bin/check-identity.sh` (no employer name in files, messages or commit identities) run in CI and as a pre-commit hook: `git config core.hooksPath .githooks` once per clone, with a repo-local `user.email` noreply address set before the first commit.
 
 ## Installing on a Mac
 

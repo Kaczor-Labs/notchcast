@@ -1,4 +1,4 @@
-name: Gitleaks
+name: Leaks
 
 on:
   push:
@@ -17,6 +17,8 @@ jobs:
       - uses: actions/checkout@v7
         with:
           fetch-depth: 0
+      - name: Forbidden names in files, messages and identities
+        run: bin/check-identity.sh history
       # Only this branch's own history: upstream's history is upstream's.
       - name: Scan the queue branch history
         env:
