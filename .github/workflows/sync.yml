@@ -68,17 +68,7 @@ jobs:
         run: |
           xcodebuild -project Tinycast.xcodeproj -scheme Tinycast -configuration Debug \
             -derivedDataPath "$RUNNER_TEMP/DerivedData" CODE_SIGNING_ALLOWED=NO build -quiet
-      - name: Upstream tests
-        working-directory: src
-        run: ./Scripts/run-tests.sh
-      # run-tests.sh replays failed harness logs only when its dispatch finishes; a crash can stop that.
-      - name: Failed harness logs
-        if: failure()
-        run: |
-          for f in "${TMPDIR:-/tmp}"/tinycast-harness/*.failed; do
-            [ -e "$f" ] || continue
-            n="$(basename "$f" .failed)"; echo "::group::$n"; cat "${f%.failed}.log"; echo "::endgroup::"
-          done
+      - uses: ./queue/.github/actions/tests
       - uses: ./queue/.github/actions/deploy-key
         with:
           key: ${{ secrets.DEPLOY_KEY }}
@@ -130,17 +120,7 @@ jobs:
         run: python3 queue/bin/notchcast-ci.py app-info "$TAG" "$RUNNER_TEMP"
       - name: Apply the patch queue
         run: python3 queue/bin/notchcast-ci.py apply src release
-      - name: Upstream tests
-        working-directory: src
-        run: ./Scripts/run-tests.sh
-      # run-tests.sh replays failed harness logs only when its dispatch finishes; a crash can stop that.
-      - name: Failed harness logs
-        if: failure()
-        run: |
-          for f in "${TMPDIR:-/tmp}"/tinycast-harness/*.failed; do
-            [ -e "$f" ] || continue
-            n="$(basename "$f" .failed)"; echo "::group::$n"; cat "${f%.failed}.log"; echo "::endgroup::"
-          done
+      - uses: ./queue/.github/actions/tests
       - name: Import the signing identity
         env:
           P12_BASE64: ${{ secrets.SIGNING_P12_BASE64 }}

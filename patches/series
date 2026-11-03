@@ -1,3 +1,4 @@
 # Applied in order on upstream (main or a release tag). *.patch: git am -3. *.sh: run in the tree, then committed with its first comment line as the message.
 0001-read-releases-from-notchcast.patch
 0002-remove-upstream-workflows.sh
+0003-launchagent-owns-launch-at-login.patch

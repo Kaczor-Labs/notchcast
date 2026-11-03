@@ -1,0 +1,67 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Notchcast <notchcast@users.noreply.github.com>
+Date: Tue, 3 Nov 2026 16:42:44 +0100
+Subject: [PATCH] Notchcast: let a LaunchAgent own starting the app
+
+The notchcast.app LaunchAgent starts the app at login and
+restarts it after a crash or Quit, with NOTCHCAST_LAUNCHD=1 in its
+environment. Under it, the SMAppService login item is unregistered at
+launch and cannot be turned back on, and Relaunch only quits: launchd
+starts the new process. Either would otherwise start a second instance.
+---
+ Tinycast/App/AppCore.swift            | 3 ++-
+ Tinycast/App/AppDelegate.swift        | 1 +
+ Tinycast/Platform/LaunchAtLogin.swift | 7 ++++++-
+ 3 files changed, 9 insertions(+), 2 deletions(-)
+
+diff --git a/Tinycast/App/AppCore.swift b/Tinycast/App/AppCore.swift
+index 6af5eefc..31a141f6 100644
+--- a/Tinycast/App/AppCore.swift
++++ b/Tinycast/App/AppCore.swift
+@@ -615,7 +615,8 @@ final class AppCore {
+         mcpOAuth.stop()
+         mcp.stop()
+         installedAI.stop()
+-        if relaunchRequested { RelaunchRunner.relaunchAfterExit(Bundle.main.bundleURL) }
++        // Under the LaunchAgent, launchd restarts the app; a second start would be a second instance.
++        if relaunchRequested, !LaunchAtLogin.managedByLaunchd { RelaunchRunner.relaunchAfterExit(Bundle.main.bundleURL) }
+     }
+ 
+     /// Only the tool whose own path or variables changed is checked again; the rest keep running.
+diff --git a/Tinycast/App/AppDelegate.swift b/Tinycast/App/AppDelegate.swift
+index 6aed41b0..eef8f8a8 100644
+--- a/Tinycast/App/AppDelegate.swift
++++ b/Tinycast/App/AppDelegate.swift
+@@ -9,6 +9,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
+     }
+ 
+     func applicationDidFinishLaunching(_ notification: Notification) {
++        if LaunchAtLogin.managedByLaunchd { LaunchAtLogin.set(false) }
+         AppCore.shared.start(launchedByUser: isUserLaunch)
+     }
+ 
+diff --git a/Tinycast/Platform/LaunchAtLogin.swift b/Tinycast/Platform/LaunchAtLogin.swift
+index f21dbece..2fa87144 100644
+--- a/Tinycast/Platform/LaunchAtLogin.swift
++++ b/Tinycast/Platform/LaunchAtLogin.swift
+@@ -1,11 +1,16 @@
+ import ServiceManagement
+ 
+ enum LaunchAtLogin {
++    /// Started by a LaunchAgent that keeps the app alive (Notchcast sets NOTCHCAST_LAUNCHD=1). The agent owns
++    /// starting at login, so the login item stays off: both would start a second instance.
++    static let managedByLaunchd = ProcessInfo.processInfo.environment["NOTCHCAST_LAUNCHD"] == "1"
++
+     static var isEnabled: Bool {
+-        SMAppService.mainApp.status == .enabled
++        !managedByLaunchd && SMAppService.mainApp.status == .enabled
+     }
+ 
+     static func set(_ enabled: Bool) {
++        let enabled = enabled && !managedByLaunchd
+         do {
+             if enabled {
+                 if SMAppService.mainApp.status != .enabled { try SMAppService.mainApp.register() }
+-- 
+2.54.0 (Apple Git-157)
+

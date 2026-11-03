@@ -1,8 +1,8 @@
 #!/bin/bash
-# Notchcast updater: install the newest kaczordodgers/notchcast release of the installed app's channel and restart it.
+# Notchcast updater: install the newest kaczordodgers/notchcast release of the installed app's channel and have its LaunchAgent restart it.
 # Runs from launchd (notchcast.update). It installs only a build whose bundle id matches the installed
 # app and whose leaf certificate is SIGN_SHA1, and only when the installed copy is not ours yet or its version differs
-# from the newest release. Once ours is installed, the in-app updater (patch 0001) also takes our releases.
+# from the newest release, then restarts notchcast.app. Once ours is installed, the in-app updater (patch 0001) also takes our releases.
 # It replaces only the .app bundle: the old one goes to the Trash; settings, data and Keychain items are never touched.
 # Usage: notchcast-update.sh [--dry-run] [app path]
 set -euo pipefail
@@ -65,15 +65,8 @@ codesign --verify --deep --strict "$NEW"
 [ "$(plist "$NEW" CFBundleShortVersionString)" = "$WANT" ] || { log "version mismatch; refusing"; exit 1; }
 [ "$(leaf_sha1 "$NEW")" = "$SIGN_SHA1" ] || { log "not signed by $SIGN_IDENTITY; refusing"; exit 1; }
 
-EXE="$APP/Contents/MacOS/$(plist "$APP" CFBundleExecutable)"
-RUNNING=0
-if pgrep -f "^$EXE( |$)" >/dev/null; then
-    RUNNING=1
-    osascript -e "tell application id \"$BUNDLE_ID\" to quit" >/dev/null 2>&1 || true
-    for _ in $(seq 1 20); do pgrep -f "^$EXE( |$)" >/dev/null || break; sleep 0.5; done
-    if pgrep -f "^$EXE( |$)" >/dev/null; then pkill -TERM -f "^$EXE( |$)" || true; sleep 2; fi
-fi
-# The old bundle goes to the Trash, never rm; a failed copy is trashed too and the old bundle put back.
+# The running app keeps running from its moved bundle until the agent restarts it on the new one.
+# The old bundle goes to the Trash, never rm; a failed copy is moved aside and the old bundle put back.
 TRASHED="$HOME/.Trash/$(basename "$APP" .app) $INSTALLED $(date +%Y%m%d-%H%M%S).app"
 mv "$APP" "$TRASHED"
 if ! ditto "$NEW" "$APP"; then
@@ -82,9 +75,12 @@ if ! ditto "$NEW" "$APP"; then
     log "copy failed; previous version restored"
     exit 1
 fi
-log "previous app moved to $TRASHED"
-log "installed $TAG at $APP"
-if [ "$RUNNING" = 1 ]; then
-    open "$APP"
-    log "relaunched"
+log "installed $TAG at $APP; previous app moved to $TRASHED"
+# The app is started only by its LaunchAgent (install-launchd.sh app), never here.
+AGENT="gui/$(id -u)/notchcast.app"
+if launchctl print "$AGENT" >/dev/null 2>&1; then
+    launchctl kickstart -k "$AGENT"
+    log "restarted $AGENT"
+else
+    log "$AGENT is not loaded; the new app starts at the next start of the agent (install-launchd.sh app)"
 fi
