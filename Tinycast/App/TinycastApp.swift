@@ -4,6 +4,9 @@ import SwiftUI
 enum TinycastLaunch {
     static func main() {
         BundleIdentifierMigration.run()
+        #if DEBUG
+        if NotchcastGallery.bootIfRequested() { return }
+        #endif
         AppSettings.pinLanguage()
         TinycastApp.main()
     }
