@@ -4,6 +4,7 @@ import SwiftUI
 enum TinycastLaunch {
     static func main() {
         BundleIdentifierMigration.run()
+        if NotchcastAppProof.runIfRequested() { return }
         #if DEBUG
         if NotchcastGallery.bootIfRequested() { return }
         #endif
