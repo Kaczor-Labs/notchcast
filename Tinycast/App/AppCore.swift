@@ -246,6 +246,7 @@ final class AppCore {
         core: self)
 
     @ObservationIgnored private lazy var windowController = PaletteWindowController(core: self)
+    @ObservationIgnored private(set) lazy var island = IslandCoordinator(core: self)
     @ObservationIgnored private lazy var messageHUD = MessageHUDController(settings: settings)
     private(set) var isShowingDialog = false
     /// A link that launched the app can arrive before `start` wires anything; it waits, then runs.
@@ -294,6 +295,7 @@ final class AppCore {
             dictationAudioDucker.recover()
             load()
             loadHotKeys()
+            island.start()
             pinnedEmoji.onPersistenceFailure = { [weak self] in
                 self?.showMessage(String(localized: "Couldn't save Emoji & Symbols pins"), tone: .danger)
             }
