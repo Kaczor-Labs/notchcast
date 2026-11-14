@@ -1,0 +1,184 @@
+name: Snapshot
+on:
+  push:
+    branches: [main]
+  schedule:
+    - cron: "7,27,47 * * * *"
+  workflow_dispatch:
+    inputs:
+      skip_gate:
+        description: Skip only the 50-minute snapshot gate
+        type: boolean
+        default: false
+permissions:
+  contents: read
+concurrency:
+  group: snapshot
+  cancel-in-progress: false
+jobs:
+  plan:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 65
+    outputs:
+      tag: ${{ steps.plan.outputs.tag }}
+      main: ${{ steps.plan.outputs.main }}
+      version: ${{ steps.plan.outputs.version }}
+      build: ${{ steps.plan.outputs.build }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: main
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Test snapshot planning
+        run: python3 notchcast/snapshot-test.py
+      - name: Plan snapshot, waiting for the gate on Linux
+        id: plan
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SKIP_GATE: ${{ inputs.skip_gate }}
+        run: python3 notchcast/snapshot.py
+  snapshot:
+    needs: plan
+    if: needs.plan.outputs.tag != ''
+    runs-on: xcode-27
+    timeout-minutes: 120
+    environment: sync
+    permissions:
+      contents: read
+      statuses: read
+    outputs:
+      tag: ${{ steps.plan.outputs.tag }}
+      main: ${{ steps.plan.outputs.main }}
+      version: ${{ steps.plan.outputs.version }}
+      green: ${{ steps.checks.outputs.green }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ needs.plan.outputs.main }}
+          path: src
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Plan snapshot
+        id: plan
+        env:
+          TAG: ${{ needs.plan.outputs.tag }}
+          MAIN: ${{ needs.plan.outputs.main }}
+          VERSION: ${{ needs.plan.outputs.version }}
+          BUILD: ${{ needs.plan.outputs.build }}
+        run: |
+          printf 'tag=%s\nmain=%s\nversion=%s\nbuild=%s\n' "$TAG" "$MAIN" "$VERSION" "$BUILD" >> "$GITHUB_OUTPUT"
+      - uses: actions/checkout@v7
+        if: steps.plan.outputs.tag != ''
+        with:
+          ref: ${{ steps.plan.outputs.main }}
+          path: tools
+          persist-credentials: false
+      - uses: ./tools/notchcast/actions/xcode
+        if: steps.plan.outputs.tag != ''
+      - uses: ./tools/notchcast/actions/xcodegen
+        if: steps.plan.outputs.tag != ''
+      - name: Find pristine upstream baseline
+        id: baseline
+        if: steps.plan.outputs.tag != ''
+        working-directory: src
+        run: |
+          bash ../tools/notchcast/fetch-upstream.sh
+          echo "upstream=$(git merge-base HEAD refs/remotes/upstream/main)" >> "$GITHUB_OUTPUT"
+      - name: Regenerate project
+        if: steps.plan.outputs.tag != ''
+        working-directory: src
+        run: '"$XCODEGEN" generate --quiet'
+      - name: Find a green tested status
+        id: tested
+        if: steps.plan.outputs.tag != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+          MAIN: ${{ steps.plan.outputs.main }}
+        run: |
+          source tools/notchcast/config.env
+          state=$(gh api "repos/$GITHUB_REPOSITORY/commits/$MAIN/status" \
+            --jq "[.statuses[] | select(.context == \"$TESTED_CONTEXT\")][0].state // empty") || state=
+          echo "green=$([ "$state" = success ] && echo true || echo false)" >> "$GITHUB_OUTPUT"
+      - uses: ./tools/notchcast/actions/tests
+        id: tests
+        if: steps.plan.outputs.tag != '' && steps.tested.outputs.green != 'true'
+        continue-on-error: true
+        with:
+          upstream: ${{ steps.baseline.outputs.upstream }}
+      - name: Lint
+        id: checks
+        if: steps.plan.outputs.tag != '' && (steps.tests.outcome == 'success' || steps.tested.outputs.green == 'true')
+        working-directory: src
+        run: |
+          command -v swiftlint >/dev/null || brew install --quiet swiftlint
+          if ./Scripts/lint.sh; then
+            echo "green=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "::notice::Snapshot skipped: harnesses or lint failed"
+          fi
+      - uses: ./tools/notchcast/actions/release
+        if: steps.checks.outputs.green == 'true'
+        with:
+          version: ${{ steps.plan.outputs.version }}
+          build: ${{ steps.plan.outputs.build }}
+          p12-base64: ${{ secrets.SIGNING_P12_BASE64 }}
+          p12-password: ${{ secrets.SIGNING_P12_PASSWORD }}
+      - name: Keep the build for the publish job
+        if: steps.checks.outputs.green == 'true'
+        uses: actions/upload-artifact@v7
+        with:
+          name: snapshot-dist
+          path: dist
+          if-no-files-found: error
+          retention-days: 7
+      - name: Fail when a planned snapshot was skipped
+        if: steps.plan.outputs.tag != '' && steps.checks.outputs.green != 'true'
+        env:
+          TESTS: ${{ steps.tests.outcome }}
+          LINT_GREEN: ${{ steps.checks.outputs.green }}
+        run: |
+          echo "::error::Snapshot not published: tests=$TESTS lint-green=${LINT_GREEN:-false}"
+          exit 1
+      - name: Remove signing material
+        if: always()
+        run: |
+          rm -f "$RUNNER_TEMP/deploy-key" "$RUNNER_TEMP/cert.p12"
+          if [ -f "$RUNNER_TEMP/signing.keychain-db" ]; then
+            security delete-keychain "$RUNNER_TEMP/signing.keychain-db"
+          fi
+  # Its own job, so "Re-run failed jobs" after a GitHub 5xx or SSH failure reuses the build above instead of rebuilding.
+  publish:
+    needs: snapshot
+    if: needs.snapshot.outputs.green == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment: sync
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ needs.snapshot.outputs.main }}
+          path: src
+          persist-credentials: false
+      - uses: actions/download-artifact@v8
+        with:
+          name: snapshot-dist
+          path: dist
+      - uses: ./src/notchcast/actions/deploy-key
+        with:
+          key: ${{ secrets.DEPLOY_KEY }}
+      - name: Tag and publish snapshot
+        working-directory: src
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ needs.snapshot.outputs.tag }}
+          MAIN: ${{ needs.snapshot.outputs.main }}
+          VERSION: ${{ needs.snapshot.outputs.version }}
+          DIST: ${{ github.workspace }}/dist
+        run: notchcast/publish-snapshot.sh
+      - name: Remove the deploy key
+        if: always()
+        run: rm -f "$RUNNER_TEMP/deploy-key"
