@@ -157,7 +157,7 @@ private final class InstalledCLITurnRunner {
         } catch {
             continuation.finish(
                 throwing: AIProviderError.unavailable(
-                    String(localized: "Tinycast could not prepare its private AI workspace.")))
+                    String(localized: "Notchcast could not prepare its private AI workspace.", table: "Notchcast")))
             return
         }
 
@@ -176,7 +176,7 @@ private final class InstalledCLITurnRunner {
                 activeServers = []
                 continuation.finish(
                     throwing: AIProviderError.unavailable(
-                        String(localized: "Tinycast could not write its private MCP configuration.")))
+                        String(localized: "Notchcast could not write its private MCP configuration.", table: "Notchcast")))
                 return
             }
             configURL = url
@@ -191,7 +191,7 @@ private final class InstalledCLITurnRunner {
                 try? FileManager.default.removeItem(at: url)
                 continuation.finish(
                     throwing: AIProviderError.unavailable(
-                        String(localized: "Tinycast could not write its private AI prompt.")))
+                        String(localized: "Notchcast could not write its private AI prompt.", table: "Notchcast")))
                 return
             }
             grokPrompt = url
@@ -204,7 +204,7 @@ private final class InstalledCLITurnRunner {
             } catch {
                 continuation.finish(
                     throwing: AIProviderError.unavailable(
-                        String(localized: "Tinycast could not write its private image attachments.")))
+                        String(localized: "Notchcast could not write its private image attachments.", table: "Notchcast")))
                 return
             }
             files += attachments
@@ -304,7 +304,7 @@ private final class InstalledCLITurnRunner {
         }
         // Framed as JSON, so a picture rides beside the text as a content block.
         guard let line = ClaudeControlProtocol.userMessage(prompt, images: images) else {
-            fail(String(localized: "Tinycast could not frame the request for \(kind.title)."))
+            fail(String(localized: "Notchcast could not frame the request for \(kind.title).", table: "Notchcast"))
             return
         }
         // A tool loop answers on the same pipe, so an armed turn keeps stdin open for it.
