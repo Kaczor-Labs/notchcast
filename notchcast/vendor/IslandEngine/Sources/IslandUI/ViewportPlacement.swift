@@ -27,17 +27,15 @@ private struct WindowBounds: NSViewRepresentable {
     final class Probe: NSView {
         override var isFlipped: Bool { true }
         var report: ((CGRect) -> Void)?
-        private var resizeObserver: (any NSObjectProtocol)?
+        private var resizeObserver: NotificationCenter.ObservationToken?
 
         override func viewDidMoveToWindow() {
             super.viewDidMoveToWindow()
             if let resizeObserver { NotificationCenter.default.removeObserver(resizeObserver) }
             resizeObserver = nil
             if let window {
-                resizeObserver = NotificationCenter.default.addObserver(
-                    forName: NSWindow.didResizeNotification, object: window, queue: .main
-                ) { [weak self] _ in
-                    MainActor.assumeIsolated { self?.scheduleReport() }
+                resizeObserver = NotificationCenter.default.addObserver(of: window, for: WindowDidResize.self) { [weak self] _ in
+                    self?.scheduleReport()
                 }
             }
             scheduleReport()
@@ -53,12 +51,10 @@ private struct WindowBounds: NSViewRepresentable {
         }
 
         func scheduleReport() {
-            RunLoop.main.perform { [weak self] in
-                MainActor.assumeIsolated { self?.reportBounds() }
-            }
+            RunLoop.main.perform(#selector(reportBounds), target: self, argument: nil, order: 0, modes: [.common])
         }
 
-        private func reportBounds() {
+        @objc private func reportBounds() {
             guard let root = window?.contentView else { return }
             let rect = convert(root.bounds, from: root)
             report?(rect)
