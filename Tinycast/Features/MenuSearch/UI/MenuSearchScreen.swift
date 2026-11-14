@@ -47,7 +47,7 @@ struct MenuSearchScreen: PaletteScreen {
         case .excluded(let name):
             EmptyResults(text: String(localized: "Menu search is turned off for \(name)"))
         case .selfTarget:
-            EmptyResults(text: String(localized: "Tinycast has no menu to search"))
+            EmptyResults(text: String(localized: "Notchcast has no menu to search", table: "Notchcast"))
         case .menuLess(let name):
             EmptyResults(text: String(localized: "\(name) has no menu bar to search"))
         case .noApplication:
