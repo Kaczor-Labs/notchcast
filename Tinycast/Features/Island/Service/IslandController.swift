@@ -13,9 +13,11 @@ final class IslandController: NSObject {
     private var observer: PanelObserver?
     private let clip = CAShapeLayer()
     private var overlays: [CGRect] = []
+    #if DEBUG
     private(set) var samples: [String] = []
     private var captureName: String?
     private(set) var captured: [String] = []
+    #endif
     var showsRest = true
     var onOpen: (() -> Void)? {
         didSet { canvas.onOpen = onOpen }
@@ -124,10 +126,13 @@ final class IslandController: NSObject {
         frameChanged()
     }
 
+    #if DEBUG
     func capture(_ name: String) {
         captureName = name
         _ = source.requestFrame {}
     }
+
+    #endif
 
     private func paintFrame() {
         guard let layout, let surface else { return }
@@ -148,6 +153,7 @@ final class IslandController: NSObject {
            abs(bounds.width - (layout.hasNotch ? layout.notch.width : Theme.Size.islandRest.width)) < 0.01 {
             backdrop.orderOut(nil)
         }
+        #if DEBUG
         if IslandVerification.enabled, let panel {
             let expected = canvas.outline?.boundingBoxOfPath.offsetBy(
                 dx: backdrop.frame.minX, dy: backdrop.frame.minY) ?? .zero
@@ -160,16 +166,22 @@ final class IslandController: NSObject {
             samples.append("\(CACurrentMediaTime())\t\(panel.frame)\t\(backdrop.frame)\t\(expected)\t\(actual)\t\(error)")
             if let captureName {
                 self.captureName = nil
-                #if DEBUG
                 IslandVerification.capture(captureName, backdrop: backdrop, panel: panel)
                 captured.append(captureName)
-                #endif
             }
         }
+        #endif
     }
 
+    #if DEBUG
     var frameIntervals: [Double] { source.intervals }
     var frameCPU: [Double] { source.cpuMilliseconds }
+
+    var backdropWindow: NSWindow { backdrop }
+    var outlineBounds: CGRect { canvas.outline?.boundingBoxOfPath ?? .zero }
+    var overlayCount: Int { overlays.count }
+    func pressBackdrop() -> Bool { canvas.accessibilityPerformPress() }
+    #endif
 
     isolated deinit {
         backdrop.orderOut(nil)
