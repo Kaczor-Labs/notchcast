@@ -3,6 +3,9 @@ import SwiftUI
 @main
 enum TinycastLaunch {
     static func main() {
+        #if DEBUG
+        if IslandVerification.enabled { IslandVerification.main(); return }
+        #endif
         BundleIdentifierMigration.run()
         AppSettings.pinLanguage()
         TinycastApp.main()
