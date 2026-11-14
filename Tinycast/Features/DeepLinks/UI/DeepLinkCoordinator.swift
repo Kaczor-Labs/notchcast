@@ -125,7 +125,7 @@ final class DeepLinkCoordinator {
     // MARK: - Running
 
     private func reportUnknownLink() {
-        core.showMessage(String(localized: "Tinycast can’t open this link"), tone: .danger)
+        core.showMessage(String(localized: "Notchcast can’t open this link", table: "Notchcast"), tone: .danger)
     }
 
     /// The gate hotkeys use, reported rather than silent: a link has no other way to say no.
@@ -231,10 +231,10 @@ final class DeepLinkCoordinator {
     private func askConsent(name: String, input: DeepLinkInput) async -> ConsentChoice {
         let message =
             input.isEmpty
-            ? String(localized: "An app or web page asked Tinycast to run this. Allow only links you trust.")
+            ? String(localized: "An app or web page asked Notchcast to run this. Allow only links you trust.", table: "Notchcast")
             : String(
                 localized: """
-                    An app or web page asked Tinycast to run this with “\(input.summary)”. \
+                    An app or web page asked Notchcast to run this with “\(input.summary)”. \
                     Allow only links you trust.
                     """)
         let answer = await core.choose(

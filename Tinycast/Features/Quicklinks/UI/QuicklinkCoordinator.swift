@@ -205,7 +205,7 @@ final class QuicklinkCoordinator {
         core.showMessage(
             Permissions.isAccessibilityTrusted()
                 ? String(localized: "Couldn’t get the selected text")
-                : String(localized: "Allow Tinycast to use Accessibility in System Settings"),
+                : String(localized: "Allow Notchcast to use Accessibility in System Settings", table: "Notchcast"),
             tone: .danger)
     }
 
@@ -449,7 +449,7 @@ final class QuicklinkCoordinator {
                 symbol: Quicklink.sfSymbol, tone: .neutral)
             return
         }
-        guard let url = BackupActions.chooseSaveLocation(named: "Tinycast-Quicklinks") else {
+        guard let url = BackupActions.chooseSaveLocation(named: "Notchcast-Quicklinks") else {
             return
         }
         do {

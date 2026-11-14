@@ -180,28 +180,28 @@ final class CodexAppServerClient {
             throw ClientError.launchFailed(
                 String(
                     localized: """
-                        Tinycast could not read which MCP servers your Codex configuration runs, so it \
-                        could not keep them out of the chat. Run \u{201C}codex mcp list\u{201D} in \
+                        Notchcast could not read which MCP servers your Codex configuration runs, so it \
+                        could not keep them out of the chat. Run “codex mcp list” in \
                         Terminal to see why.
-                        """))
+                        """, table: "Notchcast"))
         }
         try checkNotStopped(since: generation)
         if let name = CodexMCPLaunch.unaddressableName(foreign) {
             throw ClientError.launchFailed(
                 String(
                     localized: """
-                        Your Codex MCP server \u{201C}\(name)\u{201D} cannot be kept out of a Tinycast \
+                        Your Codex MCP server “\(name)” cannot be kept out of a Notchcast \
                         chat, because a dot or an equals sign in its name cannot be addressed. Rename it \
                         in your Codex configuration.
-                        """))
+                        """, table: "Notchcast"))
         }
         if let taken = CodexMCPLaunch.takenName(servers: toolServers, foreignNames: foreign) {
             throw ClientError.launchFailed(
                 String(
                     localized: """
-                        Your Codex configuration has its own MCP server named \u{201C}\(taken)\u{201D}. \
-                        Rename it to use this Tinycast server with Codex.
-                        """))
+                        Your Codex configuration has its own MCP server named “\(taken)”. \
+                        Rename it to use this Notchcast server with Codex.
+                        """, table: "Notchcast"))
         }
         let process = Process()
         let stdin = Pipe()

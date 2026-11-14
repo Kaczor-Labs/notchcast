@@ -100,8 +100,8 @@ struct FileSearchScreen: PaletteScreen {
                 detail: String(
                     localized: """
                         File Search indexes your whole disk. Press ↵ to open Privacy & Security, \
-                        then turn on Tinycast under Full Disk Access.
-                        """),
+                        then turn on Notchcast under Full Disk Access.
+                        """, table: "Notchcast"),
                 systemImage: "lock.shield")
         } else if !indexer.hasIndex, case .building(let items) = indexer.status {
             EmptyResults(
