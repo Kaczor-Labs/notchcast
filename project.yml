@@ -61,7 +61,7 @@ targets:
       # The MIT mark's licence asks the notice to travel with the binary, not just the repo.
       - path: NOTICE.md
         buildPhase: resources
-      - path: notchcast/IslandEngine-LICENSE.txt
+      - path: notchcast/vendor/IslandEngine/LICENSE
         buildPhase: resources
     dependencies:
       - package: IslandEngine
