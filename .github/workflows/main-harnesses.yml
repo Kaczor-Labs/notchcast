@@ -1,0 +1,104 @@
+name: Main harnesses
+
+on:
+  push:
+    branches-ignore: [main, 'train/**']
+  workflow_dispatch:
+    inputs:
+      all:
+        description: Run every harness, not only the ones the branch changed (load test)
+        type: boolean
+        default: false
+      shards:
+        description: Shards for an all run, 1 to 9
+        type: number
+        default: 4
+
+permissions:
+  contents: read
+
+# Per event, so a push never cancels a dispatched run: only a newer push replaces a push run.
+concurrency:
+  group: main-harnesses-${{ github.event_name }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'push' }}
+
+jobs:
+  # On Linux, so a macOS runner is spent only on shards that have harnesses to run.
+  plan:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      actions: read
+    outputs:
+      tests: ${{ steps.shards.outputs.tests }}
+      shards: ${{ steps.shards.outputs.shards }}
+      runners: ${{ steps.route.outputs.runners }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Changed harnesses
+        if: ${{ !(github.event_name == 'workflow_dispatch' && inputs.all) }}
+        run: |
+          git fetch -q origin '+refs/notchcast/synced/*:refs/notchcast/synced/*'
+          BEFORE=$(bash notchcast/fork-point.sh origin/main HEAD)
+          ./notchcast/changed-harnesses.sh "$BEFORE" "$GITHUB_SHA" > "$RUNNER_TEMP/selected"
+          cat "$RUNNER_TEMP/selected"
+      # About 40 harnesses compile in the time one more runner takes to start; at most 3 run beside a PR's checks job.
+      # An all run has no selection: an empty tests output runs the whole suite, split by name over the shards.
+      - name: Shards
+        id: shards
+        env:
+          ALL: ${{ github.event_name == 'workflow_dispatch' && inputs.all }}
+          REQUESTED: ${{ inputs.shards }}
+        run: |
+          if [ "$ALL" = true ]; then
+            case "$REQUESTED" in [1-9]) shards=$REQUESTED ;; *) echo "::error::shards must be 1 to 9, not '$REQUESTED'"; exit 1 ;; esac
+            tests=
+            echo "all harnesses in $shards shard(s)"
+          else
+            count=$(grep -c . "$RUNNER_TEMP/selected" || true)
+            shards=$(( (count + 39) / 40 ))
+            [ "$shards" -le 3 ] || shards=3
+            tests=$(tr '\n' ' ' < "$RUNNER_TEMP/selected")
+            echo "$count harnesses in $shards shard(s)"
+          fi
+          echo "tests=$tests" >> "$GITHUB_OUTPUT"
+          echo "shards=[$(seq -s, 0 $((shards - 1)))]" >> "$GITHUB_OUTPUT"
+          echo "count=$shards" >> "$GITHUB_OUTPUT"
+      - id: route
+        uses: ./notchcast/actions/route
+        with:
+          count: ${{ steps.shards.outputs.count }}
+          idle: |
+            ${{ vars.NOTCHCAST_IDLE_MBA }}
+            ${{ vars.NOTCHCAST_IDLE_MBP }}
+  harnesses:
+    needs: plan
+    # An empty selection skips this job and the run still concludes success; an empty matrix would fail it.
+    if: ${{ needs.plan.outputs.shards != '[]' }}
+    runs-on: ${{ fromJSON(needs.plan.outputs.runners)[matrix.shard] }}
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: ${{ fromJSON(needs.plan.outputs.shards) }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          path: tools
+          persist-credentials: false
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          path: src
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: ./tools/notchcast/actions/xcode
+      - name: Run harnesses, retry failures alone
+        uses: ./tools/notchcast/actions/tests
+        with:
+          only: ${{ needs.plan.outputs.tests }}
+          shard: ${{ matrix.shard }} ${{ strategy.job-total }}
+          cache: push-${{ matrix.shard }}of${{ strategy.job-total }}
