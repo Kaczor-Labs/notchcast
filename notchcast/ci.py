@@ -452,7 +452,9 @@ def app_info(tag, out_dir):
     cfg = config()
     with tempfile.TemporaryDirectory() as tmp:
         run("gh", "release", "download", tag, "-R", cfg["UPSTREAM_REPO"], "-D", tmp, "-p", "Tinycast-[0-9]*.zip")
-        zips = [z for z in Path(tmp).glob("Tinycast-*.zip") if "-Universal-" not in z.name]
+        # -Handoff.zip is upstream's bundle-id bridge for its own in-app updater (v0.12.15), not the app.
+        zips = [z for z in Path(tmp).glob("Tinycast-*.zip")
+                if "-Universal-" not in z.name and not z.name.endswith("-Handoff.zip")]
         if len(zips) != 1:
             sys.exit(f"expected one thin zip in upstream {tag}, found {[z.name for z in zips]}")
         listing = run("zipinfo", "-1", str(zips[0])).splitlines()
