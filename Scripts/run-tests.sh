@@ -8,6 +8,8 @@ SELF="$(cd "$(dirname "$0")" && pwd)/$(basename "$0")"
 cd "$(dirname "$0")/.." || exit 1
 
 BIN="${TMPDIR:-/tmp}/tinycast-harness"
+# Fork: one harness dir per checkout, so worktrees never share a suite lock; CI keeps the plain path.
+[ -n "${CI:-}" ] || BIN="$BIN-$(pwd -P | shasum | cut -c1-8)"
 mkdir -p "$BIN"
 
 # `--exec` is the worker half: xargs re-enters here once per queued harness.
@@ -23,6 +25,7 @@ if [ "${1:-}" = "--exec" ]; then
         exit 0
     }
     TIMEFORMAT=%1R
+    source notchcast/command-harness-sources.sh
     if ! compiled=$( { time swiftc -swift-version 6 "$opt" "$@" "Tests/$name.swift" -o "$BIN/$name" > "$BIN/$name.log" 2>&1; } 2>&1 ); then
         fail "did not compile"
     fi
@@ -936,6 +939,7 @@ run slow MCPStdioTests     Tinycast/Platform/ExecutableLocator.swift \
                            Tinycast/Features/AI/Model/JSONValue.swift \
                            Tinycast/Features/MCP/Model/*.swift \
                            Tinycast/Features/MCP/Service/*.swift
+source notchcast/test-harnesses.sh
 
 if [ "$emit_db" -eq 1 ]; then
     printf ']\n' >> "$DB"
