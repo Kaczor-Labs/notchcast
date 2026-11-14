@@ -6,6 +6,8 @@ The shell keeps the stock `PalettePanel`, content view, first responder and pale
 
 The engine receives fixed native sizes rather than SwiftUI content. Palette content mounts once in its stock panel, with root glass disabled and lagoon accent tint applied at the root. Stage width follows native resizing through `IslandSurface.resize`. The outline radius stays 26 points at interface scales 1, 1.1 and 1.2; content and stock internal metrics scale normally. The 1100 by 860 point host fits the 900-point-wide scale-1.2 panel. A notched screen profile derives its sensor width from the auxiliary menu-bar areas and its height from the top safe-area inset; live notch behavior remains unverified.
 
+Stock `show()` also resets the level when re-showing a keyed panel for a mode change. A deferred level observation restores the island level and top origin only while the panel is key and no modal is running; it does not require another key notification. Equal level and origin writes are skipped so restoration cannot schedule itself indefinitely.
+
 One engine frame callback paints the native alpha-backed outline and updates the panel content layer mask in one Core Animation transaction. Move and resize notifications update the target synchronously. WindowServer uses the painted alpha for click routing, while AppKit hit testing checks the current engine outline at event time. There is no timer, pointer polling or event-routing toggle. Engine callbacks stop after settling; typing does not remeasure or animate the island.
 
 ## Verification boundary
