@@ -1,0 +1,7 @@
+name: Select Xcode 27
+description: The newest released Xcode 27.x on the runner (real folders only; a symlink can point at a release candidate).
+runs:
+  using: composite
+  steps:
+    - shell: bash
+      run: source "$GITHUB_ACTION_PATH/../../ci-xcode.sh"
