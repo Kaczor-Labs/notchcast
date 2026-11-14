@@ -103,9 +103,9 @@ final class AppCore {
                 title: String(localized: "Enable Dictation?"),
                 message: String(
                     localized: """
-                        Tinycast needs microphone access for dictation and Accessibility to paste into \
+                        Notchcast needs microphone access for dictation and Accessibility to paste into \
                         other apps. Audio is processed on this Mac.
-                        """),
+                        """, table: "Notchcast"),
                 symbol: "waveform", confirmTitle: String(localized: "Continue"), tone: .neutral,
                 confirmRole: .standard)
         },
@@ -506,12 +506,12 @@ final class AppCore {
     private func reportInstall(_ report: UpdateCheckStore.InstallReport?) {
         switch report {
         case .installed(let version):
-            showMessage(String(localized: "Updated to Tinycast \(version.description)"))
+            showMessage(String(localized: "Updated to Notchcast \(version.description)", table: "Notchcast"))
         case .notInstalled(let version):
             showMessage(
                 String(
                     localized: """
-                        Tinycast \(version.description) could not be installed. \
+                        Notchcast \(version.description) could not be installed. \
                         Check for updates to try again.
                         """),
                 tone: .danger)
@@ -898,8 +898,8 @@ final class AppCore {
         Task {
             guard
                 await confirm(
-                    title: String(localized: "Relaunch Tinycast?"),
-                    message: String(localized: "The new language applies after Tinycast relaunches."),
+                    title: String(localized: "Relaunch Notchcast?", table: "Notchcast"),
+                    message: String(localized: "The new language applies after Notchcast relaunches.", table: "Notchcast"),
                     symbol: "globe", confirmTitle: String(localized: "Relaunch"), tone: .neutral,
                     confirmRole: .standard, dismissTitle: String(localized: "Later")),
                 isLanguagePending

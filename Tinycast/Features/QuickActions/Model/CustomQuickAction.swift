@@ -50,8 +50,8 @@ enum CustomQuickActionError: Error, LocalizedError, Equatable {
         case .emptyName: return String(localized: "Give the action a name.")
         case .emptyInstructions: return String(localized: "Tell the model what the action should do.")
         case .invalidCharacter:
-            return String(localized: "The name contains a character Tinycast can't store.")
-        case .storageUnavailable: return String(localized: "Tinycast couldn't save to its actions file.")
+            return String(localized: "The name contains a character Notchcast can't store.", table: "Notchcast")
+        case .storageUnavailable: return String(localized: "Notchcast couldn't save to its actions file.", table: "Notchcast")
         }
     }
 }

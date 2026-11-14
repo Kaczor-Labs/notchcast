@@ -11,7 +11,7 @@ struct CalendarSettingsView: View {
         Form {
             FeatureSwitchSection(
                 anchor: .calendarCalendar,
-                enableTitle: "Join meetings from Tinycast",
+                enableTitle: LocalizedStringResource("Join meetings from Notchcast", table: "Notchcast"),
                 enableSubtitle: enableSubtitle,
                 isEnabled: enabledBinding,
                 showsInLauncher: $settings.calendarShowInLauncher,
@@ -89,7 +89,7 @@ struct CalendarSettingsView: View {
                     }
                 } label: {
                     SettingsRowTitle(.calendarMenuBar, "Calendar in Menu Bar")
-                    Text("Separate from the Tinycast icon.")
+                    Text("Separate from the Notchcast icon.", tableName: "Notchcast")
                 }
                 Picker(selection: $settings.calendarSpan) {
                     ForEach(MeetingSpan.allCases) { span in
