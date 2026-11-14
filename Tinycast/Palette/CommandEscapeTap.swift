@@ -40,6 +40,9 @@ final class CommandEscapeTap {
     }
 
     func enable() {
+        #if DEBUG
+        if ProcessInfo.processInfo.arguments.contains("--island-verify") { return }
+        #endif
         guard session?.isActive != true else { return }
         let session = Session(onChord: onChord)
         self.session = session

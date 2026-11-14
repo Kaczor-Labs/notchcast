@@ -4,6 +4,9 @@ import SwiftUI
 enum TinycastLaunch {
     static func main() {
         LaunchedExecutable.pin()
+        #if DEBUG
+        if ProcessRole.current == .main, IslandVerification.enabled { IslandVerification.main(); return }
+        #endif
         AppSettings.pinLanguage()
         switch ProcessRole.current {
         case .main: TinycastApp.main()
