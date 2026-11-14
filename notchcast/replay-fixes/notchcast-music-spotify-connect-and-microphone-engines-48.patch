@@ -1,0 +1,47 @@
+diff --git a/project.yml b/project.yml
+index aa49325..22bdd86 100644
+--- a/project.yml
++++ b/project.yml
+@@ -50,6 +50,7 @@ targets:
+           - Features/Dictation/Helper
+           - Features/FileSearch/Helper
+           - Migrations/Handoff
++          - Features/Music/NowPlayingAdapter
+           - Resources/EmojiKeywords
+       # A folder reference keeps the packs in their own directory, which `EmojiIndex` lists.
+       - path: Tinycast/Resources/EmojiKeywords
+@@ -57,7 +58,16 @@ targets:
+       # The MIT mark's licence asks the notice to travel with the binary, not just the repo.
+       - path: NOTICE.md
+         buildPhase: resources
++      - path: Tinycast/Features/Music/NowPlayingAdapter/now-playing.pl
++        buildPhase: resources
+     dependencies:
++      - target: NowPlayingAdapter
++        link: false
++        embed: true
++        codeSign: true
++        copy:
++          destination: wrapper
++          subpath: Contents/Helpers
+       - target: DictationHelper
+         link: false
+         embed: false
+@@ -182,3 +192,17 @@ targets:
+         PRODUCT_MODULE_NAME: TinycastHandoff
+         ASSETCATALOG_COMPILER_APPICON_NAME: tinycast
+         SKIP_INSTALL: YES
++
++  NowPlayingAdapter:
++    type: library.dynamic
++    platform: macOS
++    productName: libNowPlayingAdapter
++    sources:
++      - path: Tinycast/Features/Music/NowPlayingAdapter
++        excludes: [now-playing.pl]
++      - Tinycast/Platform/NotificationToken.swift
++    settings:
++      base:
++        PRODUCT_MODULE_NAME: NowPlayingAdapter
++        EXECUTABLE_NAME: libNowPlayingAdapter.dylib
++        SKIP_INSTALL: YES
