@@ -1,0 +1,35 @@
+# Island shell
+
+The shell keeps the stock `PalettePanel`, content view, first responder and palette-sized frame. Stock `show()`, `hide()`, paste-target capture, input-source sessions, focus restoration and cleanup execute unchanged. A separate non-activating backdrop paints an opaque black engine outline and never becomes key. Native window coordinates remain authoritative for menus, field editors, cursor rectangles, share anchors and placement readers; no content-rectangle adapter is needed.
+
+`AppCore` owns `IslandCoordinator`. It creates one backdrop per screen, rebuilds on screen-parameter changes, shows the rest pill on the primary screen and opens on the pointer screen. A visible palette retains its screen across mode changes. Persisted stock placement is ignored. The backdrop is above the menu bar and the palette immediately above it; the module restores that level before positioning and after the stock key-window delegate resets it. This avoids AppKit constraining a re-shown panel below the menu bar. The base stack pins dragging off and hides placement settings, so drop guides stay off. Compact mode uses the expanded engine state at the native compact panel size, including its stock rendering outset.
+
+The engine receives fixed native sizes rather than SwiftUI content. Palette content mounts once in its stock panel, with root glass disabled and lagoon accent tint applied at the root. Stage width follows native resizing through `IslandSurface.resize`. The outline radius stays 26 points at interface scales 1, 1.1 and 1.2; content and stock internal metrics scale normally. The 1100 by 860 point host fits the 900-point-wide scale-1.2 panel. A notched screen profile derives its sensor width from the auxiliary menu-bar areas and its height from the top safe-area inset; live notch behavior remains unverified.
+
+One engine frame callback paints the native alpha-backed outline and updates the panel content layer mask in one Core Animation transaction. Move and resize notifications update the target synchronously. WindowServer uses the painted alpha for click routing, while AppKit hit testing checks the current engine outline at event time. There is no timer, pointer polling or event-routing toggle. Engine callbacks stop after settling; typing does not remeasure or animate the island.
+
+## Verification boundary
+
+Debug argument `--island-verify` enters a separate application delegate before migrations, normal scenes or `AppCore.start`. It requires bundle identifier `com.tinycast.app.v2shell` and an `Agent Test` display, pins AppKit appearance to dark and bypasses normal startup services. A nine-second independent watchdog exits with code 124. Failed expectations print to stderr and exit with code 1. The stock command-Escape event tap is disabled for this Debug argument, so making the native panel key cannot request a global event-listening grant. The caller also uses a restricted sandbox denying network and Apple Events, with writes limited to scratch and the isolated app channel.
+
+Live checks run only through scratch `vdisplay with --beside-monitor -- <command>`, one wrapper at a time. A wrapper lock exit of 3 requires waiting and retrying. A physical-screen blackout or failed restoration stops live work. Neither display capture nor Screen Recording permission is used.
+
+At several engine callbacks the proof records both AppKit window frames and both transformed outline bounds, renders each window's own layer tree into a separate bitmap, then composites those bitmaps at their real frames over diagnostic gray. Separate buffers preserve transparency because `CALayer.render(in:)` clears its destination. This proves layer state, not WindowServer composition or presentation latency. The initial gate passed with 211 frame samples, maximum coordinate disagreement 2.2737367544323206e-13 points, and inspected composites for rest, open start/middle/end, compact, expand, scale-1.2 resize middle and close middle. Later stock-lifecycle scene captures also check the native panel top against the screen top.
+
+The unchanged keyboard harness passed live under the wrapper: `PASS: palette keyboard contract (122 checks)`. `Tests/nc-Island-layout-test.swift` compiles the shipped pure geometry source and checks screen/notch/scale anchoring and flipped/native coordinate transforms. The fork stack supplies the engine pin, look tokens, dark/drag pins and unchanged keyboard harness. Upstream harnesses also run locally.
+
+Latency uses the prototype protocol: five alternating stock/island runs, 60 insert/delete events each after warmup, actual local app-index rows, and a clock from in-process `NSEvent` delivery through the updated root body, native layout/display and `CATransaction.flush`. This is CPU input-to-frame-submission latency, not input-to-photon latency. Callback interval and process CPU samples are collected separately from PNG capture. Pooled results were stock median 28.147 ms / p90 39.983 ms, island median 28.358 ms / p90 40.139 ms (300 samples each, 226 indexed apps). The 0.211 ms median difference is smaller than run-to-run variation; this does not establish a regression. Callback intervals were median 16.682 ms / p90 17.381 ms, despite the test mode reporting 75 Hz. Whole-process CPU accumulated during callbacks was median 2.018 ms / p90 3.570 ms; this includes concurrent process work and is not exclusive engine CPU. There were zero engine animation callbacks during all five timed typing sequences. Both variants include the same Debug instrumentation and forced layout. Live native events passed typing, arrows, Enter opening an internal command, Escape returning through the stack then closing, Tab screen navigation and form field focus; the action-menu shortcut is checked with the menu delivery.
+
+## Upstream hooks
+
+| Source | Purpose |
+| --- | --- |
+| `AppCore.swift` | Own and start the island module. |
+| `TinycastApp.swift` | Enter the isolated Debug verification path before normal startup. |
+| `CommandEscapeTap.swift` | Disable the global event tap for the isolated Debug path. |
+| `PaletteWindowController.swift` | Replace only `positionPanel`'s anchor lookup. |
+| `RootPaletteView.swift` | Disable root glass, apply island accent and observe Debug frame submission. |
+
+`PalettePanel`, `MenuPanel`, all stock feature screens, and stock show/hide methods are unchanged. The rejected replacement of `PalettePanel.contentView` by a large island canvas was dropped. Native panel geometry makes its proposed coordinate adapter unnecessary. Questions, reports and menus remain the next delivery steps.
+
+Not verified: real key focus without activation, IME and dead keys, VoiceOver, drag and drop, tooltips, outside click, full-screen Spaces, physical notch fusion, real two-screen pointer interaction, WindowServer presentation, and the compositor glass rim over black. Own-layer pictures cannot establish the last two.

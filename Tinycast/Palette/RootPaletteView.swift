@@ -325,6 +325,7 @@ struct RootPaletteView: View {
         // Resolve the screen once per render, so the flat index can't drift from the rows.
         let screen = screen
         let count = screen.rows.count
+        IslandLatency.rendered(query: vm.query, rows: count)
         let sel = selection(count: count)
         // An extension's Form has no rows to count, but ↵ still acts.
         let showActionGroup =
@@ -365,7 +366,7 @@ struct RootPaletteView: View {
                 .background(isCollapsed ? .clear : Theme.Colors.panelScrim)
                 // Square, as rounded glass feathers its edge; the clip alone cuts a crisp corner.
                 .background {
-                    Color.clear.glassEffect(isCollapsed ? .identity : .regular, in: Rectangle())
+                    Color.clear.glassEffect(IslandVerification.stock ? .regular : .identity, in: Rectangle())
                 }
                 .overlay {
                     Theme.Colors.dialogDimming
@@ -387,6 +388,7 @@ struct RootPaletteView: View {
             selection: sel
         )
         .padding(renderingOutset)
+        .tint(IslandChrome.accent)
     }
 
     /// The emoji grid's observers, split out so `stateObservers` stays within type-checker reach.
