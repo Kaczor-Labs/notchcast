@@ -36,10 +36,16 @@ public final class DisplayLinkFrameSource: FrameSource {
 
         override func viewDidMoveToWindow() {
             super.viewDidMoveToWindow()
+            // KVO's handler is @Sendable, so the main actor resumes on the run loop's next pass.
             visibility = window?.observe(\.isVisible) { [weak self] _, _ in
-                MainActor.assumeIsolated { self?.source?.updateScreen() }
+                guard let self else { return }
+                RunLoop.main.perform(#selector(visibilityChanged), target: self, argument: nil, order: 0, modes: [.common])
             }
             source?.updateRoot(self)
+        }
+
+        @objc private func visibilityChanged() {
+            source?.updateScreen()
         }
 
         override func viewDidHide() {
@@ -71,7 +77,7 @@ public final class DisplayLinkFrameSource: FrameSource {
     }
     private var hostRoot: Root?
     private var roots: [WeakRoot] = []
-    private var observers: [NSObjectProtocol] = []
+    private var observers: [NotificationCenter.ObservationToken] = []
     private(set) var screen: Screen?
     var screenForWindow: (NSWindow) -> Screen? = { Screen($0.screen) }
     var connected: (Screen) -> Bool = { screen in NSScreen.screens.contains { $0 === screen.display } }
@@ -82,14 +88,11 @@ public final class DisplayLinkFrameSource: FrameSource {
 
     public init(host: NSView? = nil) {
         relay.source = self
-        let names = [
-            NSWindow.didChangeScreenNotification, NSWindow.didMiniaturizeNotification, NSWindow.didDeminiaturizeNotification,
-            NSApplication.didChangeScreenParametersNotification,
+        let messages: [any MainActorNotification.Type] = [
+            WindowDidChangeScreen.self, WindowDidMiniaturize.self, WindowDidDeminiaturize.self, ScreenParametersDidChange.self,
         ]
-        observers = names.map { name in
-            NotificationCenter.default.addObserver(forName: name, object: nil, queue: .main) { [weak self] _ in
-                MainActor.assumeIsolated { self?.updateScreen() }
-            }
+        observers = messages.map { message in
+            NotificationCenter.default.addObserver(for: message) { [weak self] _ in self?.updateScreen() }
         }
         self.host = host
         hostRoot = host.map { track($0) }
