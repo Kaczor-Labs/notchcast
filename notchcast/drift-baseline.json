@@ -1,0 +1,22 @@
+{
+  "alerts": {
+    "Process()": 9,
+    "Task.sleep": 89,
+    "cancellation-loops": 22,
+    "file-lines": 349,
+    "fix-no-test": 0,
+    "test-lines": 549,
+    "tool-paths": 94,
+    "try?": 233,
+    "upstream-patch-lines": 664,
+    "waivers": 0
+  },
+  "boundaries": {},
+  "clones": {},
+  "constants": {},
+  "core-lookups": {},
+  "dead": {},
+  "file-size": {},
+  "test-only": {},
+  "upstream-folders": {}
+}
