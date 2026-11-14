@@ -40,6 +40,13 @@ enum IslandWindowScenes {
         IslandVerification.require(core.island.active === controller && panel.frame == frame
                                    && controller.outlineBounds == outline,
                                    "screen notification retains controller, native frame and expanded outline")
+        core.paletteCoordinator.showPalette(mode: .clipboard)
+        await IslandVerification.pause(0.2)
+        IslandVerification.require(panel.level.rawValue == backdrop.level.rawValue + 1
+            && abs(panel.frame.maxY - screen.frame.maxY + IslandController.notch(on: screen).height) < 0.01,
+                                   "mode re-show restores level and top without a new key notification")
+        IslandVerification.require(!controller.pressBackdrop() && core.palette.mode == .clipboard,
+                                   "expanded backdrop preserves clipboard mode")
         core.paletteCoordinator.hidePalette(restoreFocus: false)
         await IslandVerification.pause(0.6)
         let settings = NSWindow(contentRect: CGRect(x: screen.frame.midX - 200, y: screen.frame.midY - 150,

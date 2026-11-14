@@ -137,9 +137,10 @@ final class IslandController: NSObject {
 
     private func restoreLevel() {
         guard let panel, let layout, panel.isKeyWindow, NSApp.modalWindow == nil else { return }
-        panel.level = Self.paletteLevel
-        panel.setFrameOrigin(CGPoint(x: layout.screen.midX - panel.frame.width / 2,
-                                     y: layout.screen.maxY - layout.contentTop - panel.frame.height))
+        if panel.level != Self.paletteLevel { panel.level = Self.paletteLevel }
+        let origin = CGPoint(x: layout.screen.midX - panel.frame.width / 2,
+                             y: layout.screen.maxY - layout.contentTop - panel.frame.height)
+        if panel.frame.origin != origin { panel.setFrameOrigin(origin) }
         frameChanged()
     }
 
@@ -228,10 +229,14 @@ final class IslandController: NSObject {
                 name: NSWindow.didBecomeKeyNotification, object: panel)
             level = panel.observe(\.level) { [weak self] _, _ in
                 guard let self else { return }
-                RunLoop.main.perform(#selector(update), target: self, argument: nil, order: 0, modes: [.common])
+                RunLoop.main.perform(#selector(updateLevel), target: self, argument: nil, order: 0, modes: [.common])
             }
         }
         @objc private func update() { changed() }
+        @objc private func updateLevel() {
+            becameKey()
+            changed()
+        }
         @objc private func keyChanged() {
             Task { @MainActor [weak self] in self?.becameKey() }
         }
