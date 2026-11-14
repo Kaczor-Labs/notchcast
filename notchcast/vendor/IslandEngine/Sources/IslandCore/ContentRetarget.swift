@@ -2,7 +2,7 @@ import Foundation
 
 extension ContentStage {
     /// The upstream retarget: measures, moves the shape, and starts the content's presences.
-    mutating func place(_ scene: ContentScene, _ raw: ContentMeasures, now: Double) -> Bool {
+    mutating func place(_ scene: ContentScene, _ raw: ContentMeasures, now: Double, animateResize: Bool = false) -> Bool {
         shapeTransition = nil
         let changedAt = now
         let keyChanging = last.key != nil && !sameString(last.key, scene.key)
@@ -17,7 +17,7 @@ extension ContentStage {
         let keyChanged = !sameString(prev.key, scene.key)
         let change = scene.change
         let changeStamped = change != nil && change!.id != prev.changeId
-        let instant = first || (changeStamped && change!.instant) || prev.width != width
+        let instant = first || (changeStamped && change!.instant) || (prev.width != width && !animateResize)
         let startMs = (keyChanged || changeStamped) && change != nil ? change!.at : now
         let pressChanged = prev.pressed != scene.pressed
         let mode: MotionMode = instant ? .instant : reduced ? .reduced : .spring
