@@ -8,6 +8,7 @@ final class IslandCoordinator: NSObject {
     private(set) var active: IslandController?
     private weak var panel: PalettePanel?
     private var started = false
+    private(set) lazy var overlays = IslandOverlayController(island: self)
 
     init(core: AppCore) { self.core = core }
 
@@ -48,6 +49,17 @@ final class IslandCoordinator: NSObject {
                 panel.setFrame(PalettePlacement.frame(at: anchor, size: size, outset: outset), display: true)
             }
         }
+        overlays.reposition()
+    }
+
+    func overlayContext(screen preferred: NSScreen?) -> (NSScreen, IslandController, CGRect?)? {
+        if !started { start() }
+        let available = screens
+        let current = available.first { backdrops[ObjectIdentifier($0)] === active }
+        let screen = current ?? available.first(where: { $0 === preferred }) ?? available.first
+        guard let screen, let controller = backdrops[ObjectIdentifier(screen)] else { return nil }
+        active = controller
+        return (screen, controller, panel?.isVisible == true ? panel?.frame : nil)
     }
 
     func anchor(_ window: NSPanel, width: CGFloat, collapsed: Bool) -> CGPoint? {

@@ -136,7 +136,10 @@ enum IslandVerification {
         context.scaleBy(x: 2, y: 2)
         context.setFillColor(CGColor(gray: 0.22, alpha: 1))
         context.fill(CGRect(origin: .zero, size: backdrop.frame.size))
-        for window in [backdrop, panel] where window.isVisible {
+        let overlays = NSApp.windows.filter {
+            $0.isVisible && ($0 is DialogPanel || $0 is HUDPanel || $0 is MenuPanel)
+        }.sorted { $0.level.rawValue < $1.level.rawValue }
+        for window in [backdrop, panel] + overlays where window.isVisible {
             guard let view = window.contentView, let layer = view.layer else {
                 require(false, "own window layer available"); return
             }
@@ -156,8 +159,11 @@ enum IslandVerification {
             guard let windowImage = windowContext.makeImage() else {
                 require(false, "window bitmap rendered"); return
             }
+            context.saveGState()
+            context.setAlpha(window.alphaValue)
             context.draw(windowImage, in: window.frame.offsetBy(
                 dx: -backdrop.frame.minX, dy: -backdrop.frame.minY))
+            context.restoreGState()
         }
         guard let image = context.makeImage(),
               let data = NSBitmapImageRep(cgImage: image).representation(using: .png, properties: [:]) else {
