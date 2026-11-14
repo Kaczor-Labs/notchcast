@@ -10,16 +10,19 @@ public struct IslandSurfaceView<Content, Slot: View>: View {
     let surface: IslandSurface<Content>
     let slots: IslandSlots<Content, Slot>
     let hits: AnyView?
+    let drawsBackground: Bool
     @FocusedValue(\.islandLayer) private var focusedLayer
 
-    public init(surface: IslandSurface<Content>, slots: IslandSlots<Content, Slot>) {
-        self.init(surface: surface, slots: slots, hits: nil)
+    /// Set drawsBackground to false when a native host paints the outline, shadow and sensor.
+    public init(surface: IslandSurface<Content>, slots: IslandSlots<Content, Slot>, drawsBackground: Bool = true) {
+        self.init(surface: surface, slots: slots, hits: nil, drawsBackground: drawsBackground)
     }
 
-    init(surface: IslandSurface<Content>, slots: IslandSlots<Content, Slot>, hits: AnyView?) {
+    init(surface: IslandSurface<Content>, slots: IslandSlots<Content, Slot>, hits: AnyView?, drawsBackground: Bool = true) {
         self.surface = surface
         self.slots = slots
         self.hits = hits
+        self.drawsBackground = drawsBackground
     }
 
     public var body: some View {
@@ -40,12 +43,14 @@ public struct IslandSurfaceView<Content, Slot: View>: View {
         }
         .frame(width: width, height: stageHeight(metrics), alignment: .topLeading)
         ZStack(alignment: .topLeading) {
-            Group {
-                IslandShadow(shadow: metrics.expanded.shadow, slopes: stage.shadow) { outline }
-                outline
+            if drawsBackground {
+                Group {
+                    IslandShadow(shadow: metrics.expanded.shadow, slopes: stage.shadow) { outline }
+                    outline
+                }
+                .allowsHitTesting(false)
+                .accessibilityHidden(true)
             }
-            .allowsHitTesting(false)
-            .accessibilityHidden(true)
             if let hits {
                 hits.frame(width: width, height: stageHeight(metrics))
                     .environment(\.islandContentFocus, contentFocus)
@@ -66,9 +71,11 @@ public struct IslandSurfaceView<Content, Slot: View>: View {
             .clipShape(StagePath(path: shape.paths.pill.isEmpty ? nil : shape.paths.outline))
             .foregroundStyle(.white)
             .font(.system(size: 15))
-            Path(sensor(metrics, width: width).cgPath).fill(.black).opacity(metrics.sensor.opacity)
-                .allowsHitTesting(false)
-                .accessibilityHidden(true)
+            if drawsBackground {
+                Path(sensor(metrics, width: width).cgPath).fill(.black).opacity(metrics.sensor.opacity)
+                    .allowsHitTesting(false)
+                    .accessibilityHidden(true)
+            }
         }
         .frame(width: width, height: stageHeight(metrics), alignment: .topLeading)
     }
