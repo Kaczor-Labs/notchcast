@@ -58,7 +58,7 @@ struct MessageHUDView: View {
         .fixedSize()
         .background { glow }
         .background(hovered ? Theme.Colors.controlHover : Theme.Colors.panelScrim)
-        .background(.black)
+        .background(Theme.Colors.islandSurface)
         .clipShape(Capsule())
         .overlay { rim }
     }
