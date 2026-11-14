@@ -20,6 +20,7 @@ enum IslandScenes {
         if scene == "window-contract" { await IslandWindowScenes.run(core: core, panel: panel); return }
         if scene == "question" { await IslandOverlayScenes.question(core: core, panel: panel); return }
         if scene == "report" { await IslandOverlayScenes.report(core: core, panel: panel); return }
+        if scene == "overlay-lifetime" { await IslandOverlayScenes.lifetime(core: core, panel: panel); return }
         if scene == "action-menu" || scene == "filter-menu" {
             await IslandMenuScenes.run(scene, core: core, panel: panel); return
         }
