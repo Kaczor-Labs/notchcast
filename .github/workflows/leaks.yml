@@ -1,0 +1,52 @@
+name: Leaks
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      base:
+        description: Base commit the checks compare against, as a PR's base (notchcast/train.sh)
+        default: ''
+
+permissions:
+  contents: read
+
+jobs:
+  leaks:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: A train run names its base
+        if: startsWith(github.ref, 'refs/heads/train/') && inputs.base == ''
+        run: |
+          echo "::error::train branches are dispatched by notchcast/train.sh with -f base=<main sha>"
+          exit 1
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      # Our commits only: upstream's history is upstream's.
+      - name: Our commits
+        run: |
+          bash notchcast/fetch-upstream.sh
+          echo "BASE=$(git merge-base HEAD refs/remotes/upstream/main)" >> "$GITHUB_ENV"
+      - name: Allowed commit emails
+        env:
+          COMMIT_RANGE: ${{ github.event_name == 'pull_request' && format('{0}..{1}', github.event.pull_request.base.sha, github.event.pull_request.head.sha) || inputs.base && format('{0}..HEAD', inputs.base) || 'refs/remotes/upstream/main..HEAD' }}
+        run: python3 notchcast/check-commit-emails.py "$COMMIT_RANGE"
+      - name: Forbidden names and IDs in added lines
+        run: notchcast/check-identity.sh diff "$BASE"
+      - name: Forbidden names and IDs in commit metadata
+        run: notchcast/check-identity.sh metadata "$BASE"
+      - name: Secrets (gitleaks)
+        env:
+          VERSION: 8.30.1
+          SHA256: 551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb
+        run: |
+          curl -sSfLo "$RUNNER_TEMP/gitleaks.tgz" "https://github.com/gitleaks/gitleaks/releases/download/v${VERSION}/gitleaks_${VERSION}_linux_x64.tar.gz"
+          echo "$SHA256  $RUNNER_TEMP/gitleaks.tgz" | sha256sum -c -
+          tar -xzf "$RUNNER_TEMP/gitleaks.tgz" -C "$RUNNER_TEMP" gitleaks
+          "$RUNNER_TEMP/gitleaks" git --log-opts="$BASE..HEAD" --redact --no-banner --exit-code 1 .
