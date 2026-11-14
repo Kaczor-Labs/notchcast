@@ -17,6 +17,8 @@ enum IslandScenes {
         IslandVerification.require(screen.frame.contains(panel.frame), "stock panel pinned to test display")
         if scene == "latency" { await IslandLatency.run(core: core, panel: panel); return }
         if scene == "keyboard" { await keyboard(core: core, panel: panel); return }
+        if scene == "question" { await IslandOverlayScenes.question(core: core, panel: panel); return }
+        if scene == "report" { await IslandOverlayScenes.report(core: core, panel: panel); return }
         switch scene {
         case "clipboard":
             core.clipboardStore.open()
