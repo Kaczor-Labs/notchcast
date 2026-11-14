@@ -62,7 +62,7 @@ struct DialogView: View {
         .padding(metrics.spacing.dialogInset)
         .frame(width: width, alignment: .leading)
         .background(Theme.Colors.panelScrim, in: shape)
-        .background(.black, in: shape)
+        .background(Theme.Colors.islandSurface, in: shape)
     }
 
     @ViewBuilder private var actions: some View {

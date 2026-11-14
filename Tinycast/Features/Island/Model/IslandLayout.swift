@@ -4,7 +4,7 @@ import CoreGraphics
 struct IslandLayout: Sendable {
     let screen: CGRect
     let notch: CGSize
-    let canvas = CGSize(width: 1100, height: 860)
+    let canvas: CGSize
 
     var hasNotch: Bool { notch.width > 0 && notch.height > 0 }
     var top: CGFloat { hasNotch ? -notch.height : 0 }

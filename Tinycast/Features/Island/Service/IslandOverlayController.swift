@@ -48,7 +48,8 @@ final class IslandOverlayController: NSObject {
         guard let (screen, controller, palette) = island.overlayContext(screen: screen) else { return }
         if backdrop !== controller { backdrop?.setOverlays([]); backdrop = controller }
         let layout = IslandOverlayLayout(screen: screen.frame,
-            contentTop: screen.frame.maxY - IslandController.notch(on: screen).height, palette: palette)
+            contentTop: screen.frame.maxY - IslandController.notch(on: screen).height, palette: palette,
+            inset: Theme.Spacing.islandInset, gap: Theme.Spacing.xl)
         let questionFrame = question.map { layout.question($0.frame.size) }
         if let question, let questionFrame { question.setFrameOrigin(questionFrame.origin) }
         let panels = reports.compactMap(\.panel)

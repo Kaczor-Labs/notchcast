@@ -128,7 +128,7 @@ struct PopoverMenu: View {
             attachedRadius: metrics.size.menuButton / 2)
         surfaceContent
             .frame(width: width ?? metrics.size.actionMenuWidth)
-            .background(.black, in: shape)
+            .background(Theme.Colors.islandSurface, in: shape)
             .clipShape(shape)
     }
 
