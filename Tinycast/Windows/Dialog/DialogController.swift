@@ -142,7 +142,7 @@ final class DialogController: NSObject, NSWindowDelegate {
                 }
             }
             self.panel = panel
-            place(panel)
+            AppCore.shared.island.overlays.placeQuestion(panel)
             // Non-activating like the palette: key focus without pulling the user out.
             panel.makeKeyAndOrderFront(nil)
             panel.orderFrontRegardless()
