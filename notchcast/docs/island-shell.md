@@ -29,8 +29,13 @@ Latency uses the prototype protocol: five alternating stock/island runs, 60 inse
 | `CommandEscapeTap.swift` | Disable the global event tap for the isolated Debug path. |
 | `PaletteWindowController.swift` | Replace only `positionPanel`'s anchor lookup. |
 | `RootPaletteView.swift` | Disable root glass, apply island accent and observe Debug frame submission. |
+| `DialogController.swift` | Replace only the question placement call. |
+| `HUDPresenter.swift` | Replace only the report placement call, shared by message and volume HUDs. |
+| `DialogView.swift` | Replace the question glass backing with black. |
+| `MessageHUDView.swift`, `VolumeHUDView.swift` | Replace each HUD glass backing with black. |
+| `PopoverMenu.swift` | Replace the shared native menu glass backing with black. |
 
-`PalettePanel`, `MenuPanel`, all stock feature screens, and stock show/hide methods are unchanged. The rejected replacement of `PalettePanel.contentView` by a large island canvas was dropped. Native panel geometry makes its proposed coordinate adapter unnecessary. Menus remain the next delivery step.
+`PalettePanel`, `MenuPanel`, all stock feature screens, and stock show/hide methods are unchanged. The rejected replacement of `PalettePanel.contentView` by a large island canvas was dropped. Native panel geometry makes its proposed coordinate adapter unnecessary.
 
 Not verified: real key focus without activation, IME and dead keys, VoiceOver, drag and drop, tooltips, outside click, full-screen Spaces, physical notch fusion, real two-screen pointer interaction, WindowServer presentation, and the compositor glass rim over black. Own-layer pictures cannot establish the last two.
 
@@ -41,3 +46,9 @@ Native dialog and HUD panels retain their stock presenters, sizing, responders, 
 The second question still cancels immediately. Live native events exercise volume arrows and Enter, multiline text editing with Return and Command-Return, and Escape cancellation. A progress report replaced by completion retains its HUD panel, never hides the palette and never steals the question's key window. The stock 2.4-second message dwell and `extend()` remain intact. Volume reports use the same `HUDPresenter` with their stock 1.6-second dwell. Dialog, message and volume surfaces replace glass with opaque black; their existing content and tone decoration remain.
 
 The engine from the stack is `eafeac8`. Repeating the layer/frame proof after its deferred display-link visibility change produced 194 samples with maximum disagreement 2.2737367544323206e-13 points. The first post-open callback moved from 22.38 to 22.93 ms; first changing outline moved from 103.68 to 103.20 ms. Both logs include capture-induced main-thread pauses. No added missing or late opening frame was observed in the layer samples, and the first backdrop still contained the rest pill. These checks do not establish WindowServer presentation.
+
+## Menus
+
+`MenuPanel` and its controller are unchanged. The shared `PopoverMenu` surface has an opaque black backing; action menus, filter menus and form dropdowns retain their stock content, native child window, keyboard routing and control anchors. Their palette-sized parent frame remains correct. No menu placement adapter or menu controller hook is needed.
+
+Live checks open the real action menu with Command-K and the clipboard type filter with Command-P. Each menu is the key child of the native palette and its frame stays inside that palette. Typing filters action rows; successive Escape events clear the menu query, close the menu and return key focus, then close the palette. Down and Enter select the text filter. Inspected own-layer composites show black menu surfaces inside the island; the native menu shadows and WindowServer composition remain outside the capture proof.
