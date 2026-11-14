@@ -476,7 +476,8 @@ final class AppSettings {
 
     /// Consent to run third-party JavaScript: it confirms, defaults off, rides no backup.
     var extensionsEnabled: Bool {
-        didSet { defaults.set(extensionsEnabled, forKey: Key.extensionsEnabled.rawValue) }
+        get { false }
+        set { }
     }
 
     var extensionsShowInLauncher: Bool {
@@ -864,7 +865,6 @@ final class AppSettings {
             defaults.string(forKey: Key.snippetDefaultAction.rawValue)
             .flatMap(SnippetDefaultAction.init) ?? .paste
         // Opt-in, unlike its siblings: until it is asked for, nothing about extensions is loaded.
-        extensionsEnabled = defaults.bool(forKey: Key.extensionsEnabled.rawValue)
         extensionsShowInLauncher =
             defaults.object(forKey: Key.extensionsShowInLauncher.rawValue) == nil
             || defaults.bool(forKey: Key.extensionsShowInLauncher.rawValue)
