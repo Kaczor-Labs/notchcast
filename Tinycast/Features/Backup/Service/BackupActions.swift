@@ -28,7 +28,8 @@ enum BackupActions {
         let panel = NSSavePanel()
         panel.allowedContentTypes = [type]
         let ext = type.preferredFilenameExtension ?? "json"
-        panel.nameFieldStringValue = "\(base)-\(dateStamp()).\(ext)"
+        let name = type == .tinycastBackup ? "Notchcast" : base
+        panel.nameFieldStringValue = "\(name)-\(dateStamp()).\(ext)"
         panel.canCreateDirectories = true
         NSApp.activate(ignoringOtherApps: true)
         guard panel.runModal() == .OK else { return nil }
@@ -246,7 +247,7 @@ enum BackupActions {
         String(localized: "Turn on Snippets in Settings to use their keywords.")
 
     /// Not everything an import applies settles in the running app, so say to relaunch.
-    private static let restartAfterImportText = String(localized: "Quit and reopen Tinycast to finish.")
+    private static let restartAfterImportText = String(localized: "Quit and reopen Notchcast to finish.", table: "Notchcast")
 
     static func raycastText(_ outcome: RaycastOutcome) -> String {
         var parts: [String] = []

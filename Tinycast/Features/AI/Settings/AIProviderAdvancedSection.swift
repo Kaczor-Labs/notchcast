@@ -132,7 +132,7 @@ struct AIProviderAdvancedSection: View {
                     """)
         }
         if kind.isManagedVariable(name) {
-            return String(localized: "Tinycast sets \(name) itself, so this value is not used.")
+            return String(localized: "Notchcast sets \(name) itself, so this value is not used.", table: "Notchcast")
         }
         return nil
     }
@@ -185,7 +185,7 @@ struct AIProviderAdvancedSection: View {
             ?? FileManager.default.homeDirectoryForCurrentUser
         guard
             let url = ExecutablePicker.choose(
-                message: String(localized: "Choose the \(kind.command) command Tinycast should run."),
+                message: String(localized: "Choose the \(kind.command) command Notchcast should run.", table: "Notchcast"),
                 startingAt: start)
         else { return }
         path = (url.path as NSString).abbreviatingWithTildeInPath

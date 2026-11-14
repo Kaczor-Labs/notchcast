@@ -89,10 +89,10 @@ final class QuickActionCoordinator {
                     title: String(localized: "Enable Quick Actions?"),
                     message: String(
                         localized: """
-                            Tinycast needs the Accessibility permission to read the text you have \
+                            Notchcast needs the Accessibility permission to read the text you have \
                             selected in other apps and replace it. Nothing is read until you press \
                             a shortcut.
-                            """),
+                            """, table: "Notchcast"),
                     symbol: "wand.and.sparkles", confirmTitle: String(localized: "Continue"),
                     tone: .neutral,
                     confirmRole: .standard)
@@ -260,10 +260,10 @@ final class QuickActionCoordinator {
                     title: String(localized: "Quick Actions can't read your selection"),
                     message: String(
                         localized: """
-                            Tinycast needs the Accessibility permission to read the text you have \
-                            selected and replace it. If Tinycast is already listed, switch it off \
+                            Notchcast needs the Accessibility permission to read the text you have \
+                            selected and replace it. If Notchcast is already listed, switch it off \
                             and on again — a rebuilt app keeps a stale entry.
-                            """),
+                            """, table: "Notchcast"),
                     symbol: "wand.and.sparkles", recovery: String(localized: "Open System Settings"))
             else { return }
             Permissions.openAccessibilitySettings()
