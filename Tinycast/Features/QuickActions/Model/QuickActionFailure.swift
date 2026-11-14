@@ -12,13 +12,13 @@ enum QuickActionFailure: LocalizedError, Equatable {
     var errorDescription: String? {
         switch self {
         case .needsAccessibility:
-            return String(localized: "Tinycast needs the Accessibility permission to read the selected text.")
+            return String(localized: "Notchcast needs the Accessibility permission to read the selected text.", table: "Notchcast")
         case .noTarget:
             return String(localized: "Select text in another app first.")
         case .unreadableApp(let name?):
-            return String(localized: "\(name) doesn't share its text with Tinycast.")
+            return String(localized: "\(name) doesn't share its text with Notchcast.", table: "Notchcast")
         case .unreadableApp(nil):
-            return String(localized: "That app doesn't share its text with Tinycast.")
+            return String(localized: "That app doesn't share its text with Notchcast.", table: "Notchcast")
         case .noSelection:
             return String(localized: "Select some text first.")
         case .tooLong:

@@ -13,7 +13,7 @@ final class DictationCapture {
             switch self {
             case .microphoneUnavailable: String(localized: "No microphone is available.")
             case .microphoneDenied:
-                String(localized: "Allow Tinycast to use the microphone in System Settings.")
+                String(localized: "Allow Notchcast to use the microphone in System Settings.", table: "Notchcast")
             case .captureUnavailable: String(localized: "Couldn't start recording from this microphone.")
             }
         }
