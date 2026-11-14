@@ -264,8 +264,8 @@ final class InstalledAIManager {
                         phase: .failed(
                             String(
                                 localized: """
-                                    Tinycast needs OpenCode 2. Update OpenCode, then Check Again.
-                                    """)),
+                                    Notchcast needs OpenCode 2. Update OpenCode, then Check Again.
+                                    """, table: "Notchcast")),
                         version: version, executable: executable)
                 )
             }
