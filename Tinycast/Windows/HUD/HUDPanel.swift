@@ -2,6 +2,11 @@ import AppKit
 
 /// Borderless panel for a transient readout: never key, always above the palette.
 final class HUDPanel: NSPanel {
+    override func orderOut(_ sender: Any?) {
+        super.orderOut(sender)
+        AppCore.shared.island.overlays.dismissed(self)
+    }
+
     init(acceptsMouseEvents: Bool = false) {
         super.init(
             contentRect: .zero,
