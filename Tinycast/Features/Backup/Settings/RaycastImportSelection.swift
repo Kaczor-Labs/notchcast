@@ -42,7 +42,7 @@ struct RaycastImportSelection: View {
             label: String(localized: "Pop to root")),
         .init(
             option: .compactMode, symbol: "macwindow", tint: .gray, label: String(localized: "Compact mode"))
-    ]
+    ].filter { $0.option != .menuBarVisibility }
 
     private static let columns = Array(
         repeating: GridItem(.flexible(), spacing: Theme.Spacing.md, alignment: .leading), count: 2)
