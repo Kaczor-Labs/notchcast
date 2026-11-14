@@ -23,6 +23,16 @@ esac
 """
 
 
+# What a harness source looks like to the sweep: each literal before a UUID names a suite it may leave.
+FIXTURE_SOURCE = """
+let a = UserDefaults(suiteName: "tinycast.fixture-test.\\(UUID())")!
+let b = "tinycast.hyper-key-test.\\(UUID().uuidString)"
+let c = "tinycast.dictation-key-test." + UUID().uuidString
+let d = "tinycast.stub-test.\\(UUID())"
+let e = URL(fileURLWithPath: "/tmp/\\(UUID().uuidString)")
+"""
+
+
 def suite(domain="tinycast.fixture-test"):
     return f"{domain}.{uuid.uuid4()}.plist"
 
@@ -33,11 +43,16 @@ class PrefSweepTest(unittest.TestCase):
         self.addCleanup(shutil.rmtree, self.scratch)
         self.prefs = self.scratch / "prefs"
         self.prefs.mkdir()
+        sources = self.scratch / "Tests"
+        sources.mkdir()
+        (sources / "FixtureTests.swift").write_text(FIXTURE_SOURCE)
         self.env = {**os.environ, "NOTCHCAST_PREFS_DIR": str(self.prefs), "NOTCHCAST_PREF_SWEEP_SETTLE": "0",
-                    "NOTCHCAST_PREF_SWEEP_STATE": str(self.scratch / "state")}
+                    "NOTCHCAST_PREF_SWEEP_STATE": str(self.scratch / "state"),
+                    "NOTCHCAST_PREF_SWEEP_SOURCES": str(sources)}
 
     def sweep(self, command, pid):
-        subprocess.run(["python3", str(SWEEP), command, str(pid)], env=self.env, check=True)
+        return subprocess.run(["python3", str(SWEEP), command, str(pid)], env=self.env, check=True,
+                              capture_output=True, text=True).stderr
 
     def names(self):
         return sorted(path.name for path in self.prefs.iterdir())
@@ -66,6 +81,24 @@ class PrefSweepTest(unittest.TestCase):
         self.touch(f"tinycast.dictation-key-test.{uuid.uuid4()}.dev.plist")
         self.sweep("end", os.getpid())
         self.assertEqual(self.names(), sorted(keep))
+
+    def test_a_suite_no_harness_names_survives_and_is_reported(self):
+        self.sweep("begin", os.getpid())
+        self.touch(suite())
+        foreign = [self.touch(suite("com.example.editor")), self.touch(f"{uuid.uuid4()}.plist"),
+                   self.touch(suite("com.apple.Safari")), self.touch(suite("tmp"))]
+        report = self.sweep("end", os.getpid())
+        self.assertEqual(self.names(), sorted(foreign))
+        self.assertIn("pref-sweep: removed 1 leftover", report)
+        self.assertIn("pref-sweep: left 3 unknown", report, "com.apple. names are never counted")
+
+    def test_the_real_harness_sources_name_their_suites(self):
+        env = {key: value for key, value in self.env.items() if key != "NOTCHCAST_PREF_SWEEP_SOURCES"}
+        subprocess.run(["python3", str(SWEEP), "begin", str(os.getpid())], env=env, check=True)
+        prefixes = (self.scratch / "state/prefixes").read_text().split()
+        for prefix in ("tinycast.hyper-key-test.", "CompactBarTests.", "tinycast-window-room-test-"):
+            self.assertIn(prefix, prefixes)
+        self.assertFalse([prefix for prefix in prefixes if "/" in prefix or len(prefix) < 4])
 
     def test_overlapping_runs_leave_the_sweep_to_the_last(self):
         other = subprocess.Popen(["sleep", "30"])
