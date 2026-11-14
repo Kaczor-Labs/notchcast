@@ -30,6 +30,14 @@ Latency uses the prototype protocol: five alternating stock/island runs, 60 inse
 | `PaletteWindowController.swift` | Replace only `positionPanel`'s anchor lookup. |
 | `RootPaletteView.swift` | Disable root glass, apply island accent and observe Debug frame submission. |
 
-`PalettePanel`, `MenuPanel`, all stock feature screens, and stock show/hide methods are unchanged. The rejected replacement of `PalettePanel.contentView` by a large island canvas was dropped. Native panel geometry makes its proposed coordinate adapter unnecessary. Questions, reports and menus remain the next delivery steps.
+`PalettePanel`, `MenuPanel`, all stock feature screens, and stock show/hide methods are unchanged. The rejected replacement of `PalettePanel.contentView` by a large island canvas was dropped. Native panel geometry makes its proposed coordinate adapter unnecessary. Menus remain the next delivery step.
 
 Not verified: real key focus without activation, IME and dead keys, VoiceOver, drag and drop, tooltips, outside click, full-screen Spaces, physical notch fusion, real two-screen pointer interaction, WindowServer presentation, and the compositor glass rim over black. Own-layer pictures cannot establish the last two.
+
+## Questions and reports
+
+Native dialog and HUD panels retain their stock presenters, sizing, responders, continuations, fades and dwell tasks. Only their placement and surface backing change. A question stays at the top of the open island; reports stack below both the question and visible palette, at a lower window level than questions. The backdrop grows to contain those native frames and contracts when their panels disappear. `IslandOverlayLayout` is pure geometry; its harness checks preserved accessory size and non-overlapping placement, including negative screen origins and notch offsets.
+
+The second question still cancels immediately. Live native events exercise volume arrows and Enter, multiline text editing with Return and Command-Return, and Escape cancellation. A progress report replaced by completion retains its HUD panel, never hides the palette and never steals the question's key window. The stock 2.4-second message dwell and `extend()` remain intact. Volume reports use the same `HUDPresenter` with their stock 1.6-second dwell. Dialog, message and volume surfaces replace glass with opaque black; their existing content and tone decoration remain.
+
+The engine from the stack is `eafeac8`. Repeating the layer/frame proof after its deferred display-link visibility change produced 194 samples with maximum disagreement 2.2737367544323206e-13 points. The first post-open callback moved from 22.38 to 22.93 ms; first changing outline moved from 103.68 to 103.20 ms. Both logs include capture-induced main-thread pauses. No added missing or late opening frame was observed in the layer samples, and the first backdrop still contained the rest pill. These checks do not establish WindowServer presentation.

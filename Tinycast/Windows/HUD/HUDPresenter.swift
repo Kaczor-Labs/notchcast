@@ -31,7 +31,7 @@ final class HUDPresenter {
         host.setFrameSize(content)
         panel.setContentSize(content)
         panel.contentView = host
-        place(panel)
+        AppCore.shared.island.overlays.placeReport(panel, screen: screen())
         // A panel on screen may be mid-fade, so bring it back rather than start another.
         if panel.isVisible {
             panel.cancelFade()
