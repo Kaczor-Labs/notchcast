@@ -31,6 +31,7 @@ struct NotesSettingsView: View {
                     Text("Right-click the icon to create or search notes.")
                 }
                 .settingsEnabled(settings.notesEnabled)
+                .notchcastHidden()
                 LabeledContent {
                     if settings.notesFolder != nil {
                         Button(
