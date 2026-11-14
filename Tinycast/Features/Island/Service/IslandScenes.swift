@@ -19,6 +19,9 @@ enum IslandScenes {
         if scene == "keyboard" { await keyboard(core: core, panel: panel); return }
         if scene == "question" { await IslandOverlayScenes.question(core: core, panel: panel); return }
         if scene == "report" { await IslandOverlayScenes.report(core: core, panel: panel); return }
+        if scene == "action-menu" || scene == "filter-menu" {
+            await IslandMenuScenes.run(scene, core: core, panel: panel); return
+        }
         switch scene {
         case "clipboard":
             core.clipboardStore.open()
