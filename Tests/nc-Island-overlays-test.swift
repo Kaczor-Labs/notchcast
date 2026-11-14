@@ -8,7 +8,8 @@ struct IslandOverlayLayoutTest {
         let screen = CGRect(x: -2580, y: -280, width: 2580, height: 1080)
         for notch in [0.0, 32.0] {
             for palette: CGRect? in [nil, CGRect(x: -1665, y: 325 - notch, width: 750, height: 475)] {
-                let layout = IslandOverlayLayout(screen: screen, contentTop: screen.maxY - notch, palette: palette)
+                let layout = IslandOverlayLayout(screen: screen, contentTop: screen.maxY - notch,
+                                                 palette: palette, inset: 16, gap: 12)
                 let size = CGSize(width: 420, height: 300)
                 let question = layout.question(size)
                 precondition(question.size == size && question.midX == screen.midX)
@@ -28,7 +29,7 @@ struct IslandOverlayLayoutTest {
                 precondition(plainReports[0].maxY == (palette?.minY ?? screen.maxY - notch) - 12)
             }
         }
-        precondition(IslandOverlayLayout(screen: screen, contentTop: 800, palette: nil).surface([]) == nil)
+        precondition(IslandOverlayLayout(screen: screen, contentTop: 800, palette: nil, inset: 16, gap: 12).surface([]) == nil)
         print("PASS IslandOverlayLayout questions and reports never intersect, preserve size, and grow the backdrop")
     }
 }
