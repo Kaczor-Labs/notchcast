@@ -62,8 +62,8 @@ enum ChatPresetError: Error, LocalizedError, Equatable {
         case .emptyName: return String(localized: "Give the preset a name.")
         case .emptyInstructions: return String(localized: "Tell the model what these chats are for.")
         case .invalidCharacter:
-            return String(localized: "The name contains a character Tinycast can't store.")
-        case .storageUnavailable: return String(localized: "Tinycast couldn't save to its presets file.")
+            return String(localized: "The name contains a character Notchcast can't store.", table: "Notchcast")
+        case .storageUnavailable: return String(localized: "Notchcast couldn't save to its presets file.", table: "Notchcast")
         }
     }
 }

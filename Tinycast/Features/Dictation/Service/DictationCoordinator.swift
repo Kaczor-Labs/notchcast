@@ -74,7 +74,7 @@ final class DictationCoordinator {
             guard !Task.isCancelled else { return }
             guard granted else {
                 showMessage(
-                    String(localized: "Allow Tinycast to use the microphone in System Settings"), .danger)
+                    String(localized: "Allow Notchcast to use the microphone in System Settings", table: "Notchcast"), .danger)
                 return
             }
             settings.dictationEnabled = true
