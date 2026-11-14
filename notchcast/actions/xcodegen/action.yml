@@ -1,0 +1,7 @@
+name: XcodeGen
+description: Pinned XcodeGen; replay regenerates Tinycast.xcodeproj with it. Sets XCODEGEN.
+runs:
+  using: composite
+  steps:
+    - shell: bash
+      run: source "$GITHUB_ACTION_PATH/../../ci-xcodegen.sh"
