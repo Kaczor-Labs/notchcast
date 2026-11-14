@@ -8,6 +8,8 @@ import subprocess
 import tempfile
 from pathlib import Path
 
+UNSUPPORTED = ("exclude", "resources", "settings", "path", "sources", "pluginUsages")
+
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
@@ -18,6 +20,7 @@ def main():
     args = parser.parse_args()
     if not args.modules or len(set(args.modules)) != len(args.modules):
         parser.error("provide distinct library module names")
+    modules = sorted(args.modules)
 
     def git(*command):
         return subprocess.check_output(["git", "-C", str(args.checkout), *command])
@@ -31,16 +34,19 @@ def main():
     products = []
     declarations = []
     expected = {}
-    for module in args.modules:
+    for module in modules:
         if not re.fullmatch(r"[A-Za-z][A-Za-z0-9]*", module):
             parser.error("invalid module name")
         target = targets.get(module)
         if target is None or target["type"] != "regular":
             parser.error(f"not a library target: {module}")
+        unsupported = [key for key in UNSUPPORTED if target.get(key)]
+        if unsupported:
+            parser.error(f"{module} uses {', '.join(unsupported)}, which the vendored manifest would drop")
         dependencies = []
         for dependency in target["dependencies"]:
             name = dependency.get("byName", dependency.get("target", [None]))[0]
-            if name not in args.modules:
+            if name not in modules:
                 parser.error(f"{module} requires module {name}; include it in the list")
             dependencies.append(name)
         products.append(f'        .library(name: "{module}", targets: ["{module}"]),')
@@ -65,14 +71,16 @@ def main():
         '    swiftLanguageModes: [.v6]', ')', '',
     ])
     expected["Package.swift"] = manifest.encode()
-    expected["REVISION"] = (commit + "\n").encode()
+    expected["LICENSE"] = git("show", f"{commit}:LICENSE")
+    trees = [f"{module} {git('rev-parse', f'{commit}:Sources/{module}').decode().strip()}\n" for module in modules]
+    expected["REVISION"] = "".join([commit + "\n", *trees]).encode()
     destination = Path(__file__).resolve().parent / "vendor/IslandEngine"
     if args.check:
         actual = {str(path.relative_to(destination)): path.read_bytes()
                   for path in destination.rglob("*") if path.is_file()}
         if actual != expected:
             parser.exit(1, "FAIL: vendored tree differs from pinned sources\n")
-        print(f"PASS: {len(expected) - 2} source files match {commit}")
+        print(f"PASS: {len(expected) - 3} source files match {commit}")
         return
     destination.mkdir(parents=True, exist_ok=True)
     for path in sorted(destination.rglob("*"), reverse=True):
@@ -84,7 +92,7 @@ def main():
         path = destination / name
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_bytes(content)
-    print(f"Vendored {', '.join(args.modules)} at {commit}")
+    print(f"Vendored {', '.join(modules)} at {commit}")
 
 
 if __name__ == "__main__":
