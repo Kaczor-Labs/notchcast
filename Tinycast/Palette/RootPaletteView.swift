@@ -230,13 +230,13 @@ struct RootPaletteView: View {
                     title: String(localized: "Changelog"),
                     systemImage: "clock.arrow.trianglehead.2.counterclockwise.rotate.90"
                 ) {
-                    if let url = URL(string: "https://tinycast.dev/changelog/") {
+                    if let url = URL(string: "https://github.com/kaczordodgers/notchcast/releases") {
                         openURL(url)
                     }
                 },
                 PopoverMenuItem(
-                    title: String(localized: "About Tinycast"), systemImage: "info.circle",
-                    startsSection: true
+                    title: String(localized: "About Notchcast", table: "Notchcast"),
+                    systemImage: "info.circle", startsSection: true
                 ) {
                     core.settingsCoordinator.showAbout()
                 },
