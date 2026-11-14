@@ -80,7 +80,7 @@ struct KeyCapChip: View {
             .background {
                 switch style {
                 case .filled: shape.fill(Theme.Colors.controlSurface)
-                case .outline: shape.strokeBorder(Theme.Colors.border, lineWidth: 1)
+                case .outline: shape.fill(Theme.Colors.rowHover)
                 }
             }
     }
