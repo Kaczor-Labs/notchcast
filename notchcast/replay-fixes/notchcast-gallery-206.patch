@@ -1,0 +1,14 @@
+diff --git a/Tinycast/App/TinycastApp.swift b/Tinycast/App/TinycastApp.swift
+index a058c1e..0dbe388 100644
+--- a/Tinycast/App/TinycastApp.swift
++++ b/Tinycast/App/TinycastApp.swift
+@@ -4,6 +4,9 @@ import SwiftUI
+ enum TinycastLaunch {
+     static func main() {
+         BundleIdentifierMigration.run()
++        #if DEBUG
++        if NotchcastGallery.bootIfRequested() { return }
++        #endif
+         AppSettings.pinLanguage()
+         TinycastApp.main()
+     }
