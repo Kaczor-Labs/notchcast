@@ -35,12 +35,12 @@ enum Theme {
 
     enum Radius {
         static let panel: CGFloat = 26
-        static let row: CGFloat = 10
+        static let row: CGFloat = 18
         static let formField: CGFloat = 10
         /// Emoji tiles are roomier than list rows, so their corners take one larger step.
         static let emojiCell: CGFloat = 12
         static let menu: CGFloat = 6
-        static let menuRow: CGFloat = 10
+        static let menuRow: CGFloat = 18
         /// A header pop-up button; the footer's action pills stay capsules.
         static let barControl: CGFloat = 8
         static let menuPanel: CGFloat = 16
@@ -56,7 +56,7 @@ enum Theme {
         static let codeBlock: CGFloat = 14
         /// A window-to-be in the room preview, rounded like a real window rather than a row.
         static let roomCard: CGFloat = 16
-        static let keyCap: CGFloat = 6
+        static let keyCap: CGFloat = 10
         static let recorderKeyCap: CGFloat = 4
         static let tooltip: CGFloat = 8
     }
@@ -113,16 +113,16 @@ enum Theme {
         static let dropGuideCombinedFlashTolerance: CGFloat = 6
         static let dropGuideFadeThreshold: CGFloat = 36
         static let dropGuideFadeDistance: CGFloat = 180
-        static let bottomBarHeight: CGFloat = 52
+        static let bottomBarHeight: CGFloat = 44
         /// The unit a form's text area counts its minimum height in, so it scales with the interface.
         static let textAreaUnit: CGFloat = 44
         static let barButtonHeight: CGFloat = 28
         static let rowIcon: CGFloat = 24
-        static let resultRowIcon: CGFloat = 26
+        static let resultRowIcon: CGFloat = 28
         static let colorDot: CGFloat = 8
         static let calendarBarWidth: CGFloat = 3
         static let calendarBarHeight: CGFloat = 18
-        static let keyCap: CGFloat = 18
+        static let keyCap: CGFloat = 22
         static let recorderKeyCap: CGFloat = 16
         /// Fixed so the recorder can't resize as its binding changes.
         static let shortcutRecorder: CGFloat = 120
@@ -377,7 +377,7 @@ enum Theme {
         /// `NSFont` is not `Sendable`, hence the isolation; every reader is a view anyway.
         @MainActor static let searchFieldNSFont = NSFont.systemFont(
             ofSize: searchFieldSize, weight: .regular)
-        static let headerIconSize: CGFloat = 18
+        static let headerIconSize: CGFloat = 22
         static let headerIcon = Font.system(size: headerIconSize, weight: .medium)
         static let rowTitle = Font.body
         static let rowTrailing = Font.callout
@@ -385,7 +385,7 @@ enum Theme {
         /// A borderless panel's own title, which names the surface rather than a section inside it.
         static let panelTitle = Font.headline
         static let calcResult = Font.title
-        static let keyCap = Font.caption
+        static let keyCap = Font.body.weight(.medium)
         /// Pair with the matching `Size` for `KeyCapChip.Scale`.
         static let compactKeyCap = Font.caption2
         static let heroKeyCap = Font.body
@@ -439,15 +439,15 @@ enum Theme {
             dark: .srgbInk(0, alpha: 0.18), light: .srgbInk(0, alpha: 0.18))
 
         /// Selection fill, shared by every list so they look identical.
-        static let selection = ramp(dark: 0.10, light: 0.09)
-        static let rowHover = ramp(dark: 0.05, light: 0.045)
+        static let selection = ramp(dark: 0.24, light: 0.09)
+        static let rowHover = ramp(dark: 0.14, light: 0.045)
         static let emojiCell = ramp(dark: 0.045, light: 0.04)
         static let emojiHoverBorder = ramp(dark: 0.42, light: 0.34)
         static let emojiSelectionBorder = ramp(dark: 0.92, light: 0.72)
         static let emojiInnerBorder = adaptive(
             dark: .srgbInk(0, alpha: 0.72), light: .srgbInk(1, alpha: 0.72))
-        static let menuHover = ramp(dark: 0.10, light: 0.09)
-        static let separator = ramp(dark: 0.10, light: 0.12)
+        static let menuHover = ramp(dark: 0.24, light: 0.09)
+        static let separator = ramp(dark: 0.16, light: 0.12)
         /// Small control surfaces: kbd chips, glyph tiles.
         static let controlSurface = ramp(dark: 0.10, light: 0.08)
         static let controlHover = ramp(dark: 0.16, light: 0.14)
@@ -498,7 +498,8 @@ enum Theme {
         static let dropGuide = ramp(dark: 0.35, light: 0.35)
         static let dropGuideArmed = Color.blue
         /// A dialog's standard default action; destructive defaults keep their semantic red.
-        static let primaryAction = Color.blue
+        static let primaryAction = adaptive(
+            dark: NSColor(srgbRed: 70 / 255, green: 240 / 255, blue: 198 / 255, alpha: 1), light: .systemBlue)
         static let destructive = Color.red
         static let success = Color.green
         static let warning = Color.orange
@@ -508,7 +509,7 @@ enum Theme {
         static let windowSurface = Color(nsColor: .windowBackgroundColor)
         static let dropTarget = Color.accentColor
         /// Progress tint: the message pill's spinner while the work behind it is still running.
-        static let progress = Color.blue
+        static let progress = primaryAction
         /// The command output window's page: a flat surface the log sits directly on.
         static let terminalSurface = adaptive(
             dark: .srgbInk(0.07, alpha: 1), light: .srgbInk(0.99, alpha: 1))
