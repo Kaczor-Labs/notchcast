@@ -55,7 +55,7 @@ private struct FileSearchAccessSection: View {
             } label: {
                 VStack(alignment: .leading, spacing: Theme.Spacing.xxs) {
                     SettingsRowTitle(.fileSearchFullDiskAccess, "Full Disk Access")
-                    Text(granted ? "Tinycast can index every folder." : "File Search can’t index without it.")
+                    Text(granted ? LocalizedStringResource("Notchcast can index every folder.", table: "Notchcast") : "File Search can’t index without it.")
                         .foregroundStyle(.secondary)
                 }
             }
@@ -67,9 +67,9 @@ private struct FileSearchAccessSection: View {
                     """
                     File Search reads your disk directly to build a private index on this Mac. \
                     In System Settings › Privacy & Security › Full Disk Access, turn on \
-                    Tinycast. If it isn’t listed, click + and choose Tinycast from \
-                    Applications. If access still shows as required, quit and reopen Tinycast.
-                    """
+                    Notchcast. If it isn’t listed, click + and choose Notchcast from \
+                    Applications. If access still shows as required, quit and reopen Notchcast.
+                    """, tableName: "Notchcast"
                 )
                 .font(.caption)
                 .foregroundStyle(.secondary)
