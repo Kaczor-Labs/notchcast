@@ -4,7 +4,7 @@ import Observation
 @MainActor
 final class IslandCoordinator: NSObject {
     private unowned let core: AppCore
-    private var backdrops: [ObjectIdentifier: IslandController] = [:]
+    private var backdrops: [CGDirectDisplayID: IslandController] = [:]
     private(set) var active: IslandController?
     private weak var panel: PalettePanel?
     private var started = false
@@ -31,25 +31,19 @@ final class IslandCoordinator: NSObject {
     }
 
     @objc private func rebuild() {
-        active?.detach()
-        active = nil
-        backdrops = [:]
         let available = screens
-        let main = available.first(where: { $0 === NSScreen.primary }) ?? available.first
+        let connected = Set(available.map(\.islandDisplayID))
+        for (id, controller) in backdrops where !connected.contains(id) {
+            if active === controller { controller.detach(); active = nil }
+            backdrops[id] = nil
+        }
+        let main = available.first(where: { $0.islandDisplayID == NSScreen.primary?.islandDisplayID }) ?? available.first
         for screen in available {
-            let backdrop = IslandController()
-            backdrop.showsRest = screen === main
+            let backdrop = backdrops[screen.islandDisplayID] ?? IslandController()
+            backdrop.showsRest = screen.islandDisplayID == main?.islandDisplayID
             backdrop.onOpen = { [weak self] in self?.core.paletteCoordinator.showPalette(mode: .launcher) }
             backdrop.configure(screen)
-            backdrops[ObjectIdentifier(screen)] = backdrop
-        }
-        if let panel, panel.isVisible {
-            let collapsed = core.paletteCoordinator.paletteIsCollapsed
-            let outset = collapsed ? Theme.Size.paletteGlassOutset : 0
-            let size = panel.frame.insetBy(dx: outset, dy: outset).size
-            if let anchor = anchor(panel, width: size.width, collapsed: collapsed) {
-                panel.setFrame(PalettePlacement.frame(at: anchor, size: size, outset: outset), display: true)
-            }
+            backdrops[screen.islandDisplayID] = backdrop
         }
         overlays.reposition()
     }
@@ -57,11 +51,12 @@ final class IslandCoordinator: NSObject {
     func overlayContext(screen preferred: NSScreen?) -> (NSScreen, IslandController, CGRect?)? {
         if !started { start() }
         let available = screens
-        let current = available.first { backdrops[ObjectIdentifier($0)] === active }
-        let screen = current ?? available.first(where: { $0 === preferred }) ?? available.first
-        guard let screen, let controller = backdrops[ObjectIdentifier(screen)] else { return nil }
-        active = controller
-        return (screen, controller, panel?.isVisible == true ? panel?.frame : nil)
+        let id = IslandScreenSelection.choose(available: available.map(\.islandDisplayID),
+            preferred: preferred?.islandDisplayID, retained: panel?.isVisible == true ? panel?.screen?.islandDisplayID : nil)
+        guard let screen = available.first(where: { $0.islandDisplayID == id }),
+              let controller = backdrops[screen.islandDisplayID] else { return nil }
+        let palette = panel.flatMap { $0.isVisible && $0.screen?.islandDisplayID == id ? $0.frame : nil }
+        return (screen, controller, palette)
     }
 
     func anchor(_ window: NSPanel, width: CGFloat, collapsed: Bool) -> CGPoint? {
@@ -75,9 +70,12 @@ final class IslandCoordinator: NSObject {
         if !started { start() }
         let available = screens
         let pointer = NSEvent.mouseLocation
-        let retained = panel.isVisible ? available.first { backdrops[ObjectIdentifier($0)] === active } : nil
-        let screen = retained ?? available.first(where: { $0.frame.contains(pointer) }) ?? available.first
-        guard let screen, let backdrop = backdrops[ObjectIdentifier(screen)] else { return nil }
+        let retained = panel.isVisible ? available.first { backdrops[$0.islandDisplayID] === active } : nil
+        let id = IslandScreenSelection.choose(available: available.map(\.islandDisplayID),
+            preferred: retained?.islandDisplayID,
+            retained: available.first(where: { $0.frame.contains(pointer) })?.islandDisplayID)
+        guard let screen = available.first(where: { $0.islandDisplayID == id }),
+              let backdrop = backdrops[screen.islandDisplayID] else { return nil }
         if active !== backdrop {
             active?.detach()
             active = backdrop
@@ -86,6 +84,13 @@ final class IslandCoordinator: NSObject {
         backdrop.attach(panel, screen: screen)
         let notch = IslandController.notch(on: screen)
         return CGPoint(x: screen.frame.midX - width / 2, y: screen.frame.maxY - notch.height - outset)
+    }
+
+    var questionScreen: NSScreen? {
+        #if DEBUG
+        if IslandVerification.enabled { return screens.first }
+        #endif
+        return panel?.isVisible == true ? panel?.screen : NSScreen.underCursor
     }
 
     private func observeVisibility() {
@@ -101,4 +106,10 @@ final class IslandCoordinator: NSObject {
     }
 
     isolated deinit { NotificationCenter.default.removeObserver(self) }
+}
+
+extension NSScreen {
+    var islandDisplayID: CGDirectDisplayID {
+        (deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? NSNumber)?.uint32Value ?? 0
+    }
 }
