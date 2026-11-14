@@ -3,6 +3,11 @@ import Carbon.HIToolbox
 
 /// One dialog's panel; keys go through `sendEvent`, so Esc/↵ need no focused subview.
 final class DialogPanel: NSPanel, AnimatedPanel {
+    override func orderOut(_ sender: Any?) {
+        super.orderOut(sender)
+        AppCore.shared.island.overlays.dismissed(self)
+    }
+
     /// What the panel saw, not what it means: how far a step moves is the caller's business.
     enum Key {
         case cancel
