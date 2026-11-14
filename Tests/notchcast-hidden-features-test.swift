@@ -8,6 +8,9 @@
 // notchcast-sources: Tinycast/Features/Notchcast/Hidden/NotchcastIslandPins.swift
 // notchcast-reads: Tinycast/Features/Settings/AppSettings.swift
 // notchcast-reads: Tinycast/Features/Settings/Panes/GeneralSettingsView.swift
+// notchcast-reads: Tinycast/Features/Notes/Settings/NotesSettingsView.swift
+// notchcast-reads: Tinycast/Features/Calendar/Settings/CalendarSettingsView.swift
+// notchcast-reads: Tinycast/Features/Backup/Settings/RaycastImportSelection.swift
 import AppKit
 import Foundation
 
@@ -26,13 +29,17 @@ struct HiddenFeaturesTest {
         }
 
         let titles = ["Appearance", "Follow the cursor across displays", "Drag to move the launcher"]
-        precondition(NotchcastHidden.rows == Set(titles))
-        for title in titles {
+        let menuBarTitles = [
+            "Show in menu bar", "Show in Menu Bar", "Calendar in Menu Bar", "Show Upcoming Events",
+            "Only show events with meetings", "Hide when there are no upcoming events", "Hide Current Event",
+        ]
+        precondition(NotchcastHidden.rows == Set(titles + menuBarTitles))
+        for title in titles + menuBarTitles {
             precondition(
                 !SettingsSearchCatalog.entries.contains { $0.keywords.contains(title) },
                 "Search omits the hidden row: \(title)")
         }
-        for title in ["Show animations", "Interface size", "Window mode"] {
+        for title in ["Show animations", "Interface size", "Window mode", "Days to Show"] {
             precondition(
                 SettingsSearchCatalog.entries.contains { $0.keywords.contains(title) },
                 "Search keeps the stock row: \(title)")
@@ -57,12 +64,39 @@ struct HiddenFeaturesTest {
             "A stored panel position is never restored")
         let general = source("Tinycast/Features/Settings/Panes/GeneralSettingsView.swift")
         precondition(
-            general.components(separatedBy: ".notchcastHidden()").count == 4,
-            "The three hidden rows are gone from the General pane")
+            general.components(separatedBy: ".notchcastHidden()").count == 5,
+            "The four hidden rows are gone from the General pane")
+        precondition(hiddenRows(in: "Tinycast/Features/Notes/Settings/NotesSettingsView.swift") == 1)
+        let calendar = source("Tinycast/Features/Calendar/Settings/CalendarSettingsView.swift")
+        precondition(
+            hiddenRows(in: "Tinycast/Features/Calendar/Settings/CalendarSettingsView.swift") == 5,
+            "Five Menu Bar rows are gone from the Calendar pane")
+        precondition(calendar.contains("\"Days to Show\""), "Days to Show stays: it sets the span for every surface")
+
+        precondition(
+            settings.contains("var showInMenuBar: Bool {\n        get { false }"),
+            "The menu-bar icon is never inserted")
+        precondition(
+            settings.contains("var notesShowsInMenuBar: Bool {\n        get { false }"),
+            "The Notes menu-bar item is never created")
+        precondition(
+            settings.contains("var calendarMenuBarDisplay: CalendarMenuBarDisplay {\n        get { .disabled }"),
+            "The calendar menu-bar item is never inserted")
+        for key in ["showInMenuBar", "notesShowsInMenuBar", "calendarMenuBarDisplay"] {
+            precondition(!settings.contains("\n        \(key) ="), "AppSettings.\(key) ignores persisted values")
+        }
+        precondition(
+            source("Tinycast/Features/Backup/Settings/RaycastImportSelection.swift")
+                .contains(".filter { $0.option != .menuBarVisibility }"),
+            "Raycast import offers no menu-bar icon checkbox")
         precondition(
             SettingsSearchCatalog.entries.contains { $0.tab == .about && $0.keywords.contains("Support") },
             "About still lists Support")
-        print("Hidden features: Extensions, appearance, dragging and placement are hidden")
+        print("Hidden features: Extensions, appearance, dragging, placement and menu-bar items are hidden")
+    }
+
+    static func hiddenRows(in path: String) -> Int {
+        source(path).components(separatedBy: ".notchcastHidden()").count - 1
     }
 
     static func source(_ path: String) -> String {
