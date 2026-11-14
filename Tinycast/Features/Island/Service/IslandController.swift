@@ -30,17 +30,22 @@ final class IslandController: NSObject {
         canvas.setAccessibilityElement(true)
         canvas.setAccessibilityRole(.button)
         canvas.setAccessibilityLabel(NSRunningApplication.current.localizedName)
+        canvas.canOpen = { [weak self] in
+            guard let self else { return false }
+            return self.panel?.isVisible != true && self.overlays.isEmpty && NSApp.modalWindow == nil && self.isResting
+        }
         source.didFrame = { [weak self] in self?.paintFrame() }
     }
 
     func attach(_ panel: PalettePanel, screen: NSScreen) {
-        panel.level = NSWindow.Level(rawValue: IslandBackdrop.levelValue + 1)
         guard self.panel !== panel else { return }
+        if !panel.isVisible, NSApp.modalWindow == nil { panel.level = Self.paletteLevel }
         self.panel = panel
         panel.contentView?.wantsLayer = true
         panel.contentView?.layer?.mask = clip
         panel.hasShadow = false
-        observer = PanelObserver(panel: panel) { [weak self] in self?.frameChanged() }
+        observer = PanelObserver(panel: panel, changed: { [weak self] in self?.frameChanged() },
+            becameKey: { [weak self] in self?.restoreLevel() })
         if layout == nil { configure(screen) }
         frameChanged()
     }
@@ -56,6 +61,11 @@ final class IslandController: NSObject {
         let next = IslandLayout(screen: screen.frame, notch: Self.notch(on: screen), canvas: Theme.Size.islandHost)
         layout = next
         backdrop.setFrame(next.window, display: false)
+        if surface != nil {
+            if showsRest, panel?.isVisible != true, NSApp.modalWindow == nil { backdrop.orderFrontRegardless() }
+            frameChanged()
+            return
+        }
         var metrics = IslandMetrics.standard
         metrics.screen = .init(width: next.canvas.width, height: next.canvas.height)
         metrics.top = next.top
@@ -93,7 +103,8 @@ final class IslandController: NSObject {
 
     @objc private func frameChanged() {
         guard let surface, let layout else { return }
-        panel?.level = NSWindow.Level(rawValue: IslandBackdrop.levelValue + 1)
+        let suspended = panel.map { $0.isVisible && ($0.level < Self.paletteLevel || NSApp.modalWindow != nil) } ?? false
+        if suspended { backdrop.orderOut(nil) }
         let palette = panel.flatMap { $0.isVisible ? $0.frame : nil }
         let overlay = IslandOverlayLayout(screen: layout.screen,
             contentTop: layout.screen.maxY - layout.contentTop, palette: palette,
@@ -102,7 +113,7 @@ final class IslandController: NSObject {
                           height: max(palette?.height ?? 0, overlay?.height ?? 0))
         surface.batch {
             if size != .zero {
-                backdrop.orderFrontRegardless()
+                if !suspended { backdrop.orderFrontRegardless() }
                 surface.resize(stageWidth: size.width, animate: true)
                 surface.show(.expanded(.init(bottom: size)), contentKey: "palette")
             } else {
@@ -113,7 +124,22 @@ final class IslandController: NSObject {
     }
 
     func opened() {
-        backdrop.orderFrontRegardless()
+        frameChanged()
+    }
+
+    private static var paletteLevel: NSWindow.Level { NSWindow.Level(rawValue: IslandBackdrop.levelValue + 1) }
+
+    private var isResting: Bool {
+        guard let layout, let bounds = canvas.outline?.boundingBoxOfPath else { return false }
+        let size = layout.hasNotch ? CGSize(width: layout.notch.width, height: layout.notch.height * 2) : Theme.Size.islandRest
+        return abs(bounds.width - size.width) < 0.01 && abs(bounds.height - size.height) < 0.01
+    }
+
+    private func restoreLevel() {
+        guard let panel, let layout, panel.isKeyWindow, NSApp.modalWindow == nil else { return }
+        panel.level = Self.paletteLevel
+        panel.setFrameOrigin(CGPoint(x: layout.screen.midX - panel.frame.width / 2,
+                                     y: layout.screen.maxY - layout.contentTop - panel.frame.height))
         frameChanged()
     }
 
@@ -131,7 +157,6 @@ final class IslandController: NSObject {
         captureName = name
         _ = source.requestFrame {}
     }
-
     #endif
 
     private func paintFrame() {
@@ -190,14 +215,26 @@ final class IslandController: NSObject {
     @MainActor
     private final class PanelObserver: NSObject {
         private let changed: () -> Void
-        init(panel: NSWindow, changed: @escaping () -> Void) {
+        private let becameKey: () -> Void
+        private var level: NSKeyValueObservation?
+        init(panel: NSWindow, changed: @escaping () -> Void, becameKey: @escaping () -> Void) {
             self.changed = changed
+            self.becameKey = becameKey
             super.init()
-            for name in [NSWindow.didResizeNotification, NSWindow.didMoveNotification, NSWindow.didBecomeKeyNotification] {
+            for name in [NSWindow.didResizeNotification, NSWindow.didMoveNotification, NSWindow.didResignKeyNotification] {
                 NotificationCenter.default.addObserver(self, selector: #selector(update), name: name, object: panel)
+            }
+            NotificationCenter.default.addObserver(self, selector: #selector(keyChanged),
+                name: NSWindow.didBecomeKeyNotification, object: panel)
+            level = panel.observe(\.level) { [weak self] _, _ in
+                guard let self else { return }
+                RunLoop.main.perform(#selector(update), target: self, argument: nil, order: 0, modes: [.common])
             }
         }
         @objc private func update() { changed() }
+        @objc private func keyChanged() {
+            Task { @MainActor [weak self] in self?.becameKey() }
+        }
         isolated deinit { NotificationCenter.default.removeObserver(self) }
     }
 }
@@ -209,6 +246,7 @@ private final class IslandBackdrop: NSPanel {
         backgroundColor = .clear
         isOpaque = false
         hasShadow = false
+        hidesOnDeactivate = false
         animationBehavior = .none
         level = NSWindow.Level(rawValue: Self.levelValue)
         collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
@@ -221,6 +259,7 @@ private final class IslandBackdrop: NSPanel {
 private final class IslandCanvas: NSView {
     var outline: CGPath?
     var onOpen: (() -> Void)?
+    var canOpen: (() -> Bool)?
     override func draw(_ dirtyRect: NSRect) {
         NSColor.clear.setFill()
         dirtyRect.fill(using: .copy)
@@ -233,11 +272,11 @@ private final class IslandCanvas: NSView {
         outline?.contains(point) == true ? self : nil
     }
     override func mouseDown(with event: NSEvent) {
-        guard outline?.contains(convert(event.locationInWindow, from: nil)) == true else { return }
+        guard canOpen?() == true, outline?.contains(convert(event.locationInWindow, from: nil)) == true else { return }
         onOpen?()
     }
     override func accessibilityPerformPress() -> Bool {
-        guard let onOpen else { return false }
+        guard canOpen?() == true, let onOpen else { return false }
         onOpen()
         return true
     }
