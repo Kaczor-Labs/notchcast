@@ -15,5 +15,7 @@
   "notchcast/land-rerun-test.sh": {"MAINTAINER_NAME": 1, "MAINTAINER_EMAIL": 1},
   "notchcast/land-test.sh": {"FORK_REPO": 3, "MAINTAINER_NAME": 1, "MAINTAINER_EMAIL": 1},
   "notchcast/land-tools-test.sh": {"MAINTAINER_NAME": 1, "MAINTAINER_EMAIL": 1},
-  "notchcast/prune-branches-test.sh": {"FORK_REPO": 1}
+  "notchcast/prune-branches-test.sh": {"FORK_REPO": 1},
+  "notchcast/sync-island-engine-test.py": {"MAINTAINER_NAME": 2, "MAINTAINER_EMAIL": 2},
+  "notchcast/vendor/IslandEngine/LICENSE": {"MAINTAINER_NAME": 1}
 }

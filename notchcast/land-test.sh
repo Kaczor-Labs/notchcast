@@ -169,11 +169,14 @@ git for-each-ref --format='delete %(refname)' refs/notchcast/synced/ | git updat
 if [ "${1:-}" = --fork ]; then exit 0; fi
 git switch --quiet -c fixture-a
 python3 - <<'PY'
+import re
 from pathlib import Path
 for p in [*Path('Tinycast').rglob('*.swift'), *Path('Tests').glob('*.swift')]:
     s = p.read_text()
-    if 'NotchcastHidden.tabs' in s or p.name == 'NotchcastHidden.swift':
-        p.write_text(s.replace('NotchcastHidden.tabs', 'NotchcastHidden.hiddenTabs').replace('static let tabs', 'static let hiddenTabs'))
+    if p.name == 'NotchcastHidden.swift':
+        p.write_text(re.sub(r'\btabs\b', 'hiddenTabs', s))
+    elif 'NotchcastHidden.tabs' in s:
+        p.write_text(s.replace('NotchcastHidden.tabs', 'NotchcastHidden.hiddenTabs'))
 PY
 git commit --quiet -am 'Fixture: rename the hidden tab set'
 a=$(git rev-parse HEAD)
