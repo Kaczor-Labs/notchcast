@@ -217,7 +217,8 @@ final class AppSettings {
 
     /// Follow macOS, or pin Tinycast to one appearance. Applied by `AppCore.applyAppearance()`.
     var appearance: AppAppearance {
-        didSet { defaults.set(appearance.rawValue, forKey: Key.appearance.rawValue) }
+        get { NotchcastIslandPins.appearance }
+        set { }
     }
 
     /// The per-app key System Settings writes too, so the two never disagree.
@@ -255,7 +256,8 @@ final class AppSettings {
 
     /// Summon the palette on the display under the pointer instead of the one holding the menu bar.
     var openOnCursorScreen: Bool {
-        didSet { defaults.set(openOnCursorScreen, forKey: Key.openOnCursorScreen.rawValue) }
+        get { NotchcastIslandPins.openOnCursorScreen }
+        set { }
     }
 
     var autoSwitchInputSourceID: String? {
@@ -270,7 +272,8 @@ final class AppSettings {
 
     /// Lets the panel be dragged by its top edge; off by default, so most launches never grab it.
     var paletteDraggable: Bool {
-        didSet { defaults.set(paletteDraggable, forKey: Key.paletteDraggable.rawValue) }
+        get { NotchcastIslandPins.paletteDraggable }
+        set { }
     }
 
     /// Off, every surface changes at once; on, Reduce Motion still trims movement where it did.
@@ -292,6 +295,7 @@ final class AppSettings {
     }
 
     func palettePosition(on display: String) -> CGPoint? {
+        guard NotchcastIslandPins.remembersPalettePosition else { return nil }
         palettePositions[display].flatMap { $0.count == 2 ? CGPoint(x: $0[0], y: $0[1]) : nil }
     }
 
@@ -744,8 +748,6 @@ final class AppSettings {
         escapeKeyBehavior =
             defaults.string(forKey: Key.escapeKeyBehavior.rawValue).flatMap(EscapeKeyBehavior.init)
             ?? .navigateBackOrClose
-        appearance =
-            defaults.string(forKey: Key.appearance.rawValue).flatMap(AppAppearance.init) ?? .system
         language = Self.storedLanguage
         calcNumberStyle =
             defaults.string(forKey: Key.calcNumberStyle.rawValue).flatMap(CalcNumberStyle.init)
@@ -768,11 +770,7 @@ final class AppSettings {
         rootSearchSensitivity =
             defaults.string(forKey: Key.rootSearchSensitivity.rawValue)
             .flatMap(SearchSensitivity.init) ?? .default
-        openOnCursorScreen =
-            defaults.object(forKey: Key.openOnCursorScreen.rawValue) == nil
-            || defaults.bool(forKey: Key.openOnCursorScreen.rawValue)
         autoSwitchInputSourceID = defaults.string(forKey: Key.autoSwitchInputSource.rawValue)
-        paletteDraggable = defaults.bool(forKey: Key.paletteDraggable.rawValue)
         animationsEnabled =
             defaults.object(forKey: Key.animationsEnabled.rawValue) == nil
             || defaults.bool(forKey: Key.animationsEnabled.rawValue)

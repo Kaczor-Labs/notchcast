@@ -77,6 +77,7 @@ struct GeneralSettingsView: View {
                 } label: {
                     SettingsRowTitle(.generalAppearance, "Appearance")
                 }
+                .notchcastHidden()
                 Toggle(isOn: $settings.animationsEnabled) {
                     SettingsRowTitle(.generalAppearance, "Show animations")
                 }
@@ -90,10 +91,12 @@ struct GeneralSettingsView: View {
                 Toggle(isOn: $settings.openOnCursorScreen) {
                     SettingsRowTitle(.generalAppearance, "Follow the cursor across displays")
                 }
+                .notchcastHidden()
                 Toggle(isOn: $settings.paletteDraggable) {
                     SettingsRowTitle(.generalAppearance, "Drag to move the launcher")
                     Text("Move the launcher by dragging the search bar.")
                 }
+                .notchcastHidden()
             } header: {
                 SettingsSectionHeader(.generalAppearance)
             }
