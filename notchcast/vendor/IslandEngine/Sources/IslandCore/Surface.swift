@@ -147,10 +147,11 @@ public final class IslandSurface<Content> {
     }
 
     /// Centres the island in a container `width` wide.
-    public func resize(stageWidth width: Double) {
+    /// `animate` opts into a continuous width morph. The default retains instant container resizing.
+    public func resize(stageWidth width: Double, animate: Bool = false) {
         guard width != stageWidth else { return }
         stageWidth = width
-        retarget()
+        retarget(animateResize: animate)
     }
 
     /// Tells the surface its current content changed size outside a store change.
@@ -192,13 +193,14 @@ public final class IslandSurface<Content> {
         }
     }
 
-    private func retarget() {
+    private func retarget(animateResize: Bool = false) {
         let (presentation, scene) = scene()
         presentations[scene.key] = presentation
         contentKey = scene.key
         let now = clock.now()
         let drew = stage.retarget(
-            scene: scene, measures: measure(presentation, stageWidth), stageWidth: stageWidth, now: now)
+            scene: scene, measures: measure(presentation, stageWidth), stageWidth: stageWidth, now: now,
+            animateResize: animateResize)
         let mounted = StringSet(stage.layers.map(\.key))
         presentations = presentations.filter { mounted.contains($0.key) }
         time = now
