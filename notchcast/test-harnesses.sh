@@ -1,4 +1,11 @@
 # Sourced by upstream's runner so fork harnesses never need another shared registration.
+# Harness suites leak plists into ~/Library/Preferences; the run removes what it created, pass or fail.
+if [ "$emit_db" -eq 0 ]; then
+    python3 notchcast/pref-sweep.py begin $$ || true
+    trap 'python3 notchcast/pref-sweep.py end $$ || true' EXIT
+    trap 'exit 130' INT
+    trap 'exit 143' TERM HUP
+fi
 harness_inputs=$(python3 notchcast/harness_inputs.py) || {
     echo '::error::Fork harness input resolution failed; refusing an incomplete test suite' >&2
     exit 1
