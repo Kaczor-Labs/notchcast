@@ -51,29 +51,29 @@ final class IslandController: NSObject {
     }
 
     func configure(_ screen: NSScreen) {
-        let next = IslandLayout(screen: screen.frame, notch: Self.notch(on: screen))
+        let next = IslandLayout(screen: screen.frame, notch: Self.notch(on: screen), canvas: Theme.Size.islandHost)
         layout = next
         backdrop.setFrame(next.window, display: false)
         var metrics = IslandMetrics.standard
         metrics.screen = .init(width: next.canvas.width, height: next.canvas.height)
         metrics.top = next.top
-        metrics.idle = .init(width: next.hasNotch ? next.notch.width : 96,
-                             height: next.hasNotch ? next.notch.height * 2 : 24)
+        metrics.idle = .init(width: next.hasNotch ? next.notch.width : Theme.Size.islandRest.width,
+                             height: next.hasNotch ? next.notch.height * 2 : Theme.Size.islandRest.height)
         metrics.corner.smoothing = 0
         metrics.expanded.top = next.top
         metrics.expanded.sideInset = 0
         metrics.expanded.padding = .init(top: next.contentTop * 2, side: 0, bottom: 0)
         metrics.expanded.rowGap = 0
         metrics.expanded.centerTop = 0
-        metrics.expanded.minHeight = 24
+        metrics.expanded.minHeight = Theme.Size.islandRest.height
         metrics.expanded.maxHeight = next.canvas.height
-        metrics.expanded.radius = 26
+        metrics.expanded.radius = Theme.Radius.panel
         metrics.expanded.shadow.pull = .init(side: 0, top: 0, bottom: 0, opacity: 0)
         metrics.sensor.opacity = 0
         let surface = IslandSurface<CGSize>(
             presentation: .idle, clock: FrameClock(frameSource: source), metrics: metrics,
             motion: .standard, dpr: screen.backingScaleFactor, reduced: !Motion.isEnabled,
-            keyline: 0, stageWidth: 750, measure: { presentation, _ in
+            keyline: 0, stageWidth: Theme.Size.panelWidth, measure: { presentation, _ in
                 guard case .expanded(let content) = presentation else { return ContentMeasures() }
                 return ContentMeasures(expandedHeight: Double(content.bottom?.height ?? 0))
             })
@@ -94,7 +94,8 @@ final class IslandController: NSObject {
         panel?.level = NSWindow.Level(rawValue: IslandBackdrop.levelValue + 1)
         let palette = panel.flatMap { $0.isVisible ? $0.frame : nil }
         let overlay = IslandOverlayLayout(screen: layout.screen,
-            contentTop: layout.screen.maxY - layout.contentTop, palette: palette).surface(overlays)
+            contentTop: layout.screen.maxY - layout.contentTop, palette: palette,
+            inset: Theme.Spacing.islandInset, gap: Theme.Spacing.xl).surface(overlays)
         let size = CGSize(width: max(palette?.width ?? 0, overlay?.width ?? 0),
                           height: max(palette?.height ?? 0, overlay?.height ?? 0))
         surface.batch {
@@ -144,7 +145,7 @@ final class IslandController: NSObject {
         CATransaction.flush()
         let bounds = outline.boundingBoxOfPath
         if !showsRest, overlays.isEmpty, panel?.isVisible != true,
-           abs(bounds.width - (layout.hasNotch ? layout.notch.width : 96)) < 0.01 {
+           abs(bounds.width - (layout.hasNotch ? layout.notch.width : Theme.Size.islandRest.width)) < 0.01 {
             backdrop.orderOut(nil)
         }
         if IslandVerification.enabled, let panel {
@@ -213,7 +214,7 @@ private final class IslandCanvas: NSView {
         dirtyRect.fill(using: .copy)
         guard let outline, let context = NSGraphicsContext.current?.cgContext else { return }
         context.addPath(outline)
-        context.setFillColor(NSColor.black.cgColor)
+        context.setFillColor(NSColor(Theme.Colors.islandSurface).cgColor)
         context.fillPath()
     }
     override func hitTest(_ point: NSPoint) -> NSView? {

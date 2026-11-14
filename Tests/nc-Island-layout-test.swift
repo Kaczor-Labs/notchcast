@@ -6,7 +6,8 @@ import CoreGraphics
 struct IslandLayoutTest {
     static func main() {
         for notch in [CGSize.zero, CGSize(width: 180, height: 32)] {
-            let layout = IslandLayout(screen: CGRect(x: -2580, y: 100, width: 2580, height: 1080), notch: notch)
+            let layout = IslandLayout(screen: CGRect(x: -2580, y: 100, width: 2580, height: 1080),
+                                      notch: notch, canvas: CGSize(width: 1100, height: 860))
             precondition(layout.window.maxY == layout.screen.maxY)
             for scale in [1.0, 1.1, 1.2] {
                 let size = CGSize(width: (750 * scale).rounded(), height: (475 * scale).rounded())
