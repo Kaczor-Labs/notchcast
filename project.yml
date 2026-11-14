@@ -37,6 +37,10 @@ settings:
       STRIP_SWIFT_SYMBOLS: YES
       DEAD_CODE_STRIPPING: YES
 
+packages:
+  IslandEngine:
+    path: notchcast/vendor/IslandEngine
+
 targets:
   Tinycast:
     type: application
@@ -57,7 +61,13 @@ targets:
       # The MIT mark's licence asks the notice to travel with the binary, not just the repo.
       - path: NOTICE.md
         buildPhase: resources
+      - path: notchcast/IslandEngine-LICENSE.txt
+        buildPhase: resources
     dependencies:
+      - package: IslandEngine
+        product: IslandCore
+      - package: IslandEngine
+        product: IslandUI
       - target: DictationHelper
         link: false
         embed: false
