@@ -31,6 +31,7 @@ let package = Package(name: "Fixture", targets: [
         source = engine / f"Sources/{module}/Value.swift"
         source.parent.mkdir(parents=True)
         source.write_text("public let value = 42\n")
+    (engine / "LICENSE").write_text("MIT fixture\n")
     (engine / "Tests").mkdir()
     (engine / "Tests/secret.txt").write_text("excluded fixture\n")
     git("add", ".")
@@ -39,14 +40,16 @@ let package = Package(name: "Fixture", targets: [
     commit = git("rev-parse", "HEAD")
     (engine / "Sources/IslandCore/Value.swift").write_text("uncommitted changes\n")
 
-    def sync(*arguments):
-        return subprocess.run([sys.executable, str(script), str(engine), commit, *arguments],
+    def sync(*arguments, revision=commit):
+        return subprocess.run([sys.executable, str(script), str(engine), revision, *arguments],
                               capture_output=True, text=True, env=os.environ)
 
     assert sync().returncode == 0
     vendor = script.parent / "vendor/IslandEngine"
     assert (vendor / "Sources/IslandCore/Value.swift").read_text() == "public let value = 42\n"
-    assert (vendor / "REVISION").read_text() == commit + "\n"
+    trees = [git("rev-parse", f"{commit}:Sources/{module}") for module in ("IslandCore", "IslandUI")]
+    assert (vendor / "REVISION").read_text() == f"{commit}\nIslandCore {trees[0]}\nIslandUI {trees[1]}\n"
+    assert (vendor / "LICENSE").read_text() == "MIT fixture\n"
     assert not (vendor / "Tests").exists()
     assert sync("--check").returncode == 0
     assert sync("IslandUI").returncode != 0
@@ -57,4 +60,12 @@ let package = Package(name: "Fixture", targets: [
     assert sync().returncode == 0
     assert sync().returncode == 0
     assert sync("--check").returncode == 0
-    print("PASS: immutable sync, source-only copy, dependency validation, stale removal, repeatability")
+    assert sync("IslandUI", "IslandCore").returncode == 0 and sync("--check").returncode == 0
+    (engine / "Package.swift").write_text((engine / "Package.swift").read_text().replace(
+        '.target(name: "IslandCore")', '.target(name: "IslandCore", resources: [.copy("Data")])'))
+    git("-c", "user.name=Damian", "-c", "user.email=336236323+kaczordodgers@users.noreply.github.com",
+        "commit", "-qm", "Resources", "Package.swift")
+    refused = sync(revision=git("rev-parse", "HEAD"))
+    assert refused.returncode != 0 and "IslandCore uses resources" in refused.stderr, refused.stderr
+    assert sync("--check").returncode == 0
+    print("PASS: immutable sync, source-only copy, dependency validation, stale removal, repeatability, sorted modules, licence copy, unsupported target keys")
