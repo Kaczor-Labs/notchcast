@@ -136,13 +136,13 @@ final class IslandHitLayer: NSView {
         guard expanded, window != nil else { return }
         let mouse: NSEvent.EventTypeMask = [.leftMouseDown, .rightMouseDown, .otherMouseDown]
         if let monitor = NSEvent.addLocalMonitorForEvents(matching: mouse, handler: { [weak self] event in
-            MainActor.assumeIsolated { self?.mouseDownAnywhere(event) }
+            self?.mouseDownAnywhere(event)
             return event
         }) {
             monitors.append(monitor)
         }
         if let monitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown, handler: { [weak self] event in
-            MainActor.assumeIsolated { self?.keyDownAnywhere(event) }
+            self?.keyDownAnywhere(event)
             return event
         }) {
             monitors.append(monitor)
