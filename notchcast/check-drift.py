@@ -89,6 +89,8 @@ def clone_counts(root, files):
                                  '--output', str(output), str(tree)], capture_output=True, text=True, timeout=120)
         if result.returncode:
             raise ValueError(f'gate 4 jscpd failed ({result.returncode}): {result.stderr.strip()}')
+        if not (output / 'jscpd-report.json').exists():
+            return {}  # jscpd 4 writes no report when no file reaches the token minimum
         report = json.loads((output / 'jscpd-report.json').read_text())
         counts = Counter()
         for clone in report['duplicates']:
