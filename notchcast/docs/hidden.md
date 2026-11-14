@@ -8,6 +8,10 @@ The one list of what Notchcast hides and how. Code stays compiled so upstream ha
 | Hidden | Appearance picker | general (row) | none | appearance, pinned to dark | AppSettings, GeneralSettingsView, SettingsSearchCatalog |
 | Hidden | Launcher dragging and snapping | general (row) | none | paletteDraggable | AppSettings, GeneralSettingsView, SettingsSearchCatalog |
 | Hidden | Launcher placement | general (row) | none | openOnCursorScreen, stored panel positions | AppSettings, GeneralSettingsView, SettingsSearchCatalog |
+| Hidden | Menu-bar icon | general (row) | none | showInMenuBar | AppSettings, GeneralSettingsView, SettingsSearchCatalog |
+| Hidden | Notes menu-bar item | notes (row) | none | notesShowsInMenuBar | AppSettings, NotesSettingsView, SettingsSearchCatalog |
+| Hidden | Calendar menu-bar item and its four rows | calendar (rows) | none | calendarMenuBarDisplay (disabled) | AppSettings, CalendarSettingsView, SettingsSearchCatalog |
+| Hidden | Raycast import "Menu-bar icon" checkbox | none | none | none (the option imports into a no-op) | RaycastImportSelection |
 
 `NotchcastHidden` in `Tinycast/Features/Notchcast/Hidden/` owns the hidden tab set and the English keys of hidden rows; `NotchcastIslandPins` there holds the pinned values; it needs `SettingsTab`, so `notchcast/command-harness-sources.sh` adds it to every harness that compiles `SettingsTab.swift`. On rebase retain the filtering hooks and forced-off getters, even if upstream adds stored defaults or backup restore paths.
 
@@ -17,3 +21,6 @@ The one list of what Notchcast hides and how. Code stays compiled so upstream ha
 - Placement: `AppSettings.openOnCursorScreen` always reads true, the stock default, and `palettePosition(on:)` returns nil, so a stored panel position from an earlier build is never restored and the island keeps the notch.
 - Hidden rows: the three General rows end in `.notchcastHidden()`, which renders nothing, and `NotchcastHidden.rows` drops their search entries by English key, because titles are localized.
 - Still visible, as in stock: Apple Shortcuts (Commands group), Backup and About (Advanced group, with Support under About's Links), all reachable by slug and in search.
+- Menu-bar items: the island replaces all three. `AppSettings.showInMenuBar` and `notesShowsInMenuBar` always read false and `calendarMenuBarDisplay` always reads `.disabled`, all ignoring writes, persisted values, backup restore and the `settings.json` mirror, so `TinycastApp` inserts neither `MenuBarExtra` and `NotesCoordinator` creates no status item. Their key mappings stay. The seven rows end in `.notchcastHidden()` and `NotchcastHidden.rows` drops their search entries; the Raycast import list filters out the `menuBarVisibility` option.
+- Calendar › Days to Show stays visible: `calendarSpan` narrows the EventKit fetch for My Schedule and launcher search too. Its section is still titled "Menu Bar".
+- Only the menu-bar icon is gone, not its commands: `TinycastApp`'s `.commands` still declare Settings… ⌘, and Close Window ⌘Q on a scene that is never inserted. Quit and Settings stay reachable from the palette's app menu and the launcher.
