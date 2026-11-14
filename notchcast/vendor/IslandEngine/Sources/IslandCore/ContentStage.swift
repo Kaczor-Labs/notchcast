@@ -290,12 +290,13 @@ public struct ContentStage: Sendable {
     }
 
     /// Shows `scene` at clock time `now` (ms) on a stage `stageWidth` wide; true when it drew.
-    public mutating func retarget(scene: ContentScene, measures: ContentMeasures, stageWidth: Double, now: Double)
+    public mutating func retarget(scene: ContentScene, measures: ContentMeasures, stageWidth: Double, now: Double,
+                                 animateResize: Bool = false)
         -> Bool
     {
         mount(scene, measures)
         self.stageWidth = stageWidth
-        let drew = place(scene, measures, now: now)
+        let drew = place(scene, measures, now: now, animateResize: animateResize)
         drop()
         return drew
     }
