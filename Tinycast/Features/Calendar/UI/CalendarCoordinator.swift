@@ -119,18 +119,18 @@ final class CalendarCoordinator {
     private var consentMessage: String {
         switch settings.calendarSpan {
         case .today:
-            String(localized: "Tinycast reads today's events to find join links. Nothing leaves this Mac.")
+            String(localized: "Notchcast reads today's events to find join links. Nothing leaves this Mac.", table: "Notchcast")
         case .todayAndTomorrow:
             String(
                 localized: """
-                    Tinycast reads today's and tomorrow's events to find join links. \
+                    Notchcast reads today's and tomorrow's events to find join links. \
                     Nothing leaves this Mac.
-                    """)
+                    """, table: "Notchcast")
         case .nextSevenDays:
             String(
                 localized: """
-                    Tinycast reads the next 7 days' events to find join links. Nothing leaves this Mac.
-                    """)
+                    Notchcast reads the next 7 days' events to find join links. Nothing leaves this Mac.
+                    """, table: "Notchcast")
         }
     }
 
