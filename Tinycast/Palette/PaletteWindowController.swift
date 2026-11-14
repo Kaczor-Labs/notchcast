@@ -483,7 +483,7 @@ final class PaletteWindowController: NSObject, NSWindowDelegate {
 
     /// Size to height and place against the session anchor, so the list grows downward.
     private func positionPanel(_ panel: NSPanel, collapsed: Bool) {
-        guard let anchor = resolveAnchor() else { return }
+        guard let anchor = core.island.anchor(panel, width: metrics.size.panelWidth, collapsed: collapsed) else { return }
         let size = metrics.size
         let height = collapsed ? size.compactHeight : size.panelHeight
         renderingOutset = collapsed ? Theme.Size.paletteGlassOutset : 0
