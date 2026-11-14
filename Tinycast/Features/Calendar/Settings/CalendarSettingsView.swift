@@ -91,6 +91,7 @@ struct CalendarSettingsView: View {
                     SettingsRowTitle(.calendarMenuBar, "Calendar in Menu Bar")
                     Text("Separate from the Notchcast icon.", tableName: "Notchcast")
                 }
+                .notchcastHidden()
                 Picker(selection: $settings.calendarSpan) {
                     ForEach(MeetingSpan.allCases) { span in
                         Text(span.title).tag(span)
@@ -108,16 +109,19 @@ struct CalendarSettingsView: View {
                     Text("When the next event appears.")
                 }
                 .settingsEnabled(settings.calendarMenuBarDisplay != .disabled)
+                .notchcastHidden()
                 Toggle(isOn: $settings.menuBarLinkedEventsOnly) {
                     SettingsRowTitle(.calendarMenuBar, "Only show events with meetings")
                 }
                 .toggleStyle(.checkbox)
                 .settingsEnabled(settings.calendarMenuBarDisplay != .disabled)
+                .notchcastHidden()
                 Toggle(isOn: $settings.calendarMenuBarHidesWhenEmpty) {
                     SettingsRowTitle(.calendarMenuBar, "Hide when there are no upcoming events")
                 }
                 .toggleStyle(.checkbox)
                 .settingsEnabled(settings.calendarMenuBarDisplay != .disabled)
+                .notchcastHidden()
                 Picker(selection: $settings.hideCurrentEvent) {
                     ForEach(HideCurrentEvent.allCases) { hide in
                         Text(hide.title).tag(hide)
@@ -127,6 +131,7 @@ struct CalendarSettingsView: View {
                     Text("Once it has started.")
                 }
                 .settingsEnabled(settings.calendarMenuBarDisplay != .disabled)
+                .notchcastHidden()
             } header: {
                 SettingsSectionHeader(.calendarMenuBar)
             }
