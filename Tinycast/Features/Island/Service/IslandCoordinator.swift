@@ -22,9 +22,11 @@ final class IslandCoordinator: NSObject {
     }
 
     private var screens: [NSScreen] {
+        #if DEBUG
         if IslandVerification.enabled {
             return NSScreen.screens.filter { $0.localizedName.contains("Agent Test") }
         }
+        #endif
         return NSScreen.screens
     }
 
@@ -65,9 +67,11 @@ final class IslandCoordinator: NSObject {
     func anchor(_ window: NSPanel, width: CGFloat, collapsed: Bool) -> CGPoint? {
         guard let panel = window as? PalettePanel else { return nil }
         let outset = collapsed ? Theme.Size.paletteGlassOutset : 0
+        #if DEBUG
         if IslandVerification.stock, let screen = screens.first {
             return CGPoint(x: screen.frame.midX - width / 2, y: screen.frame.maxY - outset)
         }
+        #endif
         if !started { start() }
         let available = screens
         let pointer = NSEvent.mouseLocation
