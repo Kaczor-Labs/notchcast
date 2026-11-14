@@ -176,9 +176,7 @@ private struct ModelEnvironment<IslandContent>: ViewModifier {
         content.environment(model).environment(\.islandContext, model)
             .environment(\.islandReducedMotionSetting, model.reducedMotion)
             .onPreferenceChange(IslandActivityCommits.self) { commits in
-                MainActor.assumeIsolated {
-                    for commit in commits where commit.model == ObjectIdentifier(model) { commit.run() }
-                }
+                for commit in commits where commit.model == ObjectIdentifier(model) { commit.run() }
             }
     }
 }
