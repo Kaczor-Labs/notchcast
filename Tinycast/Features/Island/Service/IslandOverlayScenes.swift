@@ -4,6 +4,50 @@ import SwiftUI
 
 @MainActor
 enum IslandOverlayScenes {
+    static func lifetime(core: AppCore, panel: PalettePanel) async {
+        guard let controller = core.island.active else { return }
+        core.paletteCoordinator.hidePalette(restoreFocus: false)
+        await IslandVerification.pause(1.2)
+        let rest = controller.outlineBounds
+        async let answer = core.confirm(title: "Lifetime verification", message: nil, symbol: nil, confirmTitle: "Keep")
+        await IslandVerification.pause(0.5)
+        guard let question = NSApp.windows.first(where: { $0 is DialogPanel && $0.isVisible }) else {
+            IslandVerification.require(false, "lifetime question visible"); return
+        }
+        controller.capture("lifetime-question")
+        IslandVerification.require(controller.outlineBounds.height > rest.height, "question grows resting island")
+        IslandLatency.key(question, code: 53, characters: "\u{1b}")
+        IslandVerification.require(await answer == false, "lifetime question cancelled")
+        await IslandVerification.pause(1.2)
+        print("LIFETIME question rest=\(rest) actual=\(controller.outlineBounds)"
+            + " overlays=\(controller.overlayCount) paletteVisible=\(panel.isVisible)")
+        IslandVerification.require(controller.overlayCount == 0 && abs(controller.outlineBounds.height - rest.height) < 0.1,
+                                   "question orderOut contracts island to rest")
+        let presenter = HUDPresenter(anchor: .edgeInset(24), dwell: 0.4, screen: { panel.screen })
+        presenter.show(MessageHUDView(message: "Lifetime report", accessory: .progress))
+        await IslandVerification.pause(0.3)
+        controller.capture("lifetime-report")
+        IslandVerification.require(controller.outlineBounds.height > rest.height, "report grows resting island")
+        await IslandVerification.pause(1.4)
+        print("LIFETIME report rest=\(rest) actual=\(controller.outlineBounds)"
+            + " overlays=\(controller.overlayCount) paletteVisible=\(panel.isVisible)")
+        IslandVerification.require(!presenter.isShowing && controller.overlayCount == 0
+                                   && abs(controller.outlineBounds.height - rest.height) < 0.1,
+                                   "HUD fade contracts island to rest")
+        controller.capture("lifetime-rest")
+        await IslandVerification.pause(0.2)
+        let closing = HUDPanel()
+        closing.setContentSize(CGSize(width: 200, height: 60))
+        core.island.overlays.placeReport(closing, screen: panel.screen)
+        closing.orderFrontRegardless()
+        closing.close()
+        await IslandVerification.pause(0.8)
+        IslandVerification.require(controller.overlayCount == 0
+            && abs(controller.outlineBounds.height - rest.height) < 0.1, "native close releases overlay reservation")
+        print("PASS island question and HUD orderOut release frames and contract outline to rest")
+        _exit(0)
+    }
+
     static func question(core: AppCore, panel: PalettePanel) async {
         async let answer = core.confirm(title: "Keep this change?",
             message: "Synthetic verification question.\nThe native dialog owns keyboard focus.",
@@ -27,6 +71,8 @@ enum IslandOverlayScenes {
         IslandVerification.require(reports.allSatisfy { !$0.frame.intersects(question.frame) }, "report never covers question")
         IslandVerification.require(question.isKeyWindow && core.isShowingDialog && panel.isVisible,
                                    "report preserves question key, flag and open palette")
+        IslandVerification.require(!controller.pressBackdrop() && question.isKeyWindow && core.isShowingDialog,
+                                   "question margin press cannot switch screen or cancel question")
         let report = reports.first
         core.showMessage("Synthetic completed report")
         await IslandVerification.pause(0.1)
@@ -35,6 +81,8 @@ enum IslandOverlayScenes {
                                    "progress replaced on existing native HUD")
         IslandLatency.key(question, code: 53, characters: "\u{1b}")
         IslandVerification.require(await answer == false && !core.isShowingDialog, "Escape cancels native question")
+        await IslandVerification.pause(0.2)
+        IslandVerification.require(controller.overlayCount == 1, "question orderOut releases its island frame")
         async let volume = core.pickVolume(current: 0.5)
         await IslandVerification.pause(0.15)
         guard let slider = NSApp.windows.first(where: { $0 is DialogPanel && $0.isVisible }) as? DialogPanel else {
@@ -78,8 +126,18 @@ enum IslandOverlayScenes {
         IslandVerification.require(presenter.isShowing, "extend survives original 2.4 second deadline")
         await IslandVerification.pause(1.5)
         IslandVerification.require(!presenter.isShowing, "extended dwell ends after 2.4 seconds and fade")
+        IslandVerification.require(core.island.active?.overlayCount == 0, "HUD fade orderOut releases island frame")
         core.island.active?.capture("report-ended")
         await IslandVerification.pause(0.3)
+        let volume = HUDPresenter(anchor: .heightFraction(0.12), dwell: 1.6, screen: { panel.screen })
+        volume.show(VolumeHUDView(state: VolumeState(level: 0.5)), size: CGSize(width: 200, height: 100))
+        await IslandVerification.pause(0.2)
+        if let screen = panel.screen, let hud = NSApp.windows.first(where: { $0 is HUDPanel && $0.isVisible }) {
+            IslandVerification.require(abs(hud.frame.minY
+                - (screen.visibleFrame.minY + screen.visibleFrame.height * 0.12)) < 0.01,
+                                       "volume HUD retains stock bottom anchor")
+            IslandVerification.require(core.island.active?.overlayCount == 0, "volume does not expand island")
+        } else { IslandVerification.require(false, "volume HUD visible") }
         print("PASS island HUD isShowing, progress replacement, extend and 2.4 second dwell")
         _exit(0)
     }
