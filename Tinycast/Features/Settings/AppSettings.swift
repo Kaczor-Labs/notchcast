@@ -163,7 +163,8 @@ final class AppSettings {
 
     /// The launcher icon's visibility; dragging the icon out of the menu bar turns it off.
     var showInMenuBar: Bool {
-        didSet { defaults.set(showInMenuBar, forKey: Key.showInMenuBar.rawValue) }
+        get { false }
+        set { }
     }
 
     var automaticallyCheckForUpdates: Bool {
@@ -412,7 +413,8 @@ final class AppSettings {
     }
 
     var notesShowsInMenuBar: Bool {
-        didSet { defaults.set(notesShowsInMenuBar, forKey: Key.notesShowsInMenuBar.rawValue) }
+        get { false }
+        set { }
     }
 
     /// The notes folder as the user wrote it, `~` allowed; nil keeps it in Application Support.
@@ -569,10 +571,8 @@ final class AppSettings {
     }
 
     var calendarMenuBarDisplay: CalendarMenuBarDisplay {
-        didSet {
-            defaults.set(
-                calendarMenuBarDisplay.rawValue, forKey: Key.calendarMenuBarDisplay.rawValue)
-        }
+        get { .disabled }
+        set { }
     }
 
     var menuBarLinkedEventsOnly: Bool {
@@ -872,9 +872,6 @@ final class AppSettings {
             defaults.string(forKey: Key.clipboardDefaultAction.rawValue)
             .flatMap(ClipboardDefaultAction.init) ?? .paste
         launchAtLogin = LaunchAtLogin.isEnabled
-        showInMenuBar =
-            defaults.object(forKey: Key.showInMenuBar.rawValue) == nil
-            || defaults.bool(forKey: Key.showInMenuBar.rawValue)
         automaticallyCheckForUpdates =
             defaults.object(forKey: Key.automaticallyCheckForUpdates.rawValue) == nil
             || defaults.bool(forKey: Key.automaticallyCheckForUpdates.rawValue)
@@ -977,7 +974,6 @@ final class AppSettings {
         notesShowsFormattingBar =
             defaults.object(forKey: Key.notesShowsFormattingBar.rawValue) == nil
             || defaults.bool(forKey: Key.notesShowsFormattingBar.rawValue)
-        notesShowsInMenuBar = defaults.bool(forKey: Key.notesShowsInMenuBar.rawValue)
         notesFolder = defaults.string(forKey: Key.notesFolder.rawValue)
         aiEnabled = defaults.bool(forKey: Key.aiEnabled.rawValue)
         mcpEnabled = defaults.bool(forKey: Key.mcpEnabled.rawValue)
@@ -1029,10 +1025,6 @@ final class AppSettings {
         // Both default to their zero case, so an unset key needs no presence check.
         menuBarEvents =
             MenuBarEvents(rawValue: defaults.integer(forKey: Key.menuBarEvents.rawValue)) ?? .today
-        calendarMenuBarDisplay =
-            CalendarMenuBarDisplay(
-                rawValue: defaults.integer(forKey: Key.calendarMenuBarDisplay.rawValue))
-            ?? .disabled
         menuBarLinkedEventsOnly =
             defaults.object(forKey: Key.menuBarLinkedEventsOnly.rawValue) == nil
             || defaults.bool(forKey: Key.menuBarLinkedEventsOnly.rawValue)
