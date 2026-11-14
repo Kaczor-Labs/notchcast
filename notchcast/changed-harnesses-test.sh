@@ -1,0 +1,36 @@
+#!/bin/bash
+set -euo pipefail
+root=$(cd "$(dirname "$0")/.." && pwd)
+scratch=$(mktemp -d)
+trap 'rm -rf "$scratch"' EXIT
+mkdir "$scratch/bin"
+cat > "$scratch/bin/git" <<'STUB'
+#!/bin/bash
+case "$1" in
+    rev-parse) echo "$ROOT" ;;
+    diff) printf '%s\0' "$CHANGED" ;;
+esac
+STUB
+chmod +x "$scratch/bin/git"
+export ROOT="$root" PATH="$scratch/bin:$PATH"
+unset GITHUB_ACTIONS RUNNER_ENVIRONMENT
+export CHANGED=Tinycast/Features/Notchcast/Hidden/NotchcastHidden.swift
+bash "$root/notchcast/changed-harnesses.sh" base head > "$scratch/selected"
+for name in DeepLinkTests SettingsHistoryTests; do
+    grep -qx "$name" "$scratch/selected" || { echo "FAIL: $CHANGED omitted $name"; exit 1; }
+done
+# An empty path once matched an empty pattern and selected every harness, upstream ones included.
+if grep -qx ExtensionTests "$scratch/selected"; then echo "FAIL: $CHANGED selected an unrelated upstream harness"; exit 1; fi
+echo 'PASS: the hidden tab set selects every harness compiling SettingsTab'
+# A harness with no extra sources must not match every change (printf of no arguments prints one empty line).
+export CHANGED="Tinycast/Features/Todo/TodoModule.swift"
+bash "$root/notchcast/changed-harnesses.sh" base head > "$scratch/selected"
+if grep -qx ExtensionTests "$scratch/selected"; then echo 'FAIL: an unrelated change selected ExtensionTests'; exit 1; fi
+echo 'PASS: unrelated upstream harnesses stay unselected'
+export CHANGED=Tests/ClipboardTextTests.swift GITHUB_ACTIONS=true
+for runner in local self-hosted github-hosted; do
+    export RUNNER_ENVIRONMENT=$runner
+    bash "$root/notchcast/changed-harnesses.sh" base head > "$scratch/selected"
+    grep -qx ClipboardTextTests "$scratch/selected" || { echo "FAIL: selection on $runner omitted OCR"; exit 1; }
+done
+echo 'PASS: selection keeps VM-incompatible harnesses on every runner; the shard runner drops them on hosted VMs'
