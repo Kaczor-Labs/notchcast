@@ -1,0 +1,9 @@
+# Island engine
+
+The app links IslandCore and IslandUI as a source-only local Swift package at `notchcast/vendor/IslandEngine`. There is no runtime hook or visible change. XcodeGen adds the two library products to the app; helper targets stay independent. Upstream app sources still build without SwiftPM.
+
+Run `python3 notchcast/sync-island-engine.py <engine-checkout> <commit> [modules...]` from any directory. The default modules are IslandCore and IslandUI. Pass a dependency-complete list to add IslandKit, NotchKit or IslandShell later; the script rejects omitted dependencies before writing. It reads the committed manifest and blobs, ignoring checkout edits, copies only `Sources/<module>/`, writes a filtered manifest and records the full commit in `REVISION`. No engine tests, fixtures, documents or tools are copied. `--check` compares the complete vendored tree with the selected commit without writing. Keep build output outside the vendor directory.
+
+The vendor directory is outside SwiftLint's existing `Tinycast` and `Tests` includes, so no lint configuration change is needed. The fork harness declares its core source glob in `Tests/nc-Island-engine-test.swift`; no upstream runner edit is needed. Its ten expected values come from `IslandCoreTests/Fixtures/spring.json` (the second positive-time solve) and `shape.json` (the first idle and compact targets), exercised by `SpringParityTests.swift` and `ShapeParityTests.swift` at the stamped revision. Only numeric constants are transcribed; fixtures and engine tests remain in their original repository.
+
+`notchcast/IslandEngine-LICENSE.txt` carries islandcn's MIT permission and copyright notices, including the Swift port copyright. XcodeGen copies it into the app resources so binary distributions retain them too. The engine's MIT license permits inclusion in this AGPL app; upstream `LICENSE` and `NOTICE.md` need no changes. The selected modules contain no Hugeicons assets.
