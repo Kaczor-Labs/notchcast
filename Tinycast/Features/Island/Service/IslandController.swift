@@ -12,6 +12,7 @@ final class IslandController: NSObject {
     private weak var panel: PalettePanel?
     private var observer: PanelObserver?
     private let clip = CAShapeLayer()
+    private var overlays: [CGRect] = []
     private(set) var samples: [String] = []
     private var captureName: String?
     private(set) var captured: [String] = []
@@ -65,7 +66,7 @@ final class IslandController: NSObject {
         metrics.expanded.rowGap = 0
         metrics.expanded.centerTop = 0
         metrics.expanded.minHeight = 24
-        metrics.expanded.maxHeight = 700
+        metrics.expanded.maxHeight = next.canvas.height
         metrics.expanded.radius = 26
         metrics.expanded.shadow.pull = .init(side: 0, top: 0, bottom: 0, opacity: 0)
         metrics.sensor.opacity = 0
@@ -89,13 +90,20 @@ final class IslandController: NSObject {
     }
 
     @objc private func frameChanged() {
-        guard let panel, let surface else { return }
-        panel.level = NSWindow.Level(rawValue: IslandBackdrop.levelValue + 1)
-        let size = panel.frame.size
+        guard let surface, let layout else { return }
+        panel?.level = NSWindow.Level(rawValue: IslandBackdrop.levelValue + 1)
+        let palette = panel.flatMap { $0.isVisible ? $0.frame : nil }
+        let overlay = IslandOverlayLayout(screen: layout.screen,
+            contentTop: layout.screen.maxY - layout.contentTop, palette: palette).surface(overlays)
+        let size = CGSize(width: max(palette?.width ?? 0, overlay?.width ?? 0),
+                          height: max(palette?.height ?? 0, overlay?.height ?? 0))
         surface.batch {
-            surface.resize(stageWidth: size.width, animate: true)
-            if panel.isVisible {
+            if size != .zero {
+                backdrop.orderFrontRegardless()
+                surface.resize(stageWidth: size.width, animate: true)
                 surface.show(.expanded(.init(bottom: size)), contentKey: "palette")
+            } else {
+                surface.show(.idle, contentKey: "rest")
             }
         }
         paintFrame()
@@ -107,8 +115,12 @@ final class IslandController: NSObject {
     }
 
     func closed() {
-        surface?.show(.idle, contentKey: "rest")
-        paintFrame()
+        frameChanged()
+    }
+
+    func setOverlays(_ frames: [CGRect]) {
+        overlays = frames
+        frameChanged()
     }
 
     func capture(_ name: String) {
@@ -131,7 +143,8 @@ final class IslandController: NSObject {
         CATransaction.commit()
         CATransaction.flush()
         let bounds = outline.boundingBoxOfPath
-        if !showsRest, panel?.isVisible != true, abs(bounds.width - (layout.hasNotch ? layout.notch.width : 96)) < 0.01 {
+        if !showsRest, overlays.isEmpty, panel?.isVisible != true,
+           abs(bounds.width - (layout.hasNotch ? layout.notch.width : 96)) < 0.01 {
             backdrop.orderOut(nil)
         }
         if IslandVerification.enabled, let panel {
