@@ -119,10 +119,10 @@ enum CommandID: String, CaseIterable, Sendable {
         case .importSettings: return "Import Backup"
         case .importFromRaycast: return "Import from Raycast"
         case .checkForUpdates: return "Check for Updates"
-        case .settings: return "Tinycast Settings"
-        case .about: return "About Tinycast"
+        case .settings: return LocalizedStringResource("Notchcast Settings", table: "Notchcast")
+        case .about: return LocalizedStringResource("About Notchcast", table: "Notchcast")
         case .support: return "Support Tinycast"
-        case .quit: return "Quit Tinycast"
+        case .quit: return LocalizedStringResource("Quit Notchcast", table: "Notchcast")
         }
     }
 

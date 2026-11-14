@@ -51,7 +51,7 @@ struct QuicklinkCoordinatorTests {
         fixture.coordinator.openQuicklink(id: fixture.link.id)
         try await Task.sleep(for: .milliseconds(1))
         expect(
-            fixture.core.messages == ["Allow Tinycast to use Accessibility in System Settings"],
+            fixture.core.messages == ["Allow Notchcast to use Accessibility in System Settings"],
             "without Accessibility the failure names the permission")
     }
 
