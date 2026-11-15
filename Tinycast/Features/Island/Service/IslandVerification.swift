@@ -45,7 +45,7 @@ enum IslandVerification {
     }
 
     static func run() async {
-        guard let screen = NSScreen.screens.first(where: { $0.localizedName.contains("Agent Test") }) else {
+        guard let screen = NSScreen.screens.first(where: { $0.localizedName.contains("Agent Test") || $0.localizedName.contains("Orion Test") }) else {
             require(false, "Agent Test display available"); return
         }
         print("SCREEN \(screen.frame) VISIBLE \(screen.visibleFrame) DEVICE \(screen.deviceDescription)")

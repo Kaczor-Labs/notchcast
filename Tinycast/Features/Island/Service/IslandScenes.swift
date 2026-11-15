@@ -16,6 +16,7 @@ enum IslandScenes {
         await IslandVerification.pause(0.8)
         IslandVerification.require(screen.frame.contains(panel.frame), "stock panel pinned to test display")
         if scene == "latency" { await IslandLatency.run(core: core, panel: panel); return }
+        if scene.hasPrefix("gap-") { await IslandGapScenes.run(scene, core: core, panel: panel, screen: screen); return }
         if scene == "keyboard" { await keyboard(core: core, panel: panel); return }
         if scene == "window-contract" { await IslandWindowScenes.run(core: core, panel: panel); return }
         if scene == "level-contract" { await IslandLevelScenes.run(core: core, panel: panel); return }
