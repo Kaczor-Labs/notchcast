@@ -2,7 +2,7 @@
 import AppKit
 import CoreGraphics
 
-/// WindowServer mouse and pid-only keys; `Scripts/island-input-helper.swift` logs what passes through.
+/// WindowServer mouse, pid-only keys; `Scripts/island-input-helper.swift` logs pass-through.
 @MainActor
 enum IslandInputScenes {
     static let names: Set = ["ws-pill", "ws-menu", "ws-busy", "ws-boundary", "ws-hover", "ws-glance-menu",
@@ -68,7 +68,7 @@ enum IslandInputScenes {
         await IslandVerification.pause(0.05)
     }
 
-    /// `point` is in Cocoa global coordinates; WindowServer routes the event, no window is chosen here.
+    /// `point` is Cocoa global; WindowServer routes the event, no window is chosen here.
     private static func click(_ point: CGPoint, right: Bool = false, flags: CGEventFlags = [],
                               settle: TimeInterval = 0.35) async {
         await move(point)
@@ -126,7 +126,7 @@ enum IslandInputScenes {
         return nil
     }
 
-    /// Front-to-back on-screen windows whose bounds hold `point`; owner and layer need no capture grant.
+    /// Front-to-back windows holding `point`; owner and layer need no capture grant.
     private static func windowsUnder(_ point: CGPoint) -> [String] {
         let quartzPoint = quartz(point)
         let list = CGWindowListCopyWindowInfo([.optionOnScreenOnly], kCGNullWindowID) as? [[String: Any]] ?? []
@@ -161,7 +161,7 @@ enum IslandInputScenes {
         helperPoints(prefix).dropFirst(count).contains { abs($0.x - point.x) <= 1 && abs($0.y - point.y) <= 1 }
     }
 
-    /// Where a click that must miss the island went: the helper below, or the foreign window in front.
+    /// Where a click that must miss the island went: the helper, or a foreign window in front.
     private static func passedThrough(_ point: CGPoint, clicks: Int, globals: Int, own: Int, front: String?) -> String? {
         if received.dropFirst(own).contains(where: { $0.hasPrefix("1@") }) { return nil }
         if got("CLICK", point, since: clicks) { return "helper window" }
@@ -190,7 +190,7 @@ enum IslandInputScenes {
         check(menuPanel == nil, "\(label) Escape closes the pill menu")
     }
 
-    /// Cancels any context menu a right-click on the open launcher starts, so the scene never blocks.
+    /// Cancels a context menu a right-click on the open launcher starts, so the scene never blocks.
     private final class ContextMenuProbe: NSObject {
         var began = 0
         @objc func didBegin(_ note: Notification) {
@@ -394,7 +394,7 @@ enum IslandInputScenes {
         print("PROBE palette-\(name) inside=\(inside) outside=\(outside) outsideInPalette=\(palette.frame.contains(outside))")
         let before = helperClicks()
         let ownBefore = received.count
-        // A left click inside the result rows would launch an app, so only the search band is clicked.
+        // A left click in the result rows would launch an app, so only the search band is clicked.
         if name == "top" {
             await click(inside)
             check(helperClicks() == before, "WS just inside the palette island edge (\(name)) does not pass through")
