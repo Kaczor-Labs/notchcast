@@ -4,7 +4,7 @@ import AppKit
 /// The resting pill's scenes: they run before the launcher opens, so the pill stays at rest.
 @MainActor
 enum IslandPillScenes {
-    static let names: Set = ["pill-menu", "pill-settings", "glance", "glance-menu"]
+    static let names: Set = ["pill-menu", "pill-settings", "glance", "glance-menu", "pill-menu-quiet", "pill-settings-quiet"]
 
     static func run(_ scene: String, core: AppCore, screen: NSScreen) async {
         core.island.start()
@@ -15,6 +15,8 @@ enum IslandPillScenes {
         case "pill-menu": await menu(core: core, controller: controller)
         case "pill-settings": await settings(core: core, controller: controller)
         case "glance-menu": await glanceMenu(core: core, controller: controller)
+        case "pill-menu-quiet": await quietMenu(core: core, controller: controller, screen: screen)
+        case "pill-settings-quiet": await quietSettings(core: core, controller: controller)
         default: await glance(core: core, controller: controller)
         }
         let windows = NSApp.windows.filter(\.isVisible)
@@ -174,5 +176,99 @@ enum IslandPillScenes {
         IslandVerification.require(menuPanel == nil, "a click on the glance opens no menu")
         core.paletteCoordinator.hidePalette(restoreFocus: false)
     }
+
+    /// Opens the menu through the pill's own callback, so no event is synthesized.
+    private static func quietOpen(_ controller: IslandController) async -> MenuPanel? {
+        guard let pill = controller.pillFrame else { IslandVerification.require(false, "pill frame"); return nil }
+        controller.onMenu?(pill, controller.backdropWindow)
+        await IslandVerification.pause(0.35)
+        guard let menu = menuPanel else { IslandVerification.require(false, "quiet open shows the pill menu"); return nil }
+        IslandVerification.require(!paletteVisible, "the menu leaves the launcher closed")
+        IslandVerification.require(menu.parent === controller.backdropWindow, "the menu hangs on the island")
+        IslandVerification.require(menu.isKeyWindow, "the menu takes key")
+        return menu
+    }
+
+    private static func quietMenu(core: AppCore, controller: IslandController, screen: NSScreen) async {
+        guard let menu = await quietOpen(controller), let pill = controller.pillFrame else { return }
+        let pillBottom = controller.backdropWindow.frame.maxY - pill.maxY
+        print("PILL \(pill) BOTTOM \(pillBottom) MENU \(menu.frame)")
+        IslandVerification.require(menu.frame.maxY <= pillBottom + 0.5, "menu sits below the pill")
+        IslandVerification.require(pillBottom - menu.frame.maxY < 40, "menu hangs right under the pill")
+        let titles = core.island.pillMenu.itemTitles
+        print("MENU_ROWS \(titles)")
+        IslandVerification.require(titles.last == CommandID.quit.name, "Quit closes the pill menu")
+        IslandVerification.require(titles.contains(String(localized: "Settings…")), "pill menu offers Settings")
+        IslandVerification.require(!titles.contains { $0.hasPrefix(String(localized: "Join \("")")) },
+                                   "no meeting, no join row")
+        IslandVerification.require(statusItemWindows == 0, "no menu bar item exists")
+        controller.capture("pill-menu")
+        await IslandVerification.pause(0.3)
+        IslandVerification.require(controller.captured.contains("pill-menu"), "pill menu layer capture")
+        core.palette.menuQuery = "zzzz"
+        await IslandVerification.pause(0.2)
+        IslandVerification.require(core.island.pillMenu.itemTitles.isEmpty, "a query filters the pill menu")
+        core.palette.menuQuery = ""
+        await IslandVerification.pause(0.2)
+        IslandVerification.require(core.island.pillMenu.isObservingResign, "the menu watches its resign-key")
+        let other = NSPanel(contentRect: CGRect(x: screen.visibleFrame.midX - 100, y: screen.visibleFrame.minY + 40,
+            width: 200, height: 80), styleMask: [.titled, .nonactivatingPanel], backing: .buffered, defer: false)
+        other.isReleasedWhenClosed = false
+        other.makeKeyAndOrderFront(nil)
+        let closedAtResign = menuPanel == nil
+        print("RESIGN other.key=\(other.isKeyWindow) closedBeforeYield=\(closedAtResign)")
+        IslandVerification.require(other.isKeyWindow, "another own window takes key")
+        IslandVerification.require(closedAtResign, "the menu closes on resign-key before the stock path yields")
+        IslandVerification.require(!core.island.pillMenu.isObservingResign, "hide removes the resign observer")
+        await IslandVerification.pause(0.3)
+        IslandVerification.require(menuPanel == nil && core.palette.menuQuery.isEmpty, "the menu stays closed")
+        other.close()
+    }
+
+    private static func quietSettings(core: AppCore, controller: IslandController) async {
+        guard await quietOpen(controller) != nil else { return }
+        core.island.pillMenu.activate(title: String(localized: "Settings…"))
+        await IslandVerification.pause(0.8)
+        IslandVerification.require(menuPanel == nil, "the Settings row closes the pill menu")
+        guard let window = settingsWindow, window.isVisible else {
+            IslandVerification.require(false, "the Settings row opens Settings"); return
+        }
+        IslandVerification.require(statusItemWindows == 0, "Settings opens with no menu bar item")
+        let hidden = ["Show in menu bar", "Show in Menu Bar", "Calendar in Menu Bar", "Show Upcoming Events",
+                      "Only show events with meetings", "Hide when there are no upcoming events", "Hide Current Event"]
+        let panes: [(SettingsTab, String)] = [(.general, "Launch at login"), (.notes, "Render Markdown"),
+                                              (.calendar, "Days to Show")]
+        for (tab, shown) in panes {
+            core.settingsCoordinator.showSettings(tab: tab)
+            await IslandVerification.pause(0.7)
+            var texts: [String] = []
+            accessibilityTexts(window.contentView as Any, depth: 0, into: &texts)
+            let leaked = hidden.filter { key in
+                let title = String(localized: String.LocalizationValue(key))
+                return texts.contains { $0.contains(title) }
+            }
+            print("PANE \(tab.slug) texts=\(texts.count) leaked=\(leaked)")
+            IslandVerification.require(texts.contains { $0.contains(String(localized: String.LocalizationValue(shown))) },
+                                       "\(tab.slug) pane reads \(shown)")
+            IslandVerification.require(leaked.isEmpty, "\(tab.slug) pane hides the menu-bar rows")
+            still(window, name: "settings-\(tab.slug)")
+        }
+    }
+
+    /// Some AppKit and SwiftUI nodes answer the informal accessibility selectors without the protocol.
+    private static func accessibilityTexts(_ element: Any, depth: Int, into texts: inout [String]) {
+        guard depth < 60, let node = element as? NSObject else { return }
+        func ask(_ name: String) -> Any? {
+            let selector = NSSelectorFromString(name)
+            return node.responds(to: selector) ? node.perform(selector)?.takeUnretainedValue() : nil
+        }
+        for name in ["accessibilityLabel", "accessibilityTitle", "accessibilityValue"] {
+            if let text = ask(name) as? String, !text.isEmpty { texts.append(text) }
+        }
+        for child in ask("accessibilityChildren") as? [Any] ?? [] {
+            accessibilityTexts(child, depth: depth + 1, into: &texts)
+        }
+    }
+
 }
 #endif
