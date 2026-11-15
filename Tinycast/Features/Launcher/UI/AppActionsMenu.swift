@@ -83,7 +83,7 @@ enum AppActionsMenu {
                     core.quicklinkCoordinator.editQuicklink(quicklink)
                 })
         }
-        if app.kind == .extensionCommand && core.settings.extensionsEnabled {
+        if app.kind == .extensionCommand {
             if core.extensions.isBackgroundSchedulable(for: app) {
                 let enabled = core.extensions.isBackgroundEnabled(for: app)
                 items.append(
