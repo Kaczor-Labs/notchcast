@@ -32,9 +32,9 @@ def check():
     errors += ['key in both catalogs: ' + key for key in local.keys() & fork.keys()]
     for key, entry in fork.items():
         if entry.get('shouldTranslate') is not False:
-            missing = tools['LOCALES'] - entry.get('localizations', {}).keys()
-            if missing:
-                errors.append(f'{key}: missing locales {sorted(missing)}')
+            extra = entry.get('localizations', {}).keys() - tools['LOCALES']
+            if extra:
+                errors.append(f'{key}: non-English localizations {sorted(extra)}')
     for path in (ROOT / 'Tinycast').rglob('*.swift'):
         source = path.read_text()
         for _, end, literal in tools['literals'](source):
