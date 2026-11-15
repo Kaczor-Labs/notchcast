@@ -10,11 +10,23 @@ git -C "$WORK/origin" config user.name Fixture
 git -C "$WORK/origin" config user.email fixture@example.invalid
 cp "$HERE/install-launchd.sh" "$HERE/config.env" "$WORK/origin/notchcast/"
 printf '#!/bin/bash\necho old\n' > "$WORK/origin/notchcast/update.sh"
+printf '#!/bin/bash\n' > "$WORK/origin/notchcast/migrate.sh"
+printf 'OLD_APP="%s/no old app.app"\n' "$WORK" >> "$WORK/origin/notchcast/config.env"
 git -C "$WORK/origin" add .
 git -C "$WORK/origin" commit -qm initial
 git clone -q "$WORK/origin" "$WORK/checkout"
-launchctl() { :; }
+export WORK
+launchctl() { echo "$*" >> "$WORK/launchctl.log"; }
 export -f launchctl
+mkdir -p "$WORK/Notchcast.app"
+NOTCHCAST_APP="$WORK/Notchcast.app" bash "$WORK/checkout/notchcast/install-launchd.sh" all
+for label in update kick; do test -f "$HOME/Library/LaunchAgents/notchcast.$label.plist"; done
+test ! -e "$HOME/Library/LaunchAgents/notchcast.app.plist" || { echo 'FAIL: all wrote a notchcast.app agent'; exit 1; }
+! grep -q 'notchcast\.app' "$WORK/launchctl.log" || { echo 'FAIL: all ran launchctl on notchcast.app'; exit 1; }
+STATUS=0
+bash "$WORK/checkout/notchcast/install-launchd.sh" app 2>/dev/null || STATUS=$?
+test "$STATUS" = 2 || { echo "FAIL: the app mode still exists (exit $STATUS)"; exit 1; }
+echo 'PASS: all loads update and kick only; no app mode'
 bash "$WORK/checkout/notchcast/install-launchd.sh" update --auto-install
 WRAPPER="$HOME/Library/Application Support/notchcast/jobs/Notchcast update"
 bash "$WORK/checkout/notchcast/install-launchd.sh" kick
