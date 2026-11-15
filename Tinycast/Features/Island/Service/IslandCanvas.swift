@@ -3,6 +3,7 @@ import AppKit
 final class IslandCanvas: NSView {
     var outline: CGPath?
     var glance: (any PillArt)?
+    var expansion: IslandExpansionArt?
     var restWidth: CGFloat = 0
     var restHeight: CGFloat = 1
     var glanceWidth: CGFloat = 0
@@ -24,9 +25,24 @@ final class IslandCanvas: NSView {
         context.clip()
         let grown = abs(travel) < 1 ? 1 : min(max((bounds.width - restWidth) / travel, 0), 1)
         let expanding = min(max((bounds.height - restHeight) / restHeight, 0), 1)
-        context.setAlpha(grown * (1 - expanding))
-        glance.draw(in: CGRect(x: bounds.minX, y: bounds.minY, width: bounds.width,
-                               height: min(bounds.maxY, self.bounds.height) - bounds.minY))
+        // A layer, because NSImage.draw resets the context's alpha and glyphs ignored the fade.
+        func fade(_ alpha: CGFloat, _ draw: () -> Void) {
+            guard alpha > 0 else { return }
+            context.setAlpha(alpha)
+            context.beginTransparencyLayer(auxiliaryInfo: nil)
+            draw()
+            context.endTransparencyLayer()
+        }
+        fade(grown * (1 - expanding)) {
+            glance.draw(in: CGRect(x: bounds.minX, y: bounds.minY, width: bounds.width,
+                                   height: min(bounds.maxY, self.bounds.height) - bounds.minY))
+        }
+        if let expansion {
+            fade(expanding) {
+                expansion.draw(in: CGRect(x: bounds.minX, y: bounds.minY, width: bounds.width,
+                                          height: expansion.size.height))
+            }
+        }
         context.restoreGState()
     }
     override func hitTest(_ point: NSPoint) -> NSView? {
@@ -52,8 +68,9 @@ final class IslandCanvas: NSView {
     }
 
     /// A level outranks the meeting glance while it dwells.
-    func show(glance: IslandGlance?, level: IslandLevel?, notch: Bool) {
+    func show(glance: IslandGlance?, level: IslandLevel?, expanded: Bool, notch: Bool) {
         self.glance = level.map { IslandLevelArt($0, notch: notch) } ?? glance.map { GlanceArt($0, notch: notch) }
+        expansion = level == nil && expanded ? glance.map(IslandExpansionArt.init) : nil
         setAccessibilityValue(level.map { "\($0.label), \($0.value.formatted(.percent))" }
             ?? glance.map { "\($0.title), \($0.countdown)" })
     }
