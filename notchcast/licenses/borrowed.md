@@ -4,3 +4,8 @@ Each add-on file derived from another project is listed here, one line per file,
 
 Format: `<add-on folder>: <our file> ← <source repo>/<source file> (<licence>)`, with our file relative to `Tinycast/Features/Notchcast/<add-on folder>/`.
 
+MiddleClick: Model/ThreeFingerGesture.swift ← vorssaint/vorssaint-utils@89d2626/Sources/Vorssaint/Services/MiddleClick/MiddleClickSupport.swift (GPL-3.0-or-later)
+MiddleClick: Model/MiddleClickFilter.swift ← vorssaint/vorssaint-utils@89d2626/Sources/Vorssaint/Services/MiddleClick/MiddleClickService.swift (GPL-3.0-or-later)
+MiddleClick: Model/MiddleClickEngine.swift ← vorssaint/vorssaint-utils@89d2626/Sources/Vorssaint/Services/MiddleClick/MiddleClickService.swift (GPL-3.0-or-later)
+MiddleClick: Service/MiddleClickTouchSource.swift ← vorssaint/vorssaint-utils@89d2626/Sources/Vorssaint/Services/MiddleClick/MiddleClickSupport.swift (GPL-3.0-or-later)
+MiddleClick: Service/MiddleClickModule.swift ← vorssaint/vorssaint-utils@89d2626/Sources/Vorssaint/Services/MiddleClick/MiddleClickService.swift (GPL-3.0-or-later)
