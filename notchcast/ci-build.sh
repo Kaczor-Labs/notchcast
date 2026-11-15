@@ -35,6 +35,8 @@ xcodebuild -project Tinycast.xcodeproj -scheme Tinycast -configuration Debug \
     CODE_SIGNING_ALLOWED=NO build -quiet
 step identity
 bash "$TOOLS/notchcast/check-identity.sh" app "$RUNNER_TEMP/DerivedData/Build/Products/Debug/$APP_NAME Dev.app"
+step name-override
+python3 notchcast/name-override.py --verify "$RUNNER_TEMP/DerivedData/Build/Products/Debug/$APP_NAME Dev.app"
 step lint
 command -v swiftlint >/dev/null || brew install --quiet swiftlint
 ./Scripts/lint.sh

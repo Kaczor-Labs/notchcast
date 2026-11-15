@@ -259,7 +259,7 @@ final class AppSettings {
     /// Summon the palette on the display under the pointer instead of the one holding the menu bar.
     var openOnCursorScreen: Bool {
         get { NotchcastIslandPins.openOnCursorScreen }
-        set { }
+        set { _ = newValue }
     }
 
     var autoSwitchInputSourceID: String? {
@@ -275,7 +275,7 @@ final class AppSettings {
     /// Lets the panel be dragged by its top edge; off by default, so most launches never grab it.
     var paletteDraggable: Bool {
         get { NotchcastIslandPins.paletteDraggable }
-        set { }
+        set { _ = newValue }
     }
 
     /// Off, every surface changes at once; on, Reduce Motion still trims movement where it did.
@@ -484,7 +484,7 @@ final class AppSettings {
     /// Consent to run third-party JavaScript: it confirms, defaults off, rides no backup.
     var extensionsEnabled: Bool {
         get { false }
-        set { }
+        set { _ = newValue }
     }
 
     var extensionsShowInLauncher: Bool {
