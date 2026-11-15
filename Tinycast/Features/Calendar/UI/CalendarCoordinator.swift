@@ -164,6 +164,7 @@ final class CalendarCoordinator {
         let watched =
             paletteVisible || settings.calendarMenuBarDisplay != .disabled
             || settings.autoJoinMeetings
+            || IslandCalendarGlance.isWatching
         guard settings.calendarEnabled, watched else {
             clock.stop()
             return
