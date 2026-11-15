@@ -3,3 +3,9 @@
 if [[ " $* " == *" Tinycast/Features/Settings/SettingsTab.swift "* && " $* " != *" Tinycast/Features/Notchcast/Hidden/NotchcastHidden.swift "* ]]; then
     set -- "$@" Tinycast/Features/Notchcast/Hidden/NotchcastHidden.swift
 fi
+# Notchcast's search rows sit beside the catalog, with the two descriptor types they read.
+if [[ " $* " == *" Tinycast/Features/Settings/SettingsSearchCatalog.swift "* && " $* " != *" Tinycast/Features/Notchcast/Core/UI/NotchcastSettingsSearch.swift "* ]]; then
+    set -- "$@" Tinycast/Features/Notchcast/Core/UI/NotchcastSettingsSearch.swift
+    [[ " $* " == *" Tinycast/Features/Notchcast/Core/Model/NotchcastSwitch.swift "* ]] || set -- "$@" Tinycast/Features/Notchcast/Core/Model/NotchcastSwitch.swift
+    [[ " $* " == *" Tinycast/Features/Notchcast/Core/Model/NotchcastCategory.swift "* ]] || set -- "$@" Tinycast/Features/Notchcast/Core/Model/NotchcastCategory.swift
+fi

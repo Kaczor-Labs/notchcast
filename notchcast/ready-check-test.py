@@ -7,6 +7,7 @@ import shutil
 import subprocess
 import tempfile
 import unittest
+from unittest import mock
 
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -105,6 +106,11 @@ class CoverageTest(unittest.TestCase):
 GIT_ISOLATED = {"GIT_CONFIG_NOSYSTEM": "1", "GIT_CONFIG_GLOBAL": os.devnull}
 
 
+# A builder's own NOTCHCAST_READY_BRANCH would judge every fixture as that branch.
+def fixture_env(extra):
+    return {**{k: v for k, v in os.environ.items() if k != "NOTCHCAST_READY_BRANCH"}, **GIT_ISOLATED, **extra}
+
+
 # Fails when the judged tree has drift-fail; records its arguments and what origin/main resolves to.
 DRIFT_STUB = """import subprocess, sys
 from pathlib import Path
@@ -141,11 +147,12 @@ class BehaviourTest(unittest.TestCase):
         upstream = self.root / "upstream.git"
         subprocess.run(["git", "clone", "-q", "--bare", str(bare), str(upstream)], check=True,
                        env={**os.environ, **GIT_ISOLATED})
-        self.env = {**os.environ, **GIT_ISOLATED, "HOME": str(self.root / "home"), "GIT_CONFIG_COUNT": "2",
-                    "GIT_CONFIG_KEY_0": f"url.{bare}.insteadOf", "GIT_CONFIG_VALUE_0": "https://github.com/example/fork.git",
-                    "GIT_CONFIG_KEY_1": f"url.{upstream}.insteadOf",
-                    "GIT_CONFIG_VALUE_1": "https://github.com/example/upstream.git",
-                    "NOTCHCAST_HARNESSES_SHARDED": "1"}
+        self.env = fixture_env({"HOME": str(self.root / "home"), "GIT_CONFIG_COUNT": "2",
+                                "GIT_CONFIG_KEY_0": f"url.{bare}.insteadOf",
+                                "GIT_CONFIG_VALUE_0": "https://github.com/example/fork.git",
+                                "GIT_CONFIG_KEY_1": f"url.{upstream}.insteadOf",
+                                "GIT_CONFIG_VALUE_1": "https://github.com/example/upstream.git",
+                                "NOTCHCAST_HARNESSES_SHARDED": "1"})
 
     def git(self, *arguments):
         return subprocess.run(["git", "-C", str(self.repo), *arguments], check=True, capture_output=True,
@@ -237,6 +244,16 @@ class BehaviourTest(unittest.TestCase):
                          "FAIL footprint: v2/addons-zen touches 1 upstream paths"])
         self.env["NOTCHCAST_READY_BRANCH"] = "v2/addons-core"
         self.assertNotIn("FAIL footprint", self.check("base").stdout)
+
+    def test_a_builders_branch_never_reaches_the_fixtures(self):
+        with open(self.repo / "notchcast/check-drift.py", "a") as stub:
+            stub.write("# stock edit\n")
+        self.commit("stock edit")
+        with mock.patch.dict(os.environ, NOTCHCAST_READY_BRANCH="v2/addons-zen"):
+            self.env = fixture_env(self.env)
+        result = self.check("base")
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertNotIn("FAIL footprint", result.stdout)
 
     def test_drift_gates_are_land_sh_own(self):
         script = SCRIPT.read_text()
