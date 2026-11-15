@@ -35,10 +35,26 @@ enum IslandWindowScenes {
         core.paletteCoordinator.showPalette(mode: .launcher)
         await IslandVerification.pause(0.6)
         IslandVerification.require(panel.level.rawValue == backdrop.level.rawValue + 1 && backdrop.isVisible,
-                                   "island level restored after stock key delegate")
+                                   "summon restores island level after modal")
         IslandVerification.require(abs(panel.frame.maxY - screen.frame.maxY
             + IslandController.notch(on: screen).height) < 0.01, "restored palette touches island top")
         controller.capture("modal-return")
+        let openPicker = PinnedOpenPanel()
+        openPicker.testScreen = screen.frame
+        openPicker.directoryURL = picker.directoryURL
+        openPicker.setFrame(picker.frame, display: false)
+        let openProbe = ModalProbe {
+            IslandVerification.require(panel.isVisible && panel.level == .normal && !backdrop.isVisible,
+                                       "open palette sinks under picker with backdrop hidden")
+            openPicker.cancel(nil)
+        }
+        openProbe.perform(#selector(ModalProbe.check), with: nil, afterDelay: 0.5, inModes: [.modalPanel, .common])
+        IslandVerification.require(openPicker.runModal() == .cancel, "open-palette modal cancelled in process")
+        await IslandVerification.pause(0.3)
+        print("OPEN_MODAL_RETURN palette=\(panel.level.rawValue) visible=\(panel.isVisible)"
+            + " key=\(panel.isKeyWindow) backdropVisible=\(backdrop.isVisible)")
+        IslandVerification.require(panel.isVisible && panel.level == IslandController.paletteLevel && backdrop.isVisible,
+                                   "palette kept open through modal returns above backdrop")
         let frame = panel.frame
         let outline = controller.outlineBounds
         let surface = controller.surfaceIdentity
