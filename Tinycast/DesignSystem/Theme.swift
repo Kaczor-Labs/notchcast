@@ -70,6 +70,8 @@ enum Theme {
     enum Size {
         static let islandRest = CGSize(width: 96, height: 24)
         static let islandHost = CGSize(width: 1100, height: 860)
+        /// The widest a resting glance grows past the notch on one side; menubar spec §3.
+        static let islandGlanceWing: CGFloat = 140
         static let panelWidth: CGFloat = 750
         static let panelHeight: CGFloat = 475
         /// Opening size on a first run and the floor: below it the title bar's own parts collide.
@@ -174,6 +176,8 @@ enum Theme {
         static let menuSectionHeader: CGFloat = 16
         /// Five rows and half of the sixth, so a capped menu reads as scrollable, not clipped.
         static let menuVisibleRows: CGFloat = 5.5
+        /// The pill menu's eleven rows and three rules, uncapped; its row set is fixed and short.
+        static let pillMenuVisibleRows: CGFloat = 13
         /// Rounded: a half-row of an odd pitch lands the glass edge on a half pixel.
         static var menuRowsMaxHeight: CGFloat {
             (menuVisibleRows * (menuRowHeight + menuRowSpacing)).rounded()
@@ -379,6 +383,7 @@ enum Theme {
         /// `NSFont` is not `Sendable`, hence the isolation; every reader is a view anyway.
         @MainActor static let searchFieldNSFont = NSFont.systemFont(
             ofSize: searchFieldSize, weight: .regular)
+        @MainActor static let islandGlanceNSFont = NSFont.systemFont(ofSize: 12, weight: .medium)
         static let headerIconSize: CGFloat = 22
         static let headerIcon = Font.system(size: headerIconSize, weight: .medium)
         static let rowTitle = Font.body
