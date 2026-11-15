@@ -2,5 +2,6 @@
 @MainActor
 enum NotchcastRegistry {
     static let addons: [any NotchcastAddon.Type] = [
+        NumberKeysAddon.self,
     ]
 }
