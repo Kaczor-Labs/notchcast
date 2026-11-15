@@ -37,7 +37,7 @@ struct QuitProtectionSettingsView: View {
             }
         }
         Button(action: addApplications) {
-            SettingsRowTitle(.quitProtection, LocalizedStringResource("Add app…", table: "NotchcastQuitProtection"))
+            SettingsRowTitle(.quitProtection, LocalizedStringResource("Add App…", table: "NotchcastQuitProtection"))
         }
     }
 
