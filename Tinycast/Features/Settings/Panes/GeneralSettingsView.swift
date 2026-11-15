@@ -26,6 +26,7 @@ struct GeneralSettingsView: View {
                 } label: {
                     SettingsRowTitle(.generalGeneral, "Language")
                 }
+                .notchcastHidden()
                 Toggle(isOn: $settings.launchAtLogin) {
                     SettingsRowTitle(.generalGeneral, "Launch at login")
                 }
