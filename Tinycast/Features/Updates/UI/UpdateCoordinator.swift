@@ -159,7 +159,7 @@ final class UpdateCoordinator {
                     String(localized: "\(Bundle.main.appDisplayName) is up to date"))
             } else {
                 core.showMessage(
-                    String(localized: "Notchcast could not reach GitHub.", table: "Notchcast"), tone: .danger)
+                    String(localized: "Tinycast could not reach GitHub."), tone: .danger)
             }
         }
     }

@@ -538,7 +538,7 @@ final class RoomCoordinator {
 
     private func reportPermissionFailure() async {
         let openSettings = await core.reportFailure(
-            title: String(localized: "Notchcast Needs Accessibility Access", table: "Notchcast"),
+            title: String(localized: "Tinycast Needs Accessibility Access"),
             message: String(localized: "Rooms move and hide other apps' windows."),
             symbol: Room.sfSymbol, recovery: String(localized: "Open Settings"))
         if openSettings { Permissions.openAccessibilitySettings() }

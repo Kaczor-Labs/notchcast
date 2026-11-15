@@ -229,7 +229,7 @@ struct RootPaletteView: View {
                         openURL(url)
                     }
                 },
-                PopoverMenuItem(title: String(localized: "About Notchcast", table: "Notchcast"), systemImage: "info.circle") {
+                PopoverMenuItem(title: String(localized: "About Tinycast"), systemImage: "info.circle") {
                     core.settingsCoordinator.showAbout()
                 },
                 PopoverMenuItem(title: String(localized: "Support Tinycast"), systemImage: "heart") {
@@ -880,7 +880,7 @@ struct RootPaletteView: View {
 
     /// Mode-gated ahead of the cast, which would otherwise cost every other mode a list build.
     private var extensionCommandScreen: ExtensionCommandScreen? {
-        guard settings.extensionsEnabled, vm.mode == .extensionCommand else { return nil }
+        guard vm.mode == .extensionCommand else { return nil }
         return screen as? ExtensionCommandScreen
     }
 
