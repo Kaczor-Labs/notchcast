@@ -25,6 +25,16 @@ final class IslandController: NSObject {
     var onOpen: (() -> Void)? {
         didSet { canvas.onOpen = onOpen }
     }
+    /// Hands over the pill's rect, top-left origin in the island window, for the pill menu.
+    var onMenu: ((CGRect, NSWindow) -> Void)?
+    var glance: IslandGlance? {
+        didSet {
+            guard glance != oldValue else { return }
+            canvas.glance = glance.map { GlanceArt($0, notch: layout?.hasNotch == true) }
+            canvas.setAccessibilityValue(glance.map { "\($0.title), \($0.countdown)" })
+            frameChanged()
+        }
+    }
 
     override init() {
         super.init()
@@ -33,6 +43,11 @@ final class IslandController: NSObject {
         canvas.setAccessibilityElement(true)
         canvas.setAccessibilityRole(.button)
         canvas.setAccessibilityLabel(NSRunningApplication.current.localizedName)
+        canvas.toolTip = String(localized: "Click to open the launcher, right-click for more", table: "Notchcast")
+        canvas.onMenu = { [weak self] in
+            guard let self, let rect = self.pillRect else { return }
+            self.onMenu?(rect, self.backdrop)
+        }
         canvas.canOpen = { [weak self] in
             guard let self else { return false }
             return self.canOpen?() == true && self.overlays.isEmpty && NSApp.modalWindow == nil && self.isResting
@@ -65,6 +80,7 @@ final class IslandController: NSObject {
         let requested = IslandSurfaceConfiguration(notch: next.notch, scale: screen.backingScaleFactor)
         let moved = layout?.screen != next.screen || layout?.notch != next.notch
         layout = next
+        if let glance { canvas.glance = GlanceArt(glance, notch: next.hasNotch) }
         backdrop.setFrame(next.window, display: false)
         switch requested.update(from: configuration, paletteVisible: panel?.isVisible == true,
                                 hasOverlays: !overlays.isEmpty) {
@@ -99,14 +115,29 @@ final class IslandController: NSObject {
         metrics.expanded.radius = Theme.Radius.panel
         metrics.expanded.shadow.pull = .init(side: 0, top: 0, bottom: 0, opacity: 0)
         metrics.sensor.opacity = 0
+        metrics.compact.height = metrics.idle.height
+        metrics.compact.sensorWidth = next.hasNotch ? next.notch.width : 0
+        metrics.compact.edgePadding = Theme.Spacing.lg
+        let inner = next.hasNotch ? Theme.Spacing.md : 0
+        metrics.compact.innerPadding = .init(leading: inner, trailing: inner)
+        metrics.compact.maxSlotWidth = Theme.Size.islandGlanceWing
+        metrics.compact.maxWidth = next.canvas.width
+        metrics.compact.balance = 0
         let surface = IslandSurface<CGSize>(
             presentation: .idle, clock: FrameClock(frameSource: source), metrics: metrics,
             motion: .standard, dpr: screen.backingScaleFactor, reduced: reducedMotion,
             keyline: 0, stageWidth: Theme.Size.panelWidth, measure: { presentation, _ in
-                guard case .expanded(let content) = presentation else { return ContentMeasures() }
-                return ContentMeasures(expandedHeight: Double(content.bottom?.height ?? 0))
+                switch presentation {
+                case .expanded(let content):
+                    ContentMeasures(expandedHeight: Double(content.bottom?.height ?? 0))
+                case .compact(let content):
+                    ContentMeasures(leading: Double(content.leading?.width ?? 0),
+                                    trailing: Double(content.trailing?.width ?? 0))
+                default: ContentMeasures()
+                }
             })
         self.surface = surface
+        surfaceMetrics = metrics
         source.display.host = canvas
         frameChanged()
     }
@@ -133,6 +164,10 @@ final class IslandController: NSObject {
                 if !suspended { backdrop.orderFrontRegardless() }
                 surface.resize(stageWidth: size.width, animate: true)
                 surface.show(.expanded(.init(bottom: size)), contentKey: "palette")
+            } else if showsRest, let art = canvas.glance {
+                let slots = CompactContent(leading: CGSize(width: art.layout.leading, height: 0),
+                                           trailing: CGSize(width: art.layout.trailing, height: 0))
+                surface.show(.compact(slots), contentKey: "glance")
             } else {
                 if showsRest, !suspended { backdrop.orderFrontRegardless() }
                 surface.show(.idle, contentKey: "rest")
@@ -154,7 +189,26 @@ final class IslandController: NSObject {
     private var isResting: Bool {
         guard let layout, let bounds = canvas.outline?.boundingBoxOfPath else { return false }
         let size = layout.hasNotch ? CGSize(width: layout.notch.width, height: layout.notch.height * 2) : Theme.Size.islandRest
-        return abs(bounds.width - size.width) < 0.01 && abs(bounds.height - size.height) < 0.01
+        let width = canvas.glance.map { glanceWidth($0.layout) } ?? size.width
+        return abs(bounds.width - width) < 0.01 && abs(bounds.height - size.height) < 0.01
+    }
+
+    private var surfaceMetrics: IslandMetrics?
+
+    private func glanceWidth(_ glance: IslandGlanceLayout) -> Double {
+        guard let full = surfaceMetrics else { return 0 }
+        let metrics = full.compact
+        let sides = compactSides(SlotPair(leading: glance.leading, trailing: glance.trailing), metrics: full)
+        let half = metrics.maxWidth / 2
+        return min(metrics.sensorWidth / 2 + sides.leading, half) + min(metrics.sensorWidth / 2 + sides.trailing, half)
+    }
+
+    /// The pill's visible part, measured from the island window's top-left corner.
+    private var pillRect: CGRect? {
+        guard let bounds = canvas.outline?.boundingBoxOfPath else { return nil }
+        let height = canvas.bounds.height
+        let top = max(height - bounds.maxY, 0)
+        return CGRect(x: bounds.minX, y: top, width: bounds.width, height: height - bounds.minY - top)
     }
 
     func closed() {
@@ -187,6 +241,9 @@ final class IslandController: NSObject {
         CATransaction.begin()
         CATransaction.setDisableActions(true)
         canvas.outline = outline.copy(using: &backgroundTransform)
+        canvas.restWidth = layout.hasNotch ? layout.notch.width : Theme.Size.islandRest.width
+        canvas.restHeight = layout.hasNotch ? layout.notch.height * 2 : Theme.Size.islandRest.height
+        canvas.glanceWidth = canvas.glance.map { glanceWidth($0.layout) } ?? 0
         canvas.display()
         clip.path = outline.copy(using: &contentTransform)
         CATransaction.commit()
@@ -212,6 +269,10 @@ final class IslandController: NSObject {
                 IslandVerification.capture(captureName, backdrop: backdrop, panel: panel)
                 captured.append(captureName)
             }
+        } else if IslandVerification.enabled, let captureName {
+            self.captureName = nil
+            IslandVerification.capture(captureName, backdrop: backdrop, panel: nil)
+            captured.append(captureName)
         }
         #endif
     }
@@ -226,6 +287,18 @@ final class IslandController: NSObject {
     var contentKey: String? { surface?.contentKey }
     var overlayCount: Int { overlays.count }
     func pressBackdrop() -> Bool { canvas.accessibilityPerformPress() }
+    /// Routes a synthetic click through the island window, so hit testing runs as for a real one.
+    func clickBackdrop(_ type: NSEvent.EventType, modifiers: NSEvent.ModifierFlags = []) {
+        let bounds = outlineBounds
+        let point = CGPoint(x: bounds.midX, y: (bounds.minY + min(bounds.maxY, canvas.bounds.height)) / 2)
+        guard let event = NSEvent.mouseEvent(with: type, location: point, modifierFlags: modifiers,
+            timestamp: ProcessInfo.processInfo.systemUptime, windowNumber: backdrop.windowNumber, context: nil,
+            eventNumber: 0, clickCount: 1, pressure: 1) else { return }
+        backdrop.sendEvent(event)
+    }
+    var pillFrame: CGRect? { pillRect }
+    var glanceWidthTarget: Double { canvas.glance.map { glanceWidth($0.layout) } ?? 0 }
+    var showsGlanceTitle: Bool { canvas.glance?.layout.showsTitle == true }
     #endif
 
     isolated deinit {
@@ -268,7 +341,12 @@ private final class IslandBackdrop: NSPanel {
 
 private final class IslandCanvas: NSView {
     var outline: CGPath?
+    var glance: GlanceArt?
+    var restWidth: CGFloat = 0
+    var restHeight: CGFloat = 1
+    var glanceWidth: CGFloat = 0
     var onOpen: (() -> Void)?
+    var onMenu: (() -> Void)?
     var canOpen: (() -> Bool)?
     override func draw(_ dirtyRect: NSRect) {
         NSColor.clear.setFill()
@@ -277,17 +355,89 @@ private final class IslandCanvas: NSView {
         context.addPath(outline)
         context.setFillColor(NSColor(Theme.Colors.islandSurface).cgColor)
         context.fillPath()
+        let bounds = outline.boundingBoxOfPath
+        guard let glance else { return }
+        let travel = glanceWidth - restWidth
+        context.saveGState()
+        context.addPath(outline)
+        context.clip()
+        let grown = abs(travel) < 1 ? 1 : min(max((bounds.width - restWidth) / travel, 0), 1)
+        let expanding = min(max((bounds.height - restHeight) / restHeight, 0), 1)
+        context.setAlpha(grown * (1 - expanding))
+        glance.draw(in: CGRect(x: bounds.minX, y: bounds.minY, width: bounds.width,
+                               height: min(bounds.maxY, self.bounds.height) - bounds.minY))
+        context.restoreGState()
     }
     override func hitTest(_ point: NSPoint) -> NSView? {
         outline?.contains(point) == true ? self : nil
     }
     override func mouseDown(with event: NSEvent) {
         guard canOpen?() == true, outline?.contains(convert(event.locationInWindow, from: nil)) == true else { return }
-        onOpen?()
+        if !event.modifierFlags.isDisjoint(with: [.control, .option]) { onMenu?() } else { onOpen?() }
+    }
+    override func rightMouseDown(with event: NSEvent) {
+        guard canOpen?() == true, outline?.contains(convert(event.locationInWindow, from: nil)) == true else { return }
+        onMenu?()
     }
     override func accessibilityPerformPress() -> Bool {
         guard canOpen?() == true, let onOpen else { return false }
         onOpen()
         return true
+    }
+    override func accessibilityPerformShowMenu() -> Bool {
+        guard canOpen?() == true, let onMenu else { return false }
+        onMenu()
+        return true
+    }
+}
+
+/// The glance, measured once per text change and drawn inside the pill on every frame.
+@MainActor
+private struct GlanceArt {
+    let layout: IslandGlanceLayout
+    private let notch: Bool
+    private let glyph: NSImage?
+    private let title: NSAttributedString
+    private let separator: NSAttributedString
+    private let countdown: NSAttributedString
+    private let gap = Theme.Spacing.sm
+
+    init(_ glance: IslandGlance, notch: Bool) {
+        self.notch = notch
+        let font = Theme.Typography.islandGlanceNSFont
+        let primary: [NSAttributedString.Key: Any] = [.font: font, .foregroundColor: NSColor(Theme.Colors.textPrimary)]
+        let secondary: [NSAttributedString.Key: Any] = [.font: font, .foregroundColor: NSColor(Theme.Colors.textSecondary)]
+        let symbol = NSImage.SymbolConfiguration(pointSize: font.pointSize, weight: .medium)
+            .applying(.init(paletteColors: [NSColor(Theme.Colors.textPrimary)]))
+        glyph = NSImage(systemSymbolName: glance.symbol, accessibilityDescription: nil)?.withSymbolConfiguration(symbol)
+        title = NSAttributedString(string: glance.title, attributes: primary)
+        separator = NSAttributedString(string: " · ", attributes: secondary)
+        countdown = NSAttributedString(string: glance.countdown, attributes: primary)
+        layout = IslandGlanceLayout(notch: notch, glyph: Double(glyph?.size.width ?? 0), gap: gap,
+            title: title.size().width, separator: separator.size().width,
+            countdown: countdown.size().width, wing: Theme.Size.islandGlanceWing)
+    }
+
+    /// `pill` is the visible part of the outline; content hugs its ends, as the slots were sized.
+    func draw(in pill: CGRect) {
+        let edge = Theme.Spacing.lg
+        var x = pill.minX + edge
+        func place(_ text: NSAttributedString) {
+            text.draw(at: CGPoint(x: x, y: pill.midY - text.size().height / 2))
+            x += text.size().width
+        }
+        if let glyph {
+            glyph.draw(in: CGRect(x: x, y: pill.midY - glyph.size.height / 2, width: glyph.size.width,
+                                  height: glyph.size.height))
+            x += glyph.size.width + gap
+        }
+        if layout.showsTitle { place(title) }
+        if notch {
+            x = pill.maxX - edge - countdown.size().width
+            place(countdown)
+        } else {
+            if layout.showsTitle { place(separator) }
+            place(countdown)
+        }
     }
 }

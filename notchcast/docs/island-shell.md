@@ -12,7 +12,7 @@ One engine frame callback paints the native alpha-backed outline and updates the
 
 ## Verification boundary
 
-Debug argument `--island-verify` enters a separate application delegate before migrations, normal scenes or `AppCore.start`. It requires bundle identifier `com.tinycast.app.v2shell` and an `Agent Test` display, pins AppKit appearance to dark and bypasses normal startup services. A nine-second independent watchdog exits with code 124. Failed expectations print to stderr and exit with code 1. The stock command-Escape event tap is disabled for this Debug argument, so making the native panel key cannot request a global event-listening grant. The caller also uses a restricted sandbox denying network and Apple Events, with writes limited to scratch and the isolated app channel.
+Debug argument `--island-verify` enters a separate application delegate before migrations, normal scenes or `AppCore.start`. It requires a bundle identifier starting `com.tinycast.app.v2` (one channel per worker, such as `.v2shell` or `.v2pill`) and an `Agent Test` display, pins AppKit appearance to dark and bypasses normal startup services. A nine-second independent watchdog exits with code 124. Failed expectations print to stderr and exit with code 1. The stock command-Escape event tap is disabled for this Debug argument, so making the native panel key cannot request a global event-listening grant. The caller also uses a restricted sandbox denying network and Apple Events, with writes limited to scratch and the isolated app channel.
 
 Live checks run only through scratch `vdisplay with --beside-monitor -- <command>`, one wrapper at a time. A wrapper lock exit of 3 requires waiting and retrying. A physical-screen blackout or failed restoration stops live work. Neither display capture nor Screen Recording permission is used.
 
@@ -41,6 +41,8 @@ Latency uses the prototype protocol: five alternating stock/island runs, 60 inse
 | `DialogView.swift` | Replace the question glass backing with black. |
 | `MessageHUDView.swift`, `VolumeHUDView.swift` | Replace each HUD glass backing with black. |
 | `PopoverMenu.swift` | Replace the shared native menu glass backing with black. |
+| `CalendarCoordinator.swift` | Keep the meeting clock running while the pill shows a glance (`IslandCalendarGlance.isWatching`). |
+| `AppWindowController.swift` | Debug verify mode only: centre a new window on the `Agent Test` display, because AppKit relocates saved frames onto a physical screen. |
 
 `PalettePanel`, `MenuPanel`, all stock feature screens, and stock hide behavior are unchanged. The rejected replacement of `PalettePanel.contentView` by a large island canvas was dropped. Native panel geometry makes its proposed coordinate adapter unnecessary.
 
@@ -61,3 +63,13 @@ The engine from the stack is `eafeac8`. Repeating the layer/frame proof after it
 `MenuPanel` and its controller are unchanged. The shared `PopoverMenu` surface has an opaque black backing; action menus, filter menus and form dropdowns retain their stock content, native child window, keyboard routing and control anchors. Their palette-sized parent frame remains correct. No menu placement adapter or menu controller hook is needed.
 
 Live checks open the real action menu with Command-K and the clipboard type filter with Command-P. Each menu is the key child of the native palette and its frame stays inside that palette. Typing filters action rows; successive Escape events clear the menu query, close the menu and return key focus, then close the palette. Down and Enter select the text filter. Inspected own-layer composites show black menu surfaces inside the island; the native menu shadows and WindowServer composition remain outside the capture proof.
+
+## Pill menu and glance
+
+A secondary click on the resting pill (right, Control or Option click) opens `IslandPillMenu`: the stock `PopoverMenu` in a stock `MenuPanel`, hung with `.belowControl(pill, trailing: false)` off the backdrop. A primary click still opens the launcher and never the menu. Rows come from `PillMenuRow.sections` in `Features/Island/Model/PillMenuRows.swift`: Join and Open in Calendar while a meeting is carded, then My Schedule, Clipboard History and the Notes commands as their features allow, then Check for Updates, Support and Settings, then Quit. The menu is the only Settings and Quit entry once hide-menubar removes the status item, so it handles Command-comma and Command-Q itself. `Theme.Size.pillMenuVisibleRows` lifts `PopoverMenu`'s mid-row cap because the row set is fixed and short. Typing filters through the shared `menuQuery` and refits the panel with `MenuPanelController.update`; Escape clears a query, then closes. The backdrop is never key, so the stock resign path would hide the palette; the menu watches its own panel's `didResignKey` instead.
+
+`IslandCalendarGlance` follows `CalendarCoordinator.cardedMeeting`. While a meeting is carded, the primary rest pill widens by up to `Theme.Size.islandGlanceWing` on each side and shows the provider symbol, the title and a countdown in `Theme.Typography.islandGlanceNSFont`. `IslandGlanceLayout` drops the title before the countdown when the space is too small. A click on a glancing pill opens the launcher; it never joins a meeting. Only the right-click menu's Join row joins.
+
+The Debug scenes `pill-menu`, `pill-settings` and `glance` (`IslandPillScenes.swift`) run under the same verification boundary. They check menu geometry below the pill, rows, filtering, Escape order, Control and Option click, Command-comma, and a Settings window with no status item. The glance scene previews a synthetic Zoom meeting through a Debug-only `IslandCalendarGlance.preview` rather than through `CalendarStore`. `Tests/nc-Island-pill-test.swift` covers row sections and glance layout.
+
+Not verified: a real EventKit meeting driving the glance, the glance on a notched screen, and the menu over a full-screen Space.
