@@ -13,6 +13,9 @@
 // notchcast-reads: Tinycast/Features/Backup/Settings/RaycastImportSelection.swift
 // notchcast-reads: Tinycast/Features/Backup/Model/SettingsBackup.swift
 // notchcast-reads: Tinycast/Features/Settings/SettingsFileSchema.swift
+// notchcast-reads: Tinycast/Features/Extensions/Service/ExtensionManager.swift
+// notchcast-reads: Tinycast/Features/Extensions/UI/ExtensionCoordinator.swift
+// notchcast-reads: Tinycast/Features/HotKeys/Service/HotKeyManager.swift
 import AppKit
 import Foundation
 
@@ -24,6 +27,33 @@ struct HiddenFeaturesTest {
         precondition(!visible.contains(.extensions), "Extensions stays out of the sidebar")
         precondition(SettingsTab(slug: "extensions") == nil, "settings/extensions opens nothing")
         precondition(!SettingsSearchCatalog.entries.contains { $0.tab == .extensions })
+        let extensionPins = [
+            ("Tinycast/Features/Settings/AppSettings.swift",
+             "var extensionsEnabled: Bool {\n        get { false }\n        set { }", "consent always reads off"),
+            ("Tinycast/Features/Extensions/Service/ExtensionManager.swift",
+             "guard isEnabled, showsInLauncher else {\n            appIndex?.setExtensionCommands([])",
+             "no extension command reaches the launcher while off"),
+            ("Tinycast/Features/Extensions/Service/ExtensionManager.swift",
+             "func refresh() async {\n        guard isEnabled else { return }", "nothing is scanned while off"),
+            ("Tinycast/Features/HotKeys/Service/HotKeyManager.swift",
+             "var boundExtensionCommandEntryIDs: [String] {\n        []\n    }", "a stored extension hotkey binds no chord"),
+            ("Tinycast/Features/Extensions/UI/ExtensionCoordinator.swift",
+             "func runExtensionCommand(entryID: String) {\n        guard settings.extensionsEnabled,",
+             "an extension hotkey or link runs nothing"),
+            ("Tinycast/Features/Extensions/UI/ExtensionCoordinator.swift",
+             "func runDeepLink(_ link: ExtensionDeepLink) {\n        guard settings.extensionsEnabled else {",
+             "a raycast:// link runs nothing"),
+            ("Tinycast/Features/Extensions/UI/ExtensionCoordinator.swift",
+             "func showStoreInstall(_ install: ExtensionDeepLink.StoreInstall) {\n"
+                + "        guard settings.extensionsEnabled else { return }",
+             "a store link never opens the hidden tab"),
+        ]
+        for (path, pin, reason) in extensionPins {
+            precondition(source(path).contains(pin), "Extensions hide: \(reason) (\(path))")
+        }
+        precondition(
+            !source("Tinycast/Features/Settings/AppSettings.swift").contains("extensionsEnabled = "),
+            "AppSettings never loads persisted extension consent")
         for tab in [SettingsTab.appleShortcuts, .backup, .about, .fallbacks] {
             precondition(visible.contains(tab), "Stock tab stays visible: \(tab.slug)")
             precondition(SettingsTab(slug: tab.slug) == tab, "settings/\(tab.slug) still opens")
