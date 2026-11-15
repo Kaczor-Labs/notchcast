@@ -303,7 +303,7 @@ final class AppCore {
 
             appIndex.start(settings: settings)
             clipboardCoordinator.applyEnabled()
-            if settings.extensionsEnabled { extensions.start(appIndex: appIndex, coordinator: extensionCoordinator) }
+            extensions.start(appIndex: appIndex, coordinator: extensionCoordinator)
             extensionCoordinator.applyEnabled()
             fileSearchCoordinator.applyEnabled()
             windowSwitchCoordinator.applyEnabled()
