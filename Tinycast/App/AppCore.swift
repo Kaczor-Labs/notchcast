@@ -295,6 +295,7 @@ final class AppCore {
             dictationAudioDucker.recover()
             applyAppearance()
             applyMotion()
+            calendarCoordinator.isWatchedElsewhere = { [unowned self] in island.glance.isWatching }
             island.start()
             observeEffectiveAppearance()
             pinnedEmoji.onPersistenceFailure = { [weak self] in
