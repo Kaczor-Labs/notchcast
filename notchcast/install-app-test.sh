@@ -26,6 +26,15 @@ echo "$*" >> "$WORK/osascript.log"
 if [ -e "$WORK/hang-quit" ]; then exec -a "$WORK/hung-osascript" /bin/sleep 300; fi
 pkill -TERM -f "^$WORK/" || true
 FAKE
+# With die-on-restore, the app exits as the rollback puts the previous bundle back.
+cat > "$WORK/bin/mv" <<'FAKE'
+#!/bin/bash
+/bin/mv "$@" || exit $?
+if [ -e "$WORK/die-on-restore" ] && [ "$2" = "$NOTCHCAST_APP" ]; then
+    pkill -TERM -f "^$NOTCHCAST_APP/Contents/MacOS/" || true
+    for _ in $(seq 1 20); do pgrep -f "^$NOTCHCAST_APP/Contents/MacOS/" >/dev/null || break; sleep 0.05; done
+fi
+FAKE
 chmod +x "$WORK/bin/"*
 bundle() { # name version seconds-alive
     local path="$WORK/$1.app"
@@ -98,6 +107,14 @@ grep -qx 'left running: 4.0.0 (previous, never quit, not restarted)' "$WORK/log"
 pgrep -f "^$WORK/hung-osascript" >/dev/null && fail 'hung osascript left alive'
 [ "$(installed)" = 4.0.0 ] || fail 'previous bundle not restored after the hung quit'
 echo 'PASS: a Quit that never answers hits the deadline and rolls back'
+
+touch "$WORK/die-on-restore"
+STATUS=0
+NOTCHCAST_QUIT_SECONDS=2 "$WORK/install-app.sh" "$WORK/New.app" > "$WORK/log" 2>&1 || STATUS=$?
+[ "$STATUS" = 1 ] || fail "late-exit install exited $STATUS"
+grep -qx 'left running: 4.0.0 (previous)' "$WORK/log" || fail 'app that exited after a hung quit not restarted'
+[ -n "$(pids)" ] && [ "$(pids)" != "$HUNG_PID" ] || fail 'restored app not running'
+echo 'PASS: an app that exits after a hung Quit is restarted from the restored bundle'
 
 [ ! -e "$WORK/launchctl.log" ] || fail "install-app.sh ran launchctl: $(cat "$WORK/launchctl.log")"
 echo 'PASS: no launchctl'
