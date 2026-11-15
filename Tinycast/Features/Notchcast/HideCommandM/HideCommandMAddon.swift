@@ -5,7 +5,7 @@ enum HideCommandMAddon: NotchcastAddon {
 
     static let switches = [
         NotchcastSwitch(
-            id: switchID,
+            id: "hideCommandM",
             title: String(localized: "Hide with ⌘M", table: "NotchcastHideCommandM"),
             subtitle: String(
                 localized: "Hide the front app instead of minimizing its window.", table: "NotchcastHideCommandM"),

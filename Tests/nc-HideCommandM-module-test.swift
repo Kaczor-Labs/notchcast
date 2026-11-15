@@ -1,4 +1,5 @@
 // notchcast-sources: Tinycast/Features/Notchcast/Core/Model/*.swift Tinycast/Features/Notchcast/Core/Service/*.swift
+// notchcast-sources: Tinycast/Features/Island/Model/IslandPresentation.swift Tinycast/Features/Island/Service/IslandPresenting.swift
 // notchcast-sources: Tinycast/Platform/NotificationToken.swift
 // notchcast-sources: Tinycast/Features/Notchcast/HideCommandM/HideCommandMAddon.swift
 // notchcast-sources: Tinycast/Features/Notchcast/HideCommandM/Model/*.swift
@@ -53,12 +54,12 @@ final class FakeSession: NotchcastTapSession {
 }
 
 @MainActor
-final class FakePresenter: NotchcastPresenting {
-    func showLevel(_ level: NotchcastLevel) {}
-    func post(_ notice: NotchcastNotice) {}
-    func end(_ noticeID: UUID) {}
-    func setStatus(_ status: NotchcastStatus?, owner: String) {}
-    func setMenuRows(_ rows: [NotchcastMenuRow], owner: String, onSelect: @escaping @MainActor (String) -> Void) {}
+final class FakePresenter: IslandPresenting {
+    func showLevel(_ level: IslandLevel) {}
+    func post(_ notice: IslandNotice, onTap: (@MainActor () -> Void)?) {}
+    func end(notice id: String) {}
+    func setStatus(_ status: IslandStatus?, for id: String) {}
+    func setMenuRows(_ rows: [IslandMenuRow], owner: String, onSelect: @escaping @MainActor (String) -> Void) {}
 }
 
 @MainActor
@@ -151,7 +152,9 @@ enum HideCommandMModuleTests {
         precondition(rig.key(46) == .pass, "an app that cannot hide gets its own ⌘M")
 
         fake.frontmost = HideCommandMTarget(processIdentifier: 8, bundleIdentifier: nil, canHide: true)
-        precondition(rig.session!.router.receive(type: .tapDisabledByTimeout, event: CGEvent(source: nil)!) == .reenable)
+        guard case .reenable(let ids) = rig.session!.router.receive(type: .tapDisabledByTimeout, event: CGEvent(source: nil)!)
+        else { preconditionFailure("a disable notice re-enables") }
+        rig.session!.router.reenabled(ids)
         await drain()
         precondition(rig.key(46) == .swallow, "reset rereads the front app")
         fake.hideSucceeds = false
