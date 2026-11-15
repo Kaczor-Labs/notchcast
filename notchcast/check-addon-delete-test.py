@@ -28,6 +28,8 @@ class DeleteTest(unittest.TestCase):
         write(self.tree, NC + 'Keep/KeepAddon.swift', '@MainActor enum KeepAddon: NotchcastAddon {}\n')
         write(self.tree, 'Tests/nc-Shots-test.swift', '')
         write(self.tree, 'Tests/nc-Shotsy-test.swift', '')
+        write(self.tree, 'notchcast/licenses/borrowed.md', '# Borrowed\n\nShots: A.swift ← x/a.swift (MIT)\n'
+              'Shotsy: B.swift ← x/b.swift (MIT)\nKeep: C.swift ← x/c.swift (MIT)\nShots: D.swift ← x/d.swift (MIT)\n')
 
     def tearDown(self):
         self.tmp.cleanup()
@@ -43,6 +45,8 @@ class DeleteTest(unittest.TestCase):
                          'static let addons = [\n    KeepAddon.self,\n]\n')
         self.assertFalse((self.tree / 'Tests/nc-Shots-test.swift').exists())
         self.assertTrue((self.tree / 'Tests/nc-Shotsy-test.swift').exists())
+        self.assertEqual((self.tree / 'notchcast/licenses/borrowed.md').read_text(),
+                         '# Borrowed\n\nShotsy: B.swift ← x/b.swift (MIT)\nKeep: C.swift ← x/c.swift (MIT)\n')
 
     def test_a_missing_registry_line_is_a_breach(self):
         write(self.tree, NC + 'NotchcastRegistry.swift', 'static let addons = [\n]\n')

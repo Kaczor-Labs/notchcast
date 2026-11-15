@@ -2,7 +2,8 @@
 """Delete test for add-ons (notchcast/docs/addons.md §5): the app still builds and passes without one.
 
 For each folder, in a scratch clone of the ref: delete Tinycast/Features/Notchcast/<Folder>/, its registry
-line and Tests/nc-<Folder>-*.swift, then regenerate the project, build Debug and run Scripts/run-tests.sh.
+line, its notchcast/licenses/borrowed.md lines and Tests/nc-<Folder>-*.swift, then regenerate the project,
+build Debug and run Scripts/run-tests.sh.
 Every surviving fork harness that notchcast/harness_inputs.py resolves in the scratch tree must report a result
 in the run-tests log, so a harness the runner skipped cannot pass as clean.
 Prints PASS per folder, or FAIL with the step and its log. A failure the deletion caused is a contract breach
@@ -21,6 +22,7 @@ import tempfile
 
 ROOT_DIR = 'Tinycast/Features/Notchcast/'
 REGISTRY = ROOT_DIR + 'NotchcastRegistry.swift'
+BORROWED = 'notchcast/licenses/borrowed.md'
 CORE_DIRS = {'Core', 'Hidden'}
 ADDON_DECL = re.compile(r'\b(?:struct|enum|class)\s+(\w+)\b[^{]*\bNotchcastAddon\b')
 SWIFT_ERROR = re.compile(r'\.swift:\d+:\d+: error:')
@@ -76,6 +78,10 @@ def delete_folder(tree, folder):
     shutil.rmtree(folder_dir)
     for test in (tree / 'Tests').glob(f'nc-{folder}-*.swift'):
         test.unlink()
+    borrowed = tree / BORROWED
+    if borrowed.is_file():
+        lines = borrowed.read_text().splitlines(keepends=True)
+        borrowed.write_text(''.join(line for line in lines if not line.startswith(f'{folder}: ')))
     table = f'Notchcast{folder}'
     orphans = [str(p.relative_to(tree)) for p in (tree / 'Tinycast').rglob('*.swift')
                if f'table: "{table}"' in p.read_text()]

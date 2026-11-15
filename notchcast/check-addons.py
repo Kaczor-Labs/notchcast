@@ -8,8 +8,8 @@ with no added line, the one folder it touches), and every changed path is inside
 Tests/nc-<Folder>-*.swift, a `<Type>.self,` line in the registry, or an appended notchcast/licenses/borrowed.md
 line that starts with an owned folder. Mode none runs only the reference guard,
 which on every branch fails when a line the fork added outside an add-on's folder names that add-on's switch
-ids or command slugs, or names one of its top-level types in code rather than in a string or comment (registry
-line and dependency arrays excepted).
+ids or command slugs, or names one of its top-level non-private types as a code identifier, never in a string or
+comment (registry line and dependency arrays excepted).
 Exit 1 is a contract breach, exit 2 a tooling failure.
 Usage: check-addons.py (--mode (core|feature|none) | --branch <name>) --base <ref> [--head <ref>] [--upstream <ref>]
 """
@@ -29,7 +29,8 @@ BORROWED = 'notchcast/licenses/borrowed.md'
 BORROWED_LINE = re.compile(r'^(\w+): \S+ ← \S+/\S+ \([^)]+\)$')
 SWITCH_ID = re.compile(r'NotchcastSwitch\(\s*id:\s*"([^"]+)"')
 SLUG = re.compile(r'\bslug:\s*"([^"]+)"')
-TYPE_DECL = re.compile(r'^(?:@\w+\s+)*(?:(?:public|internal|final|nonisolated)\s+)*'
+# Column 0 and no private/fileprivate: only a type another folder could name in code.
+TYPE_DECL = re.compile(r'^(?:@\w+\s+)*(?:(?:open|public|package|internal|final|nonisolated)\s+)*'
                        r'(?:struct|class|enum|protocol|actor|typealias)\s+(\w+)', re.M)
 ADDON_DECL = re.compile(r'\b(?:struct|enum|class)\s+(\w+)\b[^{]*\bNotchcastAddon\b')
 DEPENDENCIES = re.compile(r'dependencies:\s*\[[^\]]*\]')

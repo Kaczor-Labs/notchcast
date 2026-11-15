@@ -138,12 +138,14 @@ class CheckAddonsTest(unittest.TestCase):
 
     def test_guard_skips_nested_types_strings_and_comments(self):
         self.add_shots()
-        write(self.root, NC + 'Shots/ShotsAddon.swift', SHOTS + 'struct ShotsKeys {\n    enum Press { case down }\n}\n')
+        write(self.root, NC + 'Shots/ShotsAddon.swift', SHOTS + 'struct ShotsKeys {\n    enum Press { case down }\n}\n'
+              'private struct Start {}\nfileprivate final class Pad {}\n@MainActor package enum ShotsLimits {}\n')
         self.commit('feature')
         self.base = git(self.root, 'rev-parse', 'HEAD')
         write(self.root, 'Tinycast/Features/Onboarding/Ready.swift',
               'let text = Text("Press \\(chip(caps)) anytime", tableName: "N") // ShotsModule waits\n'
-              '/* ShotsKeys */ let copy = """\n    Press ShotsModule\n    """\nlet own = Keyboard.Press.down\n')
+              '/* ShotsKeys */ let copy = """\n    Press ShotsModule\n    """\nlet own = Keyboard.Press.down\n'
+              'let pad = Pad(start: Start.now)\n')
         self.commit('onboarding copy')
         code, out = self.check('none')
         self.assertEqual(code, 0, out)
@@ -152,6 +154,10 @@ class CheckAddonsTest(unittest.TestCase):
         code, out = self.check('none')
         self.assertEqual(code, 1, out)
         self.assertIn("Tinycast/Features/Onboarding/Ready.swift:1: names Shots's ShotsKeys", out)
+        write(self.root, 'Tinycast/Features/Onboarding/Ready.swift', 'let cap = ShotsLimits.self\n')
+        self.commit('package reference')
+        code, out = self.check('none')
+        self.assertIn("Tinycast/Features/Onboarding/Ready.swift:1: names Shots's ShotsLimits", out)
 
     def add_keep(self):
         write(self.root, NC + 'Keep/KeepAddon.swift', 'struct KeepAddon: NotchcastAddon {\n}\n')
