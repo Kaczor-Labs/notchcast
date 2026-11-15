@@ -4,7 +4,6 @@ HERE="$(cd "$(dirname "$0")" && pwd)"
 # shellcheck disable=SC1091
 source "$HERE/config.env"
 APP="${NOTCHCAST_APP:-/Applications/$APP_NAME.app}"
-AGENT="gui/$(id -u)/${NOTCHCAST_AGENT:-notchcast.app}"
 WATCH="${NOTCHCAST_WATCH_SECONDS:-60}"
 TRASH="${NOTCHCAST_TRASH:-$HOME/.Trash}"
 PREVIOUS="$HOME/Library/Application Support/notchcast/previous/$APP_NAME.app"
@@ -28,45 +27,33 @@ trash() {
     mkdir -p "$TRASH"
     mv "$1" "$target"
 }
-watch_agent() {
-    local output state pid runs first_pid='' first_runs='' start=$SECONDS
-    while :; do
-        output="$(launchctl print "$AGENT" 2>/dev/null)" || return 1
-        state="$(awk '$1 == "state" && $2 == "=" {print $3; exit}' <<< "$output")"
-        pid="$(awk '$1 == "pid" && $2 == "=" {print $3; exit}' <<< "$output")"
-        runs="$(awk '$1 == "runs" && $2 == "=" {print $3; exit}' <<< "$output")"
-        if [ "$state" != running ]; then
-            if grep -q 'last exit code =' <<< "$output"; then return 1; fi
-        elif [ -z "$first_pid" ]; then
-            [ -n "$pid" ] && [ -n "$runs" ] || return 1
-            first_pid="$pid"; first_runs="$runs"
-        else
-            [ "$pid" = "$first_pid" ] && [ "$runs" = "$first_runs" ] || return 1
-        fi
-        if (( SECONDS - start >= WATCH )); then
-            [ "$state" = running ] && [ -n "$first_pid" ]
-            return
-        fi
+app_pids() { pgrep -f "^$APP/Contents/MacOS/" || true; }
+# The same pid must stay up for WATCH seconds; a crash or a self-relaunch both fail it.
+watch_app() {
+    local pid='' start=$SECONDS
+    while [ -z "$pid" ]; do
+        if (( SECONDS - start >= 15 )); then return 1; fi
+        sleep 0.5
+        pid="$(app_pids | head -1)"
+    done
+    start=$SECONDS
+    while (( SECONDS - start < WATCH )); do
+        app_pids | grep -qx "$pid" || return 1
         sleep 1
     done
+    app_pids | grep -qx "$pid"
 }
-restart_agent() {
-    local client start=$SECONDS
-    launchctl kickstart -k "$AGENT" &
-    client=$!
-    while kill -0 "$client" 2>/dev/null; do
-        # kickstart -k waits out the agent's ThrottleInterval and the old app's exit.
-        if (( SECONDS - start >= 45 )); then
-            kill "$client" 2>/dev/null || true
-            wait "$client" 2>/dev/null || true
-            return 1
-        fi
-        sleep 1
-    done
-    wait "$client"
+# Quit by bundle id, as the user would, then open in the background so focus stays put.
+restart_app() {
+    if [ -n "$(app_pids)" ]; then
+        osascript -e "tell application id \"$BUNDLE_ID\" to quit" >/dev/null 2>&1 || true
+        for _ in $(seq 1 40); do [ -n "$(app_pids)" ] || break; sleep 0.5; done
+        if [ -n "$(app_pids)" ]; then log "the running app did not quit within 20 seconds"; return 1; fi
+    fi
+    open -g "$APP"
 }
-LOADED=0
-if launchctl print "$AGENT" >/dev/null 2>&1; then LOADED=1; fi
+RUNNING=0
+if [ -n "$(app_pids)" ]; then RUNNING=1; fi
 mkdir -p "$(dirname "$PREVIOUS")" "$(dirname "$APP")"
 HAD_PREVIOUS=0
 if [ -e "$APP" ]; then
@@ -77,23 +64,22 @@ elif [ -e "$PREVIOUS" ]; then
     HAD_PREVIOUS=1
 fi
 if ditto "$1" "$APP"; then
-    if [ "$LOADED" = 0 ]; then
-        FINAL="nothing (agent is not loaded; check skipped; installed $NEW_VERSION)"
+    if [ "$RUNNING" = 0 ]; then
+        FINAL="nothing (app was not running; launch skipped; installed $NEW_VERSION)"
         exit 0
     fi
-    if restart_agent && watch_agent; then
+    if restart_app && watch_app; then
         FINAL="$NEW_VERSION (new)"
         exit 0
     fi
 fi
 log "installation did not stay alive; restoring previous app"
 if [ -e "$APP" ]; then trash "$APP" "failed $NEW_VERSION"; fi
-# The agent stays loaded on every path: a bootout would keep the app down until the next login.
 if [ "$HAD_PREVIOUS" = 1 ]; then
     mv "$PREVIOUS" "$APP"
-    if [ "$LOADED" = 0 ]; then
-        FINAL="nothing (agent is not loaded; restored $(version "$APP"))"
-    elif restart_agent && watch_agent; then
+    if [ "$RUNNING" = 0 ]; then
+        FINAL="nothing (app was not running; restored $(version "$APP"))"
+    elif restart_app && watch_app; then
         FINAL="$(version "$APP") (previous)"
     else
         FINAL="nothing (restored $(version "$APP") did not stay alive)"
