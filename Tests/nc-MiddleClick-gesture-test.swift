@@ -26,11 +26,12 @@ struct MiddleClickGestureTests {
         engineLostUpWhileSwallowing()
         engineExpiredBounce()
         engineDragOwnershipChange()
+        relayFence()
         var moved = fingers
         moved[0].x = .nan
         precondition(MiddleClickTouchSource.isSane(fingers))
         precondition(!MiddleClickTouchSource.isSane(moved))
-        print("Middle click gesture, guards, engine pairing, bounce, lost hold and reset passed")
+        print("Middle click gesture, guards, engine pairing, bounce, lost hold, reset and relay fence passed")
     }
 
     static func gesture() {
@@ -312,4 +313,33 @@ struct MiddleClickGestureTests {
         precondition(rig.send(.leftMouseDown) == (false, .otherMouseDown), "an unchanged setting keeps candidates")
     }
 
+    static func relayFence() {
+        let relay = MiddleClickFrameRelay()
+        let got = Cell<[Int]>([])
+        precondition(relay.session() == nil, "a closed relay starts no frame")
+        relay.open { device, _, _ in got.lock.withLock { $0.append(device) } }
+        let stale = relay.session()!
+        relay.close()
+        relay.open { device, _, _ in got.lock.withLock { $0.append(device * 10) } }
+        relay.deliver(stale, device: 1, points: [], time: 0)
+        precondition(got.lock.withLock { $0 }.isEmpty, "a frame begun before a stop and start is dropped")
+        relay.deliver(relay.session()!, device: 2, points: [], time: 0)
+        precondition(got.lock.withLock { $0 } == [20])
+        let closing = relay.session()!
+        relay.close()
+        relay.deliver(closing, device: 3, points: [], time: 0)
+        precondition(got.lock.withLock { $0 } == [20], "a frame finished after stop is dropped")
+
+        let entered = DispatchSemaphore(value: 0), finished = Cell(false)
+        relay.open { _, _, _ in
+            entered.signal()
+            Thread.sleep(forTimeInterval: 0.05)
+            finished.lock.withLock { $0 = true }
+        }
+        let session = relay.session()!
+        Thread.detachNewThread { relay.deliver(session, device: 4, points: [], time: 0) }
+        entered.wait()
+        relay.close()
+        precondition(finished.lock.withLock { $0 }, "close returns only after the in-flight frame is done")
+    }
 }

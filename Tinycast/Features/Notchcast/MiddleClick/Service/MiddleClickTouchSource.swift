@@ -39,7 +39,7 @@ import Synchronization
     }
 
     // The C callback has no context argument, so its one sink lives behind a static lock.
-    private nonisolated static let sink = Mutex<(@Sendable (Int, [TouchPoint], TimeInterval) -> Void)?>(nil)
+    private nonisolated static let relay = MiddleClickFrameRelay()
 
     nonisolated static let maxTouches = 16
 
@@ -49,7 +49,7 @@ import Synchronization
 
     private nonisolated static let callback: FrameCallback = { device, touches, count, timestamp, _ in
         guard let device, count == 0 || touches != nil, (0...Int32(MiddleClickTouchSource.maxTouches)).contains(count),
-              let sink = MiddleClickTouchSource.sink.withLock({ $0 }) else { return 0 }
+              let session = MiddleClickTouchSource.relay.session() else { return 0 }
         let points = (0..<Int(count)).map { index -> TouchPoint in
             let record = UnsafeRawPointer(touches!) + index * MiddleClickTouchSource.stride
             let state = record.load(fromByteOffset: MiddleClickTouchSource.stateOffset, as: Int32.self)
@@ -59,7 +59,7 @@ import Synchronization
                               down: MiddleClickTouchSource.contactStates.contains(state))
         }
         guard MiddleClickTouchSource.isSane(points) else { return 0 }
-        sink(Int(bitPattern: device), points, timestamp)
+        MiddleClickTouchSource.relay.deliver(session, device: Int(bitPattern: device), points: points, time: timestamp)
         return 0
     }
 
@@ -67,10 +67,10 @@ import Synchronization
 
     isolated deinit { stop(); dlclose(handle) }
 
-    func start(_ sink: @escaping @Sendable (Int, [TouchPoint], TimeInterval) -> Void) -> Bool {
+    func start(_ sink: @escaping MiddleClickFrameRelay.Sink) -> Bool {
         stop()
         guard let list = createList()?.takeRetainedValue(), CFArrayGetCount(list) > 0 else { return false }
-        Self.sink.withLock { $0 = sink }
+        Self.relay.open(sink)
         devices = list
         for index in 0..<CFArrayGetCount(list) {
             guard let device = CFArrayGetValueAtIndex(list, index) else { continue }
@@ -90,6 +90,25 @@ import Synchronization
             stopDevice(pointer)
             unregister(pointer, Self.callback)
         }
-        Self.sink.withLock { $0 = nil }
+        Self.relay.close()
+    }
+}
+
+/// Hands frames to the open session's sink; a frame begun under an earlier session is dropped.
+final class MiddleClickFrameRelay: Sendable {
+    typealias Sink = @Sendable (Int, [TouchPoint], TimeInterval) -> Void
+
+    private let state = Mutex<(generation: UInt64, sink: Sink?)>((0, nil))
+
+    func open(_ sink: @escaping Sink) { state.withLock { $0 = ($0.generation &+ 1, sink) } }
+
+    func close() { state.withLock { $0 = ($0.generation &+ 1, nil) } }
+
+    /// Taken before a frame is read, so a stop or restart while it is read drops it.
+    func session() -> UInt64? { state.withLock { $0.sink == nil ? nil : $0.generation } }
+
+    // Delivered under the lock, so close() returns only once no frame of its session is in flight.
+    func deliver(_ session: UInt64, device: Int, points: [TouchPoint], time: TimeInterval) {
+        state.withLock { if $0.generation == session { $0.sink?(device, points, time) } }
     }
 }
