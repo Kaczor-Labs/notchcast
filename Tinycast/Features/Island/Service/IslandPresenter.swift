@@ -1,7 +1,7 @@
 import AppKit
 import Observation
 
-/// Renders levels in the resting pill or the report slot; notices, status and menu rows come later.
+/// Renders levels and the meeting expansion; notices, status and menu rows come later.
 @MainActor
 final class IslandPresenter: IslandPresenting {
     private var dwell = IslandLevelDwell()
@@ -10,6 +10,10 @@ final class IslandPresenter: IslandPresenting {
     private var band: HUDPanel?
     private var bandShown = false
     private var observing = false
+    private var expansion = IslandMeetingExpansion()
+    private var expansionTask: Task<Void, Never>?
+    private var occurrence: IslandMeetingExpansion.Occurrence?
+    private weak var expandedPill: IslandController?
 
     func showLevel(_ level: IslandLevel) {
         if dwell.show(level, at: Self.now) {
@@ -18,6 +22,14 @@ final class IslandPresenter: IslandPresenting {
             if !observing { observePlacement() }
         }
         place()
+        updateExpansion()
+    }
+
+    /// The carded meeting the resting glance shows, or nil once its join window closes.
+    func meetingChanged(_ occurrence: IslandMeetingExpansion.Occurrence?) {
+        self.occurrence = occurrence
+        if occurrence != nil, !observing { observePlacement() }
+        updateExpansion()
     }
 
     func post(_ notice: IslandNotice, onTap: (@MainActor () -> Void)?) {}
@@ -27,6 +39,9 @@ final class IslandPresenter: IslandPresenting {
 
     #if DEBUG
     var presentations: Int { dwell.presentation }
+    var expansions: Int { expansion.presentation }
+    /// A scene's shorter expansion, so it settles inside the 9 s run.
+    func previewExpansion(seconds: TimeInterval) { expansion = IslandMeetingExpansion(seconds: seconds) }
     #endif
 
     private static var now: TimeInterval { ProcessInfo.processInfo.systemUptime }
@@ -41,7 +56,37 @@ final class IslandPresenter: IslandPresenting {
             guard let self, self.dwell.presentation == token, self.dwell.level == nil else { return }
             self.place()
             self.dwellTask = nil
+            self.updateExpansion()
         }
+    }
+
+    private func settleWhenExpanded(_ token: Int) -> Task<Void, Never> {
+        Task { [weak self] in
+            while let left = self?.expansion.remaining(token, at: Self.now) {
+                try? await Task.sleep(for: .seconds(left))
+                guard !Task.isCancelled else { return }
+            }
+            guard let self, self.expansion.presentation == token else { return }
+            self.expansionTask = nil
+            self.updateExpansion()
+        }
+    }
+
+    private func updateExpansion() {
+        let core = AppCore.shared
+        if expansion.update(carded: occurrence, waiting: dwell.level != nil,
+                            covered: core.palette.isVisible || core.isShowingDialog, at: Self.now) {
+            expansionTask?.cancel()
+            expansionTask = settleWhenExpanded(expansion.presentation)
+        }
+        if expansion.showing == nil {
+            expansionTask?.cancel()
+            expansionTask = nil
+        }
+        let pill = expansion.showing == nil ? nil : core.island.resting
+        if expandedPill !== pill { expandedPill?.expanded = false }
+        expandedPill = pill
+        pill?.expanded = true
     }
 
     private func place() {
@@ -70,9 +115,10 @@ final class IslandPresenter: IslandPresenting {
             Task { @MainActor in
                 guard let self else { return }
                 self.observing = false
-                guard self.dwell.level != nil else { return }
+                guard self.dwell.level != nil || self.occurrence != nil else { return }
                 self.observePlacement()
                 self.place()
+                self.updateExpansion()
             }
         }
     }
@@ -104,5 +150,8 @@ final class IslandPresenter: IslandPresenting {
         band.fadeOut(duration: Theme.Duration.exit)
     }
 
-    isolated deinit { dwellTask?.cancel() }
+    isolated deinit {
+        dwellTask?.cancel()
+        expansionTask?.cancel()
+    }
 }
