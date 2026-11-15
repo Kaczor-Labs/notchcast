@@ -193,14 +193,14 @@ struct AISettingsView: View {
         return Section {
             Toggle(isOn: $settings.systemPromptEnabled) {
                 SettingsRowTitle(.aiSystemPrompt, "Send a system prompt")
-                Text("Off also skips Notchcast's own prompt.", tableName: "Notchcast")
+                Text("Off also skips Tinycast's own prompt.")
             }
             SystemPromptEditor(text: $settings.systemPrompt)
                 .settingsEnabled(settings.systemPromptEnabled)
         } header: {
             SettingsSectionHeader(.aiSystemPrompt)
         } footer: {
-            Text("Sent before every message, after Notchcast's own. Both are billed each turn.", tableName: "Notchcast")
+            Text("Sent before every message, after Tinycast's own. Both are billed each turn.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
         }
