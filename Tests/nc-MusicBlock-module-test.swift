@@ -11,7 +11,6 @@
 // notchcast-sources: Tinycast/Features/Notchcast/Core/Service/NotchcastTapThread.swift
 // notchcast-sources: Tinycast/Features/Island/Model/IslandPresentation.swift
 // notchcast-sources: Tinycast/Features/Island/Service/IslandPresenting.swift
-// notchcast-sources: Tinycast/Platform/NotificationToken.swift
 import AppKit
 
 /// Pins the switch's v1 id and that start, stop and restart claim and release exactly one tap.

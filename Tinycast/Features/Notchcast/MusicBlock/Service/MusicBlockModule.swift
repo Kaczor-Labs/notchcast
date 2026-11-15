@@ -11,7 +11,7 @@ final class MusicBlockModule: NotchcastModule {
     private let context: NotchcastContext
     private var trigger = MusicLaunchTrigger()
     private var tapToken: UUID?
-    private var launchObservers: [NotificationToken] = []
+    private var launchObservers: [NotificationCenter.ObservationToken] = []
 
     init(context: NotchcastContext) { self.context = context }
 
@@ -21,23 +21,23 @@ final class MusicBlockModule: NotchcastModule {
             switchID: Self.switchID, mask: NotchcastTapPolicy.mask(rawType: NotchcastMediaKey.eventType),
             handler: .observe { [weak self] event in self?.noted(event) },
             reset: { [weak self] in self?.trigger.reset() }))
-        let center = NSWorkspace.shared.notificationCenter
+        let workspace = NSWorkspace.shared
         // Will-launch usually wins before a window shows; did-launch catches one that slipped past.
-        launchObservers = [NSWorkspace.willLaunchApplicationNotification,
-                           NSWorkspace.didLaunchApplicationNotification].map { name in
-            NotificationToken(center.addObserver(forName: name, object: nil, queue: .main) { [weak self] note in
-                guard let app = note.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication,
-                      let bundleID = app.bundleIdentifier else { return }
-                let processID = app.processIdentifier
-                MainActor.assumeIsolated { self?.launched(bundleID: bundleID, processID: processID) }
-            }, center: center)
-        }
+        launchObservers = [
+            workspace.notificationCenter.addObserver(of: workspace, for: .willLaunchApplication) { [weak self] in
+                self?.launched($0.application)
+            },
+            workspace.notificationCenter.addObserver(of: workspace, for: .didLaunchApplication) { [weak self] in
+                self?.launched($0.application)
+            }
+        ]
     }
 
     func stop() {
         guard let tapToken else { return }
         context.unsubscribe(tapToken)
         self.tapToken = nil
+        launchObservers.forEach(NSWorkspace.shared.notificationCenter.removeObserver)
         launchObservers = []
         trigger = MusicLaunchTrigger()
     }
@@ -51,11 +51,11 @@ final class MusicBlockModule: NotchcastModule {
         trigger.arm(at: keyAt, musicRunning: running)
     }
 
-    private func launched(bundleID: String, processID: pid_t) {
-        guard trigger.judge(bundleID: bundleID, processID: processID, now: ProcessInfo.processInfo.systemUptime,
-                            gestureAge: Self.secondsSinceGesture(),
-                            tapLive: tapIsLive),
-              let app = NSRunningApplication(processIdentifier: processID), app.bundleIdentifier == bundleID
+    private func launched(_ app: NSRunningApplication) {
+        guard let bundleID = app.bundleIdentifier,
+              trigger.judge(bundleID: bundleID, processID: app.processIdentifier,
+                            now: ProcessInfo.processInfo.systemUptime, gestureAge: Self.secondsSinceGesture(),
+                            tapLive: tapIsLive)
         else { return }
         if app.forceTerminate() || app.terminate() { return }
         context.presenter.post(IslandNotice(
