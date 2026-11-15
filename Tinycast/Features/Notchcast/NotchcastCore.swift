@@ -1,0 +1,45 @@
+import ApplicationServices
+import Foundation
+
+/// The one owner of the add-on system: created by AppCore in `start`, stopped at terminate.
+@MainActor
+final class NotchcastCore {
+    let controller: NotchcastController
+    private let presenter: NotchcastHUDPresenter
+
+    init(core: AppCore, addons: [any NotchcastAddon.Type] = NotchcastRegistry.addons) {
+        let bundleID = Bundle.main.bundleIdentifier ?? "Notchcast"
+        let defaults = UserDefaults(suiteName: NotchcastPreferences.suiteName(bundleID: bundleID)) ?? .standard
+        let hub = NotchcastTapHub(
+            syntheticTag: Paster.tinycastEventTag, isTrusted: { AXIsProcessTrusted() },
+            makeSession: NotchcastTapThread.start)
+        presenter = NotchcastHUDPresenter(core: core)
+        controller = NotchcastController(addons: addons, defaults: defaults, hub: hub, presenter: presenter)
+        let launcher = core.launcherCoordinator
+        controller.onCommandsChanged = { [weak core] commands in
+            core?.appIndex.extraCommandEntries = commands.map(Self.entry)
+            core?.hotKeys.extraActions = commands.map { .notchcastCommand(entryID: $0.id) }
+        }
+        core.hotKeys.onRunNotchcastCommand = { [weak controller] entryID in
+            _ = controller?.run(entryID: entryID)
+        }
+        launcher.runExtraCommand = { [weak controller, weak core] entryID in
+            guard let controller, controller.enabledCommands.contains(where: { $0.id == entryID }) else { return false }
+            core?.paletteCoordinator.hidePalette(restoreFocus: true)
+            return controller.run(entryID: entryID)
+        }
+        controller.start()
+    }
+
+    func stop() {
+        controller.stop()
+        controller.hub.stop()
+    }
+
+    private static func entry(_ command: NotchcastCommand) -> AppEntry {
+        AppEntry(
+            id: command.id, name: command.name, url: URL(string: "tinycast://command/nc-" + command.slug)!,
+            bundleID: nil, kind: .command, settingsOwner: .notchcast, symbolName: command.symbol,
+            keywords: command.keywords)
+    }
+}

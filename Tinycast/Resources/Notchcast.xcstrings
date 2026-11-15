@@ -1,7 +1,33 @@
 {
   "sourceLanguage" : "en",
   "strings" : {
-
+    "Between Macs" : {
+      "shouldTranslate" : false
+    },
+    "Capture" : {
+      "shouldTranslate" : false
+    },
+    "Display & Sound" : {
+      "shouldTranslate" : false
+    },
+    "Files & Downloads" : {
+      "shouldTranslate" : false
+    },
+    "Keyboard & Mouse" : {
+      "shouldTranslate" : false
+    },
+    "Mac Tweaks" : {
+      "shouldTranslate" : false
+    },
+    "Music" : {
+      "shouldTranslate" : false
+    },
+    "Notchcast" : {
+      "shouldTranslate" : false
+    },
+    "Notices" : {
+      "shouldTranslate" : false
+    }
   },
   "version" : "1.0"
 }
