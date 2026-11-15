@@ -44,7 +44,7 @@ enum IslandAccessibilityScenes {
         presenter.setStatus(nil, for: "update")
     }
 
-    /// Unplug and replug strand the old pill, and the new one must carry notice and status unannounced.
+    /// An unplug strands the old pill; the new one carries notice and status unannounced.
     private static func rebuild(core: AppCore, old: IslandController, read: (String, String) -> Void) async {
         func screensChanged(_ screens: [NSScreen]?) async {
             IslandVerification.screens = screens

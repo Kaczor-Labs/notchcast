@@ -58,7 +58,7 @@ final class IslandPresenter: IslandPresenting {
         if let status { statuses.append(status) }
         AppCore.shared.island.resting?.statuses = statuses
     }
-    /// A rebuild hands notices and status to the resting pill without posting, so none re-announces.
+    /// Hands notices and status to the resting pill without posting, so none re-announces.
     func restore(_ controller: IslandController, resting: Bool) {
         controller.notice = resting ? notice : nil
         controller.statuses = resting ? statuses : []
