@@ -154,6 +154,24 @@ class BehaviourTest(unittest.TestCase):
         self.assertIn(f"base={self.git('rev-parse', 'base')} head={head} sharded= ", log)
         self.assertNotIn(str(self.repo), log.split("pwd=")[1], "the build must run in a clone outside the checkout")
 
+    def test_pass_names_retried_and_ignored_harnesses(self):
+        lines = self.check("base").stdout.splitlines()
+        self.assertEqual(lines[-3:-1], ["retried: none", "ignored (fails upstream too): none"])
+        (self.repo / "notchcast/ci-build.sh").write_text(
+            "printf '::warning::retrying %s alone\\n' BTests ATests BTests\n"
+            "echo '::warning::BTests fails on upstream abc1234 too; not ours, ignored'\n")
+        self.commit("retries")
+        result = self.check("base")
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        lines = result.stdout.splitlines()
+        self.assertEqual(lines[-3:-1], ["retried: ATests BTests", "ignored (fails upstream too): BTests"])
+        self.assertTrue(lines[-1].startswith("PASS "))
+
+    def test_the_parsed_lines_are_the_ones_ci_tests_prints(self):
+        ci_tests = (ROOT / "notchcast/ci-tests.sh").read_text()
+        self.assertIn('echo "::warning::retrying $name alone"', ci_tests)
+        self.assertIn('echo "::warning::$name fails on upstream ${UPSTREAM:0:7} too; not ours, ignored"', ci_tests)
+
     def test_fail_names_the_first_failing_gate(self):
         self.commit("break", "fail-build")
         result = self.check("base")
