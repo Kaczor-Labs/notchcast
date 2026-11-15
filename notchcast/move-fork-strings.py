@@ -13,7 +13,7 @@ ROOT = Path(__file__).resolve().parent.parent
 CONFIG = runpy.run_path(str(ROOT / 'notchcast/ci.py'))['config']()
 LOCAL = 'Tinycast/Resources/Localizable.xcstrings'
 FORK = 'Tinycast/Resources/Notchcast.xcstrings'
-LOCALES = {'de', 'es', 'fr', 'ja', 'ko', 'pt', 'ru', 'zh-Hans'}
+LOCALES = {'en'}
 REFERENCED = runpy.run_path(str(ROOT / 'notchcast/check-xcstrings-order.py'))['referenced']
 DUMP = runpy.run_path(str(ROOT / 'notchcast/xcstrings-union.py'))['dump']
 
@@ -174,9 +174,9 @@ def plan(upstream):
     for key, value in fork['strings'].items():
         if value.get('shouldTranslate') is False:
             continue
-        missing = LOCALES - value.get('localizations', {}).keys()
-        if missing:
-            raise ValueError(f'{key}: missing locales {sorted(missing)}')
+        extra = value.get('localizations', {}).keys() - LOCALES
+        if extra:
+            raise ValueError(f'{key}: non-English localizations {sorted(extra)}')
     changes = {}
     if original != upstream:
         changes[ROOT / LOCAL] = upstream
