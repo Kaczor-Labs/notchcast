@@ -3,6 +3,23 @@ import AppKit
 
 @MainActor
 enum IslandWindowScenes {
+    /// Loses the test display after startup; the window guard ends the run before Settings shows.
+    static func windowGuard(core: AppCore, scene: String) async {
+        if scene != "window-guard-new" {
+            core.settingsCoordinator.showSettings(tab: .general)
+            IslandVerification.require(IslandPillScenes.settingsWindow?.isVisible == true, "Settings opens on the test display")
+        }
+        unsetenv("ISLAND_TEST_DISPLAY")
+        if scene == "window-guard-deferred" {
+            // No second show, so only the raise's queued re-raise can reach the guard.
+            await IslandVerification.pause(0.5)
+        } else {
+            core.settingsCoordinator.showSettings(tab: .general)
+        }
+        FileHandle.standardError.write(Data("FAIL the window guard let Settings show without the test display\n".utf8))
+        _exit(2)
+    }
+
     static func run(core: AppCore, panel: PalettePanel) async {
         guard let controller = core.island.active, let screen = panel.screen else {
             IslandVerification.require(false, "window scene island and screen"); return
