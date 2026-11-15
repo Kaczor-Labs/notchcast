@@ -33,6 +33,7 @@ final class IslandCoordinator: NSObject {
 
     private func showGlance(_ next: IslandGlance?) {
         restingGlance = next
+        (core.islandPresenter as? IslandPresenter)?.meetingChanged(glance.occurrence)
         for controller in backdrops.values { controller.glance = controller.showsRest ? next : nil }
     }
 

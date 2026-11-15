@@ -28,18 +28,19 @@ final class IslandController: NSObject {
     /// Hands over the pill's rect, top-left origin in the island window, for the pill menu.
     var onMenu: ((CGRect, NSWindow) -> Void)?
     var glance: IslandGlance? {
-        didSet {
-            guard glance != oldValue else { return }
-            canvas.show(glance: glance, level: level, notch: layout?.hasNotch == true)
-            frameChanged()
-        }
+        didSet { if glance != oldValue { redraw() } }
     }
     var level: IslandLevel? {
-        didSet {
-            guard level != oldValue else { return }
-            canvas.show(glance: glance, level: level, notch: layout?.hasNotch == true)
-            frameChanged()
-        }
+        didSet { if level != oldValue { redraw() } }
+    }
+    /// The meeting glance grown to two lines; the presenter decides when, a level still outranks it.
+    var expanded = false {
+        didSet { if expanded != oldValue { redraw() } }
+    }
+
+    private func redraw() {
+        canvas.show(glance: glance, level: level, expanded: expanded, notch: layout?.hasNotch == true)
+        frameChanged()
     }
 
     override init() {
@@ -85,7 +86,7 @@ final class IslandController: NSObject {
         let requested = IslandSurfaceConfiguration(notch: next.notch, scale: screen.backingScaleFactor)
         let moved = layout?.screen != next.screen || layout?.notch != next.notch
         layout = next
-        canvas.show(glance: glance, level: level, notch: next.hasNotch)
+        canvas.show(glance: glance, level: level, expanded: expanded, notch: next.hasNotch)
         backdrop.setFrame(next.window, display: false)
         switch requested.update(from: configuration, paletteVisible: panel?.isVisible == true,
                                 hasOverlays: !overlays.isEmpty) {
@@ -170,6 +171,12 @@ final class IslandController: NSObject {
                 if !suspended { backdrop.orderFrontRegardless() }
                 surface.resize(stageWidth: size.width, animate: true)
                 surface.show(.expanded(.init(bottom: size)), contentKey: "palette")
+            } else if showsRest, let expansion = canvas.expansion, let art = canvas.glance {
+                if !suspended { backdrop.orderFrontRegardless() }
+                let width = max(expansion.size.width, glanceWidth(art.layout))
+                surface.resize(stageWidth: width, animate: true)
+                surface.show(.expanded(.init(bottom: CGSize(width: width, height: expansion.size.height))),
+                             contentKey: "expansion")
             } else if showsRest, let art = canvas.glance {
                 if !suspended { backdrop.orderFrontRegardless() }
                 let slots = CompactContent(leading: CGSize(width: art.layout.leading, height: 0),
@@ -329,21 +336,4 @@ final class IslandController: NSObject {
         @objc private func update() { changed() }
         isolated deinit { NotificationCenter.default.removeObserver(self) }
     }
-}
-
-private final class IslandBackdrop: NSPanel {
-    static let levelValue = Int(CGWindowLevelForKey(.mainMenuWindow)) + 1
-    init() {
-        super.init(contentRect: .zero, styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
-        backgroundColor = .clear
-        isOpaque = false
-        hasShadow = false
-        hidesOnDeactivate = false
-        animationBehavior = .none
-        level = NSWindow.Level(rawValue: Self.levelValue)
-        collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
-    }
-    override var canBecomeKey: Bool { false }
-    override var canBecomeMain: Bool { false }
-    override func constrainFrameRect(_ frameRect: NSRect, to screen: NSScreen?) -> NSRect { frameRect }
 }
