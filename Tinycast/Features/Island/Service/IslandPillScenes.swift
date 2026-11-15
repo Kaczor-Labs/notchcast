@@ -203,7 +203,8 @@ enum IslandPillScenes {
         NSApp.activate()
         IslandVerification.require(picker.runModal() == .cancel, "the modal ends")
         await IslandVerification.pause(0.3)
-        print("GLANCE_MODAL content=\(controller.contentKey ?? "nil") backdropVisible=\(backdrop.isVisible) palette=\(paletteVisible)")
+        let content = controller.contentKey ?? "nil"
+        print("GLANCE_MODAL content=\(content) backdropVisible=\(backdrop.isVisible) palette=\(paletteVisible)")
         IslandVerification.require(!paletteVisible && controller.contentKey == "glance", "the glance returns to rest")
         IslandVerification.require(backdrop.isVisible, "the carded pill is visible after the modal ends")
     }
