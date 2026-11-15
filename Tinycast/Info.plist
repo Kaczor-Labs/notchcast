@@ -44,7 +44,7 @@
 			<key>UTTypeIdentifier</key>
 			<string>com.tinycast.backup</string>
 			<key>UTTypeDescription</key>
-			<string>Notchcast Backup</string>
+			<string>Tinycast Backup</string>
 			<key>UTTypeConformsTo</key>
 			<array>
 				<string>public.data</string>
@@ -66,19 +66,19 @@
 	<key>NSAutoFillRequiresTextContentTypeForOneTimeCodeOnMac</key>
 	<true/>
 	<key>NSAppleEventsUsageDescription</key>
-	<string>Notchcast uses automation to perform system actions you explicitly run.</string>
+	<string>Tinycast uses automation to perform system actions you explicitly run.</string>
 	<key>NSCameraUsageDescription</key>
-	<string>Notchcast shows a camera preview so you can check yourself, and take a photo to the clipboard.</string>
+	<string>Tinycast shows a camera preview so you can check yourself, and take a photo to the clipboard.</string>
 	<key>NSMicrophoneUsageDescription</key>
-	<string>Notchcast records audio only while you use Dictation, to transcribe it on your Mac.</string>
+	<string>Tinycast records audio only while you use Dictation, to transcribe it on your Mac.</string>
 	<key>NSCalendarsFullAccessUsageDescription</key>
-	<string>Notchcast accesses your events to show your schedule and let you join meetings.</string>
+	<string>Tinycast accesses your events to show your schedule and let you join meetings.</string>
 	<key>NSRemindersFullAccessUsageDescription</key>
-	<string>Notchcast lets extensions you run read and edit your reminders.</string>
+	<string>Tinycast lets extensions you run read and edit your reminders.</string>
 	<key>NSBluetoothAlwaysUsageDescription</key>
-	<string>Notchcast uses Bluetooth access only when you run the Toggle Bluetooth action.</string>
+	<string>Tinycast uses Bluetooth access only when you run the Toggle Bluetooth action.</string>
 	<key>NSHumanReadableCopyright</key>
-	<string>Notchcast</string>
+	<string>Tinycast</string>
 	<key>TinycastUpdatePublicKey</key>
 	<string>CSzrQKht5GxZW2nVLbWEunvUChqDkeFLP64xSQRWN9E=</string>
 </dict>

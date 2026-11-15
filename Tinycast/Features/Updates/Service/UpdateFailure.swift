@@ -17,19 +17,19 @@ enum UpdateFailure: LocalizedError, Equatable {
         case .extractFailed(let detail):
             return String(localized: "The downloaded archive could not be expanded. \(detail)")
         case .noAppInArchive:
-            return String(localized: "The downloaded archive does not contain Notchcast.", table: "Notchcast")
+            return String(localized: "The downloaded archive does not contain Tinycast.")
         case .quarantined:
             return String(
-                localized: "macOS quarantined the downloaded app and Notchcast could not clear the flag.", table: "Notchcast")
+                localized: "macOS quarantined the downloaded app and Tinycast could not clear the flag.")
         case .bundleMismatch:
-            return String(localized: "The downloaded app is not this build of Notchcast.", table: "Notchcast")
+            return String(localized: "The downloaded app is not this build of Tinycast.")
         case .identityMismatch:
             return String(
                 localized: "The downloaded app is not signed by the identity this copy was signed with.")
         case .versionMismatch(let expected, let found):
             return String(localized: "The downloaded app is version \(found), not \(expected).")
         case .replaceFailed(let detail):
-            return String(localized: "Notchcast could not be replaced. \(detail)", table: "Notchcast")
+            return String(localized: "Tinycast could not be replaced. \(detail)")
         }
     }
 
