@@ -6,7 +6,8 @@ const vm = require("vm");
 const script = path.resolve(__dirname, "../Scripts/check-localizations.js");
 const source = fs.readFileSync(script, "utf8");
 const catalogs = /const CATALOGS = \[[^;]+;/;
-if (!catalogs.test(source)) throw new Error("Upstream localization checker changed its catalog declaration");
+const languages = /const LANGUAGES = \{[^}]+\};/;
+if (!catalogs.test(source) || !languages.test(source)) throw new Error("Upstream localization checker changed its declarations");
 vm.runInNewContext(source.replace(catalogs,
-  'const CATALOGS = ["Tinycast/Resources/Notchcast.xcstrings"];'),
+  'const CATALOGS = ["Tinycast/Resources/Notchcast.xcstrings"];').replace(languages, "const LANGUAGES = {};"),
 { require, __dirname: path.dirname(script), console, process }, { filename: script });
