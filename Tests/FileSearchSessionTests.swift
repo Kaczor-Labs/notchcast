@@ -2,6 +2,7 @@ import Foundation
 
 actor FileSearchProbe {
     private var active = 0
+    private var finished = 0
     private var calls: [String] = []
     private var maximumActive = 0
     private let pausedQuery: String?
@@ -25,12 +26,20 @@ actor FileSearchProbe {
             try? await Task.sleep(for: .milliseconds(80))
         }
         active -= 1
+        finished += 1
         let home = URL(fileURLWithPath: "/Users/test")
         return [FileSearchResult(url: home.appending(path: query), isDirectory: false, homeDirectory: home)]
     }
 
     func snapshot() -> (calls: [String], maximumActive: Int) {
         (calls, maximumActive)
+    }
+
+    func waitUntilFinished(_ count: Int) async {
+        let deadline = ContinuousClock.now.advanced(by: .seconds(1))
+        while finished < count, ContinuousClock.now < deadline {
+            try? await Task.sleep(for: .milliseconds(5))
+        }
     }
 
     func waitUntilPaused() async -> Bool {
@@ -160,7 +169,8 @@ struct FileSearchSessionTests {
         let probe = FileSearchProbe()
         let session = makeSession(probe: probe)
         session.refresh()
-        try? await Task.sleep(for: .milliseconds(150))
+        await probe.waitUntilFinished(1)
+        try? await Task.sleep(for: .milliseconds(20))
         session.search("")
         expect(
             session.state == .ready && !session.results.isEmpty,
@@ -181,7 +191,8 @@ struct FileSearchSessionTests {
         session.search("report")
         await waitUntil { session.state == .ready }
         session.refreshRecent()
-        try? await Task.sleep(for: .milliseconds(150))
+        await probe.waitUntilFinished(2)
+        try? await Task.sleep(for: .milliseconds(20))
         expect(session.results.first?.name == "report", "a Recent refresh leaves the open list alone")
         session.cancel()
         session.search("")
