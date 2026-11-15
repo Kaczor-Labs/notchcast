@@ -28,9 +28,9 @@ settings:
       TINYCAST_URL_SCHEME: notchcast-dev
       # Ad-hoc, so headless Xcode builds without a local identity; releases pass their own.
       CODE_SIGN_IDENTITY: "-"
-      DICTATION_EXECUTABLE_NAME: Tinycast Dev Dictation
+      DICTATION_EXECUTABLE_NAME: Notchcast Dev Dictation
     Release:
-      DICTATION_EXECUTABLE_NAME: Tinycast Dictation
+      DICTATION_EXECUTABLE_NAME: Notchcast Dictation
       # Release-only: library validation refuses Debug's `.debug.dylib`, whose team never matches.
       ENABLE_HARDENED_RUNTIME: YES
       # Strip the shipped binary (dSYM is still generated first) and drop unused code.
