@@ -148,6 +148,9 @@ final class IslandController: NSObject {
     }
 
     static func notch(on screen: NSScreen) -> CGSize {
+        #if DEBUG
+        if IslandVerification.enabled, let fake = IslandVerification.fakeNotch { return fake }
+        #endif
         guard screen.safeAreaInsets.top > 0, let left = screen.auxiliaryTopLeftArea,
               let right = screen.auxiliaryTopRightArea else { return .zero }
         return CGSize(width: screen.frame.width - left.width - right.width, height: screen.safeAreaInsets.top)

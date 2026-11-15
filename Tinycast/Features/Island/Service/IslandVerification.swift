@@ -34,6 +34,8 @@ enum IslandVerification {
     private static var delegate: IslandVerificationDelegate?
     private static var controller: IslandController?
     static var panel: PalettePanel?
+    /// Stands in for a built-in display's notch on the notchless test display.
+    static var fakeNotch: CGSize?
 
     /// The screen whose display id the vdisplay wrapper exports; never the main or built-in one.
     static var testScreen: NSScreen? {
