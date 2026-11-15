@@ -9,7 +9,7 @@ enum IslandInputScenes {
                              "ws-quit-key", "ws-quit-row"]
 
     private static var received: [String] = []
-    private static var lastRightDownOutline: CGRect?
+    private static var lastRightDown: RightDown?
     private static var cursor: CGPoint?
     private static var core: AppCore { AppCore.shared }
     private static var helperLog: String? { ProcessInfo.processInfo.environment["ISLAND_HELPER_LOG"] }
@@ -19,7 +19,7 @@ enum IslandInputScenes {
         print("CURSOR_SAVED \(cursor.map { "\($0)" } ?? "nil")")
         _ = NSEvent.addLocalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown, .keyDown]) { event in
             received.append("\(event.type.rawValue)@\(event.window.map { String(describing: type(of: $0)) } ?? "nil")")
-            if event.type == .rightMouseDown { lastRightDownOutline = AppCore.shared.island.resting?.outlineBounds }
+            if event.type == .rightMouseDown { lastRightDown = RightDown(event) }
             return event
         }
         core.island.start()
@@ -254,6 +254,10 @@ enum IslandInputScenes {
     /// A WindowServer right-click on the pill opens no menu over the launcher, nor while it closes.
     private static func busy(controller: IslandController, at point: CGPoint) async {
         let rest = controller.outlineBounds
+        let control = await rightClick(point, "rest control")
+        check(control?.isPillHit == true, "the WS rest right-click hits the pill inside its outline")
+        expectMenu(controller, "WS rest right-click")
+        await closeWithEscape("rest control")
         let probe = ContextMenuProbe()
         NotificationCenter.default.addObserver(probe, selector: #selector(ContextMenuProbe.didBegin(_:)),
                                                name: NSMenu.didBeginTrackingNotification, object: nil)
@@ -261,22 +265,71 @@ enum IslandInputScenes {
         core.paletteCoordinator.showPalette(mode: .launcher)
         await IslandVerification.pause(0.9)
         check(paletteVisible, "the launcher is open")
-        let own = received.count
-        await click(point, right: true, settle: 0.2)
-        print("BUSY open received=\(received.dropFirst(own)) contextMenus=\(probe.began)")
-        check(received.dropFirst(own).contains { $0.hasPrefix("3@") }, "WS right-click over the open launcher hits an own window")
-        check(menuPanel == nil, "WS right-click over the open launcher opens no menu")
+        if let exposed = exposedPillPoint(controller) {
+            let open = await rightClick(exposed, "open exposed")
+            check(open?.isPillHit == true, "the WS right-click over the open launcher hits the pill inside its outline")
+        } else {
+            print("BUSY open launcher intercepts: no backdrop point inside the outline is uncovered")
+            let open = await rightClick(point, "open intercepted")
+            check(open?.window == "PalettePanel", "the launcher intercepts a WS right-click on the pill")
+        }
+        check(menuPanel == nil && probe.began == 0, "WS right-click over the open launcher opens no menu")
         check(paletteVisible, "the launcher stays open")
         core.paletteCoordinator.hidePalette(restoreFocus: false)
-        let closing = received.count
-        lastRightDownOutline = nil
-        await click(point, right: true, settle: 0.2)
-        let atClick = lastRightDownOutline ?? .null
-        print("BUSY closing rest=\(rest) atClick=\(atClick) received=\(received.dropFirst(closing)) contextMenus=\(probe.began)")
-        check(atClick.height > rest.height + 1, "the WS right-click lands mid-close")
-        check(menuPanel == nil, "WS right-click during the closing transition opens no menu")
+        let closing = await rightClick(point, "closing")
+        check(closing?.isPillHit == true, "the WS mid-close right-click hits the pill inside its outline")
+        check((closing?.outline.height ?? 0) > rest.height + 1, "the WS right-click lands mid-close")
+        check(menuPanel == nil && probe.began == 0, "WS right-click during the closing transition opens no menu")
         await IslandVerification.pause(0.8)
         check(controller.outlineBounds == rest && !paletteVisible, "the pill settles back at rest")
+    }
+
+    private static func rightClick(_ point: CGPoint, _ label: String) async -> RightDown? {
+        lastRightDown = nil
+        await click(point, right: true, settle: 0.2)
+        print("BUSY \(label) at=\(point) down=\(lastRightDown.map { "\($0)" } ?? "nil") menu=\(menuPanel != nil)")
+        return lastRightDown
+    }
+
+    /// A point inside the pill's current outline that no window above the backdrop covers.
+    private static func exposedPillPoint(_ controller: IslandController) -> CGPoint? {
+        guard let path = canvas(controller)?.outline else { return nil }
+        let above = CGWindowListCopyWindowInfo([.optionOnScreenAboveWindow],
+                                               CGWindowID(controller.backdropWindow.windowNumber)) as? [[String: Any]]
+        let covers = (above ?? []).compactMap { info -> CGRect? in
+            guard let bounds = info[kCGWindowBounds as String] as? [String: CGFloat] else { return nil }
+            return CGRect(x: bounds["X"] ?? 0, y: bounds["Y"] ?? 0, width: bounds["Width"] ?? 0, height: bounds["Height"] ?? 0)
+        }
+        let box = path.boundingBoxOfPath.intersection(controller.backdropWindow.contentView?.bounds ?? .null)
+        for y in stride(from: box.minY + 2, to: box.maxY - 2, by: 4) {
+            for x in stride(from: box.minX + 2, to: box.maxX - 2, by: 4) where path.contains(CGPoint(x: x, y: y)) {
+                let screen = screenPoint(CGPoint(x: x, y: y), in: controller)
+                if !covers.contains(where: { $0.contains(quartz(screen)) }) { return screen }
+            }
+        }
+        return nil
+    }
+
+    /// The window a right-down reached, and the pill outline and hit as they stood at that event.
+    private struct RightDown: CustomStringConvertible {
+        let window: String
+        let outline: CGRect
+        let inOutline: Bool
+
+        @MainActor init(_ event: NSEvent) {
+            window = event.window.map { String(describing: type(of: $0)) } ?? "nil"
+            let pill = AppCore.shared.island.resting
+            outline = pill?.outlineBounds ?? .null
+            let canvas = pill?.backdropWindow.contentView as? IslandCanvas
+            if let canvas, event.window === canvas.window {
+                inOutline = canvas.outline?.contains(canvas.convert(event.locationInWindow, from: nil)) == true
+            } else {
+                inOutline = false
+            }
+        }
+
+        var isPillHit: Bool { window == "IslandBackdrop" && inOutline }
+        var description: String { "\(window) outline=\(outline) inOutline=\(inOutline)" }
     }
 
     private static func boundary(controller: IslandController) async {
