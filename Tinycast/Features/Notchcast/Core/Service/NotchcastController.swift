@@ -1,0 +1,127 @@
+import Foundation
+import Observation
+
+/// Turns the registry plus the switch state into running modules, installed taps and live commands.
+@MainActor
+final class NotchcastController {
+    /// One registered add-on and everything the controller keeps for it.
+    struct Slot {
+        let addon: any NotchcastAddon.Type
+        let context: NotchcastContext
+        /// The recovery's own, so a switch going off never detaches what the recovery claimed.
+        let recovery: NotchcastContext
+        let declaredTaps: [(token: UUID, tap: NotchcastTap)]
+        let settings: [SettingsEntry]
+    }
+
+    /// An add-on's settings row with an identity fixed at registration, for a stable `ForEach`.
+    struct SettingsEntry: Identifiable {
+        let id = UUID()
+        let row: NotchcastSettingsRow
+    }
+
+    let preferences: NotchcastPreferences
+    let hub: NotchcastTapHub
+    private(set) var slots: [Slot] = []
+    private(set) var enabledCommands: [NotchcastCommand] = []
+    var onCommandsChanged: (([NotchcastCommand]) -> Void)?
+    private var enabled: Set<String> = []
+    private var isRunning = false
+
+    init(
+        addons: [any NotchcastAddon.Type], defaults: UserDefaults, hub: NotchcastTapHub,
+        presenter: any IslandPresenting, now: @escaping @MainActor () -> Date = { Date() }
+    ) {
+        preferences = NotchcastPreferences(defaults: defaults, switches: addons.flatMap { $0.switches })
+        self.hub = hub
+        func makeContext() -> NotchcastContext {
+            NotchcastContext(
+                defaults: defaults, preferences: preferences, presenter: presenter, hub: hub, now: now,
+                onTapsChanged: { [weak self] in self?.applyTaps() })
+        }
+        slots = addons.map { addon in
+            Slot(
+                addon: addon, context: makeContext(), recovery: makeContext(),
+                declaredTaps: addon.taps.map { (UUID(), $0) }, settings: addon.settings.map { SettingsEntry(row: $0) })
+        }
+    }
+
+    var switches: [NotchcastSwitch] { slots.flatMap { $0.addon.switches } }
+
+    func start() {
+        guard !isRunning else { return }
+        isRunning = true
+        // Before reconcile, so a recovery reads what the last run left before a module overwrites it.
+        for slot in slots {
+            guard let recovery = slot.addon.makeRecovery(slot.recovery) else { continue }
+            slot.recovery.attach(recovery)
+            recovery.start()
+        }
+        reconcile()
+    }
+
+    func stop() {
+        guard isRunning else { return }
+        isRunning = false
+        apply([])
+        for slot in slots {
+            slot.recovery.module?.stop()
+            slot.recovery.detach()
+        }
+    }
+
+    /// False when the id is no enabled add-on command, so the caller falls through to stock.
+    func run(entryID: String) -> Bool {
+        guard let command = enabledCommands.first(where: { $0.id == entryID }),
+            let slot = slots.first(where: { $0.addon.commands.contains { $0.id == entryID } })
+        else { return false }
+        command.run(slot.context)
+        return true
+    }
+
+    func launcherRow(digit: Int, query: String, entryRows: [Int]) -> Int? {
+        slots.lazy.compactMap { $0.context.launcherDigit?(digit, query, entryRows) }.first
+    }
+
+    func context(forSwitch id: String) -> NotchcastContext? {
+        slots.first { $0.addon.switches.contains { $0.id == id } }?.context
+    }
+
+    private func reconcile() {
+        guard isRunning else { return }
+        let ids = switches.map(\.id)
+        let now = withObservationTracking {
+            Set(ids.filter(preferences.isEnabled))
+        } onChange: { [weak self] in
+            Task { @MainActor in self?.reconcile() }
+        }
+        apply(now)
+    }
+
+    /// Runs outside the tracking closure so a module's own reads never re-trigger reconcile.
+    private func apply(_ now: Set<String>) {
+        enabled = now
+        for slot in slots {
+            let wanted = slot.addon.switches.contains { now.contains($0.id) }
+            if !wanted, let module = slot.context.module {
+                module.stop()
+                slot.context.detach()
+            } else if wanted, slot.context.module == nil, let module = slot.addon.makeModule(slot.context) {
+                slot.context.attach(module)
+                module.start()
+            }
+        }
+        applyTaps()
+        let commands = slots.flatMap { $0.addon.commands }.filter { now.contains($0.switchID) }
+        guard commands.map(\.id) != enabledCommands.map(\.id) else { return }
+        enabledCommands = commands
+        onCommandsChanged?(commands)
+    }
+
+    /// Hands the hub the full list, so a tap enabled late still runs where it was subscribed.
+    private func applyTaps() {
+        let desired = slots.flatMap { $0.declaredTaps + $0.recovery.wantedTaps + $0.context.wantedTaps }
+            .filter { enabled.contains($0.tap.switchID) }
+        hub.setSubscribers(desired.map { (id: $0.token, tap: $0.tap) })
+    }
+}
