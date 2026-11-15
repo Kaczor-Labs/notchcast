@@ -81,5 +81,9 @@ with tempfile.TemporaryDirectory() as temp:
     assert nested.returncode == 1 and "'CFBundleDisplayName'" in nested.stderr, nested.stderr
     shutil.rmtree(outer / "Contents/Helpers")
     assert run("--verify", str(app)).returncode == 0
+    write(outer / "Contents/Info.plist", {"CFBundleName": "Notchcast Dev Dictation",
+                                          "CFBundleIdentifier": "com.tinycast.app.v2scene.dictation"})
+    kept = run("--verify", str(app))
+    assert kept.returncode == 0, f"a com.tinycast.* helper identifier must stay: {kept.stderr}"
 
 print("name-override-test: PASS")
