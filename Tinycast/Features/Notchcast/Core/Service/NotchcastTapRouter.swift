@@ -24,17 +24,17 @@ final class NotchcastTapRouter: Sendable {
 
     private let state: Mutex<State>
     private let syntheticTag: Int64
-    private let onDisabled: @Sendable ([UUID]) -> Void
+    private let onLost: @Sendable ([UUID]) -> Void
     private let onEvent: @Sendable (NotchcastTapEvent, [UUID]) -> Void
 
     init(
         consumers: [Consumer], syntheticTag: Int64,
-        onDisabled: @escaping @Sendable ([UUID]) -> Void,
+        onLost: @escaping @Sendable ([UUID]) -> Void,
         onEvent: @escaping @Sendable (NotchcastTapEvent, [UUID]) -> Void
     ) {
         state = Mutex(State(consumers: consumers))
         self.syntheticTag = syntheticTag
-        self.onDisabled = onDisabled
+        self.onLost = onLost
         self.onEvent = onEvent
     }
 
@@ -50,7 +50,17 @@ final class NotchcastTapRouter: Sendable {
 
     /// The tap thread calls this once the tap is live again, with the ids the disable notice named.
     func reenabled(_ ids: [UUID]) {
-        onDisabled(ids)
+        onLost(ids)
+    }
+
+    /// The session calls this once its tap is gone; a session the hub already ended reports nothing.
+    func ended() {
+        let ids = state.withLock { state -> [UUID]? in
+            guard state.active else { return nil }
+            state.active = false
+            return state.consumers.map(\.id)
+        }
+        if let ids { onLost(ids) }
     }
 
     func receive(type: CGEventType, event: CGEvent) -> Outcome {

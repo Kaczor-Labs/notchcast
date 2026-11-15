@@ -29,6 +29,9 @@ final class NotchcastContext {
 
     var isAccessibilityTrusted: Bool { hub.isTrusted }
 
+    /// The shared tap is installed and enabled; when it drops on its own, each live tap's `reset` runs.
+    var isTapLive: Bool { hub.isRunning }
+
     func isEnabled(_ switchID: String) -> Bool { preferences.isEnabled(switchID) }
 
     func module<M: NotchcastModule>(_: M.Type) -> M? { module as? M }

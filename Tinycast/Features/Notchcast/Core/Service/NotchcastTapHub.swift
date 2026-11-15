@@ -80,7 +80,7 @@ final class NotchcastTapHub {
         }
         let options = NotchcastTapPolicy.options(hasSynchronousConsumers: consumers.contains { $0.synchronous != nil })
         let mask = eventMask
-        if let session, session.mask == mask, session.options == options, session.isRunning {
+        if let session, session.mask == mask, session.options == options, session.router.isActive {
             session.router.update(consumers)
             return
         }
@@ -89,7 +89,7 @@ final class NotchcastTapHub {
         let current = generation
         let router = NotchcastTapRouter(
             consumers: consumers, syntheticTag: syntheticTag,
-            onDisabled: { [weak self] ids in
+            onLost: { [weak self] ids in
                 DispatchQueue.main.async { [weak self] in self?.resetSubscribers(ids) }
             },
             onEvent: { [weak self] event, ids in

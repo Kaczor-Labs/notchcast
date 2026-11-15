@@ -52,6 +52,6 @@ struct NotchcastTap: Sendable {
     let mask: CGEventMask
     var skipsSynthetic = true
     let handler: Handler
-    /// Called after macOS disabled the tap and the hub re-enabled it, since events were lost.
+    /// Events were lost: macOS disabled the tap and it came back, or it ended (reread `isTapLive`).
     var reset: (@MainActor @Sendable () -> Void)?
 }

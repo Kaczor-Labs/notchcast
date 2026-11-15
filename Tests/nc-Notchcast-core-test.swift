@@ -38,6 +38,12 @@ final class FakeSession: NotchcastTapSession {
     }
 
     func stop() { isRunning = false }
+
+    /// What NotchcastTapThread does when CGEvent.tapCreate fails: the session ends on its own.
+    func failInstall() {
+        isRunning = false
+        router.ended()
+    }
 }
 
 @MainActor
@@ -343,6 +349,36 @@ struct NotchcastCoreTest {
         hub.refreshPermission()
         check("granting trust starts it", hub.isRunning && hub.isTrusted)
         subs.remove(token)
+        liveness(system, hub, subs)
+    }
+
+    /// MusicBlock's case: another add-on restarts the tap, the reinstall fails, its token stays.
+    static func liveness(_ system: FakeSystem, _ hub: NotchcastTapHub, _ subs: Subscriptions) {
+        let defaults = UserDefaults(suiteName: "nc-core-test-liveness.\(UUID())")!
+        let context = NotchcastContext(
+            defaults: defaults, preferences: NotchcastPreferences(defaults: defaults, switches: []),
+            presenter: RecordingPresenter(), hub: hub, now: { Date() }, onTapsChanged: {})
+        var resets: [String] = []
+        let music = subs.add(NotchcastTap(
+            switchID: "music", mask: NotchcastTapPolicy.mask(for: .keyDown), handler: .observe { _ in },
+            reset: { resets.append("music live=\(context.isTapLive)") }))
+        check("an installed tap is live", context.isTapLive)
+        let other = subs.add(NotchcastTap(
+            switchID: "other", mask: NotchcastTapPolicy.mask(for: .scrollWheel), handler: .observe { _ in }))
+        let replaced = system.sessions[system.sessions.count - 2].router
+        replaced.ended()
+        drain()
+        check("a session the hub replaced reports no loss", resets.isEmpty && context.isTapLive)
+        system.sessions.last?.failInstall()
+        drain()
+        check("a failed reinstall is not live", !context.isTapLive && hub.isTrusted && hub.subscriberCount == 2)
+        check("a failed reinstall resets the armed tap once", resets == ["music live=false"])
+        hub.refreshPermission()
+        check("refreshPermission retries the install", context.isTapLive && system.live === system.sessions.last)
+        drain()
+        check("a retry that installs adds no reset", resets == ["music live=false"])
+        subs.remove(other)
+        subs.remove(music)
     }
 
     static func mediaKeys() {

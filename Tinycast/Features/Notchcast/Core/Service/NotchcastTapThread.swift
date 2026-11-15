@@ -33,7 +33,7 @@ final class NotchcastTapThread: NotchcastTapSession, Sendable {
         return session
     }
 
-    var isRunning: Bool { router.isActive }
+    var isRunning: Bool { router.isActive && installation.withLock { $0 != nil } }
 
     func stop() {
         router.deactivate()
@@ -52,8 +52,8 @@ final class NotchcastTapThread: NotchcastTapSession, Sendable {
     private func run() {
         autoreleasepool {
             defer {
-                router.deactivate()
                 installation.withLock { $0 = nil }
+                router.ended()
                 finished.signal()
             }
             guard router.isActive,
@@ -75,11 +75,11 @@ final class NotchcastTapThread: NotchcastTapSession, Sendable {
             defer { CFRunLoopRemoveSource(runLoop, source, .defaultMode) }
             let shouldRun = installation.withLock { installation in
                 guard router.isActive else { return false }
+                CGEvent.tapEnable(tap: port, enable: true)
                 installation = Installation(runLoop: runLoop, port: port)
                 return true
             }
             guard shouldRun else { return }
-            CGEvent.tapEnable(tap: port, enable: true)
             CFRunLoopRun()
         }
     }
@@ -90,8 +90,13 @@ final class NotchcastTapThread: NotchcastTapSession, Sendable {
         case .swallow: return true
         case .reenable(let ids):
             logger.notice("Event tap disabled by the system; re-enabling")
-            installation.withLock { if let port = $0?.port { CGEvent.tapEnable(tap: port, enable: true) } }
-            router.reenabled(ids)
+            let enabled = installation.withLock { installation in
+                guard let port = installation?.port else { return false }
+                CGEvent.tapEnable(tap: port, enable: true)
+                return CGEvent.tapIsEnabled(tap: port)
+            }
+            // A tap that stays disabled ends the session, whose `ended()` reports it as lost.
+            if enabled { router.reenabled(ids) } else { CFRunLoopStop(CFRunLoopGetCurrent()) }
             return false
         }
     }
