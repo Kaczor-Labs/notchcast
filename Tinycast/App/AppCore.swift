@@ -290,7 +290,6 @@ final class AppCore {
     }
 
     func start(launchedByUser: Bool) {
-        if LaunchAtLogin.managedByLaunchd { LaunchAtLogin.set(false) }
         Signposts.interval("AppCore.start") {
             NSApp.setActivationPolicy(.accessory)
             dictationAudioDucker.recover()
@@ -685,8 +684,7 @@ final class AppCore {
         mcp.stop()
         installedAI.stop()
         updateCoordinator.installStagedUpdate()
-        // Under the LaunchAgent, launchd restarts the app; a second start would be a second instance.
-        if relaunchRequested, !LaunchAtLogin.managedByLaunchd { RelaunchRunner.relaunchAfterExit(Bundle.main.bundleURL) }
+        if relaunchRequested { RelaunchRunner.relaunchAfterExit(Bundle.main.bundleURL) }
     }
 
     /// Only the tool whose own path or variables changed is checked again; the rest keep running.
