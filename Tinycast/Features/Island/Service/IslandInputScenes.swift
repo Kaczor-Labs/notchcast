@@ -73,6 +73,7 @@ enum IslandInputScenes {
                       settle: TimeInterval = 0.35) async {
         await move(point)
         let types: [CGEventType] = right ? [.rightMouseDown, .rightMouseUp] : [.leftMouseDown, .leftMouseUp]
+        print("CLICK quartz=\(quartz(point)) right=\(right)")
         for type in types {
             let event = CGEvent(mouseEventSource: nil, mouseType: type, mouseCursorPosition: quartz(point),
                                 mouseButton: right ? .right : .left)
