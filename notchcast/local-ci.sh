@@ -16,11 +16,12 @@ if [ -f "$HOME/.config/notchcast/private.env" ]; then
 fi
 lane=
 if hold_turn "$PR"; then lane=--landing; fi
-metadata=$(gh pr view "$1" -R "$FORK_REPO" --json headRefOid,baseRefOid,title,body)
+metadata=$(gh pr view "$1" -R "$FORK_REPO" --json headRefOid,headRefName,baseRefOid,title,body)
 head=$(jq -r .headRefOid <<< "$metadata")
 pr_title=$(jq -r '.title // ""' <<< "$metadata")
 pr_body=$(jq -r '.body // ""' <<< "$metadata")
 export HEAD_SHA=$head BASE_SHA=$(jq -r .baseRefOid <<< "$metadata")
+export NOTCHCAST_READY_BRANCH=$(jq -r .headRefName <<< "$metadata")
 root="${NOTCHCAST_LOCAL_CI_DIR:-$HOME/Library/Caches/notchcast/local-ci}"
 mkdir -p "$root/logs"
 # Debug builds embed absolute source paths that no flag remaps, so build outside the home.

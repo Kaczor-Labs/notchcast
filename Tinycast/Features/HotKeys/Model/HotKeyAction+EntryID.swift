@@ -26,6 +26,8 @@ extension HotKeyAction {
             self = .appleShortcut(id: id)
         } else if let id = StoredSnippet.id(fromEntryID: entryID) {
             self = .snippet(id: id)
+        } else if entryID.hasPrefix("command:nc-") {
+            self = .notchcastCommand(entryID: entryID)
         } else {
             return nil
         }
@@ -45,6 +47,7 @@ extension HotKeyAction {
         case .quicklink(let id): Quicklink.entryIDPrefix + id.uuidString.lowercased()
         case .appleShortcut(let id): AppleShortcut.entryID(for: id)
         case .snippet(let id): StoredSnippet.entryIDPrefix + id
+        case .notchcastCommand(let id): id
         case .togglePalette, .dictation, .app, .settingsPane, .extensionCommand: nil
         }
     }
