@@ -229,7 +229,7 @@ struct RootPaletteView: View {
                         openURL(url)
                     }
                 },
-                PopoverMenuItem(title: String(localized: "About Notchcast", table: "Notchcast"), systemImage: "info.circle") {
+                PopoverMenuItem(title: String(localized: "About Tinycast"), systemImage: "info.circle") {
                     core.settingsCoordinator.showAbout()
                 },
                 PopoverMenuItem(title: String(localized: "Support Tinycast"), systemImage: "heart") {
