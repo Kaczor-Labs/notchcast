@@ -244,7 +244,7 @@ final class PaletteWindowController: NSObject, NSWindowDelegate {
 
     func windowDidBecomeKey(_ notification: Notification) {
         commandEscapeTap.enable()
-        if NSApp.modalWindow == nil { panel?.level = core.island.paletteLevel }
+        panel?.level = core.island.paletteLevel
         DispatchQueue.main.async { [weak self] in
             guard let self else { return }
             // A re-summon leaves first responder where it was, so neither of these gets an event.
