@@ -22,13 +22,18 @@ enum IslandWindowScenes {
             print("MODAL picker=\(picker.frame) level=\(picker.level.rawValue)"
                 + " palette=\(panel.level.rawValue) backdropVisible=\(backdrop.isVisible)")
             IslandVerification.require(screen.frame.contains(picker.frame), "picker stays on test display")
+            core.paletteCoordinator.hidePalette(restoreFocus: false)
+            controller.closed()
+            IslandVerification.require(!panel.isVisible && !backdrop.isVisible, "closed while modal suspended")
             picker.cancel(nil)
         }
         probe.perform(#selector(ModalProbe.check), with: nil, afterDelay: 0.5, inModes: [.modalPanel, .common])
         NSApp.activate()
         IslandVerification.require(picker.runModal() == .cancel, "modal cancelled in process")
-        panel.makeKeyAndOrderFront(nil)
         await IslandVerification.pause(0.3)
+        IslandVerification.require(backdrop.isVisible && !panel.isVisible, "rest returns after modal ends with palette hidden")
+        core.paletteCoordinator.showPalette(mode: .launcher)
+        await IslandVerification.pause(0.6)
         IslandVerification.require(panel.level.rawValue == backdrop.level.rawValue + 1 && backdrop.isVisible,
                                    "island level restored after stock key delegate")
         IslandVerification.require(abs(panel.frame.maxY - screen.frame.maxY
@@ -36,10 +41,14 @@ enum IslandWindowScenes {
         controller.capture("modal-return")
         let frame = panel.frame
         let outline = controller.outlineBounds
+        let surface = controller.surfaceIdentity
         NotificationCenter.default.post(name: NSApplication.didChangeScreenParametersNotification, object: NSApp)
+        print("SCREEN_REBUILD frameBefore=\(frame) frameAfter=\(panel.frame)"
+            + " outlineBefore=\(outline) outlineAfter=\(controller.outlineBounds)"
+            + " sameController=\(core.island.active === controller)")
         IslandVerification.require(core.island.active === controller && panel.frame == frame
-                                   && controller.outlineBounds == outline,
-                                   "screen notification retains controller, native frame and expanded outline")
+                                   && controller.surfaceIdentity == surface && controller.contentKey == "palette",
+                                   "screen notification retains controller, native frame, surface and expanded presentation")
         core.paletteCoordinator.showPalette(mode: .clipboard)
         await IslandVerification.pause(0.2)
         IslandVerification.require(panel.level.rawValue == backdrop.level.rawValue + 1
