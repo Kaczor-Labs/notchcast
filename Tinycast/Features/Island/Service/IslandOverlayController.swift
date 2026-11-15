@@ -65,7 +65,7 @@ final class IslandOverlayController: NSObject {
             entries[id] = controller
             let layout = IslandOverlayLayout(screen: screen.frame,
                 contentTop: screen.frame.maxY - IslandController.notch(on: screen).height, palette: palette,
-                inset: Theme.Spacing.islandInset, gap: Theme.Spacing.xl)
+                inset: NotchTheme.Spacing.islandInset, gap: Theme.Spacing.xl)
             let questionPanel = question.flatMap { $0.screen?.islandDisplayID == id ? $0.panel : nil }
             let questionFrame = questionPanel.map { layout.question($0.frame.size) }
             if let questionPanel, let questionFrame { questionPanel.setFrameOrigin(questionFrame.origin) }
