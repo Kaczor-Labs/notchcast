@@ -287,6 +287,7 @@ final class IslandController: NSObject {
     var surfaceIdentity: ObjectIdentifier? { surface.map(ObjectIdentifier.init) }
     var contentKey: String? { surface?.contentKey }
     var overlayCount: Int { overlays.count }
+    var acceptsClicks: Bool { canvas.canOpen?() == true }
     func pressBackdrop() -> Bool { canvas.accessibilityPerformPress() }
     /// Routes a synthetic click through the island window, so hit testing runs as for a real one.
     func clickBackdrop(_ type: NSEvent.EventType, modifiers: NSEvent.ModifierFlags = []) {
