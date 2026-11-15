@@ -18,7 +18,7 @@ final class MiddleClickModule: NotchcastModule {
         post: MiddleClickModule.post)
     private var source: MiddleClickTouchSource?
     private var tapToken: UUID?
-    private var dragObservations: [NSKeyValueObservation] = []
+    private var dragMonitor: MiddleClickDragMonitor?
     private var wakeObserver: NotificationToken?
     private var hotplug: DeviceWatcher?
 
@@ -27,11 +27,7 @@ final class MiddleClickModule: NotchcastModule {
     func start() {
         guard tapToken == nil else { return }
         let engine = engine
-        dragObservations = Self.trackpadDomains.compactMap(UserDefaults.init(suiteName:)).map {
-            $0.observe(\.trackpadThreeFingerDrag, options: .initial) { _, _ in
-                engine.setDragEnabled(MiddleClickModule.threeFingerDragEnabled())
-            }
-        }
+        dragMonitor = MiddleClickDragMonitor(domains: Self.trackpadDomains) { engine.setDragEnabled($0) }
         engine.activate()
         startSource()
         let mask = [CGEventType.leftMouseDown, .leftMouseDragged, .leftMouseUp]
@@ -55,7 +51,7 @@ final class MiddleClickModule: NotchcastModule {
         engine.deactivate()
         context.unsubscribe(tapToken)
         self.tapToken = nil
-        dragObservations = []
+        dragMonitor = nil
         wakeObserver = nil
         hotplug = nil
         source?.stop()
@@ -76,10 +72,6 @@ final class MiddleClickModule: NotchcastModule {
             == true else { source = nil; return }
     }
 
-    private nonisolated static func threeFingerDragEnabled() -> Bool {
-        trackpadDomains.contains { UserDefaults(suiteName: $0)?.trackpadThreeFingerDrag == true }
-    }
-
     // Posted at the HID tap so WindowServer routes it to the window under the pointer.
     private nonisolated static func post(_ type: CGEventType) {
         guard let event = CGEvent(mouseEventSource: CGEventSource(stateID: .hidSystemState), mouseType: type,
@@ -89,11 +81,6 @@ final class MiddleClickModule: NotchcastModule {
         event.setIntegerValueField(.mouseEventClickState, value: 1)
         event.post(tap: .cghidEventTap)
     }
-}
-
-private extension UserDefaults {
-    /// Named after the trackpad domains' key, so a KVO observation of this path watches that key.
-    @objc(TrackpadThreeFingerDrag) dynamic var trackpadThreeFingerDrag: Bool { bool(forKey: "TrackpadThreeFingerDrag") }
 }
 
 /// Calls back whenever a multitouch device arrives or leaves, so a new trackpad is read at once.
