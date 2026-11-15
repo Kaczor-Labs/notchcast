@@ -5,10 +5,9 @@ struct IslandLevelDwell: Equatable, Sendable {
     static let seconds: TimeInterval = 1.5
     private(set) var level: IslandLevel?
     private(set) var deadline: TimeInterval = 0
-    /// Counts presentations; a dwell task applies its end only while this is still its token.
+    /// A dwell task applies its end only while this is still its token, so a stale one never clears.
     private(set) var presentation = 0
 
-    /// True when the call starts a presentation rather than extending the one on screen.
     mutating func show(_ level: IslandLevel, at now: TimeInterval) -> Bool {
         let fresh = self.level == nil || now >= deadline
         if fresh { presentation += 1 }
@@ -17,15 +16,22 @@ struct IslandLevelDwell: Equatable, Sendable {
         return fresh
     }
 
-    /// Seconds left for `token`, or nil once it is replaced or its dwell has run out.
+    /// Expiry clears the level here, so the dwell task is the only clock.
     mutating func remaining(_ token: Int, at now: TimeInterval) -> TimeInterval? {
         guard token == presentation, level != nil else { return nil }
         guard now < deadline else { level = nil; return nil }
         return deadline - now
     }
 
-    /// Under the palette or a question a level takes the report slot instead of the pill.
-    static func stacked(palette: Bool, question: Bool) -> Bool { palette || question }
+    /// The palette's expanded canvas and a question both cover the pill's drawing.
+    func placement(palette: Bool, question: Bool) -> IslandLevelPlacement? {
+        guard level != nil else { return nil }
+        return palette || question ? .band : .pill
+    }
+}
+
+enum IslandLevelPlacement: Equatable, Sendable {
+    case pill, band
 }
 
 /// Extents along a track `width` wide: 0...1 is the track, the rest of `range` outlined zones.
