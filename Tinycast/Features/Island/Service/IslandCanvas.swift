@@ -71,8 +71,6 @@ final class IslandCanvas: NSView {
     func show(glance: IslandGlance?, level: IslandLevel?, expanded: Bool, notch: Bool) {
         self.glance = level.map { IslandLevelArt($0, notch: notch) } ?? glance.map { GlanceArt($0, notch: notch) }
         expansion = level == nil && expanded ? glance.map(IslandExpansionArt.init) : nil
-        setAccessibilityValue(level.map { "\($0.label), \($0.value.formatted(.percent))" }
-            ?? glance.map { "\($0.title), \($0.countdown)" })
     }
 }
 
