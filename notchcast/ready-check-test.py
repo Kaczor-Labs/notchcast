@@ -105,6 +105,17 @@ class CoverageTest(unittest.TestCase):
 GIT_ISOLATED = {"GIT_CONFIG_NOSYSTEM": "1", "GIT_CONFIG_GLOBAL": os.devnull}
 
 
+# Fails when the judged tree has drift-fail; records its arguments and what origin/main resolves to.
+DRIFT_STUB = """import subprocess, sys
+from pathlib import Path
+root = Path(sys.argv[sys.argv.index('--root') + 1])
+main = subprocess.run(['git', '-C', str(root), 'rev-parse', 'refs/remotes/origin/main'],
+                      capture_output=True, text=True).stdout.strip()
+print('drift', *sys.argv[1:], 'main=' + main)
+sys.exit((root / 'drift-fail').exists())
+"""
+
+
 class BehaviourTest(unittest.TestCase):
     def setUp(self):
         scratch = tempfile.TemporaryDirectory(prefix="ready-check-")
@@ -114,10 +125,12 @@ class BehaviourTest(unittest.TestCase):
         (self.repo / "notchcast").mkdir(parents=True)
         (self.root / "home").mkdir()
         shutil.copy(SCRIPT, self.repo / "notchcast/ready-check.sh")
-        (self.repo / "notchcast/config.env").write_text("FORK_REPO=example/fork\n")
+        (self.repo / "notchcast/config.env").write_text("FORK_REPO=example/fork\nUPSTREAM_REPO=example/upstream\n")
         (self.repo / "notchcast/ci-build.sh").write_text(
             'for s in xcode build lint; do echo "$s" > "$RUNNER_TEMP/step"; [ ! -e "fail-$s" ] || exit 1; done\n'
             'echo "base=$BASE_SHA head=$HEAD_SHA sharded=${NOTCHCAST_HARNESSES_SHARDED:-} pwd=$PWD"\n')
+        shutil.copy(ROOT / "notchcast/drift-gates.sh", self.repo / "notchcast/drift-gates.sh")
+        (self.repo / "notchcast/check-drift.py").write_text(DRIFT_STUB)
         self.git("init", "-q", "-b", "main")
         self.commit("base")
         self.git("tag", "base")
@@ -125,8 +138,13 @@ class BehaviourTest(unittest.TestCase):
         subprocess.run(["git", "init", "-q", "--bare", "-b", "main", str(bare)], check=True,
                        env={**os.environ, **GIT_ISOLATED})
         self.git("push", "-q", str(bare), "main", "base")
-        self.env = {**os.environ, **GIT_ISOLATED, "HOME": str(self.root / "home"), "GIT_CONFIG_COUNT": "1",
+        upstream = self.root / "upstream.git"
+        subprocess.run(["git", "clone", "-q", "--bare", str(bare), str(upstream)], check=True,
+                       env={**os.environ, **GIT_ISOLATED})
+        self.env = {**os.environ, **GIT_ISOLATED, "HOME": str(self.root / "home"), "GIT_CONFIG_COUNT": "2",
                     "GIT_CONFIG_KEY_0": f"url.{bare}.insteadOf", "GIT_CONFIG_VALUE_0": "https://github.com/example/fork.git",
+                    "GIT_CONFIG_KEY_1": f"url.{upstream}.insteadOf",
+                    "GIT_CONFIG_VALUE_1": "https://github.com/example/upstream.git",
                     "NOTCHCAST_HARNESSES_SHARDED": "1"}
 
     def git(self, *arguments):
@@ -177,6 +195,54 @@ class BehaviourTest(unittest.TestCase):
         result = self.check("base")
         self.assertEqual(result.returncode, 1)
         self.assertRegex(result.stdout.splitlines()[-1], r"^FAIL build; log: ")
+
+    def test_runs_land_drift_gates_against_the_base(self):
+        self.commit("work", "work.txt")
+        result = self.check("base")
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        base = self.git("rev-parse", "base")
+        log = (self.root / "home/Library/Caches/notchcast/ready-check" / f"{self.git('rev-parse', 'HEAD')[:12]}.log").read_text()
+        self.assertRegex(log, rf"drift --root \S+ --compare-base {base} main={base}\n")
+        self.assertRegex(log, rf"drift --root \S+ main={base}\n")
+
+    def test_drift_fails_with_the_base_tools(self):
+        (self.repo / "notchcast/check-drift.py").write_text("import sys; sys.exit(0)\n")
+        (self.repo / "drift-fail").write_text("")
+        self.commit("drift and a weakened gate")
+        result = self.check("base")
+        self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+        self.assertRegex(result.stdout.splitlines()[-1], r"^FAIL drift; log: ")
+        self.assertIn("REFUSED: drift", result.stdout)
+
+    def test_prints_the_upstream_footprint_and_its_delta(self):
+        self.commit("work", "work.txt")
+        self.commit("stock edit", "notchcast/ci-build.sh")
+        self.git("rm", "-q", "notchcast/drift-gates.sh")
+        self.commit("stock delete")
+        deleted = 2 + len((ROOT / "notchcast/drift-gates.sh").read_text().splitlines())
+        result = self.check("base")
+        base = self.git("rev-parse", "base")
+        self.assertIn(f"upstream touch: 2 files, +1 −{deleted} (base {base[:12]})\n"
+                      f"delta: +2 files, +{deleted + 1} lines\n",
+                      result.stdout)
+
+    def test_an_addon_may_not_touch_upstream_paths(self):
+        self.commit("own", "addon.txt")
+        self.env["NOTCHCAST_READY_BRANCH"] = "v2/addons-zen"
+        self.assertEqual(self.check("base").returncode, 0)
+        self.commit("stock edit", "notchcast/ci-build.sh")
+        result = self.check("base")
+        self.assertEqual(result.returncode, 1)
+        self.assertEqual(result.stdout.splitlines()[-2:], ["notchcast/ci-build.sh",
+                         "FAIL footprint: v2/addons-zen touches 1 upstream paths"])
+        self.env["NOTCHCAST_READY_BRANCH"] = "v2/addons-core"
+        self.assertNotIn("FAIL footprint", self.check("base").stdout)
+
+    def test_drift_gates_are_land_sh_own(self):
+        script = SCRIPT.read_text()
+        self.assertIn('git show "$BASE_SHA:notchcast/drift-gates.sh"', script)
+        self.assertIn('run_drift_gates "$BASE_SHA"', script)
+        self.assertIn('source "$merge_tools/drift-gates.sh"', (ROOT / "notchcast/merge.sh").read_text())
 
     def test_refuses_uncommitted_changes_and_unknown_bases(self):
         (self.repo / "notchcast/config.env").write_text("FORK_REPO=example/other\n")
