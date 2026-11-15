@@ -11,13 +11,13 @@ struct IslandExpansionArt {
     private let gap = Theme.Spacing.sm
 
     init(_ glance: IslandGlance) {
-        let font = Theme.Typography.islandGlanceNSFont
+        let font = NotchTheme.Typography.islandGlanceNSFont
         glyph = GlanceArt.glyph(glance.symbol)
         title = NSAttributedString(string: glance.title,
                                    attributes: [.font: font, .foregroundColor: NSColor(Theme.Colors.textPrimary)])
         countdown = NSAttributedString(string: glance.countdown,
                                        attributes: [.font: font, .foregroundColor: NSColor(Theme.Colors.textSecondary)])
-        let indent = glyph.map { $0.size.width + Theme.Spacing.sm } ?? 0
+        let indent = glyph.map { [gap] in $0.size.width + gap } ?? 0
         size = CGSize(width: edge * 2 + indent + max(title.size().width, countdown.size().width),
                       height: Theme.Spacing.md * 2 + title.size().height + Theme.Spacing.xxs + countdown.size().height)
     }
