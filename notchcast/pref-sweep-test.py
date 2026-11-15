@@ -120,6 +120,20 @@ class PrefSweepTest(unittest.TestCase):
         self.sweep("end", os.getpid())
         self.assertEqual(self.names(), [])
 
+    def test_a_killed_runs_leftovers_are_swept_by_the_next_run(self):
+        keep = self.touch(suite())
+        killed = subprocess.Popen(["sleep", "30"])
+        self.sweep("begin", killed.pid)
+        leak = self.touch(suite())
+        killed.kill()
+        killed.wait()
+        report = self.sweep("begin", os.getpid())
+        self.assertNotIn(leak, self.names(), "the next begin must not adopt the dead run's suites")
+        self.assertIn("pref-sweep: removed 1 leftover", report)
+        self.touch(suite())
+        self.sweep("end", os.getpid())
+        self.assertEqual(self.names(), [keep])
+
     def test_nothing_is_removed_without_a_baseline(self):
         keep = self.touch(suite())
         self.sweep("end", os.getpid())
