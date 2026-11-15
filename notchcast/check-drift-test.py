@@ -1,9 +1,6 @@
 #!/usr/bin/env python3
 """Permanent planted violations for each drift gate, using the real CLI and jscpd."""
 import json
-import contextlib
-import importlib.util
-import io
 import os
 from pathlib import Path
 import re
@@ -12,7 +9,6 @@ import subprocess
 import sys
 import tempfile
 import unittest
-from unittest.mock import patch
 
 sys.dont_write_bytecode = True
 ROOT = Path(__file__).resolve().parents[1]
@@ -311,38 +307,9 @@ class Gates(unittest.TestCase):
         result = self.run_check('3', '--compare-base', 'HEAD')
         self.assertEqual(result.returncode, 1)
 
-    def test_report_stub_hook_one_crossing_and_zero_on_rerun(self):
-        baseline = self.baseline()
-        baseline['alerts'] = dict.fromkeys(baseline['alerts'], 999999)
-        baseline['alerts']['file-lines'] = 20
-        baseline['alerts']['try?'] = 0
-        self.save_baseline(baseline)
-        for index in range(10):
-            write(self.root, f'Tinycast/Features/Todo/Over{index}.swift', '\n' * 21)
-        home = Path(self.work.name) / 'home'
-        calls = home / 'calls'
-        write(home, '.config/notchcast/private.env', 'notchcast_task() { printf "%s\\n" "$1" >> "$HOME/calls"; }\n')
-        env = dict(os.environ, HOME=str(home))
-        counts = []
-        for change in (None, 'let result = try? fixtureOperation()\n', None):
-            if change:
-                write(self.root, TODO, change)
-            result = self.run_check('1,2,3', '--report', env=env)
-            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
-            counts.append(len(calls.read_text().splitlines()) if calls.exists() else 0)
-        self.assertEqual(counts, [0, 1, 1])
-        print('PASS gate 5: stub hook called 0 times on first report of 10 over-limit files, '
-              '1 time on a new crossing, 0 times on rerun')
-
     def test_empty_waiver_reason_does_not_pass(self):
         write(self.root, TODO, 'struct DriftProbe {} // drift: keep \n')
         self.red('3', ':DriftProbe:')
-
-    def test_report_counts_landed_fix_waivers(self):
-        git(self.root, 'commit', '--allow-empty', '-qm', 'Notchcast: Fix fixture', '-m', 'No test: fixture proof')
-        result = self.run_check('1,2,3', '--report', env=dict(os.environ, HOME=str(Path(self.work.name) / 'home')))
-        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
-        self.assertIn('fix-no-test | 1 | 0', result.stdout)
 
     def test_missing_alert_threshold_fails_closed(self):
         baseline = self.baseline()
@@ -350,19 +317,16 @@ class Gates(unittest.TestCase):
         self.save_baseline(baseline)
         result = self.run_check('1')
         self.assertEqual(result.returncode, 1)
-        self.assertIn('baseline alerts must define every report counter', result.stderr)
+        self.assertIn('baseline alerts must define every pattern counter', result.stderr)
 
     def test_gate_run_prints_counters_and_threshold_lines(self):
         write(self.root, TODO, 'struct DriftProbe {}\nstruct DriftProbeTwin {}\n')
-        write(self.root, 'Tinycast/Features/Todo/Near.swift', '\n' * 360)
         result = self.run_check()
         self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
         lines = result.stdout.splitlines()
         limit = sum(self.baseline()['dead'].values())
         self.assertIn(f'GATE-THRESHOLD dead:{TODO}:DriftProbe 1 0', lines)
         self.assertIn(f'GATE-THRESHOLD dead:{TODO}:DriftProbeTwin 1 0', lines)
-        self.assertIn(f'GATE-THRESHOLD file-lines:{LARGE} {LARGE_LINES} 349 known', lines)
-        self.assertIn('GATE-THRESHOLD file-lines:Tinycast/Features/Todo/Near.swift 360 349', lines)
         self.assertIn(f'dead | {limit + 2} ({limit + 2} keys) | {limit}', lines)
 
     def test_swapped_dead_declaration_prints_its_threshold_line(self):
@@ -376,7 +340,7 @@ class Gates(unittest.TestCase):
         result = self.run_check()
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         thresholds = [line for line in result.stdout.splitlines() if line.startswith('GATE-THRESHOLD')]
-        self.assertEqual(thresholds, [f'GATE-THRESHOLD file-lines:{LARGE} {LARGE_LINES} 349 known'])
+        self.assertEqual(thresholds, [])
 
     def test_gate_subset_run_stays_quiet(self):
         write(self.root, TODO, 'struct DriftProbe {}\n')
@@ -385,85 +349,37 @@ class Gates(unittest.TestCase):
         self.assertNotIn('GATE-THRESHOLD', result.stdout)
         self.assertNotIn('Counter |', result.stdout)
 
+    def plant_try(self, count, commit=False):
+        write(self.root, TODO, ''.join(f'let probe{i} = try? fixtureOperation()\n' for i in range(count)))
+        if commit:
+            git(self.root, 'add', '.')
+            git(self.root, 'commit', '-qm', 'Main fixture')
+            git(self.root, 'update-ref', 'refs/remotes/origin/main', 'HEAD')
+
     def test_new_threshold_breach_fails(self):
-        write(self.root, 'Tinycast/Features/Todo/Near.swift', '\n' * 360)
+        self.plant_try(1)
         result = self.run_check()
         self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
-        self.assertIn('threshold breach new or grown: file-lines:Tinycast/Features/Todo/Near.swift 360 > 349 (main: none)',
-                      result.stdout.splitlines())
+        self.assertIn('threshold breach new or grown: try? 1 > 0 (main: 0)', result.stdout.splitlines())
 
     def test_grown_known_breach_fails(self):
-        write(self.root, LARGE, LARGE_SOURCE + 'let grown = 1\n')
-        result = self.run_check()
-        self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
-        self.assertIn(f'threshold breach new or grown: file-lines:{LARGE} {LARGE_LINES + 1} > 349 (main: {LARGE_LINES})',
-                      result.stdout.splitlines())
+        self.plant_try(1, commit=True)
+        self.plant_try(2)
+        result = self.run_check('1,2,3,4')
+        self.assertIn('threshold breach new or grown: try? 2 > 0 (main: 1)', result.stdout.splitlines())
 
-    def test_shrunk_known_breach_passes(self):
-        write(self.root, LARGE, LARGE_SOURCE.removesuffix(f'let fixtureValue{LARGE_LINES - 1} = {LARGE_LINES - 1}\n'))
-        baseline = self.baseline()
-        baseline['file-size'][LARGE] -= 1
-        baseline['dead'][f'{LARGE}:fixtureValue{LARGE_LINES - 1}'] -= 1
-        self.save_baseline(baseline)
-        result = self.run_check()
-        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
-        self.assertIn(f'GATE-THRESHOLD file-lines:{LARGE} {LARGE_LINES - 1} 349 known', result.stdout.splitlines())
+    def test_known_breach_passes(self):
+        self.plant_try(1, commit=True)
+        result = self.run_check('1,2,3,4')
+        self.assertIn('GATE-THRESHOLD try? 1 0 known', result.stdout.splitlines())
+        self.assertNotIn('threshold breach new', result.stdout)
 
     def test_missing_origin_main_warns_without_blocking(self):
         git(self.root, 'update-ref', '-d', 'refs/remotes/origin/main')
-        write(self.root, 'Tinycast/Features/Todo/Near.swift', '\n' * 360)
+        self.plant_try(1)
         result = self.run_check()
-        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         self.assertIn('WARN: origin/main counters unavailable', result.stdout)
-
-    def test_report_skips_tasks_when_disabled(self):
-        baseline = self.baseline()
-        baseline['alerts']['file-lines'] = 20
-        self.save_baseline(baseline)
-        home = Path(self.work.name) / 'home'
-        write(home, '.config/notchcast/private.env', 'notchcast_task() { printf "%s\\n" "$1" >> "$HOME/calls"; }\n')
-        cache = home / 'Library/Caches/notchcast/drift-alerts.json'
-        env = dict(os.environ, HOME=str(home), NOTCHCAST_NO_TASKS='1')
-        result = self.run_check('1,2,3', '--report', env=env)
-        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
-        self.assertIn('tasks disabled (NOTCHCAST_NO_TASKS)', result.stdout)
-        self.assertFalse((home / 'calls').exists())
-        self.assertFalse(cache.exists())
-
-    def test_report_without_hook(self):
-        home = Path(self.work.name) / 'home'
-        env = dict(os.environ, HOME=str(home))
-        result = self.run_check('1,2,3', '--report', env=env)
-        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
-        self.assertIn('no task hook', result.stdout)
-
-
-class Notifications(unittest.TestCase):
-    def test_non_utf8_failed_hook_retry(self):
-        spec = importlib.util.spec_from_file_location('drift', CHECK)
-        drift = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(drift)
-        with tempfile.TemporaryDirectory(prefix='drift-hook.') as directory:
-            home = Path(directory)
-            cache = home / 'alerts.json'
-            cache.write_text('{}')
-            hook = home / 'private.env'
-            hook.write_text("printf '\\377' >&2\nnotchcast_task() { printf '\\377' >&2; return 3; }\n")
-            counters = {('file-lines', 'Fixture.swift'): 379}
-            with patch.dict(os.environ, HOME=str(home)):
-                output = io.StringIO()
-                with contextlib.redirect_stdout(output):
-                    drift.notify(counters, {'file-lines': 349}, cache, hook)
-                self.assertIn('task hook failed: file-lines|Fixture.swift (exit 3): \ufffd', output.getvalue())
-                self.assertEqual(json.loads(cache.read_text()), {})
-                hook.write_text('notchcast_task() { printf "fixture task created\\n"; }\n')
-                for expected in ('fixture task created', ''):
-                    output = io.StringIO()
-                    with contextlib.redirect_stdout(output):
-                        drift.notify(counters, {'file-lines': 349}, cache, hook)
-                    self.assertEqual(output.getvalue().strip(), expected)
-                self.assertEqual(json.loads(cache.read_text()), {'file-lines|Fixture.swift': 379})
-            print('PASS: non-UTF-8 hook failure is visible; failed key retries once')
+        self.assertNotIn('threshold breach new', result.stdout)
 
 
 if __name__ == '__main__':

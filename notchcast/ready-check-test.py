@@ -125,7 +125,10 @@ class BehaviourTest(unittest.TestCase):
         (self.repo / "notchcast").mkdir(parents=True)
         (self.root / "home").mkdir()
         shutil.copy(SCRIPT, self.repo / "notchcast/ready-check.sh")
-        (self.repo / "notchcast/config.env").write_text("FORK_REPO=example/fork\nUPSTREAM_REPO=example/upstream\n")
+        (self.repo / "notchcast/config.env").write_text("FORK_REPO=example/fork\nUPSTREAM_REPO=example/upstream\n"
+                                                       "MAINTAINER_NAME=t\nMAINTAINER_EMAIL=t@t\n")
+        for tool in ("check-identity.sh", "check-identity.py", "check-commit-emails.py", "ci.py"):
+            shutil.copy(ROOT / "notchcast" / tool, self.repo / "notchcast" / tool)
         (self.repo / "notchcast/ci-build.sh").write_text(
             'for s in xcode build lint; do echo "$s" > "$RUNNER_TEMP/step"; [ ! -e "fail-$s" ] || exit 1; done\n'
             'echo "base=$BASE_SHA head=$HEAD_SHA sharded=${NOTCHCAST_HARNESSES_SHARDED:-} pwd=$PWD"\n')
@@ -138,7 +141,7 @@ class BehaviourTest(unittest.TestCase):
         subprocess.run(["git", "init", "-q", "--bare", "-b", "main", str(bare)], check=True,
                        env={**os.environ, **GIT_ISOLATED})
         self.git("push", "-q", str(bare), "main", "base")
-        upstream = self.root / "upstream.git"
+        upstream = self.upstream = self.root / "upstream.git"
         subprocess.run(["git", "clone", "-q", "--bare", str(bare), str(upstream)], check=True,
                        env={**os.environ, **GIT_ISOLATED})
         self.env = {**os.environ, **GIT_ISOLATED, "HOME": str(self.root / "home"), "GIT_CONFIG_COUNT": "2",
@@ -213,6 +216,71 @@ class BehaviourTest(unittest.TestCase):
         self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
         self.assertRegex(result.stdout.splitlines()[-1], r"^FAIL drift; log: ")
         self.assertIn("REFUSED: drift", result.stdout)
+
+    def test_private_data_added_by_the_branch_fails(self):
+        home = "/" + "Users/" + "someone/notes.txt"
+        self.commit(f"path {home}\n", "work.txt")
+        result = self.check("base")
+        self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+        self.assertIn("check-identity: work.txt:1: <home-path>\n", result.stdout)
+        self.assertRegex(result.stdout.splitlines()[-1], r"^FAIL identity: diff names something private; log: ")
+        self.git("reset", "-q", "--hard", "base")
+        self.git("commit", "-q", "--allow-empty", "-m", f"moved {home}")
+        result = self.check("base")
+        self.assertRegex(result.stdout.splitlines()[-1], r"^FAIL identity: metadata names something private; ")
+        self.git("reset", "-q", "--hard", "base")
+        self.commit("clean", "clean.txt")
+        self.assertEqual(self.check("base").returncode, 0)
+
+    def test_a_disabled_scanner_fails_with_the_base_one(self):
+        (self.repo / "notchcast/check-identity.sh").write_text("exit 0\n")
+        (self.repo / "notchcast/check-identity.py").write_text("raise SystemExit(0)\n")
+        self.commit("path " + "/" + "Users/someone/notes.txt\n", "work.txt")
+        result = self.check("base")
+        self.assertNotIn("identity: bootstrap", result.stdout)
+        self.assertRegex(result.stdout.splitlines()[-1], r"^FAIL identity: diff names something private; ")
+
+    def test_a_head_pythonpath_cannot_run_code_in_the_base_scanner(self):
+        config = self.repo / "notchcast/config.env"
+        config.write_text(config.read_text() + 'export PYTHONPATH="$PWD/notchcast/injected"\n')
+        (self.repo / "notchcast/injected").mkdir()
+        (self.repo / "notchcast/injected/sitecustomize.py").write_text("import os\nos._exit(0)\n")
+        self.commit("path " + "/" + "Users/someone/notes.txt\n", "work.txt")
+        result = self.check("base")
+        self.assertRegex(result.stdout.splitlines()[-1], r"^FAIL identity: diff names something private; ")
+
+    def test_a_head_binary_attribute_still_scans_the_text(self):
+        (self.repo / ".gitattributes").write_text("work.txt -diff\n")
+        self.commit("path " + "/" + "Users/someone/notes.txt\n", "work.txt")
+        result = self.check("base")
+        self.assertIn("check-identity: work.txt:1: <home-path>\n", result.stdout)
+        self.assertIn("check-identity: work.txt:1 (commit addition): <home-path>\n", result.stdout)
+        self.assertRegex(result.stdout.splitlines()[-1], r"^FAIL identity: diff names something private; ")
+
+    def test_a_base_without_a_scanner_bootstraps_from_head(self):
+        self.git("rm", "-q", "notchcast/check-identity.py")
+        self.commit("no scanner")
+        self.git("tag", "bare")
+        self.git("checkout", "-q", "base", "--", "notchcast/check-identity.py")
+        self.commit("path " + "/" + "Users/someone/notes.txt\n", "work.txt")
+        result = self.check("bare")
+        self.assertIn("identity: bootstrap, scanner from HEAD\n", result.stdout)
+        self.assertRegex(result.stdout.splitlines()[-1], r"^FAIL identity: diff names something private; ")
+
+    def test_an_upstream_line_passes_and_a_fork_added_home_path_fails(self):
+        fixture, line = self.repo / "Tests/Fixture.swift", 'let path = "/' + 'Users/x/notes.md"\n'
+        fixture.parent.mkdir()
+        fixture.write_text(line)
+        self.commit("upstream fixture")
+        self.git("push", "-q", str(self.upstream), "HEAD:main")
+        result = self.check("base")
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        fixture.write_text(line + line.replace("x/", "y/"))
+        self.commit("fork fixture")
+        result = self.check("base")
+        self.assertIn("check-identity: Tests/Fixture.swift:2: <home-path>\n", result.stdout)
+        self.assertNotIn("Tests/Fixture.swift:1", result.stdout)
+        self.assertRegex(result.stdout.splitlines()[-1], r"^FAIL identity: diff names something private; ")
 
     def test_prints_the_upstream_footprint_and_its_delta(self):
         self.commit("work", "work.txt")
