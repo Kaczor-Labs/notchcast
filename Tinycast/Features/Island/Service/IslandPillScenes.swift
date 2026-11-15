@@ -4,7 +4,8 @@ import AppKit
 /// The resting pill's scenes: they run before the launcher opens, so the pill stays at rest.
 @MainActor
 enum IslandPillScenes {
-    static let names: Set = ["pill-menu", "pill-settings", "glance", "glance-menu", "pill-menu-quiet", "pill-settings-quiet"]
+    static let names: Set = ["pill-menu", "pill-settings", "glance", "glance-menu", "pill-menu-quiet", "pill-settings-quiet",
+                             "glance-modal"]
 
     static func run(_ scene: String, core: AppCore, screen: NSScreen) async {
         core.island.start()
@@ -17,6 +18,7 @@ enum IslandPillScenes {
         case "glance-menu": await glanceMenu(core: core, controller: controller)
         case "pill-menu-quiet": await quietMenu(core: core, controller: controller, screen: screen)
         case "pill-settings-quiet": await quietSettings(core: core, controller: controller)
+        case "glance-modal": await glanceModal(core: core, controller: controller, screen: screen)
         default: await glance(core: core, controller: controller)
         }
         let windows = NSApp.windows.filter(\.isVisible)
@@ -28,15 +30,15 @@ enum IslandPillScenes {
         _exit(0)
     }
 
-    private static var menuPanel: MenuPanel? {
+    static var menuPanel: MenuPanel? {
         NSApp.windows.first { $0 is MenuPanel && $0.isVisible } as? MenuPanel
     }
 
-    private static var paletteVisible: Bool {
+    static var paletteVisible: Bool {
         NSApp.windows.contains { $0 is PalettePanel && $0.isVisible }
     }
 
-    private static var statusItemWindows: Int {
+    static var statusItemWindows: Int {
         NSApp.windows.filter { String(describing: type(of: $0)).contains("StatusBar") }.count
     }
 
@@ -95,7 +97,7 @@ enum IslandPillScenes {
         IslandVerification.require(statusItemWindows == 0, "no menu bar item exists")
     }
 
-    private static var settingsWindow: NSWindow? {
+    static var settingsWindow: NSWindow? {
         NSApp.windows.first { $0.frameAutosaveName == "SettingsWindow" }
     }
 
@@ -136,7 +138,7 @@ enum IslandPillScenes {
     }
 
     /// A synthetic Zoom meeting four minutes out, carded through the Debug preview.
-    private static func previewMeeting(core: AppCore) async -> MeetingEvent {
+    static func previewMeeting(core: AppCore) async -> MeetingEvent {
         let now = Date()
         let meeting = MeetingEvent(id: "glance", title: "Weekly product sync", start: now + 4 * 60,
             end: now + 34 * 60, isAllDay: false, isDeclined: false, calendarID: "c", calendarName: "Work",
@@ -175,6 +177,34 @@ enum IslandPillScenes {
         IslandVerification.require(paletteVisible && core.palette.mode == .launcher, "a click on the glance opens the launcher")
         IslandVerification.require(menuPanel == nil, "a click on the glance opens no menu")
         core.paletteCoordinator.hidePalette(restoreFocus: false)
+    }
+
+    /// A modal that hid the carded pill must not leave it hidden once the launcher has closed.
+    private static func glanceModal(core: AppCore, controller: IslandController, screen: NSScreen) async {
+        _ = await previewMeeting(core: core)
+        let backdrop = controller.backdropWindow
+        core.paletteCoordinator.showPalette(mode: .launcher)
+        await IslandVerification.pause(0.6)
+        IslandVerification.require(paletteVisible && backdrop.isVisible, "the launcher opens over the glance")
+        let picker = IslandWindowScenes.PinnedOpenPanel()
+        picker.testScreen = screen.frame
+        picker.setFrame(CGRect(x: screen.frame.midX - 300, y: screen.frame.midY - 200, width: 600, height: 400),
+                        display: false)
+        let probe = IslandWindowScenes.ModalProbe {
+            IslandVerification.require(NSApp.modalWindow === picker && !backdrop.isVisible, "the modal hides the island")
+            core.paletteCoordinator.hidePalette(restoreFocus: false)
+            controller.closed()
+            IslandVerification.require(!paletteVisible && !backdrop.isVisible, "the launcher closes during the modal")
+            picker.cancel(nil)
+        }
+        probe.perform(#selector(IslandWindowScenes.ModalProbe.check), with: nil, afterDelay: 0.5,
+                      inModes: [.modalPanel, .common])
+        NSApp.activate()
+        IslandVerification.require(picker.runModal() == .cancel, "the modal ends")
+        await IslandVerification.pause(0.3)
+        print("GLANCE_MODAL content=\(controller.contentKey ?? "nil") backdropVisible=\(backdrop.isVisible) palette=\(paletteVisible)")
+        IslandVerification.require(!paletteVisible && controller.contentKey == "glance", "the glance returns to rest")
+        IslandVerification.require(backdrop.isVisible, "the carded pill is visible after the modal ends")
     }
 
     /// Opens the menu through the pill's own callback, so no event is synthesized.
