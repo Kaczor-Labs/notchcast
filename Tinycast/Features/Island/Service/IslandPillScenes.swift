@@ -5,7 +5,7 @@ import AppKit
 @MainActor
 enum IslandPillScenes {
     static let names: Set = ["pill-menu", "pill-settings", "glance", "glance-menu", "pill-menu-quiet", "pill-settings-quiet",
-                             "glance-modal", "pill-busy"]
+                             "glance-modal", "pill-busy", "window-guard-new", "window-guard-raise"]
 
     static func run(_ scene: String, core: AppCore, screen: NSScreen) async {
         core.island.start()
@@ -20,6 +20,7 @@ enum IslandPillScenes {
         case "pill-settings-quiet": await quietSettings(core: core, controller: controller)
         case "glance-modal": await glanceModal(core: core, controller: controller, screen: screen)
         case "pill-busy": await busy(core: core, controller: controller)
+        case "window-guard-new", "window-guard-raise": windowGuard(core: core, raise: scene.hasSuffix("raise"))
         default: await glance(core: core, controller: controller)
         }
         let windows = NSApp.windows.filter(\.isVisible)
@@ -317,6 +318,17 @@ enum IslandPillScenes {
             IslandVerification.require(leaked.isEmpty, "\(tab.slug) pane hides the menu-bar rows")
             still(window, name: "settings-\(tab.slug)")
         }
+    }
+
+    /// Loses the test display after startup; the window guard must end the run before Settings shows.
+    private static func windowGuard(core: AppCore, raise: Bool) {
+        if raise {
+            core.settingsCoordinator.showSettings(tab: .general)
+            IslandVerification.require(settingsWindow?.isVisible == true, "Settings opens on the test display")
+        }
+        unsetenv("ISLAND_TEST_DISPLAY")
+        core.settingsCoordinator.showSettings(tab: .general)
+        IslandVerification.require(false, "the window guard stops Settings without the test display")
     }
 
     /// SwiftUI builds its accessibility nodes only once an AX client has asked, so ask ourselves.
