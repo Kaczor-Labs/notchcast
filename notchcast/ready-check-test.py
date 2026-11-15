@@ -240,6 +240,23 @@ class BehaviourTest(unittest.TestCase):
         self.assertNotIn("identity: bootstrap", result.stdout)
         self.assertRegex(result.stdout.splitlines()[-1], r"^FAIL identity: diff names something private; ")
 
+    def test_a_head_pythonpath_cannot_run_code_in_the_base_scanner(self):
+        config = self.repo / "notchcast/config.env"
+        config.write_text(config.read_text() + 'export PYTHONPATH="$PWD/notchcast/injected"\n')
+        (self.repo / "notchcast/injected").mkdir()
+        (self.repo / "notchcast/injected/sitecustomize.py").write_text("import os\nos._exit(0)\n")
+        self.commit("path " + "/" + "Users/someone/notes.txt\n", "work.txt")
+        result = self.check("base")
+        self.assertRegex(result.stdout.splitlines()[-1], r"^FAIL identity: diff names something private; ")
+
+    def test_a_head_binary_attribute_still_scans_the_text(self):
+        (self.repo / ".gitattributes").write_text("work.txt -diff\n")
+        self.commit("path " + "/" + "Users/someone/notes.txt\n", "work.txt")
+        result = self.check("base")
+        self.assertIn("check-identity: work.txt:1: <home-path>\n", result.stdout)
+        self.assertIn("check-identity: work.txt:1 (commit addition): <home-path>\n", result.stdout)
+        self.assertRegex(result.stdout.splitlines()[-1], r"^FAIL identity: diff names something private; ")
+
     def test_a_base_without_a_scanner_bootstraps_from_head(self):
         self.git("rm", "-q", "notchcast/check-identity.py")
         self.commit("no scanner")

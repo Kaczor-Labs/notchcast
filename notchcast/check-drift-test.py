@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 """Permanent planted violations for each drift gate, using the real CLI and jscpd."""
 import json
-import io
 import os
 from pathlib import Path
 import re

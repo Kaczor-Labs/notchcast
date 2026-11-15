@@ -82,7 +82,7 @@ if [ ! -f "$identity/check-identity.py" ]; then
     identity="$tree/notchcast"
 fi
 for mode in diff metadata; do
-    if ! (cd "$tree" && python3 "$identity/check-identity.py" "$mode" "$BASE_SHA") >> "$log" 2>&1; then
+    if ! (cd "$tree" && python3 -I "$identity/check-identity.py" "$mode" "$BASE_SHA") >> "$log" 2>&1; then
         grep '^check-identity:' "$log" | tail -n 40
         echo "FAIL identity: $mode names something private; log: $log"
         exit 1

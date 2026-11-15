@@ -55,7 +55,7 @@ def upstream_lines(path):
 
 
 def diff(base, staged=False):
-    args = ["diff", "--no-ext-diff", "--no-textconv", "--unified=0", "--no-renames"]
+    args = ["diff", "--text", "--no-ext-diff", "--no-textconv", "--unified=0", "--no-renames"]
     args += ["--cached"] if staged else [f"{base}..{HEAD}"]
     failed = False
     for path in filter(None, git(*args, "--name-only", "-z").split("\0")):
@@ -87,8 +87,8 @@ def added_lines(base):
     failed = False
     path = None
     line = None
-    patch = git("log", "-p", "--cherry-pick", "--right-only", "--format=", "--no-ext-diff", "--no-textconv",
-                "--no-renames", "--unified=0", "--diff-merges=first-parent", f"{base}...{HEAD}")
+    patch = git("log", "-p", "--text", "--cherry-pick", "--right-only", "--format=", "--no-ext-diff",
+                "--no-textconv", "--no-renames", "--unified=0", "--diff-merges=first-parent", f"{base}...{HEAD}")
     for text in patch.splitlines():
         if text.startswith("diff --git "):
             path = None
