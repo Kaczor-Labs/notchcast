@@ -10,6 +10,17 @@ Mode re-show uses the same synchronous level hook. There is no level KVO or corr
 
 One engine frame callback paints the native alpha-backed outline and updates the panel content layer mask in one Core Animation transaction. Move and resize notifications update the target synchronously. WindowServer uses the painted alpha for click routing, while AppKit hit testing checks the current engine outline at event time. There is no periodic timer, pointer polling or event-routing toggle. Engine callbacks stop after settling; typing does not remeasure or animate the island.
 
+## Deltas against docs/ui.md
+
+Upstream `docs/ui.md` stays unedited apart from one pointer here, so upstream syncs do not conflict on it. Where it disagrees, this list wins:
+
+- Surface: the palette sits over an opaque black island backdrop instead of a scrim over behind-window blur. The fork pins AppKit appearance to Dark; Light token branches remain upstream reference values and do not drive island rendering.
+- Glass: the palette root uses `.identity` glass; regular root glass exists only in the Debug stock latency control. Shared `PopoverMenu` surfaces, dialog roots and both HUD roots use opaque `Theme.Colors.islandSurface`. The action capsule and menu circle keep `frosted(in:)` glass, and dialog buttons stay matte.
+- Edge and shadow: the engine outline, not the root clip, owns the island edge. `RootPaletteView` keeps its stock clip and scrim; the backdrop and the palette layer mask share one engine frame callback. The outline radius stays `Theme.Radius.panel` at every interface scale and the palette shadow is suppressed.
+- Placement: the palette sits at the display's top centre rather than 8% above centre. Questions sit at the island top on the visible palette's display, otherwise the cursor display; message reports stack below question and palette on the presenter's screen. Volume keeps its stock bottom placement.
+- Levels: backdrop main-menu + 1, palette + 2, reports + 3, questions + 4, replacing upstream's `.palette` and `.dialog`.
+- Menus: native `MenuPanel` child windows with their stock anchors, keyboard routing and fixed widths; only the content surface turns black. Extension menus keep their feature-owned styling.
+
 ## Verification boundary
 
 Debug argument `--island-verify` enters a separate application delegate before migrations, normal scenes or `AppCore.start`. It requires bundle identifier `com.tinycast.app.v2shell` and an `Agent Test` display, pins AppKit appearance to dark and bypasses normal startup services. A nine-second independent watchdog exits with code 124. Failed expectations print to stderr and exit with code 1. The stock command-Escape event tap is disabled for this Debug argument, so making the native panel key cannot request a global event-listening grant. The caller also uses a restricted sandbox denying network and Apple Events, with writes limited to scratch and the isolated app channel.
