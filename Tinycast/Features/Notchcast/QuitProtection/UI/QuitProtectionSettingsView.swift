@@ -29,7 +29,7 @@ struct QuitProtectionSettingsView: View {
             Text("These apps quit and close without asking.", tableName: "NotchcastQuitProtection")
         }
         if store.configuration.exceptions.isEmpty {
-            Text("Nothing here yet.").foregroundStyle(.secondary)
+            Text("Nothing here yet.", tableName: "NotchcastQuitProtection").foregroundStyle(.secondary)
         }
         ForEach(store.configuration.exceptions.sorted(), id: \.self) { identifier in
             QuitProtectionExceptionRow(identifier: identifier) {
@@ -48,7 +48,7 @@ struct QuitProtectionSettingsView: View {
         panel.allowsMultipleSelection = true
         panel.canChooseDirectories = false
         panel.treatsFilePackagesAsDirectories = false
-        panel.prompt = String(localized: "Add")
+        panel.prompt = String(localized: "Add", table: "NotchcastQuitProtection")
         guard panel.runModal() == .OK else { return }
         store.configuration.exceptions.formUnion(panel.urls.compactMap { Bundle(url: $0)?.bundleIdentifier })
     }
