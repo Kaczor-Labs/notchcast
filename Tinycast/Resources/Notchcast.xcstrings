@@ -735,58 +735,6 @@
         }
       }
     },
-    "Click to open the launcher, right-click for more" : {
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Klicken, um den Launcher zu öffnen, Rechtsklick für mehr"
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Haz clic para abrir el lanzador o clic derecho para ver más"
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Cliquez pour ouvrir le lanceur, clic droit pour plus d’options"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "クリックでランチャーを開き、右クリックでその他の項目"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "클릭하면 런처가 열리고, 오른쪽 클릭하면 더 많은 항목이 표시됩니다"
-          }
-        },
-        "pt" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Clique para abrir o iniciador ou clique com o botão direito para ver mais"
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Нажмите, чтобы открыть лаунчер; правый клик — другие действия"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "点按以打开启动器，右键点按查看更多"
-          }
-        }
-      }
-    },
     "Enter a registered client ID. This server cannot register Notchcast automatically." : {
       "localizations" : {
         "de" : {
