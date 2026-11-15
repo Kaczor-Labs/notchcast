@@ -29,7 +29,7 @@ camera preview, and individual events as searchable launcher entries.
 - **`MeetingSpan` narrows the fetch, never the surfaces.** `calendarSpan` reaches EventKit through
   `CalendarStore.span`, so a shorter span shortens the query and every surface (the menu bar's
   agenda included) follows from the one snapshot. No surface filters days out of a snapshot fetched
-  wider, which is why `Days to Show` sits under Menu Bar yet sets every surface's days. The same
+  wider, which is why `Days to Show` sits under My Schedule yet sets every surface's days. The same
   type owns the wording, so a sentence naming the days can never outlive the query it describes.
 - **`UpcomingWindow.agenda` is the only place that says which events count**: timed, not declined,
   not over, in start order. The card, the chord, the menu bar, the schedule and the launcher slice all
