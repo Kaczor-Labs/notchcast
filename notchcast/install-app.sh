@@ -5,6 +5,7 @@ HERE="$(cd "$(dirname "$0")" && pwd)"
 source "$HERE/config.env"
 APP="${NOTCHCAST_APP:-/Applications/$APP_NAME.app}"
 WATCH="${NOTCHCAST_WATCH_SECONDS:-60}"
+QUIT="${NOTCHCAST_QUIT_SECONDS:-20}"
 TRASH="${NOTCHCAST_TRASH:-$HOME/.Trash}"
 PREVIOUS="$HOME/Library/Application Support/notchcast/previous/$APP_NAME.app"
 if [ -n "${NOTCHCAST_APP:-}" ]; then PREVIOUS="$(dirname "$APP")/previous/$APP_NAME.app"; fi
@@ -13,6 +14,7 @@ log() { printf '%s\n' "$*"; }
 FINAL='nothing (installation interrupted)'
 trap 'log "left running: $FINAL"' EXIT
 [[ "$WATCH" =~ ^[0-9]+$ ]] || { FINAL='nothing (invalid watch seconds)'; exit 2; }
+[[ "$QUIT" =~ ^[1-9][0-9]*$ ]] || { FINAL='nothing (invalid quit seconds)'; exit 2; }
 # One install at a time: a second one exits 75 and touches nothing.
 if [ -z "${NOTCHCAST_INSTALL_LOCKED:-}" ] && [ -d "${1:-}/Contents" ]; then
     mkdir -p "$(dirname "$PREVIOUS")"
@@ -46,9 +48,12 @@ watch_app() {
 # Quit by bundle id, as the user would, then open in the background so focus stays put.
 restart_app() {
     if [ -n "$(app_pids)" ]; then
-        osascript -e "tell application id \"$BUNDLE_ID\" to quit" >/dev/null 2>&1 || true
-        for _ in $(seq 1 40); do [ -n "$(app_pids)" ] || break; sleep 0.5; done
-        if [ -n "$(app_pids)" ]; then log "the running app did not quit within 20 seconds"; return 1; fi
+        # In the background, so a Quit that never answers still hits the deadline.
+        osascript -e "tell application id \"$BUNDLE_ID\" to quit" >/dev/null 2>&1 &
+        local quit=$! start=$SECONDS
+        while [ -n "$(app_pids)" ] && (( SECONDS - start < QUIT )); do sleep 0.5; done
+        kill "$quit" 2>/dev/null || true
+        if [ -n "$(app_pids)" ]; then log "the running app did not quit within $QUIT seconds"; return 1; fi
     fi
     open -g "$APP"
 }
