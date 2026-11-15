@@ -9,6 +9,7 @@ final class IslandCoordinator: NSObject {
     private weak var panel: PalettePanel?
     private var started = false
     private(set) lazy var overlays = IslandOverlayController(island: self)
+    var paletteLevel: NSWindow.Level { IslandVerification.stock ? .palette : IslandController.paletteLevel }
 
     init(core: AppCore) { self.core = core }
 
@@ -17,6 +18,9 @@ final class IslandCoordinator: NSObject {
         started = true
         NotificationCenter.default.addObserver(self, selector: #selector(rebuild),
             name: NSApplication.didChangeScreenParametersNotification, object: nil)
+        for name in [NSWindow.didBecomeKeyNotification, NSWindow.didResignKeyNotification] {
+            NotificationCenter.default.addObserver(self, selector: #selector(modalChanged), name: name, object: nil)
+        }
         rebuild()
         observeVisibility()
     }
@@ -41,6 +45,7 @@ final class IslandCoordinator: NSObject {
         for screen in available {
             let backdrop = backdrops[screen.islandDisplayID] ?? IslandController()
             backdrop.showsRest = screen.islandDisplayID == main?.islandDisplayID
+            backdrop.canOpen = { [weak self] in self?.panel?.isVisible != true }
             backdrop.onOpen = { [weak self] in self?.core.paletteCoordinator.showPalette(mode: .launcher) }
             backdrop.configure(screen)
             backdrops[screen.islandDisplayID] = backdrop
@@ -93,9 +98,24 @@ final class IslandCoordinator: NSObject {
         return panel?.isVisible == true ? panel?.screen : NSScreen.underCursor
     }
 
+    @objc private func modalChanged() {
+        NSObject.cancelPreviousPerformRequests(withTarget: self, selector: #selector(modalEnded), object: nil)
+        if NSApp.modalWindow != nil {
+            // Default-mode work resumes after the nested modal loop ends.
+            perform(#selector(modalEnded), with: nil, afterDelay: 0, inModes: [.default])
+        } else {
+            modalEnded()
+        }
+    }
+
+    @objc private func modalEnded() {
+        for controller in backdrops.values { controller.frameChanged() }
+    }
+
     private func observeVisibility() {
         withObservationTracking {
             _ = core.palette.isVisible
+            _ = core.settings.animationsEnabled
         } onChange: { [weak self] in
             Task { @MainActor in
                 guard let self else { return }
@@ -105,7 +125,10 @@ final class IslandCoordinator: NSObject {
         }
     }
 
-    isolated deinit { NotificationCenter.default.removeObserver(self) }
+    isolated deinit {
+        NSObject.cancelPreviousPerformRequests(withTarget: self)
+        NotificationCenter.default.removeObserver(self)
+    }
 }
 
 extension NSScreen {
