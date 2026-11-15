@@ -25,6 +25,7 @@ final class AppCore {
         syntheticEventTag: Paster.tinycastEventTag)
     let textInjector: TextInjector
     let hotKeys = HotKeyManager()
+    @ObservationIgnored private(set) var notchcast: NotchcastCore?
     let dictationAudioDucker = DictationAudioDucker()
     @ObservationIgnored private(set) lazy var dictationModels =
         DictationModelStore(idleRelease: settings.dictationIdleRelease)
@@ -437,6 +438,7 @@ final class AppCore {
             snippetCoordinator.applySnippetsLauncherPresence()
 
             observeFeatureSwitches()
+            notchcast = NotchcastCore(core: self)
 
             // First launch binds no hotkey, so guide once; the marker is written at show-time.
             if !OnboardingState.hasOnboarded {
@@ -582,7 +584,7 @@ final class AppCore {
             return settings.quicklinksEnabled && quicklinks.quicklink(id: id)?.isEnabled == true
         case .appleShortcut: return settings.appleShortcutsEnabled
         case .extensionCommand: return settings.extensionsEnabled
-        case .togglePalette, .app, .settingsPane, .systemAction: return true
+        case .togglePalette, .app, .settingsPane, .systemAction, .notchcastCommand: return true
         }
     }
 
@@ -612,6 +614,8 @@ final class AppCore {
             return snippetsStore.record(id: id)?.snippet.name
         case .extensionCommand(let entryID):
             return appIndex.apps.first { $0.kind == .extensionCommand && $0.id == entryID }?.name
+        case .notchcastCommand(let entryID):
+            return appIndex.apps.first { $0.id == entryID }?.name
         case .togglePalette, .dictation, .command, .systemAction, .windowCommand:
             return nil
         }
@@ -670,6 +674,7 @@ final class AppCore {
     }
 
     func prepareForTermination() {
+        notchcast?.stop()
         if settings.dictationEnabled { dictationCoordinator.prepareForTermination() }
         settingsFile?.flush()
         cloudSyncCoordinator.flush()
