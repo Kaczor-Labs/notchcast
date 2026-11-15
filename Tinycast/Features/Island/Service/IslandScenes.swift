@@ -9,6 +9,8 @@ enum IslandScenes {
         core.settings.quicklinksEnabled = true
         await core.appIndex.refresh()
         if IslandInputScenes.names.contains(scene) { await IslandInputScenes.run(scene, core: core, screen: screen); return }
+        if scene == "volume" { await IslandVolumeScenes.rest(core: core, screen: screen); return }
+        if scene == "volume-palette-open" { await IslandVolumeScenes.paletteOpen(core: core, screen: screen); return }
         if IslandPillScenes.names.contains(scene) { await IslandPillScenes.run(scene, core: core, screen: screen); return }
         core.paletteCoordinator.showPalette(mode: .launcher)
         guard let panel = NSApp.windows.first(where: { $0 is PalettePanel }) as? PalettePanel else {
@@ -18,6 +20,7 @@ enum IslandScenes {
         await IslandVerification.pause(0.8)
         IslandVerification.require(screen.frame.contains(panel.frame), "stock panel pinned to test display")
         if scene == "latency" { await IslandLatency.run(core: core, panel: panel); return }
+        if scene == "volume-palette" { await IslandVolumeScenes.palette(core: core, panel: panel, screen: screen); return }
         if scene == "keyboard" { await keyboard(core: core, panel: panel); return }
         if scene == "window-contract" { await IslandWindowScenes.run(core: core, panel: panel); return }
         if scene == "level-contract" { await IslandLevelScenes.run(core: core, panel: panel); return }
