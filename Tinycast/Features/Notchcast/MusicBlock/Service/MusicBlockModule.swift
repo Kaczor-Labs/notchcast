@@ -47,7 +47,8 @@ final class MusicBlockModule: NotchcastModule {
         let running = MusicLaunchPolicy.blockedBundleIDs.contains {
             !NSRunningApplication.runningApplications(withBundleIdentifier: $0).isEmpty
         }
-        trigger.arm(at: MusicLaunchPolicy.uptime(eventTimestamp: event.timestamp), musicRunning: running)
+        guard let keyAt = MusicLaunchPolicy.uptime(eventTimestamp: event.timestamp) else { return }
+        trigger.arm(at: keyAt, musicRunning: running)
     }
 
     private func launched(bundleID: String, processID: pid_t) {

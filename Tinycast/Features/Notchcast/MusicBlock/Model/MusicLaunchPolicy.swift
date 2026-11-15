@@ -14,8 +14,10 @@ enum MusicLaunchPolicy {
         key.isDown && !key.isRepeat && key.key.map(launchKeys.contains) == true
     }
 
-    /// A CGEventTimestamp counts nanoseconds of uptime, the clock `systemUptime` reads in seconds.
-    static func uptime(eventTimestamp: UInt64) -> TimeInterval { TimeInterval(eventTimestamp) / 1_000_000_000 }
+    /// CGEventTimestamp is nanoseconds of uptime, the `systemUptime` clock; zero carries no time.
+    static func uptime(eventTimestamp: UInt64) -> TimeInterval? {
+        eventTimestamp > 0 ? TimeInterval(eventTimestamp) / 1_000_000_000 : nil
+    }
 
     /// A newer click or key press takes precedence over the media key; bad evidence never blocks.
     static func shouldBlock(now: TimeInterval, keyAt: TimeInterval?, gestureAge: TimeInterval) -> Bool {
