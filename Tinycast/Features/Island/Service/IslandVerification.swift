@@ -38,6 +38,8 @@ enum IslandVerification {
     static var announcements: [String] = []
     /// Lets a scene unplug and replug the test display; nil is the test display alone.
     static var screens: [NSScreen]?
+    /// Stands in for a built-in display's notch on the notchless test display.
+    static var fakeNotch: CGSize?
 
     /// The screen whose display id the vdisplay wrapper exports; never the main or built-in one.
     static var testScreen: NSScreen? {
