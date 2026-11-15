@@ -293,6 +293,9 @@ enum IslandPillScenes {
             IslandVerification.require(false, "the Settings row opens Settings"); return
         }
         IslandVerification.require(statusItemWindows == 0, "Settings opens with no menu bar item")
+        print("SETTINGS \(window.frame) TEST \(IslandVerification.testScreen?.frame ?? .null)")
+        IslandVerification.require(IslandVerification.testScreen?.frame.contains(window.frame) == true,
+                                   "Settings opens on the test display")
         let hidden = ["Show in menu bar", "Show in Menu Bar", "Calendar in Menu Bar", "Show Upcoming Events",
                       "Only show events with meetings", "Hide when there are no upcoming events", "Hide Current Event"]
         let panes: [(SettingsTab, String)] = [(.general, "Launch at login"), (.notes, "Render Markdown"),
