@@ -1,7 +1,7 @@
 import AppKit
 import Observation
 
-/// Renders levels and the meeting expansion in the resting pill; notices, status and rows come later.
+/// Renders levels and the meeting expansion; notices, status and menu rows come later.
 @MainActor
 final class IslandPresenter: IslandPresenting {
     private var dwell = IslandLevelDwell()

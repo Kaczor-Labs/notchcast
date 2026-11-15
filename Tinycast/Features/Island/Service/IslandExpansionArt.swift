@@ -22,7 +22,7 @@ struct IslandExpansionArt {
                       height: Theme.Spacing.md * 2 + title.size().height + Theme.Spacing.xxs + countdown.size().height)
     }
 
-    /// `area` is as wide as the pill and as tall as `size`; the lines stay centred as the pill grows.
+    /// Centred in `area`, so the lines stay put while the pill grows around them.
     func draw(in area: CGRect) {
         let x = area.midX - size.width / 2 + edge
         let top = area.maxY - Theme.Spacing.md - title.size().height

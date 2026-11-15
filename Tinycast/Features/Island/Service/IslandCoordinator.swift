@@ -33,7 +33,7 @@ final class IslandCoordinator: NSObject {
 
     private func showGlance(_ next: IslandGlance?) {
         restingGlance = next
-        (core.islandPresenter as? IslandPresenter)?.meetingChanged(glance.occurrence)
+        syncExpansion()
         for controller in backdrops.values { controller.glance = controller.showsRest ? next : nil }
     }
 
@@ -65,6 +65,12 @@ final class IslandCoordinator: NSObject {
             backdrops[screen.islandDisplayID] = backdrop
         }
         overlays.reposition()
+        if restingGlance != nil { syncExpansion() }
+    }
+
+    /// Also after a rebuild, so a new resting pill picks up an expansion already showing.
+    private func syncExpansion() {
+        (core.islandPresenter as? IslandPresenter)?.meetingChanged(glance.occurrence)
     }
 
     func overlayContext(screen preferred: NSScreen?) -> (NSScreen, IslandController, CGRect?)? {

@@ -1,6 +1,6 @@
 import Foundation
 
-/// The carded meeting's one expansion per occurrence, held in memory so a relaunch expands once more.
+/// In memory only, so a relaunch expands the carded meeting once more.
 struct IslandMeetingExpansion: Equatable, Sendable {
     struct Occurrence: Hashable, Sendable {
         let id: String
@@ -10,13 +10,13 @@ struct IslandMeetingExpansion: Equatable, Sendable {
     let seconds: TimeInterval
     private(set) var spent: Set<Occurrence> = []
     private(set) var showing: Occurrence?
-    /// A settle task applies its end only while this is still its token, so a stale one never clears.
+    /// A stale settle task never clears a newer expansion.
     private(set) var presentation = 0
     private var deadline: TimeInterval = 0
 
     init(seconds: TimeInterval = 6) { self.seconds = seconds }
 
-    /// A level makes it wait; a palette or question at window start, or a level cutting in, spends it.
+    /// A level makes it wait; a cover at window start or a level cutting in spends it.
     mutating func update(carded: Occurrence?, waiting: Bool, covered: Bool, at now: TimeInterval) -> Bool {
         spent = spent.filter { $0 == carded }
         if let showing, showing != carded || waiting || covered || now >= deadline { self.showing = nil }

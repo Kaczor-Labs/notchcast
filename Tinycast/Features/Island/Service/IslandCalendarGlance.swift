@@ -35,7 +35,7 @@ final class IslandCalendarGlance {
         return core.meetingClock.now
     }
 
-    /// The occurrence the presenter expands once; old glance scenes preview a meeting that never does.
+    /// Glance scenes that predate the expansion preview a meeting that never expands.
     var occurrence: IslandMeetingExpansion.Occurrence? {
         #if DEBUG
         if previewMeeting != nil, !previewExpands { return nil }

@@ -33,7 +33,6 @@ final class IslandController: NSObject {
     var level: IslandLevel? {
         didSet { if level != oldValue { redraw() } }
     }
-    /// The meeting glance grown to two lines; the presenter decides when, a level still outranks it.
     var expanded = false {
         didSet { if expanded != oldValue { redraw() } }
     }
