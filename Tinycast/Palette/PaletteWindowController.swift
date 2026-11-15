@@ -74,7 +74,7 @@ final class PaletteWindowController: NSObject, NSWindowDelegate {
             core.palette.pasteTarget = PasteTarget(app: previousApp)
             let panel = ensurePanel()
             // Undo a sink a modal left behind, unless one is still up.
-            if NSApp.modalWindow == nil { panel.level = .palette }
+            if NSApp.modalWindow == nil { panel.level = core.island.paletteLevel }
             // Open disarmed: a pointer already over a row must not highlight it.
             core.palette.disarmHoverHighlight(pointerAt: NSEvent.mouseLocation)
             // Re-resolve the anchor now, then hold it so resizes never move the window.
@@ -244,7 +244,7 @@ final class PaletteWindowController: NSObject, NSWindowDelegate {
 
     func windowDidBecomeKey(_ notification: Notification) {
         commandEscapeTap.enable()
-        panel?.level = .palette
+        if NSApp.modalWindow == nil { panel?.level = core.island.paletteLevel }
         DispatchQueue.main.async { [weak self] in
             guard let self else { return }
             // A re-summon leaves first responder where it was, so neither of these gets an event.
