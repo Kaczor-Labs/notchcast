@@ -24,6 +24,13 @@ enum IslandVerification {
     private static var controller: IslandController?
     static var panel: PalettePanel?
 
+    /// The screen whose display id the vdisplay wrapper exports; never the main or built-in one.
+    static var testScreen: NSScreen? {
+        guard let id = ProcessInfo.processInfo.environment["ISLAND_TEST_DISPLAY"].flatMap(UInt32.init),
+              CGDisplayIsMain(id) == 0, CGDisplayIsBuiltin(id) == 0 else { return nil }
+        return NSScreen.screens.first { $0.islandDisplayID == id }
+    }
+
     static func require(_ condition: Bool, _ message: String) {
         guard condition else {
             FileHandle.standardError.write(Data(("FAIL " + message + "\n").utf8))
@@ -45,9 +52,7 @@ enum IslandVerification {
     }
 
     static func run() async {
-        guard let screen = NSScreen.screens.first(where: { $0.localizedName.contains("Agent Test") }) else {
-            require(false, "Agent Test display available"); return
-        }
+        guard let screen = testScreen else { require(false, "ISLAND_TEST_DISPLAY names a test display"); return }
         print("SCREEN \(screen.frame) VISIBLE \(screen.visibleFrame) DEVICE \(screen.deviceDescription)")
         let core = AppCore.shared
         core.settings.paletteDraggable = false

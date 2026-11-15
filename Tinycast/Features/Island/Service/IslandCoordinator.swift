@@ -41,7 +41,7 @@ final class IslandCoordinator: NSObject {
     private var screens: [NSScreen] {
         #if DEBUG
         if IslandVerification.enabled {
-            return NSScreen.screens.filter { $0.localizedName.contains("Agent Test") }
+            return IslandVerification.testScreen.map { [$0] } ?? []
         }
         #endif
         return NSScreen.screens
