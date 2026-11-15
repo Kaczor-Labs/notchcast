@@ -5,7 +5,6 @@ import AppKit
 final class SystemActionCoordinator {
     private let paletteCoordinator: PaletteCoordinator
     private var isTogglingMicrophone = false
-    @ObservationIgnored private lazy var volumeHUD = VolumeHUDController(settings: core.settings)
     /// Dialog and message-HUD presentation only — never for state this type owns.
     private unowned let core: AppCore
 
@@ -65,7 +64,7 @@ final class SystemActionCoordinator {
             }
             if Self.showsVolumeFeedback.contains(action.id) {
                 let state = try SystemActionRunner.outputState()
-                volumeHUD.show(level: state.level, muted: state.muted)
+                core.islandPresenter.showLevel(VolumeLevel.island(state.level, muted: state.muted))
             } else if let feedback {
                 core.showMessage(feedback.title, tone: feedback.isNoOp ? .neutral : .success)
             }
