@@ -13,6 +13,8 @@ which makes it reload the missing file, and the sweep repeats until a pass finds
 
     pref-sweep.py begin <pid>   register the run; the first one records the baseline
     pref-sweep.py end <pid>     unregister; the last one out deletes the new test suites
+
+A run killed before `end` leaves its baseline; whichever call next finds no live run sweeps for it.
 """
 import fcntl
 import os
@@ -79,6 +81,25 @@ def sweep(baseline: set[str], prefixes: set[str]) -> set[str]:
     return removed
 
 
+def finish(baseline: Path, prefixes: Path) -> None:
+    known = set(baseline.read_text(encoding="utf-8").split("\n"))
+    allowed = set(prefixes.read_text(encoding="utf-8").split()) if prefixes.exists() else set()
+    removed = set()
+    for _ in range(MAX_PASSES):
+        swept = sweep(known, allowed)
+        removed |= swept
+        if not swept:
+            break
+        time.sleep(SETTLE)  # cfprefsd rewrites some of what it was just refused
+    left = unknown(known, allowed)
+    baseline.unlink()
+    prefixes.unlink(missing_ok=True)
+    if removed:
+        print(f"pref-sweep: removed {len(removed)} leftover test preference suites", file=sys.stderr)
+    if left:
+        print(f"pref-sweep: left {len(left)} unknown: {' '.join(left[:5])}", file=sys.stderr)
+
+
 def main() -> int:
     if len(sys.argv) != 3 or sys.argv[1] not in ("begin", "end") or not sys.argv[2].isdigit():
         sys.exit(__doc__)
@@ -92,6 +113,8 @@ def main() -> int:
         for entry in active.iterdir():
             if not alive(int(entry.name)):
                 entry.unlink()
+        if not any(active.iterdir()) and baseline.exists():
+            finish(baseline, prefixes)  # also a killed run's sweep, before a begin re-baselines over it
         if command == "begin":
             if not any(active.iterdir()):
                 baseline.write_text("\n".join(os.listdir(PREFS)), encoding="utf-8")
@@ -99,25 +122,7 @@ def main() -> int:
             with open(prefixes, "a", encoding="utf-8") as known_prefixes:
                 known_prefixes.writelines(f"{prefix}\n" for prefix in sorted(harness_prefixes()))
             (active / str(pid)).touch()
-        elif not any(active.iterdir()) and baseline.exists():
-            known = set(baseline.read_text(encoding="utf-8").split("\n"))
-            allowed = set(prefixes.read_text(encoding="utf-8").split()) if prefixes.exists() else set()
-            removed = set()
-            for _ in range(MAX_PASSES):
-                swept = sweep(known, allowed)
-                removed |= swept
-                if not swept:
-                    break
-                time.sleep(SETTLE)  # cfprefsd rewrites some of what it was just refused
-            left = unknown(known, allowed)
-            baseline.unlink()
-            prefixes.unlink(missing_ok=True)
-            if removed:
-                print(f"pref-sweep: removed {len(removed)} leftover test preference suites", file=sys.stderr)
-            if left:
-                print(f"pref-sweep: left {len(left)} unknown: {' '.join(left[:5])}", file=sys.stderr)
     return 0
-
 
 if __name__ == "__main__":
     sys.exit(main())
