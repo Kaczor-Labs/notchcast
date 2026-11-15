@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Discover fork script tests, keeping host-integrated checks opt-in."""
+"""Discover and run fork script tests."""
 import argparse
 import os
 from pathlib import Path
@@ -9,9 +9,6 @@ import sys
 
 RUNTIMES = {".py": ["python3"], ".sh": ["bash"], ".mjs": ["node"],
             ".swift": ["swift", "-swift-version", "6"]}
-ALL_ONLY = {
-    Path("notchcast/install-app-test.sh"),
-}
 LAND_TEST = Path("notchcast/land-test.sh")
 LAND_INPUTS = [*Path(__file__).with_name("land-tooling.txt").read_text().split(), str(LAND_TEST)]
 
@@ -27,21 +24,19 @@ def land_inputs_changed():
 
 
 parser = argparse.ArgumentParser(description=__doc__)
-parser.add_argument("--all", action="store_true", help="include host-integrated tests")
+parser.add_argument("--all", action="store_true", help="run land-test.sh even when its inputs did not change")
 parser.add_argument("--list", action="store_true", help="list selected tests without running them")
 args = parser.parse_args()
-discovered = sorted(path for suffix in RUNTIMES for path in Path("notchcast").rglob(f"*-test{suffix}"))
-tests = [path for path in discovered if args.all or path not in ALL_ONLY]
+tests = sorted(path for suffix in RUNTIMES for path in Path("notchcast").rglob(f"*-test{suffix}"))
 if not tests:
     sys.exit("script-tests.py: no tests found; run it from the repository root")
-opt_in = len(discovered) - len(tests)
 if not args.all and LAND_TEST in tests and not land_inputs_changed():
     tests.remove(LAND_TEST)
     print(f"Skipping {LAND_TEST}: the diff does not touch {', '.join(LAND_INPUTS)}", file=sys.stderr, flush=True)
 if args.list:
     print("\n".join(map(str, tests)))
 else:
-    print(f"Running {len(tests)} script tests ({opt_in} opt-in tests excluded)", flush=True)
+    print(f"Running {len(tests)} script tests", flush=True)
     failed = []
     for path in tests:
         print(f"\n=== {path} ===", flush=True)

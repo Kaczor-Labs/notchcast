@@ -1,13 +1,13 @@
 #!/bin/bash
-# Notchcast updater: install the newest snapshot at /Applications/Notchcast.app and have the
-# notchcast.app LaunchAgent restart it. Runs from launchd (notchcast.update) and from install-launchd.sh (first install).
+# Notchcast updater: install the newest snapshot at /Applications/Notchcast.app; install-app.sh restarts the app
+# only if it was running. Runs from launchd (notchcast.update) and from install-launchd.sh (first install).
 # It installs only a build with our bundle id (BUNDLE_ID), the release's version and our leaf certificate (SIGN_SHA1),
 # and only when nothing is installed yet, the release is newer, or the installed copy is not ours.
 # It replaces only the bundle, keeping one previous app for rollback; settings and data are never touched.
 # The in-app updater stays inert for app.notchcast (ReleaseChannel: development), so this is the update path.
 # --install installs even with automatic updates off, e.g. to put one build on every maintainer machine.
 # Usage: update.sh [--install] [--retry] [--dry-run] (any order)
-# A newer release installs and restarts the app at once, whether or not the Mac is in use.
+# A newer release installs (and restarts a running app) at once, whether or not the Mac is in use.
 set -euo pipefail
 export PATH="/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:$HOME/.local/bin"
 
