@@ -12,7 +12,10 @@ PATTERNS = {
     "forbidden-name": re.compile(r"gains ?geek|gains?[ ._-]?geek|gainsgeek|gg-app|gg-kb|privatehq", re.I),
     "todoist-id": re.compile(r"(?<![a-z0-9])id:[a-z0-9]{16}(?![a-z0-9])|(?<![a-z0-9])6[a-z0-9]{15}(?![a-z0-9])", re.I),
     "t3-id": re.compile(r"mcp:launch:[a-f0-9]+|t3-thread://|run:thread:|(?<![a-z0-9-])t3-[a-f0-9]{8}(?![a-z0-9])", re.I),
+    "home-path": re.compile(r"(?<![\w.])/Users/(?!Shared/)[A-Za-z0-9._-]+/"),
 }
+# Debug binaries embed the builder's absolute source paths, which no flag remaps.
+BUNDLE_PATTERNS = {kind: pattern for kind, pattern in PATTERNS.items() if kind != "home-path"}
 ALLOW_FILES = {"notchcast/check-identity.py": "guard pattern definitions"}
 HEAD = "HEAD"
 EMAIL_POLICY = runpy.run_path(str(Path(__file__).with_name("check-commit-emails.py")))
@@ -29,9 +32,9 @@ def redact(text):
     return text
 
 
-def inspect(text, location):
+def inspect(text, location, patterns=PATTERNS):
     failed = False
-    for kind, pattern in PATTERNS.items():
+    for kind, pattern in patterns.items():
         for match in pattern.finditer(text):
             token = match.group()
             if kind == "todoist-id" and not token.lower().startswith("id:"):
@@ -112,11 +115,11 @@ def app(bundle):
         raise ValueError("missing bundle")
     failed = False
     for path in sorted(root.rglob("*")):
-        failed |= inspect(str(path.relative_to(root)), "file name")
+        failed |= inspect(str(path.relative_to(root)), "file name", BUNDLE_PATTERNS)
         # CodeResources is base64 hashes, whose random runs match the id shapes.
         if path.is_file() and "_CodeSignature" not in path.parts:
             content = subprocess.check_output(["strings", "-a", str(path)]).decode("utf-8", errors="replace")
-            failed |= inspect(content, str(path.relative_to(root)))
+            failed |= inspect(content, str(path.relative_to(root)), BUNDLE_PATTERNS)
     return failed
 
 

@@ -125,7 +125,10 @@ class BehaviourTest(unittest.TestCase):
         (self.repo / "notchcast").mkdir(parents=True)
         (self.root / "home").mkdir()
         shutil.copy(SCRIPT, self.repo / "notchcast/ready-check.sh")
-        (self.repo / "notchcast/config.env").write_text("FORK_REPO=example/fork\nUPSTREAM_REPO=example/upstream\n")
+        (self.repo / "notchcast/config.env").write_text("FORK_REPO=example/fork\nUPSTREAM_REPO=example/upstream\n"
+                                                       "MAINTAINER_NAME=t\nMAINTAINER_EMAIL=t@t\n")
+        for tool in ("check-identity.sh", "check-identity.py", "check-commit-emails.py", "ci.py"):
+            shutil.copy(ROOT / "notchcast" / tool, self.repo / "notchcast" / tool)
         (self.repo / "notchcast/ci-build.sh").write_text(
             'for s in xcode build lint; do echo "$s" > "$RUNNER_TEMP/step"; [ ! -e "fail-$s" ] || exit 1; done\n'
             'echo "base=$BASE_SHA head=$HEAD_SHA sharded=${NOTCHCAST_HARNESSES_SHARDED:-} pwd=$PWD"\n')
@@ -213,6 +216,21 @@ class BehaviourTest(unittest.TestCase):
         self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
         self.assertRegex(result.stdout.splitlines()[-1], r"^FAIL drift; log: ")
         self.assertIn("REFUSED: drift", result.stdout)
+
+    def test_private_data_added_by_the_branch_fails(self):
+        home = "/" + "Users/" + "someone/notes.txt"
+        self.commit(f"path {home}\n", "work.txt")
+        result = self.check("base")
+        self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+        self.assertIn("check-identity: work.txt:1: <home-path>\n", result.stdout)
+        self.assertRegex(result.stdout.splitlines()[-1], r"^FAIL identity: diff names something private; log: ")
+        self.git("reset", "-q", "--hard", "base")
+        self.git("commit", "-q", "--allow-empty", "-m", f"moved {home}")
+        result = self.check("base")
+        self.assertRegex(result.stdout.splitlines()[-1], r"^FAIL identity: metadata names something private; ")
+        self.git("reset", "-q", "--hard", "base")
+        self.commit("clean", "clean.txt")
+        self.assertEqual(self.check("base").returncode, 0)
 
     def test_prints_the_upstream_footprint_and_its_delta(self):
         self.commit("work", "work.txt")

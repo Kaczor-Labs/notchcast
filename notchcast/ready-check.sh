@@ -1,5 +1,5 @@
 #!/bin/bash
-# Runs land.sh's drift gates, then every gate pr.yml runs in its order (ci-build.sh, harnesses included),
+# Runs land.sh's drift gates, the private-data checks leaks.yml runs, then every gate pr.yml runs in its order (ci-build.sh, harnesses included),
 # on HEAD against a base ref.
 # Prints retried and ignored harnesses then PASS, or FAIL with the first failing gate. ready-check-test.py ties it to pr.yml.
 set -euo pipefail
@@ -71,6 +71,14 @@ if ! (cd "$tree" && top="$tree" && source "$scratch/drift-gates.sh" && run_drift
     echo "FAIL drift; log: $log"
     exit 1
 fi
+# leaks.yml's private-data checks, scoped to what this branch adds over the base.
+for mode in diff metadata; do
+    if ! (cd "$tree" && bash notchcast/check-identity.sh "$mode" "$BASE_SHA") >> "$log" 2>&1; then
+        grep '^check-identity:' "$log" | tail -n 40
+        echo "FAIL identity: $mode names something private; log: $log"
+        exit 1
+    fi
+done
 unset NOTCHCAST_HARNESSES_SHARDED
 queue=()
 # shellcheck disable=SC2206
