@@ -9,7 +9,6 @@ enum Theme {
     }
 
     enum Spacing {
-        static let islandInset: CGFloat = 16
         static let xxs: CGFloat = 2
         static let dictationWaveGap: CGFloat = 3
         static let xs: CGFloat = 4
@@ -68,10 +67,6 @@ enum Theme {
     }
 
     enum Size {
-        static let islandRest = CGSize(width: 96, height: 24)
-        static let islandHost = CGSize(width: 1100, height: 860)
-        /// The widest a resting glance grows past the notch on one side; menubar spec §3.
-        static let islandGlanceWing: CGFloat = 140
         static let panelWidth: CGFloat = 750
         static let panelHeight: CGFloat = 475
         /// Opening size on a first run and the floor: below it the title bar's own parts collide.
@@ -384,7 +379,6 @@ enum Theme {
         /// `NSFont` is not `Sendable`, hence the isolation; every reader is a view anyway.
         @MainActor static let searchFieldNSFont = NSFont.systemFont(
             ofSize: searchFieldSize, weight: .regular)
-        @MainActor static let islandGlanceNSFont = NSFont.systemFont(ofSize: 12, weight: .medium)
         static let headerIconSize: CGFloat = 22
         static let headerIcon = Font.system(size: headerIconSize, weight: .medium)
         static let rowTitle = Font.body
@@ -420,7 +414,6 @@ enum Theme {
     }
 
     enum Colors {
-        static let islandSurface = Color.black
         /// Resolves against the window's `effectiveAppearance`, so a token repaints on its own.
         static func adaptive(dark: NSColor, light: NSColor) -> Color {
             Color(nsColor: NSColor(name: nil) { $0.isDark ? dark : light })

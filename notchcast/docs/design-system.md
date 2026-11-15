@@ -78,7 +78,7 @@ System text styles only; no fixed sizes in views (`docs/ui.md:209-212`). Tokens 
 - Core stops (`Theme.swift:434-464`): `selection` 0.10 (`:434`), `rowHover` 0.05 (`:435`), `menuHover` 0.10 (`:441`), `separator` 0.10 (`:442`), `controlSurface` 0.10 (`:444`), `controlHover` 0.16 (`:445`), `controlPressed` 0.24 (`:447`), `border` 0.20 (`:453`), `textPrimary/Secondary/Tertiary` 1.0/0.60/0.40 (`:455-457`), `cardFill` 0.05 / `cardStroke` 0.10 (`:463-464`).
 - Fixed hues (`Theme.swift:488-503`): `brand` purple (`:488`), `primaryAction` blue (`:493`), `destructive` red (`:494`), `success` green (`:495`), `warning` orange (`:496`), `progress` blue (`:503`).
 - **Never** `Color.white.opacity`, `.gray` or `NSColor.windowBackgroundColor` on a surface (`docs/ui.md:39-40`). Outside Extensions, the sanctioned exceptions are the tooltip tile (`Tinycast/DesignSystem/Tooltip.swift:48`), the `windowSurface` token (`Theme.swift:500`) and an onboarding tint (`Tinycast/Features/Onboarding/OnboardingView.swift:196`).
-- **Materials.** The island backdrop paints opaque `Theme.Colors.islandSurface`. Palette root glass is `.identity`; shared `PopoverMenu`, dialog, message and volume HUD roots use the same black token. Floating action capsules and menu circles retain glass. Notes, Camera and Settings retain their own existing material recipes. Native menu clips and keyboard ownership remain stock.
+- **Materials.** The island backdrop paints opaque `NotchTheme.Colors.islandSurface`. Palette root glass is `.identity`; shared `PopoverMenu`, dialog, message and volume HUD roots use the same black token. Floating action capsules and menu circles retain glass. Notes, Camera and Settings retain their own existing material recipes. Native menu clips and keyboard ownership remain stock.
 - **The engine owns the island corner.** The native palette keeps its root clip, with an engine-driven content-layer mask over the separate black backdrop. Both update at the same engine callback. `Theme.Radius.panel` stays 26 points at scales 1, 1.1 and 1.2.
 - Panel window recipe: `isOpaque = false`, `backgroundColor = .clear`, `hasShadow = true`, `followMotion()` (`PalettePanel.swift:271-274`, `NotesPanel.swift:34-37`, `CameraPanel.swift:28-31`).
 - Tone tints: `DialogTone` `.neutral`/`.success`/`.danger` (`Tinycast/Windows/Dialog/DialogRequest.swift:16-19`) colour only the glyph.
@@ -168,10 +168,10 @@ Capitalization as shipped:
 ## 13. New feature checklist (≤15)
 
 1. Pick the nearest model in §0 and copy its panel recipe (`CameraPanel` for key-taking, `HUDPanel` for readouts); conform to `AnimatedPanel` and call `followMotion()`.
-2. Island roots use `Theme.Colors.islandSurface`; palette root glass stays disabled over the engine backdrop. Other borderless panels retain content → `panelScrim` → `GlassEffectView()` → one continuous clip. Floating controls retain glass; shared menus use black.
+2. Island roots use `NotchTheme.Colors.islandSurface`; palette root glass stays disabled over the engine backdrop. Other borderless panels retain content → `panelScrim` → `GlassEffectView()` → one continuous clip. Floating controls retain glass; shared menus use black.
 3. Wrap every `NSHostingView` root in `.motionScope()`; any movement animation also returns `nil` under Reduce Motion.
 4. Read sizes from `@Environment(\.metrics)` on scaled surfaces; add any new number as a `Theme` token (notch geometry belongs in a Notchcast-owned token group, not in a view).
-5. Colours only from `Theme.Colors` (`ramp`/`adaptive`); the island's opaque black is `islandSurface`. Never restate token literals in a view.
+5. Colours only from `Theme.Colors` (`ramp`/`adaptive`) or `NotchTheme.Colors`; the island's opaque black is `NotchTheme.Colors.islandSurface`. Never restate token literals in a view.
 6. Glyphs via `SymbolImage` with the token slot size; dialog icon = the subject's glyph.
 7. Controls: `BarButton` in bars, `.modalAction(role)` on panels, `.frosted(in: Capsule())` for floating groups; continuous corners only.
 8. Lists: the `AppRow` grammar, the selection→hover→clear fill, `armedHover`, `SectionHeader`.
