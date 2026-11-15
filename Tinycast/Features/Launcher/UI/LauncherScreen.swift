@@ -2,6 +2,7 @@ import SwiftUI
 
 /// The root search: favorites, meetings, suggestions, then one section per kind, led by any card.
 struct LauncherScreen: PaletteScreen {
+    @MainActor static var digitRow: ((Int, String, [Int]) -> Int?)?
     let appIndex: AppIndex
     let favorites: FavoritesStore
     let visibility: VisibilityStore
@@ -332,7 +333,10 @@ struct LauncherScreen: PaletteScreen {
         case .edit: return editItem(at: selection)
         case .copyPath: return copyQuicklink(at: selection)
         case .copyFile: return copyDeepLink(at: selection)
-        case .favoriteSlot(let index): return launchFavorite(at: index)
+        case .favoriteSlot(let index):
+            let entryRows = rows.indices.filter { entry(at: $0) != nil }
+            if let row = Self.digitRow?(index + 1, vm.query, entryRows) { activate(at: row); return true }
+            return launchFavorite(at: index)
         case .copyCalculation: return copyCalculation(at: selection)
         case .openInApp, .showDetails:
             guard let meeting = meeting(at: selection) else { return false }

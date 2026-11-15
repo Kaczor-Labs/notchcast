@@ -178,4 +178,4 @@ Patch-queue hygiene implied by the code: keep fork code in fork-only files and l
 
 ## Ownership
 
-Notchcast adds no long-lived state: its startup hook in `AppCore.start()` only turns the login item off when launchd owns startup, and the hidden Extensions feature never starts. Fork code lives in `Tinycast/Features/Notchcast/` (today only `Hidden/NotchcastHidden.swift`); see [hidden.md](hidden.md).
+Notchcast's one long-lived object is `NotchcastCore`, created in `AppCore.start()` and stopped in `prepareForTermination()`; it owns the add-on controller, preferences and the shared event tap hub ([addons.md](addons.md)). The hidden Extensions feature never starts. Fork code lives in `Tinycast/Features/Notchcast/`: `Core/` and `NotchcastCore.swift` for the add-on system, `Hidden/` for hidden features ([hidden.md](hidden.md)), and one folder per add-on.

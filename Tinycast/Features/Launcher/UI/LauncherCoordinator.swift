@@ -21,6 +21,7 @@ final class LauncherCoordinator {
     private let calendarCoordinator: CalendarCoordinator
     /// The backup commands only, which need the live stores to gather from and apply to.
     private unowned let core: AppCore
+    var runExtraCommand: ((String) -> Bool)?
 
     init(
         ranking: LauncherRankingStore,
@@ -74,6 +75,7 @@ final class LauncherCoordinator {
         }
         // Commands dispatch before the palette hides: mode-switching commands keep it open.
         if app.kind == .command {
+            if runExtraCommand?(app.id) == true { return }
             guard let id = CommandCatalog.command(for: app) else { return }
             // Query-driven: only this row knows the URL the typed text resolved to.
             if id == .openInBrowser {
