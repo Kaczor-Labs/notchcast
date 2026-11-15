@@ -26,9 +26,9 @@ settings:
       TINYCAST_URL_SCHEME: notchcast-dev
       # Ad-hoc, so headless Xcode builds without a local identity; releases pass their own.
       CODE_SIGN_IDENTITY: "-"
-      DICTATION_EXECUTABLE_NAME: Tinycast Dev Dictation
+      DICTATION_EXECUTABLE_NAME: Notchcast Dev Dictation
     Release:
-      DICTATION_EXECUTABLE_NAME: Tinycast Dictation
+      DICTATION_EXECUTABLE_NAME: Notchcast Dictation
       # Release-only: library validation refuses Debug's `.debug.dylib`, whose team never matches.
       ENABLE_HARDENED_RUNTIME: YES
       # Strip the shipped binary (dSYM is still generated first) and drop unused code.
@@ -94,6 +94,18 @@ targets:
         copy:
           destination: wrapper
           subpath: Contents/Helpers
+    postBuildScripts:
+      - name: Notchcast name override
+        script: python3 "$SRCROOT/notchcast/name-override.py"
+        inputFiles:
+          - $(SRCROOT)/notchcast/name-override.py
+          - $(SRCROOT)/Tinycast/Info.plist
+          - $(SRCROOT)/Tinycast/Resources/Localizable.xcstrings
+          - $(SRCROOT)/Tinycast/Resources/InfoPlist.xcstrings
+          # Orders the phase after Xcode writes Info.plist, which it otherwise does last.
+          - $(TARGET_BUILD_DIR)/$(INFOPLIST_PATH)
+        outputFiles:
+          - $(DERIVED_FILE_DIR)/name-override.stamp
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: "$(TINYCAST_BUNDLE_IDENTIFIER)"

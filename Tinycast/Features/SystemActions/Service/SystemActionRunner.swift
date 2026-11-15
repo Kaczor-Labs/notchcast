@@ -358,8 +358,8 @@ enum SystemActionRunner {
             throw SystemActionFailure(
                 String(
                     localized: """
-                        Allow Notchcast to control your Mac in Accessibility settings, then try again.
-                        """, table: "Notchcast"),
+                        Allow Tinycast to control your Mac in Accessibility settings, then try again.
+                        """),
                 settings: .accessibility)
         }
         // The same route as the keyboard's media keys; 0xA/0xB are down and up.
@@ -454,8 +454,8 @@ enum SystemActionRunner {
             throw SystemActionFailure(
                 String(
                     localized: """
-                        Allow Notchcast to control your Mac in Accessibility settings, then try again.
-                        """, table: "Notchcast"),
+                        Allow Tinycast to control your Mac in Accessibility settings, then try again.
+                        """),
                 settings: .accessibility)
         }
         guard
@@ -472,8 +472,8 @@ enum SystemActionRunner {
                 throw SystemActionFailure(
                     String(
                         localized: """
-                            This version of Notification Center exposes no dismiss control Notchcast can use.
-                            """, table: "Notchcast"))
+                            This version of Notification Center exposes no dismiss control Tinycast can use.
+                            """))
             }
             let result = AXUIElementPerformAction(notification, action as CFString)
             guard result == .success || result == .invalidUIElement else {
@@ -554,7 +554,7 @@ enum SystemActionRunner {
             if getPower() == requested { return requested == 1 }
         }
         throw SystemActionFailure(
-            String(localized: "Bluetooth did not change state. Check Notchcast’s Bluetooth permission.", table: "Notchcast"),
+            String(localized: "Bluetooth did not change state. Check Tinycast’s Bluetooth permission."),
             settings: .bluetooth)
     }
 
@@ -584,9 +584,9 @@ enum SystemActionRunner {
                 throw SystemActionFailure(
                     String(
                         localized: """
-                            Allow Notchcast to control the requested app in Automation settings, \
+                            Allow Tinycast to control the requested app in Automation settings, \
                             then try again.
-                            """, table: "Notchcast"),
+                            """),
                     settings: .automation)
             }
             throw SystemActionFailure(detail)
