@@ -4,7 +4,7 @@ import Observation
 /// Feeds the resting pill the carded meeting's line and keeps the meeting clock ticking for it.
 @MainActor
 final class IslandCalendarGlance {
-    /// AppCore hands this to `CalendarCoordinator`, so the clock runs while the pill shows a glance.
+    /// AppCore hands this to `CalendarCoordinator`, so the clock runs while a glance shows.
     private(set) var isWatching = false
     private unowned let core: AppCore
     private let apply: (IslandGlance?) -> Void
