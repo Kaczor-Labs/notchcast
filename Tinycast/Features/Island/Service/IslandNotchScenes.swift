@@ -4,12 +4,18 @@ import AppKit
 /// The compact launcher on a display with a notch, faked on the notchless test display.
 @MainActor
 enum IslandNotchScenes {
-    static let names: Set = ["compact-notch", "compact-notch-change", "compact-notch-change-open"]
+    static let names: Set = ["compact-notch", "compact-notch-change", "compact-notch-change-open", "compact-notch-late"]
     static let notch = CGSize(width: 200, height: 32)
 
     static func run(_ scene: String, core: AppCore, screen: NSScreen) async {
         IslandVerification.fakeNotch = scene == "compact-notch" ? notch : nil
-        if scene != "compact-notch" {
+        if scene == "compact-notch-late" {
+            core.island.start()
+            await IslandVerification.pause(0.3)
+            IslandVerification.fakeNotch = notch
+            NotificationCenter.default.post(name: NSApplication.didChangeScreenParametersNotification, object: NSApp)
+            await IslandVerification.pause(0.3)
+        } else if scene != "compact-notch" {
             core.paletteCoordinator.showPalette(mode: .launcher)
             await IslandVerification.pause(0.6)
             if scene == "compact-notch-change" { core.paletteCoordinator.hidePalette(restoreFocus: false) }
