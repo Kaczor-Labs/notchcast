@@ -109,6 +109,9 @@ final class IslandCoordinator: NSObject {
     }
 
     @objc private func modalEnded() {
+        if NSApp.modalWindow == nil, let panel, panel.isVisible, panel.level < paletteLevel {
+            panel.level = paletteLevel
+        }
         for controller in backdrops.values { controller.frameChanged() }
     }
 

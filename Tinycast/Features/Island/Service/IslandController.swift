@@ -120,7 +120,8 @@ final class IslandController: NSObject {
     @objc func frameChanged() {
         guard let surface, let layout else { return }
         surface.reduced = reducedMotion
-        let suspended = NSApp.modalWindow != nil
+        let sunk = panel.map { $0.isVisible && $0.level < Self.paletteLevel } ?? false
+        let suspended = NSApp.modalWindow != nil || sunk
         if suspended { backdrop.orderOut(nil) }
         let palette = panel.flatMap { $0.isVisible ? $0.frame : nil }
         let overlay = IslandOverlayLayout(screen: layout.screen,
