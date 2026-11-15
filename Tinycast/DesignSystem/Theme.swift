@@ -9,7 +9,6 @@ enum Theme {
     }
 
     enum Spacing {
-        static let islandInset: CGFloat = 16
         static let xxs: CGFloat = 2
         static let dictationWaveGap: CGFloat = 3
         static let xs: CGFloat = 4
@@ -68,8 +67,6 @@ enum Theme {
     }
 
     enum Size {
-        static let islandRest = CGSize(width: 96, height: 24)
-        static let islandHost = CGSize(width: 1100, height: 860)
         static let panelWidth: CGFloat = 750
         static let panelHeight: CGFloat = 475
         /// Opening size on a first run and the floor: below it the title bar's own parts collide.
