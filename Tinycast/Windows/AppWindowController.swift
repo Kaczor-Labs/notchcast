@@ -148,7 +148,7 @@ final class AppWindowController: NSObject, NSWindowDelegate {
         return window
     }
 
-    /// Verification may open or raise a window on the test display only, so a lost one ends the run.
+    /// Verification opens or raises windows on the test display only; losing it ends the run.
     private func requireTestDisplay() {
         #if DEBUG
         guard IslandVerification.enabled else { return }
@@ -162,7 +162,8 @@ final class AppWindowController: NSObject, NSWindowDelegate {
         window.makeKeyAndOrderFront(nil)
         // `NSApp.activate` is async, so re-assert next turn — never onto a window closed since.
         DispatchQueue.main.async { [weak self, weak window] in
-            guard let window, self?.window === window else { return }
+            guard let self, let window, self.window === window else { return }
+            requireTestDisplay()
             window.makeKeyAndOrderFront(nil)
         }
     }
