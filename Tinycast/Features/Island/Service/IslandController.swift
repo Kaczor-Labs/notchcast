@@ -43,7 +43,6 @@ final class IslandController: NSObject {
         canvas.setAccessibilityElement(true)
         canvas.setAccessibilityRole(.button)
         canvas.setAccessibilityLabel(NSRunningApplication.current.localizedName)
-        canvas.toolTip = String(localized: "Click to open the launcher, right-click for more", table: "Notchcast")
         canvas.onMenu = { [weak self] in
             guard let self, let rect = self.pillRect else { return }
             self.onMenu?(rect, self.backdrop)
