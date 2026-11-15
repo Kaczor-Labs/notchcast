@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Gate the add-on system's upstream footprint and its folder boundaries (notchcast/docs/addons.md §3, §5).
 
-The caller names the mode (ci-build.sh derives it from the branch name). Core mode (v2/addons-core): the
+The caller names the mode (ci-build.sh derives it from the branch name). Core mode (v2/addons-core[-<n>]): the
 upstream paths the branch changes against the base stay within notchcast/addons-budget.env. Feature mode
 (v2/addons-<feature>): the branch owns the folders that declare the types its added registry lines name (or,
 with no added line, the one folder it touches), and every changed path is inside an owned folder, an owned

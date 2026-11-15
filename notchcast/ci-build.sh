@@ -29,7 +29,8 @@ step config
 python3 notchcast/check-config.py
 if [ -n "${BASE_SHA:-}" ]; then
     case "${NOTCHCAST_READY_BRANCH:-${GITHUB_HEAD_REF:-}}" in
-        v2/addons-core) addons_mode=core ;;
+        # A rebased core is pushed under a new number, since force-pushing is never allowed.
+        v2/addons-core | v2/addons-core-[0-9]*) addons_mode=core ;;
         v2/addons-*) addons_mode=feature ;;
         *) addons_mode=none ;;
     esac
