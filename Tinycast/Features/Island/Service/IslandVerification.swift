@@ -34,7 +34,7 @@ enum IslandVerification {
 
     static func main() {
         setbuf(stdout, nil)
-        require(Bundle.main.bundleIdentifier == "com.tinycast.app.v2shell", "isolated bundle")
+        require(Bundle.main.bundleIdentifier?.hasPrefix("com.tinycast.app.v2") == true, "isolated bundle")
         let app = NSApplication.shared
         app.setActivationPolicy(.accessory)
         app.appearance = NSAppearance(named: .darkAqua)
@@ -128,7 +128,7 @@ enum IslandVerification {
         _exit(0)
     }
 
-    static func capture(_ name: String, backdrop: NSWindow, panel: NSWindow) {
+    static func capture(_ name: String, backdrop: NSWindow, panel: NSWindow?) {
         guard let output = ProcessInfo.processInfo.environment["ISLAND_OUTPUT"],
               let context = CGContext(data: nil, width: Int(backdrop.frame.width * 2),
                 height: Int(backdrop.frame.height * 2), bitsPerComponent: 8, bytesPerRow: 0,
@@ -141,7 +141,7 @@ enum IslandVerification {
         let overlays = NSApp.windows.filter {
             $0.isVisible && ($0 is DialogPanel || $0 is HUDPanel || $0 is MenuPanel)
         }.sorted { $0.level.rawValue < $1.level.rawValue }
-        for window in [backdrop, panel] + overlays where window.isVisible {
+        for window in [backdrop] + [panel].compactMap(\.self) + overlays where window.isVisible {
             guard let view = window.contentView, let layer = view.layer else {
                 require(false, "own window layer available"); return
             }
@@ -172,7 +172,7 @@ enum IslandVerification {
             require(false, "PNG encoding"); return
         }
         do { try data.write(to: URL(filePath: output + "/" + name + ".png")) } catch { require(false, "PNG write \(error)") }
-        print("CAPTURE \(name) \(CACurrentMediaTime()) PANEL \(panel.frame) BACKDROP \(backdrop.frame)")
+        print("CAPTURE \(name) \(CACurrentMediaTime()) PANEL \(panel?.frame ?? .zero) BACKDROP \(backdrop.frame)")
     }
 
     static func pause(_ seconds: Double) async { try? await Task.sleep(for: .seconds(seconds)) }
