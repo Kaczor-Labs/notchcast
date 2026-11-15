@@ -45,6 +45,7 @@ struct CompactBar: View {
     @Environment(PaletteState.self) private var palette
     @Environment(\.metrics) private var metrics
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.paletteOnIsland) private var onIsland
     @State private var isRevealed = false
 
     var body: some View {
@@ -59,7 +60,7 @@ struct CompactBar: View {
                 glass(geometry: geometry, revealed: revealed)
             }
         }
-        .overlay { scrim(geometry: geometry, revealed: revealed) }
+        .overlay { if !onIsland { scrim(geometry: geometry, revealed: revealed) } }
         // Above the glass rather than inside it, where a morph would smear them.
         .overlay(alignment: .topLeading) {
             ForEach(Array(commands.enumerated()), id: \.element) { index, command in
@@ -78,7 +79,7 @@ struct CompactBar: View {
                 capsule.fill(.clear)
                     .frame(width: geometry.capsuleWidth(revealed: revealed))
                     .frame(maxHeight: .infinity)
-                    .glassEffect(.regular, in: capsule)
+                    .glassEffect(onIsland ? .identity : .regular, in: capsule)
                     .animation(
                         reduceMotion ? nil : BarMotion.capsule.delay(BarMotion.revealDelay),
                         value: revealed)
@@ -107,9 +108,10 @@ struct CompactBar: View {
         .accessibilityAddTraits(selection == command ? [.isSelected] : [])
         .accessibilityHidden(!revealed)
         .glassEffect(
-            .regular.tint(selection == command ? Theme.Colors.compactShortcutSelectionTint : nil)
+            onIsland ? .identity : .regular.tint(selection == command ? Theme.Colors.compactShortcutSelectionTint : nil)
                 .interactive(), in: .circle
         )
+        .background { if onIsland, selection == command { Circle().fill(NotchTheme.Colors.keyCapFill) } }
         .scaleEffect(revealed ? 1 : BarMotion.parkedScale)
         .position(revealed ? geometry.center(of: index) : geometry.parked)
         .allowsHitTesting(revealed)
