@@ -71,7 +71,15 @@ with tempfile.TemporaryDirectory() as temp:
     for part in ["Tinycast Dev Dictation.app still", "MacOS/Tinycast Dev Dictation still", "'CFBundleName'"]:
         assert part in stale.stderr, stale.stderr
     shutil.rmtree(app / "Contents/Helpers")
-    embed("Notchcast Dev Dictation")
+    embed("tinycast")
+    assert run("--verify", str(app)).returncode == 1, "a lower-case tinycast helper passed --verify"
+    shutil.rmtree(app / "Contents/Helpers")
+    outer = embed("Notchcast Dev Dictation")
+    inner = outer / "Contents/Helpers/Inner.app/Contents/Info.plist"
+    write(inner, {"CFBundleDisplayName": "Tinycast Dictation"})
+    nested = run("--verify", str(app))
+    assert nested.returncode == 1 and "'CFBundleDisplayName'" in nested.stderr, nested.stderr
+    shutil.rmtree(outer / "Contents/Helpers")
     assert run("--verify", str(app)).returncode == 0
 
 print("name-override-test: PASS")

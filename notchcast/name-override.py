@@ -106,11 +106,11 @@ def leftovers(app):
 
 
 def helper_leftovers(app):
-    helpers = app / "Contents/Helpers"
-    found = [f"{path.relative_to(app)} still says {OLD}" for path in sorted(helpers.rglob(f"*{OLD}*"))]
-    for path in sorted(helpers.glob("*.app/Contents/Info.plist")):
+    paths = sorted((app / "Contents/Helpers").rglob("*"))
+    found = [f"{path.relative_to(app)} still says {OLD}" for path in paths if OLD.lower() in path.name.lower()]
+    for path in [path for path in paths if path.name == "Info.plist"]:
         found += [f"{path.relative_to(app)}: {key!r} still says {OLD}"
-                  for key, value in load(path).items() if OLD in json.dumps(value)]
+                  for key, value in load(path).items() if OLD.lower() in json.dumps(value).lower()]
     return found
 
 
