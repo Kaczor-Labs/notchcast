@@ -23,6 +23,7 @@ FAKE
 cat > "$WORK/bin/osascript" <<'FAKE'
 #!/bin/bash
 echo "$*" >> "$WORK/osascript.log"
+if [ -e "$WORK/hang-quit" ]; then exec -a "$WORK/hung-osascript" /bin/sleep 300; fi
 pkill -TERM -f "^$WORK/" || true
 FAKE
 chmod +x "$WORK/bin/"*
@@ -77,6 +78,18 @@ grep -qx 'left running: nothing (app was not running; launch skipped; installed 
 sleep 1
 [ -z "$(pids)" ] && [ ! -e "$WORK/open.log" ] && [ ! -e "$WORK/osascript.log" ] || fail 'idle install launched or quit the app'
 echo 'PASS: app not running: installed, not launched'
+
+open -g "$NOTCHCAST_APP"
+for _ in $(seq 1 20); do [ -z "$(pids)" ] || break; sleep 0.25; done
+[ -n "$(pids)" ] || fail 'app did not start before the hung quit'
+touch "$WORK/hang-quit"
+STATUS=0 START=$SECONDS
+NOTCHCAST_QUIT_SECONDS=2 "$WORK/install-app.sh" "$WORK/New.app" > "$WORK/log" 2>&1 || STATUS=$?
+(( SECONDS - START < 15 )) || fail "hung quit took $((SECONDS - START)) seconds"
+[ "$STATUS" = 1 ] || fail "hung quit install exited $STATUS"
+grep -qx 'the running app did not quit within 2 seconds' "$WORK/log" || fail 'no quit deadline log'
+[ "$(installed)" = 4.0.0 ] || fail 'previous bundle not restored after the hung quit'
+echo 'PASS: a Quit that never answers hits the deadline and rolls back'
 
 [ ! -e "$WORK/launchctl.log" ] || fail "install-app.sh ran launchctl: $(cat "$WORK/launchctl.log")"
 echo 'PASS: no launchctl'
