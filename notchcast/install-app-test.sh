@@ -82,12 +82,20 @@ echo 'PASS: app not running: installed, not launched'
 open -g "$NOTCHCAST_APP"
 for _ in $(seq 1 20); do [ -z "$(pids)" ] || break; sleep 0.25; done
 [ -n "$(pids)" ] || fail 'app did not start before the hung quit'
-touch "$WORK/hang-quit"
-STATUS=0 START=$SECONDS
-NOTCHCAST_QUIT_SECONDS=2 "$WORK/install-app.sh" "$WORK/New.app" > "$WORK/log" 2>&1 || STATUS=$?
-(( SECONDS - START < 15 )) || fail "hung quit took $((SECONDS - START)) seconds"
+rm -f "$WORK/osascript.log"; touch "$WORK/hang-quit"
+HUNG_PID="$(pids)"
+NOTCHCAST_QUIT_SECONDS=2 "$WORK/install-app.sh" "$WORK/New.app" > "$WORK/log" 2>&1 &
+INSTALL=$!
+for _ in $(seq 1 60); do kill -0 "$INSTALL" 2>/dev/null || break; sleep 0.25; done
+if kill -0 "$INSTALL" 2>/dev/null; then kill "$INSTALL"; fail 'hung quit install still running after 15 seconds'; fi
+STATUS=0
+wait "$INSTALL" || STATUS=$?
 [ "$STATUS" = 1 ] || fail "hung quit install exited $STATUS"
 grep -qx 'the running app did not quit within 2 seconds' "$WORK/log" || fail 'no quit deadline log'
+grep -qx 'left running: 4.0.0 (previous, never quit, not restarted)' "$WORK/log" || fail 'wrong final after the hung quit'
+[ "$(pids)" = "$HUNG_PID" ] || fail 'the app that never quit is not the one left running'
+[ "$(grep -c . "$WORK/osascript.log")" = 1 ] || fail 'rollback asked the hung app to quit again'
+pgrep -f "^$WORK/hung-osascript" >/dev/null && fail 'hung osascript left alive'
 [ "$(installed)" = 4.0.0 ] || fail 'previous bundle not restored after the hung quit'
 echo 'PASS: a Quit that never answers hits the deadline and rolls back'
 
