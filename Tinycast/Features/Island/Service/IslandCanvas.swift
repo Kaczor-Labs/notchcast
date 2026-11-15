@@ -92,7 +92,7 @@ struct GlanceArt: PillArt {
     }
 
     static func glyph(_ name: String) -> NSImage? {
-        let symbol = NSImage.SymbolConfiguration(pointSize: Theme.Typography.islandGlanceNSFont.pointSize, weight: .medium)
+        let symbol = NSImage.SymbolConfiguration(pointSize: NotchTheme.Typography.islandGlanceNSFont.pointSize, weight: .medium)
             .applying(.init(paletteColors: [NSColor(Theme.Colors.textPrimary)]))
         return NSImage(systemSymbolName: name, accessibilityDescription: nil)?.withSymbolConfiguration(symbol)
     }
