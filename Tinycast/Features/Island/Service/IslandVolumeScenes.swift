@@ -72,5 +72,44 @@ enum IslandVolumeScenes {
         core.paletteCoordinator.hidePalette(restoreFocus: false)
         _exit(0)
     }
+
+    /// The palette opens, then closes, mid-dwell with no level call after either change.
+    static func paletteOpen(core: AppCore, screen: NSScreen) async {
+        core.island.start()
+        await IslandVerification.pause(0.6)
+        guard let controller = core.island.resting else { IslandVerification.require(false, "resting pill"); return }
+        let before = presenter?.presentations ?? -1
+        core.islandPresenter.showLevel(VolumeLevel.island(0.6, muted: false))
+        await IslandVerification.pause(0.2)
+        IslandVerification.require(controller.level != nil && band == nil, "the level starts in the pill")
+        controller.capture("volume-open-pill")
+        core.paletteCoordinator.showPalette(mode: .launcher)
+        await IslandVerification.pause(0.5)
+        IslandVerification.panel = NSApp.windows.first { $0 is PalettePanel } as? PalettePanel
+        guard let panel = IslandVerification.panel, panel.isVisible, let band else {
+            IslandVerification.require(false, "the palette opens and the band appears"); return
+        }
+        print("OPEN band=\(band.frame) palette=\(panel.frame) pillLevel=\(controller.level != nil)")
+        IslandVerification.require(band.frame.maxY <= panel.frame.minY, "the band sits under the palette")
+        IslandVerification.require(controller.level == nil, "the pill no longer draws the level")
+        IslandVerification.require(presenter?.presentations == before + 1, "opening keeps the one presentation")
+        controller.capture("volume-palette-open")
+        core.islandPresenter.showLevel(VolumeLevel.island(0.7, muted: false))
+        let last = now
+        core.paletteCoordinator.hidePalette(restoreFocus: false)
+        await IslandVerification.pause(0.6)
+        print("CLOSED pillLevel=\(controller.level != nil) overlays=\(controller.overlayCount) band=\(self.band != nil)")
+        IslandVerification.require(controller.level != nil && controller.overlayCount == 0 && self.band == nil,
+                                   "closing the palette moves the level back to the pill and frees the band's frame")
+        IslandVerification.require(presenter?.presentations == before + 1, "closing keeps the one presentation")
+        controller.capture("volume-palette-closed")
+        await until(last + 1.9)
+        IslandVerification.require(controller.level == nil && self.band == nil && controller.overlayCount == 0,
+                                   "expiry clears pill and band")
+        IslandVerification.require(controller.captured == ["volume-open-pill", "volume-palette-open",
+                                                           "volume-palette-closed"], "pill, band and pill captured")
+        IslandScenes.pass("volume-palette-open", screen: screen)
+        _exit(0)
+    }
 }
 #endif
