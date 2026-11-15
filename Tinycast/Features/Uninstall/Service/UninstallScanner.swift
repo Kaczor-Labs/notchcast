@@ -15,7 +15,7 @@ enum UninstallScanner {
         var errorDescription: String? {
             switch self {
             case .refused:
-                return String(localized: "Notchcast can’t uninstall this app.", table: "Notchcast")
+                return String(localized: "Tinycast can’t uninstall this app.")
             }
         }
     }
