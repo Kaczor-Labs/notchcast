@@ -54,6 +54,7 @@ final class AppWindowController: NSObject, NSWindowDelegate {
     /// A prebuilt controller; Settings needs one to bridge its SwiftUI toolbar into the window.
     @discardableResult
     func show(chrome: WindowChrome? = nil, contentViewController: () -> NSViewController) -> Bool {
+        requireTestDisplay()
         if let window {
             raise(window)
             return false
@@ -71,6 +72,7 @@ final class AppWindowController: NSObject, NSWindowDelegate {
     @discardableResult
     func focus() -> Bool {
         guard let window else { return false }
+        requireTestDisplay()
         raise(window)
         return true
     }
@@ -144,6 +146,14 @@ final class AppWindowController: NSObject, NSWindowDelegate {
         }
         #endif
         return window
+    }
+
+    /// Verification may open or raise a window on the test display only, so a lost one ends the run.
+    private func requireTestDisplay() {
+        #if DEBUG
+        guard IslandVerification.enabled else { return }
+        IslandVerification.require(IslandVerification.testScreen != nil, "an app window has the test display")
+        #endif
     }
 
     private func raise(_ window: NSWindow) {
