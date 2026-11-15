@@ -5,6 +5,18 @@ import CoreGraphics
 @main
 struct IslandLayoutTest {
     static func main() {
+        let current = IslandSurfaceConfiguration(notch: .zero, scale: 1)
+        for visible in [false, true] {
+            for overlays in [false, true] {
+                precondition(current.update(from: nil, paletteVisible: visible, hasOverlays: overlays) == .recreate)
+                precondition(current.update(from: current, paletteVisible: visible, hasOverlays: overlays) == .keep)
+                for next in [IslandSurfaceConfiguration(notch: CGSize(width: 180, height: 32), scale: 1),
+                             IslandSurfaceConfiguration(notch: .zero, scale: 2)] {
+                    precondition(next.update(from: current, paletteVisible: visible, hasOverlays: overlays)
+                        == (visible || overlays ? .deferred : .recreate))
+                }
+            }
+        }
         for notch in [CGSize.zero, CGSize(width: 180, height: 32)] {
             let layout = IslandLayout(screen: CGRect(x: -2580, y: 100, width: 2580, height: 1080),
                                       notch: notch, canvas: CGSize(width: 1100, height: 860))
@@ -29,6 +41,6 @@ struct IslandLayoutTest {
             }
             precondition(layout.enginePoint(CGPoint(x: 550, y: 860), stageWidth: 750) == CGPoint(x: 375, y: 0))
         }
-        print("PASS IslandLayout top anchoring, scale, notch, negative origin and content conversion")
+        print("PASS IslandLayout anchoring, scale, notch, content conversion and deferred surface recreation")
     }
 }
