@@ -449,7 +449,7 @@ enum Theme {
 
         /// Selection fill, shared by every list so they look identical.
         static let selection = ramp(dark: 0.24, light: 0.09)
-        static let rowHover = ramp(dark: 0.14, light: 0.045)
+        static let rowHover = ramp(dark: 0.08, light: 0.045)
         static let emojiCell = ramp(dark: 0.045, light: 0.04)
         static let emojiHoverBorder = ramp(dark: 0.42, light: 0.34)
         static let emojiSelectionBorder = ramp(dark: 0.92, light: 0.72)
