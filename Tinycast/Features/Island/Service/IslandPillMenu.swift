@@ -3,15 +3,18 @@ import SwiftUI
 
 /// The resting pill's secondary-click menu: the stock menu panel hung below the pill.
 @MainActor
-final class IslandPillMenu {
+final class IslandPillMenu: NSObject {
     private unowned let core: AppCore
     private let menu = MenuPanelController()
     private let state = IslandPillMenuState()
-    private var resignObserver: NSObjectProtocol?
+    private weak var observedPanel: MenuPanel?
     private var items: [PopoverMenuItem] = []
     private var corner: MenuPanelCorner?
 
-    init(core: AppCore) { self.core = core }
+    init(core: AppCore) {
+        self.core = core
+        super.init()
+    }
 
     var isOpen: Bool { menu.isOpen }
 
@@ -44,21 +47,22 @@ final class IslandPillMenu {
     }
 
     func hide() {
-        if let resignObserver { NotificationCenter.default.removeObserver(resignObserver) }
-        resignObserver = nil
+        NotificationCenter.default.removeObserver(self, name: NSWindow.didResignKeyNotification, object: nil)
+        observedPanel = nil
         menu.hide()
         core.palette.menuQuery = ""
     }
 
     /// The stock panel hides the palette when its parent is not key, and the island never is.
     private func observeResign(in parent: NSWindow) {
-        guard resignObserver == nil, let panel = parent.childWindows?.first(where: { $0 is MenuPanel }) else { return }
-        resignObserver = NotificationCenter.default.addObserver(
-            forName: NSWindow.didResignKeyNotification, object: panel, queue: nil
-        ) { [weak self] _ in
-            MainActor.assumeIsolated { self?.hide() }
-        }
+        guard observedPanel == nil,
+              let panel = parent.childWindows?.lazy.compactMap({ $0 as? MenuPanel }).first else { return }
+        observedPanel = panel
+        NotificationCenter.default.addObserver(self, selector: #selector(panelResignedKey),
+            name: NSWindow.didResignKeyNotification, object: panel)
     }
+
+    @objc private func panelResignedKey() { hide() }
 
     #if DEBUG
     var itemTitles: [String] { visibleItems().map(\.title) }
