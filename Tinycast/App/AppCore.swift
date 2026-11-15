@@ -295,6 +295,7 @@ final class AppCore {
             dictationAudioDucker.recover()
             load()
             loadHotKeys()
+            calendarCoordinator.isWatchedElsewhere = { [unowned self] in island.glance.isWatching }
             island.start()
             pinnedEmoji.onPersistenceFailure = { [weak self] in
                 self?.showMessage(String(localized: "Couldn't save Emoji & Symbols pins"), tone: .danger)
