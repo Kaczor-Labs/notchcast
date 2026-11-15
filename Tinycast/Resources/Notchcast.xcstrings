@@ -74,6 +74,9 @@
     "Needs Full Disk Access, which Notchcast doesn’t request. Grant it in System Settings › Privacy & Security to include this item." : {
 
     },
+    "Notchcast" : {
+      "shouldTranslate" : false
+    },
     "Notchcast %@ could not be installed. Check for updates to try again." : {
 
     },

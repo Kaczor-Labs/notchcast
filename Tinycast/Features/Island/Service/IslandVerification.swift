@@ -34,6 +34,8 @@ enum IslandVerification {
     private static var delegate: IslandVerificationDelegate?
     private static var controller: IslandController?
     static var panel: PalettePanel?
+    /// Every notice announcement the presenter posted, so a scene counts them without VoiceOver.
+    static var announcements: [String] = []
     /// Lets a scene unplug and replug the test display; nil is the test display alone.
     static var screens: [NSScreen]?
 

@@ -5,7 +5,8 @@ import AppKit
 @MainActor
 enum IslandPillScenes {
     static let names: Set = ["pill-menu", "pill-settings", "glance", "glance-menu", "pill-menu-quiet", "pill-settings-quiet",
-                             "glance-modal", "pill-busy", "window-guard-new", "window-guard-raise"]
+                             "glance-modal", "pill-busy", "window-guard-new", "window-guard-raise",
+                             "window-guard-deferred", "island-ax"]
 
     static func run(_ scene: String, core: AppCore, screen: NSScreen) async {
         core.island.start()
@@ -25,6 +26,8 @@ enum IslandPillScenes {
         case "glance-modal": await glanceModal(core: core, controller: controller, screen: screen)
         case "pill-busy": await busy(core: core, controller: controller)
         case "window-guard-new", "window-guard-raise": windowGuard(core: core, raise: scene.hasSuffix("raise"))
+        case "window-guard-deferred": await deferredWindowGuard(core: core)
+        case "island-ax": await IslandAccessibilityScenes.run(core: core, controller: controller)
         default: await glance(core: core, controller: controller)
         }
         IslandScenes.pass(scene, screen: screen)
@@ -319,6 +322,15 @@ enum IslandPillScenes {
         unsetenv("ISLAND_TEST_DISPLAY")
         core.settingsCoordinator.showSettings(tab: .general)
         IslandVerification.require(false, "the window guard stops Settings without the test display")
+    }
+
+    /// The raise's queued re-raise must check again, since the display can go between the two.
+    private static func deferredWindowGuard(core: AppCore) async {
+        core.settingsCoordinator.showSettings(tab: .general)
+        IslandVerification.require(settingsWindow?.isVisible == true, "Settings opens on the test display")
+        unsetenv("ISLAND_TEST_DISPLAY")
+        await IslandVerification.pause(0.5)
+        IslandVerification.require(false, "the deferred re-raise stops verification without the test display")
     }
 
     /// SwiftUI builds its accessibility nodes only once an AX client has asked, so ask ourselves.
