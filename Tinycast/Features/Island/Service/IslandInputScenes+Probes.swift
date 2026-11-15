@@ -138,7 +138,7 @@ extension IslandInputScenes {
     }
 
     static func quit(_ scene: String, controller: IslandController) async {
-        check(Bundle.main.bundleIdentifier?.hasPrefix("com.tinycast.app.v2") == true, "quit runs only in an isolated bundle")
+        check(Bundle.main.bundleIdentifier?.hasPrefix("app.notchcast.v2") == true, "quit runs only in an isolated bundle")
         NotificationCenter.default.addObserver(forName: NSApplication.willTerminateNotification, object: nil,
                                                queue: nil) { _ in print("PASS \(scene) terminates the app") }
         await click(centre(controller), right: true)
