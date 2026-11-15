@@ -8,6 +8,11 @@ import subprocess
 import sys
 
 ROOT = Path(__file__).resolve().parent.parent
+ADDONS = ROOT / 'Tinycast/Features/Notchcast'
+# Unless it names a table, a literal here lands in Localizable; only upstream's own keys may.
+LOCALIZING = re.compile(r'(?:String\(\s*localized:|LocalizedStringResource\(|\b(?:Text|TextField|SecureField'
+                        r'|Section|Button|Toggle|Picker|LabeledContent|SettingsRow)\(|\.(?:help|navigationTitle'
+                        r'|accessibility(?:Label|Hint|Value))\(|(?:title|subtitle|prompt):)\s*$')
 
 
 def check():
@@ -35,12 +40,19 @@ def check():
             extra = entry.get('localizations', {}).keys() - tools['LOCALES']
             if extra:
                 errors.append(f'{key}: non-English localizations {sorted(extra)}')
+    tables = {path.stem: json.loads(path.read_bytes())['strings']
+              for path in (ROOT / 'Tinycast').rglob('Notchcast?*.xcstrings')}
     for path in (ROOT / 'Tinycast').rglob('*.swift'):
         source = path.read_text()
-        for _, end, literal in tools['literals'](source):
-            if re.match(r'\s*,\s*table(?:Name)?:\s*"Notchcast"', source[end:]):
-                if not any(tools['REFERENCED'](key, literal) for key in fork):
-                    errors.append(f'{path.relative_to(ROOT)}: missing key for {literal}')
+        addon = ADDONS in path.parents
+        for start, end, literal in tools['literals'](source):
+            table = re.match(r'\s*,\s*table(?:Name)?:\s*"(Notchcast\w*)"', source[end:])
+            if table:
+                keys = fork if table[1] == 'Notchcast' else tables.get(table[1], {})
+                if not any(tools['REFERENCED'](key, literal) for key in keys):
+                    errors.append(f'{path.relative_to(ROOT)}: missing key for {literal} in {table[1]}')
+            elif addon and LOCALIZING.search(source[:start]) and literal[1:-1] not in upstream:
+                errors.append(f'{path.relative_to(ROOT)}: add-on string without a table: {literal}')
         _, pending = tools['rewrite'](source, fork)
         if pending:
             errors.append(f'{path.relative_to(ROOT)}: {pending} fork literals use the default table')
