@@ -14,6 +14,7 @@ enum IslandPillScenes {
         var waited = 0.6
         while !controller.acceptsClicks, waited < 2.5 { await IslandVerification.pause(0.05); waited += 0.05 }
         print("PILL_READY clicks=\(controller.acceptsClicks) after=\(waited)s")
+        IslandVerification.require(controller.acceptsClicks, "pill accepts clicks before the readiness timeout")
         IslandVerification.require(screen.frame.contains(controller.backdropWindow.frame), "pill on test display")
         switch scene {
         case "pill-menu": await menu(core: core, controller: controller)
@@ -53,7 +54,7 @@ enum IslandPillScenes {
         IslandVerification.require(menuPanel == nil, "\(label) Escape closes the pill menu")
     }
 
-    /// The meeting-free menu hangs right under the pill, ends in Quit, and is captured on its layer.
+    /// The meeting-free menu hangs under the pill, ends in Quit, and is captured on its layer.
     private static func requireRestMenu(_ menu: MenuPanel, core: AppCore, controller: IslandController) async {
         guard let pill = controller.pillFrame else { IslandVerification.require(false, "pill frame"); return }
         let pillBottom = controller.backdropWindow.frame.maxY - pill.maxY
