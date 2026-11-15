@@ -15,6 +15,7 @@ The one state file of the fork: Damian's decisions first, then Current, Next, Lo
 - Upstream sync stays trivial: touch as few upstream files and lines as possible, so our commits replay onto every upstream commit.
 - Upstream's root `AGENTS.md` and `docs/` stay as upstream ships them, apart from this file; our rules go in `notchcast/`.
 - The name changes only where it shows, at build time; `LICENSE`, `NOTICE.md` and the `.tinycast` backup type stay.
+- v1 code is never copied blind: each returning feature is looked at, improved or replaced.
 - Built is not accepted: a feature counts as accepted only once Damian has tried it in use.
 - Cutover 2026-11-15: `main` is v2; v1 is kept as branch `v1/final` and tag `v1-final`.
 
