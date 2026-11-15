@@ -55,15 +55,15 @@ enum UninstallProtection: String, Hashable, Sendable, CaseIterable {
         case .needsFullDiskAccess:
             return String(
                 localized: """
-                    Needs Full Disk Access, which Notchcast doesn’t request. \
+                    Needs Full Disk Access, which Tinycast doesn’t request. \
                     Grant it in System Settings › Privacy & Security to include this item.
-                    """, table: "Notchcast")
+                    """)
         case .parentNotWritable:
             return String(
                 localized: """
-                    Its enclosing folder isn’t writable by you, and Notchcast never asks for an \
+                    Its enclosing folder isn’t writable by you, and Tinycast never asks for an \
                     administrator password.
-                    """, table: "Notchcast")
+                    """)
         case .notWritable:
             return String(
                 localized: """

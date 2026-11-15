@@ -60,7 +60,7 @@ final class HotKeySettingsFile {
                 issues.append(
                     .invalidEntry(
                         key,
-                        String(localized: "\(item.label): “\(text)” isn't a shortcut Notchcast can bind", table: "Notchcast")))
+                        String(localized: "\(item.label): “\(text)” isn't a shortcut Tinycast can bind")))
                 continue
             }
             guard binding != current else { continue }
