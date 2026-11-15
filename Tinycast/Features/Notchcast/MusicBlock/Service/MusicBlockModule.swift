@@ -47,13 +47,13 @@ final class MusicBlockModule: NotchcastModule {
         let running = MusicLaunchPolicy.blockedBundleIDs.contains {
             !NSRunningApplication.runningApplications(withBundleIdentifier: $0).isEmpty
         }
-        trigger.arm(at: ProcessInfo.processInfo.systemUptime, musicRunning: running)
+        trigger.arm(at: MusicLaunchPolicy.uptime(eventTimestamp: event.timestamp), musicRunning: running)
     }
 
     private func launched(bundleID: String, processID: pid_t) {
         guard trigger.judge(bundleID: bundleID, processID: processID, now: ProcessInfo.processInfo.systemUptime,
                             gestureAge: Self.secondsSinceGesture(),
-                            tapLive: tapToken != nil && context.isAccessibilityTrusted),
+                            tapLive: tapIsLive),
               let app = NSRunningApplication(processIdentifier: processID), app.bundleIdentifier == bundleID
         else { return }
         if app.forceTerminate() || app.terminate() { return }
@@ -62,6 +62,9 @@ final class MusicBlockModule: NotchcastModule {
             text: String(localized: "Couldn't Stop Apple Music", table: "NotchcastMusicBlock"), isFailure: true),
             onTap: nil)
     }
+
+    /// Without a live tap a missed key looks like no key, so no launch may be blocked.
+    private var tapIsLive: Bool { tapToken != nil && context.isAccessibilityTrusted }
 
     // Modifier keys are left out because holding fn may be how the media key was sent.
     private nonisolated static func secondsSinceGesture() -> TimeInterval {

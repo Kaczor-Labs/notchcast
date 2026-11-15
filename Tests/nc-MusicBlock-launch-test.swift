@@ -9,6 +9,7 @@ struct MusicBlockLaunchTests {
         decoding()
         policy()
         trigger()
+        eventTime()
         print("Music block: keys 16-20 arm on key-down only, two-second window, live tap only")
     }
 
@@ -72,5 +73,18 @@ struct MusicBlockLaunchTests {
         trigger.arm(at: 160, musicRunning: false)
         precondition(!judge(0, at: 160.1) && !judge(-1, at: 160.2), "an invalid process is never judged")
         precondition(judge(11, at: 160.3))
+    }
+
+    static func eventTime() {
+        precondition(MusicLaunchPolicy.uptime(eventTimestamp: 100_500_000_000) == 100.5)
+        var trigger = MusicLaunchTrigger()
+        trigger.arm(at: MusicLaunchPolicy.uptime(eventTimestamp: 100_000_000_000), musicRunning: false)
+        precondition(!trigger.judge(bundleID: "com.apple.Music", processID: 1, now: 101, gestureAge: 0.5, tapLive: true),
+                     "a key at 100 delivered at 101 loses to the user's click at 100.5")
+        trigger.arm(at: MusicLaunchPolicy.uptime(eventTimestamp: 100_000_000_000), musicRunning: false)
+        precondition(trigger.judge(bundleID: "com.apple.Music", processID: 2, now: 101, gestureAge: 1.5, tapLive: true))
+        trigger.arm(at: MusicLaunchPolicy.uptime(eventTimestamp: 0), musicRunning: false)
+        precondition(!trigger.judge(bundleID: "com.apple.Music", processID: 3, now: 101, gestureAge: .infinity,
+                                    tapLive: true), "an event with no timestamp never blocks")
     }
 }
