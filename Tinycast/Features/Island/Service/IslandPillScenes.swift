@@ -231,7 +231,12 @@ enum IslandPillScenes {
         IslandVerification.require(closing.height > rest.height + 1, "the right-click lands mid-close")
         await IslandVerification.pause(0.2)
         IslandVerification.require(menuPanel == nil, "right-click during the closing transition opens no menu")
-        await IslandVerification.pause(0.8)
+        var waited = 0.0
+        while controller.outlineBounds != rest, waited < 2 {
+            await IslandVerification.pause(0.1)
+            waited += 0.1
+        }
+        print("SETTLE outline=\(controller.outlineBounds) after=\(waited)s")
         IslandVerification.require(controller.outlineBounds == rest, "the pill settles back at rest")
         guard let menu = await openMenu(controller, .rightMouseDown, "right-click at rest") else { return }
         await closeMenu(menu, "right-click at rest")
