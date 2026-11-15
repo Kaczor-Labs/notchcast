@@ -37,7 +37,7 @@ struct VolumeHUDView: View {
         .padding(.horizontal, Theme.Spacing.xl)
         .frame(width: Theme.Size.hudWidth, height: Theme.Size.hudHeight)
         .background(Theme.Colors.panelScrim)
-        .background(Theme.Colors.islandSurface)
+        .background(NotchTheme.Colors.islandSurface)
         .clipShape(RoundedRectangle(cornerRadius: Theme.Radius.dialog, style: .continuous))
         .panelEntrance()
         // A repeat command slides the bar to its new value instead of cutting to it.
