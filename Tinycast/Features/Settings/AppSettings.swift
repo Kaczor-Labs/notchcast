@@ -221,9 +221,10 @@ final class AppSettings {
         set { }
     }
 
-    /// The per-app key System Settings writes too, so the two never disagree.
+    /// Pinned with `NotchcastHidden.language`, so an import never offers a relaunch into another.
     var language: AppLanguage {
-        didSet { defaults.set([language.rawValue], forKey: Key.language.rawValue) }
+        get { .english }
+        set { }
     }
 
     /// Which separators the calculator reads and writes; `.system` follows Language & Region.
@@ -692,14 +693,6 @@ final class AppSettings {
         UserDefaults.standard.set([NotchcastHidden.language], forKey: Key.language.rawValue)
     }
 
-    /// The app's own domain only: a plain read falls through to the global list.
-    private static var storedLanguage: AppLanguage {
-        AppLanguage(
-            storedPreferences: Bundle.main.bundleIdentifier
-                .flatMap(UserDefaults.standard.persistentDomain(forName:))?[Key.language.rawValue]
-                as? [String], systemPreferences: SystemLanguages.preferred)
-    }
-
     init() {
         // The only feature switch that defaults on, so absence has to outrank a stored `false`.
         clipboardEnabled =
@@ -748,7 +741,6 @@ final class AppSettings {
         escapeKeyBehavior =
             defaults.string(forKey: Key.escapeKeyBehavior.rawValue).flatMap(EscapeKeyBehavior.init)
             ?? .navigateBackOrClose
-        language = Self.storedLanguage
         calcNumberStyle =
             defaults.string(forKey: Key.calcNumberStyle.rawValue).flatMap(CalcNumberStyle.init)
             ?? .system
