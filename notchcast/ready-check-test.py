@@ -257,6 +257,40 @@ class BehaviourTest(unittest.TestCase):
         self.assertIn("check-identity: work.txt:1 (commit addition): <home-path>\n", result.stdout)
         self.assertRegex(result.stdout.splitlines()[-1], r"^FAIL identity: diff names something private; ")
 
+    def test_a_base_scanner_without_text_still_fails_through_heads(self):
+        scanner = self.repo / "notchcast/check-identity.py"
+        scanner.write_text(scanner.read_text().replace('"--text", ', ""))
+        self.commit("old scanner")
+        self.git("tag", "-f", "base")
+        shutil.copy(ROOT / "notchcast/check-identity.py", scanner)
+        (self.repo / ".gitattributes").write_text("work.txt -diff\n")
+        (self.repo / "work.txt").write_text("path " + "/" + "Users/someone/notes.txt\n")
+        self.commit("binary work")
+        result = self.check("base")
+        self.assertRegex(result.stdout.splitlines()[-1], r"^FAIL identity: diff names something private; ")
+
+    def test_a_head_path_cannot_replace_the_scanners_python(self):
+        config = self.repo / "notchcast/config.env"
+        config.write_text(config.read_text() + 'export PATH="$PWD/notchcast/bin:$PATH"\n')
+        (self.repo / "notchcast/bin").mkdir()
+        (self.repo / "notchcast/bin/python3").write_text(
+            f'#!/bin/bash\n[ "$1" != -I ] || exit 0\nexec {shutil.which("python3")} "$@"\n')
+        (self.repo / "notchcast/bin/python3").chmod(0o755)
+        self.commit("path " + "/" + "Users/someone/notes.txt\n", "work.txt")
+        result = self.check("base")
+        self.assertRegex(result.stdout.splitlines()[-1], r"^FAIL identity: diff names something private; ")
+
+    def test_a_head_git_config_cannot_drop_the_base_scanner(self):
+        config = self.repo / "notchcast/config.env"
+        config.write_text(config.read_text() + "export GIT_CONFIG_COUNT=3 GIT_CONFIG_KEY_2=core.attributesFile\n"
+                          'export GIT_CONFIG_VALUE_2="$PWD/notchcast/attributes"\n')
+        (self.repo / "notchcast/attributes").write_text("check-identity.py export-ignore\n")
+        (self.repo / "notchcast/check-identity.py").write_text("raise SystemExit(0)\n")
+        self.commit("path " + "/" + "Users/someone/notes.txt\n", "work.txt")
+        result = self.check("base")
+        self.assertNotIn("identity: bootstrap", result.stdout)
+        self.assertRegex(result.stdout.splitlines()[-1], r"^FAIL identity: diff names something private; ")
+
     def test_a_base_without_a_scanner_bootstraps_from_head(self):
         self.git("rm", "-q", "notchcast/check-identity.py")
         self.commit("no scanner")
