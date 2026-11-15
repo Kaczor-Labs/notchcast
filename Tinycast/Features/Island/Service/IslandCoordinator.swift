@@ -13,6 +13,7 @@ final class IslandCoordinator: NSObject {
     private(set) lazy var pillMenu = IslandPillMenu(core: core)
     private(set) lazy var glance = IslandCalendarGlance(core: core) { [weak self] in self?.showGlance($0) }
     private var restingGlance: IslandGlance?
+    private(set) lazy var update = IslandUpdateActivity(core: core)
 
     init(core: AppCore) { self.core = core }
 
@@ -27,6 +28,7 @@ final class IslandCoordinator: NSObject {
         rebuild()
         observeVisibility()
         glance.start()
+        update.start()
     }
 
     var resting: IslandController? { backdrops.values.first { $0.showsRest } }
@@ -60,7 +62,10 @@ final class IslandCoordinator: NSObject {
             let backdrop = backdrops[screen.islandDisplayID] ?? IslandController()
             backdrop.showsRest = screen.islandDisplayID == main?.islandDisplayID
             backdrop.canOpen = { [weak self] in self?.panel?.isVisible != true }
-            backdrop.onOpen = { [weak self] in self?.core.paletteCoordinator.showPalette(mode: .launcher) }
+            backdrop.onOpen = { [weak self, weak backdrop] in
+                if backdrop?.showsRest == true, let tap = presenter?.tap { return tap() }
+                self?.core.paletteCoordinator.showPalette(mode: .launcher)
+            }
             backdrop.onMenu = { [weak self] pill, window in self?.pillMenu.toggle(below: pill, in: window) }
             backdrop.glance = backdrop.showsRest ? restingGlance : nil
             presenter?.restore(backdrop, resting: backdrop.showsRest)
