@@ -3,5 +3,6 @@
 enum NotchcastRegistry {
     static let addons: [any NotchcastAddon.Type] = [
         MiddleClickAddon.self,
+        MusicBlockAddon.self,
     ]
 }
