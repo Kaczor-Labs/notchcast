@@ -12,6 +12,7 @@ final class IslandCalendarGlance {
     #if DEBUG
     private var previewMeeting: MeetingEvent?
     private var previewNow: Date?
+    private var previewExpands = false
     #endif
 
     init(core: AppCore, apply: @escaping (IslandGlance?) -> Void) {
@@ -34,6 +35,14 @@ final class IslandCalendarGlance {
         return core.meetingClock.now
     }
 
+    /// Glance scenes that predate the expansion preview a meeting that never expands.
+    var occurrence: IslandMeetingExpansion.Occurrence? {
+        #if DEBUG
+        if previewMeeting != nil, !previewExpands { return nil }
+        #endif
+        return meeting.map { .init(id: $0.id, start: $0.start) }
+    }
+
     var current: IslandGlance? {
         meeting.map { IslandGlance($0, now: now, locale: .current) }
     }
@@ -54,8 +63,9 @@ final class IslandCalendarGlance {
     }
 
     #if DEBUG
-    func preview(_ meeting: MeetingEvent?, now: Date) {
+    func preview(_ meeting: MeetingEvent?, now: Date, expands: Bool = false) {
         previewMeeting = meeting
+        previewExpands = expands
         previewNow = meeting == nil ? nil : now
         apply(current)
     }

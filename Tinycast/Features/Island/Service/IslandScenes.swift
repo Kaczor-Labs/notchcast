@@ -11,6 +11,7 @@ enum IslandScenes {
         if IslandInputScenes.names.contains(scene) { await IslandInputScenes.run(scene, core: core, screen: screen); return }
         if scene == "volume" { await IslandVolumeScenes.rest(core: core, screen: screen); return }
         if scene == "volume-palette-open" { await IslandVolumeScenes.paletteOpen(core: core, screen: screen); return }
+        if IslandMeetingScenes.names.contains(scene) { await IslandMeetingScenes.run(scene, core: core, screen: screen); return }
         if IslandPillScenes.names.contains(scene) { await IslandPillScenes.run(scene, core: core, screen: screen); return }
         core.paletteCoordinator.showPalette(mode: .launcher)
         guard let panel = NSApp.windows.first(where: { $0 is PalettePanel }) as? PalettePanel else {
