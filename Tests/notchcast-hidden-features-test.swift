@@ -102,8 +102,8 @@ struct HiddenFeaturesTest {
             "pinLanguage writes the fork constant")
         precondition(!pin.contains("storedLanguage"), "pinLanguage never reads back a stored language")
         precondition(
-            settings.contains("defaults.set([language.rawValue], forKey: Key.language.rawValue)"),
-            "A language write lands only in AppleLanguages, which the next launch's pin overwrites")
+            settings.contains("var language: AppLanguage {\n        get { .english }\n        set { }"),
+            "An imported language is dropped in-session, so no relaunch is offered")
         for (path, channel) in [
             ("Tinycast/Features/Backup/Model/SettingsBackup.swift", "settings.language = language"),
             ("Tinycast/Features/Settings/SettingsFileSchema.swift", "bind(settings, \\.language)"),
