@@ -111,6 +111,9 @@ enum IslandVerification {
             size: CGSize(width: 750, height: 56), outset: outset)
         print("PROOF_EVENT compact \(CACurrentMediaTime())")
         core.settings.compactMode = true
+        if ProcessInfo.processInfo.environment["ISLAND_COMPACT_COMMANDS"] == "none" {
+            core.settings.compactBarCommands = []
+        }
         panel.setFrame(compact, display: true)
         await pause(0.5)
         controller.capture("compact")
