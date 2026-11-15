@@ -218,13 +218,13 @@ final class AppSettings {
     /// Follow macOS, or pin Tinycast to one appearance. Applied by `AppCore.applyAppearance()`.
     var appearance: AppAppearance {
         get { NotchcastIslandPins.appearance }
-        set { }
+        set { _ = newValue }
     }
 
     /// Pinned with `NotchcastHidden.language`, so an import never offers a relaunch into another.
     var language: AppLanguage {
         get { .english }
-        set { }
+        set { _ = newValue }
     }
 
     /// Which separators the calculator reads and writes; `.system` follows Language & Region.
