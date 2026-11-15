@@ -16,6 +16,8 @@ final class CalendarCoordinator {
     @ObservationIgnored private lazy var cameraPreview = CameraPreviewController()
 
     @ObservationIgnored private var paletteVisible = false
+    /// Another surface that keeps the meeting clock running; wired by `AppCore`.
+    @ObservationIgnored var isWatchedElsewhere: () -> Bool = { false }
     /// When auto join was last armed; a meeting already under way then is never joined.
     @ObservationIgnored private var armedAt = Date.distantFuture
     /// Auto joined this launch, so a meeting opens itself at most once.
@@ -168,7 +170,7 @@ final class CalendarCoordinator {
         let watched =
             paletteVisible || settings.calendarMenuBarDisplay != .disabled
             || settings.autoJoinMeetings
-            || IslandCalendarGlance.isWatching
+            || isWatchedElsewhere()
         guard settings.calendarEnabled, watched else {
             clock.stop()
             return
