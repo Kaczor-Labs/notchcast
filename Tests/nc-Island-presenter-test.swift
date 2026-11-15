@@ -34,8 +34,12 @@ struct IslandPresenterTest {
 
         island.select("25", owner: "focus")
         precondition(selected == ["25"], "Selecting a row reaches its owner")
-        island.setMenuRows(focus, owner: "focus") { selected.append($0) }
-        precondition(island.menuOwners == ["focus", "music"], "Same owner replaces its rows in place")
+        let replaced = [IslandMenuRow(id: "50", title: "50 min", isChecked: nil)]
+        island.setMenuRows(replaced, owner: "focus") { selected.append("new " + $0) }
+        island.select("50", owner: "focus")
+        precondition(island.menuOwners == ["focus", "music"] && selected == ["25", "new 50"]
+                     && island.calls.last == .setMenuRows(replaced, owner: "focus"),
+                     "Same owner replaces its rows and handler in place")
         island.setMenuRows([], owner: "focus") { _ in }
         precondition(island.menuOwners == ["music"], "setMenuRows([]) removes the owner")
 
