@@ -142,8 +142,7 @@ final class AppWindowController: NSObject, NSWindowDelegate {
             window.center()
         }
         #if DEBUG
-        if IslandVerification.enabled,
-           let screen = NSScreen.screens.first(where: { $0.localizedName.contains("Agent Test") }) {
+        if IslandVerification.enabled, let screen = IslandVerification.testScreen {
             window.setFrameOrigin(CGPoint(x: screen.visibleFrame.midX - window.frame.width / 2,
                                           y: screen.visibleFrame.midY - window.frame.height / 2))
         }
