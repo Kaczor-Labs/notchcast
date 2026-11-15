@@ -26,6 +26,7 @@
 		050B0F0221560063469074EF /* AppleShortcutCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 439D94674FA1F5020C3AA0E8 /* AppleShortcutCoordinator.swift */; };
 		058EFDE8E2770FAE8B5EC45D /* ModalActionButtonStyle.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5E62A0BA3E85C8942167A310 /* ModalActionButtonStyle.swift */; };
 		05A237890B4BD21EE91D8090 /* DictionaryService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 732AEAA3A5C5DE559B739295 /* DictionaryService.swift */; };
+		05A85F769A1D5B8A91419073 /* IslandLevelDwell.swift in Sources */ = {isa = PBXBuildFile; fileRef = F42EE39C2C513A9B08C3E9E6 /* IslandLevelDwell.swift */; };
 		05DD364ADC75E040E2C17AE1 /* MenuSearchQuery.swift in Sources */ = {isa = PBXBuildFile; fileRef = 631BCDD61FD48D31C3A7AE6D /* MenuSearchQuery.swift */; };
 		06118397F59E4C9F6F2EAC3A /* MCPOAuthService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A4618E5608C3E4F7D1E911F1 /* MCPOAuthService.swift */; };
 		064C3281B4FABBBD5979F24A /* CustomWindowSize.swift in Sources */ = {isa = PBXBuildFile; fileRef = 18A864436CAD5C5F62946603 /* CustomWindowSize.swift */; };
@@ -145,6 +146,7 @@
 		2949DA7605829DEFF7D431D6 /* IslandMenuScenes.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10654F3D35B2687379156A3 /* IslandMenuScenes.swift */; };
 		295AA3F6F9E005C57698201B /* ExtensionListPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA6DDE1843D16C172AAA1002 /* ExtensionListPanel.swift */; };
 		29AE7D39F2969F706A8038A6 /* FileSearchScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = 847C792F7F5F31259EB56ACC /* FileSearchScreen.swift */; };
+		29D928C4260D45526C78686C /* VolumeLevel+Island.swift in Sources */ = {isa = PBXBuildFile; fileRef = 72D46DC4449D6A61CAC64AC8 /* VolumeLevel+Island.swift */; };
 		2A013DE5237A6DF5A96CC2C6 /* HyperKeyConflictPolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = 50B776C855E29FF18F696676 /* HyperKeyConflictPolicy.swift */; };
 		2BEBF78104855A7E0014D223 /* UnitDef.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4E153308EF724D552155C4D2 /* UnitDef.swift */; };
 		2C8F7F5073D77EDC1070E639 /* ToolRunner.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0DFEBE220187043060F7F286 /* ToolRunner.swift */; };
@@ -269,6 +271,7 @@
 		48F5623110FDD1FC69CEAF7A /* DisabledApplicationsSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = F5061C8D4F15F068C4EC5E7A /* DisabledApplicationsSection.swift */; };
 		48FDBDBB821D90124E26D7BF /* IslandLayout.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3F823090D9C909DC38B8B61A /* IslandLayout.swift */; };
 		490729CFD28033431962367B /* ArmedHover.swift in Sources */ = {isa = PBXBuildFile; fileRef = 81E2A3F7C4FCA7120A3F6EF5 /* ArmedHover.swift */; };
+		494494C8BF300A4A87CCF0FE /* IslandVolumeScenes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 57F945D991A82C6E5A0C6CB2 /* IslandVolumeScenes.swift */; };
 		4963DF703487FA79850C2DF3 /* DictationSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 61C82CFE8F650EAD34CA1CB9 /* DictationSettingsView.swift */; };
 		4A09D85BDD4A75B1FF1BABA5 /* CameraSession.swift in Sources */ = {isa = PBXBuildFile; fileRef = EBD42AFBAB42DB5BF5FE1BCE /* CameraSession.swift */; };
 		4B52AFEF9AED73A483ADFCE0 /* Notchcast.xcstrings in Resources */ = {isa = PBXBuildFile; fileRef = D43A3532CAB4412682B295A6 /* Notchcast.xcstrings */; };
@@ -315,6 +318,7 @@
 		5400114EF68AE70236DF0B94 /* QuicklinkArgumentsAccessory.swift in Sources */ = {isa = PBXBuildFile; fileRef = 28B398912F4FB38912BD779C /* QuicklinkArgumentsAccessory.swift */; };
 		540F1433DC46BC97C9F80E06 /* AboutView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 787059DAE8AB67FFE684C0D9 /* AboutView.swift */; };
 		544328603EE64420A24A128C /* InstalledAIProbe.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1C8F318681FA5313677A14DA /* InstalledAIProbe.swift */; };
+		546751490C97639FFF8ECA13 /* IslandLevelArt.swift in Sources */ = {isa = PBXBuildFile; fileRef = 82C04AC1D7059D73D7505384 /* IslandLevelArt.swift */; };
 		54C5B04563955F6ED4F6BDB1 /* ColorSpaces.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8756FBB625DFAE931D8D5D9D /* ColorSpaces.swift */; };
 		54D00FB306E27EF791C2A1BE /* ExtensionFieldHint.swift in Sources */ = {isa = PBXBuildFile; fileRef = D03E3DB2E1E28057B98FC1DF /* ExtensionFieldHint.swift */; };
 		54D56A2119945AA73F4FBA99 /* MCPServer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5B2DBBB997953D2E50EBB050 /* MCPServer.swift */; };
@@ -620,6 +624,7 @@
 		A90D2DC5B401D0F7E5BD3235 /* DictionaryMarkup.swift in Sources */ = {isa = PBXBuildFile; fileRef = B7F46DBF8D46FE35742C4D36 /* DictionaryMarkup.swift */; };
 		A91D2FD273D527F1098FB393 /* DictationMel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1AE6A34F46D8970090CA0489 /* DictationMel.swift */; };
 		A982CF7F12FA1619DA103D85 /* IslandScreenSelection.swift in Sources */ = {isa = PBXBuildFile; fileRef = AF2143449E19CC0A2B9E7B00 /* IslandScreenSelection.swift */; };
+		A98A19AF8F3FEEA9098B8508 /* IslandPresenter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2A9AE6EE717E45FCA2B0AF42 /* IslandPresenter.swift */; };
 		AA52F01D3A91899CCEAF7851 /* ColorCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = D763A801000029271E4CADA4 /* ColorCard.swift */; };
 		AAFD2C9276D38719E85B675F /* Memo.swift in Sources */ = {isa = PBXBuildFile; fileRef = EB76FDBFE1E306C2A5B1A29B /* Memo.swift */; };
 		AB500AC3DEBFF6EB1CE42812 /* DialogController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 94507F8F095D3EBD1A9B3007 /* DialogController.swift */; };
@@ -1122,6 +1127,7 @@
 		2A1B528506E4B62440B4863A /* MenuTreeNode.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuTreeNode.swift; sourceTree = "<group>"; };
 		2A6CA1C9AE38B1A036988BC0 /* WindowLevel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WindowLevel.swift; sourceTree = "<group>"; };
 		2A82786725DFEB5467778E68 /* AIRetention.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIRetention.swift; sourceTree = "<group>"; };
+		2A9AE6EE717E45FCA2B0AF42 /* IslandPresenter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IslandPresenter.swift; sourceTree = "<group>"; };
 		2AB596CB339D5C3AEBE550A3 /* ExtensionFormField.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExtensionFormField.swift; sourceTree = "<group>"; };
 		2AEDBB526AB2C0406D8226D5 /* SystemActionRunner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SystemActionRunner.swift; sourceTree = "<group>"; };
 		2AF2D4FE6400DB35D9C92A89 /* CalcSpokenMath.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalcSpokenMath.swift; sourceTree = "<group>"; };
@@ -1297,6 +1303,7 @@
 		57640B0DA3F71E66CECA871C /* ExtensionFormKey.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExtensionFormKey.swift; sourceTree = "<group>"; };
 		57694B58B0A17CAC1D697FAA /* BundleNameCache.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BundleNameCache.swift; sourceTree = "<group>"; };
 		5787319A2BC8BA63CCE29F72 /* ExtensionWebSocketBridge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExtensionWebSocketBridge.swift; sourceTree = "<group>"; };
+		57F945D991A82C6E5A0C6CB2 /* IslandVolumeScenes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IslandVolumeScenes.swift; sourceTree = "<group>"; };
 		582A70CF432F5E0144E57369 /* ExtensionRefreshState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExtensionRefreshState.swift; sourceTree = "<group>"; };
 		584D7216D4D97724E2A76F8F /* IslandWindowScenes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IslandWindowScenes.swift; sourceTree = "<group>"; };
 		58D62BFB4EC604AE6171BBA3 /* CountryZoneData.generated.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CountryZoneData.generated.swift; sourceTree = "<group>"; };
@@ -1381,6 +1388,7 @@
 		6FF6DBC407666868DCE27C22 /* RoomRunner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RoomRunner.swift; sourceTree = "<group>"; };
 		709C3F8952A500267E1D8242 /* ModifierTapMonitor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModifierTapMonitor.swift; sourceTree = "<group>"; };
 		70F987A185161E857B7A030B /* PaletteShortcut.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PaletteShortcut.swift; sourceTree = "<group>"; };
+		72D46DC4449D6A61CAC64AC8 /* VolumeLevel+Island.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "VolumeLevel+Island.swift"; sourceTree = "<group>"; };
 		72DF1178CD8AD726AC6F9874 /* CalculatorCardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalculatorCardView.swift; sourceTree = "<group>"; };
 		72F0F0DDA5FC1F6ED59E73E9 /* DoubleTapModifier.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DoubleTapModifier.swift; sourceTree = "<group>"; };
 		730BF08D764698989DF963A0 /* MenuSearchShortcut.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuSearchShortcut.swift; sourceTree = "<group>"; };
@@ -1448,6 +1456,7 @@
 		81E2A3F7C4FCA7120A3F6EF5 /* ArmedHover.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ArmedHover.swift; sourceTree = "<group>"; };
 		823F8F6B9EAAD17DD1062137 /* SyntaxStructuredLexers.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyntaxStructuredLexers.swift; sourceTree = "<group>"; };
 		82B5E917A4EFDC153C6780E8 /* ModifierKeyDetector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModifierKeyDetector.swift; sourceTree = "<group>"; };
+		82C04AC1D7059D73D7505384 /* IslandLevelArt.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IslandLevelArt.swift; sourceTree = "<group>"; };
 		82DB32B7ACED5BE2BEE7451F /* ClipboardTextHelper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClipboardTextHelper.swift; sourceTree = "<group>"; };
 		83B8A0E68E42CACCB1F38094 /* Room.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Room.swift; sourceTree = "<group>"; };
 		83BB8F2CE628925F41B330B5 /* NoteEditPlan.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NoteEditPlan.swift; sourceTree = "<group>"; };
@@ -1867,6 +1876,7 @@
 		F3CE1A1626264322E8A1192E /* SettingsWindowChrome.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsWindowChrome.swift; sourceTree = "<group>"; };
 		F3F97240A718D95DFD9343DB /* UpcomingWindow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UpcomingWindow.swift; sourceTree = "<group>"; };
 		F42BECB8234FEA49797B68F6 /* WindowSwitchQuery.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WindowSwitchQuery.swift; sourceTree = "<group>"; };
+		F42EE39C2C513A9B08C3E9E6 /* IslandLevelDwell.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IslandLevelDwell.swift; sourceTree = "<group>"; };
 		F5061C8D4F15F068C4EC5E7A /* DisabledApplicationsSection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DisabledApplicationsSection.swift; sourceTree = "<group>"; };
 		F513217C40F0B8199DC57A35 /* QuickActionPrompt.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuickActionPrompt.swift; sourceTree = "<group>"; };
 		F58E564E6181EB15497E51CD /* SnippetTemplateEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SnippetTemplateEngine.swift; sourceTree = "<group>"; };
@@ -2488,15 +2498,18 @@
 				EA40D342FDBBD7B0ECB827EC /* IslandInputScenes.swift */,
 				047F56A0112740EE0338495B /* IslandInputScenes+Probes.swift */,
 				84A92B985354A04A93714337 /* IslandLatency.swift */,
+				82C04AC1D7059D73D7505384 /* IslandLevelArt.swift */,
 				352BFEDA07059A5612EEF45A /* IslandLevelScenes.swift */,
 				B10654F3D35B2687379156A3 /* IslandMenuScenes.swift */,
 				803CF68AFCD894C7E109A646 /* IslandOverlayController.swift */,
 				2D97370630D02B7D569FAA46 /* IslandOverlayScenes.swift */,
 				EC5FBAC74C36445DECA746FB /* IslandPillMenu.swift */,
 				A85328F5C3BBA195271D8424 /* IslandPillScenes.swift */,
+				2A9AE6EE717E45FCA2B0AF42 /* IslandPresenter.swift */,
 				521E1E3BE86E4EED0727105B /* IslandPresenting.swift */,
 				A32B962953B556D1E477586E /* IslandScenes.swift */,
 				0C6ED2488C0695C4367E2B59 /* IslandVerification.swift */,
+				57F945D991A82C6E5A0C6CB2 /* IslandVolumeScenes.swift */,
 				584D7216D4D97724E2A76F8F /* IslandWindowScenes.swift */,
 			);
 			path = Service;
@@ -3680,10 +3693,12 @@
 			isa = PBXGroup;
 			children = (
 				3F823090D9C909DC38B8B61A /* IslandLayout.swift */,
+				F42EE39C2C513A9B08C3E9E6 /* IslandLevelDwell.swift */,
 				77F3C896DED833A8FFD850EB /* IslandOverlayLayout.swift */,
 				998895A07A571AE5ABA5A6EF /* IslandPresentation.swift */,
 				AF2143449E19CC0A2B9E7B00 /* IslandScreenSelection.swift */,
 				41764F53F093ECF3E9A59593 /* PillMenuRows.swift */,
+				72D46DC4449D6A61CAC64AC8 /* VolumeLevel+Island.swift */,
 			);
 			path = Model;
 			sourceTree = "<group>";
@@ -4851,6 +4866,8 @@
 				5666E043C88C485C4BCE5045 /* IslandInputScenes.swift in Sources */,
 				56136E909F312F0E6B6D1996 /* IslandLatency.swift in Sources */,
 				48FDBDBB821D90124E26D7BF /* IslandLayout.swift in Sources */,
+				546751490C97639FFF8ECA13 /* IslandLevelArt.swift in Sources */,
+				05A85F769A1D5B8A91419073 /* IslandLevelDwell.swift in Sources */,
 				A4C0863EAFEC8FE3266FDE8D /* IslandLevelScenes.swift in Sources */,
 				2949DA7605829DEFF7D431D6 /* IslandMenuScenes.swift in Sources */,
 				8CCDDB52808F0C9B603CBAE7 /* IslandOverlayController.swift in Sources */,
@@ -4859,10 +4876,12 @@
 				6951826836A35FF8304B149B /* IslandPillMenu.swift in Sources */,
 				CB63F246DCA043AD44361466 /* IslandPillScenes.swift in Sources */,
 				3BD604B4F5A6024B3833995F /* IslandPresentation.swift in Sources */,
+				A98A19AF8F3FEEA9098B8508 /* IslandPresenter.swift in Sources */,
 				7CA1967FAE51E3A0E313F913 /* IslandPresenting.swift in Sources */,
 				B8B1E01E54FD1C6CFC9A7F60 /* IslandScenes.swift in Sources */,
 				A982CF7F12FA1619DA103D85 /* IslandScreenSelection.swift in Sources */,
 				3FE6D96C5155016A05B748F8 /* IslandVerification.swift in Sources */,
+				494494C8BF300A4A87CCF0FE /* IslandVolumeScenes.swift in Sources */,
 				A7E7A33A8EC8074F7DC0271F /* IslandWindowScenes.swift in Sources */,
 				CD52F594782DD51D5B3D4CE8 /* JSONValue.swift in Sources */,
 				8855C67C7EE196E3F9EDE778 /* KeyCapChip.swift in Sources */,
@@ -5223,6 +5242,7 @@
 				5FC53F9968A5DFF24CD109DD /* VisibilityStore.swift in Sources */,
 				24F4BF3EA74E8E65B2B92D6D /* VolumeHUDController.swift in Sources */,
 				ACE645630E536C93CA102050 /* VolumeHUDView.swift in Sources */,
+				29D928C4260D45526C78686C /* VolumeLevel+Island.swift in Sources */,
 				106AF34CEAEB08CBCC924118 /* VolumeLevel.swift in Sources */,
 				15292937738B7CD3AE23EF73 /* VolumeSlider.swift in Sources */,
 				1F1AD34A26931AF6E11E13F7 /* VolumeState.swift in Sources */,
