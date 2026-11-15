@@ -35,6 +35,18 @@ final class HotKeyManager {
     var onRunAppleShortcut: ((UUID) -> Void)?
     var onExpandSnippet: ((StoredSnippet.ID) -> Void)?
     var onRunExtensionCommand: ((String) -> Void)?
+    var onRunNotchcastCommand: ((String) -> Void)?
+    var extraActions: [HotKeyAction] = [] {
+        didSet {
+            clearSecureInputEquivalents()
+            for action in oldValue { center.unregister(id: action.defaultsKey); bindings[action] = nil }
+            for action in extraActions { bindings[action] = storedBinding(for: action); register(action) }
+            candidateActionsCache = nil
+            syncSecureInputEquivalents()
+            revision &+= 1
+            syncModifierTaps()
+        }
+    }
     /// Names what only the stores know; the fixed catalogs resolve here. Set in `AppCore.start()`.
     var displayName: ((HotKeyAction) -> String?)?
     /// Whether the action's launcher category is switched on. Set in `AppCore.start()`.
@@ -231,7 +243,7 @@ final class HotKeyManager {
             index(id, bound: binding != nil, key: boundSnippetKey)
         case .extensionCommand(let entryID):
             index(entryID, bound: binding != nil, key: boundExtensionCommandKey)
-        case .togglePalette, .dictation, .command, .systemAction, .windowCommand:
+        case .togglePalette, .dictation, .command, .systemAction, .windowCommand, .notchcastCommand:
             break
         }
         candidateActionsCache = nil
@@ -353,6 +365,7 @@ final class HotKeyManager {
         actions += boundExtensionCommandEntryIDs.map { .extensionCommand(entryID: $0) }
         actions += SystemAction.ID.allCases.map { .systemAction(id: $0) }
         actions += WindowCommand.ID.allCases.map { .windowCommand(id: $0) }
+        actions += extraActions
         candidateActionsCache = actions
         return actions
     }
@@ -389,6 +402,8 @@ final class HotKeyManager {
             return displayName?(action) ?? String(localized: "Snippet")
         case .extensionCommand:
             return displayName?(action) ?? String(localized: "Extension Command")
+        case .notchcastCommand(let entryID):
+            return displayName?(action) ?? entryID
         }
     }
 
@@ -441,6 +456,7 @@ final class HotKeyManager {
         case .appleShortcut(let id): onRunAppleShortcut?(id)
         case .snippet(let id): onExpandSnippet?(id)
         case .extensionCommand(let entryID): onRunExtensionCommand?(entryID)
+        case .notchcastCommand(let entryID): onRunNotchcastCommand?(entryID)
         }
     }
 

@@ -1,7 +1,39 @@
 {
   "sourceLanguage" : "en",
   "strings" : {
-
+    "Between Macs" : {
+      "shouldTranslate" : false
+    },
+    "Capture" : {
+      "shouldTranslate" : false
+    },
+    "Display & Sound" : {
+      "shouldTranslate" : false
+    },
+    "Files & Downloads" : {
+      "shouldTranslate" : false
+    },
+    "Grant access…" : {
+      "shouldTranslate" : false
+    },
+    "Keyboard & Mouse" : {
+      "shouldTranslate" : false
+    },
+    "Mac Tweaks" : {
+      "shouldTranslate" : false
+    },
+    "Music" : {
+      "shouldTranslate" : false
+    },
+    "Needs Accessibility access" : {
+      "shouldTranslate" : false
+    },
+    "Notchcast" : {
+      "shouldTranslate" : false
+    },
+    "Notices" : {
+      "shouldTranslate" : false
+    }
   },
   "version" : "1.0"
 }
