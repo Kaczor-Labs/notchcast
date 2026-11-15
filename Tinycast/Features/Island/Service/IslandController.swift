@@ -75,7 +75,7 @@ final class IslandController: NSObject {
     }
 
     func configure(_ screen: NSScreen) {
-        let next = IslandLayout(screen: screen.frame, notch: Self.notch(on: screen), canvas: Theme.Size.islandHost)
+        let next = IslandLayout(screen: screen.frame, notch: Self.notch(on: screen), canvas: NotchTheme.Size.islandHost)
         let requested = IslandSurfaceConfiguration(notch: next.notch, scale: screen.backingScaleFactor)
         let moved = layout?.screen != next.screen || layout?.notch != next.notch
         layout = next
@@ -101,15 +101,15 @@ final class IslandController: NSObject {
         var metrics = IslandMetrics.standard
         metrics.screen = .init(width: next.canvas.width, height: next.canvas.height)
         metrics.top = next.top
-        metrics.idle = .init(width: next.hasNotch ? next.notch.width : Theme.Size.islandRest.width,
-                             height: next.hasNotch ? next.notch.height * 2 : Theme.Size.islandRest.height)
+        metrics.idle = .init(width: next.hasNotch ? next.notch.width : NotchTheme.Size.islandRest.width,
+                             height: next.hasNotch ? next.notch.height * 2 : NotchTheme.Size.islandRest.height)
         metrics.corner.smoothing = 0
         metrics.expanded.top = next.top
         metrics.expanded.sideInset = 0
         metrics.expanded.padding = .init(top: next.contentTop * 2, side: 0, bottom: 0)
         metrics.expanded.rowGap = 0
         metrics.expanded.centerTop = 0
-        metrics.expanded.minHeight = Theme.Size.islandRest.height
+        metrics.expanded.minHeight = NotchTheme.Size.islandRest.height
         metrics.expanded.maxHeight = next.canvas.height
         metrics.expanded.radius = Theme.Radius.panel
         metrics.expanded.shadow.pull = .init(side: 0, top: 0, bottom: 0, opacity: 0)
@@ -119,7 +119,7 @@ final class IslandController: NSObject {
         metrics.compact.edgePadding = Theme.Spacing.lg
         let inner = next.hasNotch ? Theme.Spacing.md : 0
         metrics.compact.innerPadding = .init(leading: inner, trailing: inner)
-        metrics.compact.maxSlotWidth = Theme.Size.islandGlanceWing
+        metrics.compact.maxSlotWidth = NotchTheme.Size.islandGlanceWing
         metrics.compact.maxWidth = next.canvas.width
         metrics.compact.balance = 0
         let surface = IslandSurface<CGSize>(
@@ -156,7 +156,7 @@ final class IslandController: NSObject {
         let palette = panel.flatMap { $0.isVisible ? $0.frame : nil }
         let overlay = IslandOverlayLayout(screen: layout.screen,
             contentTop: layout.screen.maxY - layout.contentTop, palette: palette,
-            inset: Theme.Spacing.islandInset, gap: Theme.Spacing.xl).surface(overlays)
+            inset: NotchTheme.Spacing.islandInset, gap: Theme.Spacing.xl).surface(overlays)
         let size = CGSize(width: max(palette?.width ?? 0, overlay?.width ?? 0),
                           height: max(palette?.height ?? 0, overlay?.height ?? 0))
         surface.batch {
@@ -189,7 +189,8 @@ final class IslandController: NSObject {
 
     private var isResting: Bool {
         guard let layout, let bounds = canvas.outline?.boundingBoxOfPath else { return false }
-        let size = layout.hasNotch ? CGSize(width: layout.notch.width, height: layout.notch.height * 2) : Theme.Size.islandRest
+        let size = layout.hasNotch
+            ? CGSize(width: layout.notch.width, height: layout.notch.height * 2) : NotchTheme.Size.islandRest
         let width = canvas.glance.map { glanceWidth($0.layout) } ?? size.width
         return abs(bounds.width - width) < 0.01 && abs(bounds.height - size.height) < 0.01
     }
@@ -242,8 +243,8 @@ final class IslandController: NSObject {
         CATransaction.begin()
         CATransaction.setDisableActions(true)
         canvas.outline = outline.copy(using: &backgroundTransform)
-        canvas.restWidth = layout.hasNotch ? layout.notch.width : Theme.Size.islandRest.width
-        canvas.restHeight = layout.hasNotch ? layout.notch.height * 2 : Theme.Size.islandRest.height
+        canvas.restWidth = layout.hasNotch ? layout.notch.width : NotchTheme.Size.islandRest.width
+        canvas.restHeight = layout.hasNotch ? layout.notch.height * 2 : NotchTheme.Size.islandRest.height
         canvas.glanceWidth = canvas.glance.map { glanceWidth($0.layout) } ?? 0
         canvas.display()
         clip.path = outline.copy(using: &contentTransform)
@@ -251,7 +252,7 @@ final class IslandController: NSObject {
         CATransaction.flush()
         let bounds = outline.boundingBoxOfPath
         if !showsRest, overlays.isEmpty, panel?.isVisible != true,
-           abs(bounds.width - (layout.hasNotch ? layout.notch.width : Theme.Size.islandRest.width)) < 0.01 {
+           abs(bounds.width - (layout.hasNotch ? layout.notch.width : NotchTheme.Size.islandRest.width)) < 0.01 {
             backdrop.orderOut(nil)
         }
         #if DEBUG

@@ -1,5 +1,6 @@
 // notchcast-sources: Tinycast/Platform/Appearance.swift
 // notchcast-sources: Tinycast/DesignSystem/Theme.swift
+// notchcast-sources: Tinycast/Features/Notchcast/NotchTheme.swift
 // notchcast-sources: Tinycast/DesignSystem/InterfaceMetrics.swift
 import AppKit
 import SwiftUI
@@ -47,6 +48,7 @@ struct NotchLookTokensTests {
         print("# dark takes the NotchKit values")
         same("dark selection", c.selection, Color.white.opacity(0.24), .darkAqua)
         same("dark rowHover", c.rowHover, Color.white.opacity(0.08), .darkAqua)
+        same("dark keyCapFill", NotchTheme.Colors.keyCapFill, Color.white.opacity(0.14), .darkAqua)
         same("dark menuHover", c.menuHover, Color.white.opacity(0.24), .darkAqua)
         same("dark separator", c.separator, Color.white.opacity(0.16), .darkAqua)
         same("dark primaryAction", c.primaryAction, lagoon, .darkAqua)
@@ -55,6 +57,7 @@ struct NotchLookTokensTests {
         print("# light branches are upstream's")
         same("light selection", c.selection, Color.black.opacity(0.09), .aqua)
         same("light rowHover", c.rowHover, Color.black.opacity(0.045), .aqua)
+        same("light keyCapFill", NotchTheme.Colors.keyCapFill, Color.black.opacity(0.045), .aqua)
         same("light menuHover", c.menuHover, Color.black.opacity(0.09), .aqua)
         same("light separator", c.separator, Color.black.opacity(0.12), .aqua)
         same("light primaryAction", c.primaryAction, Color.blue, .aqua)
@@ -68,6 +71,10 @@ struct NotchLookTokensTests {
         equal("size.resultRowIcon", Theme.Size.resultRowIcon, 28)
         equal("size.keyCap", Theme.Size.keyCap, 22)
         equal("typography.headerIconSize", Theme.Typography.headerIconSize, 22)
+        equal("island inset", NotchTheme.Spacing.islandInset, 16)
+        check("island rest", NotchTheme.Size.islandRest == CGSize(width: 96, height: 24))
+        check("island host", NotchTheme.Size.islandHost == CGSize(width: 1100, height: 860))
+        equal("island glance wing", NotchTheme.Size.islandGlanceWing, 140)
         check("key cap font is medium body", Theme.Typography.keyCap == Font.body.weight(.medium))
         check(
             "metrics key cap font at scale 1",
