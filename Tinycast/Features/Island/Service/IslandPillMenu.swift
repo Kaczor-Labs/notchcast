@@ -141,7 +141,7 @@ final class IslandPillMenu: NSObject {
         state.selection = (state.selection + step + items.count) % items.count
     }
 
-    /// Mirrors the palette's menu keys; ⌘, and ⌘Q work here because no menu bar item carries them.
+    /// Mirrors the palette's menu keys; ⌘, and ⌘Q work because no menu bar item carries them.
     private func handleKey(_ event: NSEvent) -> Bool {
         let modifiers = event.modifierFlags.intersection([.command, .control, .option, .shift])
         if event.charactersIgnoringModifiers == "\u{1B}" {
