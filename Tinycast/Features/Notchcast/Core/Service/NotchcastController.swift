@@ -8,6 +8,8 @@ final class NotchcastController {
     struct Slot {
         let addon: any NotchcastAddon.Type
         let context: NotchcastContext
+        /// The recovery's own, so a switch going off never detaches what the recovery claimed.
+        let recovery: NotchcastContext
         let declaredTaps: [(token: UUID, tap: NotchcastTap)]
         let settings: [SettingsEntry]
     }
@@ -25,7 +27,6 @@ final class NotchcastController {
     var onCommandsChanged: (([NotchcastCommand]) -> Void)?
     private var enabled: Set<String> = []
     private var isRunning = false
-    private var recoveries: [any NotchcastModule] = []
 
     init(
         addons: [any NotchcastAddon.Type], defaults: UserDefaults, hub: NotchcastTapHub,
@@ -33,13 +34,15 @@ final class NotchcastController {
     ) {
         preferences = NotchcastPreferences(defaults: defaults, switches: addons.flatMap { $0.switches })
         self.hub = hub
-        slots = addons.map { addon in
-            let context = NotchcastContext(
+        func makeContext() -> NotchcastContext {
+            NotchcastContext(
                 defaults: defaults, preferences: preferences, presenter: presenter, hub: hub, now: now,
                 onTapsChanged: { [weak self] in self?.applyTaps() })
-            return Slot(
-                addon: addon, context: context, declaredTaps: addon.taps.map { (UUID(), $0) },
-                settings: addon.settings.map { SettingsEntry(row: $0) })
+        }
+        slots = addons.map { addon in
+            Slot(
+                addon: addon, context: makeContext(), recovery: makeContext(),
+                declaredTaps: addon.taps.map { (UUID(), $0) }, settings: addon.settings.map { SettingsEntry(row: $0) })
         }
     }
 
@@ -49,8 +52,11 @@ final class NotchcastController {
         guard !isRunning else { return }
         isRunning = true
         // Before reconcile, so a recovery reads what the last run left before a module overwrites it.
-        recoveries = slots.compactMap { $0.addon.makeRecovery($0.context) }
-        recoveries.forEach { $0.start() }
+        for slot in slots {
+            guard let recovery = slot.addon.makeRecovery(slot.recovery) else { continue }
+            slot.recovery.attach(recovery)
+            recovery.start()
+        }
         reconcile()
     }
 
@@ -58,8 +64,10 @@ final class NotchcastController {
         guard isRunning else { return }
         isRunning = false
         apply([])
-        recoveries.forEach { $0.stop() }
-        recoveries = []
+        for slot in slots {
+            slot.recovery.module?.stop()
+            slot.recovery.detach()
+        }
     }
 
     /// False when the id is no enabled add-on command, so the caller falls through to stock.
@@ -112,7 +120,8 @@ final class NotchcastController {
 
     /// Hands the hub the full list, so a tap enabled late still runs where it was subscribed.
     private func applyTaps() {
-        let desired = slots.flatMap { $0.declaredTaps + $0.context.wantedTaps }.filter { enabled.contains($0.tap.switchID) }
+        let desired = slots.flatMap { $0.declaredTaps + $0.recovery.wantedTaps + $0.context.wantedTaps }
+            .filter { enabled.contains($0.tap.switchID) }
         hub.setSubscribers(desired.map { (id: $0.token, tap: $0.tap) })
     }
 }

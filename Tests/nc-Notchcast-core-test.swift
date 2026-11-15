@@ -123,15 +123,22 @@ enum SequenceAddon: NotchcastAddon {
 final class LoggingModule: NotchcastModule {
     static var log: [String] = []
     let name: String
-    init(_ name: String) { self.name = name }
-    func start() { Self.log.append("\(name) start") }
+    let context: NotchcastContext?
+    init(_ name: String, subscribingIn context: NotchcastContext? = nil) { (self.name, self.context) = (name, context) }
+    func start() {
+        Self.log.append("\(name) start")
+        context?.subscribe(NotchcastTap(switchID: "recover", mask: NotchcastTapPolicy.mask(for: .keyDown),
+                                        handler: .observe { _ in }))
+    }
     func stop() { Self.log.append("\(name) stop") }
 }
 
 enum RecoveryAddon: NotchcastAddon {
     static let switches = [NotchcastSwitch(id: "recover", title: "Recover", subtitle: "", category: .power)]
     static func makeModule(_ context: NotchcastContext) -> (any NotchcastModule)? { LoggingModule("module") }
-    static func makeRecovery(_ context: NotchcastContext) -> (any NotchcastModule)? { LoggingModule("recovery") }
+    static func makeRecovery(_ context: NotchcastContext) -> (any NotchcastModule)? {
+        LoggingModule("recovery", subscribingIn: context)
+    }
 }
 
 @main
@@ -355,12 +362,21 @@ struct NotchcastCoreTest {
         let on = make()
         on.start()
         check("the recovery starts before the switch's module", LoggingModule.log == ["recovery start", "module start"])
+        check("the recovery's tap is live while its switch is on", hub.subscriberCount == 1)
+        on.preferences.set("recover", on: false)
+        drain()
+        on.preferences.set("recover", on: true)
+        drain()
+        check("the recovery's tap survives its add-on going off and on", hub.subscriberCount == 1)
+        check("off and on leave the recovery running",
+              LoggingModule.log == ["recovery start", "module start", "module stop", "module start"])
         on.stop()
         check("stop ends the module, then the recovery",
               LoggingModule.log.suffix(2) == ["module stop", "recovery stop"])
-        on.preferences.set("recover", on: false)
+        check("stop clears the recovery's tap", hub.subscriberCount == 0 && !hub.isRunning)
         on.start()
-        check("a restart builds a fresh recovery", LoggingModule.log.suffix(1) == ["recovery start"])
+        check("a restart builds a fresh recovery", LoggingModule.log.suffix(2) == ["recovery start", "module start"])
+        check("stop cleared the old recovery's tap, so only the fresh one is live", hub.subscriberCount == 1)
         on.stop()
         check("the default-nil add-on stayed untouched throughout", ProbeLog.events.isEmpty)
     }
