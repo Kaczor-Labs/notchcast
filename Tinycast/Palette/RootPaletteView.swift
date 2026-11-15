@@ -363,7 +363,7 @@ struct RootPaletteView: View {
                 )
                 // The window's frame is the size source, so the glass and clip stay matched.
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-                .background(isCollapsed ? .clear : Theme.Colors.panelScrim)
+                .background(isCollapsed || !IslandVerification.stock ? .clear : Theme.Colors.panelScrim)
                 // The glass is retained only for the Debug stock latency control.
                 .background {
                     Color.clear.glassEffect(IslandVerification.stock ? .regular : .identity, in: Rectangle())
@@ -389,6 +389,7 @@ struct RootPaletteView: View {
         )
         .padding(renderingOutset)
         .tint(Theme.Colors.primaryAction)
+        .environment(\.paletteOnIsland, !IslandVerification.stock)
     }
 
     /// The emoji grid's observers, split out so `stateObservers` stays within type-checker reach.
