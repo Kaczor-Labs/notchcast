@@ -99,13 +99,13 @@ enum IslandWindowScenes {
         _exit(0)
     }
 
-    private final class ModalProbe: NSObject {
+    final class ModalProbe: NSObject {
         let action: () -> Void
         init(_ action: @escaping () -> Void) { self.action = action }
         @objc func check() { action() }
     }
 
-    private final class PinnedOpenPanel: NSOpenPanel {
+    final class PinnedOpenPanel: NSOpenPanel {
         var testScreen: CGRect?
         override func center() {
             guard let testScreen else { return }
