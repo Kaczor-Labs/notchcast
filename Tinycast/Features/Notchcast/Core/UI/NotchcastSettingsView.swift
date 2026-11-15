@@ -50,7 +50,9 @@ private struct NotchcastSwitchRows: View {
             LabeledContent {
                 Button(String(localized: "Grant access…", table: "Notchcast")) { Permissions.openAccessibilitySettings() }
             } label: {
-                Label(String(localized: "Needs Accessibility access", table: "Notchcast"), systemImage: "exclamationmark.triangle.fill")
+                Label(
+                    String(localized: "Needs Accessibility access", table: "Notchcast"),
+                    systemImage: "exclamationmark.triangle.fill")
                     .foregroundStyle(.orange)
             }
         }

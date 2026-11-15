@@ -1,37 +1,33 @@
 import Foundation
 
-/// The presentation seam until the island takes it: notices go to the stock HUD, the rest waits.
+/// Stands in for the island until its live states render notices: notices go to the stock HUD.
 @MainActor
-final class NotchcastHUDPresenter: NotchcastPresenting {
+final class NotchcastHUDPresenter: IslandPresenting {
     private weak var core: AppCore?
-    private var progressID: UUID?
+    private var progressID: String?
 
     init(core: AppCore) { self.core = core }
 
-    func showLevel(_ level: NotchcastLevel) {}
+    func showLevel(_ level: IslandLevel) {}
 
-    func post(_ notice: NotchcastNotice) {
+    func post(_ notice: IslandNotice, onTap: (@MainActor () -> Void)?) {
         guard let core else { return }
-        if notice.isProgress {
+        if notice.progress != nil {
             progressID = notice.id
-            core.showProgress(notice.title, onCancel: nil)
+            core.showProgress(notice.text, onCancel: nil)
             return
         }
-        let tone: DialogTone = switch notice.tone {
-        case .neutral: .neutral
-        case .success: .success
-        case .danger: .danger
-        }
-        core.showMessage(notice.title, tone: tone)
+        if progressID == notice.id { end(notice: notice.id) }
+        core.showMessage(notice.text, tone: notice.isFailure ? .danger : .neutral)
     }
 
-    func end(_ noticeID: UUID) {
-        guard progressID == noticeID else { return }
+    func end(notice id: String) {
+        guard progressID == id else { return }
         progressID = nil
         core?.hideProgress()
     }
 
-    func setStatus(_ status: NotchcastStatus?, owner: String) {}
+    func setStatus(_ status: IslandStatus?, for id: String) {}
 
-    func setMenuRows(_ rows: [NotchcastMenuRow], owner: String, onSelect: @escaping @MainActor (String) -> Void) {}
+    func setMenuRows(_ rows: [IslandMenuRow], owner: String, onSelect: @escaping @MainActor (String) -> Void) {}
 }

@@ -5,7 +5,7 @@ import Foundation
 final class NotchcastContext {
     let defaults: UserDefaults
     let preferences: NotchcastPreferences
-    let presenter: any NotchcastPresenting
+    let presenter: any IslandPresenting
     let now: @MainActor () -> Date
     private let hub: NotchcastTapHub
     private let onTapsChanged: @MainActor () -> Void
@@ -15,7 +15,7 @@ final class NotchcastContext {
     private(set) var launcherDigit: (@MainActor (_ digit: Int, _ query: String, _ entryRows: [Int]) -> Int?)?
 
     init(
-        defaults: UserDefaults, preferences: NotchcastPreferences, presenter: any NotchcastPresenting,
+        defaults: UserDefaults, preferences: NotchcastPreferences, presenter: any IslandPresenting,
         hub: NotchcastTapHub, now: @escaping @MainActor () -> Date,
         onTapsChanged: @escaping @MainActor () -> Void
     ) {

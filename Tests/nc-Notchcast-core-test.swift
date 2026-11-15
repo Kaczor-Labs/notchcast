@@ -1,4 +1,5 @@
 // notchcast-sources: Tinycast/Features/Notchcast/Core/Model/*.swift Tinycast/Features/Notchcast/Core/Service/*.swift
+// notchcast-sources: Tinycast/Features/Island/Model/IslandPresentation.swift Tinycast/Features/Island/Service/IslandPresenting.swift
 // notchcast-sources: Tinycast/Features/Settings/SettingsTab.swift Tinycast/Features/Launcher/Model/CommandID.swift Tinycast/Features/HotKeys/Model/HotKeyAction.swift Tinycast/Features/HotKeys/Model/HotKeyAction+EntryID.swift Tinycast/Features/QuickActions/Model/QuickAction.swift
 // notchcast-sources: Tinycast/Features/QuickActions/Model/BuiltInQuickAction.swift Tinycast/Features/QuickActions/Model/CustomQuickAction.swift Tinycast/Features/Quicklinks/Model/Quicklink.swift Tinycast/Features/Quicklinks/Model/QuicklinkDestination.swift Tinycast/Features/SystemActions/Model/SystemAction.swift
 // notchcast-sources: Tinycast/Features/CustomCommands/Model/CustomCommand.swift Tinycast/Features/AppleShortcuts/Model/AppleShortcut.swift Tinycast/Features/Snippets/Model/Snippet.swift Tinycast/Features/WindowManagement/Model/WindowCommand.swift Tinycast/Features/WindowManagement/Model/WindowCycle.swift
@@ -11,14 +12,14 @@ import Foundation
 import Synchronization
 
 @MainActor
-final class RecordingPresenter: NotchcastPresenting {
+final class RecordingPresenter: IslandPresenting {
     var log: [String] = []
 
-    func showLevel(_ level: NotchcastLevel) { log.append("level \(level.symbol) \(level.value)") }
-    func post(_ notice: NotchcastNotice) { log.append("post \(notice.title)") }
-    func end(_ noticeID: UUID) { log.append("end") }
-    func setStatus(_ status: NotchcastStatus?, owner: String) { log.append("status \(owner)") }
-    func setMenuRows(_ rows: [NotchcastMenuRow], owner: String, onSelect: @escaping @MainActor (String) -> Void) {
+    func showLevel(_ level: IslandLevel) { log.append("level \(level.source) \(level.value)") }
+    func post(_ notice: IslandNotice, onTap: (@MainActor () -> Void)?) { log.append("post \(notice.id) \(notice.text)") }
+    func end(notice id: String) { log.append("end \(id)") }
+    func setStatus(_ status: IslandStatus?, for id: String) { log.append("status \(id)") }
+    func setMenuRows(_ rows: [IslandMenuRow], owner: String, onSelect: @escaping @MainActor (String) -> Void) {
         log.append("menu \(owner) \(rows.count)")
     }
 }
@@ -93,7 +94,7 @@ enum ProbeAddon: NotchcastAddon {
     ]
     static let commands = [
         NotchcastCommand(slug: "probe-run", name: "Probe", symbol: "circle", switchID: "probeMain") { context in
-            context.presenter.post(NotchcastNotice(title: "Probe ran"))
+            context.presenter.post(IslandNotice(id: "probe", text: "Probe ran"), onTap: nil)
         },
     ]
     static let taps = [
@@ -332,7 +333,7 @@ struct NotchcastCoreTest {
         check("the module's own tap is live", hub.subscriberCount == 1 && hub.isRunning)
         check("its command is published", published == [["command:nc-probe-run"]])
         check("its command runs", controller.run(entryID: "command:nc-probe-run"))
-        check("the notice reaches the presenter", presenter.log == ["post Probe ran"])
+        check("the notice reaches the presenter", presenter.log == ["post probe Probe ran"])
         check("an unknown id falls through", !controller.run(entryID: "command:nc-nope"))
         check("a digit maps to its entry row", controller.launcherRow(digit: 2, query: "sa", entryRows: [2, 5]) == 5)
         check("a declined digit falls through", controller.launcherRow(digit: 3, query: "sa", entryRows: [2, 5]) == nil)

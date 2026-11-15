@@ -89,25 +89,32 @@ enum RegistryCheck {
         "showDesktop", "launcherNumberKeys", "smallCommands", "downloads", "downloadsAria2", "distill",
         "distillTimestamps", "keepAwake", "lidClosedAwake", "musicBlockAppleMusic", "iPhoneBackupTweaks",
     ]
+    // Switch ids v1 never shipped; an id in neither list is a typo or a rename of a shipped one.
+    static let newIDs: Set<String> = []
     static let frozenSlugs: Set<String> = ["screenshot-area", "screenshot-display"]
 
     /// Problems fail the harness; notes only report (an absent dependency counts as off).
-    static func run(files: [String: String], registry: String) -> (problems: [String], notes: [String]) {
+    static func run(files: [String: String], registry: String, newIDs: Set<String> = newIDs)
+        -> (problems: [String], notes: [String]) {
         let source = AddonSource(files: files)
         var problems: [String] = []
         var notes: [String] = []
         let categories = Set(NotchcastCategory.allCases.map(\.rawValue))
         let ids = source.switches.map(\.id)
         let declared = Set(ids)
-        for id in Set(ids) where ids.filter({ $0 == id }).count > 1 { problems.append("switch id \(id) declared twice") }
+        for (id, owners) in Dictionary(grouping: source.switches, by: \.id).mapValues({ $0.map(\.path) })
+        where owners.count > 1 {
+            problems.append("switch id \(id) declared twice: \(owners.joined(separator: ", "))")
+        }
+        for id in frozenIDs.intersection(newIDs) { problems.append("switch id \(id) is both shipped and new") }
         let slugs = source.slugs.map(\.slug)
         for slug in Set(slugs) where slugs.filter({ $0 == slug }).count > 1 {
             problems.append("command slug \(slug) declared twice")
         }
         for item in source.switches {
             if item.id.isEmpty { problems.append("\(item.path): a switch without a literal id") }
-            if let frozen = frozenIDs.first(where: { $0.lowercased() == item.id.lowercased() && $0 != item.id }) {
-                problems.append("\(item.path): switch id \(item.id) renames the shipped id \(frozen)")
+            if !item.id.isEmpty && !frozenIDs.contains(item.id) && !newIDs.contains(item.id) {
+                problems.append("\(item.path): switch id \(item.id) is neither a shipped v1 id nor listed in newIDs")
             }
             if !categories.contains(item.category) {
                 problems.append("\(item.path): switch \(item.id) has no valid category (\(item.category))")
@@ -187,7 +194,9 @@ enum NotchcastRegistryTests {
 
         let planted: [(String, String, String)] = [
             (shots.replacingOccurrences(of: "id: \"screenshot\"", with: "id: \"screenShot\""), "",
-             "renames the shipped id screenshot"),
+             "switch id screenShot is neither a shipped v1 id"),
+            (shots.replacingOccurrences(of: "\"screenshot\"", with: "\"launcherNumberKey\""), "",
+             "switch id launcherNumberKey is neither a shipped v1 id"),
             (shots.replacingOccurrences(of: ".capture", with: ".nowhere"), "", "has no valid category"),
             (shots.replacingOccurrences(of: "switchID: \"screenshot\"", with: "switchID: \"other\""), "", "has no user path"),
             (shots.replacingOccurrences(of: "slug: \"screenshot-area\"", with: "slug: \"screenshotArea\""), "",
@@ -202,6 +211,15 @@ enum NotchcastRegistryTests {
                                            registry: registry.isEmpty ? "    ShotsAddon.self,\n    TwinAddon.self,\n" : registry)
             expect(result.problems.contains { $0.contains(needle) }, "planted breach caught (\(needle)): \(result.problems)")
         }
+        let twinText = shots.replacingOccurrences(of: "Shots", with: "Twin")
+        let twin = RegistryCheck.run(
+            files: ["Shots/ShotsAddon.swift": shots, "Twin/TwinAddon.swift": twinText],
+            registry: "    ShotsAddon.self,\n    TwinAddon.self,\n")
+        expect(twin.problems.contains("switch id screenshot declared twice: Shots/ShotsAddon.swift, Twin/TwinAddon.swift"),
+               "a pinned id in two folders is caught: \(twin.problems)")
+        let fresh = shots.replacingOccurrences(of: "\"screenshot\"", with: "\"screenRuler\"")
+        expect(RegistryCheck.run(files: ["Shots/ShotsAddon.swift": fresh], registry: "    ShotsAddon.self,\n",
+                                 newIDs: ["screenRuler"]).problems.isEmpty, "an id named in newIDs passes")
 
         let (files, registry) = try repoFiles()
         let real = RegistryCheck.run(files: files, registry: registry)

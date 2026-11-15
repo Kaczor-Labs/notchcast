@@ -1,6 +1,7 @@
 // notchcast-sources: Tinycast/Features/Settings/SettingsTab.swift Tinycast/Features/Settings/SettingsAnchor.swift
-// notchcast-sources: Tinycast/Features/Settings/SettingsSearchCatalog.swift Tinycast/Features/Launcher/Model/SearchRelevance.swift
-// notchcast-sources: Tinycast/Platform/LocalizedResource.swift Tinycast/Features/Settings/AppAppearance.swift
+// notchcast-sources: Tinycast/Features/Settings/SettingsSearchCatalog.swift
+// notchcast-sources: Tinycast/Features/Launcher/Model/SearchRelevance.swift Tinycast/Platform/LocalizedResource.swift
+// notchcast-sources: Tinycast/Features/Settings/AppAppearance.swift
 // notchcast-sources: Tinycast/Features/Notchcast/Hidden/NotchcastIslandPins.swift
 import Foundation
 

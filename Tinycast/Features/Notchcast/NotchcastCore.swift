@@ -5,7 +5,6 @@ import Foundation
 @MainActor
 final class NotchcastCore {
     let controller: NotchcastController
-    private let presenter: NotchcastHUDPresenter
 
     init(core: AppCore, addons: [any NotchcastAddon.Type] = NotchcastRegistry.addons) {
         let bundleID = Bundle.main.bundleIdentifier ?? "Notchcast"
@@ -13,12 +12,13 @@ final class NotchcastCore {
         let hub = NotchcastTapHub(
             syntheticTag: Paster.tinycastEventTag, isTrusted: { AXIsProcessTrusted() },
             makeSession: NotchcastTapThread.start)
-        presenter = NotchcastHUDPresenter(core: core)
+        let presenter: any IslandPresenting = NotchcastHUDPresenter(core: core)
         controller = NotchcastController(addons: addons, defaults: defaults, hub: hub, presenter: presenter)
         let commands = addons.flatMap { $0.commands }
         NotchcastSettingsSearch.install(
             controller.switches,
-            commandWords: Dictionary(grouping: commands, by: \.switchID).mapValues { $0.flatMap { [$0.name] + $0.keywords } })
+            commandWords: Dictionary(grouping: commands, by: \.switchID)
+                .mapValues { $0.flatMap { [$0.name] + $0.keywords } })
         let launcher = core.launcherCoordinator
         controller.onCommandsChanged = { [weak core] commands in
             core?.appIndex.extraCommandEntries = commands.map(Self.entry)
