@@ -325,7 +325,7 @@ enum IslandPillScenes {
         }
     }
 
-    /// Loses the test display after startup; the window guard must end the run before Settings shows.
+    /// Loses the test display after startup; the window guard ends the run before Settings shows.
     private static func windowGuard(core: AppCore, raise: Bool) {
         if raise {
             core.settingsCoordinator.showSettings(tab: .general)
@@ -345,7 +345,7 @@ enum IslandPillScenes {
         return result == .success
     }
 
-    /// Some AppKit and SwiftUI nodes answer the informal accessibility selectors without the protocol.
+    /// Some AppKit and SwiftUI nodes answer the informal AX selectors without the protocol.
     private static func accessibilityTexts(_ element: Any, depth: Int, into texts: inout [String]) {
         guard depth < 60, let node = element as? NSObject else { return }
         func ask(_ name: String) -> Any? {
