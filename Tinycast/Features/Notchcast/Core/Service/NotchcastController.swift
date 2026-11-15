@@ -9,6 +9,13 @@ final class NotchcastController {
         let addon: any NotchcastAddon.Type
         let context: NotchcastContext
         let declaredTaps: [(token: UUID, tap: NotchcastTap)]
+        let settings: [SettingsEntry]
+    }
+
+    /// An add-on's settings row with an identity fixed at registration, for a stable `ForEach`.
+    struct SettingsEntry: Identifiable {
+        let id = UUID()
+        let row: NotchcastSettingsRow
     }
 
     let preferences: NotchcastPreferences
@@ -30,7 +37,9 @@ final class NotchcastController {
             let context = NotchcastContext(
                 defaults: defaults, preferences: preferences, presenter: presenter, hub: hub, now: now,
                 onTapsChanged: { [weak self] in self?.applyTaps() })
-            return Slot(addon: addon, context: context, declaredTaps: addon.taps.map { (UUID(), $0) })
+            return Slot(
+                addon: addon, context: context, declaredTaps: addon.taps.map { (UUID(), $0) },
+                settings: addon.settings.map { SettingsEntry(row: $0) })
         }
     }
 

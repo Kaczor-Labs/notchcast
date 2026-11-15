@@ -53,7 +53,7 @@ private struct NotchcastSwitchRows: View {
                 Label(
                     String(localized: "Needs Accessibility access", table: "Notchcast"),
                     systemImage: "exclamationmark.triangle.fill")
-                    .foregroundStyle(.orange)
+                    .foregroundStyle(Theme.Colors.warning)
             }
         }
         if preferences.isEnabled(item.id) {
@@ -63,9 +63,8 @@ private struct NotchcastSwitchRows: View {
                 }
             }
             if let context = controller.context(forSwitch: item.id) {
-                let rows = controller.slots.flatMap { $0.addon.settings }.filter { $0.switchID == item.id }
-                ForEach(rows.indices, id: \.self) { index in
-                    rows[index].view(context)
+                ForEach(controller.slots.flatMap(\.settings).filter { $0.row.switchID == item.id }) { entry in
+                    entry.row.view(context)
                 }
             }
         }

@@ -5,7 +5,6 @@ struct NotchcastSettingsPane: View {
     var body: some View {
         if let controller = AppCore.shared.notchcast?.controller {
             NotchcastSettingsView(controller: controller)
-                .settingsScrollTarget(.notchcast)
         }
     }
 }
