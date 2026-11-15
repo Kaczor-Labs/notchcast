@@ -247,7 +247,7 @@ enum BackupActions {
         String(localized: "Turn on Snippets in Settings to use their keywords.")
 
     /// Not everything an import applies settles in the running app, so say to relaunch.
-    private static let restartAfterImportText = String(localized: "Quit and reopen Notchcast to finish.", table: "Notchcast")
+    private static let restartAfterImportText = String(localized: "Quit and reopen Tinycast to finish.")
 
     static func raycastText(_ outcome: RaycastOutcome) -> String {
         var parts: [String] = []

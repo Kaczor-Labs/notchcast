@@ -115,9 +115,9 @@ final class UninstallCoordinator {
                 title: String(localized: "Couldn’t Open Get Info"),
                 message: String(
                     localized: """
-                        Allow Notchcast to control Finder in System Settings › Privacy & Security \
+                        Allow Tinycast to control Finder in System Settings › Privacy & Security \
                         › Automation, then try again.
-                        """, table: "Notchcast"),
+                        """),
                 symbol: "info.circle", tone: .danger)
         }
     }
