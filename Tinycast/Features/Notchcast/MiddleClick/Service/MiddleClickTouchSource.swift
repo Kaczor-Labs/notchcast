@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
-// Adapted from Vorssaint 89d2626's middle click support: the MultitouchSupport frame reader.
+// Adapted from Vorssaint 89d2626's middle click service: the MultitouchSupport frame reader.
 
 import Foundation
 import Synchronization
