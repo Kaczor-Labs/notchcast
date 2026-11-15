@@ -11,6 +11,8 @@
 // notchcast-reads: Tinycast/Features/Notes/Settings/NotesSettingsView.swift
 // notchcast-reads: Tinycast/Features/Calendar/Settings/CalendarSettingsView.swift
 // notchcast-reads: Tinycast/Features/Backup/Settings/RaycastImportSelection.swift
+// notchcast-reads: Tinycast/Features/Backup/Model/SettingsBackup.swift
+// notchcast-reads: Tinycast/Features/Settings/SettingsFileSchema.swift
 import AppKit
 import Foundation
 
@@ -28,7 +30,7 @@ struct HiddenFeaturesTest {
             precondition(SettingsSearchCatalog.entries.contains { $0.tab == tab })
         }
 
-        let titles = ["Appearance", "Follow the cursor across displays", "Drag to move the launcher"]
+        let titles = ["Appearance", "Follow the cursor across displays", "Drag to move the launcher", "Language"]
         let menuBarTitles = [
             "Show in menu bar", "Show in Menu Bar", "Calendar in Menu Bar", "Show Upcoming Events",
             "Only show events with meetings", "Hide when there are no upcoming events", "Hide Current Event",
@@ -36,9 +38,12 @@ struct HiddenFeaturesTest {
         precondition(NotchcastHidden.rows == Set(titles + menuBarTitles))
         for title in titles + menuBarTitles {
             precondition(
-                !SettingsSearchCatalog.entries.contains { $0.keywords.contains(title) },
+                !SettingsSearchCatalog.entries.contains { $0.tab == .general && $0.keywords.contains(title) },
                 "Search omits the hidden row: \(title)")
         }
+        precondition(
+            SettingsSearchCatalog.entries.contains { $0.tab == .dictation && $0.keywords.contains("Language") },
+            "Dictation's own Language row is a separate setting and stays searchable")
         for title in ["Show animations", "Interface size", "Window mode", "Days to Show"] {
             precondition(
                 SettingsSearchCatalog.entries.contains { $0.keywords.contains(title) },
@@ -64,8 +69,8 @@ struct HiddenFeaturesTest {
             "A stored panel position is never restored")
         let general = source("Tinycast/Features/Settings/Panes/GeneralSettingsView.swift")
         precondition(
-            general.components(separatedBy: ".notchcastHidden()").count == 5,
-            "The four hidden rows are gone from the General pane")
+            general.components(separatedBy: ".notchcastHidden()").count == 6,
+            "The five hidden rows are gone from the General pane")
         precondition(hiddenRows(in: "Tinycast/Features/Notes/Settings/NotesSettingsView.swift") == 1)
         let calendar = source("Tinycast/Features/Calendar/Settings/CalendarSettingsView.swift")
         precondition(
@@ -89,10 +94,26 @@ struct HiddenFeaturesTest {
             source("Tinycast/Features/Backup/Settings/RaycastImportSelection.swift")
                 .contains(".filter { $0.option != .menuBarVisibility }"),
             "Raycast import offers no menu-bar icon checkbox")
+
+        precondition(NotchcastHidden.language == "en", "The app is pinned to English")
+        let pin = settings.components(separatedBy: "static func pinLanguage() {")[1].components(separatedBy: "\n    }")[0]
+        precondition(
+            pin.contains("set([NotchcastHidden.language], forKey: Key.language.rawValue)"),
+            "pinLanguage writes the fork constant")
+        precondition(!pin.contains("storedLanguage"), "pinLanguage never reads back a stored language")
+        precondition(
+            settings.contains("defaults.set([language.rawValue], forKey: Key.language.rawValue)"),
+            "A language write lands only in AppleLanguages, which the next launch's pin overwrites")
+        for (path, channel) in [
+            ("Tinycast/Features/Backup/Model/SettingsBackup.swift", "settings.language = language"),
+            ("Tinycast/Features/Settings/SettingsFileSchema.swift", "bind(settings, \\.language)"),
+        ] {
+            precondition(source(path).contains(channel), "Import channel still routes through AppSettings.language: \(path)")
+        }
         precondition(
             SettingsSearchCatalog.entries.contains { $0.tab == .about && $0.keywords.contains("Support") },
             "About still lists Support")
-        print("Hidden features: Extensions, appearance, dragging, placement and menu-bar items are hidden")
+        print("Hidden features: Extensions, appearance, dragging, placement, language and menu-bar items are hidden")
     }
 
     static func hiddenRows(in path: String) -> Int {
