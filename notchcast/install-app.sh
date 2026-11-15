@@ -53,11 +53,15 @@ restart_app() {
         local quit=$! start=$SECONDS
         while [ -n "$(app_pids)" ] && (( SECONDS - start < QUIT )); do sleep 0.5; done
         kill "$quit" 2>/dev/null || true
-        if [ -n "$(app_pids)" ]; then log "the running app did not quit within $QUIT seconds"; return 1; fi
+        if [ -n "$(app_pids)" ]; then
+            QUIT_FAILED=1
+            log "the running app did not quit within $QUIT seconds"
+            return 1
+        fi
     fi
     open -g "$APP"
 }
-RUNNING=0
+RUNNING=0 QUIT_FAILED=0
 if [ -n "$(app_pids)" ]; then RUNNING=1; fi
 mkdir -p "$(dirname "$PREVIOUS")" "$(dirname "$APP")"
 HAD_PREVIOUS=0
@@ -84,6 +88,8 @@ if [ "$HAD_PREVIOUS" = 1 ]; then
     mv "$PREVIOUS" "$APP"
     if [ "$RUNNING" = 0 ]; then
         FINAL="nothing (app was not running; restored $(version "$APP"))"
+    elif [ "$QUIT_FAILED" = 1 ]; then
+        FINAL="$(version "$APP") (previous, never quit, not restarted)"
     elif restart_app && watch_app; then
         FINAL="$(version "$APP") (previous)"
     else
