@@ -25,6 +25,7 @@ final class NotchcastController {
     var onCommandsChanged: (([NotchcastCommand]) -> Void)?
     private var enabled: Set<String> = []
     private var isRunning = false
+    private var recoveries: [any NotchcastModule] = []
 
     init(
         addons: [any NotchcastAddon.Type], defaults: UserDefaults, hub: NotchcastTapHub,
@@ -47,6 +48,9 @@ final class NotchcastController {
     func start() {
         guard !isRunning else { return }
         isRunning = true
+        // Before reconcile, so a recovery reads what the last run left before a module overwrites it.
+        recoveries = slots.compactMap { $0.addon.makeRecovery($0.context) }
+        recoveries.forEach { $0.start() }
         reconcile()
     }
 
@@ -54,6 +58,8 @@ final class NotchcastController {
         guard isRunning else { return }
         isRunning = false
         apply([])
+        recoveries.forEach { $0.stop() }
+        recoveries = []
     }
 
     /// False when the id is no enabled add-on command, so the caller falls through to stock.

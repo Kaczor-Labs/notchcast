@@ -119,6 +119,21 @@ enum SequenceAddon: NotchcastAddon {
     static func makeModule(_ context: NotchcastContext) -> (any NotchcastModule)? { SequenceModule(context) }
 }
 
+@MainActor
+final class LoggingModule: NotchcastModule {
+    static var log: [String] = []
+    let name: String
+    init(_ name: String) { self.name = name }
+    func start() { Self.log.append("\(name) start") }
+    func stop() { Self.log.append("\(name) stop") }
+}
+
+enum RecoveryAddon: NotchcastAddon {
+    static let switches = [NotchcastSwitch(id: "recover", title: "Recover", subtitle: "", category: .power)]
+    static func makeModule(_ context: NotchcastContext) -> (any NotchcastModule)? { LoggingModule("module") }
+    static func makeRecovery(_ context: NotchcastContext) -> (any NotchcastModule)? { LoggingModule("recovery") }
+}
+
 @main
 @MainActor
 struct NotchcastCoreTest {
@@ -149,6 +164,7 @@ struct NotchcastCoreTest {
         controller(defaults)
         order(defaults)
         sequence(defaults)
+        recovery(defaults)
         print(failures == 0 ? "PASS NotchcastCoreTest (\(checks) checks)" : "FAILED \(failures)/\(checks)")
         if failures > 0 { exit(1) }
     }
@@ -312,5 +328,40 @@ struct NotchcastCoreTest {
         drain()
         check("re-enabling the second keeps it behind", run() == ["first0", "second1"])
         controller.stop()
+    }
+
+    /// A recovery runs whatever the switch says, so a dirty journal is repaired with the add-on off.
+    static func recovery(_ defaults: UserDefaults) {
+        ProbeLog.events = []
+        LoggingModule.log = []
+        let system = FakeSystem()
+        let hub = system.makeHub()
+        func make() -> NotchcastController {
+            NotchcastController(addons: [ProbeAddon.self, RecoveryAddon.self], defaults: defaults, hub: hub,
+                                presenter: RecordingPresenter())
+        }
+        let off = make()
+        off.start()
+        off.start()
+        check("the recovery starts once with its switch off", LoggingModule.log == ["recovery start"])
+        check("a default-nil add-on builds nothing", ProbeLog.events.isEmpty && hub.subscriberCount == 0)
+        off.stop()
+        check("stop stops the recovery", LoggingModule.log == ["recovery start", "recovery stop"])
+        off.preferences.set("recover", on: true)
+        drain()
+        check("a stopped controller builds no recovery", LoggingModule.log.count == 2)
+
+        LoggingModule.log = []
+        let on = make()
+        on.start()
+        check("the recovery starts before the switch's module", LoggingModule.log == ["recovery start", "module start"])
+        on.stop()
+        check("stop ends the module, then the recovery",
+              LoggingModule.log.suffix(2) == ["module stop", "recovery stop"])
+        on.preferences.set("recover", on: false)
+        on.start()
+        check("a restart builds a fresh recovery", LoggingModule.log.suffix(1) == ["recovery start"])
+        on.stop()
+        check("the default-nil add-on stayed untouched throughout", ProbeLog.events.isEmpty)
     }
 }

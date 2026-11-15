@@ -9,6 +9,8 @@ protocol NotchcastAddon {
     static var taps: [NotchcastTap] { get }
     /// Built when any of the add-on's switches is enabled, stopped when the last goes off.
     static func makeModule(_ context: NotchcastContext) -> (any NotchcastModule)?
+    /// Built and started at core start whatever the switches say, stopped at core stop.
+    static func makeRecovery(_ context: NotchcastContext) -> (any NotchcastModule)?
 }
 
 extension NotchcastAddon {
@@ -16,6 +18,7 @@ extension NotchcastAddon {
     static var settings: [NotchcastSettingsRow] { [] }
     static var taps: [NotchcastTap] { [] }
     static func makeModule(_ context: NotchcastContext) -> (any NotchcastModule)? { nil }
+    static func makeRecovery(_ context: NotchcastContext) -> (any NotchcastModule)? { nil }
 }
 
 @MainActor
