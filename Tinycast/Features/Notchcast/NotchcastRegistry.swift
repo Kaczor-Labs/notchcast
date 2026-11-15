@@ -6,5 +6,6 @@ enum NotchcastRegistry {
         ShowDesktopAddon.self,
         QuitProtectionAddon.self,
         MiddleClickAddon.self,
+        MusicBlockAddon.self,
     ]
 }
