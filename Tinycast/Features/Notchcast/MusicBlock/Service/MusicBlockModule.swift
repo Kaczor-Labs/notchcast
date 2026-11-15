@@ -12,8 +12,15 @@ final class MusicBlockModule: NotchcastModule {
     private var trigger = MusicLaunchTrigger()
     private var tapToken: UUID?
     private var launchObservers: [NotificationCenter.ObservationToken] = []
+    private let gestureAge: () -> TimeInterval
+    private let isMusicRunning: () -> Bool
 
-    init(context: NotchcastContext) { self.context = context }
+    init(context: NotchcastContext, gestureAge: @escaping () -> TimeInterval = MusicBlockModule.secondsSinceGesture,
+         isMusicRunning: @escaping () -> Bool = MusicBlockModule.isMusicRunning) {
+        self.context = context
+        self.gestureAge = gestureAge
+        self.isMusicRunning = isMusicRunning
+    }
 
     func start() {
         guard tapToken == nil else { return }
@@ -44,33 +51,33 @@ final class MusicBlockModule: NotchcastModule {
 
     private func noted(_ event: NotchcastTapEvent) {
         guard let key = event.mediaKey, MusicLaunchPolicy.arms(key) else { return }
-        let running = MusicLaunchPolicy.blockedBundleIDs.contains {
-            !NSRunningApplication.runningApplications(withBundleIdentifier: $0).isEmpty
-        }
         guard let keyAt = MusicLaunchPolicy.uptime(eventTimestamp: event.timestamp) else { return }
-        trigger.arm(at: keyAt, musicRunning: running)
+        trigger.arm(at: keyAt, musicRunning: isMusicRunning())
     }
 
-    private func launched(_ app: NSRunningApplication) {
+    func launched(_ app: NSRunningApplication) {
         guard let bundleID = app.bundleIdentifier,
               trigger.judge(bundleID: bundleID, processID: app.processIdentifier,
-                            now: ProcessInfo.processInfo.systemUptime, gestureAge: Self.secondsSinceGesture(),
-                            tapLive: tapIsLive)
+                            now: ProcessInfo.processInfo.systemUptime, gestureAge: gestureAge(),
+                            tapLive: context.isTapLive)
         else { return }
         if app.forceTerminate() || app.terminate() { return }
-        context.presenter.post(IslandNotice(
-            id: "musicBlock.stopFailed", symbol: "exclamationmark.triangle",
-            text: String(localized: "Couldn't Stop Apple Music", table: "NotchcastMusicBlock"), isFailure: true),
+        let text = String(localized: "Couldn't Stop Apple Music Opening", table: "NotchcastMusicBlock")
+        context.presenter.post(
+            IslandNotice(id: "musicBlock.stopFailed", symbol: "exclamationmark.triangle", text: text, isFailure: true),
             onTap: nil)
     }
 
-    /// Without a live tap a missed key looks like no key, so no launch may be blocked.
-    private var tapIsLive: Bool { tapToken != nil && context.isAccessibilityTrusted }
-
     // Modifier keys are left out because holding fn may be how the media key was sent.
-    private nonisolated static func secondsSinceGesture() -> TimeInterval {
+    nonisolated static func secondsSinceGesture() -> TimeInterval {
         [CGEventType.leftMouseDown, .leftMouseUp, .rightMouseDown, .rightMouseUp, .otherMouseDown, .otherMouseUp,
          .keyDown].map { CGEventSource.secondsSinceLastEventType(.combinedSessionState, eventType: $0) }.min()
             ?? .infinity
+    }
+
+    nonisolated static func isMusicRunning() -> Bool {
+        MusicLaunchPolicy.blockedBundleIDs.contains {
+            !NSRunningApplication.runningApplications(withBundleIdentifier: $0).isEmpty
+        }
     }
 }
