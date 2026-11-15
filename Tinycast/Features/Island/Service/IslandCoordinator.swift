@@ -47,10 +47,12 @@ final class IslandCoordinator: NSObject {
     }
 
     @objc private func rebuild() {
+        let presenter = core.islandPresenter as? IslandPresenter
         let available = screens
         let connected = Set(available.map(\.islandDisplayID))
         for (id, controller) in backdrops where !connected.contains(id) {
             if active === controller { controller.detach(); active = nil }
+            presenter?.restore(controller, resting: false)
             backdrops[id] = nil
         }
         let main = available.first(where: { $0.islandDisplayID == NSScreen.primary?.islandDisplayID }) ?? available.first
@@ -61,6 +63,7 @@ final class IslandCoordinator: NSObject {
             backdrop.onOpen = { [weak self] in self?.core.paletteCoordinator.showPalette(mode: .launcher) }
             backdrop.onMenu = { [weak self] pill, window in self?.pillMenu.toggle(below: pill, in: window) }
             backdrop.glance = backdrop.showsRest ? restingGlance : nil
+            presenter?.restore(backdrop, resting: backdrop.showsRest)
             backdrop.configure(screen)
             backdrops[screen.islandDisplayID] = backdrop
         }
