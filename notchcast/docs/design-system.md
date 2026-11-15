@@ -180,8 +180,8 @@ Capitalization as shipped:
 11. Hover labels: `.tooltip` in non-activating panels, `.help()` only in Settings.
 12. Keys: ↵ primary, Esc cancel in `sendEvent`; Cancel leading; caps shown only in a hover tooltip.
 13. Settings: grouped `Form`, master switch first, `SettingsRowTitle` + one-line subtitle, `.settingsEnabled`, anchor + `SettingsSearchCatalog` entry + `SettingsFileKey`; a list's editor goes through `.settingsEditorPanel(item:)`.
-14. Copy: Title Case commands/buttons/outcomes, questions for confirmations, sentence case toggles, all strings localized into all eight languages.
-15. Accessibility label + traits on every custom control; check Dark and Light over a light wallpaper.
+14. Copy: Title Case commands/buttons/outcomes, questions for confirmations, sentence case toggles; fork strings are English only, checked by `check-fork-strings`.
+15. Accessibility label + traits on every custom control; check Dark only; Light is never checked or fixed.
 
 ## 14. Anti-patterns seen in code (do not copy)
 
