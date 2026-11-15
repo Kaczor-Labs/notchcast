@@ -4,7 +4,7 @@ import AppKit
 /// The carded meeting's expansion, with a shorter dwell so each scene fits the 9 s run.
 @MainActor
 enum IslandMeetingScenes {
-    static let names: Set = ["meeting-expand", "meeting-expand-level", "meeting-expand-palette"]
+    static let names: Set = ["meeting-expand", "meeting-expand-level", "meeting-expand-palette", "meeting-expand-rebuild"]
     private static var presenter: IslandPresenter? { AppCore.shared.islandPresenter as? IslandPresenter }
     private static var now: Double { ProcessInfo.processInfo.systemUptime }
 
@@ -20,6 +20,7 @@ enum IslandMeetingScenes {
         switch scene {
         case "meeting-expand": await expand(core: core, controller: controller, presenter: presenter)
         case "meeting-expand-level": await level(core: core, controller: controller, presenter: presenter)
+        case "meeting-expand-rebuild": await rebuild(core: core, controller: controller, presenter: presenter)
         default: await palette(core: core, controller: controller, presenter: presenter)
         }
         IslandScenes.pass(scene, screen: screen)
@@ -95,6 +96,36 @@ enum IslandMeetingScenes {
         await IslandVerification.pause(0.3)
         IslandVerification.require(controller.captured == ["meeting-after-level", "meeting-cut-level", "meeting-cut-after"],
                                    "waiting, cut and after captured")
+    }
+
+    /// Unplugging and replugging the display hands a live expansion to the new pill, with no replay.
+    private static func rebuild(core: AppCore, controller: IslandController, presenter: IslandPresenter) async {
+        func screensChanged(_ screens: [NSScreen]?) async {
+            IslandVerification.screens = screens
+            NotificationCenter.default.post(name: NSApplication.didChangeScreenParametersNotification, object: NSApp)
+            await IslandVerification.pause(0.2)
+        }
+        presenter.previewExpansion(seconds: 2)
+        let start = now
+        preview(core)
+        await IslandVerification.pause(0.4)
+        IslandVerification.require(controller.contentKey == "expansion" && presenter.expansions == 1, "the pill expands")
+        await screensChanged([])
+        IslandVerification.require(!controller.expanded, "the unplugged pill drops the expansion")
+        await screensChanged(nil)
+        guard let next = core.island.resting, next !== controller else {
+            IslandVerification.require(false, "the replug builds a new resting pill"); return
+        }
+        print("REBUILT key=\(next.contentKey ?? "-") expanded=\(next.expanded) glance=\(next.glance != nil)")
+        IslandVerification.require(next.glance != nil && next.expanded && next.contentKey == "expansion"
+            && presenter.expansions == 1, "the new pill keeps the expansion")
+        next.capture("meeting-rebuilt")
+        await until(start + 2.3)
+        IslandVerification.require(next.contentKey == "glance" && !next.expanded, "it settles at the original deadline")
+        await screensChanged(nil)
+        IslandVerification.require(core.island.resting?.contentKey == "glance" && presenter.expansions == 1,
+                                   "a rebuild after the settle never replays")
+        IslandVerification.require(next.captured == ["meeting-rebuilt"], "rebuilt pill captured")
     }
 
     private static func palette(core: AppCore, controller: IslandController, presenter: IslandPresenter) async {

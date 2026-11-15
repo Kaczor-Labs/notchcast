@@ -40,7 +40,7 @@ final class IslandCoordinator: NSObject {
     private var screens: [NSScreen] {
         #if DEBUG
         if IslandVerification.enabled {
-            return IslandVerification.testScreen.map { [$0] } ?? []
+            return IslandVerification.screens ?? IslandVerification.testScreen.map { [$0] } ?? []
         }
         #endif
         return NSScreen.screens
