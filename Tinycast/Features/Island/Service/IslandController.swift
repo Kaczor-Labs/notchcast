@@ -166,6 +166,7 @@ final class IslandController: NSObject {
                 surface.resize(stageWidth: size.width, animate: true)
                 surface.show(.expanded(.init(bottom: size)), contentKey: "palette")
             } else if showsRest, let art = canvas.glance {
+                if !suspended { backdrop.orderFrontRegardless() }
                 let slots = CompactContent(leading: CGSize(width: art.layout.leading, height: 0),
                                            trailing: CGSize(width: art.layout.trailing, height: 0))
                 surface.show(.compact(slots), contentKey: "glance")
