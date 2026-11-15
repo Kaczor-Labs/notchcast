@@ -57,7 +57,7 @@ final class AppWindowController: NSObject, NSWindowDelegate {
     /// A prebuilt controller; Settings needs one to bridge its SwiftUI toolbar into the window.
     @discardableResult
     func show(chrome: WindowChrome? = nil, contentViewController: () -> NSViewController) -> Bool {
-        requireTestDisplay()
+        IslandVerification.keepOnTestDisplay()
         if let window {
             raise(window)
             return false
@@ -75,7 +75,7 @@ final class AppWindowController: NSObject, NSWindowDelegate {
     @discardableResult
     func focus() -> Bool {
         guard let window else { return false }
-        requireTestDisplay()
+        IslandVerification.keepOnTestDisplay()
         raise(window)
         return true
     }
@@ -143,21 +143,8 @@ final class AppWindowController: NSObject, NSWindowDelegate {
         } else {
             window.center()
         }
-        #if DEBUG
-        if IslandVerification.enabled, let screen = IslandVerification.testScreen {
-            window.setFrameOrigin(CGPoint(x: screen.visibleFrame.midX - window.frame.width / 2,
-                                          y: screen.visibleFrame.midY - window.frame.height / 2))
-        }
-        #endif
+        IslandVerification.keepOnTestDisplay(window)
         return window
-    }
-
-    /// Verification opens or raises windows on the test display only; losing it ends the run.
-    private func requireTestDisplay() {
-        #if DEBUG
-        guard IslandVerification.enabled else { return }
-        IslandVerification.require(IslandVerification.testScreen != nil, "an app window has the test display")
-        #endif
     }
 
     private func raise(_ window: NSWindow) {
@@ -166,8 +153,8 @@ final class AppWindowController: NSObject, NSWindowDelegate {
         window.makeKeyAndOrderFront(nil)
         // `NSApp.activate` is async, so re-assert next turn — never onto a window closed since.
         DispatchQueue.main.async { [weak self, weak window] in
-            guard let self, let window, self.window === window else { return }
-            requireTestDisplay()
+            guard let window, self?.window === window else { return }
+            IslandVerification.keepOnTestDisplay()
             window.makeKeyAndOrderFront(nil)
         }
     }

@@ -53,15 +53,20 @@ enum IslandScenes {
         controller.capture(scene)
         await IslandVerification.pause(0.3)
         IslandVerification.require(controller.captured.contains(scene), "scene layer capture \(scene)")
+        pass(scene, screen: screen)
+        core.paletteCoordinator.hidePalette(restoreFocus: false)
+        _exit(0)
+    }
+    /// A scene passes only once every visible own window sits on the test display.
+    static func pass(_ scene: String, screen: NSScreen) {
         let windows = NSApp.windows.filter(\.isVisible)
         IslandVerification.require(windows.allSatisfy { screen.frame.contains($0.frame) }, "all own windows on test display")
         for window in windows {
             print("WINDOW \(type(of: window)) frame=\(window.frame) level=\(window.level.rawValue) key=\(window.isKeyWindow)")
         }
         print("PASS scene \(scene) active=\(NSApp.isActive)")
-        core.paletteCoordinator.hidePalette(restoreFocus: false)
-        _exit(0)
     }
+
     private static func keyboard(core: AppCore, panel: PalettePanel) async {
         IslandLatency.focus(panel)
         IslandLatency.key(panel, code: 125, characters: "\u{f701}")
