@@ -160,7 +160,7 @@ struct GeneralSettingsView: View {
             }
             Button("Cancel", role: .cancel) {}
         } message: {
-            Text("Notchcast will relearn your preferred results as you use the launcher.", tableName: "Notchcast")
+            Text("Tinycast will relearn your preferred results as you use the launcher.")
         }
         .onAppear(perform: refreshInputSources)
         .onReceive(
