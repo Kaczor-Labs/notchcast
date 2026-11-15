@@ -1,7 +1,7 @@
 import AppKit
 import Observation
 
-/// Renders levels and the meeting expansion; notices, status and menu rows come later.
+/// Renders levels and the meeting expansion; notices and status reach only accessibility so far.
 @MainActor
 final class IslandPresenter: IslandPresenting {
     private var dwell = IslandLevelDwell()
@@ -14,6 +14,8 @@ final class IslandPresenter: IslandPresenting {
     private var expansionTask: Task<Void, Never>?
     private var occurrence: IslandMeetingExpansion.Occurrence?
     private weak var expandedPill: IslandController?
+    private var notice: IslandNotice?
+    private var statuses: [IslandStatus] = []
 
     func showLevel(_ level: IslandLevel) {
         if dwell.show(level, at: Self.now) {
@@ -32,9 +34,36 @@ final class IslandPresenter: IslandPresenting {
         updateExpansion()
     }
 
-    func post(_ notice: IslandNotice, onTap: (@MainActor () -> Void)?) {}
-    func end(notice id: String) {}
-    func setStatus(_ status: IslandStatus?, for id: String) {}
+    /// A progress repost keeps its id and text, so VoiceOver hears each notice once.
+    func post(_ notice: IslandNotice, onTap: (@MainActor () -> Void)?) {
+        let isNew = self.notice?.id != notice.id || self.notice?.text != notice.text
+        self.notice = notice
+        AppCore.shared.island.resting?.notice = notice
+        guard isNew else { return }
+        NSAccessibility.post(element: NSApp as Any, notification: .announcementRequested,
+            userInfo: [.announcement: notice.text, .priority: NSAccessibilityPriorityLevel.high.rawValue])
+        #if DEBUG
+        IslandVerification.announcements.append(notice.text)
+        #endif
+    }
+
+    func end(notice id: String) {
+        guard notice?.id == id else { return }
+        notice = nil
+        AppCore.shared.island.resting?.notice = nil
+    }
+
+    func setStatus(_ status: IslandStatus?, for id: String) {
+        statuses.removeAll { $0.id == id }
+        if let status { statuses.append(status) }
+        AppCore.shared.island.resting?.statuses = statuses
+    }
+    /// Hands notices and status to the resting pill without posting, so none re-announces.
+    func restore(_ controller: IslandController, resting: Bool) {
+        controller.notice = resting ? notice : nil
+        controller.statuses = resting ? statuses : []
+    }
+
     func setMenuRows(_ rows: [IslandMenuRow], owner: String, onSelect: @escaping @MainActor (String) -> Void) {}
 
     #if DEBUG
