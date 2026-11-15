@@ -18,6 +18,7 @@ enum IslandScenes {
         if scene == "latency" { await IslandLatency.run(core: core, panel: panel); return }
         if scene == "keyboard" { await keyboard(core: core, panel: panel); return }
         if scene == "window-contract" { await IslandWindowScenes.run(core: core, panel: panel); return }
+        if scene == "level-contract" { await IslandLevelScenes.run(core: core, panel: panel); return }
         if scene == "question" { await IslandOverlayScenes.question(core: core, panel: panel); return }
         if scene == "report" { await IslandOverlayScenes.report(core: core, panel: panel); return }
         if scene == "overlay-lifetime" { await IslandOverlayScenes.lifetime(core: core, panel: panel); return }
