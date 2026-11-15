@@ -3,9 +3,11 @@
   "strings" : {
     "Add app…" : {},
     "Confirm by" : {},
+    "Exceptions" : {},
     "Hold ⌘Q to quit %@" : {},
     "Hold ⌘W to close a window in %@" : {},
     "Holding ⌘Q" : {},
+    "How you confirm a quit or a close." : {},
     "Press ⌘Q again to quit %@" : {},
     "Press ⌘W again to close a window in %@" : {},
     "Pressing ⌘Q twice" : {},

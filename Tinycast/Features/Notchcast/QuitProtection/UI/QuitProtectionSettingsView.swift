@@ -15,13 +15,19 @@ struct QuitProtectionSettingsView: View {
             Text("Pressing ⌘Q twice", tableName: "NotchcastQuitProtection")
                 .tag(QuitProtectionEngine.Mode.doublePress)
         } label: {
-            Text("Confirm by", tableName: "NotchcastQuitProtection")
+            SettingsRowTitle(.quitProtection, LocalizedStringResource("Confirm by", table: "NotchcastQuitProtection"))
+            Text("How you confirm a quit or a close.", tableName: "NotchcastQuitProtection")
         }
         Toggle(isOn: $store.configuration.closeEnabled) {
-            Text("Protect ⌘W", tableName: "NotchcastQuitProtection")
+            SettingsRowTitle(.quitProtection, LocalizedStringResource("Protect ⌘W", table: "NotchcastQuitProtection"))
             Text("Same confirmation before closing a window.", tableName: "NotchcastQuitProtection")
         }
-        Text("These apps quit and close without asking.", tableName: "NotchcastQuitProtection")
+        LabeledContent {
+            EmptyView()
+        } label: {
+            SettingsRowTitle(.quitProtection, LocalizedStringResource("Exceptions", table: "NotchcastQuitProtection"))
+            Text("These apps quit and close without asking.", tableName: "NotchcastQuitProtection")
+        }
         if store.configuration.exceptions.isEmpty {
             Text("Nothing here yet.").foregroundStyle(.secondary)
         }
@@ -31,7 +37,7 @@ struct QuitProtectionSettingsView: View {
             }
         }
         Button(action: addApplications) {
-            Text("Add app…", tableName: "NotchcastQuitProtection")
+            SettingsRowTitle(.quitProtection, LocalizedStringResource("Add app…", table: "NotchcastQuitProtection"))
         }
     }
 
@@ -46,4 +52,10 @@ struct QuitProtectionSettingsView: View {
         guard panel.runModal() == .OK else { return }
         store.configuration.exceptions.formUnion(panel.urls.compactMap { Bundle(url: $0)?.bundleIdentifier })
     }
+}
+
+private extension SettingsAnchor {
+    // Stand-in until core declares add-on anchors; no search entry points here yet.
+    static let quitProtection = Self(
+        tab: .notchcast, title: LocalizedStringResource("Quit Protection", table: "NotchcastQuitProtection"))
 }
