@@ -23,23 +23,12 @@ enum IslandPillScenes {
         case "window-guard-new", "window-guard-raise": windowGuard(core: core, raise: scene.hasSuffix("raise"))
         default: await glance(core: core, controller: controller)
         }
-        let windows = NSApp.windows.filter(\.isVisible)
-        IslandVerification.require(windows.allSatisfy { screen.frame.contains($0.frame) }, "all own windows on test display")
-        for window in windows {
-            print("WINDOW \(type(of: window)) frame=\(window.frame) level=\(window.level.rawValue) key=\(window.isKeyWindow)")
-        }
-        print("PASS scene \(scene) active=\(NSApp.isActive)")
+        IslandScenes.pass(scene, screen: screen)
         _exit(0)
     }
 
-    static var menuPanel: MenuPanel? {
-        NSApp.windows.first { $0 is MenuPanel && $0.isVisible } as? MenuPanel
-    }
-
-    static var paletteVisible: Bool {
-        NSApp.windows.contains { $0 is PalettePanel && $0.isVisible }
-    }
-
+    static var menuPanel: MenuPanel? { NSApp.windows.first { $0 is MenuPanel && $0.isVisible } as? MenuPanel }
+    static var paletteVisible: Bool { NSApp.windows.contains { $0 is PalettePanel && $0.isVisible } }
     static var statusItemWindows: Int {
         NSApp.windows.filter { String(describing: type(of: $0)).contains("StatusBar") }.count
     }
@@ -61,11 +50,10 @@ enum IslandPillScenes {
         IslandVerification.require(menuPanel == nil, "\(label) Escape closes the pill menu")
     }
 
-    private static func menu(core: AppCore, controller: IslandController) async {
-        guard let menu = await openMenu(controller, .rightMouseDown, "right-click"),
-              let pill = controller.pillFrame else { return }
-        let backdrop = controller.backdropWindow.frame
-        let pillBottom = backdrop.maxY - pill.maxY
+    /// The meeting-free menu hangs right under the pill, ends in Quit, and is captured on its layer.
+    private static func requireRestMenu(_ menu: MenuPanel, core: AppCore, controller: IslandController) async {
+        guard let pill = controller.pillFrame else { IslandVerification.require(false, "pill frame"); return }
+        let pillBottom = controller.backdropWindow.frame.maxY - pill.maxY
         print("PILL \(pill) BOTTOM \(pillBottom) MENU \(menu.frame)")
         IslandVerification.require(menu.frame.maxY <= pillBottom + 0.5, "menu sits below the pill")
         IslandVerification.require(pillBottom - menu.frame.maxY < 40, "menu hangs right under the pill")
@@ -78,6 +66,11 @@ enum IslandPillScenes {
         controller.capture("pill-menu")
         await IslandVerification.pause(0.3)
         IslandVerification.require(controller.captured.contains("pill-menu"), "pill menu layer capture")
+    }
+
+    private static func menu(core: AppCore, controller: IslandController) async {
+        guard let menu = await openMenu(controller, .rightMouseDown, "right-click") else { return }
+        await requireRestMenu(menu, core: core, controller: controller)
         for character in "zzzz" { IslandLatency.key(menu, code: 6, characters: String(character)) }
         await IslandVerification.pause(0.2)
         IslandVerification.require(core.island.pillMenu.itemTitles.isEmpty, "typing filters the pill menu")
@@ -255,21 +248,9 @@ enum IslandPillScenes {
     }
 
     private static func quietMenu(core: AppCore, controller: IslandController, screen: NSScreen) async {
-        guard let menu = await quietOpen(controller), let pill = controller.pillFrame else { return }
-        let pillBottom = controller.backdropWindow.frame.maxY - pill.maxY
-        print("PILL \(pill) BOTTOM \(pillBottom) MENU \(menu.frame)")
-        IslandVerification.require(menu.frame.maxY <= pillBottom + 0.5, "menu sits below the pill")
-        IslandVerification.require(pillBottom - menu.frame.maxY < 40, "menu hangs right under the pill")
-        let titles = core.island.pillMenu.itemTitles
-        print("MENU_ROWS \(titles)")
-        IslandVerification.require(titles.last == CommandID.quit.name, "Quit closes the pill menu")
-        IslandVerification.require(titles.contains(String(localized: "Settings…")), "pill menu offers Settings")
-        IslandVerification.require(!titles.contains { $0.hasPrefix(String(localized: "Join \("")")) },
-                                   "no meeting, no join row")
+        guard let menu = await quietOpen(controller) else { return }
+        await requireRestMenu(menu, core: core, controller: controller)
         IslandVerification.require(statusItemWindows == 0, "no menu bar item exists")
-        controller.capture("pill-menu")
-        await IslandVerification.pause(0.3)
-        IslandVerification.require(controller.captured.contains("pill-menu"), "pill menu layer capture")
         core.palette.menuQuery = "zzzz"
         await IslandVerification.pause(0.2)
         IslandVerification.require(core.island.pillMenu.itemTitles.isEmpty, "a query filters the pill menu")
