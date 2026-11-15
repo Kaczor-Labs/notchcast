@@ -109,7 +109,7 @@ enum SettingsSearchCatalog {
         (general + applications + systemSettings + systemActions + commands + quicklinks
         + appleShortcuts + fallbacks + clipboard + snippets + fileSearch + windowManagement
         + navigation + notes + calendar + emoji + ai + quickActions + dictation + extensions + permissions
-        + backup + about + [.init(pane: .notchcast, keywords: ["island", "addons"])]).filter { !NotchcastHidden.hides(tab: $0.tab, keywords: $0.keywords) }
+        + backup + about + NotchcastSettingsSearch.entries).filter { !NotchcastHidden.hides(tab: $0.tab, keywords: $0.keywords) }
 
     private static let general: [SettingsSearchEntry] = [
         .init(pane: .general, keywords: ["preferences", "settings"]),

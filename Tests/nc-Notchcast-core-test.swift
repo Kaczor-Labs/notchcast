@@ -8,6 +8,7 @@
 import AppKit
 import CoreGraphics
 import Foundation
+import Synchronization
 
 @MainActor
 final class RecordingPresenter: NotchcastPresenting {
@@ -102,6 +103,46 @@ enum ProbeAddon: NotchcastAddon {
     static func makeModule(_ context: NotchcastContext) -> (any NotchcastModule)? { ProbeModule(context) }
 }
 
+final class OrderLog: Sendable {
+    static let shared = OrderLog()
+    private let state = Mutex<(entries: [String], value: Int64)>(([], 0))
+    var all: [String] { state.withLock { $0.entries } }
+    func clear() { state.withLock { $0 = ([], 0) } }
+    func record(_ label: String, writing value: Int64) {
+        state.withLock {
+            $0.entries.append("\(label)\($0.value)")
+            $0.value = value
+        }
+    }
+}
+
+/// Each handler logs the value the previous one wrote, so the log shows the run order.
+func chainedTap(_ label: String, _ index: Int64, type: CGEventType, switchID: String = "order") -> NotchcastTap {
+    NotchcastTap(switchID: switchID, mask: NotchcastTapPolicy.mask(for: type), handler: .synchronous { _, _ in
+        OrderLog.shared.record(label, writing: index + 1)
+        return .pass
+    })
+}
+
+@MainActor
+final class OrderModule: NotchcastModule {
+    let context: NotchcastContext
+    init(_ context: NotchcastContext) { self.context = context }
+    func start() {
+        for index in 0..<6 { context.subscribe(chainedTap("w", Int64(index), type: .keyDown, switchID: "orderLate")) }
+    }
+    func stop() {}
+}
+
+enum OrderAddon: NotchcastAddon {
+    static let switches = [
+        NotchcastSwitch(id: "order", title: "Order", subtitle: "", category: .macTweaks),
+        NotchcastSwitch(id: "orderLate", title: "Late", subtitle: "", category: .macTweaks),
+    ]
+    static let taps = (0..<6).map { chainedTap("d", Int64($0), type: .otherMouseDown) }
+    static func makeModule(_ context: NotchcastContext) -> (any NotchcastModule)? { OrderModule(context) }
+}
+
 @main
 @MainActor
 struct NotchcastCoreTest {
@@ -131,6 +172,7 @@ struct NotchcastCoreTest {
         mediaKeys()
         hotKeys()
         controller(defaults)
+        order(defaults)
         print(failures == 0 ? "PASS NotchcastCoreTest (\(checks) checks)" : "FAILED \(failures)/\(checks)")
         if failures > 0 { exit(1) }
     }
@@ -183,8 +225,11 @@ struct NotchcastCoreTest {
         drain()
         check("our own synthetic events are skipped", seen == [7])
 
-        check("a disable notice re-enables", system.live?.router.receive(type: .tapDisabledByTimeout, event: key)
-            == .reenable)
+        let notice = system.live?.router.receive(type: .tapDisabledByTimeout, event: key)
+        check("a disable notice re-enables, naming its subscribers", notice == .reenable([first, second]))
+        drain()
+        check("no reset before the tap is re-enabled", resets.isEmpty)
+        system.live?.router.reenabled([first, second])
         hub.remove(second)
         drain()
         check("reset reaches live subscribers only, once", resets == ["a"])
@@ -201,6 +246,29 @@ struct NotchcastCoreTest {
         check("a replaced session's router is inert", stale.receive(type: .tapDisabledByTimeout, event: key) == .pass)
         drain()
         check("no reset from a replaced session", resets == ["a"])
+
+        let mouseMask = NotchcastTapPolicy.mask(for: .leftMouseDown)
+        let mouse = hub.subscribe(NotchcastTap(
+            switchID: "m", mask: mouseMask, handler: .observe { _ in }, reset: { resets.append("m") }))
+        guard case .reenable(let named)? = system.live?.router.receive(type: .tapDisabledByUserInput, event: key) else {
+            return check("a disable notice names its subscribers", false)
+        }
+        system.live?.router.reenabled(named)
+        let restarts = system.sessions.count
+        hub.remove(mouse)
+        drain()
+        check("removing another mask restarts", system.sessions.count == restarts + 1)
+        check("a restart before delivery keeps the survivor's reset", resets == ["a", "a"])
+
+        guard case .reenable(let again)? = system.live?.router.receive(type: .tapDisabledByTimeout, event: key) else {
+            return check("a second disable notice names its subscribers", false)
+        }
+        system.live?.router.reenabled(again)
+        let late = hub.subscribe(NotchcastTap(
+            switchID: "l", mask: keyMask, handler: .observe { _ in }, reset: { resets.append("late") }))
+        drain()
+        check("a subscriber added after the disable gets no reset", resets == ["a", "a", "a"])
+        hub.remove(late)
 
         hub.remove(swallowing)
         hub.remove(first)
@@ -294,5 +362,29 @@ struct NotchcastCoreTest {
         controller.preferences.set("probeMain", on: false)
         drain()
         check("a stopped controller ignores toggles", ProbeLog.events.count == 4)
+    }
+
+    static func order(_ defaults: UserDefaults) {
+        let system = FakeSystem()
+        let hub = system.makeHub()
+        let controller = NotchcastController(addons: [OrderAddon.self], defaults: defaults, hub: hub,
+                                             presenter: RecordingPresenter())
+        controller.start()
+        controller.preferences.set("order", on: true)
+        drain()
+        check("subscriptions wait for their switch", hub.subscriberCount == 6)
+        controller.preferences.set("orderLate", on: true)
+        drain()
+        check("all twelve chained taps are live", hub.subscriberCount == 12)
+        let key = CGEvent(keyboardEventSource: nil, virtualKey: 7, keyDown: true)!
+        _ = system.live?.router.receive(type: .keyDown, event: key)
+        check("subscribed taps run in order, each seeing the last one's change",
+              OrderLog.shared.all == (0..<6).map { "w\($0)" })
+        OrderLog.shared.clear()
+        let click = CGEvent(mouseEventSource: nil, mouseType: .otherMouseDown, mouseCursorPosition: .zero,
+                            mouseButton: .center)!
+        _ = system.live?.router.receive(type: .otherMouseDown, event: click)
+        check("declared taps run in declaration order", OrderLog.shared.all == (0..<6).map { "d\($0)" })
+        controller.stop()
     }
 }

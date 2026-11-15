@@ -40,6 +40,7 @@ class CheckAddonsTest(unittest.TestCase):
         write(self.root, NC + 'NotchcastRegistry.swift', 'static let addons = [\n]\n')
         write(self.root, NC + 'Core/Service/Core.swift', 'core\n')
         write(self.root, 'notchcast/addons-budget.env', '# budget\nFILES=1\nPLUS=2\nMINUS=0\n')
+        write(self.root, 'notchcast/licenses/borrowed.md', '# Borrowed\n\nKeep: K.swift ← a/b/K.swift (MIT)\n')
         self.base = self.commit('base')
 
     def tearDown(self):
@@ -50,8 +51,9 @@ class CheckAddonsTest(unittest.TestCase):
         git(self.root, 'commit', '-q', '-m', message)
         return git(self.root, 'rev-parse', 'HEAD')
 
-    def check(self):
-        result = subprocess.run([sys.executable, str(CHECK), '--base', self.base, '--upstream', self.upstream,
+    def check(self, mode='feature'):
+        result = subprocess.run([sys.executable, str(CHECK), '--mode', mode, '--base', self.base,
+                                 '--upstream', self.upstream,
                                  '--root', str(self.root)], capture_output=True, text=True)
         return result.returncode, result.stdout + result.stderr
 
@@ -64,12 +66,12 @@ class CheckAddonsTest(unittest.TestCase):
         write(self.root, NC + 'Core/Service/Core.swift', 'core 2\n')
         write(self.root, 'Tinycast/App/AppCore.swift', 'start()\nNotchcastCore.start()\n')
         self.commit('core')
-        code, out = self.check()
+        code, out = self.check('core')
         self.assertEqual(code, 0, out)
         self.assertIn('upstream touch: 1 files, +1 -0 (budget 1 files, +2 -0)', out)
         write(self.root, 'Tinycast/Features/Settings/Catalog.swift', 'keywords: ["shots", "x"]\n')
         self.commit('core over')
-        code, out = self.check()
+        code, out = self.check('core')
         self.assertEqual(code, 1, out)
         self.assertIn('over budget', out)
 
@@ -108,7 +110,7 @@ class CheckAddonsTest(unittest.TestCase):
                             ('let module: ShotsModule? = nil', 'ShotsModule')):
             write(self.root, 'Tinycast/Features/Island/Probe.swift', line + '\n')
             self.commit('island')
-            code, out = self.check()
+            code, out = self.check('none')
             self.assertEqual(code, 1, out)
             self.assertIn(f"Tinycast/Features/Island/Probe.swift:1: names Shots's", out)
             self.assertIn(token, out)
@@ -127,6 +129,88 @@ class CheckAddonsTest(unittest.TestCase):
         self.assertNotIn('names', out)
         self.assertIn('Tests/nc-Notchcast-registry-test.swift: outside the add-on folders', out)
         self.assertEqual(code, 1, out)
+
+    def test_guard_skips_nested_types_strings_and_comments(self):
+        self.add_shots()
+        write(self.root, NC + 'Shots/ShotsAddon.swift', SHOTS + 'struct ShotsKeys {\n    enum Press { case down }\n}\n')
+        self.commit('feature')
+        self.base = git(self.root, 'rev-parse', 'HEAD')
+        write(self.root, 'Tinycast/Features/Onboarding/Ready.swift',
+              'let text = Text("Press \\(chip(caps)) anytime", tableName: "N") // ShotsModule waits\n'
+              '/* ShotsKeys */ let copy = """\n    Press ShotsModule\n    """\nlet own = Keyboard.Press.down\n')
+        self.commit('onboarding copy')
+        code, out = self.check('none')
+        self.assertEqual(code, 0, out)
+        write(self.root, 'Tinycast/Features/Onboarding/Ready.swift', 'let text = Text("Press \\(ShotsKeys.self)")\n')
+        self.commit('real reference')
+        code, out = self.check('none')
+        self.assertEqual(code, 1, out)
+        self.assertIn("Tinycast/Features/Onboarding/Ready.swift:1: names Shots's ShotsKeys", out)
+
+    def add_keep(self):
+        write(self.root, NC + 'Keep/KeepAddon.swift', 'struct KeepAddon: NotchcastAddon {\n}\n')
+        write(self.root, NC + 'NotchcastRegistry.swift', 'static let addons = [\n    KeepAddon.self,\n]\n')
+        self.commit('keep')
+        self.base = git(self.root, 'rev-parse', 'HEAD')
+
+    def test_a_feature_owns_only_the_folder_its_registry_line_names(self):
+        self.add_keep()
+        self.add_shots()
+        write(self.root, NC + 'NotchcastRegistry.swift',
+              'static let addons = [\n    KeepAddon.self,\n    ShotsAddon.self,\n]\n')
+        write(self.root, NC + 'Keep/KeepAddon.swift', 'struct KeepAddon: NotchcastAddon {\n    let x = 1\n}\n')
+        self.commit('shots edits keep')
+        code, out = self.check()
+        self.assertEqual(code, 1, out)
+        self.assertIn(f"{NC}Keep/KeepAddon.swift: outside the add-on folders ['Shots']", out)
+
+    def test_an_edit_without_a_registry_line_owns_one_folder(self):
+        self.add_keep()
+        write(self.root, NC + 'Keep/KeepAddon.swift', 'struct KeepAddon: NotchcastAddon {\n    let x = 1\n}\n')
+        self.commit('keep fix')
+        code, out = self.check()
+        self.assertEqual(code, 0, out)
+        self.assertIn('add-on gate (feature): feature folders: Keep', out)
+        write(self.root, NC + 'Other/Other.swift', 'struct Other {}\n')
+        self.commit('two folders')
+        code, out = self.check()
+        self.assertEqual(code, 1, out)
+        self.assertIn('outside the add-on folders (none)', out)
+
+    def test_a_core_edit_does_not_turn_a_feature_into_budget_mode(self):
+        self.add_shots()
+        write(self.root, NC + 'Core/Service/Core.swift', 'core 2\n')
+        self.commit('feature edits core')
+        code, out = self.check()
+        self.assertEqual(code, 1, out)
+        self.assertNotIn('upstream touch', out)
+        self.assertIn(f'{NC}Core/Service/Core.swift: outside the add-on folders', out)
+
+    def test_a_feature_appends_only_its_own_licence_lines(self):
+        self.add_shots()
+        borrowed = self.root / 'notchcast/licenses/borrowed.md'
+        original = borrowed.read_text()
+        write(self.root, 'notchcast/licenses/borrowed.md',
+              original + 'Shots: Shots/Grab.swift ← someone/shots/Sources/Grab.swift (GPL-3.0-or-later)\n')
+        self.commit('feature with licence')
+        code, out = self.check()
+        self.assertEqual(code, 0, out)
+        for text, needle in ((original + 'Keep: X.swift ← a/b/X.swift (MIT)\n', 'is not a `<owned folder>'),
+                             (original + 'Shots: free text\n', 'is not a `<owned folder>'),
+                             (original.replace('Keep: K.swift ← a/b/K.swift (MIT)\n', ''), 'removes "Keep:')):
+            git(self.root, 'reset', '-q', '--hard', self.base)
+            self.add_shots()
+            write(self.root, 'notchcast/licenses/borrowed.md', text)
+            self.commit('bad licence line')
+            code, out = self.check()
+            self.assertEqual(code, 1, out)
+            self.assertIn(needle, out)
+
+    def test_the_mode_is_required(self):
+        result = subprocess.run([sys.executable, str(CHECK), '--base', self.base, '--root', str(self.root)],
+                                capture_output=True, text=True)
+        self.assertEqual(result.returncode, 2, result.stderr)
+        self.assertIn('--mode', result.stderr)
 
     def test_a_bad_ref_is_a_tooling_failure(self):
         self.base = 'no-such-ref'

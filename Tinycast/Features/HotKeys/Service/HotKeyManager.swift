@@ -36,12 +36,13 @@ final class HotKeyManager {
     var onExpandSnippet: ((StoredSnippet.ID) -> Void)?
     var onRunExtensionCommand: ((String) -> Void)?
     var onRunNotchcastCommand: ((String) -> Void)?
-    /// Set after `start`, so each change reloads and re-registers the whole list.
     var extraActions: [HotKeyAction] = [] {
         didSet {
+            clearSecureInputEquivalents()
             for action in oldValue { center.unregister(id: action.defaultsKey); bindings[action] = nil }
             for action in extraActions { bindings[action] = storedBinding(for: action); register(action) }
             candidateActionsCache = nil
+            syncSecureInputEquivalents()
             revision &+= 1
             syncModifierTaps()
         }

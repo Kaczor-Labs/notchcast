@@ -3,6 +3,8 @@
 
 For each folder, in a scratch clone of the ref: delete Tinycast/Features/Notchcast/<Folder>/, its registry
 line and Tests/nc-<Folder>-*.swift, then regenerate the project, build Debug and run Scripts/run-tests.sh.
+Every surviving fork harness that notchcast/harness_inputs.py resolves in the scratch tree must report a result
+in the run-tests log, so a harness the runner skipped cannot pass as clean.
 Prints PASS per folder, or FAIL with the step and its log. A failure the deletion caused is a contract breach
 (exit 1); one the tools caused (clone, xcodegen, timeout, a build that stopped without a Swift error) is a
 tooling failure (exit 2). Standalone: ready-check does not run it.
@@ -23,6 +25,8 @@ CORE_DIRS = {'Core', 'Hidden'}
 ADDON_DECL = re.compile(r'\b(?:struct|enum|class)\s+(\w+)\b[^{]*\bNotchcastAddon\b')
 SWIFT_ERROR = re.compile(r'\.swift:\d+:\d+: error:')
 HARNESS_FAIL = re.compile(r'FAIL\S*\s+\S+')
+ANSI = re.compile(r'\x1b\[[0-9;]*m')
+RESULT_LINE = re.compile(r'^\[\d+/\d+\]\s+\S+\s+(\S+)', re.M)
 LOGS = pathlib.Path.home() / 'Library/Caches/notchcast/addon-delete'
 TIMEOUT = 3600
 
@@ -98,6 +102,21 @@ def step(name, command, tree, log, env):
     raise Tooling(f'{name} failed without a Swift error or harness failure; log: {log}')
 
 
+def fork_harnesses(tree, env):
+    try:
+        listing = subprocess.run([sys.executable, 'notchcast/harness_inputs.py'], cwd=tree, env=env, text=True,
+                                 capture_output=True, check=True).stdout
+    except subprocess.CalledProcessError as error:
+        raise Tooling(f'harness_inputs.py failed: {error.stderr.strip()}')
+    names = (pathlib.Path(line.split('\t', 1)[0]).stem for line in listing.splitlines() if line)
+    return sorted(name for name in names if name.startswith(('nc-', 'notchcast-')))
+
+
+def unreported(log_text, names):
+    reported = set(RESULT_LINE.findall(ANSI.sub('', log_text)))
+    return [name for name in names if name not in reported]
+
+
 def check(repo, sha, folder, scratch):
     tree = scratch / folder
     log_prefix = LOGS / f'{sha[:12]}-{folder}'
@@ -116,7 +135,11 @@ def check(repo, sha, folder, scratch):
     step('build', ['xcodebuild', '-project', 'Tinycast.xcodeproj', '-scheme', 'Tinycast', '-configuration', 'Debug',
                    '-jobs', os.environ.get('CHAD_BUILD_QUEUE_JOBS', '4'), '-derivedDataPath', str(tmp / 'dd'),
                    'CODE_SIGNING_ALLOWED=NO', 'build', '-quiet'], tree, pathlib.Path(f'{log_prefix}-build.log'), env)
-    step('run-tests', ['./Scripts/run-tests.sh'], tree, pathlib.Path(f'{log_prefix}-run-tests.log'), env)
+    harnesses = fork_harnesses(tree, env)
+    log = pathlib.Path(f'{log_prefix}-run-tests.log')
+    step('run-tests', ['./Scripts/run-tests.sh'], tree, log, env)
+    if missing := unreported(log.read_text(errors='replace'), harnesses):
+        raise Tooling(f"run-tests reported no result for fork harnesses {', '.join(missing)}; log: {log}")
 
 
 def main():

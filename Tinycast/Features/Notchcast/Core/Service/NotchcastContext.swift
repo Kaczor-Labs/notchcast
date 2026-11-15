@@ -9,7 +9,7 @@ final class NotchcastContext {
     let now: @MainActor () -> Date
     private let hub: NotchcastTapHub
     private let onTapsChanged: @MainActor () -> Void
-    private(set) var wantedTaps: [UUID: NotchcastTap] = [:]
+    private(set) var wantedTaps: [(token: UUID, tap: NotchcastTap)] = []
     private(set) var module: (any NotchcastModule)?
     /// Returns true to consume a digit typed in the launcher (Number Keys, hook H9).
     private(set) var launcherDigit: (@MainActor (_ digit: Int, _ query: String, _ entryRows: [Int]) -> Int?)?
@@ -37,13 +37,14 @@ final class NotchcastContext {
     @discardableResult
     func subscribe(_ tap: NotchcastTap) -> UUID {
         let token = UUID()
-        wantedTaps[token] = tap
+        wantedTaps.append((token, tap))
         onTapsChanged()
         return token
     }
 
     func unsubscribe(_ token: UUID) {
-        guard wantedTaps.removeValue(forKey: token) != nil else { return }
+        guard let index = wantedTaps.firstIndex(where: { $0.token == token }) else { return }
+        wantedTaps.remove(at: index)
         onTapsChanged()
     }
 

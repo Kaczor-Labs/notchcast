@@ -97,12 +97,10 @@ final class NotchcastController {
     }
 
     private func applyTaps() {
-        var desired: [UUID: NotchcastTap] = [:]
-        for slot in slots {
-            for (token, tap) in slot.declaredTaps where enabled.contains(tap.switchID) { desired[token] = tap }
-            for (token, tap) in slot.context.wantedTaps where enabled.contains(tap.switchID) { desired[token] = tap }
-        }
-        for (token, hubID) in installed where desired[token] == nil {
+        // An array, not a dictionary: synchronous handlers run in subscription order.
+        let desired = slots.flatMap { $0.declaredTaps + $0.context.wantedTaps }.filter { enabled.contains($0.tap.switchID) }
+        let wanted = Set(desired.map(\.token))
+        for (token, hubID) in installed where !wanted.contains(token) {
             hub.remove(hubID)
             installed[token] = nil
         }

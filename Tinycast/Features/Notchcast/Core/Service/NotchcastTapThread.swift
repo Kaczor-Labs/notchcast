@@ -88,9 +88,10 @@ final class NotchcastTapThread: NotchcastTapSession, Sendable {
         switch router.receive(type: type, event: event) {
         case .pass: return false
         case .swallow: return true
-        case .reenable:
+        case .reenable(let ids):
             logger.notice("Event tap disabled by the system; re-enabling")
             installation.withLock { if let port = $0?.port { CGEvent.tapEnable(tap: port, enable: true) } }
+            router.reenabled(ids)
             return false
         }
     }

@@ -15,6 +15,10 @@ final class NotchcastCore {
             makeSession: NotchcastTapThread.start)
         presenter = NotchcastHUDPresenter(core: core)
         controller = NotchcastController(addons: addons, defaults: defaults, hub: hub, presenter: presenter)
+        let commands = addons.flatMap { $0.commands }
+        NotchcastSettingsSearch.install(
+            controller.switches,
+            commandWords: Dictionary(grouping: commands, by: \.switchID).mapValues { $0.flatMap { [$0.name] + $0.keywords } })
         let launcher = core.launcherCoordinator
         controller.onCommandsChanged = { [weak core] commands in
             core?.appIndex.extraCommandEntries = commands.map(Self.entry)

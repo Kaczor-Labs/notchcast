@@ -28,7 +28,12 @@ fi
 step config
 python3 notchcast/check-config.py
 if [ -n "${BASE_SHA:-}" ]; then
-    python3 notchcast/check-addons.py --base "$BASE_SHA" --head "$HEAD_SHA" --upstream "$UPSTREAM"
+    case "${NOTCHCAST_READY_BRANCH:-${GITHUB_HEAD_REF:-}}" in
+        v2/addons-core) addons_mode=core ;;
+        v2/addons-*) addons_mode=feature ;;
+        *) addons_mode=none ;;
+    esac
+    python3 notchcast/check-addons.py --mode "$addons_mode" --base "$BASE_SHA" --head "$HEAD_SHA" --upstream "$UPSTREAM"
 fi
 step script-tests
 python3 notchcast/script-tests.py

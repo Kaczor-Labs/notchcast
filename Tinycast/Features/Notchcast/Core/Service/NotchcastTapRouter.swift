@@ -7,7 +7,7 @@ final class NotchcastTapRouter: Sendable {
     enum Outcome: Sendable, Equatable {
         case pass
         case swallow
-        case reenable
+        case reenable([UUID])
     }
 
     struct Consumer: Sendable {
@@ -24,12 +24,12 @@ final class NotchcastTapRouter: Sendable {
 
     private let state: Mutex<State>
     private let syntheticTag: Int64
-    private let onDisabled: @Sendable () -> Void
+    private let onDisabled: @Sendable ([UUID]) -> Void
     private let onEvent: @Sendable (NotchcastTapEvent, [UUID]) -> Void
 
     init(
         consumers: [Consumer], syntheticTag: Int64,
-        onDisabled: @escaping @Sendable () -> Void,
+        onDisabled: @escaping @Sendable ([UUID]) -> Void,
         onEvent: @escaping @Sendable (NotchcastTapEvent, [UUID]) -> Void
     ) {
         state = Mutex(State(consumers: consumers))
@@ -48,12 +48,14 @@ final class NotchcastTapRouter: Sendable {
         state.withLock { $0.active = false }
     }
 
+    /// The tap thread calls this once the tap is live again, with the ids the disable notice named.
+    func reenabled(_ ids: [UUID]) {
+        onDisabled(ids)
+    }
+
     func receive(type: CGEventType, event: CGEvent) -> Outcome {
         guard let consumers = state.withLock({ $0.active ? $0.consumers : nil }) else { return .pass }
-        if NotchcastTapPolicy.isDisabledNotice(type) {
-            onDisabled()
-            return .reenable
-        }
+        if NotchcastTapPolicy.isDisabledNotice(type) { return .reenable(consumers.map(\.id)) }
         let bit = NotchcastTapPolicy.mask(for: type)
         let synthetic = event.getIntegerValueField(.eventSourceUserData) == syntheticTag
         var swallowed = false

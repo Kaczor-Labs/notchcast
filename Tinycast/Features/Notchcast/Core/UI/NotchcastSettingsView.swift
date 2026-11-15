@@ -9,15 +9,19 @@ struct NotchcastSettingsView: View {
             ForEach(NotchcastCategory.allCases, id: \.self) { category in
                 let switches = controller.switches.filter { $0.category == category }
                 if !switches.isEmpty {
-                    Section(category.title) {
+                    let anchor = NotchcastSettingsSearch.anchor(category)
+                    Section {
                         ForEach(switches) { item in
-                            NotchcastSwitchRows(controller: controller, item: item)
+                            NotchcastSwitchRows(controller: controller, item: item, anchor: anchor)
                         }
+                    } header: {
+                        SettingsSectionHeader(anchor)
                     }
                 }
             }
         }
         .formStyle(.grouped)
+        .settingsScrollTarget(.notchcast)
         .onAppear { controller.hub.refreshPermission() }
     }
 }
@@ -26,6 +30,7 @@ struct NotchcastSettingsView: View {
 private struct NotchcastSwitchRows: View {
     let controller: NotchcastController
     let item: NotchcastSwitch
+    let anchor: SettingsAnchor
 
     private var preferences: NotchcastPreferences { controller.preferences }
 
@@ -37,7 +42,7 @@ private struct NotchcastSwitchRows: View {
 
     var body: some View {
         Toggle(isOn: Binding(get: { preferences.isOn(item.id) }, set: { preferences.set(item.id, on: $0) })) {
-            Text(item.title)
+            SettingsRowTitle(anchor, verbatim: item.title)
             Text(item.subtitle)
         }
         .settingsEnabled(dependenciesMet)

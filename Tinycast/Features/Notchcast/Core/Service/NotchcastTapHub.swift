@@ -97,8 +97,8 @@ final class NotchcastTapHub {
         let current = generation
         let router = NotchcastTapRouter(
             consumers: consumers, syntheticTag: syntheticTag,
-            onDisabled: { [weak self] in
-                DispatchQueue.main.async { [weak self] in self?.resetSubscribers(generation: current) }
+            onDisabled: { [weak self] ids in
+                DispatchQueue.main.async { [weak self] in self?.resetSubscribers(ids) }
             },
             onEvent: { [weak self] event, ids in
                 // One FIFO keeps event order without moving a CGEvent across isolation.
@@ -120,8 +120,8 @@ final class NotchcastTapHub {
         }
     }
 
-    private func resetSubscribers(generation: Int) {
-        guard generation == self.generation else { return }
-        for id in order { taps[id]?.reset?() }
+    // By identity, not generation: a restart in between must not cost a survivor its reset.
+    private func resetSubscribers(_ ids: [UUID]) {
+        for id in ids { taps[id]?.reset?() }
     }
 }

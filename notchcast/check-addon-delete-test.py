@@ -73,6 +73,20 @@ class DeleteTest(unittest.TestCase):
         with self.assertRaisesRegex(delete.Tooling, 'could not start'):
             delete.step('xcodegen', ['/no/such/xcodegen'], self.tree, log, None)
 
+    def test_a_fork_harness_the_runner_skipped_is_reported(self):
+        log = ('[1/3] \x1b[32mok\x1b[0m    nc-Keep-test       0.0s\n'
+               '[2/3] \x1b[31mFAIL\x1b[0m  notchcast-hidden-features-test\n')
+        names = ['nc-Keep-test', 'nc-Other-test', 'notchcast-hidden-features-test']
+        self.assertEqual(delete.unreported(log, names), ['nc-Other-test'])
+
+    def test_fork_harnesses_come_from_harness_inputs(self):
+        write(self.tree, 'notchcast/harness_inputs.py',
+              'print("Tests/nc-Keep-test.swift\\t1\\tA.swift")\nprint("Tests/BarTests.swift\\t0\\t")\n')
+        self.assertEqual(delete.fork_harnesses(self.tree, None), ['nc-Keep-test'])
+        write(self.tree, 'notchcast/harness_inputs.py', 'import sys\nsys.exit("bad kit")\n')
+        with self.assertRaisesRegex(delete.Tooling, 'harness_inputs.py failed: bad kit'):
+            delete.fork_harnesses(self.tree, None)
+
 
 if __name__ == '__main__':
     unittest.main()
