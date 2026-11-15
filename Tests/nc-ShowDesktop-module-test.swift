@@ -1,4 +1,5 @@
 // notchcast-sources: Tinycast/Features/Notchcast/Core/Model/*.swift Tinycast/Features/Notchcast/Core/Service/*.swift
+// notchcast-sources: Tinycast/Features/Island/Model/IslandPresentation.swift Tinycast/Features/Island/Service/IslandPresenting.swift
 // notchcast-sources: Tinycast/Platform/NotificationToken.swift
 // notchcast-sources: Tinycast/Features/Notchcast/ShowDesktop/ShowDesktopAddon.swift
 // notchcast-sources: Tinycast/Features/Notchcast/ShowDesktop/Model/*.swift
@@ -45,12 +46,12 @@ final class FakeSession: NotchcastTapSession {
 }
 
 @MainActor
-final class FakePresenter: NotchcastPresenting {
-    func showLevel(_ level: NotchcastLevel) {}
-    func post(_ notice: NotchcastNotice) {}
-    func end(_ noticeID: UUID) {}
-    func setStatus(_ status: NotchcastStatus?, owner: String) {}
-    func setMenuRows(_ rows: [NotchcastMenuRow], owner: String, onSelect: @escaping @MainActor (String) -> Void) {}
+final class FakePresenter: IslandPresenting {
+    func showLevel(_ level: IslandLevel) {}
+    func post(_ notice: IslandNotice, onTap: (@MainActor () -> Void)?) {}
+    func end(notice id: String) {}
+    func setStatus(_ status: IslandStatus?, for id: String) {}
+    func setMenuRows(_ rows: [IslandMenuRow], owner: String, onSelect: @escaping @MainActor (String) -> Void) {}
 }
 
 @MainActor

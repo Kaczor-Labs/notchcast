@@ -4,6 +4,7 @@ import UniformTypeIdentifiers
 struct QuitProtectionSettingsView: View {
     /// Seeded once: the module re-reads the same suite, so this store is the pane's only writer.
     @State private var store: QuitProtectionStore
+    private static let anchor = NotchcastSettingsSearch.anchor(.keyboardMouse)
 
     init(defaults: UserDefaults) {
         _store = State(initialValue: QuitProtectionStore(defaults: defaults))
@@ -15,17 +16,17 @@ struct QuitProtectionSettingsView: View {
             Text("Pressing ⌘Q twice", tableName: "NotchcastQuitProtection")
                 .tag(QuitProtectionEngine.Mode.doublePress)
         } label: {
-            SettingsRowTitle(.quitProtection, LocalizedStringResource("Confirm by", table: "NotchcastQuitProtection"))
+            SettingsRowTitle(Self.anchor, LocalizedStringResource("Confirm by", table: "NotchcastQuitProtection"))
             Text("How you confirm a quit or a close.", tableName: "NotchcastQuitProtection")
         }
         Toggle(isOn: $store.configuration.closeEnabled) {
-            SettingsRowTitle(.quitProtection, LocalizedStringResource("Protect ⌘W", table: "NotchcastQuitProtection"))
+            SettingsRowTitle(Self.anchor, LocalizedStringResource("Protect ⌘W", table: "NotchcastQuitProtection"))
             Text("Same confirmation before closing a window.", tableName: "NotchcastQuitProtection")
         }
         LabeledContent {
             EmptyView()
         } label: {
-            SettingsRowTitle(.quitProtection, LocalizedStringResource("Exceptions", table: "NotchcastQuitProtection"))
+            SettingsRowTitle(Self.anchor, LocalizedStringResource("Exceptions", table: "NotchcastQuitProtection"))
             Text("These apps quit and close without asking.", tableName: "NotchcastQuitProtection")
         }
         if store.configuration.exceptions.isEmpty {
@@ -37,7 +38,7 @@ struct QuitProtectionSettingsView: View {
             }
         }
         Button(action: addApplications) {
-            SettingsRowTitle(.quitProtection, LocalizedStringResource("Add App…", table: "NotchcastQuitProtection"))
+            SettingsRowTitle(Self.anchor, LocalizedStringResource("Add App…", table: "NotchcastQuitProtection"))
         }
     }
 
@@ -52,10 +53,4 @@ struct QuitProtectionSettingsView: View {
         guard panel.runModal() == .OK else { return }
         store.configuration.exceptions.formUnion(panel.urls.compactMap { Bundle(url: $0)?.bundleIdentifier })
     }
-}
-
-private extension SettingsAnchor {
-    // Stand-in until core declares add-on anchors; no search entry points here yet.
-    static let quitProtection = Self(
-        tab: .notchcast, title: LocalizedStringResource("Quit Protection", table: "NotchcastQuitProtection"))
 }

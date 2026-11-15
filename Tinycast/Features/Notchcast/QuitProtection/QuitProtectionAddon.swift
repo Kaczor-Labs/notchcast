@@ -5,7 +5,7 @@ enum QuitProtectionAddon: NotchcastAddon {
 
     static let switches = [
         NotchcastSwitch(
-            id: switchID,
+            id: "quitProtection",
             title: String(localized: "Quit Protection", table: "NotchcastQuitProtection"),
             subtitle: String(
                 localized: "Stops an app from quitting on a single slip.", table: "NotchcastQuitProtection"),

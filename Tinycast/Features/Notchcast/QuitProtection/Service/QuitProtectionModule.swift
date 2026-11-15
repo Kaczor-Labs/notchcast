@@ -61,7 +61,6 @@ final class QuitProtectionModule: NotchcastModule {
     private var observers: [NotificationToken] = []
     private var ticker: Task<Void, Never>?
     private var shownNotice: QuitProtectionEngine.Notice?
-    private var noticeID: UUID?
 
     init(context: NotchcastContext, system: QuitProtectionSystem) {
         self.context = context
@@ -195,19 +194,22 @@ final class QuitProtectionModule: NotchcastModule {
 
     private func show(_ notice: QuitProtectionEngine.Notice?, progress: Double?) {
         if notice != shownNotice {
-            if let noticeID { context.presenter.end(noticeID) }
-            noticeID = nil
+            if shownNotice != nil, notice == nil { context.presenter.end(notice: Self.noticeID) }
             shownNotice = notice
             if let notice {
-                let posted = NotchcastNotice(title: notice.text, symbol: Self.symbol(notice), isProgress: true)
-                context.presenter.post(posted)
-                noticeID = posted.id
+                // A progress value keeps the notice up until the engine ends it, in either mode.
+                let posted = IslandNotice(
+                    id: Self.noticeID, symbol: Self.symbol(notice), text: notice.text, progress: progress ?? 0)
+                context.presenter.post(posted, onTap: nil)
             }
         }
         if let notice, let progress {
-            context.presenter.showLevel(NotchcastLevel(symbol: Self.symbol(notice), value: progress))
+            context.presenter.showLevel(IslandLevel(
+                source: Self.noticeID, symbol: Self.symbol(notice), label: notice.text, value: progress))
         }
     }
+
+    private static let noticeID = "quitProtection"
 
     private static func symbol(_ notice: QuitProtectionEngine.Notice) -> String {
         notice.shortcut == .quit ? "power" : "xmark.square"

@@ -1,4 +1,5 @@
 // notchcast-sources: Tinycast/Features/Notchcast/Core/Model/*.swift Tinycast/Features/Notchcast/Core/Service/*.swift
+// notchcast-sources: Tinycast/Features/Island/Model/IslandPresentation.swift Tinycast/Features/Island/Service/IslandPresenting.swift
 // notchcast-sources: Tinycast/Platform/NotificationToken.swift
 // notchcast-sources: Tinycast/Features/Notchcast/QuitProtection/QuitProtectionAddon.swift
 // notchcast-sources: Tinycast/Features/Notchcast/QuitProtection/Model/*.swift
@@ -65,18 +66,17 @@ final class FakeSession: NotchcastTapSession {
 }
 
 @MainActor
-final class FakePresenter: NotchcastPresenting {
-    var posts: [NotchcastNotice] = []
-    var ends: [UUID] = []
-    var levels: [NotchcastLevel] = []
+final class FakePresenter: IslandPresenting {
+    var posts: [IslandNotice] = []
+    var ends: [String] = []
+    var levels: [IslandLevel] = []
+    private(set) var isShowing = false
 
-    var isShowing: Bool { posts.last.map { !ends.contains($0.id) } ?? false }
-
-    func showLevel(_ level: NotchcastLevel) { levels.append(level) }
-    func post(_ notice: NotchcastNotice) { posts.append(notice) }
-    func end(_ noticeID: UUID) { ends.append(noticeID) }
-    func setStatus(_ status: NotchcastStatus?, owner: String) {}
-    func setMenuRows(_ rows: [NotchcastMenuRow], owner: String, onSelect: @escaping @MainActor (String) -> Void) {}
+    func showLevel(_ level: IslandLevel) { levels.append(level) }
+    func post(_ notice: IslandNotice, onTap: (@MainActor () -> Void)?) { posts.append(notice); isShowing = true }
+    func end(notice id: String) { ends.append(id); isShowing = false }
+    func setStatus(_ status: IslandStatus?, for id: String) {}
+    func setMenuRows(_ rows: [IslandMenuRow], owner: String, onSelect: @escaping @MainActor (String) -> Void) {}
 }
 
 @MainActor
@@ -140,8 +140,8 @@ enum QuitProtectionModuleTests {
         advance(to: 100)
         precondition(rig.key(12) == .swallow, "⌘Q arms")
         await drain()
-        precondition(presenter.posts.last?.title == "Hold ⌘Q to quit Editor", "notice names the app")
-        precondition(presenter.posts.last?.isProgress == true && presenter.isShowing, "notice stays up")
+        precondition(presenter.posts.last?.text == "Hold ⌘Q to quit Editor", "notice names the app")
+        precondition(presenter.posts.last?.progress != nil && presenter.isShowing, "notice stays up")
         advance(to: 100.4)
         await drain()
         precondition(presenter.levels.last.map { abs($0.value - 0.5) < 1e-9 && $0.symbol == "power" } == true,
@@ -188,7 +188,7 @@ enum QuitProtectionModuleTests {
         precondition(rig.key(12) == .swallow, "first press swallowed")
         rig.key(12, down: false)
         await drain()
-        precondition(presenter.posts.last?.title == "Press ⌘Q again to quit Editor", "double-press notice")
+        precondition(presenter.posts.last?.text == "Press ⌘Q again to quit Editor", "double-press notice")
         advance(to: 130.5)
         precondition(rig.key(12) == .swallow, "second press swallowed")
         await drain()
@@ -227,7 +227,9 @@ enum QuitProtectionModuleTests {
         precondition(rig.key(12) == .swallow, "arms again after ⌘ is released")
         await drain()
         precondition(presenter.isShowing, "half-armed")
-        precondition(rig.session!.router.receive(type: .tapDisabledByTimeout, event: CGEvent(source: nil)!) == .reenable)
+        guard case .reenable(let ids) = rig.session!.router.receive(type: .tapDisabledByTimeout, event: CGEvent(source: nil)!)
+        else { preconditionFailure("a disable notice re-enables") }
+        rig.session!.router.reenabled(ids)
         await drain()
         precondition(!presenter.isShowing, "the tap's reset ends the notice")
         advance(to: 161)
