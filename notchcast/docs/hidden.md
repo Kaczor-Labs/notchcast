@@ -4,7 +4,7 @@ The one list of what Notchcast hides and how. Code stays compiled so upstream ha
 
 | State | Item | Tab slug | Command IDs | Forced off | Hooks |
 | --- | --- | --- | --- | --- | --- |
-| Hidden | Extensions | extensions | none | extensionsEnabled | AppSettings, AppCore startup, extension coordinator, launcher and hotkeys |
+| Hidden | Extensions | extensions | none | extensionsEnabled | AppSettings, settings tab and search, extension coordinator, hotkeys |
 | Hidden | Appearance picker | general (row) | none | appearance, pinned to dark | AppSettings, GeneralSettingsView, SettingsSearchCatalog |
 | Hidden | Launcher dragging and snapping | general (row) | none | paletteDraggable | AppSettings, GeneralSettingsView, SettingsSearchCatalog |
 | Hidden | Launcher placement | general (row) | none | openOnCursorScreen, stored panel positions | AppSettings, GeneralSettingsView, SettingsSearchCatalog |
@@ -16,7 +16,7 @@ The one list of what Notchcast hides and how. Code stays compiled so upstream ha
 
 `NotchcastHidden` in `Tinycast/Features/Notchcast/Hidden/` owns the hidden tab set and the English keys of hidden rows; `NotchcastIslandPins` there holds the pinned values; it needs `SettingsTab`, so `notchcast/command-harness-sources.sh` adds it to every harness that compiles `SettingsTab.swift`. On rebase retain the filtering hooks and forced-off getters, even if upstream adds stored defaults or backup restore paths.
 
-- Extensions: `AppSettings.extensionsEnabled` always reads false and ignores writes, including persisted consent and backup restore. `SettingsTab` omits its sidebar row and rejects its settings slug; `SettingsSearchCatalog` omits its search entries. Upstream's `ExtensionManager` publishes no launcher entries while off; `HotKeyManager` exposes no bound extension commands, and `LauncherCoordinator`, `AppActionsMenu` and `RootPaletteView` gate extension actions and accessories. `ExtensionCoordinator` rejects store-install links as well as its existing command-link gate. `AppCore` gates manager startup.
+- Extensions: `AppSettings.extensionsEnabled` always reads false and ignores writes, including persisted consent and backup restore. `SettingsTab` omits its sidebar row and rejects its settings slug; `SettingsSearchCatalog` omits its search entries. Upstream's `ExtensionManager` publishes no launcher entries while off; `HotKeyManager` exposes no bound extension commands, so a stored binding never registers its chord. `ExtensionCoordinator` rejects store-install links as well as its existing command and link gates. With no entries, upstream's launcher, actions menu and palette accessory have nothing to act on, so they carry no gate; `notchcast-hidden-features-test.swift` pins every hook.
 - Appearance: stock colours resolve from `NSAppearance`, so Light or System would put black text on the black island. `AppSettings.appearance` always reads dark and ignores writes, persisted values, backup restore and the `settings.json` mirror; `AppCore.applyAppearance()` therefore sets `NSApp.appearance` to dark from launch.
 - Dragging and snapping: `AppSettings.paletteDraggable` always reads false. Snapping and drop guides run only inside a drag session, so no drag means no snapping; there is no snapping setting of its own.
 - Placement: `AppSettings.openOnCursorScreen` always reads true, the stock default, and `palettePosition(on:)` returns nil, so a stored panel position from an earlier build is never restored and the island keeps the notch.

@@ -21,7 +21,7 @@ enum QuicklinkArchive {
 
         var errorDescription: String? {
             switch self {
-            case .unreadable: return String(localized: "This file isn't a Notchcast quicklinks export.", table: "Notchcast")
+            case .unreadable: return String(localized: "This file isn't a Tinycast quicklinks export.")
             case .empty: return String(localized: "This file contains no quicklinks.")
             }
         }
