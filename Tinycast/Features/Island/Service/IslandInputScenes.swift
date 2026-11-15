@@ -245,6 +245,9 @@ enum IslandInputScenes {
         await IslandVerification.pause(0.6)
         check(menuPanel == nil, "Command-comma closes the pill menu")
         check(IslandPillScenes.settingsWindow?.isVisible == true, "Command-comma opens Settings")
+        let frame = IslandPillScenes.settingsWindow?.frame ?? .null
+        print("SETTINGS \(frame) TEST \(IslandVerification.testScreen?.frame ?? .null)")
+        check(IslandVerification.testScreen?.frame.contains(frame) == true, "Settings opens on the test display")
         check(IslandPillScenes.statusItemWindows == 0, "no menu bar item exists")
     }
 
