@@ -21,6 +21,7 @@ ALLOWLIST = {
 }
 # Proof the phase ran: upstream's About row, present in every build.
 WITNESS = ("Localizable", "About Tinycast", "About Notchcast")
+HELPER_NAME_KEYS = {"CFBundleName", "CFBundleDisplayName", "CFBundleExecutable"}
 
 
 def rename(value):
@@ -110,8 +111,13 @@ def helper_leftovers(app):
     found = [f"{path.relative_to(app)} still says {OLD}" for path in paths if OLD.lower() in path.name.lower()]
     for path in [path for path in paths if path.name == "Info.plist"]:
         found += [f"{path.relative_to(app)}: {key!r} still says {OLD}"
-                  for key, value in load(path).items() if OLD.lower() in json.dumps(value).lower()]
+                  for key, value in load(path).items() if says_old(key, json.dumps(value))]
     return found
+
+
+def says_old(key, text):
+    # Shown names fail in any case; identifiers such as com.tinycast.* stay, as in the main Info.plist.
+    return OLD.lower() in text.lower() if key in HELPER_NAME_KEYS else OLD in text
 
 
 def fail(lines):
