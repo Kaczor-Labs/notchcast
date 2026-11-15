@@ -8,6 +8,8 @@
 // notchcast-sources: Tinycast/Features/Notchcast/Hidden/NotchcastIslandPins.swift
 // notchcast-reads: Tinycast/Features/Settings/AppSettings.swift
 // notchcast-reads: Tinycast/Features/Settings/Panes/GeneralSettingsView.swift
+// notchcast-reads: Tinycast/Features/Backup/Model/SettingsBackup.swift
+// notchcast-reads: Tinycast/Features/Settings/SettingsFileSchema.swift
 import AppKit
 import Foundation
 
@@ -25,13 +27,16 @@ struct HiddenFeaturesTest {
             precondition(SettingsSearchCatalog.entries.contains { $0.tab == tab })
         }
 
-        let titles = ["Appearance", "Follow the cursor across displays", "Drag to move the launcher"]
+        let titles = ["Appearance", "Follow the cursor across displays", "Drag to move the launcher", "Language"]
         precondition(NotchcastHidden.rows == Set(titles))
         for title in titles {
             precondition(
-                !SettingsSearchCatalog.entries.contains { $0.keywords.contains(title) },
+                !SettingsSearchCatalog.entries.contains { $0.tab == .general && $0.keywords.contains(title) },
                 "Search omits the hidden row: \(title)")
         }
+        precondition(
+            SettingsSearchCatalog.entries.contains { $0.tab == .dictation && $0.keywords.contains("Language") },
+            "Dictation's own Language row is a separate setting and stays searchable")
         for title in ["Show animations", "Interface size", "Window mode"] {
             precondition(
                 SettingsSearchCatalog.entries.contains { $0.keywords.contains(title) },
@@ -57,12 +62,28 @@ struct HiddenFeaturesTest {
             "A stored panel position is never restored")
         let general = source("Tinycast/Features/Settings/Panes/GeneralSettingsView.swift")
         precondition(
-            general.components(separatedBy: ".notchcastHidden()").count == 4,
-            "The three hidden rows are gone from the General pane")
+            general.components(separatedBy: ".notchcastHidden()").count == 5,
+            "The four hidden rows are gone from the General pane")
+
+        precondition(NotchcastHidden.language == "en", "The app is pinned to English")
+        let pin = settings.components(separatedBy: "static func pinLanguage() {")[1].components(separatedBy: "\n    }")[0]
+        precondition(
+            pin.contains("set([NotchcastHidden.language], forKey: Key.language.rawValue)"),
+            "pinLanguage writes the fork constant")
+        precondition(!pin.contains("storedLanguage"), "pinLanguage never reads back a stored language")
+        precondition(
+            settings.contains("defaults.set([language.rawValue], forKey: Key.language.rawValue)"),
+            "A language write lands only in AppleLanguages, which the next launch's pin overwrites")
+        for (path, channel) in [
+            ("Tinycast/Features/Backup/Model/SettingsBackup.swift", "settings.language = language"),
+            ("Tinycast/Features/Settings/SettingsFileSchema.swift", "bind(settings, \\.language)"),
+        ] {
+            precondition(source(path).contains(channel), "Import channel still routes through AppSettings.language: \(path)")
+        }
         precondition(
             SettingsSearchCatalog.entries.contains { $0.tab == .about && $0.keywords.contains("Support") },
             "About still lists Support")
-        print("Hidden features: Extensions, appearance, dragging and placement are hidden")
+        print("Hidden features: Extensions, appearance, dragging, placement and language are hidden")
     }
 
     static func source(_ path: String) -> String {

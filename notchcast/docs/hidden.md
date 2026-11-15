@@ -8,6 +8,7 @@ The one list of what Notchcast hides and how. Code stays compiled so upstream ha
 | Hidden | Appearance picker | general (row) | none | appearance, pinned to dark | AppSettings, GeneralSettingsView, SettingsSearchCatalog |
 | Hidden | Launcher dragging and snapping | general (row) | none | paletteDraggable | AppSettings, GeneralSettingsView, SettingsSearchCatalog |
 | Hidden | Launcher placement | general (row) | none | openOnCursorScreen, stored panel positions | AppSettings, GeneralSettingsView, SettingsSearchCatalog |
+| Hidden | Language picker | general (row) | none | AppleLanguages, pinned to English at launch | AppSettings, GeneralSettingsView, SettingsSearchCatalog |
 
 `NotchcastHidden` in `Tinycast/Features/Notchcast/Hidden/` owns the hidden tab set and the English keys of hidden rows; `NotchcastIslandPins` there holds the pinned values; it needs `SettingsTab`, so `notchcast/command-harness-sources.sh` adds it to every harness that compiles `SettingsTab.swift`. On rebase retain the filtering hooks and forced-off getters, even if upstream adds stored defaults or backup restore paths.
 
@@ -15,5 +16,6 @@ The one list of what Notchcast hides and how. Code stays compiled so upstream ha
 - Appearance: stock colours resolve from `NSAppearance`, so Light or System would put black text on the black island. `AppSettings.appearance` always reads dark and ignores writes, persisted values, backup restore and the `settings.json` mirror; `AppCore.applyAppearance()` therefore sets `NSApp.appearance` to dark from launch.
 - Dragging and snapping: `AppSettings.paletteDraggable` always reads false. Snapping and drop guides run only inside a drag session, so no drag means no snapping; there is no snapping setting of its own.
 - Placement: `AppSettings.openOnCursorScreen` always reads true, the stock default, and `palettePosition(on:)` returns nil, so a stored panel position from an earlier build is never restored and the island keeps the notch.
-- Hidden rows: the three General rows end in `.notchcastHidden()`, which renders nothing, and `NotchcastHidden.rows` drops their search entries by English key, because titles are localized.
+- Language: the app is English only. `AppSettings.pinLanguage()` writes `[NotchcastHidden.language]` to `AppleLanguages` at every launch, so a language carried in by a settings backup or `settings.json` is overwritten on the next launch; the picker row is hidden like the rows below. Upstream's catalogs and translations stay; `Notchcast.xcstrings` carries English only (`fork-strings.md`). Dictation and Quick Action languages are separate settings and stay.
+- Hidden rows: the four General rows end in `.notchcastHidden()`, which renders nothing, and `NotchcastHidden.rows` drops their search entries by English key, because titles are localized; the filter applies to the General tab only, so Dictation's own Language row stays searchable.
 - Still visible, as in stock: Apple Shortcuts (Commands group), Backup and About (Advanced group, with Support under About's Links), all reachable by slug and in search.
