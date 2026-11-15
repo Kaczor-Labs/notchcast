@@ -38,15 +38,26 @@ struct IslandLevelTest {
         boosted.value = -0.25
         precondition(IslandLevelTrack(boosted, width: 100).fill == 12.5...25, "A negative value fills below 0")
 
-        precondition(IslandLevelDwell.stacked(palette: true, question: false), "Palette means stacked")
-        precondition(IslandLevelDwell.stacked(palette: false, question: true), "Question means stacked")
-        precondition(!IslandLevelDwell.stacked(palette: false, question: false), "Neither means the pill")
+        var live = IslandLevelDwell()
+        precondition(live.placement(palette: false, question: false) == nil, "Nothing live, nothing placed")
+        _ = live.show(level, at: 10)
+        let (start, deadline) = (live.presentation, live.deadline)
+        precondition(live.placement(palette: false, question: false) == .pill, "Neither means the pill")
+        precondition(live.placement(palette: true, question: false) == .band, "Palette opening mid-level means the band")
+        precondition(live.placement(palette: false, question: true) == .band, "Question means the band")
+        precondition(live.placement(palette: false, question: false) == .pill, "Closing them returns it to the pill")
+        precondition(live.presentation == start && live.deadline == deadline, "A move keeps the token and deadline")
+        precondition(!live.show(level, at: 11) && live.presentation == start, "Replacing a level keeps one presentation")
+        precondition(live.placement(palette: true, question: false) == .band, "The replacement stays in the band")
+        precondition(live.remaining(start, at: 12.5) == nil && live.level == nil, "Expiry ends the level")
+        precondition(live.placement(palette: true, question: false) == nil
+                     && live.placement(palette: false, question: false) == nil, "Expiry clears pill and band")
 
         let muted = VolumeLevel.island(0.6, muted: true)
         let loud = VolumeLevel.island(0.6, muted: false)
         precondition(muted.source == "volume" && muted.symbol == "speaker.slash.fill" && muted.value == 0,
                      "Muted volume reads 0 with the slashed speaker")
         precondition(loud.symbol == "speaker.wave.2.fill" && abs(loud.value - 0.6) < 0.0001 && loud.label == "Volume")
-        print("Island level: one presentation per burst, 1.5 s dwell, outlined zones and stacking under palette or question")
+        print("Island level: one presentation per burst, 1.5 s dwell, outlined zones and pill/band placement")
     }
 }

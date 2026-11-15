@@ -1,4 +1,5 @@
 import AppKit
+import Observation
 
 /// Renders levels in the resting pill or the report slot; notices, status and menu rows come later.
 @MainActor
@@ -8,21 +9,15 @@ final class IslandPresenter: IslandPresenting {
     private weak var pill: IslandController?
     private var band: HUDPanel?
     private var bandShown = false
+    private var observing = false
 
     func showLevel(_ level: IslandLevel) {
-        let core = AppCore.shared
         if dwell.show(level, at: Self.now) {
             dwellTask?.cancel()
             dwellTask = endWhenDwelled(dwell.presentation)
+            if !observing { observePlacement() }
         }
-        if IslandLevelDwell.stacked(palette: core.palette.isVisible, question: core.isShowingDialog) {
-            pill?.level = nil
-            stack(IslandLevelArt(level, notch: false))
-        } else {
-            dismissBand()
-            pill = core.island.resting
-            pill?.level = level
-        }
+        place()
     }
 
     func post(_ notice: IslandNotice, onTap: (@MainActor () -> Void)?) {}
@@ -44,10 +39,41 @@ final class IslandPresenter: IslandPresenting {
                 guard !Task.isCancelled else { return }
             }
             guard let self, self.dwell.presentation == token, self.dwell.level == nil else { return }
-            self.pill?.level = nil
-            self.pill = nil
-            self.dismissBand()
+            self.place()
             self.dwellTask = nil
+        }
+    }
+
+    private func place() {
+        let core = AppCore.shared
+        let placement = dwell.placement(palette: core.palette.isVisible, question: core.isShowingDialog)
+        if placement != .band { dismissBand() }
+        if placement != .pill { pill?.level = nil }
+        switch (placement, dwell.level) {
+        case (.band?, let level?):
+            stack(IslandLevelArt(level, notch: false))
+        case (.pill?, let level?):
+            pill = core.island.resting
+            pill?.level = level
+        default:
+            pill = nil
+        }
+    }
+
+    /// The palette or a question can open mid-dwell, and the level must follow without restarting.
+    private func observePlacement() {
+        observing = true
+        withObservationTracking {
+            _ = AppCore.shared.palette.isVisible
+            _ = AppCore.shared.isShowingDialog
+        } onChange: { [weak self] in
+            Task { @MainActor in
+                guard let self else { return }
+                self.observing = false
+                guard self.dwell.level != nil else { return }
+                self.observePlacement()
+                self.place()
+            }
         }
     }
 
