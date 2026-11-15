@@ -4,7 +4,7 @@ import AppKit
 @MainActor
 enum IslandScenes {
     static func run(_ scene: String, core: AppCore, screen: NSScreen) async {
-        core.settings.compactMode = scene == "compact"
+        core.settings.compactMode = scene == "compact" || IslandNotchScenes.names.contains(scene)
         core.settings.interfaceSize = scene == "scale-1.1" ? .large : scene == "scale-1.2" ? .larger : .standard
         core.settings.quicklinksEnabled = true
         await core.appIndex.refresh()
@@ -12,6 +12,7 @@ enum IslandScenes {
         if scene == "volume" { await IslandVolumeScenes.rest(core: core, screen: screen); return }
         if scene == "volume-palette-open" { await IslandVolumeScenes.paletteOpen(core: core, screen: screen); return }
         if IslandMeetingScenes.names.contains(scene) { await IslandMeetingScenes.run(scene, core: core, screen: screen); return }
+        if IslandNotchScenes.names.contains(scene) { await IslandNotchScenes.run(scene, core: core, screen: screen); return }
         if IslandPillScenes.names.contains(scene) { await IslandPillScenes.run(scene, core: core, screen: screen); return }
         core.paletteCoordinator.showPalette(mode: .launcher)
         guard let panel = NSApp.windows.first(where: { $0 is PalettePanel }) as? PalettePanel else {
