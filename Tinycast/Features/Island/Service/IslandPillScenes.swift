@@ -300,6 +300,8 @@ enum IslandPillScenes {
                       "Only show events with meetings", "Hide when there are no upcoming events", "Hide Current Event"]
         let panes: [(SettingsTab, String)] = [(.general, "Launch at login"), (.notes, "Render Markdown"),
                                               (.calendar, "Days to Show")]
+        IslandVerification.require(wakeAccessibilityTree(), "the app's own AX tree answers")
+        await IslandVerification.pause(0.3)
         for (tab, shown) in panes {
             core.settingsCoordinator.showSettings(tab: tab)
             await IslandVerification.pause(0.7)
@@ -315,6 +317,15 @@ enum IslandPillScenes {
             IslandVerification.require(leaked.isEmpty, "\(tab.slug) pane hides the menu-bar rows")
             still(window, name: "settings-\(tab.slug)")
         }
+    }
+
+    /// SwiftUI builds its accessibility nodes only once an AX client has asked, so ask ourselves.
+    private static func wakeAccessibilityTree() -> Bool {
+        var windows: CFTypeRef?
+        let result = AXUIElementCopyAttributeValue(AXUIElementCreateApplication(getpid()),
+                                                   kAXWindowsAttribute as CFString, &windows)
+        print("AXWAKE result=\(result.rawValue) windows=\((windows as? [Any])?.count ?? -1)")
+        return result == .success
     }
 
     /// Some AppKit and SwiftUI nodes answer the informal accessibility selectors without the protocol.
