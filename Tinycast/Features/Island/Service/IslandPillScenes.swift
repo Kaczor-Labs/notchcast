@@ -4,7 +4,7 @@ import AppKit
 /// The resting pill's scenes: they run before the launcher opens, so the pill stays at rest.
 @MainActor
 enum IslandPillScenes {
-    static let names: Set = ["pill-menu", "pill-settings", "glance"]
+    static let names: Set = ["pill-menu", "pill-settings", "glance", "glance-menu"]
 
     static func run(_ scene: String, core: AppCore, screen: NSScreen) async {
         core.island.start()
@@ -14,6 +14,7 @@ enum IslandPillScenes {
         switch scene {
         case "pill-menu": await menu(core: core, controller: controller)
         case "pill-settings": await settings(core: core, controller: controller)
+        case "glance-menu": await glanceMenu(core: core, controller: controller)
         default: await glance(core: core, controller: controller)
         }
         let windows = NSApp.windows.filter(\.isVisible)
@@ -132,14 +133,21 @@ enum IslandPillScenes {
         print("CAPTURE \(name) WINDOW \(window.frame)")
     }
 
-    private static func glance(core: AppCore, controller: IslandController) async {
+    /// A synthetic Zoom meeting four minutes out, carded through the Debug preview.
+    private static func previewMeeting(core: AppCore) async -> MeetingEvent {
         let now = Date()
         let meeting = MeetingEvent(id: "glance", title: "Weekly product sync", start: now + 4 * 60,
             end: now + 34 * 60, isAllDay: false, isDeclined: false, calendarID: "c", calendarName: "Work",
             calendarColor: nil, calendarItemID: "i", link: MeetingLink.detect(in: "https://us02web.zoom.us/j/123456789"))
-        let rest = controller.outlineBounds.width
         core.island.glance.preview(meeting, now: now)
         await IslandVerification.pause(0.9)
+        return meeting
+    }
+
+    /// Sends no input, so it stays valid while another app's window covers the pill.
+    private static func glance(core: AppCore, controller: IslandController) async {
+        let rest = controller.outlineBounds.width
+        _ = await previewMeeting(core: core)
         let width = controller.outlineBounds.width
         print("GLANCE rest=\(rest) width=\(width) target=\(controller.glanceWidthTarget) title=\(controller.showsGlanceTitle)")
         IslandVerification.require(width > rest + 1, "the glance widens the pill")
@@ -147,6 +155,10 @@ enum IslandPillScenes {
         controller.capture("glance")
         await IslandVerification.pause(0.3)
         IslandVerification.require(controller.captured.contains("glance"), "glance layer capture")
+    }
+
+    private static func glanceMenu(core: AppCore, controller: IslandController) async {
+        let meeting = await previewMeeting(core: core)
         guard let menu = await openMenu(controller, .rightMouseDown, "glance right-click") else { return }
         let titles = core.island.pillMenu.itemTitles
         print("MENU_ROWS \(titles)")
