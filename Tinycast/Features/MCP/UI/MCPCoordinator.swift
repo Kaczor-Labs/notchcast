@@ -238,9 +238,9 @@ final class MCPCoordinator {
             title: String(localized: "Let \(server.title) run its tools?"),
             message: String(
                 localized: """
-                    The model wants to call “\(tool)”. Notchcast did not write this \
+                    The model wants to call \u{201C}\(tool)\u{201D}. Tinycast did not write this \
                     server and cannot vouch for what it does.
-                    """, table: "Notchcast"),
+                    """),
             symbol: "wrench.and.screwdriver",
             options: [
                 DialogAction(title: String(localized: "Always Allow")),
