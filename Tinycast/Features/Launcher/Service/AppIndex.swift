@@ -341,6 +341,7 @@ final class AppIndex {
     private var searchEntries: [AppEntry] = []
 
     private var snippetEntries: [AppEntry] = []
+    var extraCommandEntries: [AppEntry] = [] { didSet { publishEntries() } }
 
     /// The launcher's rows in order, with the size of each leading section at their head.
     struct Results: Equatable {
@@ -692,7 +693,7 @@ final class AppIndex {
                     + Self.systemActionEntries + windowLayoutEntries + windowRoomEntries
                     + windowCommandEntries
                     + customWindowSizeEntries + customCommandEntries + quickActionEntries
-                    + commandEntries)
+                    + commandEntries + extraCommandEntries)
         guard updated != searchEntries else { return }
         searchEntries = updated
         apps = updated.filter(\.isPrimaryInstallation)
