@@ -348,7 +348,7 @@ struct AIProvidersPanel: View {
                 EmptyView()
             } label: {
                 Label("Turned off", systemImage: "pause.circle")
-                Text("Notchcast leaves it alone, and its models stay out of every model picker.", tableName: "Notchcast")
+                Text("Tinycast leaves it alone, and its models stay out of every model picker.")
             }
         } footer: {
             if let footer {
@@ -440,7 +440,7 @@ struct AIProvidersPanel: View {
                 .fixedSize()
             } label: {
                 Text("Not installed")
-                Text("Notchcast could not find the \(kind.command) command.", tableName: "Notchcast")
+                Text("Tinycast could not find the \(kind.command) command.")
             }
         case .failed(let message):
             failedRow(message, retry: { installedAI.refresh(kind: kind) })
