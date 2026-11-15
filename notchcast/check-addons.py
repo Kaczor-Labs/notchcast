@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Gate the add-on system's upstream footprint and its folder boundaries (notchcast/docs/addons.md §3, §5).
 
-The caller names the mode (ci-build.sh derives it from the branch name). Core mode (v2/addons-core[-<n>]): the
+The caller names the mode, or passes --branch to derive it (ci-build.sh does). Core mode (v2/addons-core[-<n>]): the
 upstream paths the branch changes against the base stay within notchcast/addons-budget.env. Feature mode
 (v2/addons-<feature>): the branch owns the folders that declare the types its added registry lines name (or,
 with no added line, the one folder it touches), and every changed path is inside an owned folder, an owned
@@ -11,7 +11,7 @@ which on every branch fails when a line the fork added outside an add-on's folde
 ids or command slugs, or names one of its top-level types in code rather than in a string or comment (registry
 line and dependency arrays excepted).
 Exit 1 is a contract breach, exit 2 a tooling failure.
-Usage: check-addons.py --mode (core|feature|none) --base <ref> [--head <ref>] [--upstream <ref>]
+Usage: check-addons.py (--mode (core|feature|none) | --branch <name>) --base <ref> [--head <ref>] [--upstream <ref>]
 """
 import argparse
 import pathlib
@@ -281,9 +281,20 @@ def run(root, base, head, upstream, mode):
     return problems
 
 
+CORE_BRANCH = re.compile(r'v2/addons-core(-[0-9]+)?')
+
+
+def mode_for_branch(branch):
+    if CORE_BRANCH.fullmatch(branch):
+        return 'core'
+    return 'feature' if branch.startswith('v2/addons-') else 'none'
+
+
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--mode', required=True, choices=('core', 'feature', 'none'))
+    mode = parser.add_mutually_exclusive_group(required=True)
+    mode.add_argument('--mode', choices=('core', 'feature', 'none'))
+    mode.add_argument('--branch')
     parser.add_argument('--base', required=True)
     parser.add_argument('--head', default='HEAD')
     parser.add_argument('--upstream', default=None)
@@ -291,7 +302,7 @@ def main():
     args = parser.parse_args()
     try:
         upstream = args.upstream or git('merge-base', args.head, 'refs/remotes/upstream/main', root=args.root).strip()
-        problems = run(args.root, args.base, args.head, upstream, args.mode)
+        problems = run(args.root, args.base, args.head, upstream, args.mode or mode_for_branch(args.branch))
     except (Tooling, OSError, ValueError) as error:
         print(f'add-on gate: tooling failure, not a contract breach: {error}', file=sys.stderr)
         return 2

@@ -24,7 +24,6 @@ final class NotchcastController {
     private(set) var enabledCommands: [NotchcastCommand] = []
     var onCommandsChanged: (([NotchcastCommand]) -> Void)?
     private var enabled: Set<String> = []
-    private var installed: [UUID: UUID] = [:]
     private var isRunning = false
 
     init(
@@ -105,16 +104,9 @@ final class NotchcastController {
         onCommandsChanged?(commands)
     }
 
+    /// Hands the hub the full list, so a tap enabled late still runs where it was subscribed.
     private func applyTaps() {
-        // An array, not a dictionary: synchronous handlers run in subscription order.
         let desired = slots.flatMap { $0.declaredTaps + $0.context.wantedTaps }.filter { enabled.contains($0.tap.switchID) }
-        let wanted = Set(desired.map(\.token))
-        for (token, hubID) in installed where !wanted.contains(token) {
-            hub.remove(hubID)
-            installed[token] = nil
-        }
-        for (token, tap) in desired where installed[token] == nil {
-            installed[token] = hub.subscribe(tap)
-        }
+        hub.setSubscribers(desired.map { (id: $0.token, tap: $0.tap) })
     }
 }

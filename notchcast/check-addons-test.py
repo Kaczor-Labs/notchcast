@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Planted breaches for check-addons.py on a scratch repository: budget, feature paths, registry, reference guard."""
 from pathlib import Path
+import importlib.util
 import subprocess
 import sys
 import tempfile
@@ -15,6 +16,11 @@ SHOTS = '''struct ShotsAddon: NotchcastAddon {
 }
 struct ShotsModule {}
 '''
+
+
+SPEC = importlib.util.spec_from_file_location('check_addons', CHECK)
+check_addons = importlib.util.module_from_spec(SPEC)
+SPEC.loader.exec_module(check_addons)
 
 
 def write(root, path, text):
@@ -211,6 +217,20 @@ class CheckAddonsTest(unittest.TestCase):
                                 capture_output=True, text=True)
         self.assertEqual(result.returncode, 2, result.stderr)
         self.assertIn('--mode', result.stderr)
+
+    def test_the_branch_name_picks_the_mode(self):
+        # A rebased core is pushed under a new number, since force-pushing is never allowed.
+        for branch, mode in (('v2/addons-core', 'core'), ('v2/addons-core-3', 'core'), ('v2/addons-core-12', 'core'),
+                             ('v2/addons-core-3-fix', 'feature'), ('v2/addons-core-3foo', 'feature'),
+                             ('v2/addons-core-x', 'feature'), ('v2/addons-core-', 'feature'),
+                             ('v2/addons-shots', 'feature'), ('v2/stack', 'none'), ('', 'none')):
+            self.assertEqual(check_addons.mode_for_branch(branch), mode, branch)
+
+    def test_branch_runs_the_derived_mode(self):
+        result = subprocess.run([sys.executable, str(CHECK), '--branch', 'v2/addons-core-4', '--base', self.base,
+                                 '--upstream', self.upstream, '--root', str(self.root)], capture_output=True, text=True)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn('add-on gate (core):', result.stdout)
 
     def test_a_bad_ref_is_a_tooling_failure(self):
         self.base = 'no-such-ref'

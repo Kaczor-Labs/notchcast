@@ -5,6 +5,7 @@ import Foundation
 @MainActor
 final class NotchcastCore {
     let controller: NotchcastController
+    private var trustMonitor: NotchcastTrustMonitor?
 
     init(core: AppCore, addons: [any NotchcastAddon.Type] = NotchcastRegistry.addons) {
         let bundleID = Bundle.main.bundleIdentifier ?? "Notchcast"
@@ -35,10 +36,12 @@ final class NotchcastCore {
         LauncherScreen.digitRow = { [weak controller] digit, query, entryRows in
             controller?.launcherRow(digit: digit, query: query, entryRows: entryRows)
         }
+        trustMonitor = NotchcastTrustMonitor(hub: hub)
         controller.start()
     }
 
     func stop() {
+        trustMonitor = nil
         controller.stop()
         controller.hub.stop()
     }

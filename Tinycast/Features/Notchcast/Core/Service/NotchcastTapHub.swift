@@ -45,19 +45,11 @@ final class NotchcastTapHub {
     var eventMask: CGEventMask { order.reduce(0) { $0 | (taps[$1]?.mask ?? 0) } }
     var isRunning: Bool { session?.isRunning == true }
 
-    @discardableResult
-    func subscribe(_ tap: NotchcastTap) -> UUID {
-        precondition(tap.mask != 0)
-        let id = UUID()
-        taps[id] = tap
-        order.append(id)
-        reconcile()
-        return id
-    }
-
-    func remove(_ id: UUID) {
-        guard taps.removeValue(forKey: id) != nil else { return }
-        order.removeAll { $0 == id }
+    /// The whole ordered list each time: synchronous handlers run in this order, under the caller's ids.
+    func setSubscribers(_ subscribers: [(id: UUID, tap: NotchcastTap)]) {
+        precondition(subscribers.allSatisfy { $0.tap.mask != 0 })
+        taps = Dictionary(uniqueKeysWithValues: subscribers.map { ($0.id, $0.tap) })
+        order = subscribers.map(\.id)
         reconcile()
     }
 

@@ -5,7 +5,7 @@
 // notchcast-sources: Tinycast/Features/CustomCommands/Model/CustomCommand.swift Tinycast/Features/AppleShortcuts/Model/AppleShortcut.swift Tinycast/Features/Snippets/Model/Snippet.swift Tinycast/Features/WindowManagement/Model/WindowCommand.swift Tinycast/Features/WindowManagement/Model/WindowCycle.swift
 // notchcast-sources: Tinycast/Features/WindowManagement/Model/WindowPlacementEngine.swift Tinycast/Features/WindowManagement/Model/WindowLayoutAnchor.swift Tinycast/Features/WindowManagement/Model/WindowLayoutDisplay.swift Tinycast/Features/WindowManagement/Model/WindowLayout.swift
 // notchcast-sources: Tinycast/Features/WindowManagement/Model/WindowLayoutGeometry.swift Tinycast/Features/WindowManagement/Model/RoomLayoutKind.swift Tinycast/Features/WindowManagement/Model/RoomLayoutEngine.swift Tinycast/Features/WindowManagement/Model/RoomGrid.swift
-// notchcast-sources: Tinycast/Features/WindowManagement/Model/RoomWindow.swift Tinycast/Features/WindowManagement/Model/Room.swift Tinycast/Features/WindowManagement/Model/CustomWindowSize.swift Tinycast/Platform/LocalizedResource.swift
+// notchcast-sources: Tinycast/Features/WindowManagement/Model/RoomWindow.swift Tinycast/Features/WindowManagement/Model/Room.swift Tinycast/Features/WindowManagement/Model/CustomWindowSize.swift Tinycast/Platform/LocalizedResource.swift Tinycast/Platform/NotificationToken.swift
 import AppKit
 import CoreGraphics
 import Foundation
@@ -56,6 +56,33 @@ final class FakeSystem {
 }
 
 let syntheticTag: Int64 = 0x7E57
+
+/// Drives the hub as the controller does: the whole ordered list on every change.
+@MainActor
+final class Subscriptions {
+    let hub: NotchcastTapHub
+    private(set) var list: [(id: UUID, tap: NotchcastTap)] = []
+
+    init(_ hub: NotchcastTapHub) { self.hub = hub }
+
+    @discardableResult
+    func add(_ tap: NotchcastTap) -> UUID {
+        let id = UUID()
+        list.append((id, tap))
+        hub.setSubscribers(list)
+        return id
+    }
+
+    func remove(_ id: UUID) {
+        list.removeAll { $0.id == id }
+        hub.setSubscribers(list)
+    }
+
+    func reverse() {
+        list.reverse()
+        hub.setSubscribers(list)
+    }
+}
 
 @MainActor
 enum ProbeLog {
@@ -144,6 +171,26 @@ enum OrderAddon: NotchcastAddon {
     static func makeModule(_ context: NotchcastContext) -> (any NotchcastModule)? { OrderModule(context) }
 }
 
+/// Subscribes first then second, each under its own switch, so either can be enabled before the other.
+@MainActor
+final class SequenceModule: NotchcastModule {
+    let context: NotchcastContext
+    init(_ context: NotchcastContext) { self.context = context }
+    func start() {
+        context.subscribe(chainedTap("first", 0, type: .keyUp, switchID: "seqFirst"))
+        context.subscribe(chainedTap("second", 1, type: .keyUp, switchID: "seqSecond"))
+    }
+    func stop() {}
+}
+
+enum SequenceAddon: NotchcastAddon {
+    static let switches = [
+        NotchcastSwitch(id: "seqFirst", title: "First", subtitle: "", category: .macTweaks),
+        NotchcastSwitch(id: "seqSecond", title: "Second", subtitle: "", category: .macTweaks),
+    ]
+    static func makeModule(_ context: NotchcastContext) -> (any NotchcastModule)? { SequenceModule(context) }
+}
+
 @main
 @MainActor
 struct NotchcastCoreTest {
@@ -174,6 +221,8 @@ struct NotchcastCoreTest {
         hotKeys()
         controller(defaults)
         order(defaults)
+        sequence(defaults)
+        trustMonitor()
         print(failures == 0 ? "PASS NotchcastCoreTest (\(checks) checks)" : "FAILED \(failures)/\(checks)")
         if failures > 0 { exit(1) }
     }
@@ -205,14 +254,15 @@ struct NotchcastCoreTest {
     static func hub() {
         let system = FakeSystem()
         let hub = system.makeHub()
+        let subs = Subscriptions(hub)
         let keyMask = NotchcastTapPolicy.mask(for: .keyDown)
         check("no session without subscribers", system.sessions.isEmpty && !hub.isRunning)
 
         var seen: [Int64] = []
         var resets: [String] = []
-        let first = hub.subscribe(NotchcastTap(
+        let first = subs.add(NotchcastTap(
             switchID: "a", mask: keyMask, handler: .observe { seen.append($0.keyCode) }, reset: { resets.append("a") }))
-        let second = hub.subscribe(NotchcastTap(
+        let second = subs.add(NotchcastTap(
             switchID: "b", mask: keyMask, handler: .observe { _ in }, reset: { resets.append("b") }))
         check("one shared session", system.sessions.count == 1 && hub.isRunning)
         check("observers alone listen only", system.live?.options == .listenOnly)
@@ -231,12 +281,23 @@ struct NotchcastCoreTest {
         drain()
         check("no reset before the tap is re-enabled", resets.isEmpty)
         system.live?.router.reenabled([first, second])
-        hub.remove(second)
+        subs.remove(second)
         drain()
         check("reset reaches live subscribers only, once", resets == ["a"])
         check("same mask keeps the session", system.sessions.count == 1)
+        let probe = subs.add(NotchcastTap(switchID: "p", mask: keyMask, handler: .observe { _ in }))
+        subs.reverse()
+        check("a reorder keeps the session", system.sessions.count == 1)
+        guard case .reenable(let reordered)? = system.live?.router.receive(type: .tapDisabledByTimeout, event: key) else {
+            return check("a reordered disable notice names its subscribers", false)
+        }
+        check("a reorder keeps ids and takes the new order", reordered == [probe, first])
+        system.live?.router.reenabled(reordered)
+        drain()
+        check("a reorder keeps each subscriber's reset", resets == ["a", "a"])
+        subs.remove(probe)
 
-        let swallowing = hub.subscribe(NotchcastTap(
+        let swallowing = subs.add(NotchcastTap(
             switchID: "c", mask: NotchcastTapPolicy.mask(for: .otherMouseDown), handler: .synchronous { _, _ in .swallow }))
         check("a mask change restarts", system.sessions.count == 2 && !system.sessions[0].isRunning)
         check("a synchronous tap makes it active", system.live?.options == .defaultTap)
@@ -246,42 +307,42 @@ struct NotchcastCoreTest {
         let stale = system.sessions[0].router
         check("a replaced session's router is inert", stale.receive(type: .tapDisabledByTimeout, event: key) == .pass)
         drain()
-        check("no reset from a replaced session", resets == ["a"])
+        check("no reset from a replaced session", resets == ["a", "a"])
 
         let mouseMask = NotchcastTapPolicy.mask(for: .leftMouseDown)
-        let mouse = hub.subscribe(NotchcastTap(
+        let mouse = subs.add(NotchcastTap(
             switchID: "m", mask: mouseMask, handler: .observe { _ in }, reset: { resets.append("m") }))
         guard case .reenable(let named)? = system.live?.router.receive(type: .tapDisabledByUserInput, event: key) else {
             return check("a disable notice names its subscribers", false)
         }
         system.live?.router.reenabled(named)
         let restarts = system.sessions.count
-        hub.remove(mouse)
+        subs.remove(mouse)
         drain()
         check("removing another mask restarts", system.sessions.count == restarts + 1)
-        check("a restart before delivery keeps the survivor's reset", resets == ["a", "a"])
+        check("a restart before delivery keeps the survivor's reset", resets == ["a", "a", "a"])
 
         guard case .reenable(let again)? = system.live?.router.receive(type: .tapDisabledByTimeout, event: key) else {
             return check("a second disable notice names its subscribers", false)
         }
         system.live?.router.reenabled(again)
-        let late = hub.subscribe(NotchcastTap(
+        let late = subs.add(NotchcastTap(
             switchID: "l", mask: keyMask, handler: .observe { _ in }, reset: { resets.append("late") }))
         drain()
-        check("a subscriber added after the disable gets no reset", resets == ["a", "a", "a"])
-        hub.remove(late)
+        check("a subscriber added after the disable gets no reset", resets == ["a", "a", "a", "a"])
+        subs.remove(late)
 
-        hub.remove(swallowing)
-        hub.remove(first)
+        subs.remove(swallowing)
+        subs.remove(first)
         check("the last removal ends the session", !hub.isRunning && hub.subscriberCount == 0)
 
         system.trusted = false
-        let token = hub.subscribe(NotchcastTap(switchID: "a", mask: keyMask, handler: .observe { _ in }))
+        let token = subs.add(NotchcastTap(switchID: "a", mask: keyMask, handler: .observe { _ in }))
         check("no session without trust", !hub.isRunning && !hub.isTrusted)
         system.trusted = true
         hub.refreshPermission()
         check("granting trust starts it", hub.isRunning && hub.isTrusted)
-        hub.remove(token)
+        subs.remove(token)
     }
 
     static func mediaKeys() {
@@ -387,5 +448,65 @@ struct NotchcastCoreTest {
         _ = system.live?.router.receive(type: .otherMouseDown, event: click)
         check("declared taps run in declaration order", OrderLog.shared.all == (0..<6).map { "d\($0)" })
         controller.stop()
+    }
+
+    /// A tap enabled late still runs in subscription order, through re-enables too.
+    static func sequence(_ defaults: UserDefaults) {
+        let system = FakeSystem()
+        let hub = system.makeHub()
+        let controller = NotchcastController(addons: [SequenceAddon.self], defaults: defaults, hub: hub,
+                                             presenter: RecordingPresenter())
+        let key = CGEvent(keyboardEventSource: nil, virtualKey: 7, keyDown: false)!
+        func run() -> [String] {
+            OrderLog.shared.clear()
+            _ = system.live?.router.receive(type: .keyUp, event: key)
+            return OrderLog.shared.all
+        }
+        controller.start()
+        controller.preferences.set("seqSecond", on: true)
+        drain()
+        check("the second switch alone runs the second tap", run() == ["second0"])
+        controller.preferences.set("seqFirst", on: true)
+        drain()
+        check("enabling the first later still runs it first", run() == ["first0", "second1"])
+        controller.preferences.set("seqFirst", on: false)
+        drain()
+        check("disabling the first leaves the second", run() == ["second0"])
+        controller.preferences.set("seqFirst", on: true)
+        drain()
+        check("re-enabling the first puts it back in front", run() == ["first0", "second1"])
+        controller.preferences.set("seqSecond", on: false)
+        controller.preferences.set("seqSecond", on: true)
+        drain()
+        check("re-enabling the second keeps it behind", run() == ["first0", "second1"])
+        controller.stop()
+    }
+
+    /// Granting Accessibility posts nothing, so coming back to the app must retry the tap.
+    static func trustMonitor() {
+        let system = FakeSystem()
+        let hub = system.makeHub()
+        let center = NotificationCenter()
+        var monitor: NotchcastTrustMonitor? = NotchcastTrustMonitor(hub: hub, center: center)
+        system.trusted = false
+        Subscriptions(hub).add(NotchcastTap(switchID: "a", mask: NotchcastTapPolicy.mask(for: .keyDown),
+                                            handler: .observe { _ in }))
+        check("an untrusted subscriber installs nothing", system.sessions.isEmpty && !hub.isTrusted)
+        system.trusted = true
+        drain()
+        check("a grant alone changes nothing", system.sessions.isEmpty)
+        center.post(name: NSApplication.didBecomeActiveNotification, object: nil)
+        drain()
+        check("reactivating the app installs the tap", hub.isRunning && hub.isTrusted && system.sessions.count == 1)
+        system.trusted = false
+        center.post(name: NSWindow.didBecomeKeyNotification, object: nil)
+        drain()
+        check("a window coming forward rereads trust", !hub.isTrusted && !hub.isRunning)
+        system.trusted = true
+        monitor = nil
+        center.post(name: NSApplication.didBecomeActiveNotification, object: nil)
+        drain()
+        check("a torn-down monitor stops listening", monitor == nil && !hub.isRunning)
+        hub.stop()
     }
 }
