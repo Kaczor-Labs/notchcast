@@ -25,6 +25,7 @@ final class NotchcastTapHub {
     /// Trust as last read; macOS announces no change, so `refreshPermission` rereads it.
     private(set) var isTrusted = false
     @ObservationIgnored private var taps: [UUID: NotchcastTap] = [:]
+    @ObservationIgnored private var activations: [UUID: UUID] = [:]
     @ObservationIgnored private var order: [UUID] = []
     @ObservationIgnored private var session: (any NotchcastTapSession)?
     @ObservationIgnored private var generation = 0
@@ -45,16 +46,21 @@ final class NotchcastTapHub {
     var eventMask: CGEventMask { order.reduce(0) { $0 | (taps[$1]?.mask ?? 0) } }
     var isRunning: Bool { session?.isRunning == true }
 
-    /// The whole ordered list each time: synchronous handlers run in this order, under the caller's ids.
+    /// The whole ordered list each time: synchronous handlers run in this order.
     func setSubscribers(_ subscribers: [(id: UUID, tap: NotchcastTap)]) {
         precondition(subscribers.allSatisfy { $0.tap.mask != 0 })
-        taps = Dictionary(uniqueKeysWithValues: subscribers.map { ($0.id, $0.tap) })
-        order = subscribers.map(\.id)
+        // A returning caller id gets a new activation, so nothing queued for the old one lands.
+        let previous = activations
+        let active = subscribers.map { (caller: $0.id, activation: previous[$0.id] ?? UUID(), tap: $0.tap) }
+        activations = Dictionary(uniqueKeysWithValues: active.map { ($0.caller, $0.activation) })
+        taps = Dictionary(uniqueKeysWithValues: active.map { ($0.activation, $0.tap) })
+        order = active.map(\.activation)
         reconcile()
     }
 
     func stop() {
         taps.removeAll()
+        activations.removeAll()
         order.removeAll()
         reconcile()
     }
@@ -112,7 +118,7 @@ final class NotchcastTapHub {
         }
     }
 
-    // By identity, not generation: a restart in between must not cost a survivor its reset.
+    // By activation, not generation: a restart in between must not cost a survivor its reset.
     private func resetSubscribers(_ ids: [UUID]) {
         for id in ids { taps[id]?.reset?() }
     }

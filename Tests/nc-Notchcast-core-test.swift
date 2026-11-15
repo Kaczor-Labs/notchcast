@@ -84,6 +84,12 @@ final class Subscriptions {
         hub.setSubscribers(list)
     }
 
+    /// The controller re-adds a re-enabled tap under the token it always had.
+    func insert(_ id: UUID, _ tap: NotchcastTap, at index: Int) {
+        list.insert((id, tap), at: index)
+        hub.setSubscribers(list)
+    }
+
     func reverse() {
         list.reverse()
         hub.setSubscribers(list)
@@ -282,25 +288,28 @@ struct NotchcastCoreTest {
         drain()
         check("our own synthetic events are skipped", seen == [7])
 
-        let notice = system.live?.router.receive(type: .tapDisabledByTimeout, event: key)
-        check("a disable notice re-enables, naming its subscribers", notice == .reenable([first, second]))
+        guard case .reenable(let disabled)? = system.live?.router.receive(type: .tapDisabledByTimeout, event: key) else {
+            return check("a disable notice re-enables, naming its subscribers", false)
+        }
+        check("a disable notice re-enables, naming its subscribers", disabled.count == 2)
         drain()
         check("no reset before the tap is re-enabled", resets.isEmpty)
-        system.live?.router.reenabled([first, second])
+        system.live?.router.reenabled(disabled)
         subs.remove(second)
         drain()
         check("reset reaches live subscribers only, once", resets == ["a"])
         check("same mask keeps the session", system.sessions.count == 1)
-        let probe = subs.add(NotchcastTap(switchID: "p", mask: keyMask, handler: .observe { _ in }))
+        let probe = subs.add(NotchcastTap(
+            switchID: "p", mask: keyMask, handler: .observe { _ in }, reset: { resets.append("p") }))
         subs.reverse()
         check("a reorder keeps the session", system.sessions.count == 1)
         guard case .reenable(let reordered)? = system.live?.router.receive(type: .tapDisabledByTimeout, event: key) else {
             return check("a reordered disable notice names its subscribers", false)
         }
-        check("a reorder keeps ids and takes the new order", reordered == [probe, first])
+        check("a reorder names both subscribers", reordered.count == 2)
         system.live?.router.reenabled(reordered)
         drain()
-        check("a reorder keeps each subscriber's reset", resets == ["a", "a"])
+        check("a reorder keeps each subscriber's reset, in the new order", resets == ["a", "p", "a"])
         subs.remove(probe)
 
         let swallowing = subs.add(NotchcastTap(
@@ -313,7 +322,7 @@ struct NotchcastCoreTest {
         let stale = system.sessions[0].router
         check("a replaced session's router is inert", stale.receive(type: .tapDisabledByTimeout, event: key) == .pass)
         drain()
-        check("no reset from a replaced session", resets == ["a", "a"])
+        check("no reset from a replaced session", resets == ["a", "p", "a"])
 
         let mouseMask = NotchcastTapPolicy.mask(for: .leftMouseDown)
         let mouse = subs.add(NotchcastTap(
@@ -326,7 +335,7 @@ struct NotchcastCoreTest {
         subs.remove(mouse)
         drain()
         check("removing another mask restarts", system.sessions.count == restarts + 1)
-        check("a restart before delivery keeps the survivor's reset", resets == ["a", "a", "a"])
+        check("a restart before delivery keeps the survivor's reset", resets == ["a", "p", "a", "a"])
 
         guard case .reenable(let again)? = system.live?.router.receive(type: .tapDisabledByTimeout, event: key) else {
             return check("a second disable notice names its subscribers", false)
@@ -335,7 +344,7 @@ struct NotchcastCoreTest {
         let late = subs.add(NotchcastTap(
             switchID: "l", mask: keyMask, handler: .observe { _ in }, reset: { resets.append("late") }))
         drain()
-        check("a subscriber added after the disable gets no reset", resets == ["a", "a", "a", "a"])
+        check("a subscriber added after the disable gets no reset", resets == ["a", "p", "a", "a", "a"])
         subs.remove(late)
 
         subs.remove(swallowing)
@@ -349,7 +358,41 @@ struct NotchcastCoreTest {
         hub.refreshPermission()
         check("granting trust starts it", hub.isRunning && hub.isTrusted)
         subs.remove(token)
+        staleActivation(system, subs)
         liveness(system, hub, subs)
+    }
+
+    /// An event and a reset queued for A, then A leaves and returns under the same id.
+    static func staleActivation(_ system: FakeSystem, _ subs: Subscriptions) {
+        var events = 0
+        var resets = 0
+        let keyMask = NotchcastTapPolicy.mask(for: .keyDown)
+        let tap = NotchcastTap(
+            switchID: "a", mask: keyMask, handler: .observe { _ in events += 1 }, reset: { resets += 1 })
+        let returning = subs.add(tap)
+        let keeper = subs.add(NotchcastTap(switchID: "b", mask: keyMask, handler: .observe { _ in }))
+        let sessions = system.sessions.count
+        let key = CGEvent(keyboardEventSource: nil, virtualKey: 7, keyDown: true)!
+        _ = system.live?.router.receive(type: .keyDown, event: key)
+        guard case .reenable(let named)? = system.live?.router.receive(type: .tapDisabledByTimeout, event: key) else {
+            return check("a disable notice before a return names its subscribers", false)
+        }
+        system.live?.router.reenabled(named)
+        subs.remove(returning)
+        subs.insert(returning, tap, at: 0)
+        drain()
+        check("a return under the same id keeps the session", system.sessions.count == sessions)
+        check("a returning tap gets no event queued for its last activation", events == 0)
+        check("a returning tap gets no reset queued for its last activation", resets == 0)
+        _ = system.live?.router.receive(type: .keyDown, event: key)
+        guard case .reenable(let again)? = system.live?.router.receive(type: .tapDisabledByTimeout, event: key) else {
+            return check("a disable notice after a return names its subscribers", false)
+        }
+        system.live?.router.reenabled(again)
+        drain()
+        check("a returning tap gets its new activation's event and reset", events == 1 && resets == 1)
+        subs.remove(keeper)
+        subs.remove(returning)
     }
 
     /// MusicBlock's case: another add-on restarts the tap, the reinstall fails, its token stays.
