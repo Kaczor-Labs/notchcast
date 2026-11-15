@@ -12,8 +12,8 @@ from unittest.mock import patch
 
 SCRIPT = Path(__file__).with_name("script-tests.py").resolve()
 DEFAULT = ["notchcast/nested/plain-test.py", "notchcast/plain-test.sh", "notchcast/land-test.sh",
-           "notchcast/generated-retry-test.mjs", "notchcast/gallery/check-pixels-test.swift"]
-OPT_IN = ["notchcast/install-app-test.sh"]
+           "notchcast/generated-retry-test.mjs", "notchcast/gallery/check-pixels-test.swift",
+           "notchcast/install-app-test.sh"]
 
 
 class ScriptTestsTest(unittest.TestCase):
@@ -21,7 +21,7 @@ class ScriptTestsTest(unittest.TestCase):
         self.scratch = tempfile.TemporaryDirectory(prefix="script-tests-")
         self.addCleanup(self.scratch.cleanup)
         self.root = Path(self.scratch.name)
-        for name in DEFAULT + OPT_IN + ["notchcast/helper.py"]:
+        for name in DEFAULT + ["notchcast/helper.py"]:
             path = self.root / name
             path.parent.mkdir(parents=True, exist_ok=True)
             path.touch()
@@ -40,26 +40,25 @@ class ScriptTestsTest(unittest.TestCase):
                 status = error.code
         return status, output.getvalue(), [call.args[0] for call in run.call_args_list]
 
-    def test_default_discovers_four_runtimes_without_host_integrated_tests(self):
+    def test_default_discovers_four_runtimes(self):
         status, output, commands = self.invoke(["--list"])
         self.assertEqual(0, status)
         self.assertEqual(sorted(DEFAULT), output.splitlines())
         self.assertEqual([], commands)
 
-    def test_all_lists_every_test_including_opt_in_paths(self):
+    def test_all_lists_every_test(self):
         status, output, commands = self.invoke(["--all", "--list"])
         self.assertEqual(0, status)
-        self.assertEqual(sorted(DEFAULT + OPT_IN), output.splitlines())
+        self.assertEqual(sorted(DEFAULT), output.splitlines())
         self.assertEqual([], commands)
 
     def test_execution_uses_each_interpreter(self):
         status, output, commands = self.invoke([])
         self.assertEqual(0, status)
-        self.assertIn("5 passed, 0 failed", output)
-        self.assertIn("1 opt-in tests excluded", output)
+        self.assertIn("6 passed, 0 failed", output)
         self.assertEqual(sorted([
             ["python3", DEFAULT[0]], ["bash", DEFAULT[1]], ["bash", DEFAULT[2]], ["node", DEFAULT[3]],
-            ["swift", "-swift-version", "6", DEFAULT[4]],
+            ["swift", "-swift-version", "6", DEFAULT[4]], ["bash", DEFAULT[5]],
         ]), sorted(commands))
 
     def test_land_test_runs_only_when_its_inputs_change(self):

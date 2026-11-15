@@ -1,25 +1,24 @@
 #!/bin/bash
-# Install Notchcast for this user. Usage: install-launchd.sh all|update|app|kick|prune [--auto-install]
+# Install Notchcast for this user. Usage: install-launchd.sh all|update|kick|prune [--auto-install]
 #   all     first install: update.sh installs /Applications/Notchcast.app, migrate.sh copies the old Tinycast data once,
-#           the old Tinycast .app goes to the Trash (its data stays), then both agents below are loaded.
+#           the old Tinycast .app goes to the Trash (its data stays), then update and kick below are loaded.
 #   update  notchcast.update runs notchcast/update.sh every 30 min (needs gh logged in).
 #   kick    notchcast.kick runs notchcast/kick.sh every 10 min: starts the sync when upstream moved (needs gh).
-#   app     notchcast.app runs the app itself: started at login, restarted 10 s after a crash or a Quit.
-#           Stop:  launchctl bootout gui/$(id -u)/notchcast.app
-#           Start: launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/notchcast.app.plist
+#   prune   notchcast.prune prunes merged branches on Sundays at 04:00 (notchcast/docs/branch-cleanup.md).
+# No agent runs the app: it starts at login through its own "Launch at login" setting (SMAppService).
 # Builds and releases run on GitHub Actions (.github/workflows/sync.yml), not on a Mac.
 set -euo pipefail
 HERE="$(cd "$(dirname "$0")" && pwd)"
 # shellcheck disable=SC1091
 source "$HERE/config.env"
-APP="/Applications/$APP_NAME.app"
+APP="${NOTCHCAST_APP:-/Applications/$APP_NAME.app}"
 LOGS="$HOME/Library/Logs/notchcast"
 DOMAIN="gui/$(id -u)"
 UPDATE_ARG=""
 case "${2:-}" in
     --auto-install) UPDATE_ARG=--install ;;
     "") ;;
-    *) echo "usage: $0 all|update|app|kick|prune [--auto-install]" >&2; exit 2 ;;
+    *) echo "usage: $0 all|update|kick|prune [--auto-install]" >&2; exit 2 ;;
 esac
 [ "$#" -le 2 ] || { echo "too many arguments" >&2; exit 2; }
 mkdir -p "$LOGS" "$HOME/Library/LaunchAgents"
@@ -128,26 +127,6 @@ install_prune() {
             --remote --local --log "$LOGS/pruned-branches.tsv" ${args[@]+"${args[@]}"})"
 }
 
-install_app() {
-    local exe
-    [ "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$APP/Contents/Info.plist")" = "$BUNDLE_ID" ] \
-        || { echo "$APP is not $BUNDLE_ID" >&2; exit 1; }
-    exe="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleExecutable' "$APP/Contents/Info.plist")"
-    # One instance only: a copy started by Finder quits before the agent starts its own.
-    if pgrep -f "^$APP/Contents/MacOS/$exe( |$)" >/dev/null && ! launchctl print "$DOMAIN/notchcast.app" >/dev/null 2>&1; then
-        osascript -e "tell application id \"$BUNDLE_ID\" to quit" >/dev/null 2>&1 || true
-        for _ in $(seq 1 20); do pgrep -f "^$APP/Contents/MacOS/$exe( |$)" >/dev/null || break; sleep 0.5; done
-    fi
-    # NOTCHCAST_LAUNCHD=1 makes the app keep its own login item off (commit "Notchcast: let a LaunchAgent own starting the app").
-    agent notchcast.app app \
-        '<key>KeepAlive</key><true/>
-<key>ThrottleInterval</key><integer>10</integer>
-<key>ProcessType</key><string>Interactive</string>
-<key>LimitLoadToSessionType</key><string>Aqua</string>
-<key>EnvironmentVariables</key><dict><key>NOTCHCAST_LAUNCHD</key><string>1</string></dict>' \
-        "$APP/Contents/MacOS/$exe"
-}
-
 first_install() {
     /bin/bash "$HERE/update.sh" ${UPDATE_ARG:+"$UPDATE_ARG"}
     [ -d "$APP" ] || { echo "no $APP after update.sh; see its output" >&2; exit 1; }
@@ -162,10 +141,9 @@ first_install() {
 }
 
 case "${1:-}" in
-    all) first_install; install_update; install_kick; install_app ;;
+    all) first_install; install_update; install_kick ;;
     update) install_update ;;
     kick) install_kick ;;
-    app) install_app ;;
     prune) install_prune ;;
-    *) echo "usage: $0 all|update|app|kick|prune [--auto-install]" >&2; exit 2 ;;
+    *) echo "usage: $0 all|update|kick|prune [--auto-install]" >&2; exit 2 ;;
 esac
