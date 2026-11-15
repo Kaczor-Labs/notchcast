@@ -24,9 +24,9 @@ enum MCPOAuth {
             case .clientRequired:
                 return String(
                     localized: """
-                        Enter a registered client ID. This server cannot register Notchcast \
+                        Enter a registered client ID. This server cannot register Tinycast \
                         automatically.
-                        """, table: "Notchcast")
+                        """)
             case .issuerChanged:
                 return String(
                     localized: """
