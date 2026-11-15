@@ -16,7 +16,8 @@ enum IslandWindowScenes {
         } else {
             core.settingsCoordinator.showSettings(tab: .general)
         }
-        IslandVerification.require(false, "the window guard stops Settings without the test display")
+        FileHandle.standardError.write(Data("FAIL the window guard let Settings show without the test display\n".utf8))
+        _exit(2)
     }
 
     static func run(core: AppCore, panel: PalettePanel) async {
