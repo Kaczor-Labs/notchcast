@@ -19,7 +19,6 @@ struct IslandLevelArt: PillArt {
                                     countdown: track, wing: Theme.Size.islandGlanceWing)
     }
 
-    /// The width the report-slot band needs to draw this level on its own.
     var bandSize: CGSize { CGSize(width: edge * 2 + cell + gap + track, height: Theme.Size.islandRest.height) }
 
     func draw(in pill: CGRect) {
