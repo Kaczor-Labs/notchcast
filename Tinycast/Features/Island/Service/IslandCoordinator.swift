@@ -29,9 +29,7 @@ final class IslandCoordinator: NSObject {
         glance.start()
     }
 
-    #if DEBUG
     var resting: IslandController? { backdrops.values.first { $0.showsRest } }
-    #endif
 
     private func showGlance(_ next: IslandGlance?) {
         restingGlance = next
