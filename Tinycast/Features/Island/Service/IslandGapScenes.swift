@@ -34,6 +34,7 @@ enum IslandGapScenes {
         case "gap-motion": await motion(core: core, panel: panel)
         case "gap-collection": collection(core: core, panel: panel)
         case "gap-ax": await accessibility(core: core, panel: panel)
+        case "gap-tooltip": await IslandTooltipProbe.run(core: core, panel: panel, screen: screen)
         default: print("unknown gap scene \(scene)")
         }
         print("DONE \(scene)")
