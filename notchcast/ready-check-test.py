@@ -101,6 +101,10 @@ class CoverageTest(unittest.TestCase):
                 self.assertRegex(ci_tests, rf"export .*\b{name}={value.strip(chr(39))}\b")
 
 
+# Machine git config (init.defaultBranch, signing, url rewrites) never reaches the fixture repos.
+GIT_ISOLATED = {"GIT_CONFIG_NOSYSTEM": "1", "GIT_CONFIG_GLOBAL": os.devnull}
+
+
 class BehaviourTest(unittest.TestCase):
     def setUp(self):
         scratch = tempfile.TemporaryDirectory(prefix="ready-check-")
@@ -118,15 +122,16 @@ class BehaviourTest(unittest.TestCase):
         self.commit("base")
         self.git("tag", "base")
         bare = self.root / "fork.git"
-        subprocess.run(["git", "init", "-q", "--bare", str(bare)], check=True)
+        subprocess.run(["git", "init", "-q", "--bare", "-b", "main", str(bare)], check=True,
+                       env={**os.environ, **GIT_ISOLATED})
         self.git("push", "-q", str(bare), "main", "base")
-        self.env = {**os.environ, "HOME": str(self.root / "home"), "GIT_CONFIG_COUNT": "1",
+        self.env = {**os.environ, **GIT_ISOLATED, "HOME": str(self.root / "home"), "GIT_CONFIG_COUNT": "1",
                     "GIT_CONFIG_KEY_0": f"url.{bare}.insteadOf", "GIT_CONFIG_VALUE_0": "https://github.com/example/fork.git",
                     "NOTCHCAST_HARNESSES_SHARDED": "1"}
 
     def git(self, *arguments):
         return subprocess.run(["git", "-C", str(self.repo), *arguments], check=True, capture_output=True,
-                              text=True, env={**os.environ, "GIT_AUTHOR_NAME": "t", "GIT_AUTHOR_EMAIL": "t@t",
+                              text=True, env={**os.environ, **GIT_ISOLATED, "GIT_AUTHOR_NAME": "t", "GIT_AUTHOR_EMAIL": "t@t",
                                               "GIT_COMMITTER_NAME": "t", "GIT_COMMITTER_EMAIL": "t@t"}).stdout.strip()
 
     def commit(self, message, path=None):
