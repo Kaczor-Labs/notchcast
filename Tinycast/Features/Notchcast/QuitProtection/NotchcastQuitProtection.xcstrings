@@ -1,6 +1,7 @@
 {
   "sourceLanguage" : "en",
   "strings" : {
+    "Add" : {},
     "Add app…" : {},
     "Confirm by" : {},
     "Exceptions" : {},
@@ -8,6 +9,7 @@
     "Hold ⌘W to close a window in %@" : {},
     "Holding ⌘Q" : {},
     "How you confirm a quit or a close." : {},
+    "Nothing here yet." : {},
     "Press ⌘Q again to quit %@" : {},
     "Press ⌘W again to close a window in %@" : {},
     "Pressing ⌘Q twice" : {},
