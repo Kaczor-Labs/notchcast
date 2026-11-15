@@ -41,7 +41,7 @@ Latency uses the prototype protocol: five alternating stock/island runs, 60 inse
 
 | Source | Purpose |
 | --- | --- |
-| `AppCore.swift` | Own and start the island module. |
+| `AppCore.swift` | Own and start the island module; hand Calendar the glance's `isWatching` as `isWatchedElsewhere`. |
 | `TinycastApp.swift` | Enter the isolated Debug verification path before normal startup. |
 | `CommandEscapeTap.swift` | Disable the global event tap for the isolated Debug path. |
 | `PaletteWindowController.swift` | Replace `positionPanel`'s anchor lookup and supply the level at summon and key regain. |
@@ -52,7 +52,7 @@ Latency uses the prototype protocol: five alternating stock/island runs, 60 inse
 | `DialogView.swift` | Replace the question glass backing with black. |
 | `MessageHUDView.swift`, `VolumeHUDView.swift` | Replace each HUD glass backing with black. |
 | `PopoverMenu.swift` | Replace the shared native menu glass backing with black. |
-| `CalendarCoordinator.swift` | Keep the meeting clock running while the pill shows a glance (`IslandCalendarGlance.isWatching`). |
+| `CalendarCoordinator.swift` | Keep the meeting clock running while `isWatchedElsewhere()` holds; it never names Island. |
 | `AppWindowController.swift` | Debug verify mode only: centre a new window on the `Agent Test` display, because AppKit relocates saved frames onto a physical screen. |
 
 `PalettePanel`, `MenuPanel`, all stock feature screens, and stock hide behavior are unchanged. The rejected replacement of `PalettePanel.contentView` by a large island canvas was dropped. Native panel geometry makes its proposed coordinate adapter unnecessary.
