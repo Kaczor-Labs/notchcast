@@ -88,7 +88,7 @@ if [ "$HAD_PREVIOUS" = 1 ]; then
     mv "$PREVIOUS" "$APP"
     if [ "$RUNNING" = 0 ]; then
         FINAL="nothing (app was not running; restored $(version "$APP"))"
-    elif [ "$QUIT_FAILED" = 1 ]; then
+    elif [ "$QUIT_FAILED" = 1 ] && [ -n "$(app_pids)" ]; then
         FINAL="$(version "$APP") (previous, never quit, not restarted)"
     elif restart_app && watch_app; then
         FINAL="$(version "$APP") (previous)"
