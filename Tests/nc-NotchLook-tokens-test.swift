@@ -46,7 +46,7 @@ struct NotchLookTokensTests {
 
         print("# dark takes the NotchKit values")
         same("dark selection", c.selection, Color.white.opacity(0.24), .darkAqua)
-        same("dark rowHover", c.rowHover, Color.white.opacity(0.14), .darkAqua)
+        same("dark rowHover", c.rowHover, Color.white.opacity(0.08), .darkAqua)
         same("dark menuHover", c.menuHover, Color.white.opacity(0.24), .darkAqua)
         same("dark separator", c.separator, Color.white.opacity(0.16), .darkAqua)
         same("dark primaryAction", c.primaryAction, lagoon, .darkAqua)
