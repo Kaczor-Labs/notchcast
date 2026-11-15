@@ -103,6 +103,12 @@ struct QuitProtectionTests {
         _ = engine.consume(.keyDown(.init(code: 0, commandCharacter: "a"), [], isRepeat: false), at: 71.1, target: target)
         check(engine.consume(.keyDown(q, [], isRepeat: false), at: 71.2, target: target) == .pass,
               "Another key recovers a lost Q release")
+        engine.reset()
+        _ = engine.consume(.keyDown(q, .command, isRepeat: false), at: 72, target: target)
+        _ = engine.consume(.modifiersChanged(.command), at: 72.2, target: target)
+        check(engine.consume(.keyUp(q), at: 72.4, target: target) == .swallow(nil),
+              "Q released after pressing the other ⌘ stays swallowed")
+        check(engine.consume(.tick, at: 72.8, target: target) == .pass, "That release cancels the hold")
         engine = QuitProtectionEngine(configuration: .init(mode: .hold))
         let tab = QuitProtectionEngine.Key(code: 48, commandCharacter: nil)
         check(engine.consume(.keyDown(tab, .command, isRepeat: false), at: 80, target: target) == .pass, "⌘Tab passes")

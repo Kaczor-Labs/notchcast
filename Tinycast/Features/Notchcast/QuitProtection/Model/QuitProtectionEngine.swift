@@ -133,9 +133,11 @@ struct QuitProtectionEngine: Sendable {
             reset()
             return .pass
         case .modifiersChanged(let modifiers):
-            swallowedKeys = []
             if !modifiers.contains(.command) { switching = false }
             if modifiers != .command { pending = nil }
+            // A surviving hold keeps its key, so the release still resolves it instead of reaching the app.
+            let held = pending.flatMap { $0.released ? nil : $0.key.code }
+            swallowedKeys = swallowedKeys.filter { $0 == held }
             return .pass
         case .keyUp(let key):
             guard swallowedKeys.remove(key.code) != nil else { return .pass }

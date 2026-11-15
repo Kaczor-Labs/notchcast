@@ -6,6 +6,8 @@ enum ShowDesktopPolicy {
     /// Plain F3, which the same key sends once "Use F1, F2, etc. keys as standard function keys" is on.
     static let functionKeyCode: Int64 = 99
     static let standardFunctionKeysDefaultsKey = "com.apple.keyboard.fnState"
+    /// The Keyboard pane posts this distributed notification when it flips the defaults key.
+    static let standardFunctionKeysChanged = "com.apple.keyboard.fnstatedidchange"
     private static let modifiers: CGEventFlags = [.maskCommand, .maskShift, .maskAlternate, .maskControl]
 
     static func acts(keyCode: Int64, flags: CGEventFlags, standardFunctionKeys: Bool) -> Bool {
