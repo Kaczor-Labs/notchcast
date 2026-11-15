@@ -63,6 +63,7 @@ enum IslandVerification {
             .overlay(Rectangle().stroke(.green, lineWidth: 2)))
         self.panel = panel
         panel.paletteState = core.palette
+        panel.level = core.island.paletteLevel
         print("STOCK_ANIMATION \(panel.animationBehavior.rawValue) MOTION \(Motion.isEnabled)")
         let frame = CGRect(x: screen.frame.midX - 375, y: screen.frame.maxY - 475, width: 750, height: 475)
         guard let anchor = core.island.anchor(panel, width: 750, collapsed: false),
@@ -77,6 +78,7 @@ enum IslandVerification {
         await pause(0.4)
         print("PROOF_EVENT open \(CACurrentMediaTime())")
         panel.orderFrontRegardless()
+        require(panel.frame == frame && panel.level.rawValue == 26, "proof panel keeps island level and top on ordering")
         core.palette.noteVisible(true)
         controller.capture("open-start")
         await pause(0.12)

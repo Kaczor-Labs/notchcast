@@ -1,6 +1,19 @@
 import Foundation
 import CoreGraphics
 
+struct IslandSurfaceConfiguration: Equatable, Sendable {
+    let notch: CGSize
+    let scale: CGFloat
+
+    enum Update { case keep, recreate, deferred }
+
+    func update(from current: Self?, paletteVisible: Bool, hasOverlays: Bool) -> Update {
+        guard let current else { return .recreate }
+        guard self != current else { return .keep }
+        return paletteVisible || hasOverlays ? .deferred : .recreate
+    }
+}
+
 struct IslandLayout: Sendable {
     let screen: CGRect
     let notch: CGSize

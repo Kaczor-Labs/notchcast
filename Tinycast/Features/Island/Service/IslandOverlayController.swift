@@ -5,7 +5,7 @@ final class IslandOverlayController: NSObject {
     private unowned let island: IslandCoordinator
     private var question: Entry?
     private var reports: [Entry] = []
-    private var backdrops: [CGDirectDisplayID: IslandController] = [:]
+    private var entries: [CGDirectDisplayID: IslandController] = [:]
 
     init(island: IslandCoordinator) {
         self.island = island
@@ -17,7 +17,7 @@ final class IslandOverlayController: NSObject {
 
     func placeQuestion(_ panel: NSPanel) {
         question = entry(panel, screen: island.questionScreen)
-        panel.level = NSWindow.Level(rawValue: Int(CGWindowLevelForKey(.mainMenuWindow)) + 4)
+        panel.level = IslandController.questionLevel
         panel.hasShadow = false
         reposition()
     }
@@ -25,7 +25,7 @@ final class IslandOverlayController: NSObject {
     func placeReport(_ panel: NSPanel, screen: NSScreen?) {
         reports.removeAll { $0.panel === panel }
         reports.append(entry(panel, screen: screen))
-        panel.level = NSWindow.Level(rawValue: Int(CGWindowLevelForKey(.mainMenuWindow)) + 3)
+        panel.level = IslandController.reportLevel
         panel.hasShadow = false
         reposition()
     }
@@ -54,15 +54,15 @@ final class IslandOverlayController: NSObject {
     func reposition() {
         reports.removeAll { $0.panel == nil }
         var framesByDisplay: [CGDirectDisplayID: [CGRect]] = [:]
-        let entries = (question.map { [$0] } ?? []) + reports
-        for entry in entries {
+        let overlays = (question.map { [$0] } ?? []) + reports
+        for entry in overlays {
             if let (screen, _, _) = island.overlayContext(screen: entry.screen) { entry.screen = screen }
         }
-        for entry in entries {
+        for entry in overlays {
             guard let (screen, controller, palette) = island.overlayContext(screen: entry.screen) else { continue }
             let id = screen.islandDisplayID
             guard framesByDisplay[id] == nil else { continue }
-            backdrops[id] = controller
+            entries[id] = controller
             let layout = IslandOverlayLayout(screen: screen.frame,
                 contentTop: screen.frame.maxY - IslandController.notch(on: screen).height, palette: palette,
                 inset: Theme.Spacing.islandInset, gap: Theme.Spacing.xl)
@@ -74,8 +74,8 @@ final class IslandOverlayController: NSObject {
             for (panel, frame) in zip(panels, frames) { panel.setFrameOrigin(frame.origin) }
             framesByDisplay[id] = questionFrame.map { [$0] + frames } ?? frames
         }
-        for (id, controller) in backdrops { controller.setOverlays(framesByDisplay[id] ?? []) }
-        backdrops = backdrops.filter { framesByDisplay[$0.key] != nil }
+        for (id, controller) in entries { controller.setOverlays(framesByDisplay[id] ?? []) }
+        entries = entries.filter { framesByDisplay[$0.key] != nil }
     }
 
     isolated deinit { NotificationCenter.default.removeObserver(self) }
