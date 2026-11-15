@@ -9,6 +9,8 @@ final class IslandController: NSObject {
     private let canvas = IslandCanvas()
     private var surface: IslandSurface<CGSize>?
     private var layout: IslandLayout?
+    private var configuration: IslandSurfaceConfiguration?
+    private var pendingScreen: NSScreen?
     private weak var panel: PalettePanel?
     private var observer: PanelObserver?
     private let clip = CAShapeLayer()
@@ -19,6 +21,7 @@ final class IslandController: NSObject {
     private(set) var captured: [String] = []
     #endif
     var showsRest = true
+    var canOpen: (() -> Bool)?
     var onOpen: (() -> Void)? {
         didSet { canvas.onOpen = onOpen }
     }
@@ -32,20 +35,20 @@ final class IslandController: NSObject {
         canvas.setAccessibilityLabel(NSRunningApplication.current.localizedName)
         canvas.canOpen = { [weak self] in
             guard let self else { return false }
-            return self.panel?.isVisible != true && self.overlays.isEmpty && NSApp.modalWindow == nil && self.isResting
+            return self.canOpen?() == true && self.overlays.isEmpty && NSApp.modalWindow == nil && self.isResting
         }
         source.didFrame = { [weak self] in self?.paintFrame() }
+        NSWorkspace.shared.notificationCenter.addObserver(self, selector: #selector(frameChanged),
+            name: NSWorkspace.accessibilityDisplayOptionsDidChangeNotification, object: nil)
     }
 
     func attach(_ panel: PalettePanel, screen: NSScreen) {
         guard self.panel !== panel else { return }
-        if !panel.isVisible, NSApp.modalWindow == nil { panel.level = Self.paletteLevel }
         self.panel = panel
         panel.contentView?.wantsLayer = true
         panel.contentView?.layer?.mask = clip
         panel.hasShadow = false
-        observer = PanelObserver(panel: panel, changed: { [weak self] in self?.frameChanged() },
-            becameKey: { [weak self] in self?.restoreLevel() })
+        observer = PanelObserver(panel: panel, changed: { [weak self] in self?.frameChanged() })
         if layout == nil { configure(screen) }
         frameChanged()
     }
@@ -59,10 +62,24 @@ final class IslandController: NSObject {
 
     func configure(_ screen: NSScreen) {
         let next = IslandLayout(screen: screen.frame, notch: Self.notch(on: screen), canvas: Theme.Size.islandHost)
+        let requested = IslandSurfaceConfiguration(notch: next.notch, scale: screen.backingScaleFactor)
+        let moved = layout?.screen != next.screen || layout?.notch != next.notch
         layout = next
         backdrop.setFrame(next.window, display: false)
+        switch requested.update(from: configuration, paletteVisible: panel?.isVisible == true,
+                                hasOverlays: !overlays.isEmpty) {
+        case .keep: pendingScreen = nil
+        case .deferred: pendingScreen = screen
+        case .recreate:
+            surface = nil
+            configuration = requested
+            pendingScreen = nil
+        }
+        if moved, let panel, panel.isVisible {
+            let frame = next.contentFrame(panel.frame.size).offsetBy(dx: next.window.minX, dy: next.window.minY)
+            panel.setFrameOrigin(frame.origin)
+        }
         if surface != nil {
-            if showsRest, panel?.isVisible != true, NSApp.modalWindow == nil { backdrop.orderFrontRegardless() }
             frameChanged()
             return
         }
@@ -84,15 +101,14 @@ final class IslandController: NSObject {
         metrics.sensor.opacity = 0
         let surface = IslandSurface<CGSize>(
             presentation: .idle, clock: FrameClock(frameSource: source), metrics: metrics,
-            motion: .standard, dpr: screen.backingScaleFactor, reduced: !Motion.isEnabled,
+            motion: .standard, dpr: screen.backingScaleFactor, reduced: reducedMotion,
             keyline: 0, stageWidth: Theme.Size.panelWidth, measure: { presentation, _ in
                 guard case .expanded(let content) = presentation else { return ContentMeasures() }
                 return ContentMeasures(expandedHeight: Double(content.bottom?.height ?? 0))
             })
         self.surface = surface
         source.display.host = canvas
-        if showsRest { backdrop.orderFrontRegardless() }
-        paintFrame()
+        frameChanged()
     }
 
     static func notch(on screen: NSScreen) -> CGSize {
@@ -101,9 +117,10 @@ final class IslandController: NSObject {
         return CGSize(width: screen.frame.width - left.width - right.width, height: screen.safeAreaInsets.top)
     }
 
-    @objc private func frameChanged() {
+    @objc func frameChanged() {
         guard let surface, let layout else { return }
-        let suspended = panel.map { $0.isVisible && ($0.level < Self.paletteLevel || NSApp.modalWindow != nil) } ?? false
+        surface.reduced = reducedMotion
+        let suspended = NSApp.modalWindow != nil
         if suspended { backdrop.orderOut(nil) }
         let palette = panel.flatMap { $0.isVisible ? $0.frame : nil }
         let overlay = IslandOverlayLayout(screen: layout.screen,
@@ -117,6 +134,7 @@ final class IslandController: NSObject {
                 surface.resize(stageWidth: size.width, animate: true)
                 surface.show(.expanded(.init(bottom: size)), contentKey: "palette")
             } else {
+                if showsRest, !suspended { backdrop.orderFrontRegardless() }
                 surface.show(.idle, contentKey: "rest")
             }
         }
@@ -127,7 +145,11 @@ final class IslandController: NSObject {
         frameChanged()
     }
 
-    private static var paletteLevel: NSWindow.Level { NSWindow.Level(rawValue: IslandBackdrop.levelValue + 1) }
+    static let paletteLevel = NSWindow.Level(rawValue: IslandBackdrop.levelValue + 1)
+    static let reportLevel = NSWindow.Level(rawValue: IslandBackdrop.levelValue + 2)
+    static let questionLevel = NSWindow.Level(rawValue: IslandBackdrop.levelValue + 3)
+
+    private var reducedMotion: Bool { !Motion.isEnabled || NSWorkspace.shared.accessibilityDisplayShouldReduceMotion }
 
     private var isResting: Bool {
         guard let layout, let bounds = canvas.outline?.boundingBoxOfPath else { return false }
@@ -135,22 +157,17 @@ final class IslandController: NSObject {
         return abs(bounds.width - size.width) < 0.01 && abs(bounds.height - size.height) < 0.01
     }
 
-    private func restoreLevel() {
-        guard let panel, let layout, panel.isKeyWindow, NSApp.modalWindow == nil else { return }
-        if panel.level != Self.paletteLevel { panel.level = Self.paletteLevel }
-        let origin = CGPoint(x: layout.screen.midX - panel.frame.width / 2,
-                             y: layout.screen.maxY - layout.contentTop - panel.frame.height)
-        if panel.frame.origin != origin { panel.setFrameOrigin(origin) }
-        frameChanged()
-    }
-
     func closed() {
+        if let pendingScreen, panel?.isVisible != true, overlays.isEmpty {
+            configure(pendingScreen)
+            return
+        }
         frameChanged()
     }
 
     func setOverlays(_ frames: [CGRect]) {
         overlays = frames
-        frameChanged()
+        closed()
     }
 
     #if DEBUG
@@ -205,41 +222,29 @@ final class IslandController: NSObject {
 
     var backdropWindow: NSWindow { backdrop }
     var outlineBounds: CGRect { canvas.outline?.boundingBoxOfPath ?? .zero }
+    var surfaceIdentity: ObjectIdentifier? { surface.map(ObjectIdentifier.init) }
+    var contentKey: String? { surface?.contentKey }
     var overlayCount: Int { overlays.count }
     func pressBackdrop() -> Bool { canvas.accessibilityPerformPress() }
     #endif
 
     isolated deinit {
+        NSWorkspace.shared.notificationCenter.removeObserver(self)
         backdrop.orderOut(nil)
     }
 
     @MainActor
     private final class PanelObserver: NSObject {
         private let changed: () -> Void
-        private let becameKey: () -> Void
-        private var level: NSKeyValueObservation?
-        init(panel: NSWindow, changed: @escaping () -> Void, becameKey: @escaping () -> Void) {
+        init(panel: NSWindow, changed: @escaping () -> Void) {
             self.changed = changed
-            self.becameKey = becameKey
             super.init()
-            for name in [NSWindow.didResizeNotification, NSWindow.didMoveNotification, NSWindow.didResignKeyNotification] {
+            for name in [NSWindow.didResizeNotification, NSWindow.didMoveNotification,
+                         NSWindow.didResignKeyNotification, NSWindow.didBecomeKeyNotification] {
                 NotificationCenter.default.addObserver(self, selector: #selector(update), name: name, object: panel)
-            }
-            NotificationCenter.default.addObserver(self, selector: #selector(keyChanged),
-                name: NSWindow.didBecomeKeyNotification, object: panel)
-            level = panel.observe(\.level) { [weak self] _, _ in
-                guard let self else { return }
-                RunLoop.main.perform(#selector(updateLevel), target: self, argument: nil, order: 0, modes: [.common])
             }
         }
         @objc private func update() { changed() }
-        @objc private func updateLevel() {
-            becameKey()
-            changed()
-        }
-        @objc private func keyChanged() {
-            Task { @MainActor [weak self] in self?.becameKey() }
-        }
         isolated deinit { NotificationCenter.default.removeObserver(self) }
     }
 }
