@@ -8,6 +8,7 @@ enum IslandScenes {
         core.settings.interfaceSize = scene == "scale-1.1" ? .large : scene == "scale-1.2" ? .larger : .standard
         core.settings.quicklinksEnabled = true
         await core.appIndex.refresh()
+        if IslandPillScenes.names.contains(scene) { await IslandPillScenes.run(scene, core: core, screen: screen); return }
         core.paletteCoordinator.showPalette(mode: .launcher)
         guard let panel = NSApp.windows.first(where: { $0 is PalettePanel }) as? PalettePanel else {
             IslandVerification.require(false, "stock lifecycle created palette"); return
