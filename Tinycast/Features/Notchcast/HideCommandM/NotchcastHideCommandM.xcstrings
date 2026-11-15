@@ -1,0 +1,8 @@
+{
+  "sourceLanguage" : "en",
+  "strings" : {
+    "Hide the front app instead of minimizing its window." : {},
+    "Hide with ⌘M" : {}
+  },
+  "version" : "1.0"
+}
