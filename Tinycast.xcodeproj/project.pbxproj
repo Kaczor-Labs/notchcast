@@ -4251,6 +4251,7 @@
 				0E8F5C3C217EFF5576B2CB4F /* Resources */,
 				5DD96C5B911AE4FC9AAD9EE8 /* Frameworks */,
 				4AAF1BA4D980892A8FDF2D3E /* Embed Dependencies */,
+				5E73E6082FDBD95C5AA3FD7F /* Notchcast name override */,
 			);
 			buildRules = (
 			);
@@ -4377,6 +4378,33 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXResourcesBuildPhase section */
+
+/* Begin PBXShellScriptBuildPhase section */
+		5E73E6082FDBD95C5AA3FD7F /* Notchcast name override */ = {
+			isa = PBXShellScriptBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+				"$(SRCROOT)/notchcast/name-override.py",
+				"$(SRCROOT)/Tinycast/Info.plist",
+				"$(SRCROOT)/Tinycast/Resources/Localizable.xcstrings",
+				"$(SRCROOT)/Tinycast/Resources/InfoPlist.xcstrings",
+				"$(TARGET_BUILD_DIR)/$(INFOPLIST_PATH)",
+			);
+			name = "Notchcast name override";
+			outputFileListPaths = (
+			);
+			outputPaths = (
+				"$(DERIVED_FILE_DIR)/name-override.stamp",
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "python3 \"$SRCROOT/notchcast/name-override.py\"";
+		};
+/* End PBXShellScriptBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
 		385BC383D52E5167B280638A /* Sources */ = {
@@ -5481,7 +5509,7 @@
 				CURRENT_PROJECT_VERSION = 1;
 				DEBUG_INFORMATION_FORMAT = dwarf;
 				DEVELOPMENT_TEAM = "";
-				DICTATION_EXECUTABLE_NAME = "Tinycast Dev Dictation";
+				DICTATION_EXECUTABLE_NAME = "Notchcast Dev Dictation";
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				ENABLE_TESTABILITY = YES;
 				GCC_C_LANGUAGE_STANDARD = gnu11;
@@ -5640,7 +5668,7 @@
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				DEPLOYMENT_POSTPROCESSING = YES;
 				DEVELOPMENT_TEAM = "";
-				DICTATION_EXECUTABLE_NAME = "Tinycast Dictation";
+				DICTATION_EXECUTABLE_NAME = "Notchcast Dictation";
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_NS_ASSERTIONS = NO;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
