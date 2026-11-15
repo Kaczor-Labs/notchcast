@@ -228,7 +228,7 @@ shipped. Light is the same stop with the ink inverted, and is the only column op
 | ----------------- | -------------- | -------------- | ------------------------------------------------- |
 | `panelScrim`      | black **0.40** | white **0.55** | the panel scrim over the glass                    |
 | `selection`       | white 0.24     | black 0.09     | selected row fill (keyboard/active selection)     |
-| `rowHover`        | white 0.14     | black 0.045    | mouse-hover fill (always fainter than selection)  |
+| `rowHover`        | white 0.08     | black 0.045    | mouse-hover fill (always fainter than selection)  |
 | `menuHover`       | white 0.24     | black 0.09     | popover-menu row hover                            |
 | `separator`       | white 0.16     | black 0.12     | a list↔preview hairline (clipboard, file search)  |
 | `controlSurface`  | white 0.10     | black 0.08     | filled keycaps, glyph tiles                       |
