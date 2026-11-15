@@ -66,6 +66,8 @@ final class IslandPillMenu: NSObject {
 
     #if DEBUG
     var itemTitles: [String] { visibleItems().map(\.title) }
+    var isObservingResign: Bool { observedPanel != nil }
+    func activate(title: String) { visibleItems().firstIndex { $0.title == title }.map(activate) }
     #endif
 
     private func visibleItems() -> [PopoverMenuItem] {
