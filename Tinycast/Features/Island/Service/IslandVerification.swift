@@ -19,6 +19,17 @@ enum IslandVerification {
         #endif
     }
 
+    /// Verification opens, raises and places app windows on the test display only, or ends the run.
+    static func keepOnTestDisplay(_ newWindow: NSWindow? = nil) {
+        #if DEBUG
+        guard enabled else { return }
+        require(testScreen != nil, "an app window has the test display")
+        guard let newWindow, let frame = testScreen?.visibleFrame else { return }
+        newWindow.setFrameOrigin(CGPoint(x: frame.midX - newWindow.frame.width / 2,
+                                         y: frame.midY - newWindow.frame.height / 2))
+        #endif
+    }
+
     #if DEBUG
     private static var delegate: IslandVerificationDelegate?
     private static var controller: IslandController?
