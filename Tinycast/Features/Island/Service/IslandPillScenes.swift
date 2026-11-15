@@ -5,7 +5,7 @@ import AppKit
 @MainActor
 enum IslandPillScenes {
     static let names: Set = ["pill-menu", "pill-settings", "glance", "glance-menu", "pill-menu-quiet", "pill-settings-quiet",
-                             "glance-modal"]
+                             "glance-modal", "pill-busy"]
 
     static func run(_ scene: String, core: AppCore, screen: NSScreen) async {
         core.island.start()
@@ -19,6 +19,7 @@ enum IslandPillScenes {
         case "pill-menu-quiet": await quietMenu(core: core, controller: controller, screen: screen)
         case "pill-settings-quiet": await quietSettings(core: core, controller: controller)
         case "glance-modal": await glanceModal(core: core, controller: controller, screen: screen)
+        case "pill-busy": await busy(core: core, controller: controller)
         default: await glance(core: core, controller: controller)
         }
         let windows = NSApp.windows.filter(\.isVisible)
@@ -205,6 +206,33 @@ enum IslandPillScenes {
         print("GLANCE_MODAL content=\(controller.contentKey ?? "nil") backdropVisible=\(backdrop.isVisible) palette=\(paletteVisible)")
         IslandVerification.require(!paletteVisible && controller.contentKey == "glance", "the glance returns to rest")
         IslandVerification.require(backdrop.isVisible, "the carded pill is visible after the modal ends")
+    }
+
+    /// The pill menu opens only from a resting pill: never over the launcher, nor while it closes.
+    private static func busy(core: AppCore, controller: IslandController) async {
+        let rest = controller.outlineBounds
+        core.paletteCoordinator.showPalette(mode: .launcher)
+        await IslandVerification.pause(0.6)
+        IslandVerification.require(paletteVisible, "the launcher is open")
+        for (type, modifiers, label) in [(NSEvent.EventType.rightMouseDown, NSEvent.ModifierFlags(), "right-click"),
+                                         (.leftMouseDown, .control, "control-click"), (.leftMouseDown, .option, "option-click")] {
+            controller.clickBackdrop(type, modifiers: modifiers)
+            await IslandVerification.pause(0.2)
+            IslandVerification.require(menuPanel == nil, "\(label) over the open launcher opens no menu")
+        }
+        IslandVerification.require(!(controller.backdropWindow.contentView?.accessibilityPerformShowMenu() ?? true),
+                                   "show-menu over the open launcher is refused")
+        core.paletteCoordinator.hidePalette(restoreFocus: false)
+        let closing = controller.outlineBounds
+        controller.clickBackdrop(.rightMouseDown)
+        print("CLOSING rest=\(rest) atClick=\(closing) palette=\(paletteVisible)")
+        IslandVerification.require(closing.height > rest.height + 1, "the right-click lands mid-close")
+        await IslandVerification.pause(0.2)
+        IslandVerification.require(menuPanel == nil, "right-click during the closing transition opens no menu")
+        await IslandVerification.pause(0.8)
+        IslandVerification.require(controller.outlineBounds == rest, "the pill settles back at rest")
+        guard let menu = await openMenu(controller, .rightMouseDown, "right-click at rest") else { return }
+        await closeMenu(menu, "right-click at rest")
     }
 
     /// Opens the menu through the pill's own callback, so no event is synthesized.
