@@ -5,7 +5,7 @@ import CoreGraphics
 /// WindowServer mouse and pid-only keys; `Scripts/island-input-helper.swift` logs what passes through.
 @MainActor
 enum IslandInputScenes {
-    static let names: Set = ["ws-pill", "ws-menu", "ws-boundary", "ws-hover", "ws-glance-menu",
+    static let names: Set = ["ws-pill", "ws-menu", "ws-busy", "ws-boundary", "ws-hover", "ws-glance-menu",
                              "ws-quit-key", "ws-quit-row"]
 
     private static var received: [String] = []
@@ -31,6 +31,7 @@ enum IslandInputScenes {
         switch scene {
         case "ws-pill": await pill(controller: controller)
         case "ws-menu": await menu(controller: controller)
+        case "ws-busy": await busy(controller: controller, at: centre(controller))
         case "ws-boundary": await boundary(controller: controller)
         case "ws-hover": await hover(controller: controller)
         case "ws-glance-menu": await glanceMenu(controller: controller)
@@ -238,7 +239,6 @@ enum IslandInputScenes {
         print("OUTSIDE \(outside) menu=\(menuPanel != nil) active=\(NSApp.isActive)")
         check(got("CLICK", outside, since: before), "WS outside click reaches the window below")
         check(menuPanel == nil && core.palette.menuQuery.isEmpty, "WS outside click dismisses the pill menu")
-        await busy(controller: controller, at: point)
         await click(point, right: true)
         expectMenu(controller, "WS right-click before Command-comma")
         await key(43, flags: .maskCommand)
