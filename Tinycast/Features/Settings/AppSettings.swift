@@ -710,7 +710,7 @@ final class AppSettings {
 
     /// With no per-app list the bundle follows macOS's languages, so this runs before any lookup.
     static func pinLanguage() {
-        UserDefaults.standard.set([storedLanguage.rawValue], forKey: Key.language.rawValue)
+        UserDefaults.standard.set([NotchcastHidden.language], forKey: Key.language.rawValue)
     }
 
     /// The app's own domain only: a plain read falls through to the global list.
