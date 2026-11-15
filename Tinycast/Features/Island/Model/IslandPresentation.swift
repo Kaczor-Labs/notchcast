@@ -9,7 +9,7 @@ struct IslandLevel: Equatable, Sendable {
     var range: ClosedRange<Double> = 0...1 // outside 0...1 draws as outlined zones past the track
 }
 
-/// A reposted `id` updates in place, and a notice with `progress` stays until `end(notice:)`.
+/// A reposted `id` updates in place; a `progress` notice stays until ended or reposted without it.
 struct IslandNotice: Equatable, Sendable {
     var id: String
     var symbol: String?
