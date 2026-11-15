@@ -30,8 +30,14 @@ final class IslandController: NSObject {
     var glance: IslandGlance? {
         didSet {
             guard glance != oldValue else { return }
-            canvas.glance = glance.map { GlanceArt($0, notch: layout?.hasNotch == true) }
-            canvas.setAccessibilityValue(glance.map { "\($0.title), \($0.countdown)" })
+            canvas.show(glance: glance, level: level, notch: layout?.hasNotch == true)
+            frameChanged()
+        }
+    }
+    var level: IslandLevel? {
+        didSet {
+            guard level != oldValue else { return }
+            canvas.show(glance: glance, level: level, notch: layout?.hasNotch == true)
             frameChanged()
         }
     }
@@ -79,7 +85,7 @@ final class IslandController: NSObject {
         let requested = IslandSurfaceConfiguration(notch: next.notch, scale: screen.backingScaleFactor)
         let moved = layout?.screen != next.screen || layout?.notch != next.notch
         layout = next
-        if let glance { canvas.glance = GlanceArt(glance, notch: next.hasNotch) }
+        canvas.show(glance: glance, level: level, notch: next.hasNotch)
         backdrop.setFrame(next.window, display: false)
         switch requested.update(from: configuration, paletteVisible: panel?.isVisible == true,
                                 hasOverlays: !overlays.isEmpty) {
