@@ -56,7 +56,7 @@ enum IslandVerification {
 
     static func main() {
         setbuf(stdout, nil)
-        require(Bundle.main.bundleIdentifier?.hasPrefix("com.tinycast.app.v2") == true, "isolated bundle")
+        require(Bundle.main.bundleIdentifier?.hasPrefix("app.notchcast.v2") == true, "isolated bundle")
         let app = NSApplication.shared
         app.setActivationPolicy(.accessory)
         app.appearance = NSAppearance(named: .darkAqua)
