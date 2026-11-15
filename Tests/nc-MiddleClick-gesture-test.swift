@@ -23,6 +23,8 @@ struct MiddleClickGestureTests {
         engineThreeFingerDrag()
         engineLostHold()
         engineReset()
+        engineLostUpWhileSwallowing()
+        engineExpiredBounce()
         var moved = fingers
         moved[0].x = .nan
         precondition(MiddleClickTouchSource.isSane(fingers))
@@ -265,4 +267,34 @@ struct MiddleClickGestureTests {
         rig.engine.reset()
         precondition(rig.drain().isEmpty, "a reset with nothing held posts nothing")
     }
+
+    static func engineLostUpWhileSwallowing() {
+        let rig = Rig()
+        rig.rest()
+        precondition(rig.send(.leftMouseDown) == (false, .otherMouseDown))
+        rig.advance(0.9)
+        precondition(rig.send(.leftMouseDown).swallowed, "a duplicate down while held is swallowed")
+        rig.advance(19)
+        precondition(rig.send(.leftMouseDown) == (false, .leftMouseDown),
+                     "with the duplicate's up lost, a press past the timeout still counts")
+        precondition(rig.drain() == [.otherMouseUp], "and the held middle button is released")
+        precondition(rig.send(.leftMouseUp) == (false, .leftMouseUp))
+    }
+
+    static func engineExpiredBounce() {
+        let rig = Rig()
+        rig.rest()
+        _ = rig.send(.leftMouseDown)
+        _ = rig.send(.leftMouseUp)
+        rig.advance(0.1)
+        rig.engine.frame(device: 1, points: fingers, time: rig.now)
+        precondition(rig.send(.leftMouseDown).swallowed, "a bounce is swallowed")
+        rig.engine.frame(device: 1, points: [], time: rig.now)
+        rig.advance(20)
+        precondition(rig.send(.leftMouseDown) == (false, .leftMouseDown),
+                     "with the bounce's up lost, a plain press 20 s later passes")
+        precondition(rig.send(.leftMouseUp) == (false, .leftMouseUp))
+        precondition(rig.drain().isEmpty)
+    }
+
 }

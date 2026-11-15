@@ -7,7 +7,7 @@ import Foundation
 
 /// Pairs each left-button sequence with what it becomes: a middle click, swallowed, or passed.
 struct MiddleClickFilter {
-    /// A middle button held longer lost its release; the next press frees it instead of being dropped.
+    /// A hold or swallowed sequence older than this lost its release; the next press ends it.
     static let lostHoldTimeout: TimeInterval = 10
 
     enum ButtonEvent: Sendable { case down, drag, up }
@@ -16,18 +16,19 @@ struct MiddleClickFilter {
     enum HeldPress: Equatable, Sendable { case none, duplicate, lost }
 
     private var heldSince: TimeInterval?
-    private var swallowing = false
+    private var swallowingSince: TimeInterval?
 
     /// Asked on every down before its press is judged; `.lost` means the caller posts the middle up.
     mutating func checkHeld(at now: TimeInterval) -> HeldPress {
-        if swallowing { return .duplicate }
-        guard let heldSince else { return .none }
-        guard now - heldSince > Self.lostHoldTimeout else {
-            swallowing = true
-            return .duplicate
+        if let swallowingSince, now - swallowingSince > Self.lostHoldTimeout { self.swallowingSince = nil }
+        if let heldSince, now - heldSince > Self.lostHoldTimeout {
+            self.heldSince = nil
+            swallowingSince = nil
+            return .lost
         }
-        self.heldSince = nil
-        return .lost
+        guard heldSince != nil || swallowingSince != nil else { return .none }
+        if swallowingSince == nil { swallowingSince = now }
+        return .duplicate
     }
 
     mutating func decide(_ event: ButtonEvent, press: MiddleClickGuards.ThreeFingerPress, at now: TimeInterval) -> ClickDecision {
@@ -38,17 +39,17 @@ struct MiddleClickFilter {
                 heldSince = now
                 return .down
             case .bounce:
-                swallowing = true
+                swallowingSince = now
                 return .swallow
             case .plain:
                 return .pass
             }
         case .drag:
             if heldSince != nil { return .drag }
-            return swallowing ? .swallow : .pass
+            return swallowingSince != nil ? .swallow : .pass
         case .up:
-            if swallowing {
-                swallowing = false
+            if swallowingSince != nil {
+                swallowingSince = nil
                 return .swallow
             }
             guard heldSince != nil else { return .pass }
@@ -61,7 +62,7 @@ struct MiddleClickFilter {
     mutating func reset() -> Bool {
         defer {
             heldSince = nil
-            swallowing = false
+            swallowingSince = nil
         }
         return heldSince != nil
     }
