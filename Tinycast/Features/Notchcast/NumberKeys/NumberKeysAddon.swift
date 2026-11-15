@@ -2,8 +2,6 @@ import Foundation
 
 /// F10: while a query is typed, ⌘1–⌘9 run the first nine launcher rows instead of favourites.
 enum NumberKeysAddon: NotchcastAddon {
-    static let switchID = "launcherNumberKeys"
-
     static let switches = [
         NotchcastSwitch(
             id: "launcherNumberKeys",
@@ -12,6 +10,8 @@ enum NumberKeysAddon: NotchcastAddon {
                 localized: "Command-1 to Command-9 open the first nine search results.", table: "NotchcastNumberKeys"),
             category: .launcher)
     ]
+
+    static var switchID: String { switches[0].id }
 
     static func makeModule(_ context: NotchcastContext) -> (any NotchcastModule)? {
         NumberKeysModule(context: context)
