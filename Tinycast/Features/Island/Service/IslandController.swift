@@ -36,9 +36,13 @@ final class IslandController: NSObject {
     var expanded = false {
         didSet { if expanded != oldValue { redraw() } }
     }
+    /// Not drawn until their live states land; only the accessibility value reads them so far.
+    var notice: IslandNotice? { didSet { canvas.setAccessibilityValue(accessibilityValue) } }
+    var statuses: [IslandStatus] = [] { didSet { canvas.setAccessibilityValue(accessibilityValue) } }
 
     private func redraw() {
         canvas.show(glance: glance, level: level, expanded: expanded, notch: layout?.hasNotch == true)
+        canvas.setAccessibilityValue(accessibilityValue)
         frameChanged()
     }
 
@@ -47,8 +51,9 @@ final class IslandController: NSObject {
         backdrop.contentView = canvas
         canvas.wantsLayer = true
         canvas.setAccessibilityElement(true)
-        canvas.setAccessibilityRole(.button)
-        canvas.setAccessibilityLabel(NSRunningApplication.current.localizedName)
+        canvas.setAccessibilityRole(.group)
+        canvas.setAccessibilityLabel(String(localized: "Notchcast", table: "Notchcast"))
+        canvas.setAccessibilityValue("")
         canvas.onMenu = { [weak self] in
             guard let self, let rect = self.pillRect else { return }
             self.onMenu?(rect, self.backdrop)
