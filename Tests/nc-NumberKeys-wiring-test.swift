@@ -1,4 +1,6 @@
 // notchcast-sources: Tinycast/Features/Notchcast/Core/Model/*.swift Tinycast/Features/Notchcast/Core/Service/*.swift
+// notchcast-sources: Tinycast/Features/Island/Model/IslandPresentation.swift
+// notchcast-sources: Tinycast/Features/Island/Service/IslandPresenting.swift
 // notchcast-sources: Tinycast/Features/Settings/SettingsTab.swift Tinycast/Features/Launcher/Model/CommandID.swift
 // notchcast-sources: Tinycast/Features/HotKeys/Model/HotKeyAction.swift
 // notchcast-sources: Tinycast/Features/HotKeys/Model/HotKeyAction+EntryID.swift
@@ -27,15 +29,6 @@
 import CoreGraphics
 import Foundation
 
-@MainActor
-final class SilentPresenter: NotchcastPresenting {
-    func showLevel(_ level: NotchcastLevel) {}
-    func post(_ notice: NotchcastNotice) {}
-    func end(_ noticeID: UUID) {}
-    func setStatus(_ status: NotchcastStatus?, owner: String) {}
-    func setMenuRows(_ rows: [NotchcastMenuRow], owner: String, onSelect: @escaping @MainActor (String) -> Void) {}
-}
-
 /// The add-on through the real controller: ⌘<digit> reaches the module only while its switch is on.
 @main
 enum NumberKeysWiringTest {
@@ -51,7 +44,7 @@ enum NumberKeysWiringTest {
             preconditionFailure("Number Keys must never start an event tap")
         }
         let controller = NotchcastController(
-            addons: [NumberKeysAddon.self], defaults: defaults, hub: hub, presenter: SilentPresenter())
+            addons: [NumberKeysAddon.self], defaults: defaults, hub: hub, presenter: IslandPresenter())
         let rows = [1, 2, 4, 5, 6, 8, 9, 11, 12, 14]
         controller.start()
         precondition(NumberKeysAddon.switchID == "launcherNumberKeys", "the v1 raw value is kept verbatim")
