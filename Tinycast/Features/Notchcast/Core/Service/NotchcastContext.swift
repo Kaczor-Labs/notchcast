@@ -12,7 +12,7 @@ final class NotchcastContext {
     private(set) var wantedTaps: [UUID: NotchcastTap] = [:]
     private(set) var module: (any NotchcastModule)?
     /// Returns true to consume a digit typed in the launcher (Number Keys, hook H9).
-    private(set) var launcherDigit: (@MainActor (Int) -> Bool)?
+    private(set) var launcherDigit: (@MainActor (_ digit: Int, _ query: String, _ entryRows: [Int]) -> Int?)?
 
     init(
         defaults: UserDefaults, preferences: NotchcastPreferences, presenter: any NotchcastPresenting,
@@ -47,11 +47,12 @@ final class NotchcastContext {
         onTapsChanged()
     }
 
-    func handleLauncherDigit(_ handler: (@MainActor (Int) -> Bool)?) {
+    /// ⌘1–⌘0 ask this first; a returned row index opens that row instead of the favourite.
+    func handleLauncherDigit(_ handler: (@MainActor (_ digit: Int, _ query: String, _ entryRows: [Int]) -> Int?)?) {
         launcherDigit = handler
     }
 
-    /// Rereads Accessibility trust after the user granted it, restarting a tap that could not start.
+    /// Rereads Accessibility trust after a grant, restarting a tap that could not start.
     func refreshPermission() { hub.refreshPermission() }
 
     func attach(_ module: (any NotchcastModule)?) { self.module = module }

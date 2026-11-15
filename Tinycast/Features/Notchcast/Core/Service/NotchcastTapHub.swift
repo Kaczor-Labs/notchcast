@@ -22,7 +22,7 @@ protocol NotchcastTapSession: AnyObject {
 @MainActor
 @Observable
 final class NotchcastTapHub {
-    /// Accessibility trust as last read; macOS announces no change, so `refreshPermission` rereads it.
+    /// Trust as last read; macOS announces no change, so `refreshPermission` rereads it.
     private(set) var isTrusted = false
     @ObservationIgnored private var taps: [UUID: NotchcastTap] = [:]
     @ObservationIgnored private var order: [UUID] = []

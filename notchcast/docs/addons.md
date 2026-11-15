@@ -16,7 +16,7 @@ Every Notchcast feature on top of Tinycast is an add-on. An add-on plugs in with
 
 - `switches`: one per user-facing feature: frozen string id (the v1 raw value where one exists), title, subtitle, `category`, `defaultEnabled`, `dependencies` (switch ids, may name another folder's switch: the core then turns it off when that folder is gone), `requiredGrants`.
 - `commands`: launcher commands, each with id `command:nc-<slug>` (frozen), name, symbol, owning switch, `run`. They appear as ordinary launcher entries of the existing `AppEntry.Kind.command`, so there is no new launcher section and no category guessed from an id.
-- `hotKeys`: commands may be bound like any built-in command, stored at `hotkey.command:nc-<slug>`, the same key v1 used, so Damian's `nc-screenshot-area` and `nc-screenshot-display` bindings resolve unchanged.
+- `hotKeys`: commands may be bound like any built-in command, stored at `hotkey.command:nc-<slug>`, the same key v1 used, so existing `nc-screenshot-area` and `nc-screenshot-display` bindings resolve unchanged.
 - `settings`: extra rows under each switch, written as SwiftUI views inside the folder; the core renders them in the add-on's category section.
 - `taps`: event-tap subscriptions (event mask plus handler). The core installs one shared tap only while at least one enabled switch subscribes, and removes it when the last unsubscribes.
 - `makeModule(context)`: start and stop. The core builds the module when the switch and its dependencies are on and stops it when they go off. `context` is the only door to the app: preferences store, presentation seam (island), tap hub, launcher hooks, Core services (root helper client, process runner, clock). An add-on never reads `AppCore`, `NotchcastCore` statics or another add-on.
@@ -29,7 +29,7 @@ A switch with none of commands, settings action, taps or a module has no user pa
 
 ## 3. Upstream hooks: the whole footprint of the add-on system
 
-Only `v2/addons-core` touches upstream files, and only through these hooks. Each hook is a general injection point declared with stock types (a closure or static the core sets in `start`). No upstream file a harness compiles names a fork type, so upstream harnesses need no fork fixtures.
+Only `v2/addons-core` touches upstream files, and only through these hooks. Each hook is a general injection point declared with stock types (a closure or static the core sets in `start`). No upstream file a harness compiles names a fork type. One upstream harness needs a fixture all the same: `Tests/AppInstallationTests.swift` stubs `HotKeyAction` and compiles `VisibilityStore.swift`, so its stub carries H4's case (+1); the dummy delete test found it.
 
 | # | Upstream file | Hook | Lines |
 | - | - | - | - |
@@ -41,15 +41,15 @@ Only `v2/addons-core` touches upstream files, and only through these hooks. Each
 | H6 | `Settings/SettingsTab.swift` | `case notchcast`, last, so it sits at the bottom of the sidebar; its slug/title/icon arms | +5 |
 | H7 | `Settings/SettingsDetailView.swift` | its detail arm | +2 |
 | H8 | `Settings/SettingsSearchCatalog.swift` | append add-on rows to search | +1 |
-| H9 | `Launcher/UI/LauncherScreen.swift` | digit-key hook (Number Keys) replacing the favourites-only branch | +4 −2 |
+| H9 | `Launcher/UI/LauncherScreen.swift` | `static var digitRow`: ⌘1–⌘0 ask core for a row first (digit, query, entry rows); nil keeps the stock favourite | +5 −1 |
 
 H2 names the one file actually used once built. H4 and H6 add cases to upstream enums. Known cost: a future upstream exhaustive `switch` over `HotKeyAction` or `SettingsTab` breaks our build with no textual conflict; the sync rehearsal's ready-check is what catches it. Every upstream exhaustive switch that needed an arm is listed in this table and counts in the budget.
 
-**Budget for `v2/addons-core` is a gate.** The numbers (files, +lines, −lines) live in one fork-owned file, `notchcast/addons-budget.env`; ready-check fails `v2/addons-core` above them. Raising the budget is a visible one-line change with the reason in the commit body. Starting estimate 10 files, +34 −5 (F9 and its H10 dropped 2026-11-15), replaced by the real number from the first READY. v1 spent 48 files (+234 −54); 12 of them were these same hook sites.
+**Budget for `v2/addons-core` is a gate.** The numbers (files, +lines, −lines) live in one fork-owned file, `notchcast/addons-budget.env`; ready-check fails `v2/addons-core` above them. Raising the budget is a visible one-line change with the reason in the commit body. Starting estimate 10 files, +34 −5 (F9 and its H10 dropped 2026-11-15); the env file now holds the real footprint of the first READY. `notchcast/check-addons.py` runs in `ci-build.sh` (so in ready-check and CI): core mode prints each upstream path with its +/− and fails above the budget; feature mode fails any path outside the branch's folders, its tests and `<Type>.self,` registry lines; on every branch a reference guard fails a fork-added line outside an add-on's folder that names its switch ids, slugs or types (its registry line, other add-ons' `dependencies:` arrays and the core harnesses `Tests/nc-Notchcast-*.swift`, which pin the frozen ids, are exempt). v1 spent 48 files (+234 −54); 12 of them were these same hook sites.
 
 **Rule for feature branches:** `v2/addons-<name>` other than core touches zero paths that exist on upstream `main`. Allowed paths: `Tinycast/Features/Notchcast/<its folders>/**`, one line in `NotchcastRegistry.swift`, `Tests/nc-<its folders>-*.swift`. The gate derives this list from the registry lines and folder names the branch adds; nobody keeps a list of folders by hand. Anything else fails the gate. A feature that truly needs a new upstream hook stops and asks for a general hook in core.
 
-H9 exists only for F10; if it is dropped, the budget falls to 9 files. F9 Alias and Space is dropped (Damian, 2026-11-15), so there is no H10 and `RootPaletteView` stays untouched.
+H9 exists only for F10; if it is dropped, the budget falls to 9 files. F9 Alias and Space is dropped (maintainer decision, 2026-11-15), so there is no H10 and `RootPaletteView` stays untouched.
 
 ## 4. Settings
 
@@ -70,11 +70,11 @@ One upstream entry, **Notchcast**, at the bottom of the stock Settings sidebar (
 
 ## 5. Proof
 
-- **Delete test** `notchcast/check-addon-delete.py <Folder>|--rotate|--all`: in a scratch worktree, delete the folder, its registry line and `Tests/nc-<Folder>-*.swift`, regenerate the project, build Debug, run `Scripts/run-tests.sh`. It prints the step that failed and its log path; a tooling failure (load, timeout, xcodegen) is reported as a tooling failure, never as a contract breach. A READY for `v2/addons-<name>` runs it for each of its own folders and quotes the result. `ready-check.sh` runs `--rotate` (folder picked from HEAD's sha) only when the branch diff touches `Tinycast/Features/Notchcast/`, so shell and stack units pay nothing. `--all` runs before every READY that changes Core, at one build per folder.
+- **Delete test** `notchcast/check-addon-delete.py <Folder>|--rotate|--all`: in a scratch worktree, delete the folder, its registry line and `Tests/nc-<Folder>-*.swift`, regenerate the project, build Debug, run `Scripts/run-tests.sh`. It prints the step that failed and its log path; a tooling failure (load, timeout, xcodegen) is reported as a tooling failure, never as a contract breach. A READY for `v2/addons-<name>` runs it for each of its own folders and quotes the result. It is standalone: `ready-check.sh` does not run it (lead decision 2026-11-15), so a READY that touches `Tinycast/Features/Notchcast/` quotes `--rotate` (folder picked from HEAD's sha) itself, and `--all` runs before every READY that changes Core, at one build per folder. A folder whose strings stay referenced elsewhere (`table: "Notchcast<Folder>"`) or whose add-on type has no registry line is a breach before any build.
 - **Reference guard** (every ready-check, all folders, no build): no file outside a folder names a type declared in it, nor any of its switch ids, command slugs or entry ids as strings, except the registry line. This is what stops v1's drift to about ten one-line entries per feature in the core.
 - **Footprint gate** (stack lead's ready-check line): core within the budget file; feature branches zero upstream paths, allowed paths derived from the registry.
 - **Strings:** a build leaves upstream's `Localizable.xcstrings` byte-identical, and deleting a folder leaves no orphan string. With per-folder catalogs, a mechanical check fails on any add-on string that would be extracted into the stock table (a missed `table:`). If that check proves expensive, the fallback is plain English literals with no catalog (we ship English only); cost: no translation path later without touching every add-on.
-- **Acceptance block** in every feature READY: (a) the user path proven by a live scene that does what Damian would do (press the key, see the result), not only a model harness; anything that cannot run here is NOT RUN and goes to the MBP; (b) "how to try it" in at most three plain lines for Damian; (c) what was deliberately changed from v1 and why. A feature Damian has not checked is "built, not accepted".
+- **Acceptance block** in every feature READY: (a) the user path proven by a live scene that does what the maintainer would do (press the key, see the result), not only a model harness; anything that cannot run here is NOT RUN and goes to the MBP; (b) "how to try it" in at most three plain lines for the maintainer; (c) what was deliberately changed from v1 and why. A feature the maintainer has not checked is "built, not accepted".
 - **Registry harness** `Tests/nc-Notchcast-registry-test.swift`: ids and slugs unique and frozen (pinned list of shipped ids), every switch has a user path, every category valid, dependencies name known ids or are reported as absent.
 - **Core harness** `Tests/nc-Notchcast-core-test.swift`: preferences on a scratch suite, module start/stop on toggle, fake tap hub installed only while subscribed, hotkey key strings, presentation-seam recording.
 
@@ -88,6 +88,6 @@ One upstream entry, **Notchcast**, at the bottom of the stock Settings sidebar (
 6. 35 switches shipped with no user path. Prevented by the registry harness.
 7. Renamed persisted ids needed legacy ids and migrations (Toggle Island). Prevented by frozen ids pinned in the registry harness.
 8. Rebranding edits (About, URLs, Theme) mixed into the same upstream files. Outside add-ons; the stack lead's build-time string override owns them.
-9. The root cause was process, not structure: 130 features built fast, 19 ended up switched on, none checked with Damian as it was built; harnesses tested code, not use; "behaviour stays the same" kept broken features broken in tidier folders. Prevented by the acceptance block in §5 and by not porting behaviour shown to be broken.
+9. The root cause was process, not structure: 130 features built fast, 19 ended up switched on, none checked with the maintainer as it was built; harnesses tested code, not use; "behaviour stays the same" kept broken features broken in tidier folders. Prevented by the acceptance block in §5 and by not porting behaviour shown to be broken.
 
-Verdict: v1's descriptor system was the right direction. The mess came from the central lists around it, from features writing into upstream files, and from building without Damian checking each feature.
+Verdict: v1's descriptor system was the right direction. The mess came from the central lists around it, from features writing into upstream files, and from building without the maintainer checking each feature.

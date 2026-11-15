@@ -57,8 +57,8 @@ final class NotchcastController {
         return true
     }
 
-    func handleLauncherDigit(_ digit: Int) -> Bool {
-        slots.contains { $0.context.launcherDigit?(digit) == true }
+    func launcherRow(digit: Int, query: String, entryRows: [Int]) -> Int? {
+        slots.lazy.compactMap { $0.context.launcherDigit?(digit, query, entryRows) }.first
     }
 
     func context(forSwitch id: String) -> NotchcastContext? {

@@ -26,7 +26,7 @@ final class NotchcastTapThread: NotchcastTapSession, Sendable {
 
     @MainActor static func start(_ request: NotchcastTapSessionRequest) -> any NotchcastTapSession {
         let session = NotchcastTapThread(request)
-        let thread = Thread { session.run() }
+        let thread = Thread { @Sendable in session.run() }
         thread.name = "notchcast.input-events"
         thread.qualityOfService = .userInteractive
         thread.start()

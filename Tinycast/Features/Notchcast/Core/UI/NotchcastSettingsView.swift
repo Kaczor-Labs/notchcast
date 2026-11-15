@@ -18,6 +18,7 @@ struct NotchcastSettingsView: View {
             }
         }
         .formStyle(.grouped)
+        .onAppear { controller.hub.refreshPermission() }
     }
 }
 
@@ -28,10 +29,25 @@ private struct NotchcastSwitchRows: View {
 
     private var preferences: NotchcastPreferences { controller.preferences }
 
+    private var dependenciesMet: Bool { item.dependencies.allSatisfy(preferences.isEnabled) }
+
+    private var needsAccessibility: Bool {
+        item.requiredGrants.contains(.accessibility) && !controller.hub.isTrusted
+    }
+
     var body: some View {
         Toggle(isOn: Binding(get: { preferences.isOn(item.id) }, set: { preferences.set(item.id, on: $0) })) {
             Text(item.title)
             Text(item.subtitle)
+        }
+        .settingsEnabled(dependenciesMet)
+        if preferences.isEnabled(item.id), needsAccessibility {
+            LabeledContent {
+                Button(String(localized: "Grant access…", table: "Notchcast")) { Permissions.openAccessibilitySettings() }
+            } label: {
+                Label(String(localized: "Needs Accessibility access", table: "Notchcast"), systemImage: "exclamationmark.triangle.fill")
+                    .foregroundStyle(.orange)
+            }
         }
         if preferences.isEnabled(item.id) {
             ForEach(controller.slots.flatMap { $0.addon.commands }.filter { $0.switchID == item.id }) { command in

@@ -13,6 +13,9 @@
     "Files & Downloads" : {
       "shouldTranslate" : false
     },
+    "Grant access…" : {
+      "shouldTranslate" : false
+    },
     "Keyboard & Mouse" : {
       "shouldTranslate" : false
     },
@@ -20,6 +23,9 @@
       "shouldTranslate" : false
     },
     "Music" : {
+      "shouldTranslate" : false
+    },
+    "Needs Accessibility access" : {
       "shouldTranslate" : false
     },
     "Notchcast" : {

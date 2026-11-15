@@ -28,6 +28,9 @@ final class NotchcastCore {
             core?.paletteCoordinator.hidePalette(restoreFocus: true)
             return controller.run(entryID: entryID)
         }
+        LauncherScreen.digitRow = { [weak controller] digit, query, entryRows in
+            controller?.launcherRow(digit: digit, query: query, entryRows: entryRows)
+        }
         controller.start()
     }
 
