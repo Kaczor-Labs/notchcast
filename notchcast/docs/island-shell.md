@@ -1,14 +1,14 @@
 # Island shell
 
-The shell keeps the stock `PalettePanel`, content view, first responder and palette-sized frame. Stock `show()`, `hide()`, paste-target capture, input-source sessions, focus restoration and cleanup execute unchanged. A separate non-activating backdrop paints an opaque black engine outline and never becomes key. Native window coordinates remain authoritative for menus, field editors, cursor rectangles, share anchors and placement readers; no content-rectangle adapter is needed.
+The shell keeps the stock `PalettePanel`, content view, first responder and palette-sized frame. Stock `show()` and key regain use the island's level through two one-line hooks. Paste-target capture, input-source sessions, focus restoration, `hide()` and cleanup execute unchanged. A separate non-activating backdrop paints an opaque black engine outline and never becomes key. Native window coordinates remain authoritative for menus, field editors, cursor rectangles, share anchors and placement readers; no content-rectangle adapter is needed.
 
-`AppCore` owns `IslandCoordinator`. It keeps one backdrop per `CGDirectDisplayID`, shows the rest pill on the primary screen and opens on the pointer screen. Screen-parameter changes update existing hosts without recreating their engine surface or moving the visible palette. A visible palette retains its display across mode changes. Persisted stock placement is ignored. The backdrop is above the menu bar and the palette immediately above it. Initial placement sets the island level only outside a modal session. A deferred key notification restores it after the stock delegate, independent of observer order. While stock sinks the palette for a modal picker, the backdrop hides. The base stack pins dragging off and hides placement settings, so drop guides stay off. Compact mode uses the expanded engine state at the native compact panel size, including its stock rendering outset.
+`AppCore` owns `IslandCoordinator`. It keeps one backdrop per `CGDirectDisplayID`, shows the rest pill on the primary screen and opens on the pointer screen. A visible palette retains its display across mode changes and re-centers when that display's frame changes. Notch or backing-scale changes recreate the engine surface when no palette or overlays are visible; otherwise recreation waits for their dismissal. Persisted stock placement is ignored. The backdrop is above the menu bar and the palette immediately above it. Summon and key regain write the island level synchronously, only outside a modal session. While stock sinks the palette for a modal picker, the backdrop hides. The rest backdrop returns after a suspended close and modal completion. The base stack pins dragging off and hides placement settings, so drop guides stay off. Compact mode uses the expanded engine state at the native compact panel size, including its stock rendering outset.
 
 The engine receives fixed native sizes rather than SwiftUI content. Palette content mounts once in its stock panel, with root glass disabled and lagoon accent tint applied at the root. Stage width follows native resizing through `IslandSurface.resize`. The outline radius stays 26 points at interface scales 1, 1.1 and 1.2; content and stock internal metrics scale normally. The 1100 by 860 point host fits the 900-point-wide scale-1.2 panel. A notched screen profile derives its sensor width from the auxiliary menu-bar areas and its height from the top safe-area inset; live notch behavior remains unverified.
 
-Stock `show()` also resets the level when re-showing a keyed panel for a mode change. A deferred level observation restores the island level and top origin only while the panel is key and no modal is running; it does not require another key notification. Equal level and origin writes are skipped so restoration cannot schedule itself indefinitely.
+Mode re-show uses the same synchronous level hook. There is no level KVO, deferred level correction or corrective origin write. Palette, reports and questions use named levels 26, 27 and 28 respectively. Rest clicks also check palette visibility across all displays. Key-window notifications during a modal schedule one default-mode callback to refresh backdrop visibility after the nested modal loop ends, including when the palette has already closed. System accessibility-display notifications update Reduce Motion, and palette/settings observation updates the app's animation preference.
 
-One engine frame callback paints the native alpha-backed outline and updates the panel content layer mask in one Core Animation transaction. Move and resize notifications update the target synchronously. WindowServer uses the painted alpha for click routing, while AppKit hit testing checks the current engine outline at event time. There is no timer, pointer polling or event-routing toggle. Engine callbacks stop after settling; typing does not remeasure or animate the island.
+One engine frame callback paints the native alpha-backed outline and updates the panel content layer mask in one Core Animation transaction. Move and resize notifications update the target synchronously. WindowServer uses the painted alpha for click routing, while AppKit hit testing checks the current engine outline at event time. There is no periodic timer, pointer polling or event-routing toggle. Engine callbacks stop after settling; typing does not remeasure or animate the island.
 
 ## Verification boundary
 
@@ -33,7 +33,7 @@ Latency uses the prototype protocol: five alternating stock/island runs, 60 inse
 | `AppCore.swift` | Own and start the island module. |
 | `TinycastApp.swift` | Enter the isolated Debug verification path before normal startup. |
 | `CommandEscapeTap.swift` | Disable the global event tap for the isolated Debug path. |
-| `PaletteWindowController.swift` | Replace only `positionPanel`'s anchor lookup. |
+| `PaletteWindowController.swift` | Replace `positionPanel`'s anchor lookup and supply the level at summon and key regain. |
 | `RootPaletteView.swift` | Disable root glass, apply island accent and observe Debug frame submission. |
 | `DialogController.swift` | Replace only the question placement call. |
 | `HUDPresenter.swift` | Island placement for message reports; retain stock volume placement. |
@@ -42,7 +42,7 @@ Latency uses the prototype protocol: five alternating stock/island runs, 60 inse
 | `MessageHUDView.swift`, `VolumeHUDView.swift` | Replace each HUD glass backing with black. |
 | `PopoverMenu.swift` | Replace the shared native menu glass backing with black. |
 
-`PalettePanel`, `MenuPanel`, all stock feature screens, and stock show/hide methods are unchanged. The rejected replacement of `PalettePanel.contentView` by a large island canvas was dropped. Native panel geometry makes its proposed coordinate adapter unnecessary.
+`PalettePanel`, `MenuPanel`, all stock feature screens, and stock hide behavior are unchanged. The rejected replacement of `PalettePanel.contentView` by a large island canvas was dropped. Native panel geometry makes its proposed coordinate adapter unnecessary.
 
 Stock placement helpers and `AppCore.shared` hooks remain intentionally to keep upstream rebases small; the two native `orderOut` hooks make overlay teardown independent of occlusion notifications.
 
