@@ -2,7 +2,7 @@ import AppKit
 
 final class IslandCanvas: NSView {
     var outline: CGPath?
-    var glance: GlanceArt?
+    var glance: (any PillArt)?
     var restWidth: CGFloat = 0
     var restHeight: CGFloat = 1
     var glanceWidth: CGFloat = 0
@@ -50,11 +50,25 @@ final class IslandCanvas: NSView {
         onMenu()
         return true
     }
+
+    /// A level outranks the meeting glance while it dwells.
+    func show(glance: IslandGlance?, level: IslandLevel?, notch: Bool) {
+        self.glance = level.map { IslandLevelArt($0, notch: notch) } ?? glance.map { GlanceArt($0, notch: notch) }
+        setAccessibilityValue(level.map { "\($0.label), \($0.value.formatted(.percent))" }
+            ?? glance.map { "\($0.title), \($0.countdown)" })
+    }
+}
+
+/// What the resting pill draws in its compact slots, measured once and drawn on every frame.
+@MainActor
+protocol PillArt {
+    var layout: IslandGlanceLayout { get }
+    func draw(in pill: CGRect)
 }
 
 /// The glance, measured once per text change and drawn inside the pill on every frame.
 @MainActor
-struct GlanceArt {
+struct GlanceArt: PillArt {
     let layout: IslandGlanceLayout
     private let notch: Bool
     private let glyph: NSImage?
@@ -68,15 +82,19 @@ struct GlanceArt {
         let font = NotchTheme.Typography.islandGlanceNSFont
         let primary: [NSAttributedString.Key: Any] = [.font: font, .foregroundColor: NSColor(Theme.Colors.textPrimary)]
         let secondary: [NSAttributedString.Key: Any] = [.font: font, .foregroundColor: NSColor(Theme.Colors.textSecondary)]
-        let symbol = NSImage.SymbolConfiguration(pointSize: font.pointSize, weight: .medium)
-            .applying(.init(paletteColors: [NSColor(Theme.Colors.textPrimary)]))
-        glyph = NSImage(systemSymbolName: glance.symbol, accessibilityDescription: nil)?.withSymbolConfiguration(symbol)
+        glyph = Self.glyph(glance.symbol)
         title = NSAttributedString(string: glance.title, attributes: primary)
         separator = NSAttributedString(string: " · ", attributes: secondary)
         countdown = NSAttributedString(string: glance.countdown, attributes: primary)
         layout = IslandGlanceLayout(notch: notch, glyph: Double(glyph?.size.width ?? 0), gap: gap,
             title: title.size().width, separator: separator.size().width,
             countdown: countdown.size().width, wing: NotchTheme.Size.islandGlanceWing)
+    }
+
+    static func glyph(_ name: String) -> NSImage? {
+        let symbol = NSImage.SymbolConfiguration(pointSize: NotchTheme.Typography.islandGlanceNSFont.pointSize, weight: .medium)
+            .applying(.init(paletteColors: [NSColor(Theme.Colors.textPrimary)]))
+        return NSImage(systemSymbolName: name, accessibilityDescription: nil)?.withSymbolConfiguration(symbol)
     }
 
     /// `pill` is the visible part of the outline; content hugs its ends, as the slots were sized.
