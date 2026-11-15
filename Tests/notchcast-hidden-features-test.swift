@@ -26,7 +26,7 @@ struct HiddenFeaturesTest {
         precondition(!SettingsSearchCatalog.entries.contains { $0.tab == .extensions })
         let extensionPins = [
             ("Tinycast/Features/Settings/AppSettings.swift",
-             "var extensionsEnabled: Bool {\n        get { false }\n        set { }", "consent always reads off"),
+             "var extensionsEnabled: Bool {\n        get { false }\n        set { _ = newValue }", "consent always reads off"),
             ("Tinycast/Features/Extensions/Service/ExtensionManager.swift",
              "guard isEnabled, showsInLauncher else {\n            appIndex?.setExtensionCommands([])",
              "no extension command reaches the launcher while off"),
