@@ -31,7 +31,13 @@ final class MiddleClickEngine: Sendable {
     func activate() { storage.withLock { $0.active = true } }
 
     /// While Three Finger Drag is on it owns three-finger touches, so nothing is transformed.
-    func setDragEnabled(_ enabled: Bool) { storage.withLock { $0.dragEnabled = enabled } }
+    func setDragEnabled(_ enabled: Bool) {
+        storage.withLock { state in
+            guard state.dragEnabled != enabled else { return }
+            state.dragEnabled = enabled
+            state.pads = ThreeFingerPads()
+        }
+    }
 
     func deactivate() {
         reset()

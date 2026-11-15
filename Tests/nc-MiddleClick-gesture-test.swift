@@ -25,6 +25,7 @@ struct MiddleClickGestureTests {
         engineReset()
         engineLostUpWhileSwallowing()
         engineExpiredBounce()
+        engineDragOwnershipChange()
         var moved = fingers
         moved[0].x = .nan
         precondition(MiddleClickTouchSource.isSane(fingers))
@@ -295,6 +296,20 @@ struct MiddleClickGestureTests {
                      "with the bounce's up lost, a plain press 20 s later passes")
         precondition(rig.send(.leftMouseUp) == (false, .leftMouseUp))
         precondition(rig.drain().isEmpty)
+    }
+
+    static func engineDragOwnershipChange() {
+        let rig = Rig()
+        rig.engine.setDragEnabled(true)
+        rig.rest()
+        rig.engine.setDragEnabled(false)
+        precondition(rig.send(.leftMouseDown) == (false, .leftMouseDown),
+                     "fingers rested while Three Finger Drag owned them are no candidate")
+        precondition(rig.send(.leftMouseUp) == (false, .leftMouseUp))
+        rig.advance(1)
+        rig.rest()
+        rig.engine.setDragEnabled(false)
+        precondition(rig.send(.leftMouseDown) == (false, .otherMouseDown), "an unchanged setting keeps candidates")
     }
 
 }

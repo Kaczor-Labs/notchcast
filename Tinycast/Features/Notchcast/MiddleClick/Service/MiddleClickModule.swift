@@ -8,7 +8,8 @@ import IOKit
 @MainActor
 final class MiddleClickModule: NotchcastModule {
     static let switchID = MiddleClickAddon.switches[0].id
-    private static let dragRefreshInterval: TimeInterval = 2
+    private nonisolated static let trackpadDomains = ["com.apple.AppleMultitouchTrackpad",
+                                                      "com.apple.driver.AppleBluetoothMultitouch.trackpad"]
 
     private let context: NotchcastContext
     private let engine = MiddleClickEngine(
@@ -17,7 +18,7 @@ final class MiddleClickModule: NotchcastModule {
         post: MiddleClickModule.post)
     private var source: MiddleClickTouchSource?
     private var tapToken: UUID?
-    private var dragTimer: Timer?
+    private var dragObservations: [NSKeyValueObservation] = []
     private var wakeObserver: NotificationToken?
     private var hotplug: DeviceWatcher?
 
@@ -26,9 +27,10 @@ final class MiddleClickModule: NotchcastModule {
     func start() {
         guard tapToken == nil else { return }
         let engine = engine
-        engine.setDragEnabled(Self.threeFingerDragEnabled())
-        dragTimer = Timer.scheduledTimer(withTimeInterval: Self.dragRefreshInterval, repeats: true) { _ in
-            engine.setDragEnabled(MiddleClickModule.threeFingerDragEnabled())
+        dragObservations = Self.trackpadDomains.compactMap(UserDefaults.init(suiteName:)).map {
+            $0.observe(\.trackpadThreeFingerDrag, options: .initial) { _, _ in
+                engine.setDragEnabled(MiddleClickModule.threeFingerDragEnabled())
+            }
         }
         engine.activate()
         startSource()
@@ -53,8 +55,7 @@ final class MiddleClickModule: NotchcastModule {
         engine.deactivate()
         context.unsubscribe(tapToken)
         self.tapToken = nil
-        dragTimer?.invalidate()
-        dragTimer = nil
+        dragObservations = []
         wakeObserver = nil
         hotplug = nil
         source?.stop()
@@ -76,10 +77,7 @@ final class MiddleClickModule: NotchcastModule {
     }
 
     private nonisolated static func threeFingerDragEnabled() -> Bool {
-        ["com.apple.AppleMultitouchTrackpad", "com.apple.driver.AppleBluetoothMultitouch.trackpad"].contains {
-            (CFPreferencesCopyAppValue("TrackpadThreeFingerDrag" as CFString, $0 as CFString) as? NSNumber)?
-                .boolValue == true
-        }
+        trackpadDomains.contains { UserDefaults(suiteName: $0)?.trackpadThreeFingerDrag == true }
     }
 
     // Posted at the HID tap so WindowServer routes it to the window under the pointer.
@@ -91,6 +89,11 @@ final class MiddleClickModule: NotchcastModule {
         event.setIntegerValueField(.mouseEventClickState, value: 1)
         event.post(tap: .cghidEventTap)
     }
+}
+
+private extension UserDefaults {
+    /// Named after the trackpad domains' key, so a KVO observation of this path watches that key.
+    @objc(TrackpadThreeFingerDrag) dynamic var trackpadThreeFingerDrag: Bool { bool(forKey: "TrackpadThreeFingerDrag") }
 }
 
 /// Calls back whenever a multitouch device arrives or leaves, so a new trackpad is read at once.
