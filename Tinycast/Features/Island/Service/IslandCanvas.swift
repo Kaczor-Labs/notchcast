@@ -14,7 +14,7 @@ final class IslandCanvas: NSView {
         dirtyRect.fill(using: .copy)
         guard let outline, let context = NSGraphicsContext.current?.cgContext else { return }
         context.addPath(outline)
-        context.setFillColor(NSColor(Theme.Colors.islandSurface).cgColor)
+        context.setFillColor(NSColor(NotchTheme.Colors.islandSurface).cgColor)
         context.fillPath()
         let bounds = outline.boundingBoxOfPath
         guard let glance else { return }
@@ -65,7 +65,7 @@ struct GlanceArt {
 
     init(_ glance: IslandGlance, notch: Bool) {
         self.notch = notch
-        let font = Theme.Typography.islandGlanceNSFont
+        let font = NotchTheme.Typography.islandGlanceNSFont
         let primary: [NSAttributedString.Key: Any] = [.font: font, .foregroundColor: NSColor(Theme.Colors.textPrimary)]
         let secondary: [NSAttributedString.Key: Any] = [.font: font, .foregroundColor: NSColor(Theme.Colors.textSecondary)]
         let symbol = NSImage.SymbolConfiguration(pointSize: font.pointSize, weight: .medium)
@@ -76,7 +76,7 @@ struct GlanceArt {
         countdown = NSAttributedString(string: glance.countdown, attributes: primary)
         layout = IslandGlanceLayout(notch: notch, glyph: Double(glyph?.size.width ?? 0), gap: gap,
             title: title.size().width, separator: separator.size().width,
-            countdown: countdown.size().width, wing: Theme.Size.islandGlanceWing)
+            countdown: countdown.size().width, wing: NotchTheme.Size.islandGlanceWing)
     }
 
     /// `pill` is the visible part of the outline; content hugs its ends, as the slots were sized.

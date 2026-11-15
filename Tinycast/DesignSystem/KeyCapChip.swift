@@ -68,7 +68,7 @@ struct KeyCapChip: View {
             .background {
                 switch style {
                 case .filled: shape.fill(Theme.Colors.controlSurface)
-                case .outline: shape.fill(Theme.Colors.rowHover)
+                case .outline: shape.fill(NotchTheme.Colors.keyCapFill)
                 }
             }
     }
