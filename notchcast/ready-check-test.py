@@ -141,7 +141,7 @@ class BehaviourTest(unittest.TestCase):
         subprocess.run(["git", "init", "-q", "--bare", "-b", "main", str(bare)], check=True,
                        env={**os.environ, **GIT_ISOLATED})
         self.git("push", "-q", str(bare), "main", "base")
-        upstream = self.root / "upstream.git"
+        upstream = self.upstream = self.root / "upstream.git"
         subprocess.run(["git", "clone", "-q", "--bare", str(bare), str(upstream)], check=True,
                        env={**os.environ, **GIT_ISOLATED})
         self.env = {**os.environ, **GIT_ISOLATED, "HOME": str(self.root / "home"), "GIT_CONFIG_COUNT": "2",
@@ -231,6 +231,39 @@ class BehaviourTest(unittest.TestCase):
         self.git("reset", "-q", "--hard", "base")
         self.commit("clean", "clean.txt")
         self.assertEqual(self.check("base").returncode, 0)
+
+    def test_a_disabled_scanner_fails_with_the_base_one(self):
+        (self.repo / "notchcast/check-identity.sh").write_text("exit 0\n")
+        (self.repo / "notchcast/check-identity.py").write_text("raise SystemExit(0)\n")
+        self.commit("path " + "/" + "Users/someone/notes.txt\n", "work.txt")
+        result = self.check("base")
+        self.assertNotIn("identity: bootstrap", result.stdout)
+        self.assertRegex(result.stdout.splitlines()[-1], r"^FAIL identity: diff names something private; ")
+
+    def test_a_base_without_a_scanner_bootstraps_from_head(self):
+        self.git("rm", "-q", "notchcast/check-identity.py")
+        self.commit("no scanner")
+        self.git("tag", "bare")
+        self.git("checkout", "-q", "base", "--", "notchcast/check-identity.py")
+        self.commit("path " + "/" + "Users/someone/notes.txt\n", "work.txt")
+        result = self.check("bare")
+        self.assertIn("identity: bootstrap, scanner from HEAD\n", result.stdout)
+        self.assertRegex(result.stdout.splitlines()[-1], r"^FAIL identity: diff names something private; ")
+
+    def test_an_upstream_line_passes_and_a_fork_added_home_path_fails(self):
+        fixture, line = self.repo / "Tests/Fixture.swift", 'let path = "/' + 'Users/x/notes.md"\n'
+        fixture.parent.mkdir()
+        fixture.write_text(line)
+        self.commit("upstream fixture")
+        self.git("push", "-q", str(self.upstream), "HEAD:main")
+        result = self.check("base")
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        fixture.write_text(line + line.replace("x/", "y/"))
+        self.commit("fork fixture")
+        result = self.check("base")
+        self.assertIn("check-identity: Tests/Fixture.swift:2: <home-path>\n", result.stdout)
+        self.assertNotIn("Tests/Fixture.swift:1", result.stdout)
+        self.assertRegex(result.stdout.splitlines()[-1], r"^FAIL identity: diff names something private; ")
 
     def test_prints_the_upstream_footprint_and_its_delta(self):
         self.commit("work", "work.txt")

@@ -2,6 +2,7 @@
 """Inspect added lines, metadata and bundle strings; never print matched content."""
 import argparse
 import ast
+import functools
 import os
 import re
 import runpy
@@ -46,6 +47,13 @@ def inspect(text, location, patterns=PATTERNS):
     return failed
 
 
+@functools.cache
+def upstream_lines(path):
+    # A line upstream Tinycast already ships unchanged is its public text, not our leak.
+    shown = subprocess.run(["git", "show", f"refs/remotes/upstream/main:{path}"], capture_output=True)
+    return set(shown.stdout.decode("utf-8", errors="replace").splitlines()) if shown.returncode == 0 else set()
+
+
 def diff(base, staged=False):
     args = ["diff", "--no-ext-diff", "--no-textconv", "--unified=0", "--no-renames"]
     args += ["--cached"] if staged else [f"{base}..{HEAD}"]
@@ -60,7 +68,8 @@ def diff(base, staged=False):
             if text.startswith("@@"):
                 line = int(re.search(r"\+(\d+)", text)[1])
             elif line is not None and text.startswith("+"):
-                failed |= inspect(text[1:], f"{path}:{line}")
+                if text[1:] not in upstream_lines(path):
+                    failed |= inspect(text[1:], f"{path}:{line}")
                 line += 1
             elif line is not None and text.startswith(" "):
                 line += 1
@@ -94,7 +103,8 @@ def added_lines(base):
         elif path is not None and text.startswith("@@"):
             line = int(re.search(r"\+(\d+)", text)[1])
         elif path is not None and line is not None and text.startswith("+"):
-            failed |= inspect(text[1:], f"{path}:{line} (commit addition)")
+            if text[1:] not in upstream_lines(path):
+                failed |= inspect(text[1:], f"{path}:{line} (commit addition)")
             line += 1
     return failed
 

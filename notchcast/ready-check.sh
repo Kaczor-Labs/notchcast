@@ -71,9 +71,18 @@ if ! (cd "$tree" && top="$tree" && source "$scratch/drift-gates.sh" && run_drift
     echo "FAIL drift; log: $log"
     exit 1
 fi
-# leaks.yml's private-data checks, scoped to what this branch adds over the base.
+# leaks.yml's private-data checks, scoped to what this branch adds over the base, with the base's scanner.
+identity="$scratch/identity"
+mkdir "$identity"
+git -C "$tree" archive -o "$identity.tar" "$BASE_SHA" notchcast
+tar -xf "$identity.tar" -C "$identity"
+identity="$identity/notchcast"
+if [ ! -f "$identity/check-identity.py" ]; then
+    echo "identity: bootstrap, scanner from HEAD"
+    identity="$tree/notchcast"
+fi
 for mode in diff metadata; do
-    if ! (cd "$tree" && bash notchcast/check-identity.sh "$mode" "$BASE_SHA") >> "$log" 2>&1; then
+    if ! (cd "$tree" && python3 "$identity/check-identity.py" "$mode" "$BASE_SHA") >> "$log" 2>&1; then
         grep '^check-identity:' "$log" | tail -n 40
         echo "FAIL identity: $mode names something private; log: $log"
         exit 1
