@@ -105,6 +105,15 @@ def leftovers(app):
     return found
 
 
+def helper_leftovers(app):
+    helpers = app / "Contents/Helpers"
+    found = [f"{path.relative_to(app)} still says {OLD}" for path in sorted(helpers.rglob(f"*{OLD}*"))]
+    for path in sorted(helpers.glob("*.app/Contents/Info.plist")):
+        found += [f"{path.relative_to(app)}: {key!r} still says {OLD}"
+                  for key, value in load(path).items() if OLD in json.dumps(value)]
+    return found
+
+
 def fail(lines):
     for line in lines:
         print(f"error: name-override: {line}", file=sys.stderr)
@@ -115,6 +124,10 @@ def check(app):
     problems = [
         f"{line}. Add its catalog to CATALOGS, or allowlist it in notchcast/name-override.py"
         for line in leftovers(app)
+    ]
+    problems += [
+        f"{line}. Its embed phase signs it before this one runs, so rename it in project.yml"
+        for line in helper_leftovers(app)
     ]
     witness = app / "Contents/Resources/en.lproj" / f"{WITNESS[0]}.strings"
     if not witness.exists() or load(witness).get(WITNESS[1]) != WITNESS[2]:

@@ -2,6 +2,7 @@
 """name-override.py renames a fake bundle, keeps the allowlist, and its check catches an unpatched one."""
 import os
 import plistlib
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -56,5 +57,21 @@ with tempfile.TemporaryDirectory() as temp:
 
     rerun = run(env=env)
     assert rerun.stdout == phase.stdout, "a rerun must count the same entries"
+
+    def embed(name):
+        helper = app / f"Contents/Helpers/{name}.app"
+        write(helper / "Contents/Info.plist", {"CFBundleName": name, "CFBundleExecutable": name})
+        (helper / f"Contents/MacOS/{name}").parent.mkdir(parents=True)
+        (helper / f"Contents/MacOS/{name}").touch()
+        return helper
+
+    embed("Tinycast Dev Dictation")
+    stale = run("--verify", str(app))
+    assert stale.returncode == 1, "a helper still named Tinycast passed --verify"
+    for part in ["Tinycast Dev Dictation.app still", "MacOS/Tinycast Dev Dictation still", "'CFBundleName'"]:
+        assert part in stale.stderr, stale.stderr
+    shutil.rmtree(app / "Contents/Helpers")
+    embed("Notchcast Dev Dictation")
+    assert run("--verify", str(app)).returncode == 0
 
 print("name-override-test: PASS")
