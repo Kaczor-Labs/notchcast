@@ -14,6 +14,7 @@ extension ShowDesktopSystem {
 
     static let live = ShowDesktopSystem(
         standardFunctionKeys: { UserDefaults.standard.bool(forKey: ShowDesktopPolicy.standardFunctionKeysDefaultsKey) },
+        preferenceCenter: DistributedNotificationCenter.default(),
         toggleDesktop: { _ = dockNotification?("com.apple.showdesktop.awake" as CFString, 0) }
     )
 }

@@ -19,6 +19,7 @@ final class FakeSystem {
 }
 
 @MainActor let fake = FakeSystem()
+let fakeCenter = NotificationCenter()
 
 extension ShowDesktopSystem {
     static let live = ShowDesktopSystem(
@@ -26,6 +27,7 @@ extension ShowDesktopSystem {
             fake.fnStateReads += 1
             return fake.standardFunctionKeys
         },
+        preferenceCenter: fakeCenter,
         toggleDesktop: { fake.toggles += 1 }
     )
 }
@@ -76,9 +78,12 @@ final class Rig {
         session = made
     }
 
-    func key(_ code: Int, _ flags: CGEventFlags = [], synthetic: Bool = false) -> NotchcastTapRouter.Outcome {
+    func key(
+        _ code: Int, _ flags: CGEventFlags = [], synthetic: Bool = false, isRepeat: Bool = false
+    ) -> NotchcastTapRouter.Outcome {
         let event = CGEvent(keyboardEventSource: nil, virtualKey: CGKeyCode(code), keyDown: true)!
         event.flags = flags
+        if isRepeat { event.setIntegerValueField(.keyboardEventAutorepeat, value: 1) }
         if synthetic { event.setIntegerValueField(.eventSourceUserData, value: 0x54494E59) }
         return session!.router.receive(type: .keyDown, event: event)
     }
@@ -92,9 +97,15 @@ final class Rig {
 func drain() async { try? await Task.sleep(for: .milliseconds(30)) }
 
 @MainActor
+func flipStandardFunctionKeys(_ on: Bool) async {
+    fake.standardFunctionKeys = on
+    fakeCenter.post(name: Notification.Name(ShowDesktopPolicy.standardFunctionKeysChanged), object: nil)
+    await drain()
+}
+
+@MainActor
 func resetFake(standardFunctionKeys: Bool) {
     fake.standardFunctionKeys = standardFunctionKeys
-    fake.fnStateReads = 0
     fake.toggles = 0
 }
 
@@ -124,7 +135,18 @@ enum ShowDesktopModuleTests {
         precondition(rig.key(160, synthetic: true) == .pass, "our own synthetic key passes")
         await drain()
         precondition(fake.toggles == 2, "nothing passed through acted")
-        precondition(fake.fnStateReads == 1, "fnState is read once at start")
+        precondition(rig.key(160, isRepeat: true) == .swallow, "a held F3's repeat is swallowed")
+        await drain()
+        precondition(fake.toggles == 2, "a held F3 toggles once")
+        await flipStandardFunctionKeys(true)
+        precondition(rig.key(99) == .swallow, "turning standard F-keys on mid-session catches 99")
+        precondition(rig.key(99, isRepeat: true) == .swallow, "a held 99 repeats swallowed")
+        await drain()
+        precondition(fake.toggles == 3, "99 toggles once after the change")
+        await flipStandardFunctionKeys(false)
+        precondition(rig.key(99) == .pass, "turning standard F-keys off mid-session releases 99")
+        await drain()
+        precondition(fake.toggles == 3, "99 never acts once the change is off")
         rig.finish()
 
         resetFake(standardFunctionKeys: true)
@@ -146,6 +168,23 @@ enum ShowDesktopModuleTests {
         await drain()
         precondition(rig.hub.subscriberCount == 0, "switch off unsubscribes")
         precondition(rig.session?.isRunning == false, "switch off stops the tap")
+        rig.finish()
+
+        resetFake(standardFunctionKeys: false)
+        rig = Rig()
+        rig.controller.preferences.set(ShowDesktopAddon.switchID, on: false)
+        await drain()
+        let context = NotchcastContext(
+            defaults: rig.defaults,
+            preferences: NotchcastPreferences(defaults: rig.defaults, switches: ShowDesktopAddon.switches),
+            presenter: FakePresenter(), hub: rig.hub, now: { Date() }, onTapsChanged: {})
+        let module = ShowDesktopModule(context: context, system: .live)
+        module.start()
+        await flipStandardFunctionKeys(true)
+        let reads = fake.fnStateReads
+        module.stop()
+        await flipStandardFunctionKeys(false)
+        precondition(fake.fnStateReads == reads, "stop tears the preference observer down")
         rig.finish()
 
         print("nc-ShowDesktop-module-test: PASS")
