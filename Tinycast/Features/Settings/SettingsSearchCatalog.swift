@@ -184,7 +184,7 @@ enum SettingsSearchCatalog {
             keywords: ["reset", "history", "order", "privacy"]),
         .init(
             group: .generalDeepLinks, "Deeplinks",
-            keywords: ["link", "url", "notchcast://", "allow", "karabiner", "shortcuts", "automation"])
+            keywords: ["link", "url", "tinycast://", "allow", "karabiner", "shortcuts", "automation"])
     ]
 
     private static let applications: [SettingsSearchEntry] = [
@@ -563,7 +563,7 @@ enum SettingsSearchCatalog {
             pane: .calendar,
             keywords: ["meetings", "events", "zoom", "join", "schedule"]),
         .init(
-            .calendarCalendar, LocalizedStringResource("Join meetings from Notchcast", table: "Notchcast"),
+            .calendarCalendar, "Join meetings from Tinycast",
             keywords: ["zoom", "meet", "teams", "permission"]),
         .init(
             .calendarCalendar, "Upcoming meetings in launcher",
