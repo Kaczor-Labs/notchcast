@@ -37,25 +37,13 @@ final class IslandController: NSObject {
         didSet { if expanded != oldValue { redraw() } }
     }
     /// Not drawn until their live states land; only the accessibility value reads them so far.
-    var notice: IslandNotice? {
-        didSet { canvas.setAccessibilityValue(accessibilityValue) }
-    }
-    var statuses: [IslandStatus] = [] {
-        didSet { canvas.setAccessibilityValue(accessibilityValue) }
-    }
+    var notice: IslandNotice? { didSet { canvas.setAccessibilityValue(accessibilityValue) } }
+    var statuses: [IslandStatus] = [] { didSet { canvas.setAccessibilityValue(accessibilityValue) } }
 
     private func redraw() {
         canvas.show(glance: glance, level: level, expanded: expanded, notch: layout?.hasNotch == true)
         canvas.setAccessibilityValue(accessibilityValue)
         frameChanged()
-    }
-
-    /// What the island shows now, in the presenter's order; the meeting glance hides status glyphs.
-    private var accessibilityValue: String {
-        if let level { return "\(level.label), \(level.value.formatted(.percent))" }
-        if let notice { return notice.text }
-        if let glance { return "\(glance.title), \(glance.countdown)" }
-        return statuses.map(\.label).joined(separator: ", ")
     }
 
     override init() {

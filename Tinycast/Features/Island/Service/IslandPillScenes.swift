@@ -25,8 +25,8 @@ enum IslandPillScenes {
         case "pill-settings-quiet": await quietSettings(core: core, controller: controller)
         case "glance-modal": await glanceModal(core: core, controller: controller, screen: screen)
         case "pill-busy": await busy(core: core, controller: controller)
-        case "window-guard-new", "window-guard-raise": windowGuard(core: core, raise: scene.hasSuffix("raise"))
-        case "window-guard-deferred": await deferredWindowGuard(core: core)
+        case "window-guard-new", "window-guard-raise", "window-guard-deferred":
+            await IslandWindowScenes.windowGuard(core: core, scene: scene)
         case "island-ax": await IslandAccessibilityScenes.run(core: core, controller: controller)
         default: await glance(core: core, controller: controller)
         }
@@ -311,26 +311,6 @@ enum IslandPillScenes {
             IslandVerification.require(leaked.isEmpty, "\(tab.slug) pane hides the menu-bar rows")
             still(window, name: "settings-\(tab.slug)")
         }
-    }
-
-    /// Loses the test display after startup; the window guard ends the run before Settings shows.
-    private static func windowGuard(core: AppCore, raise: Bool) {
-        if raise {
-            core.settingsCoordinator.showSettings(tab: .general)
-            IslandVerification.require(settingsWindow?.isVisible == true, "Settings opens on the test display")
-        }
-        unsetenv("ISLAND_TEST_DISPLAY")
-        core.settingsCoordinator.showSettings(tab: .general)
-        IslandVerification.require(false, "the window guard stops Settings without the test display")
-    }
-
-    /// The raise's queued re-raise must check again, since the display can go between the two.
-    private static func deferredWindowGuard(core: AppCore) async {
-        core.settingsCoordinator.showSettings(tab: .general)
-        IslandVerification.require(settingsWindow?.isVisible == true, "Settings opens on the test display")
-        unsetenv("ISLAND_TEST_DISPLAY")
-        await IslandVerification.pause(0.5)
-        IslandVerification.require(false, "the deferred re-raise stops verification without the test display")
     }
 
     /// SwiftUI builds its accessibility nodes only once an AX client has asked, so ask ourselves.
