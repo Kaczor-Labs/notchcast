@@ -80,6 +80,7 @@ final class IslandCoordinator: NSObject {
             backdrops[screen.islandDisplayID] = backdrop
         }
         overlays.reposition()
+        presenter?.restingChanged()
         if restingGlance != nil { syncExpansion() }
         spaceChanged()
     }
