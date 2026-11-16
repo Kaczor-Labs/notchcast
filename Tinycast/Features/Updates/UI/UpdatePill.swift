@@ -4,7 +4,6 @@ import SwiftUI
 struct UpdatePill: View {
     private enum Glyph {
         case symbol(String)
-        case spinner
         case ring(Double)
     }
 
@@ -17,8 +16,6 @@ struct UpdatePill: View {
         let closeTitle: String
     }
 
-    private static let tintOpacity = 0.16
-    private static let actionOpacity = 0.22
     private static let glyphSize: CGFloat = 16
     private static let closeGlyphSize: CGFloat = 10
     private static let ringStroke: CGFloat = 2
@@ -49,19 +46,20 @@ struct UpdatePill: View {
                 closeTitle: String(localized: "Later"))
         case .installing(_, let phase):
             return Content(
-                tint: Theme.Colors.progress, glyph: phase.fraction.map(Glyph.ring) ?? .spinner,
+                tint: Theme.Colors.progress,
+                glyph: phase.fraction.map(Glyph.ring) ?? .symbol(IslandLiveState.installingSymbol),
                 title: phase.message,
                 detail: phase.fraction?.formatted(.percent.precision(.fractionLength(0))),
                 closeTitle: String(localized: "Cancel"))
         case .readyToRelaunch:
             return Content(
-                tint: Theme.Colors.success, glyph: .symbol("checkmark.circle.fill"),
+                tint: Theme.Colors.success, glyph: .symbol(IslandLiveState.readySymbol),
                 title: String(localized: "Update ready"),
                 action: (String(localized: "Relaunch"), updates.relaunch),
                 closeTitle: String(localized: "Later"))
         case .failed:
             return Content(
-                tint: Theme.Colors.destructive, glyph: .symbol("exclamationmark.circle.fill"),
+                tint: Theme.Colors.destructive, glyph: .symbol(IslandLiveState.failedSymbol),
                 title: String(localized: "Update failed"),
                 action: (String(localized: "Details"), updates.showFailure),
                 closeTitle: String(localized: "Close"))
@@ -76,8 +74,9 @@ struct UpdatePill: View {
                 Text(detail).monospacedDigit()
             }
             if let action = content.action {
-                BarButton(action: action.perform) { Text(action.title) }
-                    .background(content.tint.opacity(Self.actionOpacity), in: Capsule())
+                BarButton(action: action.perform) {
+                    Text(action.title).foregroundStyle(Theme.Colors.textSecondary)
+                }
             }
             closeButton(title: content.closeTitle)
         }
@@ -87,9 +86,7 @@ struct UpdatePill: View {
         .padding(.leading, metrics.spacing.lg)
         .padding(.trailing, metrics.spacing.xs)
         .frame(height: metrics.size.menuButton)
-        .islandGlass(
-            .regular.tint(content.tint.opacity(Self.tintOpacity)).interactive(), in: Capsule()
-        )
+        .islandGlass(.regular.interactive(), in: Capsule())
         .fixedSize()
         .padding(.leading, metrics.spacing.md)
     }
@@ -101,7 +98,6 @@ struct UpdatePill: View {
                 .frame(
                     width: metrics.scaled(Self.glyphSize), height: metrics.scaled(Self.glyphSize))
         }
-        .background(Theme.Colors.controlSurface, in: Circle())
         .accessibilityLabel(title)
     }
 
@@ -111,13 +107,10 @@ struct UpdatePill: View {
         switch glyph {
         case .symbol(let name):
             SymbolImage(name: name, size: size, monochrome: true)
-        case .spinner:
-            SymbolImage(name: "progress.indicator", size: size, monochrome: true)
-                .symbolEffect(.variableColor.iterative.dimInactiveLayers.nonReversing)
         case .ring(let fraction):
             let stroke = metrics.scaled(Self.ringStroke)
             ZStack {
-                Circle().stroke(lineWidth: stroke).opacity(0.25)
+                Circle().stroke(Theme.Colors.border, lineWidth: stroke)
                 Circle()
                     .trim(from: 0, to: fraction)
                     .stroke(style: StrokeStyle(lineWidth: stroke, lineCap: .round))
