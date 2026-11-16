@@ -7,7 +7,7 @@ struct IslandPresenterTest {
     @MainActor static func main() {
         let island = RecordingIslandPresenter()
         let volume = IslandLevel(source: "volume", symbol: "speaker.wave.2.fill", label: "Volume", value: 0.5)
-        let sync = IslandNotice(id: "sync", symbol: nil, text: "Syncing", progress: 0.2)
+        let sync = IslandNotice(id: "sync", symbol: nil, text: "Syncing", progress: IslandProgress(fraction: 0.2))
         let timer = IslandStatus(id: "timer", symbol: "timer", text: "4:59", label: "Timer")
         let focus = [IslandMenuRow(id: "25", title: "25 minutes", isChecked: false)]
         let music = [IslandMenuRow(id: "pause", title: "Pause")]
@@ -28,7 +28,7 @@ struct IslandPresenterTest {
         island.tapNotice()
         precondition(taps == 1, "A notice's tap reaches its caller")
         var synced = sync
-        synced.progress = 0.6
+        synced.progress?.fraction = 0.6
         island.post(synced, onTap: nil)
         precondition(island.notice == synced && island.calls.last == .post(synced, tappable: false))
 
