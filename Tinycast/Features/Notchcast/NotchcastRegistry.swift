@@ -8,5 +8,6 @@ enum NotchcastRegistry {
         MiddleClickAddon.self,
         MusicBlockAddon.self,
         NumberKeysAddon.self,
+        SmallCommandsAddon.self,
     ]
 }
