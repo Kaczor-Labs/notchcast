@@ -3,6 +3,7 @@
 // notchcast-sources: Tinycast/Features/Island/Model/IslandPresentation.swift
 // notchcast-sources: Tinycast/Features/Island/Model/IslandLevelDwell.swift
 // notchcast-sources: Tinycast/Features/Island/Model/IslandMeetingExpansion.swift
+// notchcast-sources: Tinycast/Features/Island/Model/IslandNoticeQueue.swift
 // notchcast-sources: Tinycast/Features/Island/Service/IslandPresenting.swift
 // notchcast-sources: Tinycast/Features/Island/Service/IslandPresenter.swift
 // notchcast-sources: Tinycast/Features/Settings/SettingsTab.swift Tinycast/Features/Notchcast/Hidden/NotchcastHidden.swift
@@ -107,11 +108,11 @@ struct AddonNoticeQueueTest {
         check("the first add-on notice runs", controller.run(entryID: "command:nc-music-notice"))
         check("the second add-on notice runs", controller.run(entryID: "command:nc-awake-notice"))
         print("shown right after both posts: \(pill.shown); showing: \(pill.notice?.text ?? "nothing")")
-        check("the second notice waits instead of overwriting the first", pill.notice?.text == first)
+        check("the newer notice shows on top", pill.notice?.text == second)
         let deadline = Date().addingTimeInterval(10)
-        while pill.notice?.text != second, Date() < deadline { turn(0.05) }
+        while pill.notice?.text != first, Date() < deadline { turn(0.05) }
         print("shown after dwell: \(pill.shown)")
-        check("both notices show, in order", pill.shown == [first, second])
+        check("the first notice returns once the second dwells out", pill.shown == [first, second, first])
         controller.stop()
         print(failures == 0 ? "PASS AddonNoticeQueueTest" : "FAILED \(failures)")
         exit(failures == 0 ? 0 : 1)
