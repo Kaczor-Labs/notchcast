@@ -10,7 +10,7 @@ final class IslandBackdrop: NSPanel {
         hidesOnDeactivate = false
         animationBehavior = .none
         level = NSWindow.Level(rawValue: Self.levelValue)
-        collectionBehavior = [.canJoinAllSpaces]
+        collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
     }
     override var canBecomeKey: Bool { false }
     override var canBecomeMain: Bool { false }

@@ -1,4 +1,6 @@
 import AppKit
+// `@preconcurrency` downgrades AX diagnostics: the attribute keys are constant C globals.
+@preconcurrency import ApplicationServices
 import Observation
 
 @MainActor
@@ -24,6 +26,10 @@ final class IslandCoordinator: NSObject {
             name: NSApplication.didChangeScreenParametersNotification, object: nil)
         for name in [NSWindow.didBecomeKeyNotification, NSWindow.didResignKeyNotification] {
             NotificationCenter.default.addObserver(self, selector: #selector(modalChanged), name: name, object: nil)
+        }
+        for name in [NSWorkspace.activeSpaceDidChangeNotification, NSWorkspace.didActivateApplicationNotification] {
+            NSWorkspace.shared.notificationCenter.addObserver(self, selector: #selector(spaceChanged), name: name,
+                                                              object: nil)
         }
         rebuild()
         observeVisibility()
@@ -74,6 +80,49 @@ final class IslandCoordinator: NSObject {
         }
         overlays.reposition()
         if restingGlance != nil { syncExpansion() }
+        spaceChanged()
+    }
+
+    @objc func spaceChanged() {
+        let trusted = AXIsProcessTrusted()
+        let windows = CGWindowListCopyWindowInfo([.optionOnScreenOnly, .excludeDesktopElements], kCGNullWindowID)
+            as? [[String: Any]] ?? []
+        for screen in screens {
+            backdrops[screen.islandDisplayID]?.onFullScreenSpace = trusted && Self.fullScreen(screen, windows: windows)
+        }
+    }
+
+    /// Short, so a hung app can't stall the main actor on a Space change.
+    private static let fullScreenTimeout: Float = 0.25
+
+    /// Bounds alone match a zoomed window too, so the topmost display-wide window's app must confirm.
+    private static func fullScreen(_ screen: NSScreen, windows: [[String: Any]]) -> Bool {
+        let display = CGDisplayBounds(screen.islandDisplayID)
+        let owner = windows.first { info in
+            guard info[kCGWindowLayer as String] as? Int == 0,
+                  let rect = info[kCGWindowBounds as String] as? NSDictionary,
+                  let bounds = CGRect(dictionaryRepresentation: rect) else { return false }
+            return abs(bounds.minX - display.minX) < 1 && abs(bounds.width - display.width) < 1
+                && abs(bounds.maxY - display.maxY) < 1
+        }?[kCGWindowOwnerPID as String] as? pid_t
+        guard let owner else { return false }
+        let app = AXUIElementCreateApplication(owner)
+        AXUIElementSetMessagingTimeout(app, fullScreenTimeout)
+        var value: CFTypeRef?
+        guard AXUIElementCopyAttributeValue(app, kAXWindowsAttribute as CFString, &value) == .success,
+              let windows = value as? [AXUIElement] else { return false }
+        return windows.contains { window in
+            AXUIElementSetMessagingTimeout(window, fullScreenTimeout)
+            var full: CFTypeRef?
+            var origin: CFTypeRef?
+            var point = CGPoint.zero
+            guard AXUIElementCopyAttributeValue(window, "AXFullScreen" as CFString, &full) == .success,
+                  full as? Bool == true,
+                  AXUIElementCopyAttributeValue(window, kAXPositionAttribute as CFString, &origin) == .success,
+                  let origin, CFGetTypeID(origin) == AXValueGetTypeID(),
+                  AXValueGetValue(unsafeDowncast(origin, to: AXValue.self), .cgPoint, &point) else { return false }
+            return abs(point.x - display.minX) < 1
+        }
     }
 
     /// Also after a rebuild, so a new resting pill picks up an expansion already showing.
@@ -159,6 +208,7 @@ final class IslandCoordinator: NSObject {
     isolated deinit {
         NSObject.cancelPreviousPerformRequests(withTarget: self)
         NotificationCenter.default.removeObserver(self)
+        NSWorkspace.shared.notificationCenter.removeObserver(self)
     }
 }
 
