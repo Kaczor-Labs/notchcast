@@ -23,4 +23,8 @@ enum IPhoneBackupAddon: NotchcastAddon {
     static func makeModule(_ context: NotchcastContext) -> (any NotchcastModule)? {
         IPhoneBackupModule(context: context, system: .live)
     }
+
+    static func makeRecovery(_ context: NotchcastContext) -> (any NotchcastModule)? {
+        IPhoneBackupRecovery(context: context, system: .live)
+    }
 }

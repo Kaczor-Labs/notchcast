@@ -7,7 +7,7 @@ nonisolated enum IPhoneBackupPolicy {
     /// v1 kept the journal in the add-on's suite; it is read only while no journal file exists.
     static let journalKey = "iPhoneBackupTweaksPlans"
     static let journalFile = "journal.json"
-    /// Set while the journal is not trustworthy, so switching off never restores from it.
+    /// Set while the journal is unverified or corrupt; restore then skips it quietly until it loads again.
     static let skipRestoreKey = "iPhoneBackupSkipRestore"
     static let planID = "automatic-backups"
 
@@ -51,21 +51,28 @@ nonisolated enum IPhoneBackupPolicy {
 
     static func data(_ journal: Journal) throws -> Data { try JSONEncoder().encode(journal) }
 
-    static func isApplied(_ journal: Journal) -> Bool { entry(journal) != nil }
+    static func hasCapture(_ journal: Journal) -> Bool { entry(journal) != nil }
 
-    /// A capture already in the journal wins, so restoring returns to the value before the first apply.
+    /// Applied means the system holds the value the capture wrote, whatever the journal says.
+    static func isApplied(_ journal: Journal, current: Value?) -> Bool {
+        entry(journal).map { current == $0.write.value } ?? false
+    }
+
+    /// A capture whose value the system still holds wins, so restoring returns to the value before the first apply.
     static func apply(current: Value?, journal: Journal) -> (journal: Journal, write: Write) {
         var journal = journal
-        let previous = entry(journal).map(\.previous) ?? current
+        let previous: Value?
+        if let entry = entry(journal), current == entry.write.value { previous = entry.previous } else { previous = current }
         journal[planID] = Plan(entries: [
             Entry(write: PlannedWrite(preference: preference, value: disabled), previous: previous),
         ])
         return (journal, .set(disabled))
     }
 
-    /// Nil without a capture; restoring never depends on reading the current value.
-    static func restore(journal: Journal) -> Write? {
-        entry(journal).map { $0.previous.map(Write.set) ?? .delete }
+    /// Nil without a capture, or once the system no longer holds the value we wrote: that change is not ours.
+    static func restore(journal: Journal, current: Value?) -> Write? {
+        guard let entry = entry(journal), current == entry.write.value else { return nil }
+        return entry.previous.map(Write.set) ?? .delete
     }
 
     private static func entry(_ journal: Journal) -> Entry? {

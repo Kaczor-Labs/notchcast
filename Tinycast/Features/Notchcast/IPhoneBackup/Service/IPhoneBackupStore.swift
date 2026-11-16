@@ -13,6 +13,7 @@ final class IPhoneBackupStore {
     private struct WriteFailed: Error {}
     private struct JournalNotSaved: Error {}
     private struct JournalCorrupt: Error {}
+    private struct StorageUnavailable: Error {}
 
     init(context: NotchcastContext, system: IPhoneBackupSystem) {
         self.context = context
@@ -20,7 +21,8 @@ final class IPhoneBackupStore {
     }
 
     func refresh() {
-        isApplied = (try? loadJournal()).map(IPhoneBackupPolicy.isApplied) ?? false
+        let current = try? system.read()
+        isApplied = (try? loadJournal()).map { IPhoneBackupPolicy.isApplied($0, current: current) } ?? false
         backupsOff = (try? system.read()) == IPhoneBackupPolicy.disabled
     }
 
@@ -28,9 +30,13 @@ final class IPhoneBackupStore {
     func apply() {
         guard context.isEnabled(IPhoneBackupAddon.switchID) else { return }
         defer { refresh() }
-        guard let journal = try? loadJournal() else {
-            // An unreadable journal may hold a real capture, so the switch stays on to keep it restorable.
-            report(Self.turnOffFailedText)
+        let journal: IPhoneBackupPolicy.Journal
+        do {
+            journal = try loadJournal()
+        } catch {
+            // The journal may hold a real capture: its bytes stay, and teardown restores only once it loads.
+            context.defaults.set(true, forKey: IPhoneBackupPolicy.skipRestoreKey)
+            turnOffFailed()
             return
         }
         let write: IPhoneBackupPolicy.Write
@@ -39,7 +45,7 @@ final class IPhoneBackupStore {
             try save(plan.journal)
             write = plan.write
         } catch {
-            // The journal may be unverified, so the teardown this switch-off causes must not restore from it.
+            // The journal may be unverified, so the teardown this switch-off causes skips it until it loads.
             context.defaults.set(true, forKey: IPhoneBackupPolicy.skipRestoreKey)
             turnOffFailed()
             return
@@ -53,29 +59,35 @@ final class IPhoneBackupStore {
         context.preferences.set(IPhoneBackupAddon.switchID, on: false)
     }
 
-    /// A failed write keeps the switch on and the capture saved, so switching off retries.
-    /// A corrupt journal is kept and reported once; the switch stays off and restores are skipped.
+    /// A failed write or unavailable storage keeps the capture and, by default, the switch on, so switching off retries.
+    /// A corrupt journal is kept and reported once; restores skip it quietly until it loads again.
     @discardableResult
-    func restore() -> Bool {
+    func restore(bounceOnFailure: Bool = true) -> Bool {
         defer { refresh() }
-        guard !context.defaults.bool(forKey: IPhoneBackupPolicy.skipRestoreKey) else { return true }
+        let skipping = context.defaults.bool(forKey: IPhoneBackupPolicy.skipRestoreKey)
         do {
             try restoreJournal()
+            context.defaults.removeObject(forKey: IPhoneBackupPolicy.skipRestoreKey)
             return true
         } catch is JournalCorrupt {
+            guard !skipping else { return true }
             context.defaults.set(true, forKey: IPhoneBackupPolicy.skipRestoreKey)
-            report(String(localized: "Couldn’t restore iPhone auto backups", table: "NotchcastIPhoneBackup"))
+            report(Self.restoreFailedText)
             return false
+        } catch is StorageUnavailable where skipping {
+            return true
         } catch {
-            context.preferences.set(IPhoneBackupAddon.switchID, on: true)
-            report(String(localized: "Couldn’t restore iPhone auto backups", table: "NotchcastIPhoneBackup"))
+            if bounceOnFailure { context.preferences.set(IPhoneBackupAddon.switchID, on: true) }
+            report(Self.restoreFailedText)
             return false
         }
     }
 
     private func restoreJournal() throws {
-        guard let write = IPhoneBackupPolicy.restore(journal: try loadJournal()) else { return }
-        guard system.write(write) else { throw WriteFailed() }
+        let journal = try loadJournal()
+        if let write = IPhoneBackupPolicy.restore(journal: journal, current: try? system.read()) {
+            guard system.write(write) else { throw WriteFailed() }
+        }
         if FileManager.default.fileExists(atPath: journalFile.path(percentEncoded: false)) {
             try FileManager.default.removeItem(at: journalFile)
         }
@@ -87,24 +99,27 @@ final class IPhoneBackupStore {
         report(Self.turnOffFailedText)
     }
 
+    private static var restoreFailedText: String {
+        String(localized: "Couldn’t restore iPhone auto backups", table: "NotchcastIPhoneBackup")
+    }
+
     private static var turnOffFailedText: String {
         String(localized: "Couldn’t turn off iPhone auto backups", table: "NotchcastIPhoneBackup")
     }
 
     private var journalFile: URL { system.journalFolder.appending(path: IPhoneBackupPolicy.journalFile) }
 
-    /// Absent is empty; anything present that is not a readable journal, whatever its type, is corrupt.
+    /// Absent is empty; unreadable storage is retryable; present data that is no journal, whatever its type, is corrupt.
     private func loadJournal() throws -> IPhoneBackupPolicy.Journal {
-        do {
-            if FileManager.default.fileExists(atPath: journalFile.path(percentEncoded: false)) {
-                return try IPhoneBackupPolicy.journal(from: system.readFile(journalFile))
-            }
+        let data: Data?
+        if FileManager.default.fileExists(atPath: journalFile.path(percentEncoded: false)) {
+            do { data = try system.readFile(journalFile) } catch { throw StorageUnavailable() }
+        } else {
             let v1 = context.defaults.object(forKey: IPhoneBackupPolicy.journalKey)
             guard v1 == nil || v1 is Data else { throw JournalCorrupt() }
-            return try IPhoneBackupPolicy.journal(from: v1 as? Data)
-        } catch {
-            throw JournalCorrupt()
+            data = v1 as? Data
         }
+        do { return try IPhoneBackupPolicy.journal(from: data) } catch { throw JournalCorrupt() }
     }
 
     /// Read back before returning, so the system is written only once the capture is on disk.
