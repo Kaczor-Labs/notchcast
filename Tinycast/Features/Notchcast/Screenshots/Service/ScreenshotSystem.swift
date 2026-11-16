@@ -9,7 +9,8 @@ struct ScreenshotSystem: Sendable {
     let freeze: @MainActor @Sendable (_ under: CGPoint?, _ exclusion: ScreenshotExclusion) async throws
         -> [ScreenshotFrozenDisplay]
     let windows: @MainActor @Sendable () -> [ScreenshotWindow]
-    let captureWindow: @MainActor @Sendable (UInt32) async throws -> CGImage
+    /// Each window's own picture, taken before selection; a window that fails to capture is left out.
+    let freezeWindows: @MainActor @Sendable ([UInt32]) async throws -> [UInt32: CGImage]
     let cursor: @MainActor @Sendable () -> CGPoint
     let writeClipboard: @MainActor @Sendable (Data) -> Bool
     let desktop: @Sendable () throws -> URL

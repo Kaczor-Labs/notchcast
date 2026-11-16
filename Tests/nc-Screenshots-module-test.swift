@@ -9,6 +9,7 @@
 
 import CoreGraphics
 import Foundation
+import ImageIO
 import SwiftUI
 
 // The shipped `live` and settings UI are left out: these stand in, so `makeModule` runs as shipped.
@@ -44,7 +45,9 @@ final class ScreenshotFake {
     ]
     var windows: [ScreenshotWindow] = []
     var cursor = CGPoint(x: 150, y: 10)
-    var capturedWindows: [UInt32] = []
+    var frozenWindows: [[UInt32]] = []
+    var windowWidth = 30
+    var closedWindows: Set<UInt32> = []
     var clipboardWorks = true
     var clipboard: [Data] = []
     var surfaces: [(displays: [UInt32], windows: [UInt32])] = []
@@ -74,9 +77,10 @@ extension ScreenshotSystem {
             return fake.displays.filter { display in point.map(display.frame.contains) ?? true }
         },
         windows: { fake.windows },
-        captureWindow: { id in
-            fake.capturedWindows.append(id)
-            return image(width: 30, height: 20)
+        freezeWindows: { ids in
+            fake.frozenWindows.append(ids)
+            return Dictionary(uniqueKeysWithValues: ids.filter { !fake.closedWindows.contains($0) }
+                .map { ($0, image(width: fake.windowWidth, height: 20)) })
         },
         cursor: { fake.cursor },
         writeClipboard: { data in
@@ -145,6 +149,11 @@ func files(in folder: URL) -> [String] {
 
 func isPNG(_ data: Data?) -> Bool { data?.prefix(4) == Data([0x89, 0x50, 0x4E, 0x47]) }
 
+func pngWidth(_ data: Data?) -> Int? {
+    data.flatMap { CGImageSourceCreateWithData($0 as CFData, nil) }
+        .flatMap { CGImageSourceCreateImageAtIndex($0, 0, nil) }?.width
+}
+
 @main
 enum ScreenshotsModuleTests {
     @MainActor
@@ -195,9 +204,21 @@ enum ScreenshotsModuleTests {
 
         precondition(rig.controller.run(entryID: area))
         await drain()
+        precondition(fake.frozenWindows.last == [51], "only pickable windows are frozen, before selection")
+        fake.windowWidth = 31
+        fake.closedWindows = [51]
         fake.pick(.window(51))
         await drain()
-        precondition(fake.capturedWindows == [51] && fake.clipboard.count == 2, "a click captures the window")
+        precondition(fake.clipboard.count == 2 && pngWidth(fake.clipboard.last) == 30,
+                     "a click saves the frozen window, even after it changed or closed")
+        fake.windowWidth = 30
+
+        rig.fire(area)
+        await drain()
+        precondition(fake.surfaces.last?.windows == [], "a window that would not freeze is not offered")
+        fake.pick(nil)
+        await drain()
+        fake.closedWindows = []
 
         rig.fire(area)
         await drain()

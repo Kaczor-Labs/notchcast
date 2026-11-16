@@ -67,9 +67,12 @@ final class ScreenshotsModule: NotchcastModule {
         case .area:
             let frozen = try await system.freeze(nil, exclusion)
             try Task.checkCancellation()
-            guard let request = await select(frozen, exclusion.pickable(system.windows())) else { return nil }
+            let pickable = exclusion.pickable(system.windows())
+            let windows = try await system.freezeWindows(pickable.map(\.id))
             try Task.checkCancellation()
-            return try await image(for: request, in: frozen)
+            guard let request = await select(frozen, pickable.filter { windows[$0.id] != nil }) else { return nil }
+            try Task.checkCancellation()
+            return try image(for: request, in: frozen, windows: windows)
         }
     }
 
@@ -83,8 +86,8 @@ final class ScreenshotsModule: NotchcastModule {
         }
     }
 
-    private func image(for request: ScreenshotRequest, in frozen: [ScreenshotFrozenDisplay]) async throws
-        -> CGImage {
+    private func image(for request: ScreenshotRequest, in frozen: [ScreenshotFrozenDisplay],
+                       windows: [UInt32: CGImage]) throws -> CGImage {
         switch request {
         case .rect(let rect):
             guard ScreenshotRequest.isValid(rect: rect) else { throw ScreenshotRequest.Failure.invalidRect }
@@ -93,7 +96,8 @@ final class ScreenshotsModule: NotchcastModule {
             else { throw ScreenshotRequest.Failure.targetUnavailable }
             return image
         case .window(let id):
-            return try await system.captureWindow(id)
+            guard let image = windows[id] else { throw ScreenshotRequest.Failure.targetUnavailable }
+            return image
         case .display(let id):
             guard let display = frozen.first(where: { $0.id == id }) else {
                 throw ScreenshotRequest.Failure.targetUnavailable

@@ -10,7 +10,7 @@ extension ScreenshotSystem {
         grantAccess: { CGPreflightScreenCaptureAccess() || CGRequestScreenCaptureAccess() },
         freeze: { point, exclusion in try await freezeDisplays(under: point, excluding: exclusion) },
         windows: windowsFrontToBack,
-        captureWindow: { id in try await captureWindow(id) },
+        freezeWindows: { ids in try await freezeWindows(ids) },
         cursor: { CGEvent(source: nil)?.location ?? .zero },
         writeClipboard: { data in
             let item = NSPasteboardItem()
@@ -56,15 +56,23 @@ extension ScreenshotSystem {
     }
 
     @concurrent
-    private static func captureWindow(_ id: UInt32) async throws -> CGImage {
+    private static func freezeWindows(_ ids: [UInt32]) async throws -> [UInt32: CGImage] {
+        let wanted = Set(ids)
         let content = try await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: true)
-        guard let window = content.windows.first(where: { $0.windowID == id }) else {
-            throw ScreenshotRequest.Failure.targetUnavailable
+        return try await withThrowingTaskGroup(of: (UInt32, CGImage?).self) { group in
+            for window in content.windows where wanted.contains(window.windowID) {
+                let filter = SCContentFilter(desktopIndependentWindow: window)
+                group.addTask {
+                    let output = try? await SCScreenshotManager.captureScreenshot(
+                        contentFilter: filter, configuration: configuration)
+                    return (window.windowID, output?.sdrImage)
+                }
+            }
+            var images: [UInt32: CGImage] = [:]
+            for try await (id, image) in group { images[id] = image }
+            try Task.checkCancellation()
+            return images
         }
-        let output = try await SCScreenshotManager.captureScreenshot(
-            contentFilter: SCContentFilter(desktopIndependentWindow: window), configuration: configuration)
-        guard let image = output.sdrImage else { throw ScreenshotRequest.Failure.encodingFailed }
-        return image
     }
 
     private static func windowsFrontToBack() -> [ScreenshotWindow] {
