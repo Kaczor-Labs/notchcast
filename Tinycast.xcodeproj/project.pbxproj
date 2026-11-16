@@ -979,6 +979,7 @@
 		EBFD65E82A7633ECB132A4D4 /* RaycastDecoder.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9DA2AB248B239E2EF9276187 /* RaycastDecoder.swift */; };
 		EC39E2815103B5C4BEE8AED6 /* ExtensionFormKey.swift in Sources */ = {isa = PBXBuildFile; fileRef = 57640B0DA3F71E66CECA871C /* ExtensionFormKey.swift */; };
 		ECAE658F8DCCE74E49FDFFC2 /* ExtensionSearchAccessoryButton.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5CB044816D6A7BC72E676A6C /* ExtensionSearchAccessoryButton.swift */; };
+		ECD53244B8DCD421AA5D9CCE /* IslandCaptureScenes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 82FE942150556875EB7B790E /* IslandCaptureScenes.swift */; };
 		ECD777BD408E9DC2C93CFC1B /* CalcUnitExpression.swift in Sources */ = {isa = PBXBuildFile; fileRef = 639F73227BB0A4B9CD889D81 /* CalcUnitExpression.swift */; };
 		ED0757766519F4B3270028F0 /* PlaceholderMenuButton.swift in Sources */ = {isa = PBXBuildFile; fileRef = 75AF97F6726FED92F622622C /* PlaceholderMenuButton.swift */; };
 		ED62826E3D7CEB357865F9EB /* CalcDimension.swift in Sources */ = {isa = PBXBuildFile; fileRef = 666E0A469BE1984BEF1A9A50 /* CalcDimension.swift */; };
@@ -1655,6 +1656,7 @@
 		82B5E917A4EFDC153C6780E8 /* ModifierKeyDetector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModifierKeyDetector.swift; sourceTree = "<group>"; };
 		82C04AC1D7059D73D7505384 /* IslandLevelArt.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IslandLevelArt.swift; sourceTree = "<group>"; };
 		82DB32B7ACED5BE2BEE7451F /* ClipboardTextHelper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClipboardTextHelper.swift; sourceTree = "<group>"; };
+		82FE942150556875EB7B790E /* IslandCaptureScenes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IslandCaptureScenes.swift; sourceTree = "<group>"; };
 		83B8A0E68E42CACCB1F38094 /* Room.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Room.swift; sourceTree = "<group>"; };
 		83BB8F2CE628925F41B330B5 /* NoteEditPlan.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NoteEditPlan.swift; sourceTree = "<group>"; };
 		83C54F3A609CD1C2CDF304FB /* DoubleTapDetector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DoubleTapDetector.swift; sourceTree = "<group>"; };
@@ -2862,6 +2864,7 @@
 				76AB9B3DC33F343BD566DF0B /* IslandBackdrop.swift */,
 				E314B1D8D8F28AF3FB938E75 /* IslandCalendarGlance.swift */,
 				8E3FE185D0301C632A1FCB54 /* IslandCanvas.swift */,
+				82FE942150556875EB7B790E /* IslandCaptureScenes.swift */,
 				81103CB16B6B79220DBBFF76 /* IslandController.swift */,
 				5242FC9174E8721BBD5A91FC /* IslandController+Accessibility.swift */,
 				B9F8076854F4ED18552F0891 /* IslandCoordinator.swift */,
@@ -5575,6 +5578,7 @@
 				AA891E5A9528AA0904F02B0A /* IslandBackdrop.swift in Sources */,
 				735F1568735164D38864B10A /* IslandCalendarGlance.swift in Sources */,
 				61F3FA6853B2E29B54F859C8 /* IslandCanvas.swift in Sources */,
+				ECD53244B8DCD421AA5D9CCE /* IslandCaptureScenes.swift in Sources */,
 				5B4762FEEA8774AB115F8B80 /* IslandController+Accessibility.swift in Sources */,
 				4E6437A257DC61ECC7CD36C1 /* IslandController.swift in Sources */,
 				F54F75CD95D31EF6FCAAC1BB /* IslandCoordinator.swift in Sources */,
