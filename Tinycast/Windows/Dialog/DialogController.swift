@@ -185,7 +185,7 @@ final class DialogController: NSObject, NSWindowDelegate {
 
     private func hostingView(_ view: some View, width: CGFloat, minHeight: CGFloat) -> NSView {
         let hosting = NSHostingView(
-            rootView: AnyView(view.environment(\.metrics, metrics).motionScope()))
+            rootView: AnyView(view.environment(\.metrics, metrics).environment(\.paletteOnIsland, true).motionScope()))
         // Measure at the fixed width first: the message wraps, so height follows width.
         hosting.setFrameSize(NSSize(width: width, height: minHeight))
         let fitted = hosting.fittingSize

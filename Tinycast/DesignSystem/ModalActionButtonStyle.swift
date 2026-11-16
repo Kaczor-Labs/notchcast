@@ -13,6 +13,7 @@ struct ModalActionButtonStyle: ButtonStyle {
     private struct ButtonBody: View {
         @Environment(\.isEnabled) private var isEnabled
         @Environment(\.metrics) private var metrics
+        @Environment(\.paletteOnIsland) private var onIsland
         let configuration: ButtonStyleConfiguration
         let role: Role
         let fillsWidth: Bool
@@ -28,7 +29,7 @@ struct ModalActionButtonStyle: ButtonStyle {
                 .contentShape(Capsule())
                 .background(Capsule().fill(fill))
                 .animation(.easeOut(duration: Theme.Duration.hover), value: hovered)
-                .opacity(isEnabled ? 1 : 0.45)
+                .opacity(isEnabled ? 1 : NotchTheme.Opacity.disabled)
                 .onHover { hovered = $0 }
         }
 
@@ -39,7 +40,9 @@ struct ModalActionButtonStyle: ButtonStyle {
             case .destructive:
                 Theme.Colors.destructive.opacity(accentOpacity)
             case .standard, .cancel:
-                if configuration.isPressed {
+                if onIsland {
+                    IslandButtonFill.neutral(pressed: configuration.isPressed, hovered: hovered)
+                } else if configuration.isPressed {
                     Theme.Colors.controlPressed
                 } else if hovered {
                     Theme.Colors.controlHover
