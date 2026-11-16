@@ -71,9 +71,8 @@ final class DownloadsIslandBridge {
             ? String(localized: "\(shown.done + 1) of \(shown.total): \(title)", table: "NotchcastDownloads")
             : title
         showing = true
-        // A notice without progress expires on its own, so an unknown fraction shows as zero.
-        presenter.post(IslandNotice(id: noticeID, symbol: symbol, text: text, progress: shown.progress ?? 0),
-                       onTap: nil)
+        presenter.post(IslandNotice(id: noticeID, symbol: symbol, text: text,
+                                    progress: IslandProgress(fraction: shown.progress)), onTap: nil)
     }
 
     /// Ends the progress; a stopped queue leaves `result` behind, an emptied one nothing.

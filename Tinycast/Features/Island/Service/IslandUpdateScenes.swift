@@ -31,14 +31,16 @@ enum IslandUpdateScenes {
 
         activity.preview(.installing(release, .downloading(received: 30, expected: 100)))
         read("downloading", String(localized: "Downloading…"))
-        IslandVerification.require(controller.notice?.progress == 0.3 && controller.notice?.symbol == "arrow.down.circle",
-                                   "the download notice carries received over expected")
+        IslandVerification.require(controller.notice?.progress == IslandProgress(fraction: 0.3, headline: false)
+                                   && controller.notice?.symbol == "arrow.down.circle" && !controller.showsHeadline,
+                                   "the download notice carries received over expected and stays compact")
         await IslandVerification.pause(0.4)
         await controller.capture("update-download")
         await IslandVerification.pause(0.2)
         activity.preview(.installing(release, .extracting))
         read("expanding", String(localized: "Expanding…"))
-        IslandVerification.require(controller.notice?.progress == 1, "expanding holds progress at 1")
+        IslandVerification.require(controller.notice?.progress == IslandProgress(fraction: nil, headline: false),
+                                   "expanding has no fraction, so the wing shows the glyph alone")
 
         let ready = String(localized: "Update ready")
         activity.preview(.readyToRelaunch)
