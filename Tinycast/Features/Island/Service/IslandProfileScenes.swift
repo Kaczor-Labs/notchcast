@@ -5,7 +5,7 @@ import IslandCore
 /// The pill under a simulated notch, under forced Reduce Motion, and with more status than fits.
 @MainActor
 enum IslandProfileScenes {
-    static let names: Set = ["notch-profile", "reduce-motion", "status-overflow"]
+    static let names: Set = ["notch-profile", "reduce-motion", "status-overflow", "full-screen"]
     private static var presenter: IslandPresenter? { AppCore.shared.islandPresenter as? IslandPresenter }
     private static var now: Double { ProcessInfo.processInfo.systemUptime }
     private static let notch = CGSize(width: 185, height: 32)
@@ -22,6 +22,7 @@ enum IslandProfileScenes {
         switch scene {
         case "notch-profile": await notchProfile(core: core, controller: controller, presenter: presenter)
         case "reduce-motion": await reduceMotion(core: core, controller: controller, presenter: presenter)
+        case "full-screen": await fullScreen(core: core, controller: controller, presenter: presenter)
         default: await overflow(controller: controller, presenter: presenter, count: 6)
         }
         IslandScenes.pass(scene, screen: screen)
@@ -103,6 +104,42 @@ enum IslandProfileScenes {
         presenter.setStatus(status(count - 1), for: "status-\(count - 1)", onTap: { tapped = "status-\(count - 1)" })
         await IslandVerification.pause(0.4)
         await settle(controller)
+    }
+
+    /// Rest content stays off a full-screen Space; each glance joins it and leaves once settled.
+    private static func fullScreen(core: AppCore, controller: IslandController, presenter: IslandPresenter) async {
+        func expect(_ join: Bool, _ state: String) {
+            print("FULLSCREEN \(state) joins=\(controller.joinsFullScreen) key=\(controller.contentKey ?? "-")")
+            IslandVerification.require(controller.joinsFullScreen == join, "\(state) \(join ? "joins" : "stays off")")
+        }
+        func left(_ state: String) async {
+            for _ in 0..<40 where controller.joinsFullScreen { await IslandVerification.pause(0.05) }
+            expect(false, state)
+        }
+        expect(false, "the resting pill")
+        presenter.post(IslandNotice(id: "full", symbol: "doc.on.doc", text: "Copied", seconds: 3), onTap: nil)
+        expect(true, "a notice")
+        presenter.end(notice: "full")
+        await left("the pill after the notice")
+        presenter.showLevel(VolumeLevel.island(0.6, muted: false))
+        expect(true, "a volume level")
+        await IslandVerification.pause(0.3)
+        await left("the pill after the level")
+        presenter.setStatus(status(0), for: "status-0", onTap: nil)
+        await IslandVerification.pause(0.5)
+        expect(false, "a status")
+        presenter.setStatus(nil, for: "status-0", onTap: nil)
+        presenter.previewExpansion(seconds: 0.6)
+        IslandMeetingScenes.preview(core)
+        expect(true, "the meeting expansion")
+        await IslandVerification.pause(0.3)
+        await left("the meeting glance")
+        IslandVerification.require(controller.contentKey == "glance", "the expansion settled to the glance")
+        core.paletteCoordinator.showPalette(mode: .launcher)
+        await IslandVerification.pause(0.4)
+        expect(true, "the palette")
+        core.paletteCoordinator.hidePalette(restoreFocus: false)
+        await left("the pill after the palette")
     }
 
     private static func track(_ controller: IslandController, for seconds: Double) async -> (peak: CGSize, end: CGSize) {

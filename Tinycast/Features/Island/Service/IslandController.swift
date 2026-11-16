@@ -180,6 +180,8 @@ final class IslandController: NSObject {
             inset: NotchTheme.Spacing.islandInset, gap: Theme.Spacing.xl).surface(overlays)
         let size = CGSize(width: max(palette?.width ?? 0, overlay?.width ?? 0),
                           height: max(palette?.height ?? 0, overlay?.height ?? 0))
+        glancing = size != .zero || canvas.expansion != nil || level != nil || notice != nil
+        if glancing { joinFullScreen(true) }
         surface.batch {
             if size != .zero {
                 if !suspended { backdrop.orderFrontRegardless() }
@@ -202,6 +204,16 @@ final class IslandController: NSObject {
             }
         }
         paintFrame()
+    }
+
+    private var glancing = false
+
+    /// Off a full-screen Space at rest; a glance or an attached surface joins it until it settles.
+    private func joinFullScreen(_ join: Bool) {
+        let behavior: NSWindow.CollectionBehavior = join ? [.canJoinAllSpaces, .fullScreenAuxiliary] : .canJoinAllSpaces
+        guard backdrop.collectionBehavior != behavior else { return }
+        backdrop.collectionBehavior = behavior
+        if backdrop.isVisible { backdrop.orderFrontRegardless() }
     }
 
     func opened() {
@@ -296,6 +308,7 @@ final class IslandController: NSObject {
         clip.path = outline.copy(using: &contentTransform)
         CATransaction.commit()
         CATransaction.flush()
+        if !glancing, isResting { joinFullScreen(false) }
         let bounds = outline.boundingBoxOfPath
         if !showsRest, overlays.isEmpty, panel?.isVisible != true,
            abs(bounds.width - (layout.hasNotch ? layout.notch.width : NotchTheme.Size.islandRest.width)) < 0.01 {
@@ -324,6 +337,7 @@ final class IslandController: NSObject {
     static var simulatedNotch: CGSize?
     var shownStatuses: [String] { (canvas.glance as? IslandStatusArt)?.shown ?? [] }
     var reduced: Bool { surface?.reduced == true }
+    var joinsFullScreen: Bool { backdrop.collectionBehavior.contains(.fullScreenAuxiliary) }
     var frameIntervals: [Double] { source.intervals }
     var frameCPU: [Double] { source.cpuMilliseconds }
 
