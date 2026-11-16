@@ -136,6 +136,8 @@ Reference: HIG Materials, "Use Liquid Glass effects sparingly."
 | Notice (engine art) | One glyph and one short text in the pill's wings (§4), glyph and text `textPrimary`, progress as a `textPrimary` arc on a `Theme.Colors.border` track; Dwell `Theme.Duration.messageHUD` (2.4 s). Tap opens the follow-up. | `NotchTheme.Typography.islandGlanceNSFont` |
 | Failure (every `isFailure` notice, from the update flow or an add-on) | Glyph `Theme.Colors.destructive` in the notice, the status and the footer; text stays `textPrimary`. Dwell `IslandNotice.failureSeconds` (4 s), which `IslandNotice.dwell` applies whenever `isFailure` is set and `seconds` is left unset; a failure poster leaves `seconds` unset. The glyph shape is the poster's, its colour and dwell are not. | `IslandNoticeArt.failureTone` (`Theme.Colors.destructive`), `IslandNotice.failureSeconds` |
 | HUD and dialog shown in the island | The island surface alone: no glow, no rim, no scrim. HUD: `Capsule()`, `metrics.typography.bar`, hover `Theme.Colors.rowHover`, tone on its glyph only. Dialog: `RoundedRectangle(cornerRadius: metrics.radius.panel)`, padding `metrics.spacing.dialogInset`, icon = the subject's bare glyph at `metrics.size.dialogIcon`, with no tinted tile (`dialogSymbol` and `dialogSymbolContainer` are retired), buttons `.modalAction(role)` per §7, ↵ primary, Esc cancel. | `NotchTheme.Colors.islandSurface` |
+| Result | Any island activity that shows progress ends with a result notice, never just a vanish: success is a checkmark glyph and a short title, failure is the failure rule above (red glyph, 4 s). | `textPrimary`, `Theme.Colors.destructive` |
+| Notch layout | On a notched display, the compact form beside the notch is a glyph and a short status only. Any text (a title, a message, progress with a title) expands out of the notch and shows below it, as the Dynamic Island expanded form. On a non-notched display the pill keeps its centred text. | sizes: see notch-expand (§15) |
 
 The update flow is one state machine shown in three places, with one glyph per state everywhere, except Installing, which is the progress ring alone and has no glyph:
 
@@ -181,7 +183,9 @@ Reference: HIG Live Activities, "Focus on simple, direct actions."
 8. Every custom control has an accessibility label and traits; movement returns `nil` under Reduce Motion; `.tooltip`, never `.help()`, in the palette.
 9. Copy: Title Case for commands, buttons and outcomes; sentence case for settings rows; English only (`fork-strings.md`).
 10. Dark only: the island is pinned Dark; check Dark, never Light.
-11. Run §16 before READY: every hook at or below its recorded count.
+11. Every progress activity ends with a result notice, success or failure (§10).
+12. Beside the notch show a glyph and a short status only; text expands below the notch on notched displays, and stays centred in the pill elsewhere (§10).
+13. Run §16 before READY: every hook at or below its recorded count.
 
 ## 14. Breaks today
 
@@ -212,6 +216,8 @@ The island-black branch is fixing the first four; the rest are open. Counts are 
 | `NotchTheme.Size.menuGlyphBars` | 14 and 8 wide, 1.5 thick | §9 menu circle | only if the hand-drawn bars stay; an SF Symbol needs no token |
 | `NotchTheme.Size.runningDot` | 3 | §6 running-app dot in launcher rows | today a literal in `LauncherList` |
 | `NotchTheme.Size.islandLevelCell`, `islandLevelTrack` | 24 and 96 | §4 level art | today `IslandLevelArt` borrows the rest pill's height and width, which breaks the day the rest size changes |
+
+Notch expanded form: sizes: see notch-expand.
 
 The failure dwell is not a token: `IslandNotice.failureSeconds` (beside `messageSeconds`, 2.4 s) is a plain `TimeInterval` in `Features/Island/Model/`, which cannot import `NotchTheme`; `IslandLiveState.failureSeconds` is its alias (§10).
 
