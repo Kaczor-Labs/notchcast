@@ -36,12 +36,16 @@ final class IslandController: NSObject {
     var expanded = false {
         didSet { if expanded != oldValue { redraw() } }
     }
-    /// Not drawn until their live states land; only the accessibility value reads them so far.
-    var notice: IslandNotice? { didSet { canvas.setAccessibilityValue(accessibilityValue) } }
-    var statuses: [IslandStatus] = [] { didSet { canvas.setAccessibilityValue(accessibilityValue) } }
+    var notice: IslandNotice? {
+        didSet { if notice != oldValue { redraw() } }
+    }
+    var statuses: [IslandStatus] = [] {
+        didSet { if statuses != oldValue { redraw() } }
+    }
 
     private func redraw() {
-        canvas.show(glance: glance, level: level, expanded: expanded, notch: layout?.hasNotch == true)
+        canvas.show(glance: glance, level: level, notice: notice, statuses: statuses, expanded: expanded,
+                    notch: layout?.hasNotch == true)
         canvas.setAccessibilityValue(accessibilityValue)
         frameChanged()
     }
@@ -90,7 +94,8 @@ final class IslandController: NSObject {
         let requested = IslandSurfaceConfiguration(notch: next.notch, scale: screen.backingScaleFactor)
         let moved = layout?.screen != next.screen || layout?.notch != next.notch
         layout = next
-        canvas.show(glance: glance, level: level, expanded: expanded, notch: next.hasNotch)
+        canvas.show(glance: glance, level: level, notice: notice, statuses: statuses, expanded: expanded,
+                    notch: next.hasNotch)
         backdrop.setFrame(next.window, display: false)
         switch requested.update(from: configuration, paletteVisible: panel?.isVisible == true,
                                 hasOverlays: !overlays.isEmpty) {
