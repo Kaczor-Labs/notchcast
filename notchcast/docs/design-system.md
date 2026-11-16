@@ -35,7 +35,7 @@ Reference: HIG Materials, "Don't use Liquid Glass in the content layer."
 
 | Element | Rule | Token |
 | --- | --- | --- |
-| Any island surface or control | No stroke, rim, key line or `border` outline: the edge is the engine's outline, which merges with the bezel and menu bar. A hairline inside art (a level zone, a progress track) is a glyph, not a border. | none (`Theme.Size.hairline` only inside glyph art) |
+| Any island surface or control | No stroke, rim, key line or `border` outline: the edge is the engine's outline, which merges with the bezel and menu bar. A hairline inside art (a level zone, a progress track) is a glyph, not a border. One exception: the open island's keyline, one device pixel (`IslandKeyline.width`) stroked inside the engine outline so the size never changes, white at 0.15 in Dark and none in Light, fading with the outline's growth and off at rest or with `islandOutlineWhenOpen` off. | none (`Theme.Size.hairline` only inside glyph art); the keyline is `NotchTheme.Colors.islandKeyline` |
 | Separator (menu search, section break) | A `Theme.Size.hairline` rectangle filled, not stroked. | `NotchTheme.Colors.keyCapFill` |
 | Card edge (preview, code, table, swatch, note) | The card is a filled rounded rectangle with no edge; never `cardStroke` or a stroked rim. | `NotchTheme.Colors.keyCapFill` at `metrics.radius.row` |
 | Selection mark (emoji cell, room card) | A fill, never a ring or inner border. | `Theme.Colors.selection` |
