@@ -80,6 +80,7 @@ test "$(cat "$CALLS")" = dispatch
 grep -q '^upstream release ' "$STATE"
 echo 'PASS: pending Sync skips dispatch and preserves state; dry-run reports skip; idle dispatches'
 cp "$ROOT/notchcast/ci.py" notchcast/ci.py
+printf 'MAINTAINER_NAME=Test\nMAINTAINER_EMAIL=test@example.com\n' >> notchcast/config.env
 mkdir -p "$HOME/.config/notchcast"
 printf 'notchcast_notify() { cat >> "$ALERTS"; }\n' > "$HOME/.config/notchcast/private.env"
 cat > bin/gh <<'GH'
