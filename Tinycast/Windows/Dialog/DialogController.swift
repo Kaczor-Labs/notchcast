@@ -8,6 +8,11 @@ final class DialogController: NSObject, NSWindowDelegate {
     private let onPresentationChanged: (Bool) -> Void
     private var panel: DialogPanel?
     private var continuation: CheckedContinuation<Int, Never>?
+    #if DEBUG
+    /// The open question, so a scene can tell which one an island tap raised.
+    private(set) var shown: DialogRequest?
+    private(set) var lastAnswer: Int?
+    #endif
 
     init(settings: AppSettings, onPresentationChanged: @escaping (Bool) -> Void) {
         self.settings = settings
@@ -142,6 +147,9 @@ final class DialogController: NSObject, NSWindowDelegate {
                 }
             }
             self.panel = panel
+            #if DEBUG
+            shown = request
+            #endif
             AppCore.shared.island.overlays.placeQuestion(panel)
             // Non-activating like the palette: key focus without pulling the user out.
             panel.makeKeyAndOrderFront(nil)
@@ -155,6 +163,10 @@ final class DialogController: NSObject, NSWindowDelegate {
         onPresentationChanged(false)
         let closing = panel
         panel = nil
+        #if DEBUG
+        shown = nil
+        lastAnswer = index
+        #endif
         closing?.delegate = nil
         closing?.onKey = nil
         continuation.resume(returning: index)
