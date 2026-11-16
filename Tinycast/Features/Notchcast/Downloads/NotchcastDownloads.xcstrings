@@ -11,6 +11,12 @@
         }
       }
     },
+    "Saved %@" : {
+
+    },
+    "Saved %lld items" : {
+
+    },
     "%lld of %lld: %@" : {
       "localizations" : {
         "en" : {

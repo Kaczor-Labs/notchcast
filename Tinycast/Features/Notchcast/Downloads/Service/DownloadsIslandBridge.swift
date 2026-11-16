@@ -50,8 +50,13 @@ final class DownloadsIslandBridge {
         guard let result = policy?.update(jobs) else { return }
         for job in result.failures {
             presenter.post(IslandNotice(id: noticeID + ".failed." + job.id, symbol: symbol,
-                                        text: DownloadsIslandPolicy.message(for: job), isFailure: true,
-                                        seconds: 5), onTap: nil)
+                                        text: DownloadsIslandPolicy.message(for: job), isFailure: true), onTap: nil)
+        }
+        if !result.saved.isEmpty {
+            showing = false
+            presenter.end(notice: noticeID)
+            presenter.post(IslandNotice(id: noticeID + ".saved", symbol: "checkmark.circle",
+                                        text: DownloadsIslandPolicy.savedMessage(for: result.saved)), onTap: nil)
         }
         guard let shown = result.shown else { return finish() }
         let title = shown.title ?? String(localized: "Downloading", table: "NotchcastDownloads")
