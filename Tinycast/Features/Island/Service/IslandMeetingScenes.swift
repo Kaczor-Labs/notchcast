@@ -27,7 +27,7 @@ enum IslandMeetingScenes {
         _exit(0)
     }
 
-    private static func preview(_ core: AppCore) {
+    static func preview(_ core: AppCore) {
         let date = Date()
         let meeting = MeetingEvent(id: "meeting", title: "Weekly product sync", start: date + 4 * 60,
             end: date + 34 * 60, isAllDay: false, isDeclined: false, calendarID: "c", calendarName: "Work",
