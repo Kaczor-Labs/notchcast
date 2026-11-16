@@ -142,6 +142,6 @@ private final class SilentPresenter: IslandPresenting {
     func showLevel(_ level: IslandLevel) {}
     func post(_ notice: IslandNotice, onTap: (@MainActor () -> Void)?) { preconditionFailure("no notice: \(notice.text)") }
     func end(notice id: String) {}
-    func setStatus(_ status: IslandStatus?, for id: String) {}
+    func setStatus(_ status: IslandStatus?, for id: String, onTap: (@MainActor () -> Void)?) {}
     func setMenuRows(_ rows: [IslandMenuRow], owner: String, onSelect: @escaping @MainActor (String) -> Void) {}
 }
