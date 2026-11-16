@@ -543,6 +543,6 @@ enum Theme {
 
 extension View {
     func frosted(in shape: some Shape) -> some View {
-        glassEffect(.regular.interactive(), in: shape)
+        islandGlass(.regular.interactive(), in: shape)
     }
 }
