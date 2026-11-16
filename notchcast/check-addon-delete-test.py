@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 """check-addon-delete.py without a build: rotation, the deletion itself, and breach versus tooling."""
+import contextlib
 import importlib.util
+import io
 import os
 from pathlib import Path
 import signal
@@ -9,6 +11,7 @@ import sys
 import tempfile
 import time
 import unittest
+from unittest import mock
 
 sys.dont_write_bytecode = True
 SCRIPT = Path(__file__).resolve().parent / 'check-addon-delete.py'
@@ -102,6 +105,9 @@ with open(os.environ["QUEUE_CALLS"], "a") as calls:
     calls.write(" ".join(sys.argv[1:]) + "\\n")
 if os.environ.get("FAKE_QUEUE_SLEEP"):
     time.sleep(30)
+if "FAKE_QUEUE_STATUS" in os.environ:
+    open(os.environ["NOTCHCAST_DELETE_STATUS"], "w").write(os.environ["FAKE_QUEUE_STATUS"])
+    sys.exit(0)
 if os.environ.get("CHAD_BUILD_QUEUE_SLOT") or os.environ.get("FAKE_QUEUE_EXIT"):
     sys.exit(int(os.environ.get("FAKE_QUEUE_EXIT", 99)))
 sys.exit(subprocess.run(sys.argv[3:], env=dict(os.environ, CHAD_BUILD_QUEUE_SLOT="1")).returncode)
@@ -187,7 +193,7 @@ class QueueTest(unittest.TestCase):
     def test_a_queue_that_fails_or_cannot_start_is_tooling_not_a_breach(self):
         for code in ('1', '3'):
             self.assert_verdict(self.run_delete('Shots', FAKE_QUEUE_EXIT=code), 2,
-                                TOOLING + f'build queue exited {code} without a verdict')
+                                TOOLING + f'build queue exited {code} without a valid verdict')
         self.assert_verdict(self.run_delete('Shots', NOTCHCAST_BUILD_QUEUE='/no/such/queue'), 2,
                             TOOLING + 'build queue could not start')
 
@@ -203,6 +209,41 @@ class QueueTest(unittest.TestCase):
         self.assertEqual(run.returncode, 2, stdout + stderr)
         self.assertIn(TOOLING + f'stopped by signal {signal.SIGTERM.value}', stdout)
         self.assertNotIn('Traceback', stdout + stderr)
+
+    def test_an_empty_or_unknown_status_is_tooling_not_a_crash(self):
+        for status in ('', '7', 'full disk'):
+            self.assert_verdict(self.run_delete('Shots', FAKE_QUEUE_STATUS=status), 2,
+                                TOOLING + 'build queue exited 0 without a valid verdict')
+
+    def queued_with_a_signal_during(self, patched):
+        """Calls queued() in this process, raising SIGTERM inside `patched` before the queue is launched."""
+        real = getattr(getattr(delete, patched[0]), patched[1])
+
+        def signalling(*args, **kwargs):
+            os.kill(os.getpid(), signal.SIGTERM)
+            return real(*args, **kwargs)
+
+        saved = {signum: signal.getsignal(signum) for signum in (signal.SIGINT, signal.SIGTERM)}
+        out = io.StringIO()
+        try:
+            with mock.patch.object(getattr(delete, patched[0]), patched[1], signalling), \
+                    mock.patch.dict(os.environ, QUEUE_CALLS=str(self.calls), FAKE_QUEUE_SLEEP='1'), \
+                    contextlib.redirect_stdout(out):
+                started = time.monotonic()
+                code = delete.queued(self.hook.split(), self.sha, ['--', 'Shots'])
+        finally:
+            for signum, handler in saved.items():
+                signal.signal(signum, handler)
+        self.assertEqual(code, 2, out.getvalue())
+        self.assertIn(TOOLING + f'stopped by signal {signal.SIGTERM.value}', out.getvalue())
+        self.assertLess(time.monotonic() - started, 10)
+
+    def test_a_signal_before_the_launch_skips_it_or_reaches_the_queue(self):
+        launch = mock.Mock(side_effect=AssertionError('the queue launched after a stop'))
+        with mock.patch.object(delete.subprocess, 'Popen', launch):
+            self.queued_with_a_signal_during(('tempfile', 'TemporaryDirectory'))
+        launch.assert_not_called()
+        self.queued_with_a_signal_during(('subprocess', 'Popen'))
 
     def test_without_the_variable_private_env_supplies_the_hook_and_the_variable_wins(self):
         del self.env['NOTCHCAST_BUILD_QUEUE']

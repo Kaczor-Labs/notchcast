@@ -164,6 +164,14 @@ def queue_command():
     return (queue or '').split()
 
 
+def read_verdict(status):
+    try:
+        verdict = int(status.read_text())
+    except (OSError, ValueError):
+        return None
+    return verdict if verdict in (0, 1, 2) else None
+
+
 def queued(queue, sha, target):
     """Runs this script again inside one build-queue slot; its verdict comes from a status file, never the queue."""
     stopped, child = [], None
@@ -179,15 +187,19 @@ def queued(queue, sha, target):
         status = pathlib.Path(tmp) / 'status'
         # A reused or joined run would exit 0 without writing a verdict.
         env = dict(os.environ, NOTCHCAST_DELETE_STATUS=str(status), CHAD_NO_REUSE='1', BUILD_QUEUE_DEDUPE='0')
-        try:
-            child = subprocess.Popen([*queue, 'hold', '--', sys.executable, sys.argv[0], '--ref', sha, *target],
-                                     env=env)
-        except OSError as error:
-            raise Tooling(f'build queue could not start ({error})')
-        code = child.wait()
-        if not stopped and status.is_file():
-            return int(status.read_text())
-    reason = f'stopped by signal {stopped[0]}' if stopped else f'build queue exited {code} without a verdict'
+        code = None
+        if not stopped:
+            try:
+                child = subprocess.Popen([*queue, 'hold', '--', sys.executable, sys.argv[0], '--ref', sha, *target],
+                                         env=env)
+            except OSError as error:
+                raise Tooling(f'build queue could not start ({error})')
+            if stopped:
+                child.send_signal(stopped[0])
+            code = child.wait()
+        if not stopped and (verdict := read_verdict(status)) is not None:
+            return verdict
+    reason = f'stopped by signal {stopped[0]}' if stopped else f'build queue exited {code} without a valid verdict'
     print(f'FAIL delete at {sha[:12]}: tooling failure, not a contract breach: {reason}')
     return 2
 
