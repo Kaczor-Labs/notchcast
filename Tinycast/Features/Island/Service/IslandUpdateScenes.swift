@@ -64,7 +64,9 @@ enum IslandUpdateScenes {
         IslandVerification.require(IslandVerification.announcements == heard, "closing the palette replays no notice")
 
         let failed = String(localized: "Update failed")
-        activity.preview(.failed(.downloadFailed("preview")), seconds: 0.6)
+        activity.preview(nil, seconds: 0.6)
+        core.updateCoordinator.previewFailure(.downloadFailed("preview"))
+        await IslandVerification.pause(0.1)
         read("failed", failed)
         IslandVerification.require(controller.notice?.isFailure == true, "the failed notice is a failure")
         await IslandVerification.pause(0.4)
@@ -77,6 +79,7 @@ enum IslandUpdateScenes {
         _ = controller.pressBackdrop()
         await IslandVerification.pause(0.3)
         IslandVerification.require(!IslandPillScenes.paletteVisible, "a tap on the failed status leaves the palette closed")
+        await tryAgain(core: core, controller: controller, title: failed)
 
         activity.preview(.available(release))
         read("cancelled", "")
@@ -84,7 +87,27 @@ enum IslandUpdateScenes {
         print("ANNOUNCED \(IslandVerification.announcements)")
         IslandVerification.require(IslandVerification.announcements == [String(localized: "Downloading…"),
             String(localized: "Expanding…"), ready, failed], "each stage announces once")
+        core.updateCoordinator.dismiss()
         activity.preview(nil)
+    }
+
+    /// The real failed stage, so the tap runs `showFailure`; Esc declines, so nothing downloads.
+    private static func tryAgain(core: AppCore, controller: IslandController, title: String) async {
+        let question = core.shownDialog
+        print("UPDATE question title=\(question?.title ?? "nil") actions=\(question?.actions.map(\.title) ?? [])")
+        IslandVerification.require(question?.title == title
+            && question?.actions.last?.title == String(localized: "Try Again")
+            && question?.defaultIndex == question.map { $0.actions.count - 1 },
+            "a tap on the failed status asks Try Again, the default")
+        guard let panel = NSApp.windows.first(where: { $0 is DialogPanel && $0.isVisible }) as? DialogPanel else {
+            IslandVerification.require(false, "the Try Again question is on screen"); return
+        }
+        await controller.capture("update-try-again")
+        IslandLatency.key(panel, code: 53, characters: "\u{1b}")
+        await IslandVerification.pause(0.3)
+        let stage = core.updateCoordinator.stage
+        IslandVerification.require(core.shownDialog == nil && stage == .failed(.downloadFailed("preview")),
+                                   "Esc closes the question and keeps the failure")
     }
 }
 #endif
