@@ -174,6 +174,10 @@ final class AppSettings {
         }
     }
 
+    var islandShowsInCaptures: Bool {
+        didSet { defaults.set(islandShowsInCaptures, forKey: Key.islandShowsInCaptures.rawValue) }
+    }
+
     /// The physical key remapped to the Hyper chord; `HyperKeyManager` reacts via its observer.
     var hyperKey: HyperKeyPhysicalKey {
         didSet { defaults.set(hyperKey.rawValue, forKey: Key.hyperKey.rawValue) }
@@ -868,6 +872,7 @@ final class AppSettings {
         automaticallyCheckForUpdates =
             defaults.object(forKey: Key.automaticallyCheckForUpdates.rawValue) == nil
             || defaults.bool(forKey: Key.automaticallyCheckForUpdates.rawValue)
+        islandShowsInCaptures = defaults.object(forKey: Key.islandShowsInCaptures.rawValue) as? Bool ?? true
         hyperKey =
             defaults.string(forKey: Key.hyperKey.rawValue).flatMap(HyperKeyPhysicalKey.init)
             ?? .none
