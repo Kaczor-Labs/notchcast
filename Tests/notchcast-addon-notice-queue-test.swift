@@ -28,9 +28,11 @@ final class AppCore {
 final class StubIsland {
     var resting: IslandController? = IslandController()
     let overlays = StubOverlays()
+    let pillMenu = StubPillMenu()
 }
 
 @MainActor final class StubOverlays { func placeReport(_ panel: NSPanel, screen: NSScreen?) {} }
+@MainActor final class StubPillMenu { func refit(keepingSelection: Bool = false) {} }
 
 /// The resting pill: `shown` is every notice it was handed, in order.
 @MainActor

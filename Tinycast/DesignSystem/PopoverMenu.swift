@@ -26,6 +26,8 @@ struct PopoverMenuItem {
     /// A value the row states rather than a chord it runs — what a "Copy as" row copies.
     var detail: String?
     var isDestructive: Bool = false
+    /// Replaces the icon with a check column; false keeps the column empty so rows line up.
+    var isChecked: Bool?
     let action: () -> Void
 
     /// What the keyboard and pointer may land on; a loading or disabled row only states itself.
@@ -354,6 +356,16 @@ private struct PopoverMenuRow: View {
                     ProgressView()
                         .controlSize(.small)
                         .frame(width: metrics.size.menuIcon, height: metrics.size.menuIcon)
+                } else if let checked = item.isChecked {
+                    Image(systemName: "checkmark")
+                        .font(
+                            .system(
+                                size: metrics.scaled(Theme.Typography.menuSymbolSize),
+                                weight: Theme.Typography.menuSymbolWeight)
+                        )
+                        .foregroundStyle(Theme.Colors.menuSymbol)
+                        .opacity(checked ? 1 : 0)
+                        .frame(width: metrics.size.menuIcon, height: metrics.size.menuIcon)
                 } else {
                     switch item.icon {
                     case .blank:
@@ -420,6 +432,7 @@ private struct PopoverMenuRow: View {
         }
         .buttonStyle(.plain)
         .disabled(!item.isSelectable)
+        .accessibilityAddTraits(item.isChecked == true ? .isSelected : [])
     }
 }
 
