@@ -3,9 +3,11 @@
 import importlib.util
 import os
 from pathlib import Path
+import signal
 import subprocess
 import sys
 import tempfile
+import time
 import unittest
 
 sys.dont_write_bytecode = True
@@ -95,74 +97,130 @@ class DeleteTest(unittest.TestCase):
             delete.fork_harnesses(self.tree, None)
 
 
-FAKE_QUEUE = '''import os, subprocess, sys
+FAKE_QUEUE = """import os, subprocess, sys, time
 with open(os.environ["QUEUE_CALLS"], "a") as calls:
     calls.write(" ".join(sys.argv[1:]) + "\\n")
+if os.environ.get("FAKE_QUEUE_SLEEP"):
+    time.sleep(30)
 if os.environ.get("CHAD_BUILD_QUEUE_SLOT") or os.environ.get("FAKE_QUEUE_EXIT"):
     sys.exit(int(os.environ.get("FAKE_QUEUE_EXIT", 99)))
 sys.exit(subprocess.run(sys.argv[3:], env=dict(os.environ, CHAD_BUILD_QUEUE_SLOT="1")).returncode)
-'''
+"""
+BREACH = 'contract breach: Shots: registry has no line for ShotsAddon'
+TOOLING = 'tooling failure, not a contract breach: '
 
 
 class QueueTest(unittest.TestCase):
-    """A real run that fails right after the clone: Shots is a breach (no registry line), Empty is tooling."""
+    """A real run with stub build tools: Keep passes, Shots is a breach (no registry line), Empty is tooling."""
 
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
         root = Path(self.tmp.name)
         self.repo = root / 'repo'
-        write(self.repo, NC + 'NotchcastRegistry.swift', 'static let addons = [\n]\n')
+        write(self.repo, NC + 'NotchcastRegistry.swift', 'static let addons = [\n    KeepAddon.self,\n]\n')
+        write(self.repo, NC + 'Keep/KeepAddon.swift', 'struct KeepAddon: NotchcastAddon {}\n')
         write(self.repo, NC + 'Shots/ShotsAddon.swift', 'struct ShotsAddon: NotchcastAddon {}\n')
         write(self.repo, NC + 'Empty/Notes.swift', 'struct Notes {}\n')
+        write(self.repo, 'notchcast/harness_inputs.py', '')
+        write(self.repo, 'Scripts/run-tests.sh', '#!/bin/sh\n')
+        (self.repo / 'Scripts/run-tests.sh').chmod(0o755)
         git_env = dict(os.environ, GIT_AUTHOR_NAME='t', GIT_AUTHOR_EMAIL='t@t', GIT_COMMITTER_NAME='t',
                        GIT_COMMITTER_EMAIL='t@t')
         for command in (['init', '-q'], ['add', '.'], ['commit', '-qm', 'fixture']):
             subprocess.run(['git', *command], cwd=self.repo, env=git_env, check=True)
         self.sha = subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=self.repo, text=True).strip()
+        for tool in ('xcodegen', 'xcodebuild'):
+            write(root, f'bin/{tool}', '#!/bin/sh\n')
+            (root / 'bin' / tool).chmod(0o755)
         write(root, 'queue.py', FAKE_QUEUE)
         (root / 'home').mkdir()
         self.calls = root / 'calls'
         self.calls.touch()
-        self.env = {k: v for k, v in os.environ.items() if not k.startswith(('NOTCHCAST_', 'CHAD_BUILD_QUEUE'))}
+        self.hook = f'{sys.executable} {root / "queue.py"}'
+        self.env = {k: v for k, v in os.environ.items()
+                    if not k.startswith(('NOTCHCAST_', 'CHAD_BUILD_QUEUE', 'XCODEGEN'))}
         self.env.update(HOME=str(root / 'home'), QUEUE_CALLS=str(self.calls), NOTCHCAST_DELETE_SCRATCH=str(root),
-                        NOTCHCAST_BUILD_QUEUE=f'{sys.executable} {root / "queue.py"}')
+                        NOTCHCAST_BUILD_QUEUE=self.hook, PATH=f'{root / "bin"}:{os.environ["PATH"]}')
 
     def tearDown(self):
         self.tmp.cleanup()
 
-    def run_delete(self, folder, **env):
-        return subprocess.run([sys.executable, str(SCRIPT), folder], cwd=self.repo, env={**self.env, **env},
-                              capture_output=True, text=True)
+    def run_delete(self, *args, **env):
+        result = subprocess.run([sys.executable, str(SCRIPT), *args], cwd=self.repo, env={**self.env, **env},
+                                capture_output=True, text=True)
+        self.assertNotIn('Traceback', result.stdout + result.stderr)
+        return result
+
+    def assert_verdict(self, result, code, text):
+        self.assertEqual(result.returncode, code, result.stdout + result.stderr)
+        self.assertIn(text, result.stdout)
+
+    def hold(self, *target):
+        return f"hold -- {sys.executable} {SCRIPT} --ref {self.sha} {' '.join(target)}"
 
     def calls_made(self):
         return self.calls.read_text().splitlines()
 
-    def test_one_hold_wraps_the_whole_run_and_passes_its_exit_through(self):
-        for folder, code in (('Shots', 1), ('Empty', 2)):
+    def private_env(self, text):
+        write(Path(self.env['HOME']), '.config/notchcast/private.env', text)
+
+    def test_one_hold_wraps_the_whole_run_and_returns_the_inner_verdict(self):
+        cases = (('Keep', 0, f'PASS delete Keep at {self.sha[:12]}'), ('Shots', 1, BREACH),
+                 ('Empty', 2, TOOLING + 'Empty: no type'))
+        for folder, code, text in cases:
             self.calls.write_text('')
-            result = self.run_delete(folder)
-            self.assertEqual(result.returncode, code, result.stdout + result.stderr)
-            self.assertEqual(self.calls_made(), [f'hold -- {sys.executable} {SCRIPT} {folder} --ref {self.sha}'])
+            self.assert_verdict(self.run_delete(folder), code, text)
+            self.assertEqual(self.calls_made(), [self.hold('--', folder)])
+
+    def test_options_after_a_separator_still_get_one_pinned_ref(self):
+        self.assert_verdict(self.run_delete('--ref', 'HEAD', '--', 'Shots'), 1, BREACH)
+        self.assertEqual(self.calls_made(), [self.hold('--', 'Shots')])
+        self.calls.write_text('')
+        self.assert_verdict(self.run_delete('--all'), 1, BREACH)
+        self.assertEqual(self.calls_made(), [self.hold('--all')])
 
     def test_inside_a_slot_or_without_the_hook_it_runs_directly(self):
-        self.assertEqual(self.run_delete('Shots', CHAD_BUILD_QUEUE_SLOT='2').returncode, 1)
-        self.assertEqual(self.run_delete('Shots', NOTCHCAST_BUILD_QUEUE='').returncode, 1)
+        self.assert_verdict(self.run_delete('Shots', CHAD_BUILD_QUEUE_SLOT='2'), 1, BREACH)
+        self.assert_verdict(self.run_delete('Shots', NOTCHCAST_BUILD_QUEUE=''), 1, BREACH)
         self.assertEqual(self.calls_made(), [])
 
-    def test_a_queue_refusal_is_tooling_not_a_breach(self):
-        result = self.run_delete('Shots', FAKE_QUEUE_EXIT='3')
-        self.assertEqual(result.returncode, 2)
-        self.assertIn('tooling failure, not a contract breach: build queue exited 3', result.stdout)
+    def test_a_queue_that_fails_or_cannot_start_is_tooling_not_a_breach(self):
+        for code in ('1', '3'):
+            self.assert_verdict(self.run_delete('Shots', FAKE_QUEUE_EXIT=code), 2,
+                                TOOLING + f'build queue exited {code} without a verdict')
+        self.assert_verdict(self.run_delete('Shots', NOTCHCAST_BUILD_QUEUE='/no/such/queue'), 2,
+                            TOOLING + 'build queue could not start')
+
+    def test_a_signal_is_forwarded_to_the_queue_and_is_tooling(self):
+        run = subprocess.Popen([sys.executable, str(SCRIPT), 'Shots'], cwd=self.repo, text=True, stdout=subprocess.PIPE,
+                               stderr=subprocess.PIPE, env={**self.env, 'FAKE_QUEUE_SLEEP': '1'})
+        for _ in range(100):
+            if self.calls_made():
+                break
+            time.sleep(0.05)
+        run.send_signal(signal.SIGTERM)
+        stdout, stderr = run.communicate(timeout=10)
+        self.assertEqual(run.returncode, 2, stdout + stderr)
+        self.assertIn(TOOLING + f'stopped by signal {signal.SIGTERM.value}', stdout)
+        self.assertNotIn('Traceback', stdout + stderr)
 
     def test_without_the_variable_private_env_supplies_the_hook_and_the_variable_wins(self):
-        hook = self.env.pop('NOTCHCAST_BUILD_QUEUE')
-        self.assertEqual(self.run_delete('Shots').returncode, 1)
+        del self.env['NOTCHCAST_BUILD_QUEUE']
+        self.assert_verdict(self.run_delete('Shots'), 1, BREACH)
         self.assertEqual(self.calls_made(), [])
-        write(Path(self.env['HOME']), '.config/notchcast/private.env', f'echo noise\nNOTCHCAST_BUILD_QUEUE="{hook}"\n')
-        self.assertEqual(self.run_delete('Shots').returncode, 1)
-        self.assertEqual(self.calls_made(), [f'hold -- {sys.executable} {SCRIPT} Shots --ref {self.sha}'])
+        self.private_env(f'echo noise\nNOTCHCAST_BUILD_QUEUE="{self.hook}"\n')
+        self.assert_verdict(self.run_delete('Shots'), 1, BREACH)
+        self.assertEqual(self.calls_made(), [self.hold('--', 'Shots')])
         self.calls.write_text('')
-        self.assertEqual(self.run_delete('Shots', NOTCHCAST_BUILD_QUEUE='').returncode, 1)
+        self.assert_verdict(self.run_delete('Shots', NOTCHCAST_BUILD_QUEUE=''), 1, BREACH)
+        self.assertEqual(self.calls_made(), [])
+
+    def test_a_private_env_that_fails_is_tooling_unless_already_in_a_slot(self):
+        del self.env['NOTCHCAST_BUILD_QUEUE']
+        for text in ('exit 1\n', f'set -e\nfalse\nNOTCHCAST_BUILD_QUEUE="{self.hook}"\n', 'false\n'):
+            self.private_env(text)
+            self.assert_verdict(self.run_delete('Shots'), 2, TOOLING + 'sourcing ')
+        self.assert_verdict(self.run_delete('Shots', CHAD_BUILD_QUEUE_SLOT='2'), 1, BREACH)
         self.assertEqual(self.calls_made(), [])
 
 

@@ -18,6 +18,7 @@ import os
 import pathlib
 import re
 import shutil
+import signal
 import subprocess
 import sys
 import tempfile
@@ -33,6 +34,7 @@ ANSI = re.compile(r'\x1b\[[0-9;]*m')
 RESULT_LINE = re.compile(r'^\[\d+/\d+\]\s+\S+\s+(\S+)', re.M)
 LOGS = pathlib.Path.home() / 'Library/Caches/notchcast/addon-delete'
 TIMEOUT = 3600
+SOURCE_HOOK = 'source "$1" >/dev/null; s=$?; printf %s "${NOTCHCAST_BUILD_QUEUE-}"; exit $s'
 
 
 class Breach(Exception):
@@ -151,6 +153,45 @@ def check(repo, sha, folder, scratch):
         raise Tooling(f"run-tests reported no result for fork harnesses {', '.join(missing)}; log: {log}")
 
 
+def queue_command():
+    queue = os.environ.get('NOTCHCAST_BUILD_QUEUE')
+    private = pathlib.Path.home() / '.config/notchcast/private.env'
+    if queue is None and private.is_file():
+        loaded = subprocess.run(['bash', '-c', SOURCE_HOOK, '_', str(private)], capture_output=True, text=True)
+        if loaded.returncode:
+            raise Tooling(f'sourcing {private} failed (exit {loaded.returncode}): {loaded.stderr.strip()}')
+        queue = loaded.stdout
+    return (queue or '').split()
+
+
+def queued(queue, sha, target):
+    """Runs this script again inside one build-queue slot; its verdict comes from a status file, never the queue."""
+    stopped, child = [], None
+
+    def forward(signum, _frame):
+        stopped.append(signum)
+        if child:
+            child.send_signal(signum)
+
+    for signum in (signal.SIGINT, signal.SIGTERM):
+        signal.signal(signum, forward)
+    with tempfile.TemporaryDirectory(prefix='notchcast-delete-status.') as tmp:
+        status = pathlib.Path(tmp) / 'status'
+        # A reused or joined run would exit 0 without writing a verdict.
+        env = dict(os.environ, NOTCHCAST_DELETE_STATUS=str(status), CHAD_NO_REUSE='1', BUILD_QUEUE_DEDUPE='0')
+        try:
+            child = subprocess.Popen([*queue, 'hold', '--', sys.executable, sys.argv[0], '--ref', sha, *target],
+                                     env=env)
+        except OSError as error:
+            raise Tooling(f'build queue could not start ({error})')
+        code = child.wait()
+        if not stopped and status.is_file():
+            return int(status.read_text())
+    reason = f'stopped by signal {stopped[0]}' if stopped else f'build queue exited {code} without a verdict'
+    print(f'FAIL delete at {sha[:12]}: tooling failure, not a contract breach: {reason}')
+    return 2
+
+
 def main():
     parser = argparse.ArgumentParser()
     target = parser.add_mutually_exclusive_group(required=True)
@@ -171,19 +212,14 @@ def main():
         print(f"no add-on folder {args.folder} at {sha[:12]} (folders: {', '.join(folders)})", file=sys.stderr)
         return 2
     picked = folders if args.all else [rotate_pick(folders, sha)] if args.rotate else [args.folder]
-    queue = os.environ.get('NOTCHCAST_BUILD_QUEUE')
-    private = pathlib.Path.home() / '.config/notchcast/private.env'
-    if queue is None and private.is_file():
-        queue = subprocess.run(['bash', '-c', 'source "$1" >/dev/null 2>&1; printf %s "${NOTCHCAST_BUILD_QUEUE-}"',
-                                '_', str(private)], capture_output=True, text=True).stdout
-    queue = (queue or '').split()
-    if queue and not os.environ.get('CHAD_BUILD_QUEUE_SLOT'):
-        # The resolved sha on the command line keys the queue's green-run reuse to the commit checked.
-        code = subprocess.run([*queue, 'hold', '--', sys.executable, *sys.argv, '--ref', sha]).returncode
-        if code in (0, 1, 2):
-            return code
-        print(f'FAIL delete at {sha[:12]}: tooling failure, not a contract breach: build queue exited {code}')
-        return 2
+    if not os.environ.get('CHAD_BUILD_QUEUE_SLOT'):
+        target = ['--all'] if args.all else ['--rotate'] if args.rotate else ['--', args.folder]
+        try:
+            if queue := queue_command():
+                return queued(queue, sha, target)
+        except Tooling as error:
+            print(f'FAIL delete at {sha[:12]}: tooling failure, not a contract breach: {error}')
+            return 2
     LOGS.mkdir(parents=True, exist_ok=True)
     status = 0
     # Debug builds embed absolute source paths, so build outside the home as ready-check does.
@@ -204,4 +240,7 @@ def main():
 
 
 if __name__ == '__main__':
-    sys.exit(main())
+    result = main()
+    if verdict := os.environ.get('NOTCHCAST_DELETE_STATUS'):
+        pathlib.Path(verdict).write_text(str(result))
+    sys.exit(result)
