@@ -9,6 +9,7 @@ final class IslandPillMenu: NSObject {
     private let state = IslandPillMenuState()
     private weak var observedPanel: MenuPanel?
     private var items: [PopoverMenuItem] = []
+    private var keys: [RowKey] = []
     private var corner: MenuPanelCorner?
 
     init(core: AppCore) {
@@ -39,10 +40,15 @@ final class IslandPillMenu: NSObject {
             activate: { [weak self] in self?.activate($0) }, filtered: { [weak self] in self?.refit() }))
     }
 
-    /// Filtering changes the row count, and the panel sizes itself only when given new content.
-    private func refit() {
+    /// Filtering or new add-on rows change the row count; the panel sizes only for new content.
+    func refit(keepingSelection: Bool = false) {
         guard let corner, menu.isOpen else { return }
-        state.selection = 0
+        let selected = keys.indices.contains(state.selection) ? keys[state.selection] : nil
+        let rows = visibleItems()
+        // An add-on update must not move the cursor, or Enter runs a row the user never chose.
+        state.selection = keepingSelection
+            ? selected.flatMap { keys.firstIndex(of: $0) } ?? min(state.selection, max(rows.count - 1, 0)) : 0
+        state.revision += 1
         menu.update(content, corner: corner, core: core)
     }
 
@@ -65,7 +71,14 @@ final class IslandPillMenu: NSObject {
     @objc private func panelResignedKey() { hide() }
 
     #if DEBUG
+    /// `owner/id` of the add-on row under the cursor.
+    var selectedAddOn: String? {
+        guard keys.indices.contains(state.selection), case let .addOn(owner, id) = keys[state.selection] else { return nil }
+        return "\(owner)/\(id)"
+    }
     var itemTitles: [String] { visibleItems().map(\.title) }
+    /// What the open menu last rendered, without rebuilding it.
+    var shownTitles: [String] { items.map(\.title) }
     var isObservingResign: Bool { observedPanel != nil }
     func activate(title: String) { visibleItems().firstIndex { $0.title == title }.map(activate) }
     #endif
@@ -73,17 +86,22 @@ final class IslandPillMenu: NSObject {
     private func visibleItems() -> [PopoverMenuItem] {
         let settings = core.settings
         let meeting = core.island.glance.meeting
-        let sections = PillMenuRow.sections(clipboard: settings.clipboardEnabled,
+        let menus = (core.islandPresenter as? IslandPresenter)?.menus ?? []
+        var sections = PillMenuRow.sections(clipboard: settings.clipboardEnabled,
             calendar: settings.calendarEnabled || meeting != nil, notes: settings.notesEnabled, carded: meeting != nil)
+            .map { $0.map { (key: RowKey.stock($0), item: item($0, meeting: meeting)) } }
+        // Add-on rows go above the two sections that always close the menu.
+        sections.insert(addOnItems(menus), at: sections.count - 2)
         let query = ActionMenuSearchQuery(core.palette.menuQuery)
-        var visible: [PopoverMenuItem] = []
+        var visible: [(key: RowKey, item: PopoverMenuItem)] = []
         for section in sections {
-            var matched = section.map { item($0, meeting: meeting) }.filter { query.score($0.title) != nil }
-            if !visible.isEmpty, !matched.isEmpty { matched[0].startsSection = true }
+            var matched = section.filter { query.score($0.item.title) != nil }
+            if !visible.isEmpty, !matched.isEmpty { matched[0].item.startsSection = true }
             visible += matched
         }
-        items = visible
-        return visible
+        keys = visible.map(\.key)
+        items = visible.map(\.item)
+        return items
     }
 
     private func item(_ row: PillMenuRow, meeting: MeetingEvent?) -> PopoverMenuItem {
@@ -122,6 +140,17 @@ final class IslandPillMenu: NSObject {
         case .quit:
             return PopoverMenuItem(title: CommandID.quit.name, systemImage: CommandID.quit.sfSymbol, shortcut: "⌘Q",
                 isDestructive: true) { NSApp.terminate(nil) }
+        }
+    }
+
+    /// The caller's own title, never localized; an unchecked column keeps it in line with the icons.
+    private func addOnItems(_ menus: [IslandPresenter.Menu]) -> [(key: RowKey, item: PopoverMenuItem)] {
+        menus.flatMap { menu in
+            menu.rows.map { row in
+                var item = PopoverMenuItem(title: row.title, icon: .blank) { menu.onSelect(row.id) }
+                item.isChecked = row.isChecked
+                return (RowKey.addOn(owner: menu.owner, id: row.id), item)
+            }
         }
     }
 
@@ -173,9 +202,17 @@ final class IslandPillMenu: NSObject {
     }
 }
 
+/// What a row is across rebuilds; titles repeat and change, so they cannot say it.
+private enum RowKey: Equatable {
+    case stock(PillMenuRow)
+    case addOn(owner: String, id: String)
+}
+
 @MainActor @Observable
 private final class IslandPillMenuState {
     var selection = 0
+    /// A swapped root view that looks the same is not redrawn; reading this forces the new rows.
+    var revision = 0
 }
 
 private struct IslandPillMenuView: View {
@@ -185,8 +222,13 @@ private struct IslandPillMenuView: View {
     let filtered: () -> Void
     @Environment(PaletteState.self) private var palette
 
+    private var rows: [PopoverMenuItem] {
+        _ = state.revision
+        return items()
+    }
+
     var body: some View {
-        PopoverMenu(header: Bundle.main.appDisplayName, items: items(), selection: $state.selection,
+        PopoverMenu(header: Bundle.main.appDisplayName, items: rows, selection: $state.selection,
             visibleRows: Theme.Size.pillMenuVisibleRows, onActivate: activate,
             search: .init(placeholder: String(localized: "Search…"), placement: .top))
             .onChange(of: palette.menuQuery) { filtered() }

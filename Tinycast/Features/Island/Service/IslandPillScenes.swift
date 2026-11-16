@@ -7,7 +7,7 @@ enum IslandPillScenes {
     static let names: Set = ["pill-menu", "pill-settings", "glance", "glance-menu", "pill-menu-quiet", "pill-settings-quiet",
                              "glance-modal", "pill-busy", "window-guard-new", "window-guard-raise",
                              "window-guard-deferred", "island-ax", "update", "notice-queue",
-                             "notice-unseen"]
+                             "notice-unseen", "pill-menu-rows"]
 
     static func run(_ scene: String, core: AppCore, screen: NSScreen) async {
         core.island.start()
@@ -20,6 +20,7 @@ enum IslandPillScenes {
         IslandVerification.require(screen.frame.contains(controller.backdropWindow.frame), "pill on test display")
         switch scene {
         case "pill-menu": await menu(core: core, controller: controller)
+        case "pill-menu-rows": await IslandMenuRowScenes.run(core: core, controller: controller)
         case "pill-settings": await settings(core: core, controller: controller)
         case "glance-menu": await glanceMenu(core: core, controller: controller)
         case "pill-menu-quiet": await quietMenu(core: core, controller: controller, screen: screen)
@@ -44,7 +45,7 @@ enum IslandPillScenes {
         NSApp.windows.filter { String(describing: type(of: $0)).contains("StatusBar") }.count
     }
 
-    private static func openMenu(_ controller: IslandController, _ type: NSEvent.EventType,
+    static func openMenu(_ controller: IslandController, _ type: NSEvent.EventType,
                                  modifiers: NSEvent.ModifierFlags = [], _ label: String) async -> MenuPanel? {
         controller.clickBackdrop(type, modifiers: modifiers)
         await IslandVerification.pause(0.35)
