@@ -79,7 +79,7 @@ private struct FileThumbnailStage: View {
                     .clipShape(RoundedRectangle(cornerRadius: metrics.radius.card, style: .continuous))
                     .overlay(
                         RoundedRectangle(cornerRadius: metrics.radius.card, style: .continuous)
-                            .strokeBorder(Theme.Colors.cardStroke, lineWidth: 1)
+                            .strokeBorder(.islandEdge(), lineWidth: 1)
                     )
             } else {
                 Image(systemName: glyph)
