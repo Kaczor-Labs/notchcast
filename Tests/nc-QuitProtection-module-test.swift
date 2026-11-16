@@ -19,7 +19,7 @@ struct QuitProtectionSettingsView: View {
     var body: some View { EmptyView() }
 }
 
-let editor = QuitProtectionEngine.Target(processIdentifier: 42, bundleIdentifier: "test.editor", name: "Editor")
+let editor = QuitProtectionEngine.Target(processIdentifier: 42, bundleIdentifier: "test.editor")
 let clock = Mutex<TimeInterval>(100)
 let uptimeReads = Mutex(0)
 
@@ -70,11 +70,10 @@ final class FakePresenter: IslandPresenting {
     var posts: [IslandNotice] = []
     var ends: [String] = []
     var levels: [IslandLevel] = []
-    private(set) var isShowing = false
 
     func showLevel(_ level: IslandLevel) { levels.append(level) }
-    func post(_ notice: IslandNotice, onTap: (@MainActor () -> Void)?) { posts.append(notice); isShowing = true }
-    func end(notice id: String) { ends.append(id); isShowing = false }
+    func post(_ notice: IslandNotice, onTap: (@MainActor () -> Void)?) { posts.append(notice) }
+    func end(notice id: String) { ends.append(id) }
     func setStatus(_ status: IslandStatus?, for id: String, onTap: (@MainActor () -> Void)?) {}
     func setMenuRows(_ rows: [IslandMenuRow], owner: String, onSelect: @escaping @MainActor (String) -> Void) {}
 }
@@ -139,19 +138,14 @@ enum QuitProtectionModuleTests {
 
         advance(to: 100)
         precondition(rig.key(12) == .swallow, "⌘Q arms")
-        await drain()
-        precondition(presenter.posts.last?.text == "Hold ⌘Q to quit Editor", "notice names the app")
-        precondition(presenter.posts.last?.progress != nil && presenter.isShowing, "notice stays up")
         advance(to: 100.4)
         await drain()
-        precondition(presenter.levels.last.map { abs($0.value - 0.5) < 1e-9 && $0.symbol == "power" } == true,
-                     "hold progress goes through showLevel")
         precondition(fake.terminated.isEmpty, "nothing quits before 0.8 s")
         advance(to: 100.8)
         await drain()
         precondition(fake.terminated == [42] && fake.posted.isEmpty, "0.8 s hold terminates natively")
-        precondition(!presenter.isShowing, "the notice ends on confirm")
         precondition(rig.key(12, down: false) == .swallow, "the confirming release is swallowed")
+        precondition(presenter.posts.isEmpty && presenter.levels.isEmpty, "a full hold posts no notice or level")
 
         fake.terminateSucceeds = false
         advance(to: 110)
@@ -164,7 +158,7 @@ enum QuitProtectionModuleTests {
 
         advance(to: 120)
         rig.key(12)
-        fake.frontmost = .init(processIdentifier: 43, bundleIdentifier: "test.other", name: "Other")
+        fake.frontmost = .init(processIdentifier: 43, bundleIdentifier: "test.other")
         advance(to: 120.8)
         await drain()
         precondition(fake.terminated == [42] && fake.posted == [[42, 12]], "a target no longer frontmost is spared")
@@ -183,55 +177,50 @@ enum QuitProtectionModuleTests {
 
         rig.defaults.set("doublePress", forKey: QuitProtectionStore.modeKey)
         await drain()
-        let levels = presenter.levels.count
         advance(to: 130)
         precondition(rig.key(12) == .swallow, "first press swallowed")
         rig.key(12, down: false)
         await drain()
-        precondition(presenter.posts.last?.text == "Press ⌘Q again to quit Editor", "double-press notice")
         advance(to: 130.5)
         precondition(rig.key(12) == .swallow, "second press swallowed")
         await drain()
         precondition(fake.terminated == [42, 42], "double press within 0.6 s quits")
-        precondition(presenter.levels.count == levels, "double press shows no hold level")
         rig.key(12, down: false)
+        await drain()
+        precondition(presenter.posts.isEmpty && presenter.levels.isEmpty && presenter.ends.isEmpty,
+                     "a full double press posts no notice or level")
 
         advance(to: 140)
         rig.key(12)
         rig.key(12, down: false)
         precondition(rig.key(53, []) == .swallow, "Esc is swallowed while armed")
         precondition(rig.key(53, [], down: false) == .swallow, "its release too")
-        await drain()
-        precondition(!presenter.isShowing, "Esc ends the notice")
         advance(to: 140.3)
         rig.key(12)
         await drain()
-        precondition(fake.terminated == [42, 42] && presenter.isShowing, "after Esc a press arms again")
+        precondition(fake.terminated == [42, 42], "after Esc a press arms again instead of quitting")
         rig.key(12, down: false)
         advance(to: 141)
         await drain()
 
         rig.defaults.set("hold", forKey: QuitProtectionStore.modeKey)
         await drain()
-        let posts = presenter.posts.count
         advance(to: 150)
         precondition(rig.key(48) == .pass, "⌘Tab passes")
         precondition(rig.key(12) == .pass, "⌘Q in the app switcher passes")
         rig.key(12, down: false)
         advance(to: 151)
         await drain()
-        precondition(presenter.posts.count == posts && fake.terminated == [42, 42], "⌘Tab never arms")
+        precondition(fake.terminated == [42, 42], "⌘Tab never arms")
         rig.flags([])
 
         advance(to: 160)
         precondition(rig.key(12) == .swallow, "arms again after ⌘ is released")
         await drain()
-        precondition(presenter.isShowing, "half-armed")
         guard case .reenable(let ids) = rig.session!.router.receive(type: .tapDisabledByTimeout, event: CGEvent(source: nil)!)
         else { preconditionFailure("a disable notice re-enables") }
         rig.session!.router.reenabled(ids)
         await drain()
-        precondition(!presenter.isShowing, "the tap's reset ends the notice")
         advance(to: 161)
         await drain()
         precondition(fake.terminated == [42, 42], "reset clears the half-armed hold")
@@ -257,10 +246,10 @@ enum QuitProtectionModuleTests {
         rig.key(12)
         await drain()
         rig.controller.stop()
-        precondition(!presenter.isShowing, "stop ends the notice")
         advance(to: 171)
         await drain()
         precondition(fake.terminated == [42, 42], "a hold armed before stop never fires")
+        precondition(presenter.posts.isEmpty && presenter.ends.isEmpty, "stop and reset leave nothing to end")
         rig.finish()
 
         rig = Rig()
