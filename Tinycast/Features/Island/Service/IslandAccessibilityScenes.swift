@@ -26,11 +26,12 @@ enum IslandAccessibilityScenes {
         _ = await IslandPillScenes.previewMeeting(core: core)
         guard let glance = controller.glance else { IslandVerification.require(false, "the meeting glance"); return }
         read("glance", "\(glance.title), \(glance.countdown)")
-        let notice = IslandNotice(id: "update", symbol: "arrow.down.circle", text: "Downloading…", progress: 0.2)
+        let notice = IslandNotice(id: "update", symbol: "arrow.down.circle", text: "Downloading…",
+                                  progress: IslandProgress(fraction: 0.2, headline: false))
         presenter.post(notice, onTap: nil)
         read("notice", "Downloading…")
         var repost = notice
-        repost.progress = 0.6
+        repost.progress?.fraction = 0.6
         presenter.post(repost, onTap: nil)
         print("ANNOUNCED \(IslandVerification.announcements)")
         IslandVerification.require(IslandVerification.announcements == ["Downloading…"],
