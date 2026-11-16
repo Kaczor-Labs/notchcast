@@ -43,7 +43,7 @@ final class DownloadsModule: NotchcastModule {
             tools: environment.tools,
             report: { [presenter = context.presenter] message in
                 presenter.post(IslandNotice(id: "downloads.error", symbol: "exclamationmark.triangle", text: message,
-                                            isFailure: true, seconds: 5), onTap: nil)
+                                            isFailure: true), onTap: nil)
             })
         DownloadsIslandBridge.track(downloads, presenter: context.presenter, noticeID: "downloads.progress",
                                     symbol: "arrow.down.circle")
