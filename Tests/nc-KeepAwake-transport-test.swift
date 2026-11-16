@@ -81,6 +81,7 @@ enum KeepAwakeTransportTests: KeepAwakeHarness {
         await lineIgnoresStaleExits()
         await lineReportsEachLaunch()
         await liveProcessesWatchExit()
+        pathlessProcessIsNotUnreadable()
         resultMapping()
         let root = FileManager.default.temporaryDirectory.appending(path: "nc-keepawake-store.\(UUID())")
         defer { try? FileManager.default.removeItem(at: root) }
@@ -235,6 +236,14 @@ enum KeepAwakeTransportTests: KeepAwakeHarness {
         processes.watch(mine) { cancelled.count += 1 }?.cancel()
         for _ in 0..<20 { await Task.yield() }
         precondition(cancelled.count == 0, "a cancelled watch never fires")
+    }
+
+    /// A live process whose path cannot be resolved is not a helper, so it must not fail the whole scan.
+    static func pathlessProcessIsNotUnreadable() {
+        let gone = try? KeepAwakeProcessLookup.pathFailure(ESRCH), pathless = try? KeepAwakeProcessLookup.pathFailure(ENOENT)
+        precondition(gone == .some(nil), "a vanished process has no path")
+        precondition(pathless == .some(""), "an unresolvable path is listed empty")
+        do { _ = try KeepAwakeProcessLookup.pathFailure(EPERM); preconditionFailure("a denied read fails the scan") } catch {}
     }
 
     /// What the real lookup cannot read on this host, for a failure message.

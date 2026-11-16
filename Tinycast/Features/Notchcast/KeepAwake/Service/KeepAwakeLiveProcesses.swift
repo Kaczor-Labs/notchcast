@@ -38,12 +38,20 @@ struct KeepAwakeProcessLookup: Sendable {
         return Info(id: id, parent: info.kp_eproc.e_ppid, zombie: Int32(info.kp_proc.p_stat) == SZOMB)
     }
 
+    /// A process with no resolvable path (ENOENT) cannot be a helper; only an unreadable one fails the scan.
+    static func pathFailure(_ code: Int32) throws -> String? {
+        switch code {
+        case ESRCH: nil
+        case ENOENT: ""
+        default: throw Unreadable(code: code)
+        }
+    }
+
     private static func readPath(_ pid: Int32) throws -> String? {
         var path = [CChar](repeating: 0, count: 4 * Int(MAXPATHLEN))
         let length = Int(proc_pidpath(pid, &path, UInt32(path.count)))
         guard length > 0 else {
-            if errno == ESRCH { return nil }
-            throw Unreadable(code: errno)
+            return try pathFailure(errno)
         }
         return String(bytes: path.prefix(length).map { UInt8(bitPattern: $0) }, encoding: .utf8) ?? ""
     }
