@@ -206,7 +206,8 @@ enum KeepAwakeTransportTests: KeepAwakeHarness {
         guard let helper = processes.identify(pid) else { preconditionFailure("a live pid has an identity") }
         precondition(processes.identify(pid) == helper, "the identity is stable while it runs")
         let found = await scan(processes), cat = await scan(KeepAwakeLiveProcesses(helperPath: "/bin/cat"))
-        precondition(found?.contains(helper) == true, "the scan finds it by executable path")
+        precondition(found != nil, "the scan reads the whole table: \(unreadable())")
+        precondition(found?.contains(helper) == true, "the scan finds it by executable path: \(found?.count ?? 0) listed")
         precondition(cat?.contains(helper) == false)
         let fired = Fired()
         let watch = processes.watch(helper) { fired.count += 1 }
@@ -234,6 +235,15 @@ enum KeepAwakeTransportTests: KeepAwakeHarness {
         processes.watch(mine) { cancelled.count += 1 }?.cancel()
         for _ in 0..<20 { await Task.yield() }
         precondition(cancelled.count == 0, "a cancelled watch never fires")
+    }
+
+    /// What the real lookup cannot read on this host, for a failure message.
+    static func unreadable() -> String {
+        let lookup = KeepAwakeProcessLookup.system
+        let pids = (try? lookup.pids()) ?? []
+        return pids.compactMap { pid in
+            do { _ = try lookup.info(pid); _ = try lookup.path(pid); return nil } catch { return "\(pid) \(error)" }
+        }.prefix(5).joined(separator: ", ")
     }
 
     static func scan(_ processes: KeepAwakeLiveProcesses) async -> [KeepAwakeHelperID]? {
