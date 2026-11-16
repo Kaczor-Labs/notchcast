@@ -96,7 +96,6 @@ struct DownloadsModuleTest {
         func command(_ slug: String) { DownloadsAddon.commands.first { $0.slug == slug }!.run(context) }
 
         module.start()
-        await module.downloads.settle()
         expect(module.downloads.queue == nil, "switch off: no queue runs")
         command("download-video")
         command("open-downloads-folder")
@@ -128,6 +127,25 @@ struct DownloadsModuleTest {
         expect(module.downloads.queue == nil, "stop ends the queue")
         module.stop()
         expect(module.downloads.queue == nil, "a second stop is a no-op")
+
+        module.start()
+        fakes.clipboard = "https://example.com/early"
+        command("download-video")
+        module.stop()
+        expect(presenter.log.last == "post downloads.starting Downloads is starting. Try again.",
+               "a command while the queue loads is turned away out loud, never dropped silently")
+
+        module.start()
+        try await eventually { module.downloads.queue != nil }
+        try FileManager.default.removeItem(at: queues)
+        try Data("blocked".utf8).write(to: queues)
+        let posted = presenter.log.count
+        fakes.clipboard = "https://example.com/unsaved"
+        command("download-video")
+        module.stop()
+        try await Task.sleep(for: .milliseconds(50))
+        expect(presenter.log[posted...].contains { $0.hasPrefix("post downloads.error ") },
+               "a link that could not be saved is reported even when stop follows at once")
     }
 
     private static func expect(_ value: @autoclosure () throws -> Bool, _ message: String) rethrows {

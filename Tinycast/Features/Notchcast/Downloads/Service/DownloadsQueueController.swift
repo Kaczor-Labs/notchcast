@@ -77,5 +77,14 @@ final class DownloadsQueueController {
         reportedPersistenceError = problem
     }
 
-    func settle() async { await transition?.value }
+    /// Adds links to the loaded queue and reports a failed write now, before a stop can hide it.
+    func accept(kind: String, sources: [String]) -> Bool {
+        guard let queue else { return false }
+        queue.enqueue(kind: kind, sources: sources)
+        if let problem = queue.persistenceError {
+            reportedPersistenceError = problem
+            report(problem)
+        }
+        return true
+    }
 }

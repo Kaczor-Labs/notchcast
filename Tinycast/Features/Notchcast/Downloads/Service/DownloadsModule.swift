@@ -72,16 +72,11 @@ final class DownloadsModule: NotchcastModule {
                 text: String(localized: "No Web Links in Clipboard", table: "NotchcastDownloads"), isFailure: true),
                 onTap: nil)
         }
-        if let queue = downloads.queue {
-            queue.enqueue(kind: kind, sources: links)
-            return
-        }
-        Task { [weak self] in
-            guard let self else { return }
-            await downloads.settle()
-            guard running, context.isEnabled(Self.switchID), let queue = downloads.queue else { return }
-            queue.enqueue(kind: kind, sources: links)
-        }
+        guard !downloads.accept(kind: kind, sources: links) else { return }
+        context.presenter.post(IslandNotice(
+            id: "downloads.starting", symbol: "arrow.down.circle",
+            text: String(localized: "Downloads is starting. Try again.", table: "NotchcastDownloads"),
+            isFailure: true), onTap: nil)
     }
 
     private func open(_ folder: URL) {
