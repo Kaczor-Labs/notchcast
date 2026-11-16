@@ -1,11 +1,13 @@
 #!/bin/bash
-# Runs land.sh's drift gates, then every gate pr.yml runs in its order (ci-build.sh, harnesses included),
+# Runs land.sh's drift gates, the private-data checks leaks.yml runs, then every gate pr.yml runs in its order (ci-build.sh, harnesses included),
 # on HEAD against a base ref.
 # Prints retried and ignored harnesses then PASS, or FAIL with the first failing gate. ready-check-test.py ties it to pr.yml.
 set -euo pipefail
 [[ $# -le 1 ]] || { echo 'usage: ready-check.sh [base-ref, default origin/v2/stack]' >&2; exit 2; }
 base_ref=${1:-origin/v2/stack}
 cd "$(git rev-parse --show-toplevel)"
+# The identity gate runs with the caller's PATH and no git or Python environment that HEAD's config.env sets.
+clean=(/usr/bin/env -i HOME="$HOME" PATH="$PATH" GIT_CONFIG_NOSYSTEM=1)
 # shellcheck disable=SC1091
 source notchcast/config.env
 if [ -f "$HOME/.config/notchcast/private.env" ]; then
@@ -71,6 +73,25 @@ if ! (cd "$tree" && top="$tree" && source "$scratch/drift-gates.sh" && run_drift
     echo "FAIL drift; log: $log"
     exit 1
 fi
+# leaks.yml's private-data checks over what this branch adds, by the base's scanner and HEAD's (only adds failures).
+scanners=("$tree/notchcast")
+if "${clean[@]}" git -C "$tree" cat-file -e "$BASE_SHA:notchcast/check-identity.py" 2>/dev/null; then
+    mkdir "$scratch/identity"
+    "${clean[@]}" git -C "$tree" archive -o "$scratch/identity.tar" "$BASE_SHA" notchcast
+    tar -xf "$scratch/identity.tar" -C "$scratch/identity"
+    scanners=("$scratch/identity/notchcast" "$tree/notchcast")
+else
+    echo "identity: bootstrap, scanner from HEAD"
+fi
+for identity in "${scanners[@]}"; do
+    for mode in diff metadata; do
+        if ! (cd "$tree" && "${clean[@]}" python3 -I "$identity/check-identity.py" "$mode" "$BASE_SHA") >> "$log" 2>&1; then
+            grep '^check-identity:' "$log" | tail -n 40
+            echo "FAIL identity: $mode names something private; log: $log"
+            exit 1
+        fi
+    done
+done
 unset NOTCHCAST_HARNESSES_SHARDED
 queue=()
 # shellcheck disable=SC2206
