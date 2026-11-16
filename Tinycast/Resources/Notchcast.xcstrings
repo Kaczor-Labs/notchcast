@@ -42,6 +42,9 @@
     },
     "Show in screenshots and videos" : {
 
+    },
+    "Updated to %@" : {
+
     }
   },
   "version" : "1.0"
