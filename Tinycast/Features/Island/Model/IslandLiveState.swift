@@ -16,6 +16,9 @@ struct IslandLiveState: Equatable, Sendable {
     }
 
     static let id = "update"
+    static let installingSymbol = "arrow.down.circle"
+    static let readySymbol = "arrow.clockwise.circle"
+    static let failedSymbol = "exclamationmark.arrow.circlepath"
     static let readySeconds = IslandNotice.messageSeconds
     static let failureSeconds = IslandNotice.failureSeconds
     static let installedSeconds: TimeInterval = 2.4
@@ -29,18 +32,18 @@ struct IslandLiveState: Equatable, Sendable {
         case .none:
             break
         case .installing(let text, let progress):
-            notice = IslandNotice(id: Self.id, symbol: "arrow.down.circle", text: text,
+            notice = IslandNotice(id: Self.id, symbol: Self.installingSymbol, text: text,
                                   progress: IslandProgress(fraction: progress, headline: false))
         case .ready:
             let text = String(localized: "Update ready")
-            notice = IslandNotice(id: Self.id, symbol: "arrow.clockwise.circle", text: text)
+            notice = IslandNotice(id: Self.id, symbol: Self.readySymbol, text: text)
             noticeSeconds = Self.readySeconds
-            status = IslandStatus(id: Self.id, symbol: "arrow.clockwise.circle", label: text)
+            status = IslandStatus(id: Self.id, symbol: Self.readySymbol, label: text)
         case .failed:
             let text = String(localized: "Update failed")
-            notice = IslandNotice(id: Self.id, symbol: "exclamationmark.arrow.circlepath", text: text, isFailure: true)
+            notice = IslandNotice(id: Self.id, symbol: Self.failedSymbol, text: text, isFailure: true)
             noticeSeconds = Self.failureSeconds
-            status = IslandStatus(id: Self.id, symbol: "exclamationmark.arrow.circlepath", label: text)
+            status = IslandStatus(id: Self.id, symbol: Self.failedSymbol, label: text)
         }
     }
 
@@ -52,7 +55,7 @@ struct IslandLiveState: Equatable, Sendable {
             noticeSeconds = Self.installedSeconds
         case .notInstalled:
             let text = String(localized: "Update failed")
-            notice = IslandNotice(id: Self.id, symbol: "exclamationmark.arrow.circlepath", text: text, isFailure: true)
+            notice = IslandNotice(id: Self.id, symbol: Self.failedSymbol, text: text, isFailure: true)
             noticeSeconds = Self.failureSeconds
         }
     }
