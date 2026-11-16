@@ -120,12 +120,14 @@ final class IslandCoordinator: NSObject {
         let timeout: Float = 0.25
         var fullFrames: [pid_t: [CGRect]] = [:]
         for pid in Set(candidates.map(\.pid)) {
+            guard !Task.isCancelled else { return [] }
             let app = AXUIElementCreateApplication(pid)
             AXUIElementSetMessagingTimeout(app, timeout)
             var list: CFTypeRef?
             guard AXUIElementCopyAttributeValue(app, kAXWindowsAttribute as CFString, &list) == .success,
                   let windows = list as? [AXUIElement] else { continue }
             fullFrames[pid] = windows.compactMap { window in
+                guard !Task.isCancelled else { return nil }
                 AXUIElementSetMessagingTimeout(window, timeout)
                 var full: CFTypeRef?
                 guard AXUIElementCopyAttributeValue(window, "AXFullScreen" as CFString, &full) == .success,
