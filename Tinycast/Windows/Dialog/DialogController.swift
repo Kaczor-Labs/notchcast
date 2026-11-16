@@ -11,6 +11,7 @@ final class DialogController: NSObject, NSWindowDelegate {
     #if DEBUG
     /// The open question, so a scene can tell which one an island tap raised.
     private(set) var shown: DialogRequest?
+    private(set) var lastAnswer: Int?
     #endif
 
     init(settings: AppSettings, onPresentationChanged: @escaping (Bool) -> Void) {
@@ -164,6 +165,7 @@ final class DialogController: NSObject, NSWindowDelegate {
         panel = nil
         #if DEBUG
         shown = nil
+        lastAnswer = index
         #endif
         closing?.delegate = nil
         closing?.onKey = nil

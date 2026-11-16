@@ -108,6 +108,10 @@ enum IslandUpdateScenes {
         let stage = core.updateCoordinator.stage
         IslandVerification.require(core.shownDialog == nil && stage == .failed(.downloadFailed("preview")),
                                    "Esc closes the question and keeps the failure")
+        print("UPDATE answer=\(core.lastDialogAnswer.map(String.init) ?? "nil") cancel=\(question?.cancelIndex ?? -1)")
+        IslandVerification.require(question.map { core.lastDialogAnswer == $0.cancelIndex
+            && $0.actions[$0.cancelIndex].title == String(localized: "OK") } == true,
+            "Esc answers OK, not Try Again")
     }
 }
 #endif
