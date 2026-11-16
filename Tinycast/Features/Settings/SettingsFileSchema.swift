@@ -35,6 +35,7 @@ enum SettingsFileSchema {
         case .automaticallyCheckForUpdates: return bind(settings, \.automaticallyCheckForUpdates)
         case .islandShowsInCaptures: return bind(settings, \.islandShowsInCaptures)
         case .islandOutlineWhenOpen: return bind(settings, \.islandOutlineWhenOpen)
+        case .islandPosition: return bind(settings, \.islandPosition)
         case .popToRootTimeout: return bind(settings, \.popToRootTimeout)
         case .escapeKeyBehavior: return bind(settings, \.escapeKeyBehavior)
         case .autoSwitchInputSource: return bind(settings, \.autoSwitchInputSourceID)
@@ -196,6 +197,7 @@ extension DictationMode: SettingsFileRawValue {}
 extension DictationDestination: SettingsFileRawValue {}
 extension DictationIdleRelease: SettingsFileRawValue {}
 extension JoinWindow: SettingsFileRawValue {}
+extension IslandPosition: SettingsFileRawValue {}
 
 extension ClipboardRetention: SettingsFileToken {
     var settingsToken: SettingsFileJSON {
