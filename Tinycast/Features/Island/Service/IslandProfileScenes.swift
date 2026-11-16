@@ -148,7 +148,7 @@ enum IslandProfileScenes {
         expect(true, "the meeting glance back on a desktop")
     }
 
-    /// A real full-screen Space: the glance window reaches it, and with no AX grant the rest pill stays.
+    /// A real full-screen Space hides the rest pill, a zoomed window does not, and a notice reaches it.
     private static func fullScreenSpace(screen: NSScreen, controller: IslandController,
                                         presenter: IslandPresenter) async {
         let frame = screen.frame.insetBy(dx: 200, dy: 200)
@@ -159,21 +159,29 @@ enum IslandProfileScenes {
         window.makeKeyAndOrderFront(nil)
         await IslandVerification.pause(0.3)
         IslandVerification.require(controller.backdropVisible && !controller.onFullScreenSpace, "the pill on a desktop")
+        window.setFrame(screen.visibleFrame, display: true)
+        await IslandVerification.pause(0.3)
+        AppCore.shared.island.spaceChanged()
+        await IslandVerification.pause(0.5)
+        IslandVerification.require(controller.backdropVisible && !controller.onFullScreenSpace,
+                                   "a zoomed window keeps the rest pill")
         window.toggleFullScreen(nil)
         for _ in 0..<60 where !window.styleMask.contains(.fullScreen) { await IslandVerification.pause(0.05) }
         await IslandVerification.pause(0.5)
         let trusted = Permissions.isAccessibilityTrusted()
+        for _ in 0..<60 where controller.onFullScreenSpace != trusted { await IslandVerification.pause(0.05) }
         print("SPACE full=\(window.styleMask.contains(.fullScreen)) trusted=\(trusted) "
               + "space=\(controller.onFullScreenSpace) visible=\(controller.backdropVisible)")
         IslandVerification.require(window.styleMask.contains(.fullScreen), "the window enters a full-screen Space")
-        IslandVerification.require(trusted || (!controller.onFullScreenSpace && controller.backdropVisible
-            && controller.backdropWindow.isOnActiveSpace), "with no AX grant the rest pill stays on the Space")
+        IslandVerification.require(controller.onFullScreenSpace == trusted && controller.backdropVisible == !trusted,
+                                   trusted ? "the rest pill hides on the Space" : "with no AX grant the rest pill stays")
         presenter.post(IslandNotice(id: "space", symbol: "doc.on.doc", text: "Copied", seconds: 3), onTap: nil)
         await IslandVerification.pause(0.4)
         IslandVerification.require(controller.backdropVisible && controller.backdropWindow.isOnActiveSpace,
                                    "a notice shows on the full-screen Space")
         presenter.end(notice: "space")
-        await IslandVerification.pause(0.4)
+        for _ in 0..<40 where controller.backdropVisible == trusted { await IslandVerification.pause(0.05) }
+        IslandVerification.require(controller.backdropVisible == !trusted, "the pill settles back after the notice")
     }
 
     private static func track(_ controller: IslandController, for seconds: Double) async -> (peak: CGSize, end: CGSize) {

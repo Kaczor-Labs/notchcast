@@ -9,6 +9,7 @@ final class IslandCoordinator: NSObject {
     private var backdrops: [CGDirectDisplayID: IslandController] = [:]
     private(set) var active: IslandController?
     private weak var panel: PalettePanel?
+    private var spaceCheck: Task<Void, Never>?
     private var started = false
     private(set) lazy var overlays = IslandOverlayController(island: self)
     var paletteLevel: NSWindow.Level { IslandVerification.stock ? .palette : IslandController.paletteLevel }
@@ -84,35 +85,46 @@ final class IslandCoordinator: NSObject {
     }
 
     @objc func spaceChanged() {
-        let trusted = AXIsProcessTrusted()
-        let windows = CGWindowListCopyWindowInfo([.optionOnScreenOnly, .excludeDesktopElements], kCGNullWindowID)
-            as? [[String: Any]] ?? []
-        for screen in screens {
-            backdrops[screen.islandDisplayID]?.onFullScreenSpace = trusted && Self.fullScreen(screen, windows: windows)
+        spaceCheck?.cancel()
+        let candidates = AXIsProcessTrusted() ? Self.fullScreenCandidates(on: screens) : []
+        spaceCheck = Task { [weak self] in
+            let full = await Self.confirmFullScreen(candidates)
+            guard !Task.isCancelled, let self else { return }
+            for (id, backdrop) in backdrops { backdrop.onFullScreenSpace = full.contains(id) }
         }
     }
 
-    /// Short, so a hung app can't stall the main actor on a Space change.
-    private static let fullScreenTimeout: Float = 0.25
+    /// Bounds alone match a zoomed window too, so the topmost wide window is only a lead.
+    private static func fullScreenCandidates(on screens: [NSScreen])
+        -> [(display: CGDirectDisplayID, pid: pid_t, minX: CGFloat)] {
+        let windows = CGWindowListCopyWindowInfo([.optionOnScreenOnly, .excludeDesktopElements], kCGNullWindowID)
+            as? [[String: Any]] ?? []
+        return screens.compactMap { screen in
+            let display = CGDisplayBounds(screen.islandDisplayID)
+            let owner = windows.first { info in
+                guard info[kCGWindowLayer as String] as? Int == 0,
+                      let rect = info[kCGWindowBounds as String] as? NSDictionary,
+                      let bounds = CGRect(dictionaryRepresentation: rect) else { return false }
+                return abs(bounds.minX - display.minX) < 1 && abs(bounds.width - display.width) < 1
+                    && abs(bounds.maxY - display.maxY) < 1
+            }?[kCGWindowOwnerPID as String] as? pid_t
+            return owner.map { (screen.islandDisplayID, $0, display.minX) }
+        }
+    }
 
-    /// Bounds alone match a zoomed window too, so the topmost display-wide window's app must confirm.
-    private static func fullScreen(_ screen: NSScreen, windows: [[String: Any]]) -> Bool {
-        let display = CGDisplayBounds(screen.islandDisplayID)
-        let owner = windows.first { info in
-            guard info[kCGWindowLayer as String] as? Int == 0,
-                  let rect = info[kCGWindowBounds as String] as? NSDictionary,
-                  let bounds = CGRect(dictionaryRepresentation: rect) else { return false }
-            return abs(bounds.minX - display.minX) < 1 && abs(bounds.width - display.width) < 1
-                && abs(bounds.maxY - display.maxY) < 1
-        }?[kCGWindowOwnerPID as String] as? pid_t
-        guard let owner else { return false }
-        let app = AXUIElementCreateApplication(owner)
-        AXUIElementSetMessagingTimeout(app, fullScreenTimeout)
-        var value: CFTypeRef?
-        guard AXUIElementCopyAttributeValue(app, kAXWindowsAttribute as CFString, &value) == .success,
-              let windows = value as? [AXUIElement] else { return false }
-        return windows.contains { window in
-            AXUIElementSetMessagingTimeout(window, fullScreenTimeout)
+    /// Off the main actor: a hung app would otherwise freeze the island for each timed-out read.
+    @concurrent
+    nonisolated private static func confirmFullScreen(
+        _ candidates: [(display: CGDirectDisplayID, pid: pid_t, minX: CGFloat)]) async -> Set<CGDirectDisplayID> {
+        let timeout: Float = 0.25
+        return Set(candidates.compactMap { candidate in
+            let app = AXUIElementCreateApplication(candidate.pid)
+            AXUIElementSetMessagingTimeout(app, timeout)
+            var main: CFTypeRef?
+            guard AXUIElementCopyAttributeValue(app, kAXMainWindowAttribute as CFString, &main) == .success,
+                  let main, CFGetTypeID(main) == AXUIElementGetTypeID() else { return nil }
+            let window = unsafeDowncast(main, to: AXUIElement.self)
+            AXUIElementSetMessagingTimeout(window, timeout)
             var full: CFTypeRef?
             var origin: CFTypeRef?
             var point = CGPoint.zero
@@ -120,9 +132,10 @@ final class IslandCoordinator: NSObject {
                   full as? Bool == true,
                   AXUIElementCopyAttributeValue(window, kAXPositionAttribute as CFString, &origin) == .success,
                   let origin, CFGetTypeID(origin) == AXValueGetTypeID(),
-                  AXValueGetValue(unsafeDowncast(origin, to: AXValue.self), .cgPoint, &point) else { return false }
-            return abs(point.x - display.minX) < 1
-        }
+                  AXValueGetValue(unsafeDowncast(origin, to: AXValue.self), .cgPoint, &point),
+                  abs(point.x - candidate.minX) < 1 else { return nil }
+            return candidate.display
+        })
     }
 
     /// Also after a rebuild, so a new resting pill picks up an expansion already showing.
@@ -209,6 +222,7 @@ final class IslandCoordinator: NSObject {
         NSObject.cancelPreviousPerformRequests(withTarget: self)
         NotificationCenter.default.removeObserver(self)
         NSWorkspace.shared.notificationCenter.removeObserver(self)
+        spaceCheck?.cancel()
     }
 }
 
