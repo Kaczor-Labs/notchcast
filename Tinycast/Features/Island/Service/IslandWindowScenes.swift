@@ -55,7 +55,7 @@ enum IslandWindowScenes {
                                    "summon restores island level after modal")
         IslandVerification.require(abs(panel.frame.maxY - screen.frame.maxY
             + IslandController.notch(on: screen).height) < 0.01, "restored palette touches island top")
-        controller.capture("modal-return")
+        await controller.capture("modal-return")
         let openPicker = PinnedOpenPanel()
         openPicker.testScreen = screen.frame
         openPicker.directoryURL = picker.directoryURL
@@ -107,7 +107,7 @@ enum IslandWindowScenes {
         IslandVerification.require(!NSApp.isActive && backdrop.isVisible && !backdrop.hidesOnDeactivate,
                                    "rest pill visible after deactivate call; hidesOnDeactivate false")
         settings.orderOut(nil)
-        controller.capture("rest-deactivated")
+        await controller.capture("rest-deactivated")
         await IslandVerification.pause(0.2)
         IslandVerification.require(controller.pressBackdrop(), "rest pill opens launcher")
         await IslandVerification.pause(0.2)

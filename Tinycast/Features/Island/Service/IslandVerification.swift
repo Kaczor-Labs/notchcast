@@ -94,17 +94,17 @@ enum IslandVerification {
         guard let directory = ProcessInfo.processInfo.environment["ISLAND_OUTPUT"] else {
             require(false, "output supplied"); return
         }
-        controller.capture("rest")
+        await controller.capture("rest")
         await pause(0.4)
         print("PROOF_EVENT open \(CACurrentMediaTime())")
         panel.orderFrontRegardless()
         require(panel.frame == frame && panel.level.rawValue == 26, "proof panel keeps island level and top on ordering")
         core.palette.noteVisible(true)
-        controller.capture("open-start")
+        await controller.capture("open-start")
         await pause(0.12)
-        controller.capture("open-middle")
+        await controller.capture("open-middle")
         await pause(0.55)
-        controller.capture("open-end")
+        await controller.capture("open-end")
         await pause(0.13)
         let outset = Theme.Size.paletteGlassOutset
         let compact = PalettePlacement.frame(at: CGPoint(x: frame.minX, y: frame.maxY - outset),
@@ -116,26 +116,26 @@ enum IslandVerification {
         }
         panel.setFrame(compact, display: true)
         await pause(0.5)
-        controller.capture("compact")
+        await controller.capture("compact")
         await pause(0.1)
         print("PROOF_EVENT expanded \(CACurrentMediaTime())")
         core.settings.compactMode = false
         panel.setFrame(frame, display: true)
         await pause(0.5)
-        controller.capture("expand")
+        await controller.capture("expand")
         await pause(0.1)
         print("PROOF_EVENT scale1.2 \(CACurrentMediaTime())")
         core.settings.interfaceSize = .larger
         panel.setFrame(CGRect(x: screen.frame.midX - 450, y: screen.frame.maxY - 570,
                               width: 900, height: 570), display: true)
         await pause(0.12)
-        controller.capture("scale-1.2-middle")
+        await controller.capture("scale-1.2-middle")
         await pause(0.48)
         print("PROOF_EVENT close \(CACurrentMediaTime())")
         panel.orderOut(nil)
         core.palette.noteVisible(false)
         await pause(0.12)
-        controller.capture("close-middle")
+        await controller.capture("close-middle")
         await pause(0.58)
         require(!panel.isKeyWindow && !NSApp.isActive, "no activation or key focus")
         require(NSApp.windows.filter(\.isVisible).allSatisfy { screen.frame.contains($0.frame) },
