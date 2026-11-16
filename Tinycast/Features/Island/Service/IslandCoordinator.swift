@@ -67,6 +67,7 @@ final class IslandCoordinator: NSObject {
         for screen in available {
             let backdrop = backdrops[screen.islandDisplayID] ?? IslandController()
             backdrop.showsRest = screen.islandDisplayID == main?.islandDisplayID
+            backdrop.outlineWhenOpen = core.settings.islandOutlineWhenOpen
             backdrop.canOpen = { [weak self] in self?.panel?.isVisible != true }
             backdrop.onOpen = { [weak self, weak backdrop] in
                 if backdrop?.showsRest == true, let tap = presenter?.tap { return tap() }
@@ -261,11 +262,13 @@ final class IslandCoordinator: NSObject {
     private func observeCaptureSharing() {
         withObservationTracking {
             _ = core.settings.islandShowsInCaptures
+            _ = core.settings.islandOutlineWhenOpen
         } onChange: { [weak self] in
             Task { @MainActor in
                 guard let self else { return }
                 self.observeCaptureSharing()
                 self.applyCaptureSharing()
+                for controller in self.backdrops.values { controller.outlineWhenOpen = self.core.settings.islandOutlineWhenOpen }
             }
         }
     }
