@@ -7,9 +7,7 @@ extension QuitProtectionSystem {
         frontmost: {
             guard let app = NSWorkspace.shared.frontmostApplication, let bundleID = app.bundleIdentifier
             else { return nil }
-            return QuitProtectionEngine.Target(
-                processIdentifier: app.processIdentifier, bundleIdentifier: bundleID,
-                name: app.localizedName ?? bundleID)
+            return QuitProtectionEngine.Target(processIdentifier: app.processIdentifier, bundleIdentifier: bundleID)
         },
         commandCharacter: { ASCIIKeyboardLayout.character(for: $0, modifiers: UInt32(cmdKey >> 8)) },
         terminate: { pid in NSRunningApplication(processIdentifier: pid)?.terminate() ?? false },

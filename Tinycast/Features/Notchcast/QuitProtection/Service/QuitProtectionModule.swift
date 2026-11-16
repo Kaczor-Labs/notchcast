@@ -13,10 +13,8 @@ final class QuitProtectionModule: NotchcastModule {
     }
 
     private struct Snapshot: Sendable {
-        let notice: QuitProtectionEngine.Notice?
         let actions: [Action]
         let deadline: TimeInterval?
-        let progress: Double?
     }
 
     private struct Session: Sendable {
@@ -24,28 +22,24 @@ final class QuitProtectionModule: NotchcastModule {
         var target: QuitProtectionEngine.Target?
         var characters: [UInt16: String] = [:]
         var keyCode: UInt16 = 12
-        var notice: QuitProtectionEngine.Notice?
         var actions: [Action] = []
 
-        /// Whether to swallow the event, and whether main has something new to show or do.
+        /// Whether to swallow the event, and whether main has something new to do.
         mutating func consume(_ event: QuitProtectionEngine.Event, at time: TimeInterval) -> (Bool, Bool) {
-            let deadline = engine.deadline, shown = notice
+            let deadline = engine.deadline
             let decision = engine.consume(event, at: time, target: target)
             switch decision {
-            case .pass: break
-            case .swallow(let notice): if let notice { self.notice = notice }
+            case .pass, .swallow: break
             case .quit(let target): actions.append(Action(target: target, shortcut: .quit, keyCode: keyCode))
             case .close(let target): actions.append(Action(target: target, shortcut: .close, keyCode: keyCode))
             }
-            if engine.deadline == nil { notice = nil }
-            return (decision != .pass, !actions.isEmpty || engine.deadline != deadline || notice != shown)
+            return (decision != .pass, !actions.isEmpty || engine.deadline != deadline)
         }
 
         mutating func drain(at time: TimeInterval) -> Snapshot {
             _ = consume(.tick, at: time)
             defer { actions = [] }
-            return Snapshot(
-                notice: notice, actions: actions, deadline: engine.deadline, progress: engine.holdProgress(at: time))
+            return Snapshot(actions: actions, deadline: engine.deadline)
         }
     }
 
@@ -60,7 +54,6 @@ final class QuitProtectionModule: NotchcastModule {
     private var generation = UUID()
     private var observers: [NotificationToken] = []
     private var ticker: Task<Void, Never>?
-    private var shownNotice: QuitProtectionEngine.Notice?
 
     init(context: NotchcastContext, system: QuitProtectionSystem) {
         self.context = context
@@ -135,7 +128,6 @@ final class QuitProtectionModule: NotchcastModule {
         subscription = nil
         observers = []
         session.value.withLock { $0 = Session() }
-        show(nil, progress: nil)
     }
 
     private nonisolated static func modifiers(_ flags: CGEventFlags) -> QuitProtectionEngine.Modifiers {
@@ -165,7 +157,6 @@ final class QuitProtectionModule: NotchcastModule {
     private func resetSession() {
         session.value.withLock { session in
             session.engine.reset()
-            session.notice = nil
             session.actions = []
         }
         refreshTarget()
@@ -176,7 +167,6 @@ final class QuitProtectionModule: NotchcastModule {
         guard generation == self.generation else { return }
         let now = system.uptime()
         let snapshot = session.value.withLock { $0.drain(at: now) }
-        show(snapshot.notice, progress: snapshot.progress)
         for action in snapshot.actions { perform(action) }
         if snapshot.deadline == nil {
             ticker?.cancel()
@@ -190,29 +180,6 @@ final class QuitProtectionModule: NotchcastModule {
                 }
             }
         }
-    }
-
-    private func show(_ notice: QuitProtectionEngine.Notice?, progress: Double?) {
-        if notice != shownNotice {
-            if shownNotice != nil, notice == nil { context.presenter.end(notice: Self.noticeID) }
-            shownNotice = notice
-            if let notice {
-                // A progress value keeps the notice up until the engine ends it, in either mode.
-                let posted = IslandNotice(
-                    id: Self.noticeID, symbol: Self.symbol(notice), text: notice.text, progress: progress ?? 0)
-                context.presenter.post(posted, onTap: nil)
-            }
-        }
-        if let notice, let progress {
-            context.presenter.showLevel(IslandLevel(
-                source: Self.noticeID, symbol: Self.symbol(notice), label: notice.text, value: progress))
-        }
-    }
-
-    private static let noticeID = "quitProtection"
-
-    private static func symbol(_ notice: QuitProtectionEngine.Notice) -> String {
-        notice.shortcut == .quit ? "power" : "xmark.square"
     }
 
     private func perform(_ action: Action) {
