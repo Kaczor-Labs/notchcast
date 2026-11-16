@@ -74,7 +74,7 @@ enum AwakeNoticeAddon: NotchcastAddon {
     static let switches = [NotchcastSwitch(id: "awakeNotice", title: "Awake", subtitle: "", category: .notices)]
     static let commands = [
         NotchcastCommand(slug: "awake-notice", name: "Awake", symbol: "circle", switchID: "awakeNotice") { context in
-            context.presenter.post(IslandNotice(id: "keepAwake", text: "Keeping Your Mac Awake"), onTap: nil)
+            context.presenter.post(IslandNotice(id: "awakeNotice", text: "Keeping Your Mac Awake"), onTap: nil)
         },
     ]
 }
