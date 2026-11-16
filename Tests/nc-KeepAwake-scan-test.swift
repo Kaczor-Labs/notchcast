@@ -32,6 +32,7 @@ enum KeepAwakeScanTests: KeepAwakeHarness {
         recoveryWaitsForPreExecChild()
         await recoveryStaysDirtyOnUnreadableProcess()
         await recoveryStaysDirtyWhenAParentVanishesMidScan()
+        await recoveryStaysDirtyWhenEveryPassVanishes()
         print("nc-KeepAwake-scan-test: all checks passed")
     }
 
@@ -165,40 +166,57 @@ enum KeepAwakeScanTests: KeepAwakeHarness {
         private let lock = NSLock()
         private var count = 0
         func next() -> Int { lock.withLock { count += 1; return count } }
+        var value: Int { lock.withLock { count } }
     }
 
     /// An old helper descendant forks after the table is listed, then vanishes before it is read:
-    /// its child was never listed, so no read-back may clear the journal before the child can write.
+    /// the next pass must list the orphaned child, or its late disablesleep 1 outlives the journal.
     static func recoveryStaysDirtyWhenAParentVanishesMidScan() async {
-        let pid: Int32 = 4343
-        let old = KeepAwakeProcessLookup.Info(id: .init(pid: pid, started: 1), parent: 1, zombie: false)
+        let (parent, child): (Int32, Int32) = (4343, 4344)
+        let old = KeepAwakeProcessLookup.Info(id: .init(pid: parent, started: 1), parent: 1, zombie: false)
+        let orphan = KeepAwakeProcessLookup.Info(id: .init(pid: child, started: 9), parent: 1, zombie: false)
+        let helperPath = FakeProcesses.helperPath
         for vanishesAt in [1, 2] {
             machine.sleepDisabled = true
             let (lists, infos) = (Reads(), Reads())
-            let helperPath = FakeProcesses.helperPath
             let lookup = KeepAwakeProcessLookup(
-                pids: { lists.next() == 1 ? [pid] : [] },
-                info: { _ in infos.next() < vanishesAt ? old : nil },
-                path: { _ in helperPath })
+                pids: { lists.next() == 1 ? [parent] : [child] },
+                info: { pid in
+                    if pid == child { return orphan }
+                    guard pid == parent else { return nil }
+                    return lists.value == 1 && infos.next() == vanishesAt ? nil : old
+                },
+                path: { $0 == child ? KeepAwakeStrays.sudo : helperPath })
             let processes = KeepAwakeLiveProcesses(helperPath: helperPath, lookup: lookup)
             let rig = RecoveryRig(dirty(), processes: processes)
             rig.helper.reply()
-            for _ in 0..<200 where rig.scheduler.delay == nil {
+            for _ in 0..<200 where rig.journal.journal != nil && rig.helper.sent.count < 2 {
                 try? await Task.sleep(for: .milliseconds(10))
             }
             precondition(!machine.sleepDisabled, "the undo landed and the setting reads off")
-            precondition(rig.journal.journal != nil, "read \(vanishesAt): a vanished parent keeps the journal dirty")
-            precondition(rig.scheduler.delay != nil, "and the undo retries on the backoff")
+            precondition(
+                rig.journal.journal != nil && rig.helper.sent.count == 2,
+                "read \(vanishesAt): the orphaned child is found, so the undo runs again")
             machine.land(.batterySleepOff)
-            advance(minutes: 2)
-            rig.scheduler.run()
-            rig.helper.reply()
-            for _ in 0..<200 where rig.journal.journal != nil && rig.scheduler.delay == nil {
-                try? await Task.sleep(for: .milliseconds(10))
-            }
-            precondition(!machine.sleepDisabled, "the child's late disablesleep 1 is undone")
-            precondition(rig.journal.journal == nil, "a scan that sees the whole table then clears")
+            for _ in 0..<20 { await Task.yield() }
+            precondition(rig.journal.journal != nil, "its late disablesleep 1 finds the journal dirty")
             rig.recovery.stop()
         }
+    }
+
+    /// Every pass losing a process is a scan nobody can trust: it fails and the undo retries.
+    static func recoveryStaysDirtyWhenEveryPassVanishes() async {
+        let alive = KeepAwakeProcessLookup.Info(id: .init(pid: 4545, started: 1), parent: 1, zombie: false)
+        let reads = Reads()
+        let lookup = KeepAwakeProcessLookup(
+            pids: { [4545] }, info: { _ in reads.next() % 2 == 1 ? alive : nil }, path: { _ in "" })
+        let processes = KeepAwakeLiveProcesses(helperPath: FakeProcesses.helperPath, lookup: lookup)
+        let rig = RecoveryRig(dirty(), processes: processes)
+        rig.helper.reply()
+        for _ in 0..<200 where rig.scheduler.delay == nil {
+            try? await Task.sleep(for: .milliseconds(10))
+        }
+        precondition(rig.journal.journal != nil && rig.scheduler.delay != nil, "five lossy passes fail the scan")
+        rig.recovery.stop()
     }
 }

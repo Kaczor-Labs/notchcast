@@ -1,7 +1,7 @@
 import Darwin
 import Foundation
 
-/// The reads the scan makes; any failure, a process vanishing included, fails the whole scan.
+/// The reads the scan makes; any failure fails the pass, and a process vanishing repeats it.
 struct KeepAwakeProcessLookup: Sendable {
     struct Info: Sendable, Equatable {
         var id: KeepAwakeHelperID
@@ -71,17 +71,28 @@ final class KeepAwakeLiveProcesses: KeepAwakeProcesses {
         }
     }
 
-    /// A process that vanishes while read may have forked a child no pass saw, so it fails the scan.
+    /// A pass is trusted only if every listed process was read: a vanished one may have forked a child.
     @concurrent
     nonisolated static func table(_ lookup: KeepAwakeProcessLookup) async -> [KeepAwakeProcess]? {
-        try? lookup.pids().compactMap { pid in
-            let vanished = KeepAwakeProcessLookup.Unreadable(code: ESRCH)
-            guard let before = try lookup.info(pid) else { throw vanished }
+        for _ in 0..<passes {
+            do { return try pass(lookup) } catch is Vanished { continue } catch { return nil }
+        }
+        return nil
+    }
+
+    /// An orphaned child is listed in the next pass, so passes repeat until one loses nothing.
+    nonisolated private static let passes = 5
+
+    private struct Vanished: Error {}
+
+    nonisolated private static func pass(_ lookup: KeepAwakeProcessLookup) throws -> [KeepAwakeProcess] {
+        try lookup.pids().compactMap { pid in
+            guard let before = try lookup.info(pid) else { throw Vanished() }
             if before.zombie { return nil }
             let path = try lookup.path(pid)
-            guard let after = try lookup.info(pid) else { throw vanished }
+            guard let after = try lookup.info(pid) else { throw Vanished() }
             if after.zombie { return nil }
-            guard after.id == before.id, let path else { throw vanished }
+            guard after.id == before.id, let path else { throw Vanished() }
             return KeepAwakeProcess(id: after.id, parent: after.parent, executable: path)
         }
     }
