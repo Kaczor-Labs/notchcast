@@ -55,6 +55,7 @@ enum IslandProfileScenes {
         await IslandVerification.pause(0.6)
         beside("notice")
         controller.capture("notch-notice")
+        await IslandVerification.pause(0.2)
         presenter.end(notice: "notch")
         await IslandVerification.pause(0.5)
 
