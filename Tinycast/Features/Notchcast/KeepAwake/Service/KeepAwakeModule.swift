@@ -227,7 +227,9 @@ final class KeepAwakeModule: NotchcastModule {
             guard verb == undo else { return scheduleNext() }
         }
         inFlight = (verb, operation)
-        helpers.send(verb, sleepWanted: { [self] in plannedVerb != undo }, exited: helperExited) { [self] result in helperReplied(verb, operation, result) }
+        helpers.send(verb, sleepWanted: { [self] in plannedVerb != undo }, exited: helperExited) { [self] result in
+            helperReplied(verb, operation, result)
+        }
     }
 
     /// An earlier run's helper may still land its verb, so the journal stays dirty until it exits.
