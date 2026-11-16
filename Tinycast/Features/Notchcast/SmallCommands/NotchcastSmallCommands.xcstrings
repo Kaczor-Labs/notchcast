@@ -1,0 +1,30 @@
+{
+  "sourceLanguage" : "en",
+  "strings" : {
+    "AirDrop Selected Files" : {},
+    "AirDrop is unavailable." : {},
+    "AirDrop was cancelled." : {},
+    "Allow Accessibility access to switch noise control." : {},
+    "Allow Automation access to read the Finder selection." : {},
+    "Allow Automation access to read the browser's address." : {},
+    "Control Center is not running." : {},
+    "Could not copy to the clipboard." : {},
+    "Done" : {},
+    "Generate Password" : {},
+    "No AirPods with noise control found." : {},
+    "No link in the clipboard or the browser." : {},
+    "Noise control did not change." : {},
+    "Password Copied" : {},
+    "Passwords, short links, noise control and AirDrop. Noise control requires English system language." : {},
+    "Select files in Finder first." : {},
+    "Short Link Copied from Browser" : {},
+    "Short Link Copied from Clipboard" : {},
+    "Shorten Link" : {},
+    "Small Commands" : {},
+    "Switch Noise Control" : {},
+    "The app did not respond in time." : {},
+    "TinyURL did not return a short link." : {},
+    "Unavailable" : {}
+  },
+  "version" : "1.0"
+}
