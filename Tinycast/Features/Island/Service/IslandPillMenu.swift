@@ -13,8 +13,10 @@ final class IslandPillMenu: NSObject {
     private var corner: MenuPanelCorner?
     /// The stock controller reuses one panel, and AppKit drops `.none` once the panel has had it.
     private var panelHidden = false
+    private var panelReshown = false
     var sharingType: NSWindow.SharingType = .readOnly {
         didSet {
+            if observedPanel != nil, panelHidden, sharingType == .readOnly { panelReshown = true }
             observedPanel?.sharingType = sharingType
             if observedPanel != nil, sharingType == .none { panelHidden = true }
             renewHiddenPanel()
@@ -74,6 +76,7 @@ final class IslandPillMenu: NSObject {
         guard panelHidden, !isObservingResign else { return }
         menu = MenuPanelController()
         panelHidden = false
+        panelReshown = false
     }
 
     /// The stock panel hides the palette when its parent is not key, and the island never is.
@@ -90,6 +93,8 @@ final class IslandPillMenu: NSObject {
     @objc private func panelResignedKey() { hide() }
 
     var isObservingResign: Bool { observedPanel != nil }
+    /// The open panel was shown again after `.none`, which no longer lands on it.
+    var leaksCapture: Bool { isObservingResign && panelReshown && sharingType == .none }
 
     #if DEBUG
     /// `owner/id` of the add-on row under the cursor.

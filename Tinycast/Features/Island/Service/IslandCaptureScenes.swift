@@ -25,7 +25,14 @@ enum IslandCaptureScenes {
         requireSharing(.none, menu: hiddenMenu, "menu reopened while off")
         await turn(core, true)
         requireSharing(.readOnly, menu: hiddenMenu, "turned back on with the menu open")
-        await closeMenu(hiddenMenu)
+        let reshownOpen = Set(islandWindows().map(\.windowNumber))
+        await turn(core, false)
+        await IslandVerification.pause(0.4)
+        IslandVerification.require(IslandPillScenes.menuPanel == nil, "turning off again closes the reshown open menu")
+        requireReplaced(reshownOpen, "turned off again with the menu open")
+        requireSharing(.none, menu: nil, "turned off again with the menu open")
+        await turn(core, true)
+        requireSharing(.readOnly, menu: nil, "turned on after the menu closed")
         guard let shownMenu = await openMenu(core, "on") else { return }
         requireSharing(.readOnly, menu: shownMenu, "menu reopened while on")
         print("CAPTURE_STATE on")
@@ -34,9 +41,7 @@ enum IslandCaptureScenes {
         let reshown = Set(islandWindows().map(\.windowNumber))
         weak let replaced = core.island.resting
         await turn(core, false)
-        let renewed = Set(islandWindows().map(\.windowNumber))
-        print("RENEWED reshown=\(reshown.sorted()) now=\(renewed.sorted())")
-        IslandVerification.require(renewed.isDisjoint(with: reshown), "turning off again replaces each reshown window")
+        requireReplaced(reshown, "turned off again")
         IslandVerification.require(replaced == nil, "the replaced pill is released")
         requireSharing(.none, menu: nil, "turned off again")
         guard let again = await openMenu(core, "off again") else { return }
@@ -67,6 +72,12 @@ enum IslandCaptureScenes {
     private static func closeMenu(_ menu: MenuPanel) async {
         IslandLatency.key(menu, code: 53, characters: "\u{1b}")
         await IslandVerification.pause(0.5)
+    }
+
+    private static func requireReplaced(_ reshown: Set<Int>, _ label: String) {
+        let renewed = Set(islandWindows().map(\.windowNumber))
+        print("RENEWED \(label) reshown=\(reshown.sorted()) now=\(renewed.sorted())")
+        IslandVerification.require(renewed.isDisjoint(with: reshown), "\(label): each reshown window is replaced")
     }
 
     private static func islandWindows() -> [NSWindow] {

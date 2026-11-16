@@ -89,14 +89,17 @@ final class IslandCoordinator: NSObject {
         guard let controller = backdrops[id] else { return }
         if active === controller { controller.detach(); active = nil }
         (core.islandPresenter as? IslandPresenter)?.restore(controller, resting: false)
-        reshown.remove(ObjectIdentifier(controller.backdropWindow))
+        reshown.remove(ObjectIdentifier(controller))
         backdrops[id] = nil
     }
 
     /// Every island window and the pill menu follow "Show in screenshots and videos" live.
     func applyCaptureSharing() {
         let stuck = shareCaptures()
-        guard !stuck.isEmpty, panel?.isVisible != true, !pillMenu.isObservingResign else { return }
+        // Closing the menu re-enters here; closing the launcher does through `observeVisibility`.
+        if pillMenu.leaksCapture || (!stuck.isEmpty && pillMenu.isObservingResign) { return pillMenu.hide() }
+        guard !stuck.isEmpty else { return }
+        if core.palette.isVisible { return core.paletteCoordinator.hidePalette(restoreFocus: false) }
         for id in stuck { dropBackdrop(id) }
         rebuild()
     }
@@ -106,12 +109,11 @@ final class IslandCoordinator: NSObject {
         let sharing: NSWindow.SharingType = core.settings.islandShowsInCaptures ? .readOnly : .none
         pillMenu.sharingType = sharing
         for controller in backdrops.values {
-            let window = controller.backdropWindow
-            if sharing == .readOnly, window.sharingType == .none { reshown.insert(ObjectIdentifier(window)) }
-            window.sharingType = sharing
+            if sharing == .readOnly, controller.sharingType == .none { reshown.insert(ObjectIdentifier(controller)) }
+            controller.sharingType = sharing
         }
         guard sharing == .none else { return [] }
-        return backdrops.filter { reshown.contains(ObjectIdentifier($0.value.backdropWindow)) }.map(\.key)
+        return backdrops.filter { reshown.contains(ObjectIdentifier($0.value)) }.map(\.key)
     }
 
     @objc func spaceChanged() {
