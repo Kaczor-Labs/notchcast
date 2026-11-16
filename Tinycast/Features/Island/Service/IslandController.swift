@@ -111,20 +111,14 @@ final class IslandController: NSObject {
         closed()
     }
 
-    private func makeLayout(_ screen: NSScreen) -> IslandLayout {
-        IslandLayout(screen: screen.frame, notch: Self.notch(on: screen), canvas: NotchTheme.Size.islandHost,
-                     position: position, menuBar: screen.frame.maxY - screen.visibleFrame.maxY,
-                     pill: NotchTheme.Size.islandRest.height)
-    }
-
     /// A full-screen Space hides the menu bar without a screen-parameters change, so re-read it.
     func refreshMenuBar(_ screen: NSScreen) {
-        guard let layout, makeLayout(screen).top != layout.top else { return }
+        guard let layout, IslandLayout(screen, position: position).top != layout.top else { return }
         configure(screen)
     }
 
     func configure(_ screen: NSScreen) {
-        let next = makeLayout(screen)
+        let next = IslandLayout(screen, position: position)
         let requested = IslandSurfaceConfiguration(notch: next.notch, top: next.top, scale: screen.backingScaleFactor)
         let update = requested.update(from: configuration, paletteVisible: panel?.isVisible == true,
                                       hasOverlays: !overlays.isEmpty)
@@ -188,15 +182,6 @@ final class IslandController: NSObject {
         surfaceMetrics = metrics
         source.display.host = canvas
         frameChanged()
-    }
-
-    static func notch(on screen: NSScreen) -> CGSize {
-        #if DEBUG
-        if let simulatedNotch { return simulatedNotch }
-        #endif
-        guard screen.safeAreaInsets.top > 0, let left = screen.auxiliaryTopLeftArea,
-              let right = screen.auxiliaryTopRightArea else { return .zero }
-        return CGSize(width: screen.frame.width - left.width - right.width, height: screen.safeAreaInsets.top)
     }
 
     @objc func frameChanged() {
