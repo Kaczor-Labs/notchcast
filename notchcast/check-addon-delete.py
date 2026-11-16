@@ -9,6 +9,7 @@ in the run-tests log, so a harness the runner skipped cannot pass as clean.
 Prints PASS per folder, or FAIL with the step and its log. A failure the deletion caused is a contract breach
 (exit 1); one the tools caused (clone, xcodegen, timeout, a build that stopped without a Swift error) is a
 tooling failure (exit 2). Standalone: ready-check does not run it.
+With NOTCHCAST_BUILD_QUEUE set (notchcast/README.md, "Private hooks") the whole run holds one build-queue slot.
 Usage: check-addon-delete.py (<Folder> | --rotate | --all) [--ref HEAD]
 """
 import argparse
@@ -135,11 +136,12 @@ def check(repo, sha, folder, scratch):
     delete_folder(tree, folder)
     tmp = scratch / f'{folder}-tmp'
     tmp.mkdir()
-    env = dict(os.environ, TMPDIR=str(tmp))
+    jobs = os.environ.get('CHAD_BUILD_QUEUE_JOBS', '4')
+    env = dict(os.environ, TMPDIR=str(tmp), TINYCAST_TEST_JOBS=jobs)
     xcodegen = os.environ.get('XCODEGEN') or shutil.which('xcodegen') or 'xcodegen'
     step('xcodegen', [xcodegen, 'generate', '--quiet'], tree, pathlib.Path(f'{log_prefix}-xcodegen.log'), env)
     step('build', ['xcodebuild', '-project', 'Tinycast.xcodeproj', '-scheme', 'Tinycast', '-configuration', 'Debug',
-                   '-jobs', os.environ.get('CHAD_BUILD_QUEUE_JOBS', '4'), '-derivedDataPath', str(tmp / 'dd'),
+                   '-jobs', jobs, '-derivedDataPath', str(tmp / 'dd'),
                    'CODE_SIGNING_ALLOWED=NO', 'build', '-quiet'], tree, pathlib.Path(f'{log_prefix}-build.log'), env)
     harnesses = fork_harnesses(tree, env)
     log = pathlib.Path(f'{log_prefix}-run-tests.log')
@@ -168,6 +170,14 @@ def main():
         print(f"no add-on folder {args.folder} at {sha[:12]} (folders: {', '.join(folders)})", file=sys.stderr)
         return 2
     picked = folders if args.all else [rotate_pick(folders, sha)] if args.rotate else [args.folder]
+    queue = os.environ.get('NOTCHCAST_BUILD_QUEUE', '').split()
+    if queue and not os.environ.get('CHAD_BUILD_QUEUE_SLOT'):
+        # The resolved sha on the command line keys the queue's green-run reuse to the commit checked.
+        code = subprocess.run([*queue, 'hold', '--', sys.executable, *sys.argv, '--ref', sha]).returncode
+        if code in (0, 1, 2):
+            return code
+        print(f'FAIL delete at {sha[:12]}: tooling failure, not a contract breach: build queue exited {code}')
+        return 2
     LOGS.mkdir(parents=True, exist_ok=True)
     status = 0
     # Debug builds embed absolute source paths, so build outside the home as ready-check does.

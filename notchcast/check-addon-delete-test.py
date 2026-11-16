@@ -1,13 +1,16 @@
 #!/usr/bin/env python3
 """check-addon-delete.py without a build: rotation, the deletion itself, and breach versus tooling."""
 import importlib.util
+import os
 from pathlib import Path
+import subprocess
 import sys
 import tempfile
 import unittest
 
 sys.dont_write_bytecode = True
-SPEC = importlib.util.spec_from_file_location('delete', Path(__file__).resolve().parent / 'check-addon-delete.py')
+SCRIPT = Path(__file__).resolve().parent / 'check-addon-delete.py'
+SPEC = importlib.util.spec_from_file_location('delete', SCRIPT)
 delete = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(delete)
 NC = 'Tinycast/Features/Notchcast/'
@@ -90,6 +93,66 @@ class DeleteTest(unittest.TestCase):
         write(self.tree, 'notchcast/harness_inputs.py', 'import sys\nsys.exit("bad kit")\n')
         with self.assertRaisesRegex(delete.Tooling, 'harness_inputs.py failed: bad kit'):
             delete.fork_harnesses(self.tree, None)
+
+
+FAKE_QUEUE = '''import os, subprocess, sys
+with open(os.environ["QUEUE_CALLS"], "a") as calls:
+    calls.write(" ".join(sys.argv[1:]) + "\\n")
+if os.environ.get("CHAD_BUILD_QUEUE_SLOT") or os.environ.get("FAKE_QUEUE_EXIT"):
+    sys.exit(int(os.environ.get("FAKE_QUEUE_EXIT", 99)))
+sys.exit(subprocess.run(sys.argv[3:], env=dict(os.environ, CHAD_BUILD_QUEUE_SLOT="1")).returncode)
+'''
+
+
+class QueueTest(unittest.TestCase):
+    """A real run that fails right after the clone: Shots is a breach (no registry line), Empty is tooling."""
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        root = Path(self.tmp.name)
+        self.repo = root / 'repo'
+        write(self.repo, NC + 'NotchcastRegistry.swift', 'static let addons = [\n]\n')
+        write(self.repo, NC + 'Shots/ShotsAddon.swift', 'struct ShotsAddon: NotchcastAddon {}\n')
+        write(self.repo, NC + 'Empty/Notes.swift', 'struct Notes {}\n')
+        git_env = dict(os.environ, GIT_AUTHOR_NAME='t', GIT_AUTHOR_EMAIL='t@t', GIT_COMMITTER_NAME='t',
+                       GIT_COMMITTER_EMAIL='t@t')
+        for command in (['init', '-q'], ['add', '.'], ['commit', '-qm', 'fixture']):
+            subprocess.run(['git', *command], cwd=self.repo, env=git_env, check=True)
+        self.sha = subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=self.repo, text=True).strip()
+        write(root, 'queue.py', FAKE_QUEUE)
+        (root / 'home').mkdir()
+        self.calls = root / 'calls'
+        self.calls.touch()
+        self.env = {k: v for k, v in os.environ.items() if not k.startswith(('NOTCHCAST_', 'CHAD_BUILD_QUEUE'))}
+        self.env.update(HOME=str(root / 'home'), QUEUE_CALLS=str(self.calls), NOTCHCAST_DELETE_SCRATCH=str(root),
+                        NOTCHCAST_BUILD_QUEUE=f'{sys.executable} {root / "queue.py"}')
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    def run_delete(self, folder, **env):
+        return subprocess.run([sys.executable, str(SCRIPT), folder], cwd=self.repo, env={**self.env, **env},
+                              capture_output=True, text=True)
+
+    def calls_made(self):
+        return self.calls.read_text().splitlines()
+
+    def test_one_hold_wraps_the_whole_run_and_passes_its_exit_through(self):
+        for folder, code in (('Shots', 1), ('Empty', 2)):
+            self.calls.write_text('')
+            result = self.run_delete(folder)
+            self.assertEqual(result.returncode, code, result.stdout + result.stderr)
+            self.assertEqual(self.calls_made(), [f'hold -- {sys.executable} {SCRIPT} {folder} --ref {self.sha}'])
+
+    def test_inside_a_slot_or_without_the_hook_it_runs_directly(self):
+        self.assertEqual(self.run_delete('Shots', CHAD_BUILD_QUEUE_SLOT='2').returncode, 1)
+        self.assertEqual(self.run_delete('Shots', NOTCHCAST_BUILD_QUEUE='').returncode, 1)
+        self.assertEqual(self.calls_made(), [])
+
+    def test_a_queue_refusal_is_tooling_not_a_breach(self):
+        result = self.run_delete('Shots', FAKE_QUEUE_EXIT='3')
+        self.assertEqual(result.returncode, 2)
+        self.assertIn('tooling failure, not a contract breach: build queue exited 3', result.stdout)
 
 
 if __name__ == '__main__':
