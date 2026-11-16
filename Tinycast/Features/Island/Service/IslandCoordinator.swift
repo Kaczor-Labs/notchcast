@@ -8,6 +8,8 @@ final class IslandCoordinator: NSObject {
     private unowned let core: AppCore
     private var backdrops: [CGDirectDisplayID: IslandController] = [:]
     private(set) var active: IslandController?
+    /// Windows shown again after `.none`: AppKit then drops `.none`, though `.readOnly` still lands.
+    private var reshown = Set<ObjectIdentifier>()
     private weak var panel: PalettePanel?
     private var spaceCheck: Task<Void, Never>?
     private var started = false
@@ -34,6 +36,7 @@ final class IslandCoordinator: NSObject {
         }
         rebuild()
         observeVisibility()
+        observeCaptureSharing()
         glance.start()
         update.start()
     }
@@ -59,11 +62,7 @@ final class IslandCoordinator: NSObject {
         let presenter = core.islandPresenter as? IslandPresenter
         let available = screens
         let connected = Set(available.map(\.islandDisplayID))
-        for (id, controller) in backdrops where !connected.contains(id) {
-            if active === controller { controller.detach(); active = nil }
-            presenter?.restore(controller, resting: false)
-            backdrops[id] = nil
-        }
+        for id in backdrops.keys where !connected.contains(id) { dropBackdrop(id) }
         let main = available.first(where: { $0.islandDisplayID == NSScreen.primary?.islandDisplayID }) ?? available.first
         for screen in available {
             let backdrop = backdrops[screen.islandDisplayID] ?? IslandController()
@@ -79,10 +78,42 @@ final class IslandCoordinator: NSObject {
             backdrop.configure(screen)
             backdrops[screen.islandDisplayID] = backdrop
         }
+        shareCaptures()
         overlays.reposition()
         presenter?.restingChanged()
         if restingGlance != nil { syncExpansion() }
         spaceChanged()
+    }
+
+    private func dropBackdrop(_ id: CGDirectDisplayID) {
+        guard let controller = backdrops[id] else { return }
+        if active === controller { controller.detach(); active = nil }
+        (core.islandPresenter as? IslandPresenter)?.restore(controller, resting: false)
+        reshown.remove(ObjectIdentifier(controller))
+        backdrops[id] = nil
+    }
+
+    /// Every island window and the pill menu follow "Show in screenshots and videos" live.
+    func applyCaptureSharing() {
+        let stuck = shareCaptures()
+        // Closing the menu re-enters here; closing the launcher does through `observeVisibility`.
+        if pillMenu.leaksCapture || (!stuck.isEmpty && pillMenu.isObservingResign) { return pillMenu.hide() }
+        guard !stuck.isEmpty else { return }
+        if core.palette.isVisible { return core.paletteCoordinator.hidePalette(restoreFocus: false) }
+        for id in stuck { dropBackdrop(id) }
+        rebuild()
+    }
+
+    /// Returns the displays whose window can't be hidden in place and must be replaced.
+    @discardableResult private func shareCaptures() -> [CGDirectDisplayID] {
+        let sharing: NSWindow.SharingType = core.settings.islandShowsInCaptures ? .readOnly : .none
+        pillMenu.sharingType = sharing
+        for controller in backdrops.values {
+            if sharing == .readOnly, controller.sharingType == .none { reshown.insert(ObjectIdentifier(controller)) }
+            controller.sharingType = sharing
+        }
+        guard sharing == .none else { return [] }
+        return backdrops.filter { reshown.contains(ObjectIdentifier($0.value)) }.map(\.key)
     }
 
     @objc func spaceChanged() {
@@ -227,6 +258,18 @@ final class IslandCoordinator: NSObject {
         for controller in backdrops.values { controller.frameChanged() }
     }
 
+    private func observeCaptureSharing() {
+        withObservationTracking {
+            _ = core.settings.islandShowsInCaptures
+        } onChange: { [weak self] in
+            Task { @MainActor in
+                guard let self else { return }
+                self.observeCaptureSharing()
+                self.applyCaptureSharing()
+            }
+        }
+    }
+
     private func observeVisibility() {
         withObservationTracking {
             _ = core.palette.isVisible
@@ -236,6 +279,7 @@ final class IslandCoordinator: NSObject {
                 guard let self else { return }
                 self.observeVisibility()
                 if self.core.palette.isVisible { self.active?.opened() } else { self.active?.closed() }
+                if !self.core.palette.isVisible { self.applyCaptureSharing() }
             }
         }
     }
