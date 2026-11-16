@@ -59,20 +59,14 @@ extension ScreenshotSystem {
     private static func freezeWindows(_ ids: [UInt32]) async throws -> [UInt32: CGImage] {
         let wanted = Set(ids)
         let content = try await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: true)
-        return try await withThrowingTaskGroup(of: (UInt32, CGImage?).self) { group in
-            for window in content.windows where wanted.contains(window.windowID) {
-                let filter = SCContentFilter(desktopIndependentWindow: window)
-                group.addTask {
-                    let output = try? await SCScreenshotManager.captureScreenshot(
-                        contentFilter: filter, configuration: configuration)
-                    return (window.windowID, output?.sdrImage)
-                }
-            }
-            var images: [UInt32: CGImage] = [:]
-            for try await (id, image) in group { images[id] = image }
+        var images: [UInt32: CGImage] = [:]
+        for window in content.windows where wanted.contains(window.windowID) {
             try Task.checkCancellation()
-            return images
+            let output = try? await SCScreenshotManager.captureScreenshot(
+                contentFilter: SCContentFilter(desktopIndependentWindow: window), configuration: configuration)
+            images[window.windowID] = output?.sdrImage
         }
+        return images
     }
 
     private static func windowsFrontToBack() -> [ScreenshotWindow] {
