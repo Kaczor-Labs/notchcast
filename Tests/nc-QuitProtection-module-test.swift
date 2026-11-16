@@ -75,7 +75,7 @@ final class FakePresenter: IslandPresenting {
     func showLevel(_ level: IslandLevel) { levels.append(level) }
     func post(_ notice: IslandNotice, onTap: (@MainActor () -> Void)?) { posts.append(notice); isShowing = true }
     func end(notice id: String) { ends.append(id); isShowing = false }
-    func setStatus(_ status: IslandStatus?, for id: String) {}
+    func setStatus(_ status: IslandStatus?, for id: String, onTap: (@MainActor () -> Void)?) {}
     func setMenuRows(_ rows: [IslandMenuRow], owner: String, onSelect: @escaping @MainActor (String) -> Void) {}
 }
 
