@@ -4,7 +4,7 @@
 # The sync decides everything else (ci.py plan); a start that finds nothing to do costs one Linux minute.
 # Where ~/.config/notchcast/private.env defines notchcast_notify (notchcast/README.md, "Private hooks"), it is told
 # once when this trigger fails, and once per upstream commit that is not in our main after LAG_ALERT_MIN while no
-# sync issue explains it.
+# sync issue or rebase hold (open PRs, 12 h) explains it.
 # Usage: kick.sh [--dry-run]
 set -euo pipefail
 export PATH="/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:$HOME/.local/bin"
@@ -71,5 +71,12 @@ age_min=$(( (now - $(date -j -u -f '%Y-%m-%dT%H:%M:%SZ' "$committed" +%s)) / 60 
 [ "$age_min" -lt "$LAG_ALERT_MIN" ] && exit 0
 open="$(gh issue list -R "$FORK_REPO" --state open --label notchcast-sync --json number --jq length 2>&1)" || fail "issues: $open"
 [ "$open" = 0 ] || exit 0
+moved="$(gh api "repos/$FORK_REPO/compare/main...${UPSTREAM_REPO%%/*}:main" --jq '.commits[0].commit.committer.date' 2>&1)" || fail "first upstream commit: $moved"
+prs="$(gh pr list -R "$FORK_REPO" --base main --state open --limit 1000 --json number,isDraft,isCrossRepository 2>&1)" || fail "open PRs: $prs"
+moved_at="$(date -j -u -f '%Y-%m-%dT%H:%M:%SZ' "$moved" +%s)"
+if printf '%s' "$prs" | python3 "$HERE/ci.py" hold "$moved_at" >/dev/null; then
+    log "main is $behind behind upstream ${upstream_main:0:8}: Sync holds the rebase while PRs are open"
+    exit 0
+fi
 log "main is $behind behind upstream ${upstream_main:0:8}, committed $age_min min ago, and no notchcast-sync issue is open"
 alert_once "lag-$upstream_main" "upstream ${upstream_main:0:8} is not in our main $age_min min after it was committed, and no sync issue explains it. https://github.com/$FORK_REPO/actions/workflows/sync.yml"
