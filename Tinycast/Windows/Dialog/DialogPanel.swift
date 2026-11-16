@@ -36,7 +36,7 @@ final class DialogPanel: NSPanel, AnimatedPanel {
         titlebarAppearsTransparent = true
         isOpaque = false
         backgroundColor = .clear
-        hasShadow = true
+        hasShadow = false
         followMotion()
         isReleasedWhenClosed = false
         content.wantsLayer = true

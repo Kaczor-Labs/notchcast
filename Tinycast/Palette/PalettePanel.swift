@@ -270,7 +270,7 @@ final class PalettePanel: NSPanel, AnimatedPanel {
         titlebarAppearsTransparent = true
         isOpaque = false
         backgroundColor = .clear
-        hasShadow = true
+        hasShadow = false
         followMotion()
         isReleasedWhenClosed = false
 

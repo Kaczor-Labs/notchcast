@@ -18,7 +18,6 @@ final class IslandOverlayController: NSObject {
     func placeQuestion(_ panel: NSPanel) {
         question = entry(panel, screen: island.questionScreen)
         panel.level = IslandController.questionLevel
-        panel.hasShadow = false
         reposition()
     }
 
@@ -26,7 +25,6 @@ final class IslandOverlayController: NSObject {
         reports.removeAll { $0.panel === panel }
         reports.append(entry(panel, screen: screen))
         panel.level = IslandController.reportLevel
-        panel.hasShadow = false
         reposition()
     }
 

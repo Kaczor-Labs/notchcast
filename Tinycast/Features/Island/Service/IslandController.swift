@@ -87,7 +87,6 @@ final class IslandController: NSObject {
         self.panel = panel
         panel.contentView?.wantsLayer = true
         panel.contentView?.layer?.mask = clip
-        panel.hasShadow = false
         observer = PanelObserver(panel: panel, changed: { [weak self] in self?.frameChanged() })
         if layout == nil { configure(screen) }
         frameChanged()
