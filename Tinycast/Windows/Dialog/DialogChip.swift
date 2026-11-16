@@ -3,12 +3,14 @@ import SwiftUI
 /// Our own choice: a menu-style `Picker` drops an AppKit popover onto a vibrancy surface.
 struct DialogChip: View {
     @Environment(\.metrics) private var metrics
+    @Environment(\.paletteOnIsland) private var onIsland
     let title: String
     let selected: Bool
     let onTap: () -> Void
     @State private var hovered = false
 
     private var fill: Color {
+        if onIsland { return IslandButtonFill.neutral(selected: selected, hovered: hovered) }
         if selected { return Theme.Colors.selection }
         if hovered { return Theme.Colors.rowHover }
         return Theme.Colors.controlSurface

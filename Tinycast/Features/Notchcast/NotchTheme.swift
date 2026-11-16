@@ -36,3 +36,10 @@ enum NotchTheme {
         static let keyCapFill = Theme.Colors.ramp(dark: 0.14, light: 0.045)
     }
 }
+
+extension NotchTheme {
+    /// One dim for a disabled control; stock and island read it, so the value stays upstream's 0.45.
+    enum Opacity {
+        static let disabled = 0.45
+    }
+}
