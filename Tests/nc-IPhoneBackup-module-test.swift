@@ -59,7 +59,7 @@ extension IPhoneBackupSystem {
         },
         write: { write in
             fake.writes.append(write)
-            fake.capturedAtWrite.append(journalOnDisk().map { Policy.hasCapture(decoded($0)) } ?? false)
+            fake.capturedAtWrite.append(journalOnDisk().map { !decoded($0).isEmpty } ?? false)
             let fails = fake.failingWrites > 0
             fake.failingWrites -= fails ? 1 : 0
             // The live writer sets the value before its sync can fail, so a failure may still land.
@@ -268,7 +268,7 @@ enum IPhoneBackupModuleTests {
         precondition(fake.capturedAtWrite == [true], "the capture is on disk before the system write")
         precondition(rig.defaults.data(forKey: Policy.journalKey) == nil, "the capture lives in the file")
         precondition(store.isApplied && store.backupsOff, "the row reads backups off")
-        precondition(Policy.hasCapture(rig.journal), "the capture is saved")
+        precondition(!rig.journal.isEmpty, "the capture is saved")
         ask.setPresented(false)
         await drain()
         precondition(rig.isOn && fake.writes.count == 1, "the dismissal after accept declines nothing")
@@ -277,7 +277,7 @@ enum IPhoneBackupModuleTests {
         // Quitting stops the module with the switch on: backups stay off, the capture stays.
         rig.controller.stop()
         precondition(fake.writes.count == 1, "quitting writes nothing")
-        precondition(Policy.hasCapture(rig.journal), "quitting keeps the capture")
+        precondition(!rig.journal.isEmpty, "quitting keeps the capture")
         let kept = rig.suite
         rig = Rig(suite: kept)
         precondition(rig.isOn && rig.hasModule && fake.writes.count == 1, "relaunch keeps the switch, writes nothing")
@@ -379,7 +379,7 @@ enum IPhoneBackupModuleTests {
         rig.ask().accept()
         await drain()
         precondition(rig.isOn && rig.hasModule, "failed rollback: the switch stays on")
-        precondition(Policy.hasCapture(rig.journal), "failed rollback keeps the capture")
+        precondition(!rig.journal.isEmpty, "failed rollback keeps the capture")
         precondition(rig.presenter.posts.count == 1, "failed rollback is reported once")
         await rig.set(false)
         precondition(!rig.isOn && fake.value == .bool(false) && rig.journal.isEmpty, "switching off retries the rollback")
@@ -422,7 +422,7 @@ enum IPhoneBackupModuleTests {
         await rig.set(false)
         await drain()
         precondition(rig.isOn && rig.hasModule, "failed restore: the switch is back on, the row stays")
-        precondition(Policy.hasCapture(rig.journal), "failed restore keeps the capture")
+        precondition(!rig.journal.isEmpty, "failed restore keeps the capture")
         precondition(rig.presenter.posts.last?.isFailure == true, "failed restore is reported")
         precondition(fake.value == .bool(true) && !rig.ask().isPresented, "backups stay off, no new question")
         await rig.set(false)
@@ -450,7 +450,7 @@ enum IPhoneBackupModuleTests {
         fake.failingReadBacks = 1
         await rig.set(false)
         await drain()
-        precondition(rig.isOn && Policy.hasCapture(rig.journal), "transient read failure: switch back on, capture kept")
+        precondition(rig.isOn && !rig.journal.isEmpty, "transient read failure: switch back on, capture kept")
         precondition(!rig.defaults.bool(forKey: Policy.skipRestoreKey), "a transient failure sets no marker")
         precondition(rig.presenter.posts.count == 1, "transient read failure is reported once")
         await rig.set(false)
@@ -519,12 +519,12 @@ enum IPhoneBackupModuleTests {
             rig.controller.stop()
             let crashed = rig.suite
             UserDefaults(suiteName: crashed)!.set(false, forKey: IPhoneBackupAddon.switchID)
-            precondition(fake.value == .bool(true) && Policy.hasCapture(rig.journal), "crash: off with an unrestored capture")
+            precondition(fake.value == .bool(true) && !rig.journal.isEmpty, "crash: off with an unrestored capture")
             fake.failingReadBacks = transient ? 1 : 0
             rig = Rig(suite: crashed)
             if transient {
                 precondition(!rig.isOn && fake.value == .bool(true), "transient failure at launch: switch stays off")
-                precondition(rig.presenter.posts.count == 1 && Policy.hasCapture(rig.journal), "reported once, capture kept")
+                precondition(rig.presenter.posts.count == 1 && !rig.journal.isEmpty, "reported once, capture kept")
                 rig.controller.stop()
                 rig = Rig(suite: crashed)
             }

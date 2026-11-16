@@ -51,8 +51,6 @@ nonisolated enum IPhoneBackupPolicy {
 
     static func data(_ journal: Journal) throws -> Data { try JSONEncoder().encode(journal) }
 
-    static func hasCapture(_ journal: Journal) -> Bool { entry(journal) != nil }
-
     /// Applied means the system holds the value the capture wrote, whatever the journal says.
     static func isApplied(_ journal: Journal, current: Value?) -> Bool {
         entry(journal).map { current == $0.write.value } ?? false
