@@ -4,7 +4,7 @@ import Foundation
 struct IslandLiveState: Equatable, Sendable {
     enum Update: Equatable, Sendable {
         case none
-        case installing(text: String, progress: Double)
+        case installing(text: String, progress: Double?)
         case ready
         case failed
     }
@@ -29,7 +29,8 @@ struct IslandLiveState: Equatable, Sendable {
         case .none:
             break
         case .installing(let text, let progress):
-            notice = IslandNotice(id: Self.id, symbol: "arrow.down.circle", text: text, progress: progress)
+            notice = IslandNotice(id: Self.id, symbol: "arrow.down.circle", text: text,
+                                  progress: IslandProgress(fraction: progress, headline: false))
         case .ready:
             let text = String(localized: "Update ready")
             notice = IslandNotice(id: Self.id, symbol: "arrow.clockwise.circle", text: text)
