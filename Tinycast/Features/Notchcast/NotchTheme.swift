@@ -14,7 +14,15 @@ enum NotchTheme {
     }
 
     enum Typography {
-        @MainActor static let islandGlanceNSFont = NSFont.systemFont(ofSize: 12, weight: .medium)
+        /// `Theme.Typography.bar` with monospaced digits, so a same-length count keeps its width.
+        @MainActor static let islandGlanceNSFont: NSFont = {
+            let callout = NSFont.preferredFont(forTextStyle: .callout)
+            let weight: [NSFontDescriptor.TraitKey: Any] = [.weight: NSFont.Weight.medium]
+            let digits: [NSFontDescriptor.FeatureKey: Int] = [.typeIdentifier: kNumberSpacingType,
+                                                             .selectorIdentifier: kMonospacedNumbersSelector]
+            let medium = callout.fontDescriptor.addingAttributes([.traits: weight, .featureSettings: [digits]])
+            return NSFont(descriptor: medium, size: callout.pointSize) ?? callout
+        }()
     }
 
     enum Colors {

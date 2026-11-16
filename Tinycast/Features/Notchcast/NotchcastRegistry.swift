@@ -5,5 +5,8 @@ enum NotchcastRegistry {
         HideCommandMAddon.self,
         ShowDesktopAddon.self,
         QuitProtectionAddon.self,
+        MiddleClickAddon.self,
+        MusicBlockAddon.self,
+        NumberKeysAddon.self,
     ]
 }

@@ -8,6 +8,10 @@ enum IslandUpdateScenes {
         let activity = core.island.update
         let readable = !IslandAccessibilityScenes.otherClientRunning
         if !readable { print("NOT VERIFIED: other AX client") }
+        /// The pill only takes a click once its spring from the notice to the status has settled.
+        func settled() async {
+            for _ in 0..<20 where !controller.acceptsClicks { await IslandVerification.pause(0.05) }
+        }
         func read(_ state: String, _ value: String, covered: Bool = false) {
             let element = readable && !covered ? IslandAccessibilityScenes.islandElement(controller) : nil
             let read = element.flatMap { IslandAccessibilityScenes.attribute($0, kAXValueAttribute) }
@@ -29,7 +33,9 @@ enum IslandUpdateScenes {
         read("downloading", String(localized: "Downloading…"))
         IslandVerification.require(controller.notice?.progress == 0.3 && controller.notice?.symbol == "arrow.down.circle",
                                    "the download notice carries received over expected")
-        controller.capture("update-download")
+        await IslandVerification.pause(0.4)
+        await controller.capture("update-download")
+        await IslandVerification.pause(0.2)
         activity.preview(.installing(release, .extracting))
         read("expanding", String(localized: "Expanding…"))
         IslandVerification.require(controller.notice?.progress == 1, "expanding holds progress at 1")
@@ -42,10 +48,11 @@ enum IslandUpdateScenes {
         await IslandVerification.pause(0.5)
         IslandVerification.require(controller.notice == nil, "the ready notice ends after 2.4 s")
         read("ready-status", ready)
-        controller.capture("update-ready")
+        await controller.capture("update-ready")
         await IslandVerification.pause(0.2)
         IslandVerification.require(controller.captured.contains("update-ready"), "ready status capture")
 
+        await settled()
         let heard = IslandVerification.announcements
         IslandVerification.require(controller.pressBackdrop() && IslandPillScenes.paletteVisible,
                                    "a tap on the ready status opens the palette")
@@ -60,8 +67,11 @@ enum IslandUpdateScenes {
         activity.preview(.failed(.downloadFailed("preview")), seconds: 0.6)
         read("failed", failed)
         IslandVerification.require(controller.notice?.isFailure == true, "the failed notice is a failure")
-        await IslandVerification.pause(0.8)
+        await IslandVerification.pause(0.4)
+        await controller.capture("update-failed")
+        await IslandVerification.pause(0.4)
         read("failed-status", failed)
+        await settled()
         IslandVerification.require(controller.statuses.first?.symbol == "exclamationmark.arrow.circlepath",
                                    "the failed status offers a retry")
         _ = controller.pressBackdrop()

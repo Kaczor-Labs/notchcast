@@ -1,0 +1,114 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (C) 2026 Vorssaint
+// Adapted from Vorssaint 89d2626's middle click service: the MultitouchSupport frame reader.
+
+import Foundation
+import Synchronization
+
+@MainActor final class MiddleClickTouchSource {
+    typealias MultitouchDevice = UnsafeMutableRawPointer
+    typealias FrameCallback = @convention(c) (UnsafeMutableRawPointer?, UnsafeMutableRawPointer?, Int32, Double, Int32) -> Int32
+
+    private let createList: @convention(c) () -> Unmanaged<CFArray>?
+    private let register: @convention(c) (MultitouchDevice, FrameCallback) -> Void
+    private let unregister: @convention(c) (MultitouchDevice, FrameCallback) -> Void
+    private let startDevice: @convention(c) (MultitouchDevice, Int32) -> Void
+    private let stopDevice: @convention(c) (MultitouchDevice) -> Void
+
+    private nonisolated static let stride = 96
+    private nonisolated static let identifierOffset = 16
+    private nonisolated static let stateOffset = 20
+    private nonisolated static let xOffset = 32
+    private nonisolated static let yOffset = 36
+    private nonisolated static let contactStates: ClosedRange<Int32> = 3...4
+
+    private static let path = "/System/Library/PrivateFrameworks/MultitouchSupport.framework/MultitouchSupport"
+    private let handle: UnsafeMutableRawPointer
+
+    init?() {
+        guard let handle = dlopen(Self.path, RTLD_LAZY) else { return nil }
+        guard let list = dlsym(handle, "MTDeviceCreateList"), let register = dlsym(handle, "MTRegisterContactFrameCallback"),
+              let unregister = dlsym(handle, "MTUnregisterContactFrameCallback"), let start = dlsym(handle, "MTDeviceStart"),
+              let stop = dlsym(handle, "MTDeviceStop") else { dlclose(handle); return nil }
+        self.handle = handle
+        createList = unsafeBitCast(list, to: (@convention(c) () -> Unmanaged<CFArray>?).self)
+        self.register = unsafeBitCast(register, to: (@convention(c) (MultitouchDevice, FrameCallback) -> Void).self)
+        self.unregister = unsafeBitCast(unregister, to: (@convention(c) (MultitouchDevice, FrameCallback) -> Void).self)
+        startDevice = unsafeBitCast(start, to: (@convention(c) (MultitouchDevice, Int32) -> Void).self)
+        stopDevice = unsafeBitCast(stop, to: (@convention(c) (MultitouchDevice) -> Void).self)
+    }
+
+    // The C callback has no context argument, so its one sink lives behind a static lock.
+    private nonisolated static let relay = MiddleClickFrameRelay()
+
+    nonisolated static let maxTouches = 16
+
+    nonisolated static func isSane(_ points: [TouchPoint]) -> Bool {
+        points.count <= maxTouches && points.allSatisfy { (0...1).contains($0.x) && (0...1).contains($0.y) }
+    }
+
+    private nonisolated static let callback: FrameCallback = { device, touches, count, timestamp, _ in
+        guard let device, count == 0 || touches != nil, (0...Int32(MiddleClickTouchSource.maxTouches)).contains(count),
+              let session = MiddleClickTouchSource.relay.session() else { return 0 }
+        let points = (0..<Int(count)).map { index -> TouchPoint in
+            let record = UnsafeRawPointer(touches!) + index * MiddleClickTouchSource.stride
+            let state = record.load(fromByteOffset: MiddleClickTouchSource.stateOffset, as: Int32.self)
+            return TouchPoint(id: record.load(fromByteOffset: MiddleClickTouchSource.identifierOffset, as: Int32.self),
+                              x: record.load(fromByteOffset: MiddleClickTouchSource.xOffset, as: Float.self),
+                              y: record.load(fromByteOffset: MiddleClickTouchSource.yOffset, as: Float.self),
+                              down: MiddleClickTouchSource.contactStates.contains(state))
+        }
+        guard MiddleClickTouchSource.isSane(points) else { return 0 }
+        MiddleClickTouchSource.relay.deliver(session, device: Int(bitPattern: device), points: points, time: timestamp)
+        return 0
+    }
+
+    private var devices: CFArray?
+
+    isolated deinit { stop(); dlclose(handle) }
+
+    func start(_ sink: @escaping MiddleClickFrameRelay.Sink) -> Bool {
+        stop()
+        guard let list = createList()?.takeRetainedValue(), CFArrayGetCount(list) > 0 else { return false }
+        Self.relay.open(sink)
+        devices = list
+        for index in 0..<CFArrayGetCount(list) {
+            guard let device = CFArrayGetValueAtIndex(list, index) else { continue }
+            let pointer = UnsafeMutableRawPointer(mutating: device)
+            register(pointer, Self.callback)
+            startDevice(pointer, 0)
+        }
+        return true
+    }
+
+    func stop() {
+        guard let list = devices else { return }
+        devices = nil
+        for index in 0..<CFArrayGetCount(list) {
+            guard let device = CFArrayGetValueAtIndex(list, index) else { continue }
+            let pointer = UnsafeMutableRawPointer(mutating: device)
+            stopDevice(pointer)
+            unregister(pointer, Self.callback)
+        }
+        Self.relay.close()
+    }
+}
+
+/// Hands frames to the open session's sink; a frame begun under an earlier session is dropped.
+final class MiddleClickFrameRelay: Sendable {
+    typealias Sink = @Sendable (Int, [TouchPoint], TimeInterval) -> Void
+
+    private let state = Mutex<(generation: UInt64, sink: Sink?)>((0, nil))
+
+    func open(_ sink: @escaping Sink) { state.withLock { $0 = ($0.generation &+ 1, sink) } }
+
+    func close() { state.withLock { $0 = ($0.generation &+ 1, nil) } }
+
+    /// Taken before a frame is read, so a stop or restart while it is read drops it.
+    func session() -> UInt64? { state.withLock { $0.sink == nil ? nil : $0.generation } }
+
+    // Delivered under the lock, so close() returns only once no frame of its session is in flight.
+    func deliver(_ session: UInt64, device: Int, points: [TouchPoint], time: TimeInterval) {
+        state.withLock { if $0.generation == session { $0.sink?(device, points, time) } }
+    }
+}

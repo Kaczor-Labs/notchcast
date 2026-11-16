@@ -18,6 +18,7 @@ final class IslandController: NSObject {
     #if DEBUG
     private(set) var samples: [String] = []
     private var captureName: String?
+    private var captureDone: CheckedContinuation<Void, Never>?
     private(set) var captured: [String] = []
     #endif
     var showsRest = true
@@ -36,12 +37,16 @@ final class IslandController: NSObject {
     var expanded = false {
         didSet { if expanded != oldValue { redraw() } }
     }
-    /// Not drawn until their live states land; only the accessibility value reads them so far.
-    var notice: IslandNotice? { didSet { canvas.setAccessibilityValue(accessibilityValue) } }
-    var statuses: [IslandStatus] = [] { didSet { canvas.setAccessibilityValue(accessibilityValue) } }
+    var notice: IslandNotice? {
+        didSet { if notice != oldValue { redraw() } }
+    }
+    var statuses: [IslandStatus] = [] {
+        didSet { if statuses != oldValue { redraw() } }
+    }
 
     private func redraw() {
-        canvas.show(glance: glance, level: level, expanded: expanded, notch: layout?.hasNotch == true)
+        canvas.show(glance: glance, level: level, notice: notice, statuses: statuses, expanded: expanded,
+                    notch: layout?.hasNotch == true)
         canvas.setAccessibilityValue(accessibilityValue)
         frameChanged()
     }
@@ -90,7 +95,8 @@ final class IslandController: NSObject {
         let requested = IslandSurfaceConfiguration(notch: next.notch, scale: screen.backingScaleFactor)
         let moved = layout?.screen != next.screen || layout?.notch != next.notch
         layout = next
-        canvas.show(glance: glance, level: level, expanded: expanded, notch: next.hasNotch)
+        canvas.show(glance: glance, level: level, notice: notice, statuses: statuses, expanded: expanded,
+                    notch: next.hasNotch)
         backdrop.setFrame(next.window, display: false)
         switch requested.update(from: configuration, paletteVisible: panel?.isVisible == true,
                                 hasOverlays: !overlays.isEmpty) {
@@ -153,6 +159,9 @@ final class IslandController: NSObject {
     }
 
     static func notch(on screen: NSScreen) -> CGSize {
+        #if DEBUG
+        if let simulatedNotch { return simulatedNotch }
+        #endif
         guard screen.safeAreaInsets.top > 0, let left = screen.auxiliaryTopLeftArea,
               let right = screen.auxiliaryTopRightArea else { return .zero }
         return CGSize(width: screen.frame.width - left.width - right.width, height: screen.safeAreaInsets.top)
@@ -203,7 +212,14 @@ final class IslandController: NSObject {
     static let reportLevel = NSWindow.Level(rawValue: IslandBackdrop.levelValue + 2)
     static let questionLevel = NSWindow.Level(rawValue: IslandBackdrop.levelValue + 3)
 
-    private var reducedMotion: Bool { !Motion.isEnabled || NSWorkspace.shared.accessibilityDisplayShouldReduceMotion }
+    /// The engine's own switch; scenes force `.always` to prove Reduce Motion without system settings.
+    var motion: ReducedMotionSetting = .user {
+        didSet { frameChanged() }
+    }
+
+    private var reducedMotion: Bool {
+        !Motion.isEnabled || motion.resolved(system: NSWorkspace.shared.accessibilityDisplayShouldReduceMotion)
+    }
 
     private var isResting: Bool {
         guard let layout, let bounds = canvas.outline?.boundingBoxOfPath else { return false }
@@ -245,9 +261,21 @@ final class IslandController: NSObject {
     }
 
     #if DEBUG
-    func capture(_ name: String) {
+    /// Returns once the still is taken, so a scene can't change the pill before the frame lands.
+    func capture(_ name: String) async {
+        guard captureDone == nil else { IslandVerification.require(false, "one capture at a time"); return }
         captureName = name
         _ = source.requestFrame {}
+        await withCheckedContinuation { captureDone = $0 }
+    }
+
+    private func takeCapture(panel: NSWindow?) {
+        guard let captureName else { return }
+        self.captureName = nil
+        IslandVerification.capture(captureName, backdrop: backdrop, panel: panel)
+        captured.append(captureName)
+        captureDone?.resume()
+        captureDone = nil
     }
     #endif
 
@@ -284,20 +312,18 @@ final class IslandController: NSObject {
             let error = max(abs(expected.minX - actual.minX), abs(expected.minY - actual.minY),
                             abs(expected.maxX - actual.maxX), abs(expected.maxY - actual.maxY))
             samples.append("\(CACurrentMediaTime())\t\(panel.frame)\t\(backdrop.frame)\t\(expected)\t\(actual)\t\(error)")
-            if let captureName {
-                self.captureName = nil
-                IslandVerification.capture(captureName, backdrop: backdrop, panel: panel)
-                captured.append(captureName)
-            }
-        } else if IslandVerification.enabled, let captureName {
-            self.captureName = nil
-            IslandVerification.capture(captureName, backdrop: backdrop, panel: nil)
-            captured.append(captureName)
+            takeCapture(panel: panel)
+        } else if IslandVerification.enabled {
+            takeCapture(panel: nil)
         }
         #endif
     }
 
     #if DEBUG
+    /// A notch for screens that have none, so the notch profile runs on the test display.
+    static var simulatedNotch: CGSize?
+    var shownStatuses: [String] { (canvas.glance as? IslandStatusArt)?.shown ?? [] }
+    var reduced: Bool { surface?.reduced == true }
     var frameIntervals: [Double] { source.intervals }
     var frameCPU: [Double] { source.cpuMilliseconds }
 
