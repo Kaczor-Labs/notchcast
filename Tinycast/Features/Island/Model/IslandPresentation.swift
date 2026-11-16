@@ -16,7 +16,13 @@ struct IslandNotice: Equatable, Sendable {
     var text: String
     var progress: Double?
     var isFailure = false
-    var seconds: TimeInterval = 2.4 // the stock message HUD's dwell, so add-ons keep their timing
+    /// Unset, a notice dwells as the stock message HUD does; a failure dwells longer (design §10).
+    var seconds: TimeInterval?
+
+    static let messageSeconds: TimeInterval = 2.4
+    static let failureSeconds: TimeInterval = 4
+
+    var dwell: TimeInterval { seconds ?? (isFailure ? Self.failureSeconds : Self.messageSeconds) }
 }
 
 /// A rest-pill glyph that stays until its owner clears it; at most four `text` characters show.
