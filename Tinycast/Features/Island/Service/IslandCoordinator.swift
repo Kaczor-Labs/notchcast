@@ -39,6 +39,9 @@ final class IslandCoordinator: NSObject {
     }
 
     var resting: IslandController? { backdrops.values.first { $0.showsRest } }
+    #if DEBUG
+    var backdropControllers: [CGDirectDisplayID: IslandController] { backdrops }
+    #endif
 
     private func showGlance(_ next: IslandGlance?) {
         restingGlance = next
@@ -49,7 +52,7 @@ final class IslandCoordinator: NSObject {
     private var screens: [NSScreen] {
         #if DEBUG
         if IslandVerification.enabled {
-            return IslandVerification.screens ?? IslandVerification.testScreen.map { [$0] } ?? []
+            return IslandVerification.screens ?? IslandVerification.testScreens
         }
         #endif
         return NSScreen.screens
