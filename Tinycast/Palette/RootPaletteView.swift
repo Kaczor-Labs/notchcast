@@ -47,7 +47,9 @@ struct RootPaletteView: View {
     /// Compact vs. full; the source of truth is on `AppCore`, so the two can't disagree.
     private var isCollapsed: Bool { core.paletteCoordinator.paletteIsCollapsed }
 
-    private var renderingOutset: CGFloat { isCollapsed ? Theme.Size.paletteGlassOutset : 0 }
+    private var renderingOutset: CGFloat {
+        IslandPaletteSurface.renderingOutset(collapsed: isCollapsed, stock: IslandVerification.stock)
+    }
 
     private var screen: any PaletteScreen {
         switch vm.mode {
