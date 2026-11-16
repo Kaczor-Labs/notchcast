@@ -43,6 +43,7 @@ final class IslandPillMenu: NSObject {
     func refit() {
         guard let corner, menu.isOpen else { return }
         state.selection = 0
+        state.revision += 1
         menu.update(content, corner: corner, core: core)
     }
 
@@ -66,6 +67,8 @@ final class IslandPillMenu: NSObject {
 
     #if DEBUG
     var itemTitles: [String] { visibleItems().map(\.title) }
+    /// What the open menu last rendered, without rebuilding it.
+    var shownTitles: [String] { items.map(\.title) }
     var isObservingResign: Bool { observedPanel != nil }
     func activate(title: String) { visibleItems().firstIndex { $0.title == title }.map(activate) }
     #endif
@@ -191,6 +194,8 @@ final class IslandPillMenu: NSObject {
 @MainActor @Observable
 private final class IslandPillMenuState {
     var selection = 0
+    /// A swapped root view that looks the same is not redrawn; reading this forces the new rows.
+    var revision = 0
 }
 
 private struct IslandPillMenuView: View {
@@ -201,6 +206,7 @@ private struct IslandPillMenuView: View {
     @Environment(PaletteState.self) private var palette
 
     var body: some View {
+        let _ = state.revision
         PopoverMenu(header: Bundle.main.appDisplayName, items: items(), selection: $state.selection,
             visibleRows: Theme.Size.pillMenuVisibleRows, onActivate: activate,
             search: .init(placeholder: String(localized: "Search…"), placement: .top))

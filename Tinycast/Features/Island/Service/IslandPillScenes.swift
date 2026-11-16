@@ -134,14 +134,15 @@ enum IslandPillScenes {
             selected.append("focus " + $0)
         }
         await IslandVerification.pause(0.2)
-        titles = core.island.pillMenu.itemTitles
+        titles = core.island.pillMenu.shownTitles
         print("MENU_ROWS replaced \(titles)")
         IslandVerification.require(menuPanel != nil && rows(titles).suffix(2) == ["Focus 15 min", "Pause music"],
                                    "replacing an owner's rows refits the open menu in its old place")
         presenter.setMenuRows([], owner: "music") { _ in }
         await IslandVerification.pause(0.2)
-        titles = core.island.pillMenu.itemTitles
-        IslandVerification.require(!titles.contains("Pause music"), "empty rows remove the owner")
+        titles = core.island.pillMenu.shownTitles
+        IslandVerification.require(!titles.contains("Pause music") && titles.contains("Focus 15 min"),
+                                   "empty rows remove the owner from the open menu")
         for (code, character) in [(UInt16(18), "1"), (23, "5")] { IslandLatency.key(menu, code: code, characters: character) }
         await IslandVerification.pause(0.2)
         titles = core.island.pillMenu.itemTitles
