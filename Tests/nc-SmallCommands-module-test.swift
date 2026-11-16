@@ -302,10 +302,7 @@ enum SmallCommandsModuleTests {
         precondition(rig.presenter.posts.count == posted + 1, "only the password reports")
         rig.expect("Password Copied", failure: false, symbol: "key", "supersede")
 
-        // Dwell: the island notice ends itself.
-        let ends = rig.presenter.ends.count
-        try? await Task.sleep(for: .seconds(2.7))
-        precondition(rig.presenter.ends.count == ends + 1, "a success notice ends after its dwell")
+        precondition(rig.presenter.posts.last?.seconds == nil, "the presenter's queue owns the notice's dwell")
 
         // Turning the switch off mid-fetch: no late notice, the notice is ended.
         fake.reset()
