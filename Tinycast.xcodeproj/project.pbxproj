@@ -497,6 +497,7 @@
 		7CFE18F8CBA55FDE847886A7 /* CustomCommandListScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1037A76A7501EA4BCCD545B5 /* CustomCommandListScreen.swift */; };
 		7D027F24478DAB019076CA10 /* EventDraft.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2EE496AA4863086BB49CBF2E /* EventDraft.swift */; };
 		7D7FC6BB4A0B25C35CD1CBDD /* DictationModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A54D1E880E274A3B56C6951 /* DictationModel.swift */; };
+		7DC135C446AE222F2454B4B8 /* IslandProfileScenes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2987F4E86DCED646B9115DC2 /* IslandProfileScenes.swift */; };
 		7E3D694A8153C0B560A45CB0 /* CameraPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = E0BE684A650197A714D6858A /* CameraPanel.swift */; };
 		7ED71583C99F09899B9137D7 /* DictionaryScope.swift in Sources */ = {isa = PBXBuildFile; fileRef = 066784959D573010621D0709 /* DictionaryScope.swift */; };
 		7EEA85B9DD11F94115438135 /* WindowShortcutPresetCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = EC895E9AF76C4530E52C34BB /* WindowShortcutPresetCoordinator.swift */; };
@@ -1201,6 +1202,7 @@
 		28D1A69B721AA863AFFE176F /* FileSearchScope.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FileSearchScope.swift; sourceTree = "<group>"; };
 		2902B904C7BD2FC23856EDB9 /* MenuBarItem.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuBarItem.swift; sourceTree = "<group>"; };
 		296F67E23BF91CFBC6D66385 /* SystemActionCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SystemActionCoordinator.swift; sourceTree = "<group>"; };
+		2987F4E86DCED646B9115DC2 /* IslandProfileScenes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IslandProfileScenes.swift; sourceTree = "<group>"; };
 		29A8B82DCB1B7D131BF0908A /* PaletteDropGuideController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PaletteDropGuideController.swift; sourceTree = "<group>"; };
 		29D547CAB18AFCFC0390C943 /* NavigationSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NavigationSettingsView.swift; sourceTree = "<group>"; };
 		2A1B528506E4B62440B4863A /* MenuTreeNode.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuTreeNode.swift; sourceTree = "<group>"; };
@@ -2723,6 +2725,7 @@
 				A85328F5C3BBA195271D8424 /* IslandPillScenes.swift */,
 				2A9AE6EE717E45FCA2B0AF42 /* IslandPresenter.swift */,
 				521E1E3BE86E4EED0727105B /* IslandPresenting.swift */,
+				2987F4E86DCED646B9115DC2 /* IslandProfileScenes.swift */,
 				A32B962953B556D1E477586E /* IslandScenes.swift */,
 				4FF3CBA45374F542F44A4D56 /* IslandUpdateActivity.swift */,
 				387C0EC3A941C5FEDE9A09B8 /* IslandUpdateScenes.swift */,
@@ -5314,6 +5317,7 @@
 				3BD604B4F5A6024B3833995F /* IslandPresentation.swift in Sources */,
 				A98A19AF8F3FEEA9098B8508 /* IslandPresenter.swift in Sources */,
 				7CA1967FAE51E3A0E313F913 /* IslandPresenting.swift in Sources */,
+				7DC135C446AE222F2454B4B8 /* IslandProfileScenes.swift in Sources */,
 				B8B1E01E54FD1C6CFC9A7F60 /* IslandScenes.swift in Sources */,
 				A982CF7F12FA1619DA103D85 /* IslandScreenSelection.swift in Sources */,
 				A731A2DD9DFBB0B43FA104F6 /* IslandUpdateActivity.swift in Sources */,

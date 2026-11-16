@@ -72,7 +72,7 @@ enum IslandPillScenes {
         IslandVerification.require(titles.contains(String(localized: "Settings…")), "pill menu offers Settings")
         IslandVerification.require(!titles.contains { $0.hasPrefix(String(localized: "Join \("")")) },
                                    "no meeting, no join row")
-        controller.capture("pill-menu")
+        await controller.capture("pill-menu")
         await IslandVerification.pause(0.3)
         IslandVerification.require(controller.captured.contains("pill-menu"), "pill menu layer capture")
     }
@@ -160,7 +160,11 @@ enum IslandPillScenes {
         print("GLANCE rest=\(rest) width=\(width) target=\(controller.glanceWidthTarget) title=\(controller.showsGlanceTitle)")
         IslandVerification.require(width > rest + 1, "the glance widens the pill")
         IslandVerification.require(abs(width - controller.glanceWidthTarget) < 0.5, "the pill settles at the glance width")
-        controller.capture("glance")
+        let font = NotchTheme.Typography.islandGlanceNSFont
+        let digits = Set("0123456789".map { NSAttributedString(string: String($0), attributes: [.font: font]).size().width })
+        print("GLANCE digit widths=\(digits.sorted())")
+        IslandVerification.require(digits.count == 1, "every digit in the island font is the same width")
+        await controller.capture("glance")
         await IslandVerification.pause(0.3)
         IslandVerification.require(controller.captured.contains("glance"), "glance layer capture")
     }
@@ -172,7 +176,7 @@ enum IslandPillScenes {
         print("MENU_ROWS \(titles)")
         IslandVerification.require(titles.first == String(localized: "Join \(MenuBarSummary.title(meeting.title))"),
                                    "a carded meeting leads the menu with Join")
-        controller.capture("pill-menu-meeting")
+        await controller.capture("pill-menu-meeting")
         await IslandVerification.pause(0.3)
         IslandVerification.require(controller.captured.contains("pill-menu-meeting"), "meeting menu layer capture")
         await closeMenu(menu, "glance")
