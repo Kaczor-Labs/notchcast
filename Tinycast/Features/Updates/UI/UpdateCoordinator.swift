@@ -124,6 +124,11 @@ final class UpdateCoordinator {
         }
     }
 
+    #if DEBUG
+    /// A scene's failure, so an island tap reaches the real Try Again question with no download.
+    func previewFailure(_ failure: UpdateFailure) { stage = .failed(failure) }
+    #endif
+
     func relaunch() {
         core.relaunch()
     }
