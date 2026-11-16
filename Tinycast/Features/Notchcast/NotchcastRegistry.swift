@@ -2,5 +2,8 @@
 @MainActor
 enum NotchcastRegistry {
     static let addons: [any NotchcastAddon.Type] = [
+        HideCommandMAddon.self,
+        ShowDesktopAddon.self,
+        QuitProtectionAddon.self,
     ]
 }
