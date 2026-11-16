@@ -154,6 +154,17 @@ class QueueTest(unittest.TestCase):
         self.assertEqual(result.returncode, 2)
         self.assertIn('tooling failure, not a contract breach: build queue exited 3', result.stdout)
 
+    def test_without_the_variable_private_env_supplies_the_hook_and_the_variable_wins(self):
+        hook = self.env.pop('NOTCHCAST_BUILD_QUEUE')
+        self.assertEqual(self.run_delete('Shots').returncode, 1)
+        self.assertEqual(self.calls_made(), [])
+        write(Path(self.env['HOME']), '.config/notchcast/private.env', f'echo noise\nNOTCHCAST_BUILD_QUEUE="{hook}"\n')
+        self.assertEqual(self.run_delete('Shots').returncode, 1)
+        self.assertEqual(self.calls_made(), [f'hold -- {sys.executable} {SCRIPT} Shots --ref {self.sha}'])
+        self.calls.write_text('')
+        self.assertEqual(self.run_delete('Shots', NOTCHCAST_BUILD_QUEUE='').returncode, 1)
+        self.assertEqual(self.calls_made(), [])
+
 
 if __name__ == '__main__':
     unittest.main()

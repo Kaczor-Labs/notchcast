@@ -9,7 +9,8 @@ in the run-tests log, so a harness the runner skipped cannot pass as clean.
 Prints PASS per folder, or FAIL with the step and its log. A failure the deletion caused is a contract breach
 (exit 1); one the tools caused (clone, xcodegen, timeout, a build that stopped without a Swift error) is a
 tooling failure (exit 2). Standalone: ready-check does not run it.
-With NOTCHCAST_BUILD_QUEUE set (notchcast/README.md, "Private hooks") the whole run holds one build-queue slot.
+With NOTCHCAST_BUILD_QUEUE set, in the environment or ~/.config/notchcast/private.env (notchcast/README.md,
+"Private hooks"), the whole run holds one build-queue slot.
 Usage: check-addon-delete.py (<Folder> | --rotate | --all) [--ref HEAD]
 """
 import argparse
@@ -170,7 +171,12 @@ def main():
         print(f"no add-on folder {args.folder} at {sha[:12]} (folders: {', '.join(folders)})", file=sys.stderr)
         return 2
     picked = folders if args.all else [rotate_pick(folders, sha)] if args.rotate else [args.folder]
-    queue = os.environ.get('NOTCHCAST_BUILD_QUEUE', '').split()
+    queue = os.environ.get('NOTCHCAST_BUILD_QUEUE')
+    private = pathlib.Path.home() / '.config/notchcast/private.env'
+    if queue is None and private.is_file():
+        queue = subprocess.run(['bash', '-c', 'source "$1" >/dev/null 2>&1; printf %s "${NOTCHCAST_BUILD_QUEUE-}"',
+                                '_', str(private)], capture_output=True, text=True).stdout
+    queue = (queue or '').split()
     if queue and not os.environ.get('CHAD_BUILD_QUEUE_SLOT'):
         # The resolved sha on the command line keys the queue's green-run reuse to the commit checked.
         code = subprocess.run([*queue, 'hold', '--', sys.executable, *sys.argv, '--ref', sha]).returncode
