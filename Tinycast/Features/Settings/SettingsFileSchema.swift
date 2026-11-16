@@ -33,6 +33,7 @@ enum SettingsFileSchema {
                 for: key, action: .togglePalette, name: String(localized: "App Launcher"))
         case .showInMenuBar: return bind(settings, \.showInMenuBar)
         case .automaticallyCheckForUpdates: return bind(settings, \.automaticallyCheckForUpdates)
+        case .islandShowsInCaptures: return bind(settings, \.islandShowsInCaptures)
         case .popToRootTimeout: return bind(settings, \.popToRootTimeout)
         case .escapeKeyBehavior: return bind(settings, \.escapeKeyBehavior)
         case .autoSwitchInputSource: return bind(settings, \.autoSwitchInputSourceID)
