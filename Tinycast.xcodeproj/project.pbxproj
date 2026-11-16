@@ -22,6 +22,7 @@
 		02452CD187D25FD9CD3EF2CF /* QuicklinkLauncher.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1B865FF16D3C395A8D509B94 /* QuicklinkLauncher.swift */; };
 		026EC0A6376B11C3C0797503 /* AIChatSplitViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = CA6A158B37AA1336D7FE9C32 /* AIChatSplitViewController.swift */; };
 		0288221BA580DFA8F5B116B7 /* ExtensionIconCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9F568F2F6EF857274F1A9D8 /* ExtensionIconCache.swift */; };
+		02F3924B10FAEC884C34050E /* NotchcastIPhoneBackup.xcstrings in Resources */ = {isa = PBXBuildFile; fileRef = 1CF7AAB7B09552E28F5D971C /* NotchcastIPhoneBackup.xcstrings */; };
 		034473B26535154C38E22A28 /* FileIndexSnapshot.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9DE19D3AA2CC13A249DF4C92 /* FileIndexSnapshot.swift */; };
 		03A3D04845734F13B025D68D /* IslandAccessibilityScenes.swift in Sources */ = {isa = PBXBuildFile; fileRef = D135129FC99653A88BAC8009 /* IslandAccessibilityScenes.swift */; };
 		03C41F6394089BAEC7E630D6 /* ClipboardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FBF6EF3A2C35F45B82D40968 /* ClipboardView.swift */; };
@@ -164,6 +165,7 @@
 		2729240A319CF6E268D1903B /* NotchcastSmallCommands.xcstrings in Resources */ = {isa = PBXBuildFile; fileRef = AE84DFF9848A07B10E3296BB /* NotchcastSmallCommands.xcstrings */; };
 		279F586CC34205EBA8ACA892 /* CalloutPlacement.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5DFA4E0FDAC12379F2D38B5 /* CalloutPlacement.swift */; };
 		27CD74BD34D4F67F466AD6FA /* ScreenshotSystem+Live.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF65A473A49866F415970880 /* ScreenshotSystem+Live.swift */; };
+		27FFDA33794AC93077A29FBA /* IPhoneBackupSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FCEDB19EF872D220FBBFA7CA /* IPhoneBackupSettingsView.swift */; };
 		28FA1F041C3E72ADEF022261 /* WebpageWebViewConfiguration.swift in Sources */ = {isa = PBXBuildFile; fileRef = 445ECBB7192A684A691B00BF /* WebpageWebViewConfiguration.swift */; };
 		2949DA7605829DEFF7D431D6 /* IslandMenuScenes.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10654F3D35B2687379156A3 /* IslandMenuScenes.swift */; };
 		295AA3F6F9E005C57698201B /* ExtensionListPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA6DDE1843D16C172AAA1002 /* ExtensionListPanel.swift */; };
@@ -247,6 +249,7 @@
 		3CA5E8EB5D591F710C8AD897 /* ExtensionPickerItem.swift in Sources */ = {isa = PBXBuildFile; fileRef = CBD80BC6110C36450C2FF751 /* ExtensionPickerItem.swift */; };
 		3D00EF47CECC95BAEDD372FA /* SettingsScrollTarget.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC407C844BE73916C6C526F1 /* SettingsScrollTarget.swift */; };
 		3D56F518ABEF5851534A710C /* AISettingsStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = C975F928132D3DAB1BB569F0 /* AISettingsStore.swift */; };
+		3D8A2B0DF6F0E27F1BB6512E /* IPhoneBackupConfirmation.swift in Sources */ = {isa = PBXBuildFile; fileRef = 96E206C0AD729E73B55E98F3 /* IPhoneBackupConfirmation.swift */; };
 		3D8BD788CC567FBC476D1BC6 /* AIRequestHeaders.swift in Sources */ = {isa = PBXBuildFile; fileRef = FBDFA0B80D5CE933947CF76F /* AIRequestHeaders.swift */; };
 		3E043042F1BDE818357943FF /* MediaDownloadRunner.swift in Sources */ = {isa = PBXBuildFile; fileRef = C93DD7443BA60342D466865C /* MediaDownloadRunner.swift */; };
 		3E2E0C5B564C828D7ECA2759 /* RegionCurrency.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4CB0BD36800F3B1AC765F514 /* RegionCurrency.swift */; };
@@ -471,6 +474,7 @@
 		6CD45FADCDDFC24E05ABB0DB /* QuitProtectionSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 86944AA3961A53DDF6E9B6BB /* QuitProtectionSettingsView.swift */; };
 		6CDA82FD63F87D07E30E3F82 /* Zlib.swift in Sources */ = {isa = PBXBuildFile; fileRef = F097C9983DF27A99694C8BC5 /* Zlib.swift */; };
 		6D06812383C9602783FFCB75 /* HTMLMarkdown.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5190093C1A786BC8BA0E293 /* HTMLMarkdown.swift */; };
+		6D2368274E1571BC88916C66 /* IPhoneBackupModule.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9C73FAA300228C1212C0CA16 /* IPhoneBackupModule.swift */; };
 		6D241F01F4BB98AAE1720330 /* InstalledAI.swift in Sources */ = {isa = PBXBuildFile; fileRef = A76D9592F0809DEC9993684A /* InstalledAI.swift */; };
 		6D61C5110CA0B20BADA72002 /* InstalledAILaunch.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0F7F40DAD48109685138513E /* InstalledAILaunch.swift */; };
 		6D671A452C1A80946D49E69B /* ClipboardEditField.swift in Sources */ = {isa = PBXBuildFile; fileRef = 51903548B005B2EF070C8AE2 /* ClipboardEditField.swift */; };
@@ -488,6 +492,7 @@
 		7429A042698D1076AF780831 /* IslandMeetingExpansion.swift in Sources */ = {isa = PBXBuildFile; fileRef = 90C91B8CC24BB7218668782E /* IslandMeetingExpansion.swift */; };
 		743C70ACA40F61F635DB0B55 /* CalendarStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9D0A2005448E6F88C3F78489 /* CalendarStore.swift */; };
 		74BE9E8319C8302EF525E6B2 /* QuicklinkStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 685FB7FD7E4E5BE6606440D0 /* QuicklinkStore.swift */; };
+		751BDB061FD8D2BF282918E5 /* IPhoneBackupRecovery.swift in Sources */ = {isa = PBXBuildFile; fileRef = B384A643EBE40E08CC0A4739 /* IPhoneBackupRecovery.swift */; };
 		753FEBB891DBCE13C4C59935 /* AIConnection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1DE1B6753513C787B3FFE423 /* AIConnection.swift */; };
 		7553B38E8B1C40EF4945EDF1 /* ModifierKeyDetector.swift in Sources */ = {isa = PBXBuildFile; fileRef = 82B5E917A4EFDC153C6780E8 /* ModifierKeyDetector.swift */; };
 		758558CAADB5A358C290364C /* UnitCategory.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF447647B325A119F2B3BCD1 /* UnitCategory.swift */; };
@@ -550,6 +555,7 @@
 		82C40C485B2C42A4A814653B /* NotchcastTapThread.swift in Sources */ = {isa = PBXBuildFile; fileRef = 59C58D4B2132F5BEF8635C00 /* NotchcastTapThread.swift */; };
 		82D95EF7539498A9A484B3D1 /* SystemActionsSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AEEB022D080E6DAF703D8132 /* SystemActionsSettingsView.swift */; };
 		836F7B54BDF84308B2BF74B6 /* ScreenshotSelectionSurface.swift in Sources */ = {isa = PBXBuildFile; fileRef = 542648415B5FA50C376C33AD /* ScreenshotSelectionSurface.swift */; };
+		83A2A337994513D49D8C4D46 /* IPhoneBackupPolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = 568A6735BB1E458244BA784A /* IPhoneBackupPolicy.swift */; };
 		84356D3E6A0535895C51923E /* HotKeySpelling.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5E15E821736036AC4FAF1E37 /* HotKeySpelling.swift */; };
 		84511D8815734953965B1903 /* EventEditorScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6CEF382DAC52A2A806C072E0 /* EventEditorScreen.swift */; };
 		84516B8FAA9902D3565FA19F /* ExtensionLaunchType.swift in Sources */ = {isa = PBXBuildFile; fileRef = 47B4E3146143B6120340EC01 /* ExtensionLaunchType.swift */; };
@@ -581,6 +587,7 @@
 		8A34168607D3C7EDD83CB485 /* ExtensionDateField.swift in Sources */ = {isa = PBXBuildFile; fileRef = B6915B7D8E6816B7919F5CF4 /* ExtensionDateField.swift */; };
 		8B18F59B0EB93ACDB1F16A84 /* QuicklinkEditorScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = AE8E49E5D98087ECB64D286B /* QuicklinkEditorScreen.swift */; };
 		8B265BFDDDDAFCC45B35BDCB /* ExtensionPickerField.swift in Sources */ = {isa = PBXBuildFile; fileRef = 936C0D68CC32D90E590F712C /* ExtensionPickerField.swift */; };
+		8B8FA4FCE38A414D1B3E6623 /* IPhoneBackupSystem+Preferences.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1011B6F67ABFF54386AE3B6E /* IPhoneBackupSystem+Preferences.swift */; };
 		8BC02EA99DA8526DBA1204D0 /* AIToolRounds.swift in Sources */ = {isa = PBXBuildFile; fileRef = 552EF9B38ABA9443D4FDE5E4 /* AIToolRounds.swift */; };
 		8BCE48437E9621D7B0220378 /* WindowSwitchScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = 369115AB459927FE90BCBEB5 /* WindowSwitchScreen.swift */; };
 		8CBFE88D227E88521E4A3326 /* RoomPickerScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = FC5458F77141FFCA909AFA4C /* RoomPickerScreen.swift */; };
@@ -636,6 +643,7 @@
 		99DE042F9012822660B94FB0 /* NoteBlockLayoutFragment.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2F10908DDD321EF695BA31B /* NoteBlockLayoutFragment.swift */; };
 		99EF9C710C5603E166EDDBEF /* ShowDesktopModule.swift in Sources */ = {isa = PBXBuildFile; fileRef = 778676E69133BEEFA8A52309 /* ShowDesktopModule.swift */; };
 		9A0964A7D0E14D77F4997BBE /* CustomWindowSizeEditorPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0805655B4808B5B407C7BE7A /* CustomWindowSizeEditorPanel.swift */; };
+		9A2ED2E52C566899DD215C37 /* IPhoneBackupAddon.swift in Sources */ = {isa = PBXBuildFile; fileRef = CF4885648809AD03CB42F320 /* IPhoneBackupAddon.swift */; };
 		9A4C05944E6C4471DA873CA7 /* RoomPlan.swift in Sources */ = {isa = PBXBuildFile; fileRef = ACC56DF5D3B82C81597649D6 /* RoomPlan.swift */; };
 		9A7BBA93D54AB1638F1EBE6F /* SpaceGesture.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9B724FD9A867189A6118DF7 /* SpaceGesture.swift */; };
 		9A80D2997DCF835AF225A586 /* RunningAppsMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = DB5FA545F484D7666E9A5F14 /* RunningAppsMonitor.swift */; };
@@ -708,6 +716,7 @@
 		A90D2DC5B401D0F7E5BD3235 /* DictionaryMarkup.swift in Sources */ = {isa = PBXBuildFile; fileRef = B7F46DBF8D46FE35742C4D36 /* DictionaryMarkup.swift */; };
 		A91D2FD273D527F1098FB393 /* DictationMel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1AE6A34F46D8970090CA0489 /* DictationMel.swift */; };
 		A92CFC16440C48CDFC13DCA2 /* DownloadQueue.swift in Sources */ = {isa = PBXBuildFile; fileRef = E59B73E8D40C9C9A404F596B /* DownloadQueue.swift */; };
+		A96963A37F8DFFCEDBBA6C37 /* IPhoneBackupSystem.swift in Sources */ = {isa = PBXBuildFile; fileRef = FAE5FABF77CD4BC18EEDA941 /* IPhoneBackupSystem.swift */; };
 		A982CF7F12FA1619DA103D85 /* IslandScreenSelection.swift in Sources */ = {isa = PBXBuildFile; fileRef = AF2143449E19CC0A2B9E7B00 /* IslandScreenSelection.swift */; };
 		A98A19AF8F3FEEA9098B8508 /* IslandPresenter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2A9AE6EE717E45FCA2B0AF42 /* IslandPresenter.swift */; };
 		AA52F01D3A91899CCEAF7851 /* ColorCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = D763A801000029271E4CADA4 /* ColorCard.swift */; };
@@ -758,6 +767,7 @@
 		B56F252262AA1BD3E2631F0C /* FileSearchQuery.swift in Sources */ = {isa = PBXBuildFile; fileRef = 391B8024E8719506361B45F7 /* FileSearchQuery.swift */; };
 		B589C3ECFF03C790102361D4 /* SupportReminderSchedule.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2E393E2CA842C5B344C6B499 /* SupportReminderSchedule.swift */; };
 		B5AF1205402C0E2F46468F55 /* MiddleClickEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = EB97FA107C69FEDCC3B7701C /* MiddleClickEngine.swift */; };
+		B6337E7C4A2CFE3BEDA5F3CA /* IPhoneBackupStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7DB4986510A26CF2CD110A64 /* IPhoneBackupStore.swift */; };
 		B6525300EEDACE4F9DC3179E /* CalcCurrency.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2B0F5891A80B604FBE21897B /* CalcCurrency.swift */; };
 		B6BD72B05A04D98D8BABABC9 /* MiddleClickDragMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = A593F2A01318A2F7C7C8015B /* MiddleClickDragMonitor.swift */; };
 		B6C39F046F6B09CD7AA53F6B /* MeetingSpan.swift in Sources */ = {isa = PBXBuildFile; fileRef = 09511B0502D1B67F10604D3C /* MeetingSpan.swift */; };
@@ -816,6 +826,7 @@
 		C33FF829408F4B2218416743 /* AIRetention.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2A82786725DFEB5467778E68 /* AIRetention.swift */; };
 		C385AEF3C8C5A6B2BACC1D9A /* OverflowFade.swift in Sources */ = {isa = PBXBuildFile; fileRef = 88499DF2F503F2A3A19DEF07 /* OverflowFade.swift */; };
 		C396379DCAD85611D4C6F587 /* UpdateDownloader.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9BD81541882CBCC5B06F718F /* UpdateDownloader.swift */; };
+		C3FB2BE3542F2076C4922D1E /* IPhoneBackupSystem+Live.swift in Sources */ = {isa = PBXBuildFile; fileRef = EA7D3936A6E9214475BD10E8 /* IPhoneBackupSystem+Live.swift */; };
 		C4479572F65559306118A9F0 /* CodexTurnRunner.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1E82DD04042376EBDEF3E84C /* CodexTurnRunner.swift */; };
 		C45CCAE9AE2D3BCAC2BF80BE /* CommandOutputView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0E099C50FF0B6A0069CAC5BF /* CommandOutputView.swift */; };
 		C479C8E43F4EB36C48A56F79 /* CalcGrowth.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3E81B4C409EBB4D3D0DECD47 /* CalcGrowth.swift */; };
@@ -1175,6 +1186,7 @@
 		0F5730EA67D6E91ABAD8F446 /* AIEmptyState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIEmptyState.swift; sourceTree = "<group>"; };
 		0F5AFB680B55BBAFF2207F99 /* NotesCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotesCoordinator.swift; sourceTree = "<group>"; };
 		0F7F40DAD48109685138513E /* InstalledAILaunch.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InstalledAILaunch.swift; sourceTree = "<group>"; };
+		1011B6F67ABFF54386AE3B6E /* IPhoneBackupSystem+Preferences.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "IPhoneBackupSystem+Preferences.swift"; sourceTree = "<group>"; };
 		102B53830D247FAE19479BCA /* ThumbnailCache.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ThumbnailCache.swift; sourceTree = "<group>"; };
 		1037A76A7501EA4BCCD545B5 /* CustomCommandListScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CustomCommandListScreen.swift; sourceTree = "<group>"; };
 		106F9FEF3F0C36E0C5686DA7 /* AIRequest.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIRequest.swift; sourceTree = "<group>"; };
@@ -1224,6 +1236,7 @@
 		1B0D3D33A85AB4BBC74F8463 /* SmallCommandsSystem.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SmallCommandsSystem.swift; sourceTree = "<group>"; };
 		1B865FF16D3C395A8D509B94 /* QuicklinkLauncher.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuicklinkLauncher.swift; sourceTree = "<group>"; };
 		1C8F318681FA5313677A14DA /* InstalledAIProbe.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InstalledAIProbe.swift; sourceTree = "<group>"; };
+		1CF7AAB7B09552E28F5D971C /* NotchcastIPhoneBackup.xcstrings */ = {isa = PBXFileReference; lastKnownFileType = text.json.xcstrings; path = NotchcastIPhoneBackup.xcstrings; sourceTree = "<group>"; };
 		1D2472AA0A370E1D5A3C4025 /* EmojiKeywords */ = {isa = PBXFileReference; lastKnownFileType = folder; name = EmojiKeywords; path = Tinycast/Resources/EmojiKeywords; sourceTree = SOURCE_ROOT; };
 		1D85BC3DABE5D072E59B65EA /* MathFormula.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MathFormula.swift; sourceTree = "<group>"; };
 		1DE1B6753513C787B3FFE423 /* AIConnection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIConnection.swift; sourceTree = "<group>"; };
@@ -1475,6 +1488,7 @@
 		552EF9B38ABA9443D4FDE5E4 /* AIToolRounds.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIToolRounds.swift; sourceTree = "<group>"; };
 		55D38FEA4D5C08A554A7331A /* DownloadProgress.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DownloadProgress.swift; sourceTree = "<group>"; };
 		564F5DA22079654D3919E131 /* ShowDesktopSystem.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShowDesktopSystem.swift; sourceTree = "<group>"; };
+		568A6735BB1E458244BA784A /* IPhoneBackupPolicy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IPhoneBackupPolicy.swift; sourceTree = "<group>"; };
 		56D6EE5144AEF889C95B3758 /* QuickActionCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuickActionCoordinator.swift; sourceTree = "<group>"; };
 		570CE37C7133E28F7495ED91 /* MarkdownCodeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarkdownCodeView.swift; sourceTree = "<group>"; };
 		574A658F2503AA5BAED39903 /* AIProvidersPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIProvidersPanel.swift; sourceTree = "<group>"; };
@@ -1630,6 +1644,7 @@
 		7D35CA0655717E1798AFDA7B /* FrequentEmojiStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FrequentEmojiStore.swift; sourceTree = "<group>"; };
 		7D56AE79EFBE8B3D79CAF6A4 /* HotKeySettingsFile.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HotKeySettingsFile.swift; sourceTree = "<group>"; };
 		7D61199EE7B60E91ACBDE2E2 /* WindowChrome.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WindowChrome.swift; sourceTree = "<group>"; };
+		7DB4986510A26CF2CD110A64 /* IPhoneBackupStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IPhoneBackupStore.swift; sourceTree = "<group>"; };
 		7DCE032DD72DFA1EA930B7EE /* DictationLanguage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DictationLanguage.swift; sourceTree = "<group>"; };
 		7E0169384D8B376D4811D9D0 /* CalcMath.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalcMath.swift; sourceTree = "<group>"; };
 		7E6EA47F0085375A3A621F5E /* GlassEffectView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GlassEffectView.swift; sourceTree = "<group>"; };
@@ -1744,6 +1759,7 @@
 		95BFA41B0D7F369A8CF1E013 /* HyperKey.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HyperKey.swift; sourceTree = "<group>"; };
 		95C2F7AE05BF02E8465E426B /* Localizable.xcstrings */ = {isa = PBXFileReference; lastKnownFileType = text.json.xcstrings; path = Localizable.xcstrings; sourceTree = "<group>"; };
 		95E1C2AD9D1D83F90048FD8A /* AIToolLoopProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIToolLoopProvider.swift; sourceTree = "<group>"; };
+		96E206C0AD729E73B55E98F3 /* IPhoneBackupConfirmation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IPhoneBackupConfirmation.swift; sourceTree = "<group>"; };
 		974CC87BDA9F9744B5F68A33 /* DictationWire.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DictationWire.swift; sourceTree = "<group>"; };
 		976A1F05AD82DB8A04B3C3F9 /* MessageHUDView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MessageHUDView.swift; sourceTree = "<group>"; };
 		978DA4527C5B96C98BD33899 /* WindowLayoutArgumentField.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WindowLayoutArgumentField.swift; sourceTree = "<group>"; };
@@ -1771,6 +1787,7 @@
 		9B64D32132633024A8798E80 /* RoomsSection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RoomsSection.swift; sourceTree = "<group>"; };
 		9BD81541882CBCC5B06F718F /* UpdateDownloader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UpdateDownloader.swift; sourceTree = "<group>"; };
 		9C37CCD024267EB21876C7E9 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
+		9C73FAA300228C1212C0CA16 /* IPhoneBackupModule.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IPhoneBackupModule.swift; sourceTree = "<group>"; };
 		9D0A2005448E6F88C3F78489 /* CalendarStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalendarStore.swift; sourceTree = "<group>"; };
 		9D134673CB1B563A3758FC37 /* UninstallRunner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UninstallRunner.swift; sourceTree = "<group>"; };
 		9D4374F29C4E479BB2283A96 /* ChatTextHighlight.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatTextHighlight.swift; sourceTree = "<group>"; };
@@ -1872,6 +1889,7 @@
 		B35ED5C4019986E638EE5C28 /* DictationModelStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DictationModelStore.swift; sourceTree = "<group>"; };
 		B364FA3DEF35DC9B35C16AC1 /* MiddleClickFilter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MiddleClickFilter.swift; sourceTree = "<group>"; };
 		B36FACE26406FD2205FEF03E /* NOTICE.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = NOTICE.md; sourceTree = "<group>"; };
+		B384A643EBE40E08CC0A4739 /* IPhoneBackupRecovery.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IPhoneBackupRecovery.swift; sourceTree = "<group>"; };
 		B387D22D9C920FA6443EB193 /* ChatAttachmentReader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatAttachmentReader.swift; sourceTree = "<group>"; };
 		B3C7D17F97002FD58E8A5F53 /* PermissionsSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PermissionsSettingsView.swift; sourceTree = "<group>"; };
 		B4052F126202F1AC6ABBEC4E /* NotchcastTrustMonitor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotchcastTrustMonitor.swift; sourceTree = "<group>"; };
@@ -1990,6 +2008,7 @@
 		CEE5FA2E56073002C2DA6D6A /* ClipboardTextHelper */ = {isa = PBXFileReference; includeInIndex = 0; path = ClipboardTextHelper; sourceTree = BUILT_PRODUCTS_DIR; };
 		CEEF20B209EEEAB7ED97DF36 /* QuickActionPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuickActionPanel.swift; sourceTree = "<group>"; };
 		CF2A1ECA5667B8FD1B1F9FD8 /* UpdateCheckStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UpdateCheckStore.swift; sourceTree = "<group>"; };
+		CF4885648809AD03CB42F320 /* IPhoneBackupAddon.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IPhoneBackupAddon.swift; sourceTree = "<group>"; };
 		CF64F5FCB3872996AE57FDBB /* FileSearchCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FileSearchCoordinator.swift; sourceTree = "<group>"; };
 		CFB37D725934B5B2FA2EA611 /* NotchcastAddon.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotchcastAddon.swift; sourceTree = "<group>"; };
 		CFBF31AF26A4786B234ABB64 /* ExtensionAnimatedImage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExtensionAnimatedImage.swift; sourceTree = "<group>"; };
@@ -2096,6 +2115,7 @@
 		E9D41B9E6F2C617D28C83AFF /* ShortcutRecorder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShortcutRecorder.swift; sourceTree = "<group>"; };
 		EA16A82218236B882496E6DD /* SettingsFileIdentity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsFileIdentity.swift; sourceTree = "<group>"; };
 		EA40D342FDBBD7B0ECB827EC /* IslandInputScenes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IslandInputScenes.swift; sourceTree = "<group>"; };
+		EA7D3936A6E9214475BD10E8 /* IPhoneBackupSystem+Live.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "IPhoneBackupSystem+Live.swift"; sourceTree = "<group>"; };
 		EA9A0079D05A5D9B21A1CFCE /* FocusRelease.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FocusRelease.swift; sourceTree = "<group>"; };
 		EAC662BDA6856590DCF96B94 /* AIChatState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIChatState.swift; sourceTree = "<group>"; };
 		EB0E63A5CDC274306555E3A8 /* JSONValue.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JSONValue.swift; sourceTree = "<group>"; };
@@ -2155,6 +2175,7 @@
 		F92900604CD15D3DA5675344 /* EventEditorSession.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EventEditorSession.swift; sourceTree = "<group>"; };
 		F93DC82C8E2CFC89CBA7FC8E /* DictationCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DictationCoordinator.swift; sourceTree = "<group>"; };
 		FAC9CF39D803AEFC987B8317 /* SettingsFileValue.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsFileValue.swift; sourceTree = "<group>"; };
+		FAE5FABF77CD4BC18EEDA941 /* IPhoneBackupSystem.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IPhoneBackupSystem.swift; sourceTree = "<group>"; };
 		FBDFA0B80D5CE933947CF76F /* AIRequestHeaders.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIRequestHeaders.swift; sourceTree = "<group>"; };
 		FBF6EF3A2C35F45B82D40968 /* ClipboardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClipboardView.swift; sourceTree = "<group>"; };
 		FBFE3C41897391C14DB5A55C /* ShellCommandRunner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShellCommandRunner.swift; sourceTree = "<group>"; };
@@ -2162,6 +2183,7 @@
 		FC44438C45CFDA2262E8655E /* NotchcastMiddleClick.xcstrings */ = {isa = PBXFileReference; lastKnownFileType = text.json.xcstrings; path = NotchcastMiddleClick.xcstrings; sourceTree = "<group>"; };
 		FC5458F77141FFCA909AFA4C /* RoomPickerScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RoomPickerScreen.swift; sourceTree = "<group>"; };
 		FCE974CFE096B03BC33121B1 /* FileIndex.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FileIndex.swift; sourceTree = "<group>"; };
+		FCEDB19EF872D220FBBFA7CA /* IPhoneBackupSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IPhoneBackupSettingsView.swift; sourceTree = "<group>"; };
 		FDC04AF159B94B3E8D1A5217 /* QwenRecognizer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QwenRecognizer.swift; sourceTree = "<group>"; };
 		FE31A7F41EDA33E7E574F62D /* CustomWindowSizeStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CustomWindowSizeStore.swift; sourceTree = "<group>"; };
 		FE41DC04958D7C2FF8C47F62 /* CustomCommandCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CustomCommandCoordinator.swift; sourceTree = "<group>"; };
@@ -2674,6 +2696,18 @@
 				054F403BD478830AE32E6A77 /* UI */,
 			);
 			path = MCP;
+			sourceTree = "<group>";
+		};
+		2B6E36931ED519C0CB688458 /* IPhoneBackup */ = {
+			isa = PBXGroup;
+			children = (
+				BA423DFE166FD502E1156D61 /* Model */,
+				A707D6187E455D543C03F42D /* Service */,
+				BCC5CC9423FC928AA550A0DC /* UI */,
+				CF4885648809AD03CB42F320 /* IPhoneBackupAddon.swift */,
+				1CF7AAB7B09552E28F5D971C /* NotchcastIPhoneBackup.xcstrings */,
+			);
+			path = IPhoneBackup;
 			sourceTree = "<group>";
 		};
 		2F37DF33894D0E30B694B323 /* Service */ = {
@@ -3624,6 +3658,7 @@
 				A3C3466211DF1BB1E0F85CA7 /* Downloads */,
 				654D0F225E36AC9079B0B90B /* Hidden */,
 				53144A4917558A2B946CC513 /* HideCommandM */,
+				2B6E36931ED519C0CB688458 /* IPhoneBackup */,
 				A6D0703C21C309FB3C7E2956 /* MiddleClick */,
 				D184BF684BC308E3DC72642B /* MusicBlock */,
 				33300F420F06E1CCCD64AFFD /* NumberKeys */,
@@ -4057,6 +4092,20 @@
 			path = Model;
 			sourceTree = "<group>";
 		};
+		A707D6187E455D543C03F42D /* Service */ = {
+			isa = PBXGroup;
+			children = (
+				96E206C0AD729E73B55E98F3 /* IPhoneBackupConfirmation.swift */,
+				9C73FAA300228C1212C0CA16 /* IPhoneBackupModule.swift */,
+				B384A643EBE40E08CC0A4739 /* IPhoneBackupRecovery.swift */,
+				7DB4986510A26CF2CD110A64 /* IPhoneBackupStore.swift */,
+				FAE5FABF77CD4BC18EEDA941 /* IPhoneBackupSystem.swift */,
+				EA7D3936A6E9214475BD10E8 /* IPhoneBackupSystem+Live.swift */,
+				1011B6F67ABFF54386AE3B6E /* IPhoneBackupSystem+Preferences.swift */,
+			);
+			path = Service;
+			sourceTree = "<group>";
+		};
 		A7372417FE3378327AE57CA6 /* Model */ = {
 			isa = PBXGroup;
 			children = (
@@ -4148,6 +4197,14 @@
 			path = UI;
 			sourceTree = "<group>";
 		};
+		BA423DFE166FD502E1156D61 /* Model */ = {
+			isa = PBXGroup;
+			children = (
+				568A6735BB1E458244BA784A /* IPhoneBackupPolicy.swift */,
+			);
+			path = Model;
+			sourceTree = "<group>";
+		};
 		BB6DB69437E85BCDB2530225 /* Tinycast */ = {
 			isa = PBXGroup;
 			children = (
@@ -4172,6 +4229,14 @@
 				A379CB384B76FF70AC72E235 /* AppleShortcut.swift */,
 			);
 			path = Model;
+			sourceTree = "<group>";
+		};
+		BCC5CC9423FC928AA550A0DC /* UI */ = {
+			isa = PBXGroup;
+			children = (
+				FCEDB19EF872D220FBBFA7CA /* IPhoneBackupSettingsView.swift */,
+			);
+			path = UI;
 			sourceTree = "<group>";
 		};
 		BCD69CF996AA28C1A52C0D05 /* App */ = {
@@ -4968,6 +5033,7 @@
 				4B52AFEF9AED73A483ADFCE0 /* Notchcast.xcstrings in Resources */,
 				DC75F16A6736CDB3A5BC4BC2 /* NotchcastDownloads.xcstrings in Resources */,
 				54B815F8E98570B0EDECB5B9 /* NotchcastHideCommandM.xcstrings in Resources */,
+				02F3924B10FAEC884C34050E /* NotchcastIPhoneBackup.xcstrings in Resources */,
 				116D7B0022194BA26EDD6403 /* NotchcastMiddleClick.xcstrings in Resources */,
 				D95B01CEEFE76A2B5E5D563C /* NotchcastMusicBlock.xcstrings in Resources */,
 				54AD5B5146E0A9FD3E594357 /* NotchcastNumberKeys.xcstrings in Resources */,
@@ -5511,6 +5577,16 @@
 				095964C2CAFAC9D3E34C25C6 /* HyperKeyManager.swift in Sources */,
 				FEDCCB8E3425E9B88A2F39F8 /* HyperKeySettingsSection.swift in Sources */,
 				122CA8786B58966376B27DC1 /* HyperKeyTap.swift in Sources */,
+				9A2ED2E52C566899DD215C37 /* IPhoneBackupAddon.swift in Sources */,
+				3D8A2B0DF6F0E27F1BB6512E /* IPhoneBackupConfirmation.swift in Sources */,
+				6D2368274E1571BC88916C66 /* IPhoneBackupModule.swift in Sources */,
+				83A2A337994513D49D8C4D46 /* IPhoneBackupPolicy.swift in Sources */,
+				751BDB061FD8D2BF282918E5 /* IPhoneBackupRecovery.swift in Sources */,
+				27FFDA33794AC93077A29FBA /* IPhoneBackupSettingsView.swift in Sources */,
+				B6337E7C4A2CFE3BEDA5F3CA /* IPhoneBackupStore.swift in Sources */,
+				C3FB2BE3542F2076C4922D1E /* IPhoneBackupSystem+Live.swift in Sources */,
+				8B8FA4FCE38A414D1B3E6623 /* IPhoneBackupSystem+Preferences.swift in Sources */,
+				A96963A37F8DFFCEDBBA6C37 /* IPhoneBackupSystem.swift in Sources */,
 				CA6BA9C381351D0B2CADFB9D /* IconCache.swift in Sources */,
 				3E2E2CFAD5C5731A5F059AD5 /* IconStyleMonitor.swift in Sources */,
 				321B4E5AAA0A69F83403F408 /* ImageDerivative.swift in Sources */,
