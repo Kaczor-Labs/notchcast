@@ -1,0 +1,14 @@
+diff --git a/Tinycast/App/TinycastApp.swift b/Tinycast/App/TinycastApp.swift
+index 07195cbc4..a9031a147 100644
+--- a/Tinycast/App/TinycastApp.swift
++++ b/Tinycast/App/TinycastApp.swift
+@@ -3,6 +3,9 @@ import SwiftUI
+ @main
+ enum TinycastLaunch {
+     static func main() {
++        #if DEBUG
++        if IslandVerification.enabled { IslandVerification.main(); return }
++        #endif
+         AppSettings.pinLanguage()
+         TinycastApp.main()
+     }
