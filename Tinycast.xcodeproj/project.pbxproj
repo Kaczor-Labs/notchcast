@@ -477,6 +477,7 @@
 		7AF6E4F92BBF4D41B9B1E700 /* BackupBundle.swift in Sources */ = {isa = PBXBuildFile; fileRef = 780B32AF98BA3A51D2F0E8B4 /* BackupBundle.swift */; };
 		7B25CD1684D24C164346AA68 /* SnippetEditorScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = F590D5052075C9E121306FEE /* SnippetEditorScreen.swift */; };
 		7B32E6EE86458C854D76B0AF /* RoomWindowSweep.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7D1BD03E0327890BD4E68988 /* RoomWindowSweep.swift */; };
+		7BA869C72FDCAE66CF7E9E32 /* IslandNoticeArt.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1271E9D6A74A8003C3D10103 /* IslandNoticeArt.swift */; };
 		7BDB7CF7F1352015F6AC96C3 /* SnippetsStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 375734577C888260A8023181 /* SnippetsStore.swift */; };
 		7C2AA1D827EC87533021BD74 /* SpaceSwitcher.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3C021D578082B4FE98D27CAC /* SpaceSwitcher.swift */; };
 		7C50BD05E665B2F5A07A5143 /* CalcFinance.swift in Sources */ = {isa = PBXBuildFile; fileRef = 86881DC289D026B2C0BC4442 /* CalcFinance.swift */; };
@@ -1102,6 +1103,7 @@
 		11A888004906108239CDDCF1 /* DictationCapture.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DictationCapture.swift; sourceTree = "<group>"; };
 		121A2ACAEC4D2D25D3112634 /* LauncherItemsSection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LauncherItemsSection.swift; sourceTree = "<group>"; };
 		123F780230818E83DEEB6988 /* RoomWindowMatcher.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RoomWindowMatcher.swift; sourceTree = "<group>"; };
+		1271E9D6A74A8003C3D10103 /* IslandNoticeArt.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IslandNoticeArt.swift; sourceTree = "<group>"; };
 		131B15F5EF86A067FA6C36D7 /* RedactedPlaceholder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RedactedPlaceholder.swift; sourceTree = "<group>"; };
 		132C5A534C02305C1A29CC74 /* LauncherList.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LauncherList.swift; sourceTree = "<group>"; };
 		132FBA3F0A0B4F6C796B901B /* NoteSwitcherView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NoteSwitcherView.swift; sourceTree = "<group>"; };
@@ -2666,6 +2668,7 @@
 				352BFEDA07059A5612EEF45A /* IslandLevelScenes.swift */,
 				2B100059C67EB7FCD4E895C8 /* IslandMeetingScenes.swift */,
 				B10654F3D35B2687379156A3 /* IslandMenuScenes.swift */,
+				1271E9D6A74A8003C3D10103 /* IslandNoticeArt.swift */,
 				803CF68AFCD894C7E109A646 /* IslandOverlayController.swift */,
 				2D97370630D02B7D569FAA46 /* IslandOverlayScenes.swift */,
 				B1BE59A120408BCECE26C329 /* IslandPaletteSurface.swift */,
@@ -5178,6 +5181,7 @@
 				7429A042698D1076AF780831 /* IslandMeetingExpansion.swift in Sources */,
 				EEB2EB46891AC4A358AD77CB /* IslandMeetingScenes.swift in Sources */,
 				2949DA7605829DEFF7D431D6 /* IslandMenuScenes.swift in Sources */,
+				7BA869C72FDCAE66CF7E9E32 /* IslandNoticeArt.swift in Sources */,
 				8CCDDB52808F0C9B603CBAE7 /* IslandOverlayController.swift in Sources */,
 				B9E491ADEA72716622BD8FEC /* IslandOverlayLayout.swift in Sources */,
 				E812D3C096CDA9C5D4A177FC /* IslandOverlayScenes.swift in Sources */,
