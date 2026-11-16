@@ -67,10 +67,16 @@ final class IslandCanvas: NSView {
         return true
     }
 
-    /// A level outranks the meeting glance while it dwells.
-    func show(glance: IslandGlance?, level: IslandLevel?, expanded: Bool, notch: Bool) {
-        self.glance = level.map { IslandLevelArt($0, notch: notch) } ?? glance.map { GlanceArt($0, notch: notch) }
-        expansion = level == nil && expanded ? glance.map(IslandExpansionArt.init) : nil
+    /// The presenter's order: level, notice, meeting glance, then status, which the glance hides.
+    func show(glance: IslandGlance?, level: IslandLevel?, notice: IslandNotice?, statuses: [IslandStatus],
+              expanded: Bool, notch: Bool) {
+        let art: (any PillArt)? = if let level { IslandLevelArt(level, notch: notch) }
+            else if let notice { IslandNoticeArt(notice, notch: notch) }
+            else if let glance { GlanceArt(glance, notch: notch) }
+            else if !statuses.isEmpty { IslandStatusArt(statuses, notch: notch) }
+            else { nil }
+        self.glance = art
+        expansion = level == nil && notice == nil && expanded ? glance.map(IslandExpansionArt.init) : nil
     }
 }
 
