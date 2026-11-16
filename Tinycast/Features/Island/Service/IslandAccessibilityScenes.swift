@@ -20,7 +20,7 @@ enum IslandAccessibilityScenes {
         }
         read("rest", "")
         presenter.setStatus(IslandStatus(id: "update", symbol: "arrow.clockwise.circle", label: "Update ready"),
-                            for: "update")
+                            for: "update", onTap: nil)
         read("status", "Update ready")
         IslandVerification.require(IslandVerification.announcements.isEmpty, "a status does not announce")
         _ = await IslandPillScenes.previewMeeting(core: core)
@@ -41,7 +41,7 @@ enum IslandAccessibilityScenes {
         read("level", "Volume, \(level.value.formatted(.percent))")
         IslandVerification.require(IslandVerification.announcements.count == 1, "a level does not announce")
         presenter.end(notice: "update")
-        presenter.setStatus(nil, for: "update")
+        presenter.setStatus(nil, for: "update", onTap: nil)
     }
 
     /// An unplug strands the old pill; the new one carries notice and status unannounced.
@@ -72,13 +72,13 @@ enum IslandAccessibilityScenes {
     }
 
     /// VoiceOver, Switch Control or Accessibility Inspector would answer these reads.
-    private static var otherClientRunning: Bool {
+    static var otherClientRunning: Bool {
         NSWorkspace.shared.isVoiceOverEnabled || NSWorkspace.shared.isSwitchControlEnabled
             || !NSRunningApplication.runningApplications(withBundleIdentifier: "com.apple.AccessibilityInspector").isEmpty
     }
 
     /// Hit-tests the pill's centre, so the element is found by place rather than by its label.
-    private static func islandElement(_ controller: IslandController) -> AXUIElement? {
+    static func islandElement(_ controller: IslandController) -> AXUIElement? {
         guard let pill = controller.pillFrame, let top = NSScreen.screens.first?.frame.maxY else { return nil }
         let window = controller.backdropWindow.frame
         let point = CGPoint(x: window.minX + pill.midX, y: top - (window.maxY - pill.midY))
@@ -89,7 +89,7 @@ enum IslandAccessibilityScenes {
         return element
     }
 
-    private static func attribute(_ element: AXUIElement, _ name: String) -> String? {
+    static func attribute(_ element: AXUIElement, _ name: String) -> String? {
         var value: CFTypeRef?
         guard AXUIElementCopyAttributeValue(element, name as CFString, &value) == .success else { return nil }
         return value as? String
