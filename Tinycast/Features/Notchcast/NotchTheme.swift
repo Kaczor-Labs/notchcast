@@ -6,6 +6,11 @@ enum NotchTheme {
         static let islandInset: CGFloat = 16
     }
 
+    enum Radius {
+        /// A menu panel is concentric with its rows: menu row 18 plus the list inset 8, as the island outline.
+        static let islandMenu: CGFloat = Theme.Radius.menuRow + Theme.Spacing.md
+    }
+
     enum Size {
         static let islandRest = CGSize(width: 96, height: 24)
         static let islandHost = CGSize(width: 1100, height: 860)
