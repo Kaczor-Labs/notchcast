@@ -94,48 +94,66 @@ final class IslandCoordinator: NSObject {
         }
     }
 
-    /// Bounds alone match a zoomed window too, so the topmost wide window is only a lead.
+    /// Bounds alone match a zoomed window too, so display-wide windows are only leads.
     private static func fullScreenCandidates(on screens: [NSScreen])
-        -> [(display: CGDirectDisplayID, pid: pid_t, minX: CGFloat)] {
+        -> [(display: CGDirectDisplayID, pid: pid_t, bounds: CGRect)] {
         let windows = CGWindowListCopyWindowInfo([.optionOnScreenOnly, .excludeDesktopElements], kCGNullWindowID)
             as? [[String: Any]] ?? []
-        return screens.compactMap { screen in
+        return screens.flatMap { screen in
             let display = CGDisplayBounds(screen.islandDisplayID)
-            let owner = windows.first { info in
+            return windows.compactMap { info -> (display: CGDirectDisplayID, pid: pid_t, bounds: CGRect)? in
                 guard info[kCGWindowLayer as String] as? Int == 0,
+                      let pid = info[kCGWindowOwnerPID as String] as? pid_t,
                       let rect = info[kCGWindowBounds as String] as? NSDictionary,
-                      let bounds = CGRect(dictionaryRepresentation: rect) else { return false }
-                return abs(bounds.minX - display.minX) < 1 && abs(bounds.width - display.width) < 1
-                    && abs(bounds.maxY - display.maxY) < 1
-            }?[kCGWindowOwnerPID as String] as? pid_t
-            return owner.map { (screen.islandDisplayID, $0, display.minX) }
+                      let bounds = CGRect(dictionaryRepresentation: rect),
+                      abs(bounds.minX - display.minX) < 1, abs(bounds.width - display.width) < 1,
+                      abs(bounds.maxY - display.maxY) < 1 else { return nil }
+                return (screen.islandDisplayID, pid, bounds)
+            }
         }
     }
 
     /// Off the main actor: a hung app would otherwise freeze the island for each timed-out read.
     @concurrent
     nonisolated private static func confirmFullScreen(
-        _ candidates: [(display: CGDirectDisplayID, pid: pid_t, minX: CGFloat)]) async -> Set<CGDirectDisplayID> {
+        _ candidates: [(display: CGDirectDisplayID, pid: pid_t, bounds: CGRect)]) async -> Set<CGDirectDisplayID> {
         let timeout: Float = 0.25
-        return Set(candidates.compactMap { candidate in
-            let app = AXUIElementCreateApplication(candidate.pid)
+        var fullFrames: [pid_t: [CGRect]] = [:]
+        for pid in Set(candidates.map(\.pid)) {
+            let app = AXUIElementCreateApplication(pid)
             AXUIElementSetMessagingTimeout(app, timeout)
-            var main: CFTypeRef?
-            guard AXUIElementCopyAttributeValue(app, kAXMainWindowAttribute as CFString, &main) == .success,
-                  let main, CFGetTypeID(main) == AXUIElementGetTypeID() else { return nil }
-            let window = unsafeDowncast(main, to: AXUIElement.self)
-            AXUIElementSetMessagingTimeout(window, timeout)
-            var full: CFTypeRef?
-            var origin: CFTypeRef?
-            var point = CGPoint.zero
-            guard AXUIElementCopyAttributeValue(window, "AXFullScreen" as CFString, &full) == .success,
-                  full as? Bool == true,
-                  AXUIElementCopyAttributeValue(window, kAXPositionAttribute as CFString, &origin) == .success,
-                  let origin, CFGetTypeID(origin) == AXValueGetTypeID(),
-                  AXValueGetValue(unsafeDowncast(origin, to: AXValue.self), .cgPoint, &point),
-                  abs(point.x - candidate.minX) < 1 else { return nil }
-            return candidate.display
-        })
+            var list: CFTypeRef?
+            guard AXUIElementCopyAttributeValue(app, kAXWindowsAttribute as CFString, &list) == .success,
+                  let windows = list as? [AXUIElement] else { continue }
+            fullFrames[pid] = windows.compactMap { window in
+                AXUIElementSetMessagingTimeout(window, timeout)
+                var full: CFTypeRef?
+                guard AXUIElementCopyAttributeValue(window, "AXFullScreen" as CFString, &full) == .success,
+                      full as? Bool == true else { return nil }
+                return frame(of: window)
+            }
+        }
+        return Set(candidates.filter { candidate in
+            fullFrames[candidate.pid, default: []].contains { matches($0, candidate.bounds) }
+        }.map(\.display))
+    }
+
+    nonisolated private static func frame(of window: AXUIElement) -> CGRect? {
+        var origin = CGPoint.zero
+        var size = CGSize.zero
+        var value: CFTypeRef?
+        guard AXUIElementCopyAttributeValue(window, kAXPositionAttribute as CFString, &value) == .success,
+              let position = value, CFGetTypeID(position) == AXValueGetTypeID(),
+              AXValueGetValue(unsafeDowncast(position, to: AXValue.self), .cgPoint, &origin),
+              AXUIElementCopyAttributeValue(window, kAXSizeAttribute as CFString, &value) == .success,
+              let extent = value, CFGetTypeID(extent) == AXValueGetTypeID(),
+              AXValueGetValue(unsafeDowncast(extent, to: AXValue.self), .cgSize, &size) else { return nil }
+        return CGRect(origin: origin, size: size)
+    }
+
+    /// The top edge moves with the menu bar's reveal strip, so only the other three edges must agree.
+    nonisolated private static func matches(_ a: CGRect, _ b: CGRect) -> Bool {
+        abs(a.minX - b.minX) < 1 && abs(a.width - b.width) < 1 && abs(a.maxY - b.maxY) < 1
     }
 
     /// Also after a rebuild, so a new resting pill picks up an expansion already showing.
