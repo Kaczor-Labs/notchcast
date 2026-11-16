@@ -331,7 +331,7 @@ private struct AppRow: View {
             if let subtitle = app.subtitle {
                 Text(subtitle)
                     .font(metrics.typography.rowTrailing)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(Theme.Colors.textSecondary)
                     .lineLimit(1)
             }
             if let alias = aliases.alias(for: app.preferenceKey) {
@@ -363,7 +363,7 @@ private struct AppRow: View {
                 } else {
                     Text(app.kindLabel)
                         .font(metrics.typography.rowTrailing)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(Theme.Colors.textSecondary)
                 }
             }
         }

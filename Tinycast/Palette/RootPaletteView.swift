@@ -805,7 +805,7 @@ struct RootPaletteView: View {
                 Image(systemName: vm.mode.systemImage)
                     .font(metrics.typography.headerIcon)
                     .symbolRenderingMode(.hierarchical)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(Theme.Colors.textSecondary)
                     .frame(width: metrics.size.headerIconSlot)
                     .windowDraggable(settings.paletteDraggable, onBegan: beginDrag, onEnded: endDrag)
             }
