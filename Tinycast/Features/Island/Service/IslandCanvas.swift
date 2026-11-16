@@ -15,6 +15,18 @@ final class IslandCanvas: NSView {
     var restWidth: CGFloat = 0
     var restHeight: CGFloat = 1
     var glanceWidth: CGFloat = 0
+    var keylineEnabled = true
+    var scale: CGFloat = 2
+    /// How far past the rest pill the outline has grown, so the line fades with the island, never pops.
+    var keylineStrength: Double {
+        guard let bounds = outline?.boundingBoxOfPath else { return 0 }
+        let height = min(bounds.maxY, self.bounds.height) - bounds.minY - restHeight
+        return IslandKeyline.strength(growth: max(bounds.width - restWidth, height), enabled: keylineEnabled)
+    }
+    var keylineColor: CGColor {
+        let color = NSColor(NotchTheme.Colors.islandKeyline).cgColor
+        return color.copy(alpha: color.alpha * keylineStrength) ?? color
+    }
     var onOpen: (() -> Void)?
     var onMenu: (() -> Void)?
     var canOpen: (() -> Bool)?
@@ -25,6 +37,16 @@ final class IslandCanvas: NSView {
         context.addPath(outline)
         context.setFillColor(NSColor(NotchTheme.Colors.islandSurface).cgColor)
         context.fillPath()
+        if keylineStrength > 0 {
+            context.saveGState()
+            context.addPath(outline)
+            context.clip()
+            context.addPath(outline)
+            context.setStrokeColor(keylineColor)
+            context.setLineWidth(2 * IslandKeyline.width(scale: scale))
+            context.strokePath()
+            context.restoreGState()
+        }
         let bounds = outline.boundingBoxOfPath
         if covered { leaving = nil }
         let line = drawnLine
