@@ -5,8 +5,8 @@ import Foundation
 
 @main @MainActor
 struct QuitProtectionTests {
-    static let target = QuitProtectionEngine.Target(processIdentifier: 42, bundleIdentifier: "test.editor", name: "Editor")
-    static let other = QuitProtectionEngine.Target(processIdentifier: 43, bundleIdentifier: "test.editor", name: "Editor")
+    static let target = QuitProtectionEngine.Target(processIdentifier: 42, bundleIdentifier: "test.editor")
+    static let other = QuitProtectionEngine.Target(processIdentifier: 43, bundleIdentifier: "test.editor")
     static let q = QuitProtectionEngine.Key(code: 12, commandCharacter: "q")
     static let w = QuitProtectionEngine.Key(code: 13, commandCharacter: "w")
     static var checks = 0
@@ -21,30 +21,29 @@ struct QuitProtectionTests {
         check(QuitProtectionAppName.displayName("My.app.editor") == "My.app.editor", "Internal suffix preserved")
         check(QuitProtectionAppName.displayName("Editor") == "Editor", "Plain name preserved")
         var engine = QuitProtectionEngine(configuration: .init(mode: .doublePress))
-        let first = engine.consume(.keyDown(q, .command, isRepeat: false), at: 10, target: target)
-        guard case .swallow(let notice) = first else { fatalError("First quit must be swallowed") }
-        check(notice?.text == "Press ⌘Q again to quit Editor", "Notice names the target")
-        check(engine.consume(.keyDown(q, .command, isRepeat: true), at: 10.1, target: target) == .swallow(nil),
+        check(engine.consume(.keyDown(q, .command, isRepeat: false), at: 10, target: target) == .swallow,
+              "First quit is swallowed")
+        check(engine.consume(.keyDown(q, .command, isRepeat: true), at: 10.1, target: target) == .swallow,
               "Repeat cannot confirm")
-        check(engine.consume(.keyDown(q, .command, isRepeat: false), at: 10.2, target: target) == .swallow(nil),
+        check(engine.consume(.keyDown(q, .command, isRepeat: false), at: 10.2, target: target) == .swallow,
               "A release is required between presses")
-        check(engine.consume(.keyUp(q), at: 10.3, target: target) == .swallow(nil), "First release swallowed")
+        check(engine.consume(.keyUp(q), at: 10.3, target: target) == .swallow, "First release swallowed")
         check(engine.consume(.keyDown(q, .command, isRepeat: false), at: 10.6, target: target) == .quit(target),
               "600 ms boundary confirms")
-        check(engine.consume(.keyUp(q), at: 10.7, target: target) == .swallow(nil), "Confirmed release swallowed")
+        check(engine.consume(.keyUp(q), at: 10.7, target: target) == .swallow, "Confirmed release swallowed")
         check(engine.consume(.tick, at: 11, target: target) == .pass, "Confirmation runs only once")
 
         engine.reset()
         _ = engine.consume(.keyDown(q, .command, isRepeat: false), at: 20, target: target)
         _ = engine.consume(.keyUp(q), at: 20.1, target: target)
-        check(isNotice(engine.consume(.keyDown(q, .command, isRepeat: false), at: 20.601, target: target)),
+        check(engine.consume(.keyDown(q, .command, isRepeat: false), at: 20.601, target: target) == .swallow,
               "Expired press starts a new window")
         _ = engine.consume(.keyUp(q), at: 20.7, target: target)
-        check(isNotice(engine.consume(.keyDown(q, .command, isRepeat: false), at: 20.8, target: other)),
+        check(engine.consume(.keyDown(q, .command, isRepeat: false), at: 20.8, target: other) == .swallow,
               "PID change cannot inherit confirmation")
         _ = engine.consume(.keyUp(q), at: 20.9, target: other)
         _ = engine.consume(.modifiersChanged([]), at: 21, target: other)
-        check(isNotice(engine.consume(.keyDown(q, .command, isRepeat: false), at: 21.1, target: other)),
+        check(engine.consume(.keyDown(q, .command, isRepeat: false), at: 21.1, target: other) == .swallow,
               "Releasing Command cancels confirmation")
 
         engine.reset()
@@ -57,7 +56,7 @@ struct QuitProtectionTests {
         engine.configuration.exceptions = [target.bundleIdentifier]
         check(engine.consume(.keyDown(q, .command, isRepeat: false), at: 34, target: target) == .pass, "Exception passes")
         engine.configuration = .init(quitEnabled: true, closeEnabled: true, mode: .doublePress)
-        check(isNotice(engine.consume(.keyDown(w, .command, isRepeat: false), at: 35, target: target)), "Close starts")
+        check(engine.consume(.keyDown(w, .command, isRepeat: false), at: 35, target: target) == .swallow, "Close starts")
         _ = engine.consume(.keyUp(w), at: 35.1, target: target)
         check(engine.consume(.keyDown(w, .command, isRepeat: false), at: 35.2, target: target) == .close(target),
               "Close returns a close action")
@@ -72,7 +71,7 @@ struct QuitProtectionTests {
         check(engine.consume(.tick, at: 40.9, target: target) == .pass, "Hold confirms once")
         _ = engine.consume(.keyUp(q), at: 41, target: target)
         _ = engine.consume(.keyDown(q, .command, isRepeat: false), at: 42, target: target)
-        check(engine.consume(.keyUp(q), at: 42.799, target: target) == .swallow(nil), "Early release swallowed")
+        check(engine.consume(.keyUp(q), at: 42.799, target: target) == .swallow, "Early release swallowed")
         check(engine.consume(.tick, at: 43, target: target) == .pass, "Early release cancels hold")
         _ = engine.consume(.keyDown(q, .command, isRepeat: false), at: 44, target: target)
         check(engine.consume(.tick, at: 44.8, target: other) == .pass, "Switching apps cancels hold")
@@ -85,12 +84,12 @@ struct QuitProtectionTests {
         check(engine.consume(.keyUp(q), at: 60.8, target: target) == .quit(target), "Late key-up confirms a completed hold")
         _ = engine.consume(.keyDown(q, .command, isRepeat: false), at: 61, target: target)
         engine.configuration.quitEnabled = false
-        check(engine.consume(.keyUp(q), at: 61.1, target: target) == .swallow(nil), "Config change preserves paired release")
+        check(engine.consume(.keyUp(q), at: 61.1, target: target) == .swallow, "Config change preserves paired release")
         check(engine.consume(.tick, at: 62, target: target) == .pass, "Config change cancels hold")
         engine.configuration.quitEnabled = true
         _ = engine.consume(.keyDown(q, .command, isRepeat: false), at: 63, target: target)
         let escape = QuitProtectionEngine.Key(code: 53, commandCharacter: nil)
-        check(engine.consume(.keyDown(escape, [], isRepeat: false), at: 63.1, target: target) == .swallow(nil),
+        check(engine.consume(.keyDown(escape, [], isRepeat: false), at: 63.1, target: target) == .swallow,
               "Escape cancels pending confirmation")
         check(engine.consume(.tick, at: 64, target: target) == .pass, "Cancelled hold cannot fire")
 
@@ -106,7 +105,7 @@ struct QuitProtectionTests {
         engine.reset()
         _ = engine.consume(.keyDown(q, .command, isRepeat: false), at: 72, target: target)
         _ = engine.consume(.modifiersChanged(.command), at: 72.2, target: target)
-        check(engine.consume(.keyUp(q), at: 72.4, target: target) == .swallow(nil),
+        check(engine.consume(.keyUp(q), at: 72.4, target: target) == .swallow,
               "Q released after pressing the other ⌘ stays swallowed")
         check(engine.consume(.tick, at: 72.8, target: target) == .pass, "That release cancels the hold")
         engine = QuitProtectionEngine(configuration: .init(mode: .hold))
@@ -120,29 +119,25 @@ struct QuitProtectionTests {
               "⌘W inside the app switcher never arms")
         check(engine.deadline == nil, "Switching leaves nothing pending")
         _ = engine.consume(.modifiersChanged([]), at: 80.4, target: target)
-        check(isNotice(engine.consume(.keyDown(q, .command, isRepeat: false), at: 80.5, target: target)),
+        check(engine.consume(.keyDown(q, .command, isRepeat: false), at: 80.5, target: target) == .swallow,
               "Releasing ⌘ after switching arms again")
         check(engine.consume(.keyDown(tab, .command, isRepeat: false), at: 80.6, target: target) == .pass,
               "⌘Tab mid-hold passes")
         check(engine.consume(.tick, at: 81.5, target: target) == .pass, "⌘Tab cancels a pending hold")
         _ = engine.consume(.keyDown(q, [], isRepeat: false), at: 81.6, target: target)
-        check(isNotice(engine.consume(.keyDown(q, .command, isRepeat: false), at: 81.7, target: target)),
+        check(engine.consume(.keyDown(q, .command, isRepeat: false), at: 81.7, target: target) == .swallow,
               "A key without ⌘ recovers a lost ⌘ release after switching")
 
         engine.reset()
         _ = engine.consume(.keyDown(q, .command, isRepeat: false), at: 90, target: target)
-        check(engine.holdProgress(at: 90) == 0, "Hold progress starts at zero")
-        check(abs((engine.holdProgress(at: 90.4) ?? 0) - 0.5) < 1e-9, "Hold progress is linear")
-        check(engine.holdProgress(at: 95) == 1, "Hold progress is capped")
         engine.reset()
-        check(engine.deadline == nil && engine.holdProgress(at: 90.5) == nil, "Reset clears a half-armed hold")
+        check(engine.deadline == nil, "Reset clears a half-armed hold")
         check(engine.consume(.keyUp(q), at: 90.6, target: target) == .pass, "Reset forgets the swallowed key-up")
         engine.configuration.mode = .doublePress
         _ = engine.consume(.keyDown(q, .command, isRepeat: false), at: 91, target: target)
-        check(engine.holdProgress(at: 91.3) == nil, "Double press shows no hold progress")
         _ = engine.consume(.keyUp(q), at: 91.1, target: target)
         engine.reset()
-        check(isNotice(engine.consume(.keyDown(q, .command, isRepeat: false), at: 91.2, target: target)),
+        check(engine.consume(.keyDown(q, .command, isRepeat: false), at: 91.2, target: target) == .swallow,
               "Reset clears a half-armed double press")
         let suite = "nc-QuitProtection-test.\(UUID())"
         guard let defaults = UserDefaults(suiteName: suite) else { fatalError("Test defaults") }
@@ -156,10 +151,5 @@ struct QuitProtectionTests {
         check(defaults.string(forKey: "notchcast.quitProtection.mode") == "doublePress", "v1 mode key and raw value")
         check(defaults.stringArray(forKey: "notchcast.quitProtection.exceptions") == ["test.app"], "v1 exceptions key")
         print("PASS: \(checks) quit-protection checks; no event tap or app termination")
-    }
-
-    static func isNotice(_ decision: QuitProtectionEngine.Decision) -> Bool {
-        if case .swallow(.some) = decision { return true }
-        return false
     }
 }
