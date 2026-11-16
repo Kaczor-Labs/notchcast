@@ -144,9 +144,10 @@ final class IslandCoordinator: NSObject {
         var origin = CGPoint.zero
         var size = CGSize.zero
         var value: CFTypeRef?
-        guard AXUIElementCopyAttributeValue(window, kAXPositionAttribute as CFString, &value) == .success,
+        guard !Task.isCancelled,
+              AXUIElementCopyAttributeValue(window, kAXPositionAttribute as CFString, &value) == .success,
               let position = value, CFGetTypeID(position) == AXValueGetTypeID(),
-              AXValueGetValue(unsafeDowncast(position, to: AXValue.self), .cgPoint, &origin),
+              AXValueGetValue(unsafeDowncast(position, to: AXValue.self), .cgPoint, &origin), !Task.isCancelled,
               AXUIElementCopyAttributeValue(window, kAXSizeAttribute as CFString, &value) == .success,
               let extent = value, CFGetTypeID(extent) == AXValueGetTypeID(),
               AXValueGetValue(unsafeDowncast(extent, to: AXValue.self), .cgSize, &size) else { return nil }
