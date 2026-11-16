@@ -148,6 +148,7 @@ class BehaviourTest(unittest.TestCase):
             'for s in xcode build lint; do echo "$s" > "$RUNNER_TEMP/step"; [ ! -e "fail-$s" ] || exit 1; done\n'
             'echo "base=$BASE_SHA head=$HEAD_SHA sharded=${NOTCHCAST_HARNESSES_SHARDED:-} pwd=$PWD"\n')
         shutil.copy(ROOT / "notchcast/drift-gates.sh", self.repo / "notchcast/drift-gates.sh")
+        shutil.copy(ROOT / "notchcast/fork-point.sh", self.repo / "notchcast/fork-point.sh")
         (self.repo / "notchcast/check-addon-delete.py").write_text(DELETE_STUB)
         (self.repo / "notchcast/check-drift.py").write_text(DRIFT_STUB)
         self.git("init", "-q", "-b", "main")
@@ -258,6 +259,56 @@ class BehaviourTest(unittest.TestCase):
         self.git("reset", "-q", "--hard", "base")
         self.commit("clean", "clean.txt")
         self.assertEqual(self.check("base").returncode, 0)
+
+    def rewritten_main(self):
+        """A head cut from old main, which a Sync then rewrote; old main carries a private path."""
+        home = "/" + "Users/" + "someone/notes.txt"
+        self.commit(f"path {home}\n", "old.txt")
+        old = self.git("rev-parse", "HEAD")
+        self.commit("work", "work.txt")
+        head = self.git("rev-parse", "HEAD")
+        self.git("checkout", "-q", "--detach", "base")
+        self.commit("rewritten old", "old.txt")
+        self.git("tag", "main2")
+        self.git("checkout", "-q", "--detach", head)
+        return old, head
+
+    def build_base(self, head):
+        log = (self.root / "home/Library/Caches/notchcast/ready-check" / f"{head[:12]}.log").read_text()
+        return re.search(r"^base=(\w+) ", log, re.M)[1]
+
+    def test_a_branch_from_main_diffs_from_main(self):
+        self.commit("work", "work.txt")
+        result = self.check("base")
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertNotIn("fork point", result.stdout)
+        self.assertEqual(self.build_base(self.git("rev-parse", "HEAD")), self.git("rev-parse", "base"))
+
+    def test_a_head_before_a_rewrite_diffs_from_its_fork_point(self):
+        old, head = self.rewritten_main()
+        self.git("push", "-q", str(self.root / "fork.git"), f"{old}:refs/notchcast/synced/old")
+        result = self.check("main2")
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertIn(f"fork point: {old[:12]}, before a Sync rewrite\n", result.stdout)
+        self.assertEqual(self.build_base(head), old)
+        self.assertEqual(result.stdout.splitlines()[-1],
+                         f"PASS {head[:12]} against main2 ({self.git('rev-parse', 'main2')[:12]})")
+
+    def test_without_a_synced_ref_the_rewrite_counts_as_the_branch(self):
+        self.rewritten_main()
+        result = self.check("main2")
+        self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+        self.assertRegex(result.stdout.splitlines()[-1], r"^FAIL identity: ")
+
+    def test_a_branch_updated_onto_the_rewrite_diffs_from_main(self):
+        old, _ = self.rewritten_main()
+        self.git("push", "-q", str(self.root / "fork.git"), f"{old}:refs/notchcast/synced/old")
+        self.git("checkout", "-q", "--detach", "main2")
+        self.commit("work", "work.txt")
+        result = self.check("main2")
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertNotIn("fork point", result.stdout)
+        self.assertEqual(self.build_base(self.git("rev-parse", "HEAD")), self.git("rev-parse", "main2"))
 
     def test_a_disabled_scanner_fails_with_the_base_one(self):
         (self.repo / "notchcast/check-identity.sh").write_text("exit 0\n")
