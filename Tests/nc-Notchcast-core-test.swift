@@ -7,6 +7,7 @@
 // notchcast-sources: Tinycast/Features/WindowManagement/Model/WindowLayoutGeometry.swift Tinycast/Features/WindowManagement/Model/RoomLayoutKind.swift Tinycast/Features/WindowManagement/Model/RoomLayoutEngine.swift Tinycast/Features/WindowManagement/Model/RoomGrid.swift
 // notchcast-sources: Tinycast/Features/WindowManagement/Model/RoomWindow.swift Tinycast/Features/WindowManagement/Model/Room.swift Tinycast/Features/WindowManagement/Model/CustomWindowSize.swift Tinycast/Platform/LocalizedResource.swift Tinycast/Platform/NotificationToken.swift
 // notchcast-sources: Tests/NotchcastTapFixtures.swift
+// notchcast-reads: Tinycast/Features/Notchcast/NotchcastCore.swift
 import AppKit
 import CoreGraphics
 import Foundation
@@ -35,6 +36,16 @@ final class ProbeModule: NotchcastModule {
     }
 
     func stop() { ProbeLog.events.append("stop") }
+}
+
+enum NoticeAddon: NotchcastAddon {
+    static let switches = [NotchcastSwitch(id: "noticeMain", title: "Notice", subtitle: "", category: .notices)]
+    static let commands = [
+        NotchcastCommand(slug: "notice-run", name: "Notice", symbol: "circle", switchID: "noticeMain") { context in
+            context.presenter.post(
+                IslandNotice(id: "musicBlock", text: "Couldn't Stop Apple Music Opening", isFailure: true), onTap: nil)
+        },
+    ]
 }
 
 enum ProbeAddon: NotchcastAddon {
@@ -172,6 +183,7 @@ struct NotchcastCoreTest {
         order(defaults)
         sequence(defaults)
         recovery(defaults)
+        islandPresenter(defaults)
         print(failures == 0 ? "PASS NotchcastCoreTest (\(checks) checks)" : "FAILED \(failures)/\(checks)")
         if failures > 0 { exit(1) }
     }
@@ -379,5 +391,26 @@ struct NotchcastCoreTest {
         check("stop cleared the old recovery's tap, so only the fresh one is live", hub.subscriberCount == 1)
         on.stop()
         check("the default-nil add-on stayed untouched throughout", ProbeLog.events.isEmpty)
+    }
+
+    /// NotchcastCore needs AppCore, which no harness builds, so its presenter line is read as text.
+    static func islandPresenter(_ defaults: UserDefaults) {
+        let system = FakeSystem()
+        let presenter = RecordingPresenter()
+        let controller = NotchcastController(addons: [NoticeAddon.self], defaults: defaults,
+                                             hub: system.makeHub(), presenter: presenter)
+        controller.start()
+        controller.preferences.set("noticeMain", on: true)
+        drain()
+        check("an add-on notice runs", controller.run(entryID: "command:nc-notice-run"))
+        check("an add-on notice reaches the controller's presenter",
+              presenter.log == ["post musicBlock Couldn't Stop Apple Music Opening"])
+        controller.stop()
+        let path = "Tinycast/Features/Notchcast/NotchcastCore.swift"
+        let core = FileManager.default.contents(atPath: path).flatMap { String(data: $0, encoding: .utf8) } ?? ""
+        let calls = core.components(separatedBy: "NotchcastController(").dropFirst()
+        check("NotchcastCore builds one controller", calls.count == 1)
+        check("NotchcastCore hands the controller the island presenter",
+              calls.allSatisfy { $0.prefix { $0 != "\n" }.hasSuffix("presenter: core.islandPresenter)") })
     }
 }
