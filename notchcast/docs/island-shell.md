@@ -16,7 +16,7 @@ Upstream `docs/ui.md` stays unedited apart from one pointer here, so upstream sy
 
 - Surface: the palette sits over an opaque black island backdrop instead of a scrim over behind-window blur. The fork pins AppKit appearance to Dark; Light token branches remain upstream reference values and do not drive island rendering.
 - Glass: the palette root uses `.identity` glass; regular root glass exists only in the Debug stock latency control. Shared `PopoverMenu` surfaces, dialog roots and both HUD roots use opaque `NotchTheme.Colors.islandSurface`. On the island `frosted(in:)` and the update pill go through `islandGlass(_:in:)`, which paints `islandSurface` with `.identity` glass, so the action capsule, menu circle and update pill carry no Liquid Glass; dialog buttons stay matte.
-- Edge and shadow: the engine outline, not the root clip, owns the island edge. `RootPaletteView` keeps its stock clip but drops its scrim on the island (`paletteOnIsland` also strips the compact bar's capsule glass, button glass and scrim; the stock control keeps both); the backdrop and the palette layer mask share one engine frame callback. The outline radius stays `Theme.Radius.panel` at every interface scale and the palette shadow is suppressed.
+- Edge and shadow: the engine outline, not the root clip, owns the island edge. `RootPaletteView` keeps its stock clip but drops its scrim on the island (`paletteOnIsland` also strips the compact bar's capsule glass, button glass and scrim; the stock control keeps both); the backdrop and the palette layer mask share one engine frame callback. The outline radius stays `Theme.Radius.panel` at every interface scale. No island window casts a system shadow (design-system §1): the backdrop and `MenuPanel` are created without one, and the island clears it on the palette at attach and on dialogs and reports at placement.
 - Placement: the palette sits at the display's top centre rather than 8% above centre. Questions sit at the island top on the visible palette's display, otherwise the cursor display; message reports stack below question and palette on the presenter's screen. A volume level draws in the resting pill, or in the report slot under the palette or a question.
 - Levels: backdrop main-menu + 1, palette + 2, reports + 3, questions + 4, replacing upstream's `.palette` and `.dialog`.
 - Menus: native `MenuPanel` child windows with their stock anchors, keyboard routing and fixed widths; only the content surface turns black. Extension menus keep their feature-owned styling.
@@ -56,13 +56,14 @@ Latency uses the prototype protocol: five alternating stock/island runs, 60 inse
 | `DialogPanel.swift`, `HUDPanel.swift` | Notify the island after every native `orderOut`, including HUD fade completion. |
 | `DialogView.swift` | Replace the question glass backing with black. |
 | `MessageHUDView.swift`, `VolumeHUDView.swift` | Replace each HUD glass backing with black. |
+| `MenuPanel.swift` | Create the panel without a system shadow (design-system §1). |
 | `PopoverMenu.swift` | Replace the shared native menu glass backing with black. |
 | `Theme.swift`, `UpdatePill.swift` | Route `frosted(in:)` and the update pill's glass through `islandGlass(_:in:)`. |
 | `SystemActionCoordinator.swift` | Volume and mute commands call `islandPresenter.showLevel` instead of the stock volume box; `VolumeHUDController` stays in the tree, unreferenced. |
 | `CalendarCoordinator.swift` | Keep the meeting clock running while `isWatchedElsewhere()` holds; it never names Island. |
 | `AppWindowController.swift` | Bare `IslandVerification.keepOnTestDisplay` calls when it creates, raises or re-raises a window. In Debug verify mode only, that function centres a new window on `IslandVerification.testScreen`, because AppKit relocates saved frames onto a physical screen, and fails the run without a test display; elsewhere it returns at once. |
 
-`PalettePanel`, `MenuPanel`, all stock feature screens, and stock hide behavior are unchanged. The rejected replacement of `PalettePanel.contentView` by a large island canvas was dropped. Native panel geometry makes its proposed coordinate adapter unnecessary.
+`PalettePanel`, all stock feature screens, and stock hide behavior are unchanged. The rejected replacement of `PalettePanel.contentView` by a large island canvas was dropped. Native panel geometry makes its proposed coordinate adapter unnecessary.
 
 Stock placement helpers and `AppCore.shared` hooks remain intentionally to keep upstream rebases small; the two native `orderOut` hooks make overlay teardown independent of occlusion notifications.
 
@@ -78,9 +79,9 @@ The engine from the stack is `eafeac8`. Repeating the layer/frame proof after it
 
 ## Menus
 
-`MenuPanel` and its controller are unchanged. The shared `PopoverMenu` surface has an opaque black backing; action menus, filter menus and form dropdowns retain their stock content, native child window, keyboard routing and control anchors. Their palette-sized parent frame remains correct. No menu placement adapter or menu controller hook is needed.
+`MenuPanel` is created without a system shadow; its controller is unchanged. The shared `PopoverMenu` surface has an opaque black backing; action menus, filter menus and form dropdowns retain their stock content, native child window, keyboard routing and control anchors. Their palette-sized parent frame remains correct. No menu placement adapter or menu controller hook is needed.
 
-Live checks open the real action menu with Command-K and the clipboard type filter with Command-P. Each menu is the key child of the native palette and its frame stays inside that palette. Typing filters action rows; successive Escape events clear the menu query, close the menu and return key focus, then close the palette. Down and Enter select the text filter. Inspected own-layer composites show black menu surfaces inside the island; the native menu shadows and WindowServer composition remain outside the capture proof.
+Live checks open the real action menu with Command-K and the clipboard type filter with Command-P. Each menu is the key child of the native palette and its frame stays inside that palette. Typing filters action rows; successive Escape events clear the menu query, close the menu and return key focus, then close the palette. Down and Enter select the text filter. Inspected own-layer composites show black menu surfaces inside the island; menus cast no window shadow, and WindowServer composition remains outside the capture proof.
 
 ## Pill menu and glance
 
