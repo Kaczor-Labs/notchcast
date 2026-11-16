@@ -317,8 +317,8 @@ private struct AppRow: View {
                 .overlay(alignment: .bottom) {
                     if running {
                         Circle()
-                            .fill(.secondary)
-                            .frame(width: 3, height: 3)
+                            .fill(Theme.Colors.textSecondary)
+                            .frame(width: NotchTheme.Size.runningDot, height: NotchTheme.Size.runningDot)
                             .offset(y: 3)
                     }
                 }
@@ -343,9 +343,7 @@ private struct AppRow: View {
                     .lineLimit(1)
                     .padding(.horizontal, metrics.spacing.sm)
                     .padding(.vertical, metrics.spacing.xxs)
-                    .background(
-                        RoundedRectangle(cornerRadius: metrics.radius.menu, style: .continuous)
-                            .fill(Theme.Colors.controlSurface))
+                    .background(NotchAliasChipBackground(onIsland: !IslandVerification.stock))
             }
             if let caps = shortcutCaps {
                 HStack(spacing: metrics.spacing.xxs) {
