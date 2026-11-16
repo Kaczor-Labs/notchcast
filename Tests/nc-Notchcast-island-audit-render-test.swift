@@ -14,6 +14,18 @@
 // notchcast-sources: Tinycast/Features/Island/Service/IslandExpansionArt.swift
 // notchcast-sources: Tinycast/Platform/Images/IconCache.swift
 // notchcast-sources: Tinycast/Features/Notchcast/NotchMenuInk.swift
+// notchcast-sources: Tinycast/Features/Island/Model/IslandLiveState.swift
+// notchcast-sources: Tinycast/Features/Island/Service/IslandPaletteSurface.swift
+// notchcast-sources: Tinycast/Features/Updates/UI/UpdatePill.swift Tinycast/Features/Updates/Model/AppVersion.swift
+// notchcast-sources: Tinycast/Features/Updates/Model/ReleaseFeed.swift Tinycast/Features/Updates/Model/ReleaseChannel.swift
+// notchcast-sources: Tinycast/Features/Updates/Model/ReleaseArchitecture.swift
+// notchcast-sources: Tinycast/Features/Updates/Service/UpdateInstaller.swift
+// notchcast-sources: Tinycast/Features/Updates/Service/UpdateFailure.swift
+// notchcast-sources: Tinycast/Features/Updates/Service/Quarantine.swift
+// notchcast-sources: Tinycast/Features/Updates/Service/BundleSignature.swift
+// notchcast-sources: Tinycast/Features/Updates/Service/ToolRunner.swift
+// notchcast-sources: Tinycast/Features/Updates/Service/UpdateDownloader.swift
+// notchcast-sources: Tinycast/Features/Updates/Service/UpdateSignature.swift
 import AppKit
 import SwiftUI
 
@@ -166,7 +178,7 @@ struct NotchcastIslandAuditRenderTest {
             DialogView(
                 request: DialogRequest(
                     title: "Update failed", message: "The download did not finish.",
-                    symbol: "arrow.down.circle", tone: .danger,
+                    symbol: IslandLiveState.failedSymbol, tone: .danger,
                     actions: [DialogAction(title: "OK", role: .cancel), DialogAction(title: "Try Again")],
                     defaultIndex: 1, cancelIndex: 0),
                 width: 290, onChoose: { _ in })
@@ -198,6 +210,18 @@ struct NotchcastIslandAuditRenderTest {
                 search: .init(placeholder: "Search…", placement: .top))
         }
 
+        for (name, stage) in [
+            ("15-update-pill-available", UpdateCoordinator.Stage.available(.sample)),
+            ("16-update-pill-installing", .installing(.sample, .downloading(received: 40, expected: 100))),
+            ("17-update-pill-opaque-step", .installing(.sample, .extracting)),
+            ("18-update-pill-ready", .readyToRelaunch),
+            ("19-update-pill-failed", .failed(.downloadFailed("The network dropped"))),
+        ] {
+            render(name) {
+                UpdatePill().environment(UpdateCoordinator(stage: stage)).environment(\.paletteOnIsland, true)
+            }
+        }
+
         let notch = false
         renderArt("10-notice-glyph", IslandNoticeArt(
             IslandNotice(id: "a", symbol: "doc.on.clipboard", text: "Copied"), notch: notch))
@@ -213,6 +237,33 @@ struct NotchcastIslandAuditRenderTest {
             IslandLevel(source: "volume", symbol: "speaker.wave.2.fill", label: "Volume", value: 0.6), notch: notch))
         print("PASS rendered island audit surfaces to \(folder.path)")
     }
+}
+
+/// Stand-in for the coordinator `UpdatePill` reads, so the pill renders without `AppCore`.
+@MainActor
+@Observable
+final class UpdateCoordinator {
+    enum Stage: Equatable {
+        case idle
+        case checking
+        case available(AvailableRelease)
+        case installing(AvailableRelease, UpdateInstaller.Phase)
+        case readyToRelaunch
+        case failed(UpdateFailure)
+    }
+
+    let stage: Stage
+    init(stage: Stage) { self.stage = stage }
+    func install() {}
+    func relaunch() {}
+    func showFailure() {}
+    func dismiss() {}
+}
+
+extension AvailableRelease {
+    static let sample = AvailableRelease(
+        version: AppVersion("1.2.3")!, tag: "v1.2.3", assetURL: URL(string: "https://example.com/a.zip")!,
+        assetSize: 100, signatureURL: nil, publishedAt: nil)
 }
 
 /// Stand-ins for the palette state `PopoverMenu` reads, so the menu renders without `AppCore`.
