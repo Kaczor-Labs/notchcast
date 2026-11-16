@@ -1,0 +1,144 @@
+{
+  "sourceLanguage" : "en",
+  "strings" : {
+    "%@ is not installed. Install it with: %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@ is not installed. Install it with: %2$@"
+          }
+        }
+      }
+    },
+    "%lld of %lld: %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$lld of %2$lld: %3$@"
+          }
+        }
+      }
+    },
+    "A webpage is already being saved." : {
+
+    },
+    "Add Links to Distill" : {
+
+    },
+    "Distill" : {
+
+    },
+    "Distill Timestamps" : {
+
+    },
+    "Download Audio" : {
+
+    },
+    "Download Video" : {
+
+    },
+    "Download YouTube Transcript" : {
+
+    },
+    "Download video, audio, transcripts and webpages from clipboard links." : {
+
+    },
+    "Downloading" : {
+
+    },
+    "Downloads" : {
+
+    },
+    "Enter a public HTTP or HTTPS webpage URL without credentials, using port 80 or 443." : {
+
+    },
+    "Fast Downloads with aria2c" : {
+
+    },
+    "Include approximate chunk timestamps in Distill transcripts." : {
+
+    },
+    "Install a Dictation model in Settings to transcribe media." : {
+
+    },
+    "No Web Links in Clipboard" : {
+
+    },
+    "Open Distill Folder" : {
+
+    },
+    "Open Downloads Folder" : {
+
+    },
+    "Private and loopback addresses cannot be saved as webpages." : {
+
+    },
+    "Run Distill" : {
+
+    },
+    "Save Webpage as Markdown" : {
+
+    },
+    "Save links and transcribe media into your Distill folder." : {
+
+    },
+    "The downloader did not return an output file." : {
+
+    },
+    "The webpage contains no readable article." : {
+
+    },
+    "The webpage could not be rendered." : {
+
+    },
+    "The webpage host could not be resolved to a public address." : {
+
+    },
+    "The webpage is too large to save." : {
+
+    },
+    "The webpage requires sign-in or a bot check." : {
+
+    },
+    "The webpage returned HTTP status %lld." : {
+
+    },
+    "The webpage took too long to load." : {
+
+    },
+    "This URL does not contain an HTML webpage." : {
+
+    },
+    "This download type is not available." : {
+
+    },
+    "Tool exited with status %d." : {
+
+    },
+    "Transcribing %lld of %lld" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Transcribing %1$lld of %2$lld"
+          }
+        }
+      }
+    },
+    "Transcript fallback requires a supported media link." : {
+
+    },
+    "Use aria2c for faster media downloads when it is installed." : {
+
+    },
+    "X returned HTTP status %lld for this post." : {
+
+    },
+    "X returned no readable post for this link." : {
+
+    }
+  },
+  "version" : "1.0"
+}
