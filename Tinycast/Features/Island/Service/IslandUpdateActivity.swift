@@ -7,7 +7,6 @@ final class IslandUpdateActivity {
     private unowned let core: AppCore
     private var started = false
     private var shown = IslandLiveState(update: .none)
-    private var endTask: Task<Void, Never>?
     #if DEBUG
     private var previewStage: UpdateCoordinator.Stage?
     private var previewSeconds: TimeInterval?
@@ -48,20 +47,15 @@ final class IslandUpdateActivity {
         let next = IslandLiveState(update: Self.update(stage))
         guard next != shown else { return }
         shown = next
-        endTask?.cancel()
-        endTask = nil
         let presenter = core.islandPresenter
         let tap = tap(stage)
-        if let notice = next.notice { presenter.post(notice, onTap: tap) } else { presenter.end(notice: IslandLiveState.id) }
-        presenter.setStatus(next.status, for: IslandLiveState.id, onTap: tap)
-        guard let dwell = next.noticeSeconds else { return }
-        let seconds = scaled(dwell)
-        endTask = Task { [weak self] in
-            try? await Task.sleep(for: .seconds(seconds))
-            guard !Task.isCancelled, let self else { return }
-            self.endTask = nil
-            self.core.islandPresenter.end(notice: IslandLiveState.id)
+        if var notice = next.notice {
+            if let dwell = next.noticeSeconds { notice.seconds = scaled(dwell) }
+            presenter.post(notice, onTap: tap)
+        } else {
+            presenter.end(notice: IslandLiveState.id)
         }
+        presenter.setStatus(next.status, for: IslandLiveState.id, onTap: tap)
     }
 
     private func scaled(_ seconds: TimeInterval) -> TimeInterval {
@@ -90,6 +84,4 @@ final class IslandUpdateActivity {
         case .failed: .failed
         }
     }
-
-    isolated deinit { endTask?.cancel() }
 }
