@@ -16,6 +16,8 @@ final class IslandPresenter: IslandPresenting {
     private weak var expandedPill: IslandController?
     private var notice: IslandNotice?
     private var statuses: [IslandStatus] = []
+    private var noticeTap: (@MainActor () -> Void)?
+    private var statusTaps: [String: @MainActor () -> Void] = [:]
 
     func showLevel(_ level: IslandLevel) {
         if dwell.show(level, at: Self.now) {
@@ -38,6 +40,7 @@ final class IslandPresenter: IslandPresenting {
     func post(_ notice: IslandNotice, onTap: (@MainActor () -> Void)?) {
         let isNew = self.notice?.id != notice.id || self.notice?.text != notice.text
         self.notice = notice
+        noticeTap = onTap
         AppCore.shared.island.resting?.notice = notice
         guard isNew else { return }
         NSAccessibility.post(element: NSApp as Any, notification: .announcementRequested,
@@ -50,14 +53,24 @@ final class IslandPresenter: IslandPresenting {
     func end(notice id: String) {
         guard notice?.id == id else { return }
         notice = nil
+        noticeTap = nil
         AppCore.shared.island.resting?.notice = nil
     }
 
-    func setStatus(_ status: IslandStatus?, for id: String) {
+    func setStatus(_ status: IslandStatus?, for id: String, onTap: (@MainActor () -> Void)?) {
         statuses.removeAll { $0.id == id }
+        statusTaps[id] = status == nil ? nil : onTap
         if let status { statuses.append(status) }
         AppCore.shared.island.resting?.statuses = statuses
     }
+
+    /// A click on the resting pill acts on what it shows; the meeting glance hides status.
+    var tap: (@MainActor () -> Void)? {
+        if notice != nil { return noticeTap }
+        if AppCore.shared.island.resting?.glance != nil { return nil }
+        return statuses.last.flatMap { statusTaps[$0.id] }
+    }
+
     /// Hands notices and status to the resting pill without posting, so none re-announces.
     func restore(_ controller: IslandController, resting: Bool) {
         controller.notice = resting ? notice : nil
