@@ -8,7 +8,7 @@ final class RecordingPresenter: IslandPresenting {
     func showLevel(_ level: IslandLevel) { log.append("level \(level.source) \(level.value)") }
     func post(_ notice: IslandNotice, onTap: (@MainActor () -> Void)?) { log.append("post \(notice.id) \(notice.text)") }
     func end(notice id: String) { log.append("end \(id)") }
-    func setStatus(_ status: IslandStatus?, for id: String) { log.append("status \(id)") }
+    func setStatus(_ status: IslandStatus?, for id: String, onTap: (@MainActor () -> Void)?) { log.append("status \(id)") }
     func setMenuRows(_ rows: [IslandMenuRow], owner: String, onSelect: @escaping @MainActor (String) -> Void) {
         log.append("menu \(owner) \(rows.count)")
     }
