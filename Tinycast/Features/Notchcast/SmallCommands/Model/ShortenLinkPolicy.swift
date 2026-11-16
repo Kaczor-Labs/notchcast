@@ -74,9 +74,10 @@ nonisolated enum ShortenLinkPolicy {
         return text
     }
 
-    /// Decoded first: `%31%32%37.0.0.1` is the host a resolver sees, so it is the one judged.
+    /// Decoded as a resolver sees it; a non-ASCII host (`１２７.0.0.1`) may map to a private one there.
     static func isPublic(_ link: String) -> Bool {
-        guard let host = URL(string: link)?.host(percentEncoded: false) else { return false }
+        guard let host = URL(string: link)?.host(percentEncoded: false), host.unicodeScalars.allSatisfy(\.isASCII)
+        else { return false }
         return !isPrivate(host)
     }
 

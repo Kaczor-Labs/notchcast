@@ -7,11 +7,6 @@ nonisolated enum SmallCommandsFailure: LocalizedError, Equatable, Sendable {
     case browserNeedsAutomation
     case finderNeedsAutomation
     case appTimedOut
-    case controlCenterNotRunning
-    case controlCenterMenuOpen
-    case needsAccessibility
-    case noAirPods
-    case noiseControlUnchanged
     case airDropCancelled
     case nothingSelected
     case airDropUnavailable
@@ -30,16 +25,6 @@ nonisolated enum SmallCommandsFailure: LocalizedError, Equatable, Sendable {
             String(localized: "Allow Automation access to read the Finder selection.", table: "NotchcastSmallCommands")
         case .appTimedOut:
             String(localized: "The app did not respond in time.", table: "NotchcastSmallCommands")
-        case .controlCenterNotRunning:
-            String(localized: "Control Center is not running.", table: "NotchcastSmallCommands")
-        case .controlCenterMenuOpen:
-            String(localized: "Close the open Control Center menu and try again.", table: "NotchcastSmallCommands")
-        case .needsAccessibility:
-            String(localized: "Allow Accessibility access to switch noise control.", table: "NotchcastSmallCommands")
-        case .noAirPods:
-            String(localized: "No AirPods with noise control found.", table: "NotchcastSmallCommands")
-        case .noiseControlUnchanged:
-            String(localized: "Noise control did not change.", table: "NotchcastSmallCommands")
         case .airDropCancelled:
             String(localized: "AirDrop was cancelled.", table: "NotchcastSmallCommands")
         case .nothingSelected:

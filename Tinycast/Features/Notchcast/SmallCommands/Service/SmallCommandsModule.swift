@@ -4,13 +4,12 @@ import Foundation
 @MainActor
 final class SmallCommandsModule: NotchcastModule {
     enum Action: Sendable {
-        case password, shorten, noise, airDrop
+        case password, shorten, airDrop
 
         var symbol: String {
             switch self {
             case .password: "key"
             case .shorten: "link"
-            case .noise: "airpodspro"
             case .airDrop: "airplayaudio"
             }
         }
@@ -22,8 +21,6 @@ final class SmallCommandsModule: NotchcastModule {
     private let system: SmallCommandsSystem
     private var airDrop: AirDropService?
     private var commandTask: Task<Void, Never>?
-    /// Outlives a switch off and on, so the last run's menu cleanup ends before the next one opens it.
-    private static var lastNoiseRun: Task<Void, Never>?
     private var noticeTask: Task<Void, Never>?
     private var operation = UUID()
     private(set) var isRunning = false
@@ -54,16 +51,13 @@ final class SmallCommandsModule: NotchcastModule {
         cancelRun()
         if action == .password { return show(Result { try copyPassword() }, for: action) }
         let operation = operation
-        let previousNoise = action == .noise ? Self.lastNoiseRun : nil
         let task = Task { [weak self] in
-            await previousNoise?.value
             let result = await self?.outcome(of: action)
             guard let self, let result, !Task.isCancelled, self.isRunning, self.operation == operation else { return }
             self.commandTask = nil
             self.show(result, for: action)
         }
         commandTask = task
-        if action == .noise { Self.lastNoiseRun = task }
     }
 
     private func cancelRun() {
@@ -78,7 +72,6 @@ final class SmallCommandsModule: NotchcastModule {
             switch action {
             case .password: return .success(try copyPassword())
             case .shorten: return .success(try await shortenLink())
-            case .noise: return .success(try await switchNoiseControl())
             case .airDrop: return .success(try await shareSelection())
             }
         } catch {
@@ -115,23 +108,6 @@ final class SmallCommandsModule: NotchcastModule {
         return switch pick.source {
         case .clipboard: String(localized: "Short Link Copied from Clipboard", table: "NotchcastSmallCommands")
         case .browser: String(localized: "Short Link Copied from Browser", table: "NotchcastSmallCommands")
-        }
-    }
-
-    private func switchNoiseControl() async throws -> String {
-        guard let processID = system.controlCenterProcessID() else {
-            throw SmallCommandsFailure.controlCenterNotRunning
-        }
-        let observe = system.observeNoiseControl
-        let perform = system.noiseControl
-        let service = NoiseControlService(
-            observe: { try await observe(processID, $0) },
-            perform: { try await perform($0, processID, $1) })
-        switch try await service.switchMode() {
-        case .switched: return String(localized: "Done", table: "NotchcastSmallCommands")
-        case .noAirPods: throw SmallCommandsFailure.noAirPods
-        case .unchanged: throw SmallCommandsFailure.noiseControlUnchanged
-        case .menuBusy: throw SmallCommandsFailure.controlCenterMenuOpen
         }
     }
 

@@ -27,12 +27,6 @@ extension SmallCommandsSystem {
             return try await SmallCommandsAppleEvents.address(bundleID, steps: steps)
         },
         fetch: { try await ShortenLinkSession.fetch($0) },
-        controlCenterProcessID: {
-            NSRunningApplication.runningApplications(withBundleIdentifier: "com.apple.controlcenter")
-                .first?.processIdentifier
-        },
-        observeNoiseControl: { try await NoiseControlSystem.observe(processID: $0, deadline: $1) },
-        noiseControl: { try await NoiseControlSystem.perform($0, processID: $1, deadline: $2) },
         makeAirDrop: {
             AirDropService(
                 selection: { try await SmallCommandsAppleEvents.finderSelection() },

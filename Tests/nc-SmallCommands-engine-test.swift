@@ -1,14 +1,9 @@
 // notchcast-sources: Tinycast/Features/Notchcast/SmallCommands/Model/*.swift
-// notchcast-sources: Tinycast/Features/Notchcast/SmallCommands/Service/NoiseControlService.swift
 // notchcast-sources: Tinycast/Features/Notchcast/SmallCommands/Service/ShortenLinkSession.swift
 
 import Foundation
-import Synchronization
 
-typealias Mode = NoiseControlEngine.Mode
-typealias Button = NoiseControlEngine.Button
 typealias Policy = ShortenLinkPolicy
-typealias Window = NoiseControlService.Window
 
 func secureBytes(_ count: Int) -> [UInt8] {
     var generator = SystemRandomNumberGenerator()
@@ -43,7 +38,11 @@ func passwords() throws {
 
 /// A resolver decodes the host, so `%31%32%37.0.0.1` is loopback and must be judged as such.
 let encodedPrivateLinks = ["http://%31%30%30.64.1.1", "http://%31%32%37.0.0.1/private?token=SECRET",
-                           "http://wiki.%69nternal/private"]
+                           "http://wiki.%69nternal/private"] + encodedNonASCIILinks
+
+/// Decoded to fullwidth `１２７.0.0.1` and `printer.ｌｏｃａｌ`, which a resolver may map to private hosts.
+let encodedNonASCIILinks = ["http://%EF%BC%91%EF%BC%92%EF%BC%97.0.0.1/private",
+                            "http://printer.%EF%BD%8C%EF%BD%8F%EF%BD%83%EF%BD%81%EF%BD%8C/"]
 
 func linkCleaning() {
     let cases: [(String, String?)] = [
@@ -69,16 +68,20 @@ func linkCleaning() {
                     "http://payroll/employee/7?token=SECRET", "http://payroll./x", "http://100.64.0.1/a",
                     "http://100.127.255.254", "http://wiki.internal/p", "http://router.lan", "http://nas.home.arpa/",
                     "http://[fd12:3456::1]/", "http://[fe80::1]/", "http://[::ffff:100.64.1.1]/",
-                    "http://payroll../x", "http://.payroll/"] + encodedPrivateLinks {
+                    "http://payroll../x", "http://.payroll/", "http://１２７.0.0.1/", "http://printer.ｌｏｃａｌ/"]
+                    + encodedPrivateLinks {
         precondition(Policy.request(for: blocked) == nil, "a private link never leaves the Mac: \(blocked)")
         precondition(Policy.firstLink(in: "see \(blocked) now") == nil, "a private link is never picked: \(blocked)")
         precondition(Policy.pick(clipboard: blocked, browserAddress: nil) == nil, "clipboard skips \(blocked)")
         precondition(Policy.pick(clipboard: nil, browserAddress: blocked) == nil, "browser skips \(blocked)")
     }
     for open in ["http://100.63.255.255", "http://100.128.0.1", "https://example.com", "http://[2001:db8::1]/",
-                 "https://ex%61mple.com/p"] {
+                 "https://ex%61mple.com/p", "https://bücher.de/"] {
         precondition(Policy.request(for: open) != nil, "a public host still shortens: \(open)")
     }
+    precondition(Policy.request(for: "https://b%C3%BCcher.de/") == nil, "an encoded non-ASCII host is refused")
+    precondition(Policy.pick(clipboard: "https://b%C3%BCcher.de/", browserAddress: nil)?.link == "https://xn--bcher-kva.de/",
+                 "but a picked link reaches it as punycode, so IDN links still shorten")
 
     precondition(Policy.firstLink(in: "see https://example.com/x?utm_term=a now") == "https://example.com/x",
                  "free text: first link, cleaned")
@@ -112,118 +115,13 @@ func session() {
     precondition(session.configuration.timeoutIntervalForRequest == Policy.timeout, "request timeout")
 }
 
-func targets() {
-    func b(_ mode: Mode, _ selected: Bool?) -> Button { Button(mode: mode, selected: selected) }
-    let all: [Mode] = [.off, .transparency, .adaptive, .noiseCancellation]
-    precondition(NoiseControlEngine.target(in: all.map { b($0, $0 == .noiseCancellation) }) == .transparency, "ANC → T")
-    precondition(NoiseControlEngine.target(in: all.map { b($0, $0 == .transparency) }) == .noiseCancellation, "T → ANC")
-    precondition(NoiseControlEngine.target(in: all.map { b($0, $0 == .adaptive) }) == .noiseCancellation, "Adaptive → ANC")
-    precondition(NoiseControlEngine.target(in: all.map { b($0, nil) }) == .noiseCancellation, "unknown → ANC")
-    precondition(NoiseControlEngine.target(in: [b(.off, true), b(.adaptive, false)]) == nil, "no AirPods modes")
-    precondition(NoiseControlEngine.target(in: [b(.transparency, false), b(.off, true)]) == nil, "the target missing")
-    precondition(NoiseControlEngine.target(in: []) == nil, "an empty menu")
-}
-
-final class Clock: Sendable {
-    let ticks = Mutex(0)
-    var now: Duration { .milliseconds(ticks.withLock { $0 }) }
-    func advance(_ ms: Int) { ticks.withLock { $0 += ms } }
-}
-
-/// Control Center: the Sound extra toggles its own window; a foreign menu (Wi-Fi) is a second kind.
-final class FakeMenu: Sendable {
-    let log = Mutex<[String]>([])
-    let sound = Mutex<UInt?>(nil)
-    let foreign = Mutex(false)
-    let nextID = Mutex<UInt>(1)
-    let mode = Mutex(Mode.noiseCancellation)
-    let sticks = Mutex(true)
-    let replaceOnPress = Mutex(false)
-    let clock = Clock()
-
-    var toggles: Int { log.withLock { $0.filter { $0 == "toggle" }.count } }
-
-    func service() -> NoiseControlService {
-        NoiseControlService(
-            observe: { _ in
-                self.log.withLock { $0.append("observe") }
-                let mode = self.mode.withLock { $0 }
-                let modes = [Mode.off, .transparency, .noiseCancellation].map { Button(mode: $0, selected: $0 == mode) }
-                var windows = self.sound.withLock { $0 }.map { [Window(id: $0, buttons: modes)] } ?? []
-                let wifi = Window(id: 900, buttons: [Button(mode: .off, selected: false)])
-                if self.foreign.withLock({ $0 }) { windows.append(wifi) }
-                return windows
-            },
-            perform: { action, _ in
-                switch action {
-                case .toggleMenu:
-                    precondition(!self.foreign.withLock { $0 }, "Sound is never toggled over a foreign menu")
-                    self.log.withLock { $0.append("toggle") }
-                    let id = self.nextID.withLock { id in defer { id += 1 }; return id }
-                    self.sound.withLock { $0 = $0 == nil ? id : nil }
-                case .press(let target, let window):
-                    precondition(window == self.sound.withLock { $0 }, "a mode is pressed only in the Sound window")
-                    self.log.withLock { $0.append("press \(target.rawValue)") }
-                    if self.replaceOnPress.withLock({ $0 }) {
-                        self.sound.withLock { $0 = nil }
-                        self.foreign.withLock { $0 = true }
-                    } else if self.sticks.withLock({ $0 }) {
-                        self.mode.withLock { $0 = target }
-                    }
-                }
-            },
-            sleep: { self.clock.advance(100) },
-            now: { self.clock.now })
-    }
-}
-
-func noiseService() async throws {
-    let menu = FakeMenu()
-    var outcome = try await menu.service().switchMode()
-    precondition(outcome == .switched(.transparency), "switches ANC to Transparency")
-    precondition(menu.log.withLock { $0 } == ["observe", "toggle", "observe", "observe", "press Transparency",
-                                              "observe", "observe", "toggle", "observe"],
-                 "open, read, press, confirm, close: \(menu.log.withLock { $0 })")
-    precondition(menu.sound.withLock { $0 } == nil, "the menu ends closed")
-    outcome = try await menu.service().switchMode()
-    precondition(outcome == .switched(.noiseCancellation), "and back")
-
-    let opened = FakeMenu()
-    opened.sound.withLock { $0 = 7 }
-    outcome = try await opened.service().switchMode()
-    precondition(outcome == .menuBusy, "a menu we did not open is never trusted as Sound")
-    precondition(opened.log.withLock { $0 } == ["observe"], "nothing is pressed: \(opened.log.withLock { $0 })")
-    precondition(opened.sound.withLock { $0 } == 7, "the user's menu stays open")
-
-    let wifi = FakeMenu()
-    wifi.foreign.withLock { $0 = true }
-    outcome = try await wifi.service().switchMode()
-    precondition(outcome == .menuBusy && wifi.toggles == 0, "Wi-Fi open: refused, Sound untouched")
-    precondition(wifi.foreign.withLock { $0 } && wifi.sound.withLock { $0 } == nil, "Wi-Fi stays as it was")
-
-    let replaced = FakeMenu()
-    replaced.replaceOnPress.withLock { $0 = true }
-    outcome = try await replaced.service().switchMode()
-    precondition(outcome == .unchanged, "Sound replaced mid-run by another menu: no switch is claimed")
-    precondition(replaced.toggles == 1, "and cleanup never presses Sound over it: \(replaced.log.withLock { $0 })")
-
-    let stuck = FakeMenu()
-    stuck.sticks.withLock { $0 = false }
-    outcome = try await stuck.service().switchMode()
-    precondition(outcome == .unchanged, "a press that never sticks ends at the deadline")
-    precondition(stuck.toggles == 2 && stuck.sound.withLock { $0 } == nil, "the menu still closes")
-    precondition(stuck.clock.now >= .seconds(8), "it waited the whole deadline")
-}
-
 @main
 enum SmallCommandsEngineTests {
-    static func main() async throws {
+    static func main() throws {
         try passwords()
         linkCleaning()
         replies()
         session()
-        targets()
-        try await noiseService()
-        print("PASS: small commands engines pin password, link cleaning, private session and noise control")
+        print("PASS: small commands engines pin password, link cleaning, ASCII hosts and private session")
     }
 }

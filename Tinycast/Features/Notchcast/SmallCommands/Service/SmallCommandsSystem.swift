@@ -1,6 +1,6 @@
 import Foundation
 
-/// The system side of the four commands, injected so a harness can fake it; `.live` is in `+Live`.
+/// The system side of the three commands, injected so a harness can fake it; `.live` is in `+Live`.
 struct SmallCommandsSystem: Sendable {
     let clipboardText: @MainActor @Sendable () -> String?
     /// A concealed copy carries `org.nspasteboard.ConcealedType`, so clipboard history skips it.
@@ -9,8 +9,5 @@ struct SmallCommandsSystem: Sendable {
     /// The front browser's address, read only when the clipboard holds no link.
     let browserAddress: @MainActor @Sendable () async throws -> String?
     let fetch: @Sendable (URLRequest) async throws -> (Data, Int)
-    let controlCenterProcessID: @MainActor @Sendable () -> Int32?
-    let observeNoiseControl: @Sendable (Int32, Duration) async throws -> [NoiseControlService.Window]
-    let noiseControl: @Sendable (NoiseControlService.Action, Int32, Duration) async throws -> Void
     let makeAirDrop: @MainActor @Sendable () -> AirDropService
 }
