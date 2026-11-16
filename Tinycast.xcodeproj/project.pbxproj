@@ -1018,6 +1018,7 @@
 		FF42AF572BA0BFEFCFCE5901 /* WindowLayoutGeometry.swift in Sources */ = {isa = PBXBuildFile; fileRef = AFF7FC0E52E9082006614E0D /* WindowLayoutGeometry.swift */; };
 		FF4547D81506C054D51B0C0A /* IslandUpdateScenes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 387C0EC3A941C5FEDE9A09B8 /* IslandUpdateScenes.swift */; };
 		FF934DD9FBD8F26BAB72ACD1 /* SymbolImage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 64EC07E163CE4F3D11FE7225 /* SymbolImage.swift */; };
+		FFA02E61D8ACE3DE9B164138 /* PaletteScreenshotHold.swift in Sources */ = {isa = PBXBuildFile; fileRef = A06ABD8D28D7FF8A70A24BF2 /* PaletteScreenshotHold.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -1708,6 +1709,7 @@
 		9F9A0A3867D1B8E1D3284471 /* ExtensionNodeShims.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExtensionNodeShims.swift; sourceTree = "<group>"; };
 		A022043AE60501848E0C5026 /* AIModelChecklist.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIModelChecklist.swift; sourceTree = "<group>"; };
 		A061D1B64684905BA0E998C5 /* ChatHistoryScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatHistoryScreen.swift; sourceTree = "<group>"; };
+		A06ABD8D28D7FF8A70A24BF2 /* PaletteScreenshotHold.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PaletteScreenshotHold.swift; sourceTree = "<group>"; };
 		A0BAA0471DD8CE4352F45FED /* ExtensionCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExtensionCoordinator.swift; sourceTree = "<group>"; };
 		A1306524F57602D90FCF153C /* Theme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Theme.swift; sourceTree = "<group>"; };
 		A16A7349B3D5EF92EFB35E58 /* SettingsFileBinding.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsFileBinding.swift; sourceTree = "<group>"; };
@@ -2160,6 +2162,7 @@
 				D55BFE80A2EE1DD3DA9A2AA9 /* NotchcastTapRouter.swift */,
 				59C58D4B2132F5BEF8635C00 /* NotchcastTapThread.swift */,
 				B4052F126202F1AC6ABBEC4E /* NotchcastTrustMonitor.swift */,
+				A06ABD8D28D7FF8A70A24BF2 /* PaletteScreenshotHold.swift */,
 			);
 			path = Service;
 			sourceTree = "<group>";
@@ -5561,6 +5564,7 @@
 				1C81DCEBEFFC1191751135F4 /* PalettePlacement.swift in Sources */,
 				9F8806D46EBAF7058FC2EAEC /* PaletteRowIndex.swift in Sources */,
 				DB6B294B3D15B0AABCE5427E /* PaletteScreen.swift in Sources */,
+				FFA02E61D8ACE3DE9B164138 /* PaletteScreenshotHold.swift in Sources */,
 				5DB92B34C31D500F69ADF3E8 /* PaletteShortcut.swift in Sources */,
 				1BC16048EE05A1FD25739CB4 /* PaletteState.swift in Sources */,
 				3C2812B921530D45B802B44C /* PaletteTabAction.swift in Sources */,
