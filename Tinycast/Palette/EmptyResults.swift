@@ -8,12 +8,12 @@ struct EmptyResults: View {
     var body: some View {
         VStack(spacing: 8) {
             Image(systemName: systemImage).font(.largeTitle)
-                .symbolRenderingMode(.hierarchical).foregroundStyle(.tertiary)
-            Text(text).foregroundStyle(.secondary)
+                .symbolRenderingMode(.hierarchical).foregroundStyle(Theme.Colors.textTertiary)
+            Text(text).foregroundStyle(Theme.Colors.textSecondary)
             if let detail {
                 Text(detail)
                     .font(.callout)
-                    .foregroundStyle(.tertiary)
+                    .foregroundStyle(Theme.Colors.textTertiary)
                     .multilineTextAlignment(.center)
                     .frame(maxWidth: 360)
             }

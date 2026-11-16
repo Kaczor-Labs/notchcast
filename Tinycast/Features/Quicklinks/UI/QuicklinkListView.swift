@@ -116,7 +116,7 @@ private struct QuicklinkRow: View {
             Spacer(minLength: metrics.spacing.lg)
             if !quicklink.showsInRootSearch {
                 Image(systemName: "eye.slash")
-                    .font(.system(size: 10))
+                    .font(metrics.typography.indicatorGlyph)
                     .foregroundStyle(Theme.Colors.textTertiary)
             }
             if let keycaps = hotKeys.binding(for: .quicklink(id: quicklink.id))?.keycaps {
@@ -152,7 +152,7 @@ struct QuicklinkPreview: View {
                 QuicklinkInfoSection(quicklink: quicklink)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .padding(.horizontal, 12)
+            .padding(.horizontal, metrics.spacing.xl)
         } else {
             Color.clear
         }
