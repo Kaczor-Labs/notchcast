@@ -19,7 +19,7 @@ struct SectionHeader: View {
                         .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
-                .help(configureHelp)
+                .tooltip(configureHelp)
             }
             Spacer(minLength: 0)
         }
