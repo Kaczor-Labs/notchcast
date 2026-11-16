@@ -52,9 +52,9 @@ struct IslandHeadlineArt {
     let size: CGSize
     let notice: IslandNotice
     let tone: NSColor
+    let text: NSAttributedString
+    let textWidth: CGFloat
     private let mark: IslandNoticeMark
-    private let text: NSAttributedString
-    private let textWidth: CGFloat
     private let indent: CGFloat
 
     init(_ notice: IslandNotice, notch: CGFloat) {
@@ -64,7 +64,7 @@ struct IslandHeadlineArt {
         text = IslandNoticeMark.line(notice.text)
         let inset = NotchTheme.Spacing.islandInset
         indent = mark.isEmpty ? 0 : IslandNoticeMark.cell + Theme.Spacing.sm
-        textWidth = min(ceil(text.size().width), Theme.Size.hudMaxWidth - inset * 2 - indent)
+        textWidth = min(ceil(text.size().width), NotchTheme.Size.islandHeadlineMaxWidth - inset * 2 - indent)
         let width = max(indent + textWidth + inset * 2, notch + Theme.Radius.panel * 2)
         size = CGSize(width: width, height: ceil(text.size().height) + Theme.Spacing.lg * 2)
     }
