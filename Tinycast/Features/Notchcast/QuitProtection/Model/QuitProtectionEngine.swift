@@ -14,7 +14,6 @@ struct QuitProtectionEngine: Sendable {
     struct Target: Sendable, Equatable {
         let processIdentifier: Int32
         let bundleIdentifier: String
-        let name: String
     }
 
     struct Key: Sendable, Equatable {
@@ -53,28 +52,9 @@ struct QuitProtectionEngine: Sendable {
         case cancel
     }
 
-    struct Notice: Sendable, Equatable {
-        let shortcut: Shortcut
-        let mode: Mode
-        let applicationName: String
-
-        var text: String {
-            switch (shortcut, mode) {
-            case (.quit, .doublePress):
-                String(localized: "Press ⌘Q again to quit \(applicationName)", table: "NotchcastQuitProtection")
-            case (.close, .doublePress):
-                String(localized: "Press ⌘W again to close a window in \(applicationName)", table: "NotchcastQuitProtection")
-            case (.quit, .hold):
-                String(localized: "Hold ⌘Q to quit \(applicationName)", table: "NotchcastQuitProtection")
-            case (.close, .hold):
-                String(localized: "Hold ⌘W to close a window in \(applicationName)", table: "NotchcastQuitProtection")
-            }
-        }
-    }
-
     enum Decision: Sendable, Equatable {
         case pass
-        case swallow(Notice?)
+        case swallow
         case quit(Target)
         case close(Target)
     }
@@ -104,11 +84,6 @@ struct QuitProtectionEngine: Sendable {
 
     var deadline: TimeInterval? {
         pending.map { $0.started + ($0.mode == .hold ? Self.holdInterval : Self.doublePressInterval) }
-    }
-
-    func holdProgress(at timestamp: TimeInterval) -> Double? {
-        guard let pending, pending.mode == .hold else { return nil }
-        return min(max((timestamp - pending.started) / Self.holdInterval, 0), 1)
     }
 
     init(configuration: Configuration = .init()) {
@@ -150,7 +125,7 @@ struct QuitProtectionEngine: Sendable {
                     pending?.released = true
                 }
             }
-            return .swallow(nil)
+            return .swallow
         case .tick:
             return tick(at: timestamp)
         case .keyDown(let key, let modifiers, let isRepeat):
@@ -165,15 +140,15 @@ struct QuitProtectionEngine: Sendable {
                 switching = false
             }
             if key.shortcut == nil { swallowedKeys = [] }
-            if swallowedKeys.contains(key.code) { return .swallow(nil) }
+            if swallowedKeys.contains(key.code) { return .swallow }
             if key.code == Self.escapeKeyCode, pending != nil {
                 pending = nil
                 swallowedKeys.insert(key.code)
-                return .swallow(nil)
+                return .swallow
             }
             guard let shortcut = key.shortcut, modifiers == .command, let target,
                   isEnabled(shortcut, target: target) else { pending = nil; return .pass }
-            guard !isRepeat else { return .swallow(nil) }
+            guard !isRepeat else { return .swallow }
             swallowedKeys.insert(key.code)
             if let pending, pending.mode == .doublePress, pending.key.code == key.code,
                pending.released, timestamp <= pending.started + Self.doublePressInterval {
@@ -181,7 +156,7 @@ struct QuitProtectionEngine: Sendable {
                 return shortcut == .quit ? .quit(target) : .close(target)
             }
             pending = Pending(key: key, shortcut: shortcut, target: target, started: timestamp, mode: configuration.mode)
-            return .swallow(Notice(shortcut: shortcut, mode: configuration.mode, applicationName: target.name))
+            return .swallow
         }
     }
 
