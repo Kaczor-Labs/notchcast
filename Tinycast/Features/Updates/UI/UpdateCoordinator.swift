@@ -126,7 +126,7 @@ final class UpdateCoordinator {
         Task {
             let retry = await core.reportFailure(
                 title: String(localized: "Update failed"), message: message,
-                symbol: "arrow.down.circle", recovery: String(localized: "Try Again"))
+                symbol: IslandLiveState.failedSymbol, recovery: String(localized: "Try Again"))
             if retry, case .failed = stage { install() }
         }
     }
