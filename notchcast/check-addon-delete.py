@@ -8,7 +8,7 @@ Every surviving fork harness that notchcast/harness_inputs.py resolves in the sc
 in the run-tests log, so a harness the runner skipped cannot pass as clean.
 Prints PASS per folder, or FAIL with the step and its log. A failure the deletion caused is a contract breach
 (exit 1); one the tools caused (clone, xcodegen, timeout, a build that stopped without a Swift error) is a
-tooling failure (exit 2). Standalone: ready-check does not run it.
+tooling failure (exit 2). ready-check runs --rotate when its branch changes Tinycast/Features/Notchcast/.
 With NOTCHCAST_BUILD_QUEUE set, in the environment or ~/.config/notchcast/private.env (notchcast/README.md,
 "Private hooks"), the whole run holds one build-queue slot.
 Usage: check-addon-delete.py (<Folder> | --rotate | --all) [--ref HEAD]
