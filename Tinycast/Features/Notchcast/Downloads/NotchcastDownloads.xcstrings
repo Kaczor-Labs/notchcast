@@ -11,6 +11,9 @@
         }
       }
     },
+    "Stopped" : {
+
+    },
     "Saved %@" : {
 
     },
@@ -31,6 +34,9 @@
 
     },
     "Download Audio" : {
+
+    },
+    "Cancelled" : {
 
     },
     "Download Video" : {

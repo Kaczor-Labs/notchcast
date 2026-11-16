@@ -41,7 +41,8 @@ final class DownloadsIslandBridge {
         guard let id else {
             queue = nil
             policy = nil
-            return finish()
+            return finish(result: IslandNotice(id: noticeID + ".stopped", symbol: "stop.circle",
+                                               text: String(localized: "Stopped", table: "NotchcastDownloads")))
         }
         if queue != id {
             queue = id
@@ -52,9 +53,15 @@ final class DownloadsIslandBridge {
             presenter.post(IslandNotice(id: noticeID + ".failed." + job.id, symbol: symbol,
                                         text: DownloadsIslandPolicy.message(for: job), isFailure: true), onTap: nil)
         }
-        if !result.saved.isEmpty {
+        if !result.saved.isEmpty || !result.cancelled.isEmpty {
             showing = false
             presenter.end(notice: noticeID)
+        }
+        if !result.cancelled.isEmpty {
+            presenter.post(IslandNotice(id: noticeID + ".cancelled", symbol: "xmark.circle",
+                                        text: String(localized: "Cancelled", table: "NotchcastDownloads")), onTap: nil)
+        }
+        if !result.saved.isEmpty {
             presenter.post(IslandNotice(id: noticeID + ".saved", symbol: "checkmark.circle",
                                         text: DownloadsIslandPolicy.savedMessage(for: result.saved)), onTap: nil)
         }
@@ -69,9 +76,11 @@ final class DownloadsIslandBridge {
                        onTap: nil)
     }
 
-    private func finish() {
+    /// Ends the progress; a stopped queue leaves `result` behind, an emptied one nothing.
+    private func finish(result: IslandNotice? = nil) {
         guard showing else { return }
         showing = false
         presenter.end(notice: noticeID)
+        if let result { presenter.post(result, onTap: nil) }
     }
 }

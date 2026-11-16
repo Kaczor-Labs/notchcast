@@ -47,6 +47,20 @@ struct DownloadsResultTest {
             expect(other.notices.last { $0.id == "dl.progress.saved" }?.text == "Saved a.html",
                    "\(kind) jobs end with the same result")
         }
+        let cancelled = try await interrupt(root) { controller in
+            controller.queue!.cancel(controller.queue!.jobs[0].id)
+        }
+        let cancel = cancelled.notices.last { $0.id == "dl.progress.cancelled" }
+        expect(cancel?.text == "Cancelled" && cancel?.symbol == "xmark.circle" && cancel?.isFailure == false,
+               "cancelling the last running job leaves a plain Cancelled notice: \(String(describing: cancel))")
+        expect(!cancelled.notices.contains { $0.id == "dl.progress.saved" }, "a cancelled job is not reported saved")
+
+        let stopped = try await interrupt(root) { $0.stop() }
+        let stop = stopped.notices.last { $0.id == "dl.progress.stopped" }
+        expect(stop?.text == "Stopped" && stop?.isFailure == false, "switching off mid-download says Stopped")
+        expect(stopped.log.suffix(2) == ["end dl.progress", "post dl.progress.stopped"],
+               "the notice follows the end of the progress: \(stopped.log)")
+
         print("Downloads result: checkmark after a finished batch, plain failure notice, one success per batch")
     }
 
@@ -63,6 +77,25 @@ struct DownloadsResultTest {
         try await eventually { presenter.sawProgress }
         await gate.open()
         try await eventually { controller.queue?.jobs.allSatisfy { $0.state.isFinished } == true }
+        try await Task.sleep(for: .milliseconds(100))
+        controller.stop()
+        return presenter
+    }
+
+    /// Starts one job, waits for its progress to show, then lets `action` end it before any result.
+    private static func interrupt(
+        _ root: URL, _ action: (DownloadsQueueController) -> Void
+    ) async throws -> Capture {
+        let presenter = Capture()
+        let controller = DownloadsQueueController(
+            file: root.appending(path: "q-\(UUID().uuidString).json"), destination: root,
+            tools: DownloadToolLookup(directories: [], home: root, environment: [:]), report: { _ in })
+        DownloadsIslandBridge.track(controller, presenter: presenter, noticeID: "dl.progress", symbol: "arrow.down.circle")
+        controller.start { $0.register(FakeRunner(kind: "webpage", gate: Gate())) }
+        try await eventually { controller.queue != nil }
+        _ = controller.accept(kind: "webpage", sources: ["https://example.com/a"])
+        try await eventually { presenter.sawProgress }
+        action(controller)
         try await Task.sleep(for: .milliseconds(100))
         controller.stop()
         return presenter
