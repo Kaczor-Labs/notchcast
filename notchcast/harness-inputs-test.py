@@ -176,18 +176,19 @@ class HarnessInputsTest(unittest.TestCase):
         (self.root / "notchcast/command-harness-sources.sh").write_text('false\nprintf "masked\\n"\n')
         self.assert_runner_refuses_invalid_inputs()
 
-    def test_module_check_warns_only_on_an_uncompiled_module(self):
+    def test_module_check_fails_only_on_an_uncompiled_module(self):
         compiled = "Tinycast/Features/Example/Model/ExampleModule.swift"
         orphan = "Tinycast/Features/Other/OtherModule.swift"
         for path in (compiled, orphan):
             (self.root / path).parent.mkdir(parents=True, exist_ok=True)
             (self.root / path).touch()
-        for changed, warned in ((compiled, False), (orphan, True)):
+        for changed, failed in ((compiled, False), (orphan, True)):
             with self.subTest(changed=changed):
                 result = subprocess.run(["python3", "notchcast/check-module-harness.py", "base", "head"],
                                         cwd=self.root, env={**self.env, "CHANGED": changed},
-                                        text=True, capture_output=True, check=True)
-                self.assertEqual(warned, f"::warning file={changed}::" in result.stdout)
+                                        text=True, capture_output=True)
+                self.assertEqual(failed, result.returncode == 1, result.stdout + result.stderr)
+                self.assertEqual(failed, f"::error file={changed}::" in result.stdout)
 
     def add_kit(self, name, text):
         (self.root / "Tests/Kit").mkdir(exist_ok=True)

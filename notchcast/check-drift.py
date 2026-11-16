@@ -1,12 +1,11 @@
 #!/usr/bin/env python3
-"""Local fork-only drift gates and post-landing threshold reports."""
+"""Local fork-only drift gates."""
 import argparse
 from collections import Counter, defaultdict
 import contextlib
 import importlib.util
 import io
 import json
-import os
 from pathlib import Path
 import re
 import shutil
@@ -184,7 +183,7 @@ def measure(root, upstream, gates):
                     continue
                 literals[value].add(folder(path))
         observed['constants'] = {key: len(owners) for key, owners in literals.items() if len(owners) > 1}
-    return observed, ours, our_tests
+    return observed, ours
 
 
 def check_counts(observed, baseline):
@@ -215,9 +214,9 @@ def read_baseline(path):
     for rule, counts in baseline.items():
         if not isinstance(counts, dict) or any(type(v) is not int or v < 0 for v in counts.values()):
             raise ValueError(f'invalid baseline counts for {rule}')
-    alerts = set(PATTERNS) | {'file-lines', 'test-lines', 'waivers', 'upstream-patch-lines', 'fix-no-test'}
-    if baseline['alerts'].keys() != alerts:
-        raise ValueError('baseline alerts must define every report counter')
+    # shortcut: retired counters stay in drift-baseline.json while the v2 base checker requires them.
+    if not set(PATTERNS) <= baseline['alerts'].keys():
+        raise ValueError('baseline alerts must define every pattern counter')
     return baseline
 
 
@@ -245,26 +244,9 @@ def compare_baseline(root, base, baseline):
             if before(key) not in previous[rule] or value > previous[rule][before(key)]]
 
 
-def report_counters(root, upstream, ours, our_tests, rev=None):
-    counters = {('file-lines', path): len(text.splitlines()) for path, text in ours.items() if path != HUB}
-    counters.update({('test-lines', path): len(text.splitlines()) for path, text in our_tests.items()})
-    counters['waivers', 'all'] = sum(bool(WAIVER.search(line)) for text in (ours | our_tests).values()
-                                     for line in text.splitlines())
-    for name, pattern in PATTERNS.items():
-        counters[name, 'all'] = sum(len(re.findall(pattern, text)) for text in ours.values())
-    diff = git(root, 'diff', '--diff-filter=M', '--numstat', upstream, *([rev] if rev else []))
-    counters['upstream-patch-lines', 'all'] = sum(int(line.split('\t')[0]) for line in diff.splitlines()
-                                               if '.generated.' not in line.split('\t')[2]
-                                               and line.split('\t')[2] not in ('README.md', 'Tinycast.xcodeproj/project.pbxproj')
-                                               and line.split('\t')[0].isdigit())
-    log = git(root, 'log', '--first-parent', f'{upstream}..{rev or "HEAD"}', '--format=%x1e%s%x1f%b')
-    waived_fixes = 0
-    for entry in log.split('\x1e'):
-        subject, _, body = entry.lstrip().partition('\x1f')
-        if re.match(r'^(?:Notchcast: )?Fix ', subject, re.I) and re.search(r'^No test: \S', body, re.M):
-            waived_fixes += 1
-    counters['fix-no-test', 'all'] = waived_fixes
-    return counters
+def pattern_counters(ours):
+    return {(name, 'all'): sum(len(re.findall(pattern, text)) for text in ours.values())
+            for name, pattern in PATTERNS.items()}
 
 
 def main_counters(root, upstream):
@@ -278,79 +260,33 @@ def main_counters(root, upstream):
         return {}
     added = set(git(root, 'diff', '--diff-filter=A', '--name-only', fork, base, '--', '*.swift').splitlines())
     with tempfile.TemporaryDirectory(prefix='drift-main.') as work:
-        present = git(root, 'ls-tree', '--name-only', base, '--', 'Tinycast', 'notchcast/root', 'Tests').split()
+        present = git(root, 'ls-tree', '--name-only', base, '--', 'Tinycast', 'notchcast/root').split()
         archive = subprocess.run(['git', '-C', str(root), 'archive', base, *present],
                                  capture_output=True, check=True).stdout
         subprocess.run(['tar', '-x', '-C', work], input=archive, check=True)
         prod = {p: text for p, text in (sources(Path(work), 'Tinycast') | sources(Path(work), 'notchcast/root')).items()
                 if p in added}
-        tests = {p: text for p, text in sources(Path(work), 'Tests').items() if p in added}
-    return report_counters(root, fork, prod, tests, base)
+    return pattern_counters(prod)
 
 
-def print_counters(root, upstream, observed, ours, our_tests, baseline, known):
+def print_counters(observed, ours, baseline, known):
     print('Counter | Current | Baseline / threshold')
     for rule, counts in observed.items():
         print(f'{rule} | {sum(counts.values())} ({len(counts)} keys) | {sum(baseline[rule].values())}')
         for key, value in sorted(counts.items()):
             if value > baseline[rule].get(key, 0):
                 print(f'GATE-THRESHOLD {rule}:{key.replace(" | ", "|")} {value} {baseline[rule].get(key, 0)}')
-    counters = report_counters(root, upstream, ours, our_tests)
     breaches = []
-    for (counter, key), value in sorted(counters.items()):
+    for (counter, key), value in sorted(pattern_counters(ours).items()):
         limit = baseline['alerts'][counter]
-        if key == 'all':
-            print(f'{counter} | {value} | {limit} | {key}')
+        print(f'{counter} | {value} | {limit} | {key}')
         if value > limit:
             mark = ' known' if value <= known.get((counter, key), limit) else ''
-            name = counter if key == 'all' else f'{counter}:{key}'
-            print(f'GATE-THRESHOLD {name} {value} {limit}{mark}')
+            print(f'GATE-THRESHOLD {counter} {value} {limit}{mark}')
             if not mark:
-                breaches.append(f'threshold breach new or grown: {name} {value} > {limit} '
+                breaches.append(f'threshold breach new or grown: {counter} {value} > {limit} '
                                 f'(main: {known.get((counter, key), "none")})')
-    return counters, breaches
-
-
-def notify(counters, thresholds, cache, hook):
-    if os.environ.get('NOTCHCAST_NO_TASKS', '0') not in ('', '0'):
-        print('tasks disabled (NOTCHCAST_NO_TASKS)')
-        return
-    available = subprocess.run(['bash', '-c',
-                                'if [ -f "$1" ]; then source "$1"; fi; declare -F notchcast_task >/dev/null',
-                                'drift-hook', str(hook)], capture_output=True, text=True, errors='replace')
-    if available.returncode:
-        print('no task hook')
-        return
-    cache.parent.mkdir(parents=True, exist_ok=True)
-    import fcntl
-    with (cache.parent / (cache.name + '.lock')).open('w') as lock:
-        fcntl.flock(lock, fcntl.LOCK_EX)
-        first = not cache.exists()
-        previous = {} if first else json.loads(cache.read_text())
-        current = {}
-        for (counter, key), value in sorted(counters.items()):
-            threshold = thresholds[counter]
-            identity = f'{counter}|{key}'
-            if value <= threshold:
-                continue
-            if first or identity in previous:
-                current[identity] = previous.get(identity, value)
-                continue
-            result = subprocess.run(['bash', '-c',
-                                     'if [ -f "$1" ]; then source "$1"; fi\n'
-                                     'notchcast_task "$2" "$3"',
-                                     'drift-hook', str(hook), f'Notchcast: Reduce {counter}',
-                                     f'{counter}, {value}, threshold {threshold}, {key}'],
-                                    capture_output=True, text=True, errors='replace')
-            if result.stdout:
-                print(result.stdout.strip())
-            if result.returncode == 0:
-                current[identity] = value
-            else:
-                print(f'task hook failed: {identity} (exit {result.returncode}): {result.stderr.strip()}')
-        temporary = cache.with_suffix('.tmp')
-        temporary.write_text(json.dumps(current, indent=2, sort_keys=True) + '\n')
-        temporary.replace(cache)
+    return breaches
 
 
 def main():
@@ -360,7 +296,6 @@ def main():
     parser.add_argument('--gates', default='1,2,3,4', choices=('1,2,3', '1,2,3,4', '1', '2', '3', '4'))
     parser.add_argument('--write-baseline', action='store_true', help='Seed or tighten the baseline; never raise existing budgets')
     parser.add_argument('--compare-base', help='Reject budget growth against this commit, without running tools')
-    parser.add_argument('--report', action='store_true', help='Print counters and call optional threshold tasks')
     args = parser.parse_args()
     root = args.root.resolve()
     path = root / 'notchcast/drift-baseline.json'
@@ -371,11 +306,9 @@ def main():
     if args.write_baseline and args.gates != '1,2,3,4':
         raise ValueError('writing the baseline requires all gates')
     upstream = args.upstream or upstream_base(root)
-    observed, ours, our_tests = measure(root, upstream, args.gates.split(','))
+    observed, ours = measure(root, upstream, args.gates.split(','))
     if args.write_baseline:
-        counters = report_counters(root, upstream, ours, our_tests)
-        observed['alerts'] = {name: value for (name, key), value in counters.items() if key == 'all'}
-        observed['alerts'].update({'file-lines': 349, 'test-lines': 549})
+        observed['alerts'] = {name: value for (name, _), value in pattern_counters(ours).items()}
         if path.exists():
             previous = read_baseline(path)
             observed['alerts'] = previous['alerts']
@@ -388,14 +321,6 @@ def main():
         print('Seeded drift-baseline.json')
         return 0
     baseline = read_baseline(path)
-    if args.report:
-        counters, _ = print_counters(root, upstream, observed, ours, our_tests, baseline, {})
-        for rule in ('dead', 'test-only'):
-            for key in observed.get(rule, {}):
-                print(f'{rule} | {key}')
-        notify(counters, baseline['alerts'], Path.home() / 'Library/Caches/notchcast/drift-alerts.json',
-               Path.home() / '.config/notchcast/private.env')
-        return 0
     problems = check_counts(observed, baseline)
     for gate in args.gates.split(','):
         count = sum(len(observed[r]) for r in RULES[gate])
@@ -405,7 +330,7 @@ def main():
         print(problem)
     if args.gates == '1,2,3,4':  # land.sh and local-ci.sh run all four; the pre-push subset stays quiet
         known = main_counters(root, upstream)
-        _, breaches = print_counters(root, upstream, observed, ours, our_tests, baseline, known)
+        breaches = print_counters(observed, ours, baseline, known)
         if known:
             print('\n'.join(breaches))
             problems += breaches
