@@ -69,6 +69,7 @@ enum IslandUpdateScenes {
         await IslandVerification.pause(0.1)
         read("failed", failed)
         IslandVerification.require(controller.notice?.isFailure == true, "the failed notice is a failure")
+        IslandVerification.require(controller.noticeTone === IslandNoticeArt.failureTone, "a failure glyph is red")
         await IslandVerification.pause(0.4)
         await controller.capture("update-failed")
         await IslandVerification.pause(0.4)

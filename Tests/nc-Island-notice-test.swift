@@ -13,6 +13,12 @@ struct IslandNoticeTest {
         queue.expire(at: 2.4)
         precondition(queue.notice == nil, "The notice leaves once its dwell runs out")
 
+        queue.post(IslandNotice(id: "failed", text: "Failed", isFailure: true), at: 0)
+        precondition(near(queue.remaining(at: 1), 3), "A failure notice dwells 4 s by default")
+        queue.post(IslandNotice(id: "failed", text: "Failed", isFailure: true, seconds: 5), at: 0)
+        precondition(near(queue.remaining(at: 1), 4), "A failure keeps a dwell its poster sets")
+        queue.end("failed", at: 1)
+
         queue.post(IslandNotice(id: "sync", text: "Syncing", progress: 0.2), at: 10)
         precondition(queue.remaining(at: 100) == nil, "A progress notice stays until it is ended")
         queue.end("sync", at: 100)

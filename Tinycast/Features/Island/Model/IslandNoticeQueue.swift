@@ -17,7 +17,7 @@ struct IslandNoticeQueue: Sendable {
     /// A repost keeps its place under newer notices and restarts its dwell.
     mutating func post(_ notice: IslandNotice, at now: TimeInterval) {
         settle(at: now)
-        let left = notice.progress == nil ? notice.seconds : nil
+        let left = notice.progress == nil ? notice.dwell : nil
         if let index = entries.firstIndex(where: { $0.notice.id == notice.id }) {
             entries[index] = Entry(notice: notice, left: left, heard: entries[index].heard)
         } else {
