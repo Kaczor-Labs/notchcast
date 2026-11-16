@@ -311,6 +311,14 @@ class Gates(unittest.TestCase):
         write(self.root, TODO, 'struct DriftProbe {} // drift: keep \n')
         self.red('3', ':DriftProbe:')
 
+    def test_missing_alert_threshold_fails_closed(self):
+        baseline = self.baseline()
+        del baseline['alerts']['try?']
+        self.save_baseline(baseline)
+        result = self.run_check('1')
+        self.assertEqual(result.returncode, 1)
+        self.assertIn('baseline alerts must define every pattern counter', result.stderr)
+
     def test_gate_run_prints_counters_and_threshold_lines(self):
         write(self.root, TODO, 'struct DriftProbe {}\nstruct DriftProbeTwin {}\n')
         result = self.run_check()
@@ -327,6 +335,12 @@ class Gates(unittest.TestCase):
         self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
         self.assertIn('GATE-THRESHOLD dead:Tinycast/Features/Todo/Existing.swift:TodoReplacement 1 0',
                       result.stdout.splitlines())
+
+    def test_clean_gate_run_has_no_rule_threshold_line(self):
+        result = self.run_check()
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        thresholds = [line for line in result.stdout.splitlines() if line.startswith('GATE-THRESHOLD')]
+        self.assertEqual(thresholds, [])
 
     def test_gate_subset_run_stays_quiet(self):
         write(self.root, TODO, 'struct DriftProbe {}\n')
