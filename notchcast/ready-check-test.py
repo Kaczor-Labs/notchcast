@@ -242,8 +242,11 @@ class BehaviourTest(unittest.TestCase):
         self.assertEqual(result.returncode, 1)
         self.assertEqual(result.stdout.splitlines()[-2:], ["notchcast/ci-build.sh",
                          "FAIL footprint: v2/addons-zen touches 1 upstream paths"])
-        self.env["NOTCHCAST_READY_BRANCH"] = "v2/addons-core"
-        self.assertNotIn("FAIL footprint", self.check("base").stdout)
+        for core in ("v2/addons-core", "v2/addons-core-8"):
+            self.env["NOTCHCAST_READY_BRANCH"] = core
+            self.assertNotIn("FAIL footprint", self.check("base").stdout, core)
+        self.env["NOTCHCAST_READY_BRANCH"] = "v2/addons-core-8-land"
+        self.assertIn("FAIL footprint", self.check("base").stdout)
 
     def test_a_builders_branch_never_reaches_the_fixtures(self):
         with open(self.repo / "notchcast/check-drift.py", "a") as stub:
