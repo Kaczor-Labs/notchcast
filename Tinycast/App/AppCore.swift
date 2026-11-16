@@ -1063,6 +1063,11 @@ final class AppCore {
 
     // MARK: - Dialogs, routed here so `dialogs` stays the single owner
 
+    #if DEBUG
+    var shownDialog: DialogRequest? { dialogs.shown }
+    var lastDialogAnswer: Int? { dialogs.lastAnswer }
+    #endif
+
     func showNotice(title: String, message: String, symbol: String, tone: DialogTone) async {
         await dialogs.notice(title: title, message: message, symbol: symbol, tone: tone)
     }
