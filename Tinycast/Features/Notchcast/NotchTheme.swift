@@ -14,11 +14,13 @@ enum NotchTheme {
     }
 
     enum Typography {
-        /// AppKit twin of `Theme.Typography.bar`, so the drawn pill matches the type scale.
+        /// `Theme.Typography.bar` with monospaced digits, so a ticking countdown never jitters the pill.
         @MainActor static let islandGlanceNSFont: NSFont = {
             let callout = NSFont.preferredFont(forTextStyle: .callout)
             let weight: [NSFontDescriptor.TraitKey: Any] = [.weight: NSFont.Weight.medium]
-            let medium = callout.fontDescriptor.addingAttributes([.traits: weight])
+            let digits: [NSFontDescriptor.FeatureKey: Int] = [.typeIdentifier: kNumberSpacingType,
+                                                             .selectorIdentifier: kMonospacedNumbersSelector]
+            let medium = callout.fontDescriptor.addingAttributes([.traits: weight, .featureSettings: [digits]])
             return NSFont(descriptor: medium, size: callout.pointSize) ?? callout
         }()
     }
