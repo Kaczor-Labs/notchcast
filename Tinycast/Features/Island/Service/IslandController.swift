@@ -18,6 +18,15 @@ final class IslandController: NSObject {
     private var overlays: [CGRect] = []
     #if DEBUG
     private(set) var samples: [String] = []
+    /// Every painted frame, panel or not, so a scene reads an opening that has no launcher under it.
+    private(set) var trace: [FrameTrace] = []
+    struct FrameTrace {
+        let time: Double
+        let bounds: CGRect
+        let keylineAlpha: Double
+        let keylineBounds: CGRect
+    }
+    var onFrame: (() -> Void)?
     private var captureName: String?
     private var captureDone: CheckedContinuation<Void, Never>?
     private(set) var captured: [String] = []
@@ -324,6 +333,12 @@ final class IslandController: NSObject {
         CATransaction.flush()
         if !(showsRest && !onFullScreenSpace), !glancing, isResting { backdrop.orderOut(nil) }
         #if DEBUG
+        if IslandVerification.enabled {
+            trace.append(FrameTrace(time: CACurrentMediaTime(), bounds: outlineBounds,
+                keylineAlpha: Double(keyline.strokeColor?.alpha ?? 0),
+                keylineBounds: keyline.path?.boundingBoxOfPath ?? .zero))
+            onFrame?()
+        }
         if IslandVerification.enabled, let panel {
             let expected = canvas.outline?.boundingBoxOfPath.offsetBy(
                 dx: backdrop.frame.minX, dy: backdrop.frame.minY) ?? .zero
@@ -347,6 +362,9 @@ final class IslandController: NSObject {
     var shownStatuses: [String] { (canvas.glance as? IslandStatusArt)?.shown ?? [] }
     var noticeTone: NSColor? { (canvas.glance as? IslandNoticeArt)?.tone ?? canvas.headline?.tone }
     var showsHeadline: Bool { canvas.headline != nil }
+    var headline: IslandHeadlineArt? { canvas.headline }
+    var keylineLayer: CAShapeLayer { keyline }
+    var contentMask: CALayer? { panel?.contentView?.layer?.mask }
     var reduced: Bool { surface?.reduced == true }
     var backdropVisible: Bool { backdrop.isVisible }
     var frameIntervals: [Double] { source.intervals }
