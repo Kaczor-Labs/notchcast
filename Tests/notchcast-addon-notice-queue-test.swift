@@ -87,7 +87,12 @@ struct AddonNoticeQueueTest {
         }
     }
 
+    static let dwell: TimeInterval = 2.4 // the stock message HUD dwell add-ons were promised
+    static let tolerance: TimeInterval = 0.5
+
     static func turn(_ seconds: TimeInterval) { RunLoop.main.run(until: Date().addingTimeInterval(seconds)) }
+
+    static func elapsed(_ since: Date) -> String { String(format: "%.2f s", Date().timeIntervalSince(since)) }
 
     static func main() {
         _ = NSApplication.shared
@@ -105,14 +110,20 @@ struct AddonNoticeQueueTest {
         let first = "Couldn't Stop Apple Music Opening"
         let second = "Keeping Your Mac Awake"
 
+        let posted = Date()
         check("the first add-on notice runs", controller.run(entryID: "command:nc-music-notice"))
         check("the second add-on notice runs", controller.run(entryID: "command:nc-awake-notice"))
         print("shown right after both posts: \(pill.shown); showing: \(pill.notice?.text ?? "nothing")")
         check("the newer notice shows on top", pill.notice?.text == second)
+        turn(dwell - tolerance - Date().timeIntervalSince(posted))
+        print("showing at \(elapsed(posted)): \(pill.notice?.text ?? "nothing")")
+        check("the newer notice still shows just before its dwell ends", pill.notice?.text == second)
         let deadline = Date().addingTimeInterval(10)
-        while pill.notice?.text != first, Date() < deadline { turn(0.05) }
-        print("shown after dwell: \(pill.shown)")
+        while pill.notice?.text != first, Date() < deadline { turn(0.02) }
+        let back = Date().timeIntervalSince(posted)
+        print("first back at \(elapsed(posted)); shown: \(pill.shown)")
         check("the first notice returns once the second dwells out", pill.shown == [first, second, first])
+        check("the first notice returns at the dwell, not sooner or much later", abs(back - dwell) <= tolerance)
         controller.stop()
         print(failures == 0 ? "PASS AddonNoticeQueueTest" : "FAILED \(failures)")
         exit(failures == 0 ? 0 : 1)
