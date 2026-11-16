@@ -17,3 +17,6 @@ Screenshots: Model/ScreenshotExclusion.swift ← vorssaint/vorssaint-utils@89d26
 Screenshots: Model/ScreenshotExclusion.swift ← vorssaint/vorssaint-utils@89d2626/Sources/Vorssaint/Services/QuickTools/ScreenshotCaptureEngine.swift (GPL-3.0-or-later)
 Screenshots: Service/ScreenshotSystem+Live.swift ← vorssaint/vorssaint-utils@89d2626/Sources/Vorssaint/Services/QuickTools/ScreenshotCaptureEngine.swift (GPL-3.0-or-later)
 Screenshots: UI/ScreenshotSelectionSurface.swift ← vorssaint/vorssaint-utils@89d2626/Sources/Vorssaint/Services/QuickTools/ScreenshotSelectionController.swift (GPL-3.0-or-later)
+KeepAwake: Model/KeepAwakeAutomation.swift ← Vorssaint/Sources/Vorssaint/Services/KeepAwakeAutomationSupport.swift (GPL-3.0-or-later)
+KeepAwake: Model/LidSleepPolicy.swift ← Vorssaint/Sources/Vorssaint/Services/KeepAwakeAutomationSupport.swift (GPL-3.0-or-later)
+KeepAwake: Service/KeepAwakeLiveSystem.swift ← Vorssaint/Sources/Vorssaint/Services/KeepAwakeManager.swift (GPL-3.0-or-later)
