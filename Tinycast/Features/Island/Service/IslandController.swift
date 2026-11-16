@@ -331,6 +331,7 @@ final class IslandController: NSObject {
     /// A notch for screens that have none, so the notch profile runs on the test display.
     static var simulatedNotch: CGSize?
     var shownStatuses: [String] { (canvas.glance as? IslandStatusArt)?.shown ?? [] }
+    var noticeTone: NSColor? { (canvas.glance as? IslandNoticeArt)?.tone }
     var reduced: Bool { surface?.reduced == true }
     var backdropVisible: Bool { backdrop.isVisible }
     var frameIntervals: [Double] { source.intervals }
