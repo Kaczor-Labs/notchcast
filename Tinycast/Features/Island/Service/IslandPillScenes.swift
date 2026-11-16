@@ -4,7 +4,8 @@ import AppKit
 /// The resting pill's scenes: they run before the launcher opens, so the pill stays at rest.
 @MainActor
 enum IslandPillScenes {
-    static let names: Set = ["pill-menu", "pill-settings", "glance", "glance-menu", "pill-menu-quiet", "pill-settings-quiet",
+    static let names: Set = ["install-report",
+                             "pill-menu", "pill-settings", "glance", "glance-menu", "pill-menu-quiet", "pill-settings-quiet",
                              "glance-modal", "pill-busy", "window-guard-new", "window-guard-raise",
                              "window-guard-deferred", "island-ax", "update", "notice-queue",
                              "notice-unseen", "pill-menu-rows"]
@@ -31,6 +32,7 @@ enum IslandPillScenes {
             await IslandWindowScenes.windowGuard(core: core, scene: scene)
         case "island-ax": await IslandAccessibilityScenes.run(core: core, controller: controller)
         case "update": await IslandUpdateScenes.run(core: core, controller: controller)
+        case "install-report": await IslandInstallReportScenes.run(core: core, controller: controller)
         case "notice-queue": await IslandNoticeScenes.run(core: core, controller: controller)
         case "notice-unseen": await IslandNoticeScenes.unseen(core: core, controller: controller)
         default: await glance(core: core, controller: controller)

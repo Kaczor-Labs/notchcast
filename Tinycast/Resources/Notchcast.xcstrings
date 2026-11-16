@@ -33,6 +33,9 @@
     },
     "Notices" : {
       "shouldTranslate" : false
+    },
+    "Updated to %@" : {
+
     }
   },
   "version" : "1.0"
