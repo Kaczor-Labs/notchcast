@@ -1,0 +1,17 @@
+{
+  "sourceLanguage" : "en",
+  "strings" : {
+    "Asks first, and switching back restores your previous setting." : {},
+    "Automatic backups" : {},
+    "Couldn’t restore iPhone auto backups" : {},
+    "Couldn’t turn off iPhone auto backups" : {},
+    "Off" : {},
+    "On" : {},
+    "Switching this off later restores your current setting." : {},
+    "Turn off" : {},
+    "Turn off automatic iPhone backups?" : {},
+    "Turn off iPhone auto backups" : {},
+    "Whether Finder backs up an iPhone when it syncs." : {}
+  },
+  "version" : "1.0"
+}
