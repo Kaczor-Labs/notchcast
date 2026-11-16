@@ -1,0 +1,80 @@
+#if DEBUG
+import AppKit
+
+/// `update`: previews each install stage, never a download, and reads what the island says for it.
+@MainActor
+enum IslandUpdateScenes {
+    static func run(core: AppCore, controller: IslandController) async {
+        let activity = core.island.update
+        let readable = !IslandAccessibilityScenes.otherClientRunning
+        if !readable { print("NOT VERIFIED: other AX client") }
+        func read(_ state: String, _ value: String, covered: Bool = false) {
+            let element = readable && !covered ? IslandAccessibilityScenes.islandElement(controller) : nil
+            let read = element.flatMap { IslandAccessibilityScenes.attribute($0, kAXValueAttribute) }
+            print("UPDATE \(state) value=\(read ?? "nil") notice=\(controller.notice?.text ?? "nil") "
+                + "statuses=\(controller.statuses.map(\.label))")
+            if readable, !covered { IslandVerification.require(read == value, "\(state): the AX value reads \"\(value)\"") }
+            IslandVerification.require(controller.accessibilityValue == value, "\(state): the island says \"\(value)\"")
+        }
+        guard let version = AppVersion("9.9.9"), let asset = URL(string: "https://example.invalid/Notchcast.zip") else {
+            IslandVerification.require(false, "preview release"); return
+        }
+        let release = AvailableRelease(version: version, tag: "v9.9.9", assetURL: asset, assetSize: 100,
+                                       signatureURL: nil, publishedAt: nil)
+        activity.preview(.available(release))
+        read("available", "")
+        IslandVerification.require(IslandVerification.announcements.isEmpty, "an automatic offer shows nothing")
+
+        activity.preview(.installing(release, .downloading(received: 30, expected: 100)))
+        read("downloading", String(localized: "Downloading…"))
+        IslandVerification.require(controller.notice?.progress == 0.3 && controller.notice?.symbol == "arrow.down.circle",
+                                   "the download notice carries received over expected")
+        controller.capture("update-download")
+        activity.preview(.installing(release, .extracting))
+        read("expanding", String(localized: "Expanding…"))
+        IslandVerification.require(controller.notice?.progress == 1, "expanding holds progress at 1")
+
+        let ready = String(localized: "Update ready")
+        activity.preview(.readyToRelaunch)
+        read("ready", ready)
+        await IslandVerification.pause(2.1)
+        IslandVerification.require(controller.notice?.text == ready, "the ready notice still shows at 2.1 s")
+        await IslandVerification.pause(0.5)
+        IslandVerification.require(controller.notice == nil, "the ready notice ends after 2.4 s")
+        read("ready-status", ready)
+        controller.capture("update-ready")
+        await IslandVerification.pause(0.2)
+        IslandVerification.require(controller.captured.contains("update-ready"), "ready status capture")
+
+        let heard = IslandVerification.announcements
+        IslandVerification.require(controller.pressBackdrop() && IslandPillScenes.paletteVisible,
+                                   "a tap on the ready status opens the palette")
+        await IslandVerification.pause(0.4)
+        read("palette", "", covered: true)
+        core.paletteCoordinator.hidePalette(restoreFocus: false)
+        await IslandVerification.pause(0.4)
+        read("palette-closed", ready)
+        IslandVerification.require(IslandVerification.announcements == heard, "closing the palette replays no notice")
+
+        let failed = String(localized: "Update failed")
+        activity.preview(.failed(.downloadFailed("preview")), seconds: 0.6)
+        read("failed", failed)
+        IslandVerification.require(controller.notice?.isFailure == true, "the failed notice is a failure")
+        await IslandVerification.pause(0.8)
+        read("failed-status", failed)
+        IslandVerification.require(controller.statuses.first?.symbol == "exclamationmark.arrow.circlepath",
+                                   "the failed status offers a retry")
+        _ = controller.pressBackdrop()
+        await IslandVerification.pause(0.3)
+        IslandVerification.require(!IslandPillScenes.paletteVisible, "a tap on the failed status leaves the palette closed")
+
+        activity.preview(.available(release))
+        read("cancelled", "")
+        IslandVerification.require(controller.notice == nil && controller.statuses.isEmpty, "cancel clears notice and status")
+        print("ANNOUNCED \(IslandVerification.announcements)")
+        IslandVerification.require(IslandVerification.announcements == [String(localized: "Downloading…"),
+            String(localized: "Expanding…"), ready, failed], "each stage announces once")
+        activity.preview(nil)
+    }
+}
+#endif
