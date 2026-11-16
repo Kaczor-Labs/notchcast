@@ -14,7 +14,7 @@ enum IslandOverlayScenes {
         guard let question = NSApp.windows.first(where: { $0 is DialogPanel && $0.isVisible }) else {
             IslandVerification.require(false, "lifetime question visible"); return
         }
-        controller.capture("lifetime-question")
+        await controller.capture("lifetime-question")
         IslandVerification.require(controller.outlineBounds.height > rest.height, "question grows resting island")
         IslandLatency.key(question, code: 53, characters: "\u{1b}")
         IslandVerification.require(await answer == false, "lifetime question cancelled")
@@ -26,7 +26,7 @@ enum IslandOverlayScenes {
         let presenter = HUDPresenter(anchor: .edgeInset(24), dwell: 0.4, screen: { panel.screen })
         presenter.show(MessageHUDView(message: "Lifetime report", accessory: .progress))
         await IslandVerification.pause(0.3)
-        controller.capture("lifetime-report")
+        await controller.capture("lifetime-report")
         IslandVerification.require(controller.outlineBounds.height > rest.height, "report grows resting island")
         await IslandVerification.pause(1.4)
         print("LIFETIME report rest=\(rest) actual=\(controller.outlineBounds)"
@@ -34,7 +34,7 @@ enum IslandOverlayScenes {
         IslandVerification.require(!presenter.isShowing && controller.overlayCount == 0
                                    && abs(controller.outlineBounds.height - rest.height) < 0.1,
                                    "HUD fade contracts island to rest")
-        controller.capture("lifetime-rest")
+        await controller.capture("lifetime-rest")
         await IslandVerification.pause(0.2)
         let closing = HUDPanel()
         closing.setContentSize(CGSize(width: 200, height: 60))
@@ -58,13 +58,13 @@ enum IslandOverlayScenes {
             IslandVerification.require(false, "native question visible"); return
         }
         IslandVerification.require(core.isShowingDialog && question.isKeyWindow, "question flag and native key window")
-        controller.capture("question")
+        await controller.capture("question")
         await IslandVerification.pause(0.2)
         let second = await core.confirm(title: "Second question", message: nil, symbol: nil, confirmTitle: "Continue")
         IslandVerification.require(!second && core.isShowingDialog, "second question cancels immediately without closing first")
         core.showProgress("Synthetic progress report")
         await IslandVerification.pause(0.3)
-        controller.capture("report-with-question")
+        await controller.capture("report-with-question")
         await IslandVerification.pause(0.2)
         let reports = NSApp.windows.filter { $0 is HUDPanel && $0.isVisible }
         IslandVerification.require(reports.count == 1, "one stock progress HUD")
@@ -117,7 +117,7 @@ enum IslandOverlayScenes {
         IslandVerification.require(presenter.isShowing, "progress isShowing")
         let first = NSApp.windows.first { $0 is HUDPanel && $0.isVisible }
         presenter.show(MessageHUDView(message: "Synthetic completed report", accessory: .tone(.success)))
-        core.island.active?.capture("report")
+        await core.island.active?.capture("report")
         await IslandVerification.pause(0.3)
         IslandVerification.require(first?.isVisible == true && panel.isKeyWindow, "replacement preserves palette first responder")
         await IslandVerification.pause(1.3)
@@ -127,7 +127,7 @@ enum IslandOverlayScenes {
         await IslandVerification.pause(1.5)
         IslandVerification.require(!presenter.isShowing, "extended dwell ends after 2.4 seconds and fade")
         IslandVerification.require(core.island.active?.overlayCount == 0, "HUD fade orderOut releases island frame")
-        core.island.active?.capture("report-ended")
+        await core.island.active?.capture("report-ended")
         await IslandVerification.pause(0.3)
         let volume = HUDPresenter(anchor: .heightFraction(0.12), dwell: 1.6, screen: { panel.screen })
         volume.show(VolumeHUDView(state: VolumeState(level: 0.5)), size: CGSize(width: 200, height: 100))
