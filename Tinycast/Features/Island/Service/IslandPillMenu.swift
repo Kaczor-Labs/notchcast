@@ -5,12 +5,21 @@ import SwiftUI
 @MainActor
 final class IslandPillMenu: NSObject {
     private unowned let core: AppCore
-    private let menu = MenuPanelController()
+    private var menu = MenuPanelController()
     private let state = IslandPillMenuState()
     private weak var observedPanel: MenuPanel?
     private var items: [PopoverMenuItem] = []
     private var keys: [RowKey] = []
     private var corner: MenuPanelCorner?
+    /// The stock controller reuses one panel, and AppKit drops `.none` once the panel has had it.
+    private var panelHidden = false
+    var sharingType: NSWindow.SharingType = .readOnly {
+        didSet {
+            observedPanel?.sharingType = sharingType
+            if observedPanel != nil, sharingType == .none { panelHidden = true }
+            renewHiddenPanel()
+        }
+    }
 
     init(core: AppCore) {
         self.core = core
@@ -57,6 +66,14 @@ final class IslandPillMenu: NSObject {
         observedPanel = nil
         menu.hide()
         core.palette.menuQuery = ""
+        renewHiddenPanel()
+        core.island.applyCaptureSharing()
+    }
+
+    private func renewHiddenPanel() {
+        guard panelHidden, !isObservingResign else { return }
+        menu = MenuPanelController()
+        panelHidden = false
     }
 
     /// The stock panel hides the palette when its parent is not key, and the island never is.
@@ -64,11 +81,15 @@ final class IslandPillMenu: NSObject {
         guard observedPanel == nil,
               let panel = parent.childWindows?.lazy.compactMap({ $0 as? MenuPanel }).first else { return }
         observedPanel = panel
+        panel.sharingType = sharingType
+        if sharingType == .none { panelHidden = true }
         NotificationCenter.default.addObserver(self, selector: #selector(panelResignedKey),
             name: NSWindow.didResignKeyNotification, object: panel)
     }
 
     @objc private func panelResignedKey() { hide() }
+
+    var isObservingResign: Bool { observedPanel != nil }
 
     #if DEBUG
     /// `owner/id` of the add-on row under the cursor.
@@ -79,7 +100,6 @@ final class IslandPillMenu: NSObject {
     var itemTitles: [String] { visibleItems().map(\.title) }
     /// What the open menu last rendered, without rebuilding it.
     var shownTitles: [String] { items.map(\.title) }
-    var isObservingResign: Bool { observedPanel != nil }
     func activate(title: String) { visibleItems().firstIndex { $0.title == title }.map(activate) }
     #endif
 
