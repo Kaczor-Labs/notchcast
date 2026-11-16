@@ -14,9 +14,10 @@ final class IslandPresenter: IslandPresenting {
     private var expansionTask: Task<Void, Never>?
     private var occurrence: IslandMeetingExpansion.Occurrence?
     private weak var expandedPill: IslandController?
-    private var notice: IslandNotice?
+    private var notices = IslandNoticeQueue()
+    private var noticeTask: Task<Void, Never>?
     private var statuses: [IslandStatus] = []
-    private var noticeTap: (@MainActor () -> Void)?
+    private var noticeTaps: [String: @MainActor () -> Void] = [:]
     private var statusTaps: [String: @MainActor () -> Void] = [:]
 
     func showLevel(_ level: IslandLevel) {
@@ -26,7 +27,7 @@ final class IslandPresenter: IslandPresenting {
             if !observing { observePlacement() }
         }
         place()
-        updateExpansion()
+        noticesChanged()
     }
 
     /// The carded meeting the resting glance shows, or nil once its join window closes.
@@ -36,27 +37,16 @@ final class IslandPresenter: IslandPresenting {
         updateExpansion()
     }
 
-    /// A progress repost keeps its id and text, so VoiceOver hears each notice once.
     func post(_ notice: IslandNotice, onTap: (@MainActor () -> Void)?) {
-        let isNew = self.notice?.id != notice.id || self.notice?.text != notice.text
-        self.notice = notice
-        noticeTap = onTap
-        AppCore.shared.island.resting?.notice = notice
-        updateExpansion()
-        guard isNew else { return }
-        NSAccessibility.post(element: NSApp as Any, notification: .announcementRequested,
-            userInfo: [.announcement: notice.text, .priority: NSAccessibilityPriorityLevel.high.rawValue])
-        #if DEBUG
-        IslandVerification.announcements.append(notice.text)
-        #endif
+        notices.post(notice, at: Self.now)
+        noticeTaps[notice.id] = onTap
+        noticesChanged()
     }
 
     func end(notice id: String) {
-        guard notice?.id == id else { return }
-        notice = nil
-        noticeTap = nil
-        AppCore.shared.island.resting?.notice = nil
-        updateExpansion()
+        notices.end(id, at: Self.now)
+        noticeTaps[id] = nil
+        noticesChanged()
     }
 
     func setStatus(_ status: IslandStatus?, for id: String, onTap: (@MainActor () -> Void)?) {
@@ -68,14 +58,14 @@ final class IslandPresenter: IslandPresenting {
 
     /// A click on the resting pill acts on what it shows; the meeting glance hides status.
     var tap: (@MainActor () -> Void)? {
-        if notice != nil { return noticeTap }
+        if let notice = notices.notice { return noticeTaps[notice.id] }
         if AppCore.shared.island.resting?.glance != nil { return nil }
         return statuses.last.flatMap { statusTaps[$0.id] }
     }
 
     /// Hands notices and status to the resting pill without posting, so none re-announces.
     func restore(_ controller: IslandController, resting: Bool) {
-        controller.notice = resting ? notice : nil
+        controller.notice = resting ? notices.notice : nil
         controller.statuses = resting ? statuses : []
     }
 
@@ -90,6 +80,34 @@ final class IslandPresenter: IslandPresenting {
 
     private static var now: TimeInterval { ProcessInfo.processInfo.systemUptime }
 
+    /// A level pauses the top notice's dwell; the pill and the announcement follow the top.
+    private func noticesChanged() {
+        let now = Self.now
+        if notices.paused != (dwell.level != nil) { notices.pause(dwell.level != nil, at: now) }
+        AppCore.shared.island.resting?.notice = notices.notice
+        if let text = notices.announcement() {
+            NSAccessibility.post(element: NSApp as Any, notification: .announcementRequested,
+                userInfo: [.announcement: text, .priority: NSAccessibilityPriorityLevel.high.rawValue])
+            #if DEBUG
+            IslandVerification.announcements.append(text)
+            #endif
+        }
+        updateExpansion()
+        noticeTask?.cancel()
+        noticeTask = notices.remaining(at: now).map(expireWhenDwelled)
+    }
+
+    private func expireWhenDwelled(_ left: TimeInterval) -> Task<Void, Never> {
+        Task { [weak self] in
+            try? await Task.sleep(for: .seconds(left))
+            guard !Task.isCancelled, let self else { return }
+            let gone = self.notices.notice?.id
+            self.notices.expire(at: Self.now)
+            if let gone, self.notices.notice?.id != gone { self.noticeTaps[gone] = nil }
+            self.noticesChanged()
+        }
+    }
+
     /// Sleeps out the dwell, then again for whatever repeats added, so a burst never restarts it.
     private func endWhenDwelled(_ token: Int) -> Task<Void, Never> {
         Task { [weak self] in
@@ -100,7 +118,7 @@ final class IslandPresenter: IslandPresenting {
             guard let self, self.dwell.presentation == token, self.dwell.level == nil else { return }
             self.place()
             self.dwellTask = nil
-            self.updateExpansion()
+            self.noticesChanged()
         }
     }
 
@@ -118,7 +136,7 @@ final class IslandPresenter: IslandPresenting {
 
     private func updateExpansion() {
         let core = AppCore.shared
-        if expansion.update(carded: occurrence, waiting: dwell.level != nil || notice != nil,
+        if expansion.update(carded: occurrence, waiting: dwell.level != nil || notices.notice != nil,
                             covered: core.palette.isVisible || core.isShowingDialog, at: Self.now) {
             expansionTask?.cancel()
             expansionTask = settleWhenExpanded(expansion.presentation)
@@ -197,5 +215,6 @@ final class IslandPresenter: IslandPresenting {
     isolated deinit {
         dwellTask?.cancel()
         expansionTask?.cancel()
+        noticeTask?.cancel()
     }
 }
