@@ -13,8 +13,7 @@ final class NotchcastCore {
         let hub = NotchcastTapHub(
             syntheticTag: Paster.tinycastEventTag, isTrusted: { AXIsProcessTrusted() },
             makeSession: NotchcastTapThread.start)
-        let presenter: any IslandPresenting = NotchcastHUDPresenter(core: core)
-        controller = NotchcastController(addons: addons, defaults: defaults, hub: hub, presenter: presenter)
+        controller = NotchcastController(addons: addons, defaults: defaults, hub: hub, presenter: core.islandPresenter)
         let commands = addons.flatMap { $0.commands }
         NotchcastSettingsSearch.install(
             controller.switches,
