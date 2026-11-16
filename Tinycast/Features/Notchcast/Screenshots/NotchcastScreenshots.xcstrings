@@ -1,0 +1,25 @@
+{
+  "sourceLanguage" : "en",
+  "strings" : {
+    "Capture Area" : {},
+    "Capture Screen" : {},
+    "Capture an area, window or display." : {},
+    "Capture area is unavailable." : {},
+    "Choose…" : {},
+    "Clipboard" : {},
+    "Clipboard and file" : {},
+    "Could not capture the screen." : {},
+    "Could not copy to clipboard." : {},
+    "Could not save the screenshot." : {},
+    "Desktop" : {},
+    "Drag to capture an area, click a window, or press Return for the whole screen." : {},
+    "File" : {},
+    "Screen Recording access is required." : {},
+    "Screenshot destination" : {},
+    "Screenshot folder" : {},
+    "Screenshot selection" : {},
+    "Screenshots" : {},
+    "Where a new screenshot goes." : {}
+  },
+  "version" : "1.0"
+}
