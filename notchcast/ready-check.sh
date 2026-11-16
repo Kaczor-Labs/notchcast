@@ -32,7 +32,8 @@ trap 'cd /; rm -rf "$scratch"' EXIT
 # A shared clone with the fork's tags only, as Actions' checkout sees it (lint's check-migrations reads tags).
 git clone --quiet --shared --no-checkout --no-tags "$(git rev-parse --path-format=absolute --git-common-dir)" "$tree"
 git -C "$tree" checkout --quiet --detach "$HEAD_SHA"
-git -C "$tree" fetch --quiet --tags "https://github.com/$FORK_REPO.git"
+git -C "$tree" fetch --quiet --tags "https://github.com/$FORK_REPO.git" \
+    '+refs/notchcast/synced/*:refs/notchcast/synced/*'
 export RUNNER_TEMP="$scratch" TMPDIR="$scratch/tmp"
 mkdir "$TMPDIR"
 echo "ready-check: ${HEAD_SHA:0:12} against $base_ref (${BASE_SHA:0:12}); log: $log"
@@ -43,6 +44,12 @@ git -C "$tree" fetch --quiet --no-tags "https://github.com/$UPSTREAM_REPO.git" \
     || git -C "$tree" fetch --quiet "$common" +refs/remotes/upstream/main:refs/remotes/upstream/main 2>/dev/null \
     || { echo "FAIL setup: cannot fetch upstream main" >&2; exit 1; }
 git -C "$tree" update-ref refs/remotes/origin/main "$BASE_SHA"
+# A branch cut before a Sync rewrite diffs from where it left main, so the rewrite is not its change.
+FORK_SHA=$BASE_SHA
+if git show "$BASE_SHA:notchcast/fork-point.sh" > "$scratch/fork-point.sh" 2>/dev/null; then
+    FORK_SHA=$(cd "$tree" && bash "$scratch/fork-point.sh" "$BASE_SHA" "$HEAD_SHA")
+fi
+[ "$FORK_SHA" = "$BASE_SHA" ] || echo "fork point: ${FORK_SHA:0:12}, before a Sync rewrite"
 git show "$BASE_SHA:notchcast/drift-gates.sh" > "$scratch/drift-gates.sh" 2>/dev/null || {
     echo "FAIL setup: $base_ref has no notchcast/drift-gates.sh" >&2; exit 1; }
 # Upstream files this tree changes (renames count as delete plus add), as files and added/deleted lines.
@@ -59,7 +66,7 @@ printf 'delta: %+d files, %+d lines\n' $((files - base_files)) $((added + delete
 branch=${NOTCHCAST_READY_BRANCH:-$(git symbolic-ref --quiet --short HEAD || true)}
 if [[ "$branch" == v2/addons-* && ! "$branch" =~ ^v2/addons-core(-[0-9]+)?$ ]]; then
     # An add-on lives in fork-owned paths only, so syncing upstream never conflicts with it.
-    touched=$(comm -12 <(git -C "$tree" diff --name-only --no-renames "$BASE_SHA" "$HEAD_SHA" | sort) \
+    touched=$(comm -12 <(git -C "$tree" diff --name-only --no-renames "$FORK_SHA" "$HEAD_SHA" | sort) \
         <(git -C "$tree" ls-tree -r --name-only refs/remotes/upstream/main | sort))
     if [ -n "$touched" ]; then
         echo "$touched"
@@ -73,6 +80,8 @@ if ! (cd "$tree" && top="$tree" && source "$scratch/drift-gates.sh" && run_drift
     echo "FAIL drift; log: $log"
     exit 1
 fi
+# From here origin/main is the fork point: check-identity.py reads it for the branch's own additions.
+git -C "$tree" update-ref refs/remotes/origin/main "$FORK_SHA"
 # leaks.yml's private-data checks over what this branch adds, by the base's scanner and HEAD's (only adds failures).
 scanners=("$tree/notchcast")
 if "${clean[@]}" git -C "$tree" cat-file -e "$BASE_SHA:notchcast/check-identity.py" 2>/dev/null; then
@@ -85,7 +94,7 @@ else
 fi
 for identity in "${scanners[@]}"; do
     for mode in diff metadata; do
-        if ! (cd "$tree" && "${clean[@]}" python3 -I "$identity/check-identity.py" "$mode" "$BASE_SHA") >> "$log" 2>&1; then
+        if ! (cd "$tree" && "${clean[@]}" python3 -I "$identity/check-identity.py" "$mode" "$FORK_SHA") >> "$log" 2>&1; then
             grep '^check-identity:' "$log" | tail -n 40
             echo "FAIL identity: $mode names something private; log: $log"
             exit 1
@@ -96,7 +105,7 @@ unset NOTCHCAST_HARNESSES_SHARDED
 queue=()
 # shellcheck disable=SC2206
 if [ -n "${NOTCHCAST_BUILD_QUEUE:-}" ]; then queue=($NOTCHCAST_BUILD_QUEUE hold --); fi
-if (cd "$tree" && ${queue[@]+"${queue[@]}"} bash notchcast/ci-build.sh) >> "$log" 2>&1; then
+if (cd "$tree" && BASE_SHA=$FORK_SHA ${queue[@]+"${queue[@]}"} bash notchcast/ci-build.sh) >> "$log" 2>&1; then
     # A harness green only on its retry, or ignored as failing upstream too, is not a clean PASS.
     retried=$(sed -n 's/^::warning::retrying \(.*\) alone$/\1/p' "$log" | sort -u | paste -sd ' ' -)
     ignored=$(sed -n 's/^::warning::\(.*\) fails on upstream .* too; not ours, ignored$/\1/p' "$log" \
@@ -104,7 +113,7 @@ if (cd "$tree" && ${queue[@]+"${queue[@]}"} bash notchcast/ci-build.sh) >> "$log
     echo "retried: ${retried:-none}"
     echo "ignored (fails upstream too): ${ignored:-none}"
     # The delete test costs one more Debug build, so only a branch that changes add-on code pays it.
-    if [ -n "$(git -C "$tree" diff --name-only "$BASE_SHA" "$HEAD_SHA" -- Tinycast/Features/Notchcast/)" ]; then
+    if [ -n "$(git -C "$tree" diff --name-only "$FORK_SHA" "$HEAD_SHA" -- Tinycast/Features/Notchcast/)" ]; then
         if ! (cd "$tree" && python3 -I notchcast/check-addon-delete.py --rotate --ref "$HEAD_SHA") >> "$log" 2>&1; then
             sed -n '/^FAIL delete/p' "$log"
             echo "FAIL addon-delete; log: $log"
