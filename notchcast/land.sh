@@ -44,18 +44,6 @@ source "$(dirname "$0")/hold.sh"
 refresh_upstream() {
     git fetch -q upstream main || refuse 'cannot refresh upstream main'
 }
-drift_report() {
-    local base=$1 commit=$2
-    # Seed from main so a crossing this landing adds is filed, not absorbed as already known.
-    if [ ! -f "$HOME/Library/Caches/notchcast/drift-alerts.json" ] && git switch --quiet --detach "$base"; then
-        python3 "$drift_tools/check-drift.py" --root "$PWD" --report >/dev/null || echo 'WARN: drift alerts not seeded from main' >&2
-    fi
-    if git switch --quiet --detach "$commit"; then
-        python3 "$drift_tools/check-drift.py" --root "$PWD" --report || echo 'WARN: drift report failed after landing' >&2
-    else
-        echo 'WARN: drift report could not read the landed commit' >&2
-    fi
-}
 squash_message() {
     local title=$pr_title
     [[ "$title" == Notchcast:* ]] || title="Notchcast: $title"
@@ -387,7 +375,5 @@ if [ -n "$covered" ]; then
         delete_head "$name" "$train_run"
     done
 fi
-prepare_drift_tools "$base"
-drift_report "$base" "$tip"
 [ -z "$unclosed" ] || refuse "landed on main as $tip, but closing$unclosed failed: close by hand, do not rerun land.sh"
 finished=1
