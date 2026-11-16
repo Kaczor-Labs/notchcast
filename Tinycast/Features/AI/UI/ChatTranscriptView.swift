@@ -171,7 +171,7 @@ private struct ResumeFollowingButton: View {
                 .contentShape(Circle())
         }
         .buttonStyle(.plain)
-        .help("Jump to Latest")
+        .tooltip(String(localized: "Jump to Latest"))
         .accessibilityLabel("Jump to Latest")
     }
 }
@@ -393,7 +393,7 @@ private struct ChatSourceChip: View {
             .chatChip(leadsWithBadge: true)
         }
         .buttonStyle(.plain)
-        .help(reference.url.absoluteString)
+        .tooltip(reference.url.absoluteString)
         .accessibilityLabel("Source \(index): \(reference.title), \(reference.host)")
     }
 }
@@ -411,7 +411,7 @@ private struct RegenerateButton: View {
                 .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .help("Regenerate Response")
+        .tooltip(String(localized: "Regenerate Response"))
         .accessibilityLabel("Regenerate Response")
     }
 }
