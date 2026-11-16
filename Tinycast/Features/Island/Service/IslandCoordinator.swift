@@ -1,4 +1,6 @@
 import AppKit
+// `@preconcurrency` downgrades AX diagnostics: the attribute keys are constant C globals.
+@preconcurrency import ApplicationServices
 import Observation
 
 @MainActor
@@ -7,6 +9,7 @@ final class IslandCoordinator: NSObject {
     private var backdrops: [CGDirectDisplayID: IslandController] = [:]
     private(set) var active: IslandController?
     private weak var panel: PalettePanel?
+    private var spaceCheck: Task<Void, Never>?
     private var started = false
     private(set) lazy var overlays = IslandOverlayController(island: self)
     var paletteLevel: NSWindow.Level { IslandVerification.stock ? .palette : IslandController.paletteLevel }
@@ -24,6 +27,10 @@ final class IslandCoordinator: NSObject {
             name: NSApplication.didChangeScreenParametersNotification, object: nil)
         for name in [NSWindow.didBecomeKeyNotification, NSWindow.didResignKeyNotification] {
             NotificationCenter.default.addObserver(self, selector: #selector(modalChanged), name: name, object: nil)
+        }
+        for name in [NSWorkspace.activeSpaceDidChangeNotification, NSWorkspace.didActivateApplicationNotification] {
+            NSWorkspace.shared.notificationCenter.addObserver(self, selector: #selector(spaceChanged), name: name,
+                                                              object: nil)
         }
         rebuild()
         observeVisibility()
@@ -74,6 +81,82 @@ final class IslandCoordinator: NSObject {
         }
         overlays.reposition()
         if restingGlance != nil { syncExpansion() }
+        spaceChanged()
+    }
+
+    @objc func spaceChanged() {
+        spaceCheck?.cancel()
+        let candidates = AXIsProcessTrusted() ? Self.fullScreenCandidates(on: screens) : []
+        spaceCheck = Task { [weak self] in
+            let full = await Self.confirmFullScreen(candidates)
+            guard !Task.isCancelled, let self else { return }
+            for (id, backdrop) in backdrops { backdrop.onFullScreenSpace = full.contains(id) }
+        }
+    }
+
+    /// Bounds alone match a zoomed window too, so display-wide windows are only leads.
+    private static func fullScreenCandidates(on screens: [NSScreen])
+        -> [(display: CGDirectDisplayID, pid: pid_t, bounds: CGRect)] {
+        let windows = CGWindowListCopyWindowInfo([.optionOnScreenOnly, .excludeDesktopElements], kCGNullWindowID)
+            as? [[String: Any]] ?? []
+        return screens.flatMap { screen in
+            let display = CGDisplayBounds(screen.islandDisplayID)
+            return windows.compactMap { info -> (display: CGDirectDisplayID, pid: pid_t, bounds: CGRect)? in
+                guard info[kCGWindowLayer as String] as? Int == 0,
+                      let pid = info[kCGWindowOwnerPID as String] as? pid_t,
+                      let rect = info[kCGWindowBounds as String] as? NSDictionary,
+                      let bounds = CGRect(dictionaryRepresentation: rect),
+                      abs(bounds.minX - display.minX) < 1, abs(bounds.width - display.width) < 1,
+                      abs(bounds.maxY - display.maxY) < 1 else { return nil }
+                return (screen.islandDisplayID, pid, bounds)
+            }
+        }
+    }
+
+    /// Off the main actor: a hung app would otherwise freeze the island for each timed-out read.
+    @concurrent
+    nonisolated private static func confirmFullScreen(
+        _ candidates: [(display: CGDirectDisplayID, pid: pid_t, bounds: CGRect)]) async -> Set<CGDirectDisplayID> {
+        let timeout: Float = 0.25
+        var fullFrames: [pid_t: [CGRect]] = [:]
+        for pid in Set(candidates.map(\.pid)) {
+            guard !Task.isCancelled else { return [] }
+            let app = AXUIElementCreateApplication(pid)
+            AXUIElementSetMessagingTimeout(app, timeout)
+            var list: CFTypeRef?
+            guard AXUIElementCopyAttributeValue(app, kAXWindowsAttribute as CFString, &list) == .success,
+                  let windows = list as? [AXUIElement] else { continue }
+            fullFrames[pid] = windows.compactMap { window in
+                guard !Task.isCancelled else { return nil }
+                AXUIElementSetMessagingTimeout(window, timeout)
+                var full: CFTypeRef?
+                guard AXUIElementCopyAttributeValue(window, "AXFullScreen" as CFString, &full) == .success,
+                      full as? Bool == true else { return nil }
+                return frame(of: window)
+            }
+        }
+        return Set(candidates.filter { candidate in
+            fullFrames[candidate.pid, default: []].contains { matches($0, candidate.bounds) }
+        }.map(\.display))
+    }
+
+    nonisolated private static func frame(of window: AXUIElement) -> CGRect? {
+        var origin = CGPoint.zero
+        var size = CGSize.zero
+        var value: CFTypeRef?
+        guard !Task.isCancelled,
+              AXUIElementCopyAttributeValue(window, kAXPositionAttribute as CFString, &value) == .success,
+              let position = value, CFGetTypeID(position) == AXValueGetTypeID(),
+              AXValueGetValue(unsafeDowncast(position, to: AXValue.self), .cgPoint, &origin), !Task.isCancelled,
+              AXUIElementCopyAttributeValue(window, kAXSizeAttribute as CFString, &value) == .success,
+              let extent = value, CFGetTypeID(extent) == AXValueGetTypeID(),
+              AXValueGetValue(unsafeDowncast(extent, to: AXValue.self), .cgSize, &size) else { return nil }
+        return CGRect(origin: origin, size: size)
+    }
+
+    /// The top edge moves with the menu bar's reveal strip, so only the other three edges must agree.
+    nonisolated private static func matches(_ a: CGRect, _ b: CGRect) -> Bool {
+        abs(a.minX - b.minX) < 1 && abs(a.width - b.width) < 1 && abs(a.maxY - b.maxY) < 1
     }
 
     /// Also after a rebuild, so a new resting pill picks up an expansion already showing.
@@ -159,6 +242,8 @@ final class IslandCoordinator: NSObject {
     isolated deinit {
         NSObject.cancelPreviousPerformRequests(withTarget: self)
         NotificationCenter.default.removeObserver(self)
+        NSWorkspace.shared.notificationCenter.removeObserver(self)
+        spaceCheck?.cancel()
     }
 }
 
