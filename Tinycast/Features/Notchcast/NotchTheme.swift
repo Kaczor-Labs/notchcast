@@ -32,6 +32,8 @@ enum NotchTheme {
 
     enum Colors {
         static let islandSurface = Color.black
+        /// The open island's inside hairline: IslandShell's 0.1488 panel keyline, rounded; none in Light.
+        static let islandKeyline = Theme.Colors.adaptive(dark: .srgbInk(1, alpha: 0.15), light: .clear)
         /// Apart from `rowHover`, so retuning hover never dims a resting keycap.
         static let keyCapFill = Theme.Colors.ramp(dark: 0.14, light: 0.045)
     }
