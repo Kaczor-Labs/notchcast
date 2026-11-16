@@ -3,8 +3,8 @@
 # on HEAD against a base ref.
 # Prints retried and ignored harnesses then PASS, or FAIL with the first failing gate. ready-check-test.py ties it to pr.yml.
 set -euo pipefail
-[[ $# -le 1 ]] || { echo 'usage: ready-check.sh [base-ref, default origin/v2/stack]' >&2; exit 2; }
-base_ref=${1:-origin/v2/stack}
+[[ $# -le 1 ]] || { echo 'usage: ready-check.sh [base-ref, default origin/main]' >&2; exit 2; }
+base_ref=${1:-origin/main}
 cd "$(git rev-parse --show-toplevel)"
 # The identity gate runs with the caller's PATH and no git or Python environment that HEAD's config.env sets.
 clean=(/usr/bin/env -i HOME="$HOME" PATH="$PATH" GIT_CONFIG_NOSYSTEM=1)
