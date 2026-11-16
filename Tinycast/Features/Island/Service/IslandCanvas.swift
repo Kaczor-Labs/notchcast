@@ -112,9 +112,9 @@ struct GlanceArt: PillArt {
             countdown: countdown.size().width, wing: NotchTheme.Size.islandGlanceWing)
     }
 
-    static func glyph(_ name: String) -> NSImage? {
+    static func glyph(_ name: String, tone: NSColor = NSColor(Theme.Colors.textPrimary)) -> NSImage? {
         let symbol = NSImage.SymbolConfiguration(pointSize: NotchTheme.Typography.islandGlanceNSFont.pointSize, weight: .medium)
-            .applying(.init(paletteColors: [NSColor(Theme.Colors.textPrimary)]))
+            .applying(.init(paletteColors: [tone]))
         return NSImage(systemSymbolName: name, accessibilityDescription: nil)?.withSymbolConfiguration(symbol)
     }
 
