@@ -22,6 +22,11 @@ final class IslandController: NSObject {
     private(set) var captured: [String] = []
     #endif
     var showsRest = true
+    /// A full-screen Space keeps only glances and attached surfaces.
+    var onFullScreenSpace = false {
+        didSet { if onFullScreenSpace != oldValue { frameChanged() } }
+    }
+    private var glancing = false
     var canOpen: (() -> Bool)?
     var onOpen: (() -> Void)? {
         didSet { canvas.onOpen = onOpen }
@@ -180,6 +185,8 @@ final class IslandController: NSObject {
             inset: NotchTheme.Spacing.islandInset, gap: Theme.Spacing.xl).surface(overlays)
         let size = CGSize(width: max(palette?.width ?? 0, overlay?.width ?? 0),
                           height: max(palette?.height ?? 0, overlay?.height ?? 0))
+        glancing = size != .zero || canvas.expansion != nil || level != nil || notice != nil
+        let rests = showsRest && !onFullScreenSpace
         surface.batch {
             if size != .zero {
                 if !suspended { backdrop.orderFrontRegardless() }
@@ -192,12 +199,12 @@ final class IslandController: NSObject {
                 surface.show(.expanded(.init(bottom: CGSize(width: width, height: expansion.size.height))),
                              contentKey: "expansion")
             } else if showsRest, let art = canvas.glance {
-                if !suspended { backdrop.orderFrontRegardless() }
+                if rests || glancing, !suspended { backdrop.orderFrontRegardless() }
                 let slots = CompactContent(leading: CGSize(width: art.layout.leading, height: 0),
                                            trailing: CGSize(width: art.layout.trailing, height: 0))
                 surface.show(.compact(slots), contentKey: "glance")
             } else {
-                if showsRest, !suspended { backdrop.orderFrontRegardless() }
+                if rests, !suspended { backdrop.orderFrontRegardless() }
                 surface.show(.idle, contentKey: "rest")
             }
         }
@@ -296,11 +303,7 @@ final class IslandController: NSObject {
         clip.path = outline.copy(using: &contentTransform)
         CATransaction.commit()
         CATransaction.flush()
-        let bounds = outline.boundingBoxOfPath
-        if !showsRest, overlays.isEmpty, panel?.isVisible != true,
-           abs(bounds.width - (layout.hasNotch ? layout.notch.width : NotchTheme.Size.islandRest.width)) < 0.01 {
-            backdrop.orderOut(nil)
-        }
+        if !(showsRest && !onFullScreenSpace), !glancing, isResting { backdrop.orderOut(nil) }
         #if DEBUG
         if IslandVerification.enabled, let panel {
             let expected = canvas.outline?.boundingBoxOfPath.offsetBy(
@@ -324,6 +327,7 @@ final class IslandController: NSObject {
     static var simulatedNotch: CGSize?
     var shownStatuses: [String] { (canvas.glance as? IslandStatusArt)?.shown ?? [] }
     var reduced: Bool { surface?.reduced == true }
+    var backdropVisible: Bool { backdrop.isVisible }
     var frameIntervals: [Double] { source.intervals }
     var frameCPU: [Double] { source.cpuMilliseconds }
 
