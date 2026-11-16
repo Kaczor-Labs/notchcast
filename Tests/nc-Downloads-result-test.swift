@@ -34,8 +34,8 @@ struct DownloadsResultTest {
 
         let failed = try await run(root, kind: "webpage", sources: ["fail"])
         let notice = failed.notices.first { $0.id.hasPrefix("dl.progress.failed.") }
-        expect(notice?.isFailure == true && notice?.seconds == IslandNotice(id: "", text: "").seconds,
-               "a failed job posts a failure notice with the island's own dwell")
+        expect(notice?.isFailure == true && notice?.dwell == 4,
+               "a failed job posts a failure notice with no dwell override (4 s)")
         expect(!failed.notices.contains { $0.id == "dl.progress.saved" }, "a failed job reports no success")
 
         let batch = try await run(root, kind: "webpage", sources: ["https://example.com/a", "https://example.com/b"])
