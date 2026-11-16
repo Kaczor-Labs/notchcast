@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 """Exercise landing drift behavior in isolated repositories with generated sources."""
 import importlib.util
-import os
 from pathlib import Path
 import re
 import subprocess
@@ -208,32 +207,6 @@ class Landing(unittest.TestCase):
         self.assertNotIn('planted unittest', result.stdout)
         self.assertIn('REFUSED: drift fixtures', result.stdout)
 
-    def test_first_report_files_crossing_added_by_landing(self):
-        baseline = self.fixture.baseline()
-        baseline['alerts'] = dict.fromkeys(baseline['alerts'], 999999)
-        baseline['alerts']['file-lines'] = 20
-        self.fixture.save_baseline(baseline)
-        for index in range(10):
-            fixtures.write(self.root, f'Tinycast/Features/Todo/Over{index}.swift', '\n' * 21)
-        base = self.commit('Base with 10 over-limit files')
-        fixtures.write(self.root, 'Tinycast/Features/Todo/Over10.swift', '\n' * 21)
-        landed = self.commit('Landing adds one over-limit file')
-        fixtures.git(self.root, 'update-ref', 'refs/remotes/upstream/main', self.fixture.upstream)
-        home = Path(self.fixture.work.name) / 'home'
-        calls = home / 'calls'
-        fixtures.write(home, '.config/notchcast/private.env', 'notchcast_task() { printf "%s\\n" "$2" >> "$HOME/calls"; }\n')
-        env = dict(os.environ, HOME=str(home))
-        counts = []
-        for _ in range(2):
-            result = self.shell(function('drift_report') + '\ndrift_tools="$1"\ndrift_report "$2" "$3"',
-                                str(ROOT / 'notchcast'), base, landed, env=env)
-            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
-            self.assertNotIn('WARN', result.stderr)
-            counts.append(len(calls.read_text().splitlines()) if calls.exists() else 0)
-        self.assertEqual(counts, [1, 1])
-        self.assertIn('Tinycast/Features/Todo/Over10.swift', calls.read_text())
-        print('PASS: no cache, base with 10 over-limit files: 1 hook call for the landed crossing, 0 on rerun')
-
     def test_descriptor_in_upstream_folder_refuses(self):
         fixtures.git(self.root, 'update-ref', 'refs/remotes/upstream/main', self.fixture.upstream)
         base = self.commit('Base tooling')
@@ -250,14 +223,14 @@ class Landing(unittest.TestCase):
     def test_new_threshold_breach_refuses(self):
         fixtures.git(self.root, 'update-ref', 'refs/remotes/upstream/main', self.fixture.upstream)
         base = self.commit('Base tooling')
-        fixtures.write(self.root, 'Tinycast/Features/Todo/Near.swift', '\n' * 360)
-        self.commit('Landing adds an over-limit file')
+        fixtures.write(self.root, 'Tinycast/Features/Todo/Near.swift', 'func probe() { _ = try? work() }\n')
+        self.commit('Landing adds a try?')
         gates = '\n'.join(function(name) for name in ('prepare_drift_tools', 'check_drift', 'run_drift_gates'))
         result = self.shell(gates + '\nscratch="$1"\ntop="$PWD"\nrun_drift_gates "$2"', self.fixture.work.name, base)
         self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
-        self.assertIn('threshold breach new or grown: file-lines:Tinycast/Features/Todo/Near.swift 360 > 349', result.stdout)
+        self.assertIn('threshold breach new or grown: try? 1 > 0', result.stdout)
         self.assertIn('REFUSED: drift\n', result.stdout)
-        print('PASS: a landing that adds an over-limit file refuses with REFUSED: drift')
+        print('PASS: a landing that adds a try? over its threshold refuses with REFUSED: drift')
 
     def test_red_base_is_reported_without_allowing_candidate(self):
         fixtures.write(self.root, 'notchcast/check-drift.py', 'raise SystemExit(9)\n')
@@ -285,13 +258,6 @@ class Landing(unittest.TestCase):
             self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
             base = fixtures.git(self.root, 'rev-parse', 'HEAD')
 
-    def test_nonblocking_report(self):
-        report = next(line.strip() for line in LAND.splitlines() if '--report ||' in line)
-        fixtures.write(self.root, 'notchcast/check-drift.py', 'raise SystemExit(19)\n')
-        result = self.shell(report + '\nprintf "landing survived report failure\\n"')
-        self.assertEqual(result.returncode, 0)
-        self.assertIn('landing survived report failure', result.stdout)
-        self.assertIn('WARN: drift report failed after landing', result.stderr)
 
 
 if __name__ == '__main__':

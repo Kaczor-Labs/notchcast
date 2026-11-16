@@ -23,7 +23,8 @@ source "$TOOLS/notchcast/ci-xcodegen.sh"
 step bundle-readme
 bash notchcast/check-bundle-readme.sh
 if [ -n "${BASE_SHA:-}" ]; then
-    python3 notchcast/check-module-harness.py "$BASE_SHA" "$HEAD_SHA" || true
+    step module-harness
+    python3 notchcast/check-module-harness.py "$BASE_SHA" "$HEAD_SHA"
 fi
 step config
 python3 notchcast/check-config.py
