@@ -18,7 +18,7 @@ enum IslandMenuScenes {
         IslandVerification.require(core.palette.menuOpen && menu.isKeyWindow && menu.parent === panel,
                                    "stock menu key window and native parent")
         IslandVerification.require(panel.frame.contains(menu.frame), "stock menu anchored inside native palette")
-        core.island.active?.capture(scene)
+        await core.island.active?.capture(scene)
         await IslandVerification.pause(0.3)
         if filter {
             IslandLatency.key(menu, code: 125, characters: "\u{f701}")
