@@ -187,6 +187,10 @@ struct InterfaceMetrics: Equatable, Sendable {
         var menuRow: Font { font(Theme.Typography.menuRow, .body) }
         var menuShortcut: Font { font(Theme.Typography.menuShortcut, .callout) }
         var menuIcon: Font { font(Theme.Typography.menuIcon, .body) }
+        var indicatorGlyph: Font { .system(size: scaledPoints(Theme.Typography.indicatorGlyphSize, scale)) }
+        var removeGlyph: Font {
+            .system(size: scaledPoints(Theme.Typography.removeGlyphSize, scale), weight: .semibold)
+        }
 
         /// The AppKit twin of a text style, for text an `NSTextView` draws beside SwiftUI's own.
         func textNSFont(
