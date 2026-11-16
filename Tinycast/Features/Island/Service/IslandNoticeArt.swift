@@ -1,6 +1,5 @@
 import AppKit
 
-/// A notice as the glance's twin: a still progress ring or its glyph, then its text, truncated to the wings.
 @MainActor
 struct IslandNoticeArt: PillArt {
     let layout: IslandGlanceLayout
@@ -60,7 +59,7 @@ struct IslandNoticeArt: PillArt {
     }
 }
 
-/// Status glyphs, each with up to four characters of text: centred, never narrower than rest; right of a notch.
+/// The newest status survives a full wing, since the pill's tap acts on it.
 @MainActor
 struct IslandStatusArt: PillArt {
     let layout: IslandGlanceLayout
@@ -76,15 +75,21 @@ struct IslandStatusArt: PillArt {
         self.notch = notch
         let attributes: [NSAttributedString.Key: Any] = [.font: NotchTheme.Typography.islandGlanceNSFont,
             .foregroundColor: NSColor(Theme.Colors.textPrimary)]
-        items = statuses.map { status in
-            (GlanceArt.glyph(status.symbol),
-             status.text.map { NSAttributedString(string: String($0.prefix(4)), attributes: attributes) })
+        var items = statuses.map { status in
+            (glyph: GlanceArt.glyph(status.symbol),
+             text: status.text.map { NSAttributedString(string: String($0.prefix(4)), attributes: attributes) })
         }
-        width = items.map { ($0.glyph?.size.width ?? 0) + ($0.text.map { Theme.Spacing.xs + $0.size().width } ?? 0) }
-            .reduce(0) { $0 == 0 ? $1 : $0 + Theme.Spacing.sm + $1 }
+        func span(_ items: [(glyph: NSImage?, text: NSAttributedString?)]) -> CGFloat {
+            items.map { ($0.glyph?.size.width ?? 0) + ($0.text.map { Theme.Spacing.xs + $0.size().width } ?? 0) }
+                .reduce(0) { $0 == 0 ? $1 : $0 + Theme.Spacing.sm + $1 }
+        }
+        let wing = NotchTheme.Size.islandGlanceWing
+        while items.count > 1, span(items) > (notch ? wing : wing * 2) { items.removeFirst() }
+        self.items = items
+        width = span(items)
         let line = notch ? width : max(width, NotchTheme.Size.islandRest.width - edge * 2)
         layout = IslandGlanceLayout(notch: notch, glyph: 0, gap: 0, title: 0, separator: 0, countdown: line,
-                                    wing: NotchTheme.Size.islandGlanceWing)
+                                    wing: wing)
     }
 
     func draw(in pill: CGRect) {
