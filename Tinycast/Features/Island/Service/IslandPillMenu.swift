@@ -137,7 +137,7 @@ final class IslandPillMenu: NSObject {
         menus.flatMap { menu in
             menu.rows.map { row in
                 var item = PopoverMenuItem(title: row.title, icon: .blank) { menu.onSelect(row.id) }
-                item.isChecked = row.isChecked ?? false
+                item.isChecked = row.isChecked
                 return item
             }
         }

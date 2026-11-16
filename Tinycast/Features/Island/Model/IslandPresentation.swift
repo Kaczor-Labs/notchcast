@@ -27,9 +27,9 @@ struct IslandStatus: Equatable, Sendable {
     var label: String
 }
 
-/// An add-on's pill-menu row; nil `isChecked` leaves its check column empty, so rows line up.
+/// An add-on's pill-menu row; an unchecked row keeps its check column empty, so rows line up.
 struct IslandMenuRow: Equatable, Sendable {
     var id: String
     var title: String
-    var isChecked: Bool?
+    var isChecked = false
 }
