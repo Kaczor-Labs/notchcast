@@ -40,8 +40,15 @@ enum IslandVerification {
     static var screens: [NSScreen]?
 
     /// The screen whose display id the vdisplay wrapper exports; never the main or built-in one.
-    static var testScreen: NSScreen? {
-        guard let id = ProcessInfo.processInfo.environment["ISLAND_TEST_DISPLAY"].flatMap(UInt32.init),
+    static var testScreen: NSScreen? { testScreen(named: "ISLAND_TEST_DISPLAY") }
+
+    /// Both test displays of a dual wrapper hold, first one first; a single hold gives one.
+    static var testScreens: [NSScreen] {
+        ["ISLAND_TEST_DISPLAY", "ISLAND_TEST_DISPLAY_2"].compactMap(testScreen(named:))
+    }
+
+    private static func testScreen(named variable: String) -> NSScreen? {
+        guard let id = ProcessInfo.processInfo.environment[variable].flatMap(UInt32.init),
               CGDisplayIsMain(id) == 0, CGDisplayIsBuiltin(id) == 0 else { return nil }
         return NSScreen.screens.first { $0.islandDisplayID == id }
     }

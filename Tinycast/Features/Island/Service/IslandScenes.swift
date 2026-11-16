@@ -12,6 +12,7 @@ enum IslandScenes {
         if scene == "volume" { await IslandVolumeScenes.rest(core: core, screen: screen); return }
         if scene == "volume-palette-open" { await IslandVolumeScenes.paletteOpen(core: core, screen: screen); return }
         if IslandMeetingScenes.names.contains(scene) { await IslandMeetingScenes.run(scene, core: core, screen: screen); return }
+        if IslandDualScenes.names.contains(scene) { await IslandDualScenes.run(core: core, screen: screen); return }
         if IslandProfileScenes.names.contains(scene) { await IslandProfileScenes.run(scene, core: core, screen: screen); return }
         if IslandNotchScenes.names.contains(scene) { await IslandNotchScenes.run(scene, core: core, screen: screen); return }
         if IslandPillScenes.names.contains(scene) { await IslandPillScenes.run(scene, core: core, screen: screen); return }
