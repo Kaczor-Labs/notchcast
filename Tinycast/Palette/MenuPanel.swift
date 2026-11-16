@@ -17,7 +17,7 @@ final class MenuPanel: NSPanel, AnimatedPanel {
         followMotion()
         backgroundColor = .clear
         isOpaque = false
-        hasShadow = true
+        hasShadow = false
         acceptsMouseMovedEvents = true
         ignoresMouseEvents = false
         collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
