@@ -10,7 +10,7 @@ Each section states one normative rule per element with its token, and one refer
 | --- | --- | --- |
 | Backdrop (the black shape and its outline) | `IslandBackdrop`, main menu + 1, never key | `IslandController` (engine) |
 | Launcher, compact and expanded, and every palette screen | palette panel, + 2, `paletteOnIsland == true` | `RootPaletteView` |
-| Pill at rest, glance, status, level, notice | engine art (`IslandCanvas`, `IslandNoticeArt`, `IslandLevelArt`, `IslandExpansionArt`) | `IslandController` |
+| Pill at rest, glance, status, level, notice | engine art (`IslandCanvas`, `IslandNoticeArt`, `IslandHeadlineArt`, `IslandLevelArt`, `IslandExpansionArt`) | `IslandController` |
 | Pill menu and every `PopoverMenu` opened from the island | `MenuPanel` | `IslandPillMenu`, `PaletteScreen` |
 | Report HUDs | + 3 | `HUDPresenter`, `MessageHUDView` |
 | Questions (dialogs) | + 4 | `DialogController`, `DialogView` |
@@ -61,7 +61,7 @@ Reference: HIG Live Activities, "Use consistent margins and concentric placement
 | --- | --- | --- |
 | Launcher, every state (compact empty, compact with results, expanded) | One width; the island's stage width follows the palette frame and never shrinks to the capsule. Height: `metrics.size.compactHeight` (56) compact, `metrics.size.panelHeight` (475) expanded. | `metrics.size.panelWidth` (750) |
 | Pill at rest | The sensor's size on a notched screen; otherwise the rest size. | `NotchTheme.Size.islandRest` (96 × 24) |
-| Glance, status, notice | The rest pill plus at most one wing per side. | `NotchTheme.Size.islandGlanceWing` (140) |
+| Glance, status, compact notice | The rest pill plus at most one wing per side. | `NotchTheme.Size.islandGlanceWing` (140) |
 | Level art | Its own cell and track, never the rest pill's size. | `NotchTheme.Size.islandLevelCell`, `islandLevelTrack` (§15) |
 | Menus | A fixed width token per menu; the pill menu and ⌘K use the action width. | `metrics.size.actionMenuWidth` (320), `menuWidth`, `clipboardFilterMenuWidth`, `fileSearchFilterMenuWidth`, `emojiCategoryMenuWidth` |
 | HUD | Hugs its text up to the cap. | `metrics.size.hudMaxWidth` (420) |
@@ -133,17 +133,17 @@ Reference: HIG Materials, "Use Liquid Glass effects sparingly."
 
 | Element | Rule | Token |
 | --- | --- | --- |
-| Notice (engine art) | One glyph and one short text in the pill's wings (§4), glyph and text `textPrimary`, progress as a `textPrimary` arc on a `Theme.Colors.border` track; Dwell `Theme.Duration.messageHUD` (2.4 s). Tap opens the follow-up. | `NotchTheme.Typography.islandGlanceNSFont` |
+| Notice (engine art) | Without a notch: one glyph and one short text in the pill's wings (§4). On a notch a notice with text grows the island below the notch, like the meeting expansion: glyph and text on one centred line, as wide as the text needs up to `Theme.Size.hudMaxWidth` and never narrower than the notch plus two `Theme.Radius.panel`; the line fades in over the outer half of the grow and is gone by the middle of the contract. Glyph and text `textPrimary`, progress as a `textPrimary` arc on a `Theme.Colors.border` track; an unknown fraction shows the glyph alone, never a ring. Dwell `Theme.Duration.messageHUD` (2.4 s). Tap opens the follow-up. | `NotchTheme.Typography.islandGlanceNSFont`, `Theme.Size.hudMaxWidth` |
 | Failure (every `isFailure` notice, from the update flow or an add-on) | Glyph `Theme.Colors.destructive` in the notice, the status and the footer; text stays `textPrimary`. Dwell `IslandNotice.failureSeconds` (4 s), which `IslandNotice.dwell` applies whenever `isFailure` is set and `seconds` is left unset; a failure poster leaves `seconds` unset. The glyph shape is the poster's, its colour and dwell are not. | `IslandNoticeArt.failureTone` (`Theme.Colors.destructive`), `IslandNotice.failureSeconds` |
 | HUD and dialog shown in the island | The island surface alone: no glow, no rim, no scrim. HUD: `Capsule()`, `metrics.typography.bar`, hover `Theme.Colors.rowHover`, tone on its glyph only. Dialog: `RoundedRectangle(cornerRadius: metrics.radius.panel)`, padding `metrics.spacing.dialogInset`, icon = the subject's bare glyph at `metrics.size.dialogIcon`, with no tinted tile (`dialogSymbol` and `dialogSymbolContainer` are retired), buttons `.modalAction(role)` per §7, ↵ primary, Esc cancel. | `NotchTheme.Colors.islandSurface` |
 | Result | Any island activity that shows progress ends with a result notice, never just a vanish: success is a checkmark glyph and a short title, failure is the failure rule above (red glyph, 4 s). | `textPrimary`, `Theme.Colors.destructive` |
-| Notch layout | On a notched display, the compact form beside the notch is a glyph and a short status only. Any text (a title, a message, progress with a title) expands out of the notch and shows below it, as the Dynamic Island expanded form. On a non-notched display the pill keeps its centred text. | sizes: see notch-expand (§15) |
+| Notch layout | On a notched display, the compact form beside the notch is a glyph and a short status only: progress is the ring left of the notch and the bare percent right of it, rounded down so it never claims 100 % early. Any text (a title, a message) expands out of the notch and shows below it, as the Dynamic Island expanded form. Titled progress (a download with its title) expands for one message dwell, then stays compact until it is ended, whatever its text; untitled progress (the update installing) is compact from the start; the result notice expands again. On a non-notched display the pill keeps its centred text. | `IslandNotice.messageSeconds` (2.4 s), sizes in §15 |
 
-The update flow is one state machine shown in three places, with one glyph per state everywhere, except Installing, which is the progress ring alone and has no glyph:
+The update flow is one state machine shown in three places, with one glyph per state everywhere, except Installing, which shows its progress ring instead while the fraction is known:
 
 | State | Notice | Pill status | Footer pill | Tap |
 | --- | --- | --- | --- | --- |
-| Installing | progress ring alone, no glyph | none | progress ring, `Theme.Colors.progress` | none |
+| Installing | compact: progress ring and percent, or the `arrow.down.circle` glyph alone while the fraction is unknown | none | progress ring, `Theme.Colors.progress` | none |
 | Ready | "Update ready", 2.4 s | `arrow.clockwise.circle` | `Theme.Colors.success` | notice and status open the launcher; only the footer pill's Relaunch relaunches |
 | Failed | "Update failed", 4 s, glyph `destructive` | `exclamationmark.arrow.circlepath`, glyph `destructive` | `Theme.Colors.destructive` | `UpdateCoordinator.showFailure` → dialog "Update failed" with the same glyph and "Try Again" as `.modalAction(.primary)` |
 
@@ -189,7 +189,7 @@ Reference: HIG Live Activities, "Focus on simple, direct actions."
 
 ## 14. Breaks today
 
-The island-black branch is fixing the first four; the rest are open. Counts are from §16.
+The island-black branch is fixing the first four, and #8 is closed; the rest are open. Counts are from §16.
 
 | # | Where | Breaks | Target |
 | --- | --- | --- | --- |
@@ -200,7 +200,7 @@ The island-black branch is fixing the first four; the rest are open. Counts are 
 | 5 | `UpdatePill.swift:90` | §1, §9: tinted interactive `.glassEffect` | no glass, tint on glyph and label |
 | 6 | `ModalActionButtonStyle.swift:43`–`:47` | §7: neutral buttons fill `controlSurface` / `controlHover` / `controlPressed` | bare, `rowHover`, `keyCapFill` on the island |
 | 7 | `PopoverMenu.swift:129` | §3: menu radius 16 inside 18-point rows | `NotchTheme.Radius.islandMenu` |
-| 8 | `IslandNoticeArt.swift` | §10: `isFailure` is never read, so "Update failed" looks like any notice; failure dwells are literals | landing as `v2/failure-notice-r2` (`116e72e09`): glyph `IslandNoticeArt.failureTone`, dwell `IslandNotice.failureSeconds` |
+| 8 | `IslandNoticeArt.swift` | Closed: the failure glyph is `IslandNoticeArt.failureTone` and its dwell `IslandNotice.failureSeconds` (#732); on a notch the notice text expands below (§10) | done |
 | 9 | `UpdateCoordinator.swift:122` | §10: Try Again dialog shows `arrow.down.circle`, the notice `exclamationmark.arrow.circlepath` | one glyph per state |
 | 10 | `RootPaletteView.swift:1647`–`:1648`, `LauncherList.swift:321` | §6: hand-drawn menu-circle bars (14 and 8 × 1.5) and a 3 × 3 running dot | SF Symbol, or §15 tokens |
 | 11 | `VolumeHUDView.swift:39` | §1: `panelScrim` (hidden view, reached only by the volume scene) | island surface only |
@@ -217,7 +217,7 @@ The island-black branch is fixing the first four; the rest are open. Counts are 
 | `NotchTheme.Size.runningDot` | 3 | §6 running-app dot in launcher rows | today a literal in `LauncherList` |
 | `NotchTheme.Size.islandLevelCell`, `islandLevelTrack` | 24 and 96 | §4 level art | today `IslandLevelArt` borrows the rest pill's height and width, which breaks the day the rest size changes |
 
-Notch expanded form: sizes: see notch-expand.
+The notch expanded form needs no new token: its height is the rest outline plus one headline line, its width the text up to `Theme.Size.hudMaxWidth`, never narrower than the notch plus two `Theme.Radius.panel` (§10).
 
 The failure dwell is not a token: `IslandNotice.failureSeconds` (beside `messageSeconds`, 2.4 s) is a plain `TimeInterval` in `Features/Island/Model/`, which cannot import `NotchTheme`; `IslandLiveState.failureSeconds` is its alias (§10).
 
@@ -240,7 +240,7 @@ Run from the repo root with `bash`, after ``I=$(find Tinycast/Palette Tinycast/F
 | A9 | §7 button | `grep -rnE 'Theme\.Colors\.(selection\|controlSurface\|controlHover\|controlPressed)' Tinycast/DesignSystem/BarButton.swift Tinycast/DesignSystem/ModalActionButtonStyle.swift` | 4 |
 | A10 | §8 menu | `grep -rnE -A3 '(headerMenu\|PopoverMenu)\(' Tinycast --include='*.swift' \| grep -E 'width: [0-9]'` | 0 |
 | A11 | §9 footer | `grep -rnE 'frosted\(in: (Capsule\|Circle)\(\)\)' Tinycast/Palette/RootPaletteView.swift` | 2 |
-| A12 | §10 notice | `grep -q 'failureTone' Tinycast/Features/Island/Service/IslandNoticeArt.swift \|\| echo 'IslandNoticeArt.swift: no failure tone'` | 1 |
+| A12 | §10 notice | `grep -q 'failureTone' Tinycast/Features/Island/Service/IslandNoticeArt.swift \|\| echo 'IslandNoticeArt.swift: no failure tone'` | 0 |
 | A13 | §10 HUD and dialog | `grep -rnE '\{ glow \}\|strokeBorder\|panelScrim' Tinycast/Windows/HUD Tinycast/Windows/Dialog` | 5 |
 | A14 | §10 update glyph | `grep -rn 'symbol: "arrow.down.circle", recovery' Tinycast/Features/Updates/UI/UpdateCoordinator.swift` | 1 |
 | A15 | §11 settings | `grep -rnE 'formStyle\(\|NotchTheme\.' $(grep -rlE 'struct [A-Za-z]+SettingsView' Tinycast/Features/Notchcast) \| grep -v 'formStyle(.grouped)'` | 0 |

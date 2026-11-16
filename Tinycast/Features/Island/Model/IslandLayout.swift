@@ -20,6 +20,7 @@ struct IslandLayout: Sendable {
     let canvas: CGSize
 
     var hasNotch: Bool { notch.width > 0 && notch.height > 0 }
+    var notchWidth: CGFloat? { hasNotch ? notch.width : nil }
     var top: CGFloat { hasNotch ? -notch.height : 0 }
     var contentTop: CGFloat { hasNotch ? notch.height : 0 }
     var window: CGRect {
