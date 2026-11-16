@@ -105,8 +105,10 @@ private struct SnippetOptionRow: View {
     let onPick: () -> Void
     let onSubmit: () -> Void
     @State private var hovered = false
+    @Environment(\.paletteOnIsland) private var onIsland
 
     private var fill: Color {
+        if onIsland { return IslandButtonFill.neutral(selected: isChosen && isFocused, hovered: hovered) }
         if isChosen, isFocused { return Theme.Colors.selection }
         if hovered { return Theme.Colors.rowHover }
         return .clear

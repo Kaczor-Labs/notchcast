@@ -45,7 +45,9 @@ struct BarButton<Label: View>: View {
     let action: () -> Void
     @ViewBuilder let label: Label
     @State private var hovered = false
+    @State private var pressed = false
     @Environment(\.metrics) private var metrics
+    @Environment(\.paletteOnIsland) private var onIsland
 
     var body: some View {
         let shape = chrome.shape(metrics)
@@ -56,11 +58,12 @@ struct BarButton<Label: View>: View {
                 .contentShape(shape)
                 .background(shape.fill(fill))
         }
-        .buttonStyle(.plain)
+        .plainButtonReporting(pressed: $pressed)
         .onHover { hovered = $0 }
     }
 
     private var fill: Color {
+        if onIsland { return IslandButtonFill.neutral(selected: isSelected, pressed: pressed, hovered: hovered) }
         if isSelected { return Theme.Colors.selection }
         return hovered ? Theme.Colors.rowHover : Color.clear
     }
@@ -128,6 +131,6 @@ struct HeaderMenuButton: View {
             }
             .foregroundStyle(Theme.Colors.textSecondary)
         }
-        .help(help)
+        .tooltip(help, edge: .bottom)
     }
 }

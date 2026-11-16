@@ -4,6 +4,7 @@
 // notchcast-sources: Tinycast/DesignSystem/SymbolImage.swift Tinycast/DesignSystem/Tooltip.swift
 // notchcast-sources: Tinycast/Windows/HUD/MessageHUDView.swift Tinycast/Windows/Dialog/DialogView.swift
 // notchcast-sources: Tinycast/Windows/Dialog/DialogRequest.swift Tinycast/Platform/Images/IconCache.swift
+// notchcast-sources: Tinycast/Features/Notchcast/IslandButtonFill.swift
 import AppKit
 import SwiftUI
 
