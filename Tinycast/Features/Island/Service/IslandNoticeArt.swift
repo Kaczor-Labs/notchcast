@@ -1,16 +1,15 @@
 import AppKit
 
+/// A notice in the wings; on a notch only its mark and percent, since its text expands below.
 @MainActor
 struct IslandNoticeArt: PillArt {
     let layout: IslandGlanceLayout
     let notice: IslandNotice
     let tone: NSColor
     private let notch: Bool
-    private let glyph: NSImage?
+    private let mark: IslandNoticeMark
     private let text: NSAttributedString
     private let textWidth: CGFloat
-    /// Fixed, so a progress notice that turns into a glyph one never resizes the slots.
-    private let cell = NotchTheme.Typography.islandGlanceNSFont.pointSize + Theme.Spacing.xs
     private let gap = Theme.Spacing.sm
     private let edge = Theme.Spacing.lg
     static let failureTone = NSColor(Theme.Colors.destructive)
@@ -18,32 +17,100 @@ struct IslandNoticeArt: PillArt {
     init(_ notice: IslandNotice, notch: Bool) {
         self.notice = notice
         self.notch = notch
-        let tone = notice.isFailure ? Self.failureTone : NSColor(Theme.Colors.textPrimary)
-        self.tone = tone
-        glyph = notice.progress == nil ? notice.symbol.flatMap { GlanceArt.glyph($0, tone: tone) } : nil
-        let paragraph = NSMutableParagraphStyle()
-        paragraph.lineBreakMode = .byTruncatingTail
-        text = NSAttributedString(string: notice.text, attributes: [.font: NotchTheme.Typography.islandGlanceNSFont,
-            .foregroundColor: NSColor(Theme.Colors.textPrimary), .paragraphStyle: paragraph])
+        mark = IslandNoticeMark(notice)
+        tone = mark.tone
+        let words = notch ? notice.progress?.fraction.map(Self.percent) ?? "" : notice.text
+        text = IslandNoticeMark.line(words)
         let wing = NotchTheme.Size.islandGlanceWing
-        let room = notch ? wing : wing * 2 - cell - gap
+        let room = notch ? wing : wing * 2 - IslandNoticeMark.cell - gap
         textWidth = min(ceil(text.size().width), room)
-        layout = IslandGlanceLayout(notch: notch, glyph: cell, gap: notch ? 0 : gap, title: 0, separator: 0,
-                                    countdown: textWidth, wing: wing)
+        // A glyph-only notice still needs a right wing, or the engine draws the notch lopsided.
+        let trailing = notch ? max(textWidth, IslandNoticeMark.cell) : textWidth
+        layout = IslandGlanceLayout(notch: notch, glyph: IslandNoticeMark.cell, gap: notch ? 0 : gap, title: 0,
+                                    separator: 0, countdown: trailing, wing: wing)
+    }
+
+    /// Rounded down, so the wing never claims 100% before the job ends.
+    static func percent(_ fraction: Double) -> String {
+        (floor(min(max(fraction, 0), 1) * 100) / 100).formatted(.percent.precision(.fractionLength(0)))
     }
 
     func draw(in pill: CGRect) {
+        let cell = IslandNoticeMark.cell
         let box = CGRect(x: pill.minX + edge, y: pill.midY - cell / 2, width: cell, height: cell)
-        if let progress = notice.progress {
-            ring(progress, in: box.insetBy(dx: Theme.Size.hairline, dy: Theme.Size.hairline))
-        } else if let glyph {
-            glyph.draw(in: CGRect(x: box.midX - glyph.size.width / 2, y: box.midY - glyph.size.height / 2,
-                                  width: glyph.size.width, height: glyph.size.height))
-        }
+        mark.draw(in: box)
         let height = text.size().height
         let x = notch ? pill.maxX - edge - textWidth : box.maxX + gap
         text.draw(with: CGRect(x: x, y: pill.midY - height / 2, width: textWidth, height: height),
                   options: [.usesLineFragmentOrigin, .truncatesLastVisibleLine])
+    }
+}
+
+/// A notice on one centred line below the notch, drawn at the bottom of the grown island.
+@MainActor
+struct IslandHeadlineArt {
+    let size: CGSize
+    let notice: IslandNotice
+    let tone: NSColor
+    private let mark: IslandNoticeMark
+    private let text: NSAttributedString
+    private let textWidth: CGFloat
+    private let indent: CGFloat
+
+    init(_ notice: IslandNotice, notch: CGFloat) {
+        self.notice = notice
+        mark = IslandNoticeMark(notice)
+        tone = mark.tone
+        text = IslandNoticeMark.line(notice.text)
+        let inset = NotchTheme.Spacing.islandInset
+        indent = mark.isEmpty ? 0 : IslandNoticeMark.cell + Theme.Spacing.sm
+        textWidth = min(ceil(text.size().width), Theme.Size.hudMaxWidth - inset * 2 - indent)
+        let width = max(indent + textWidth + inset * 2, notch + Theme.Radius.panel * 2)
+        size = CGSize(width: width, height: ceil(text.size().height) + Theme.Spacing.lg * 2)
+    }
+
+    /// Centred in `area`, so the line stays put while the island grows around it.
+    func draw(in area: CGRect) {
+        let cell = IslandNoticeMark.cell
+        let x = area.midX - (indent + textWidth) / 2
+        mark.draw(in: CGRect(x: x, y: area.midY - cell / 2, width: cell, height: cell))
+        let height = text.size().height
+        text.draw(with: CGRect(x: x + indent, y: area.midY - height / 2, width: textWidth, height: height),
+                  options: [.usesLineFragmentOrigin, .truncatesLastVisibleLine])
+    }
+}
+
+/// What leads a notice: its ring while the fraction is known, else a glyph a failure tints.
+@MainActor
+private struct IslandNoticeMark {
+    /// Fixed, so a progress notice that turns into a glyph one never resizes the slots.
+    static let cell = NotchTheme.Typography.islandGlanceNSFont.pointSize + Theme.Spacing.xs
+    let tone: NSColor
+    private let fraction: Double?
+    private let glyph: NSImage?
+
+    init(_ notice: IslandNotice) {
+        tone = notice.isFailure ? IslandNoticeArt.failureTone : NSColor(Theme.Colors.textPrimary)
+        fraction = notice.progress?.fraction
+        glyph = fraction == nil ? notice.symbol.flatMap { [tone] in GlanceArt.glyph($0, tone: tone) } : nil
+    }
+
+    var isEmpty: Bool { fraction == nil && glyph == nil }
+
+    static func line(_ string: String) -> NSAttributedString {
+        let paragraph = NSMutableParagraphStyle()
+        paragraph.lineBreakMode = .byTruncatingTail
+        return NSAttributedString(string: string, attributes: [.font: NotchTheme.Typography.islandGlanceNSFont,
+            .foregroundColor: NSColor(Theme.Colors.textPrimary), .paragraphStyle: paragraph])
+    }
+
+    func draw(in box: CGRect) {
+        if let fraction {
+            ring(fraction, in: box.insetBy(dx: Theme.Size.hairline, dy: Theme.Size.hairline))
+        } else if let glyph {
+            glyph.draw(in: CGRect(x: box.midX - glyph.size.width / 2, y: box.midY - glyph.size.height / 2,
+                                  width: glyph.size.width, height: glyph.size.height))
+        }
     }
 
     private func ring(_ progress: Double, in box: CGRect) {

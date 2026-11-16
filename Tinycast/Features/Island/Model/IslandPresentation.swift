@@ -14,7 +14,7 @@ struct IslandNotice: Equatable, Sendable {
     var id: String
     var symbol: String?
     var text: String
-    var progress: Double?
+    var progress: IslandProgress?
     var isFailure = false
     /// Unset, a notice dwells as the stock message HUD does; a failure dwells longer (design §10).
     var seconds: TimeInterval?
@@ -23,6 +23,15 @@ struct IslandNotice: Equatable, Sendable {
     static let failureSeconds: TimeInterval = 4
 
     var dwell: TimeInterval { seconds ?? (isFailure ? Self.failureSeconds : Self.messageSeconds) }
+    /// On a notch, its text expands below the notch; otherwise it keeps to the wings (design §10).
+    var isHeadline: Bool { progress?.headline ?? true }
+}
+
+/// A nil `fraction` is unknown, so the pill shows the notice's glyph rather than a made-up ring.
+struct IslandProgress: Equatable, Sendable {
+    var fraction: Double?
+    /// The text is a title worth one message dwell below the notch before the ring takes the wing.
+    var headline = true
 }
 
 /// A rest-pill glyph that stays until its owner clears it; at most four `text` characters show.
