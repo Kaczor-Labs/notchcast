@@ -16,7 +16,7 @@ Each section states one normative rule per element with its token, and one refer
 | Questions (dialogs) | + 4 | `DialogController`, `DialogView` |
 | Update flow (pill, notice, Try Again) | footer, notice, dialog | `UpdatePill`, `IslandLiveState`, `UpdateCoordinator` |
 
-Off the island and out of scope: the Settings window (stock, native macOS, §11), Notes, Camera, AI chat panels, Dictation and every other stock floating panel, which keep upstream's content → `panelScrim` → `GlassEffectView` recipe from `docs/ui.md`. `Features/Extensions/` is never touched.
+Off the island and out of scope: the Settings window (stock, native macOS, §11), Notes, Camera, AI chat panels, Dictation and every other stock floating panel, which keep upstream's content → `panelScrim` → `GlassEffectView` recipe from `docs/ui.md`. `Features/Extensions/` is never touched. A view shared between a palette screen and an out-of-scope panel (`ChatTranscriptView`, `AIEmptyState`, `ChatSuggestionChips`) follows the island rules everywhere it is used; the panel's own `AIChat*` files keep upstream's recipe.
 
 Reference: HIG Live Activities, "Live Activities in the Dynamic Island use a black opaque background."
 
@@ -24,9 +24,10 @@ Reference: HIG Live Activities, "Live Activities in the Dynamic Island use a bla
 
 | Element | Rule | Token |
 | --- | --- | --- |
-| Every island root (backdrop, launcher, palette screen, menu, HUD, dialog, pill art) | Paint one opaque black surface and nothing under or over it: no Liquid Glass (`frosted(in:)`, a non-`.identity` `.glassEffect`, `GlassEffectView`) and no `panelScrim`. | `NotchTheme.Colors.islandSurface` |
+| Every island root (backdrop, launcher, palette screen, menu, HUD, dialog, pill art) | Paint one opaque black surface and nothing under or over it: no Liquid Glass (`frosted(in:)`, a non-`.identity` `.glassEffect`, `GlassEffectView`, a SwiftUI `Material`) and no `panelScrim`. | `NotchTheme.Colors.islandSurface` |
+| Every island window (backdrop, palette panel, menu panel, HUD panel, dialog panel) | No window shadow: `hasShadow` is `false`, so nothing sits under the black shape. | none |
 
-The palette root keeps `.identity` glass on the island (`RootPaletteView`), and the compact bar drops its capsule glass, button glass and scrim (`CompactBar`, `onIsland`). Hook A1.
+The palette root keeps `.identity` glass on the island (`RootPaletteView`), and the compact bar drops its capsule glass, button glass and scrim (`CompactBar`, `onIsland`). Hooks A1, A17.
 
 Reference: HIG Materials, "Don't use Liquid Glass in the content layer."
 
@@ -35,6 +36,9 @@ Reference: HIG Materials, "Don't use Liquid Glass in the content layer."
 | Element | Rule | Token |
 | --- | --- | --- |
 | Any island surface or control | No stroke, rim, key line or `border` outline: the edge is the engine's outline, which merges with the bezel and menu bar. A hairline inside art (a level zone, a progress track) is a glyph, not a border. | none (`Theme.Size.hairline` only inside glyph art) |
+| Separator (menu search, section break) | A `Theme.Size.hairline` rectangle filled, not stroked. | `NotchTheme.Colors.keyCapFill` |
+| Card edge (preview, code, table, swatch, note) | The card is a filled rounded rectangle with no edge; never `cardStroke` or a stroked rim. | `NotchTheme.Colors.keyCapFill` at `metrics.radius.row` |
+| Selection mark (emoji cell, room card) | A fill, never a ring or inner border. | `Theme.Colors.selection` |
 
 HIG draws a key line around the iPhone Dynamic Island in Dark Mode to separate it from content; on the Mac the island must read as part of the notch, so it gets none. Hook A2.
 
@@ -58,6 +62,7 @@ Reference: HIG Live Activities, "Use consistent margins and concentric placement
 | Launcher, every state (compact empty, compact with results, expanded) | One width; the island's stage width follows the palette frame and never shrinks to the capsule. Height: `metrics.size.compactHeight` (56) compact, `metrics.size.panelHeight` (475) expanded. | `metrics.size.panelWidth` (750) |
 | Pill at rest | The sensor's size on a notched screen; otherwise the rest size. | `NotchTheme.Size.islandRest` (96 × 24) |
 | Glance, status, notice | The rest pill plus at most one wing per side. | `NotchTheme.Size.islandGlanceWing` (140) |
+| Level art | Its own cell and track, never the rest pill's size. | `NotchTheme.Size.islandLevelCell`, `islandLevelTrack` (§15) |
 | Menus | A fixed width token per menu; the pill menu and ⌘K use the action width. | `metrics.size.actionMenuWidth` (320), `menuWidth`, `clipboardFilterMenuWidth`, `fileSearchFilterMenuWidth`, `emojiCategoryMenuWidth` |
 | HUD | Hugs its text up to the cap. | `metrics.size.hudMaxWidth` (420) |
 | Dialog | Two sizes only. | `metrics.size.dialogWidth` (420), `metrics.size.dialogCompactWidth` (290) |
@@ -80,10 +85,10 @@ Reference: HIG Live Activities, "Keep content compact and snug within a margin t
 
 | Element | Rule | Token |
 | --- | --- | --- |
-| Type | Text styles only, through `metrics.typography` (`rowTitle`, `rowTrailing`, `bar`, `menuRow`, `menuShortcut`, `sectionHeader`, `panelTitle`, `searchField`); AppKit art uses its one font. Ink is `Theme.Colors.textPrimary` / `textSecondary` / `textTertiary` in their Dark branch, guaranteed because the app's appearance is pinned to Dark (`NotchcastIslandPins.appearance`). | `metrics.typography.*`, `NotchTheme.Typography.islandGlanceNSFont` |
-| Icon | SF Symbols through `SymbolImage` at a slot token, monochrome in the text ink: result rows `metrics.size.resultRowIcon` (28), header `metrics.size.headerIconSlot` (22), menus `metrics.size.menuIcon` (20) in `Theme.Colors.menuSymbol`. Colour on a glyph only for status (§10). Never a hand-drawn glyph. | `metrics.size.*Icon*`, `Theme.Colors.menuSymbol` |
+| Type | Text styles only, through `metrics.typography`; no `.font(.system(` call at all, however its arguments are split over lines (`rowTitle`, `rowTrailing`, `bar`, `menuRow`, `menuShortcut`, `sectionHeader`, `panelTitle`, `searchField`); AppKit art uses its one font. Ink is `Theme.Colors.textPrimary` / `textSecondary` / `textTertiary` in their Dark branch, guaranteed because the app's appearance is pinned to Dark (`NotchcastIslandPins.appearance`). | `metrics.typography.*`, `NotchTheme.Typography.islandGlanceNSFont` |
+| Icon | Every glyph through `SymbolImage`, never a bare `Image(systemName:)`, at a slot token, monochrome in the text ink: result rows `metrics.size.resultRowIcon` (28), header `metrics.size.headerIconSlot` (22), menus `metrics.size.menuIcon` (20) in `Theme.Colors.menuSymbol`. Colour on a glyph only for status (§10). Never a hand-drawn glyph. | `metrics.size.*Icon*`, `Theme.Colors.menuSymbol` |
 
-Hooks A6 (type), A7 (icon).
+Hooks A6 (type), A7 (icon frames), A18 (`Image(systemName:)`).
 
 Reference: HIG Live Activities, "Ensure unified information and design of the compact presentations… use consistent color and typography."
 
@@ -91,8 +96,12 @@ Reference: HIG Live Activities, "Ensure unified information and design of the co
 
 | Element | Rule | Token |
 | --- | --- | --- |
-| Keycap | `KeyCapChip(style: .outline)` everywhere on the island, sized `.standard` (`metrics.size.keyCap`, 22) or `.compact` (`metrics.size.compactKeyCap`, 15); ink `textSecondary`. | `NotchTheme.Colors.keyCapFill`, `metrics.radius.keyCap` |
+| Keycap | `KeyCapChip(style: .outline)` everywhere on the island (the style is a `keyCapFill` chip with no outline, §2; `.filled`, a `controlSurface` chip, is never used on the island), sized `.standard` (`metrics.size.keyCap`, 22) or `.compact` (`metrics.size.compactKeyCap`, 15); ink `textSecondary`. | `NotchTheme.Colors.keyCapFill`, `metrics.radius.keyCap` |
 | Button (`BarButton`, dialog buttons, compact circles) | At rest no fill, so the island shows through; hover `Theme.Colors.rowHover`; selected or pressed `NotchTheme.Colors.keyCapFill`, shown on pointer-down. Height `metrics.size.barButtonHeight` (28) in bars, `metrics.size.dialogButtonHeight` in dialogs. A role button (`.modalAction(.primary)`, `.destructive`) keeps its role tint, `Theme.Colors.primaryAction` or `Theme.Colors.destructive`, because there the colour carries meaning. | `Theme.Colors.rowHover`, `NotchTheme.Colors.keyCapFill` |
+| Chip (alias, attachment, suggestion, `DialogChip`) | One chip fill. A label chip (launcher alias, composer attachment) is a keycap-shaped `keyCapFill` chip; a selectable chip (`DialogChip`, suggestion) is a button: bare at rest, `rowHover`, selected `keyCapFill`. No `controlSurface` or `frosted` chip. | `NotchTheme.Colors.keyCapFill`, `metrics.radius.keyCap` |
+| Text field (palette search field, `PopoverMenu` search) | No fill and no box: the island shows through, set off by the §2 separator. Typed text `textPrimary`, placeholder `textTertiary`, caret `textPrimary`, through `metrics.typography.searchField`. | `Theme.Colors.textPrimary`, `Theme.Colors.textTertiary` |
+
+Two selected fills, on purpose: a launcher row is the list's one cursor and must read at a glance on a large black area, so it takes `selection` (0.24, §8); a button's selected or pressed state is a small control beside labelled neighbours and must stay quieter, so it takes `keyCapFill` (0.14). Never swap them.
 
 The trade-off: a neutral control at rest is black on black, so its label alone carries the affordance. Keep every neutral control labelled with text or a glyph and never icon-only without a tooltip. Hooks A8 (keycap), A9 (button).
 
@@ -124,16 +133,19 @@ Reference: HIG Materials, "Use Liquid Glass effects sparingly."
 
 | Element | Rule | Token |
 | --- | --- | --- |
-| Notice (engine art) | One glyph and one short text in the pill's wings (§4), glyph and text `textPrimary`, progress as a `textPrimary` arc on a `Theme.Colors.border` track; a failure tints its glyph `Theme.Colors.destructive`. Dwell `Theme.Duration.messageHUD` (2.4 s); a failure stays longer (§15). Tap opens the follow-up. | `NotchTheme.Typography.islandGlanceNSFont`, `Theme.Colors.destructive` |
-| HUD and dialog shown in the island | The island surface alone: no glow, no rim, no scrim. HUD: `Capsule()`, `metrics.typography.bar`, hover `Theme.Colors.rowHover`, tone on its glyph only. Dialog: `RoundedRectangle(cornerRadius: metrics.radius.panel)`, padding `metrics.spacing.dialogInset`, icon = the subject's glyph at `metrics.size.dialogIcon`, buttons `.modalAction(role)` per §7, ↵ primary, Esc cancel. | `NotchTheme.Colors.islandSurface` |
+| Notice (engine art) | One glyph and one short text in the pill's wings (§4), glyph and text `textPrimary`, progress as a `textPrimary` arc on a `Theme.Colors.border` track; Dwell `Theme.Duration.messageHUD` (2.4 s). Tap opens the follow-up. | `NotchTheme.Typography.islandGlanceNSFont` |
+| Failure (every `isFailure` notice, from the update flow or an add-on) | Glyph `Theme.Colors.destructive` in the notice, the status and the footer; text stays `textPrimary`. Dwell `IslandNotice.failureSeconds` (4 s), which `IslandNotice.dwell` applies whenever `isFailure` is set and `seconds` is left unset; a failure poster leaves `seconds` unset. The glyph shape is the poster's, its colour and dwell are not. | `IslandNoticeArt.failureTone` (`Theme.Colors.destructive`), `IslandNotice.failureSeconds` |
+| HUD and dialog shown in the island | The island surface alone: no glow, no rim, no scrim. HUD: `Capsule()`, `metrics.typography.bar`, hover `Theme.Colors.rowHover`, tone on its glyph only. Dialog: `RoundedRectangle(cornerRadius: metrics.radius.panel)`, padding `metrics.spacing.dialogInset`, icon = the subject's bare glyph at `metrics.size.dialogIcon`, with no tinted tile (`dialogSymbol` and `dialogSymbolContainer` are retired), buttons `.modalAction(role)` per §7, ↵ primary, Esc cancel. | `NotchTheme.Colors.islandSurface` |
+| Result | Any island activity that shows progress ends with a result notice, never just a vanish: success is a checkmark glyph and a short title, failure is the failure rule above (red glyph, 4 s). | `textPrimary`, `Theme.Colors.destructive` |
+| Notch layout | On a notched display, the compact form beside the notch is a glyph and a short status only. Any text (a title, a message, progress with a title) expands out of the notch and shows below it, as the Dynamic Island expanded form. On a non-notched display the pill keeps its centred text. | sizes: see notch-expand (§15) |
 
-The update flow is one state machine shown in three places, with one glyph per state everywhere:
+The update flow is one state machine shown in three places, with one glyph per state everywhere, except Installing, which is the progress ring alone and has no glyph:
 
 | State | Notice | Pill status | Footer pill | Tap |
 | --- | --- | --- | --- | --- |
-| Installing | `arrow.down.circle`, progress arc | none | progress ring, `Theme.Colors.progress` | none |
-| Ready | "Update ready", 2.4 s | `arrow.clockwise.circle` | `Theme.Colors.success` | relaunch |
-| Failed | "Update failed", 4 s, glyph `destructive` | `exclamationmark.arrow.circlepath` | `Theme.Colors.destructive` | `UpdateCoordinator.showFailure` → dialog "Update failed" with the same glyph and "Try Again" as `.modalAction(.primary)` |
+| Installing | progress ring alone, no glyph | none | progress ring, `Theme.Colors.progress` | none |
+| Ready | "Update ready", 2.4 s | `arrow.clockwise.circle` | `Theme.Colors.success` | notice and status open the launcher; only the footer pill's Relaunch relaunches |
+| Failed | "Update failed", 4 s, glyph `destructive` | `exclamationmark.arrow.circlepath`, glyph `destructive` | `Theme.Colors.destructive` | `UpdateCoordinator.showFailure` → dialog "Update failed" with the same glyph and "Try Again" as `.modalAction(.primary)` |
 
 Hooks A12 (notice), A13 (HUD and dialog), A14 (update glyph).
 
@@ -153,7 +165,7 @@ Reference: mac-design, "Use the system first. Add custom design only where the s
 
 | Element | Rule | Token |
 | --- | --- | --- |
-| Anything an add-on shows | Only the island's values, posted through `context.presenter` (`IslandPresenting`: `showLevel`, `post(_:onTap:)`, `end(notice:)`, `setStatus`, `setMenuRows`) as `IslandLevel`, `IslandNotice`, `IslandStatus` (text cut to 4 characters) and `IslandMenuRow`; the engine draws them with §1–§10. An add-on opens no window, panel or hosting view of its own. Exempt: the Screenshots selection overlay, a capture tool over the whole screen, not an island surface. | none; `IslandPresenting` |
+| Anything an add-on shows | Only the island's values, posted through `context.presenter` (`IslandPresenting`: `showLevel`, `post(_:onTap:)`, `end(notice:)`, `setStatus`, `setMenuRows`) as `IslandLevel`, `IslandNotice`, `IslandStatus` (text cut to 4 characters) and `IslandMenuRow`; the engine draws them with §1–§10. A failure it posts (`isFailure`) follows the §10 failure rule. An add-on opens no window, panel or hosting view of its own. Exempt: the Screenshots selection overlay, a capture tool over the whole screen, not an island surface. | none; `IslandPresenting` |
 
 Hook A16.
 
@@ -162,16 +174,18 @@ Reference: HIG Live Activities, "Focus on simple, direct actions."
 ## 13. Builder checklist
 
 1. Name the surface in §0; if it is not on the island, follow `docs/ui.md` instead of this page.
-2. Paint `NotchTheme.Colors.islandSurface` and nothing else behind content (§1, §2).
+2. Paint `NotchTheme.Colors.islandSurface` and nothing else behind content (§1, §2): no Liquid Glass on the island, and island controls are `islandSurface` too.
 3. Read every size from `@Environment(\.metrics)`; every new number goes to §15 first.
 4. Radius concentric to the parent (§3); width from a §4 token; padding from §5.
 5. Type and ink from §6; glyphs through `SymbolImage`; colour only for status.
 6. Keycaps `.outline`; buttons bare at rest, `rowHover`, `keyCapFill` on press (§7).
-7. Menus through `PopoverMenu` (§8); questions through `DialogController`; reports through `HUDPresenter` or an `IslandNotice` (§10).
+7. Menus through `PopoverMenu` (§8), with no glass on the menu, its search field or its rows; questions through `DialogController`; reports through `HUDPresenter` or an `IslandNotice` (§10).
 8. Every custom control has an accessibility label and traits; movement returns `nil` under Reduce Motion; `.tooltip`, never `.help()`, in the palette.
 9. Copy: Title Case for commands, buttons and outcomes; sentence case for settings rows; English only (`fork-strings.md`).
 10. Dark only: the island is pinned Dark; check Dark, never Light.
-11. Run §16 before READY: every hook at or below its recorded count.
+11. Every progress activity ends with a result notice, success or failure (§10).
+12. Beside the notch show a glyph and a short status only; text expands below the notch on notched displays, and stays centred in the pill elsewhere (§10).
+13. Run §16 before READY: every hook at or below its recorded count.
 
 ## 14. Breaks today
 
@@ -186,43 +200,52 @@ The island-black branch is fixing the first four; the rest are open. Counts are 
 | 5 | `UpdatePill.swift:90` | §1, §9: tinted interactive `.glassEffect` | no glass, tint on glyph and label |
 | 6 | `ModalActionButtonStyle.swift:43`–`:47` | §7: neutral buttons fill `controlSurface` / `controlHover` / `controlPressed` | bare, `rowHover`, `keyCapFill` on the island |
 | 7 | `PopoverMenu.swift:129` | §3: menu radius 16 inside 18-point rows | `NotchTheme.Radius.islandMenu` |
-| 8 | `IslandNoticeArt.swift` | §10: `isFailure` is never read, so "Update failed" looks like any notice | glyph `Theme.Colors.destructive` |
+| 8 | `IslandNoticeArt.swift` | §10: `isFailure` is never read, so "Update failed" looks like any notice; failure dwells are literals | landing as `v2/failure-notice-r2` (`116e72e09`): glyph `IslandNoticeArt.failureTone`, dwell `IslandNotice.failureSeconds` |
 | 9 | `UpdateCoordinator.swift:122` | §10: Try Again dialog shows `arrow.down.circle`, the notice `exclamationmark.arrow.circlepath` | one glyph per state |
 | 10 | `RootPaletteView.swift:1647`–`:1648`, `LauncherList.swift:321` | §6: hand-drawn menu-circle bars (14 and 8 × 1.5) and a 3 × 3 running dot | SF Symbol, or §15 tokens |
 | 11 | `VolumeHUDView.swift:39` | §1: `panelScrim` (hidden view, reached only by the volume scene) | island surface only |
+| 12 | `PalettePanel.swift:273`, `MenuPanel.swift:20`, `HUDPanel.swift:19`, `DialogPanel.swift:39` | §1: `hasShadow = true` | `false` |
+| 13 | `ChatTranscriptView.swift:169`–`:170`, `ChatSuggestionChips.swift:55` | §1, §2: `.ultraThinMaterial` with a `border` rim, a `frosted` chip | `rowHover` circle, §7 chip |
+| 14 | palette-screen cards, `EmojiGridView.swift:322`–`:333` | §2: `cardStroke` hairlines and a selection ring | fill, §2 |
 
 ## 15. Tokens to add
 
 | Proposed token | Value | For | Why |
 | --- | --- | --- | --- |
 | `NotchTheme.Radius.islandMenu` | 26 (`Theme.Radius.menuRow` 18 + `Theme.Spacing.md` 8) | §3 menu panel on the island | concentric with its rows; equals the island outline |
-| `NotchTheme.Duration.failureNotice` | 4 s | §10 failure dwell | today a literal, `IslandLiveState.failureSeconds` |
 | `NotchTheme.Size.menuGlyphBars` | 14 and 8 wide, 1.5 thick | §9 menu circle | only if the hand-drawn bars stay; an SF Symbol needs no token |
 | `NotchTheme.Size.runningDot` | 3 | §6 running-app dot in launcher rows | today a literal in `LauncherList` |
+| `NotchTheme.Size.islandLevelCell`, `islandLevelTrack` | 24 and 96 | §4 level art | today `IslandLevelArt` borrows the rest pill's height and width, which breaks the day the rest size changes |
+
+Notch expanded form: sizes: see notch-expand.
+
+The failure dwell is not a token: `IslandNotice.failureSeconds` (beside `messageSeconds`, 2.4 s) is a plain `TimeInterval` in `Features/Island/Model/`, which cannot import `NotchTheme`; `IslandLiveState.failureSeconds` is its alias (§10).
 
 Nothing else is missing: every other value on the island resolves to a token named above.
 
 ## 16. Audit hooks
 
-Run from the repo root with `bash`, after `I="Tinycast/Palette Tinycast/Features/Island Tinycast/Features/Launcher/UI Tinycast/Windows/HUD Tinycast/Windows/Dialog Tinycast/Features/Updates/UI Tinycast/DesignSystem/PopoverMenu.swift Tinycast/DesignSystem/BarButton.swift Tinycast/DesignSystem/KeyCapChip.swift Tinycast/DesignSystem/ModalActionButtonStyle.swift"`. Each prints one line per violation; "Hits" is the count at the commit that wrote this page, so a hook may only go down.
+Run from the repo root with `bash`, after ``I=$(find Tinycast/Palette Tinycast/Features/Island Tinycast/Features/{AI,Calculator,Clipboard,Dictionary,Emoji,FileSearch,Launcher,Quicklinks,Snippets,Updates,WindowManagement}/UI Tinycast/Windows/HUD Tinycast/Windows/Dialog Tinycast/DesignSystem/{PopoverMenu,BarButton,KeyCapChip,ModalActionButtonStyle}.swift -name '*.swift' | grep -vE '/AIChat[A-Za-z]*\.swift$')`` (every on-island palette screen, §0; not the stock panels). Each prints one line per violation; "Hits" is the count at the commit that wrote this page, so a hook may only go down.
 
 | Hook | Rule | Check | Hits |
 | --- | --- | --- | --- |
-| A1 | §1 surface | `grep -rnE -A1 'frosted\(in:\|\.glassEffect\(\|GlassEffectView\(\|panelScrim' $I \| grep -E 'frosted\(in:\|\.regular\|GlassEffectView\(\|panelScrim' \| grep -vE 'onIsland \? \.identity\|IslandVerification\.stock\|CompactBar\.swift[:-]123'` | 6 |
-| A2 | §2 stroke | `grep -rnE 'strokeBorder\|\.border\(' $I` | 1 |
+| A1 | §1 surface | `grep -rnE -A1 'frosted\(in:\|\.glassEffect\(\|GlassEffectView\(\|panelScrim\|Material' $I \| grep -E 'frosted\(in:\|\.regular\|GlassEffectView\(\|panelScrim\|Material' \| grep -vE 'onIsland \? \.identity\|IslandVerification\.stock\|CompactBar\.swift[:-]123'` | 8 |
+| A2 | §2 stroke | `grep -rnE 'strokeBorder\|\.border\(\|cardStroke\|emojiSelectionBorder\|emojiInnerBorder\|roomCardStroke' $I` | 20 |
 | A3 | §3 radius | `grep -rnE 'radius: metrics\.radius\.menuPanel' $I` | 1 |
 | A4 | §4 widths | `grep -rnE 'stageWidth: [^s]' Tinycast/Features/Island/Service/IslandController.swift \| grep -vE 'panelWidth\|size\.width\|stageWidth: width'` | 0 |
-| A5 | §5 padding | `grep -rnE '\.padding\((\.[a-zA-Z]+, )?[0-9]\|spacing: [0-9]{2,}' $I` | 0 |
-| A6 | §6 type | `grep -rnE 'font\(\.system\(size\|NSFont\.systemFont\(ofSize: [0-9]' $I` | 0 |
-| A7 | §6 icon | `grep -rnE 'frame\(width: [0-9]+(\.[0-9])?, height: [0-9]' $I` | 3 |
-| A8 | §7 keycap | `grep -rn 'KeyCapChip(' $I \| grep -v 'style: .outline'` | 0 |
+| A5 | §5 padding | `grep -rnE '\.padding\((\.[a-zA-Z]+, )?[0-9]\|spacing: [0-9]{2,}' $I` | 3 |
+| A6 | §6 type | `grep -rnE 'font\(\.system\(\|^\s*\.system\(size\|NSFont\.systemFont\(ofSize: [0-9]' $I` | 15 |
+| A7 | §6 icon | `grep -rnE 'frame\(width: [0-9]+(\.[0-9])?, height: [0-9]' $I` | 4 |
+| A8 | §7 keycap | `grep -rn 'KeyCapChip(' $I \| grep -v 'style: .outline'` | 1 |
 | A9 | §7 button | `grep -rnE 'Theme\.Colors\.(selection\|controlSurface\|controlHover\|controlPressed)' Tinycast/DesignSystem/BarButton.swift Tinycast/DesignSystem/ModalActionButtonStyle.swift` | 4 |
 | A10 | §8 menu | `grep -rnE -A3 '(headerMenu\|PopoverMenu)\(' Tinycast --include='*.swift' \| grep -E 'width: [0-9]'` | 0 |
 | A11 | §9 footer | `grep -rnE 'frosted\(in: (Capsule\|Circle)\(\)\)' Tinycast/Palette/RootPaletteView.swift` | 2 |
-| A12 | §10 notice | `grep -rlq isFailure Tinycast/Features/Island/Service --include='*Art.swift' \|\| echo 'IslandNoticeArt.swift: isFailure never read'` | 1 |
+| A12 | §10 notice | `grep -q 'failureTone' Tinycast/Features/Island/Service/IslandNoticeArt.swift \|\| echo 'IslandNoticeArt.swift: no failure tone'` | 1 |
 | A13 | §10 HUD and dialog | `grep -rnE '\{ glow \}\|strokeBorder\|panelScrim' Tinycast/Windows/HUD Tinycast/Windows/Dialog` | 5 |
 | A14 | §10 update glyph | `grep -rn 'symbol: "arrow.down.circle", recovery' Tinycast/Features/Updates/UI/UpdateCoordinator.swift` | 1 |
 | A15 | §11 settings | `grep -rnE 'formStyle\(\|NotchTheme\.' $(grep -rlE 'struct [A-Za-z]+SettingsView' Tinycast/Features/Notchcast) \| grep -v 'formStyle(.grouped)'` | 0 |
 | A16 | §12 add-ons | `grep -rnE ': NSPanel\|NSHostingView\(\|NSWindow\(' Tinycast/Features/Notchcast --include='*.swift' \| grep -v '/Screenshots/'` | 0 |
+| A17 | §1 shadow | `grep -rnE 'hasShadow = true' Tinycast/Palette/PalettePanel.swift Tinycast/Palette/MenuPanel.swift Tinycast/Windows/HUD/HUDPanel.swift Tinycast/Windows/Dialog/DialogPanel.swift` | 4 |
+| A18 | §6 glyph | `grep -rnE 'Image\(systemName' $I` | 39 |
 
 In the table `\|` is a Markdown escape: type a plain `|`.
