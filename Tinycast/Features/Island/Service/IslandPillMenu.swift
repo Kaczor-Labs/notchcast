@@ -40,9 +40,13 @@ final class IslandPillMenu: NSObject {
     }
 
     /// Filtering or new add-on rows change the row count; the panel sizes only for new content.
-    func refit() {
+    func refit(keepingSelection: Bool = false) {
         guard let corner, menu.isOpen else { return }
-        state.selection = 0
+        let selected = selectedTitle
+        let rows = visibleItems()
+        // An add-on update must not move the cursor, or Enter runs a row the user never chose.
+        state.selection = keepingSelection
+            ? rows.firstIndex { $0.title == selected } ?? min(state.selection, max(rows.count - 1, 0)) : 0
         state.revision += 1
         menu.update(content, corner: corner, core: core)
     }
@@ -64,6 +68,8 @@ final class IslandPillMenu: NSObject {
     }
 
     @objc private func panelResignedKey() { hide() }
+
+    var selectedTitle: String? { items.indices.contains(state.selection) ? items[state.selection].title : nil }
 
     #if DEBUG
     var itemTitles: [String] { visibleItems().map(\.title) }
@@ -205,9 +211,13 @@ private struct IslandPillMenuView: View {
     let filtered: () -> Void
     @Environment(PaletteState.self) private var palette
 
+    private var rows: [PopoverMenuItem] {
+        _ = state.revision
+        return items()
+    }
+
     var body: some View {
-        let _ = state.revision
-        PopoverMenu(header: Bundle.main.appDisplayName, items: items(), selection: $state.selection,
+        PopoverMenu(header: Bundle.main.appDisplayName, items: rows, selection: $state.selection,
             visibleRows: Theme.Size.pillMenuVisibleRows, onActivate: activate,
             search: .init(placeholder: String(localized: "Search…"), placement: .top))
             .onChange(of: palette.menuQuery) { filtered() }

@@ -89,7 +89,7 @@ final class IslandPresenter: IslandPresenting {
         case (nil, false): menus.append(Menu(owner: owner, rows: rows, onSelect: onSelect))
         case (nil, true): return
         }
-        AppCore.shared.island.pillMenu.refit()
+        AppCore.shared.island.pillMenu.refit(keepingSelection: true)
     }
 
     #if DEBUG

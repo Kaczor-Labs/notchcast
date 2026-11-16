@@ -29,6 +29,10 @@ enum IslandMenuRowScenes {
         await controller.capture("pill-menu-rows")
         await IslandVerification.pause(0.3)
         IslandVerification.require(controller.captured.contains("pill-menu-rows"), "add-on rows layer capture")
+        let pillMenu = core.island.pillMenu
+        for _ in 0..<titles.count where pillMenu.selectedTitle != "Pause music" {
+            IslandLatency.key(menu, code: 125, characters: "\u{f701}")
+        }
         presenter.setMenuRows([IslandMenuRow(id: "15", title: "Focus 15 min", isChecked: false)], owner: "focus") {
             selected.append("focus " + $0)
         }
@@ -37,6 +41,7 @@ enum IslandMenuRowScenes {
         print("MENU_ROWS replaced \(titles)")
         IslandVerification.require(IslandPillScenes.menuPanel != nil && rows(titles).suffix(2) == ["Focus 15 min", "Pause music"],
                                    "replacing an owner's rows refits the open menu in its old place")
+        IslandVerification.require(pillMenu.selectedTitle == "Pause music", "another owner's update keeps the cursor")
         presenter.setMenuRows([], owner: "music") { _ in }
         await IslandVerification.pause(0.2)
         titles = core.island.pillMenu.shownTitles
