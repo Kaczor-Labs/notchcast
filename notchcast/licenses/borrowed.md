@@ -12,3 +12,8 @@ MiddleClick: Service/MiddleClickModule.swift ← vorssaint/vorssaint-utils@89d26
 MusicBlock: Model/MusicLaunchTrigger.swift ← vorssaint/vorssaint-utils@89d2626/Sources/Vorssaint/Services/Audio/MusicLaunchBlocker.swift (GPL-3.0-or-later)
 MusicBlock: Model/MusicLaunchPolicy.swift ← vorssaint/vorssaint-utils@89d2626/Sources/Vorssaint/Services/Audio/MusicLaunchSupport.swift (GPL-3.0-or-later)
 MusicBlock: Service/MusicBlockModule.swift ← vorssaint/vorssaint-utils@89d2626/Sources/Vorssaint/Services/Audio/MusicLaunchBlocker.swift (GPL-3.0-or-later)
+Screenshots: Model/ScreenshotGeometry.swift ← vorssaint/vorssaint-utils@89d2626/Sources/Vorssaint/Services/QuickTools/ScreenshotSupport.swift (GPL-3.0-or-later)
+Screenshots: Model/ScreenshotExclusion.swift ← vorssaint/vorssaint-utils@89d2626/Sources/Vorssaint/Services/QuickTools/ScreenshotCapturePolicy.swift (GPL-3.0-or-later)
+Screenshots: Model/ScreenshotExclusion.swift ← vorssaint/vorssaint-utils@89d2626/Sources/Vorssaint/Services/QuickTools/ScreenshotCaptureEngine.swift (GPL-3.0-or-later)
+Screenshots: Service/ScreenshotSystem+Live.swift ← vorssaint/vorssaint-utils@89d2626/Sources/Vorssaint/Services/QuickTools/ScreenshotCaptureEngine.swift (GPL-3.0-or-later)
+Screenshots: UI/ScreenshotSelectionSurface.swift ← vorssaint/vorssaint-utils@89d2626/Sources/Vorssaint/Services/QuickTools/ScreenshotSelectionController.swift (GPL-3.0-or-later)
