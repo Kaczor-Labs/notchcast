@@ -122,11 +122,13 @@ struct PopoverMenu: View {
     @State private var pointerSelection: Int?
 
     private var listInset: CGFloat { metrics.spacing.md }
+    private var onIsland: Bool { !IslandVerification.stock }
+    private var searchNudge: CGFloat { onIsland ? metrics.spacing.xxs : metrics.spacing.xxs / 2 }
     /// One device pixel: a point-wide rule reads heavy against the glass.
     private var hairline: CGFloat { 1 / displayScale }
     var body: some View {
         let shape = SurfaceShape(
-            attachment: attachment, radius: metrics.radius.menuPanel,
+            attachment: attachment, radius: onIsland ? metrics.scaled(NotchTheme.Radius.islandMenu) : metrics.radius.menuPanel,
             attachedRadius: metrics.size.menuButton / 2)
         surfaceContent
             .frame(width: width ?? metrics.size.actionMenuWidth)
@@ -190,8 +192,8 @@ struct PopoverMenu: View {
             }
             .padding(.horizontal, metrics.spacing.xl + metrics.spacing.sm)
             .frame(height: metrics.size.menuRowHeight)
-            .offset(y: search.placement == .bottom ? -metrics.spacing.xxs / 2 : 0)
-            .padding(.vertical, metrics.spacing.xxs / 2)
+            .offset(y: search.placement == .bottom ? -searchNudge : 0)
+            .padding(.vertical, searchNudge)
             .accessibilityLabel(placeholder)
             .onAppear { searchFocused = true }
     }
@@ -206,7 +208,7 @@ struct PopoverMenu: View {
     private func headerLabel(_ text: String) -> some View {
         Text(text)
             .font(metrics.typography.sectionHeader)
-            .foregroundStyle(.secondary)
+            .foregroundStyle(NotchMenuInk.secondary(onIsland: onIsland))
             .lineLimit(1)
             .truncationMode(.tail)
             .frame(height: metrics.size.menuSectionHeader, alignment: .leading)
@@ -318,7 +320,7 @@ struct PopoverMenu: View {
     private func sectionLabel(_ title: String, isFirst: Bool) -> some View {
         Text(title)
             .font(metrics.typography.sectionHeader)
-            .foregroundStyle(.secondary)
+            .foregroundStyle(NotchMenuInk.secondary(onIsland: onIsland))
             .lineLimit(1)
             .truncationMode(.tail)
             .frame(
@@ -343,6 +345,7 @@ struct PopoverMenu: View {
 
 /// One menu row; highlight is selection-driven, so only one row is ever active.
 private struct PopoverMenuRow: View {
+    private var onIsland: Bool { !IslandVerification.stock }
     let item: PopoverMenuItem
     let selected: Bool
     let onActivate: () -> Void
@@ -379,14 +382,14 @@ private struct PopoverMenuRow: View {
                             )
                             .symbolRenderingMode(.monochrome)
                             .foregroundStyle(
-                                item.isDestructive ? Color.red : Theme.Colors.menuSymbol
+                                item.isDestructive ? Theme.Colors.destructive : Theme.Colors.menuSymbol
                             )
                             .frame(width: metrics.size.menuIcon, height: metrics.size.menuIcon)
                     case .asset(let name):
                         Image(name)
                             .resizable()
                             .aspectRatio(contentMode: .fit)
-                            .foregroundStyle(item.isDestructive ? Color.red : Color.secondary)
+                            .foregroundStyle(item.isDestructive ? Theme.Colors.destructive : NotchMenuInk.secondary(onIsland: onIsland))
                             .frame(width: metrics.size.menuBrandIcon, height: metrics.size.menuBrandIcon)
                             .frame(width: metrics.size.menuIcon, height: metrics.size.menuIcon)
                     case .file(let path):
@@ -397,14 +400,14 @@ private struct PopoverMenuRow: View {
                 }
                 Text(item.title)
                     .font(metrics.typography.menuRow)
-                    .foregroundStyle(item.isDestructive ? Color.red : Color.primary)
+                    .foregroundStyle(item.isDestructive ? Theme.Colors.destructive : NotchMenuInk.primary(onIsland: onIsland))
                     .lineLimit(1)
                 Spacer(minLength: metrics.spacing.sm)
                 if let detail = item.detail {
                     Text(detail)
                         // Smaller than the title it trails: a stated value, not a second label.
                         .font(metrics.typography.keyCap)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(NotchMenuInk.secondary(onIsland: onIsland))
                         .lineLimit(1)
                         // A notation opens with what identifies it, so the tail is what can go.
                         .truncationMode(.tail)
