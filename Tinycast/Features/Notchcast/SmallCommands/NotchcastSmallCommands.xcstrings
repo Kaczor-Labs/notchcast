@@ -1,0 +1,25 @@
+{
+  "sourceLanguage" : "en",
+  "strings" : {
+    "AirDrop Selected Files" : {},
+    "AirDrop is unavailable." : {},
+    "AirDrop was cancelled." : {},
+    "Allow Automation access to read the Finder selection." : {},
+    "Allow Automation access to read the browser's address." : {},
+    "Could not copy to the clipboard." : {},
+    "Done" : {},
+    "Generate Password" : {},
+    "No link in the clipboard or the browser." : {},
+    "Password Copied" : {},
+    "Passwords, short links and AirDrop." : {},
+    "Select files in Finder first." : {},
+    "Short Link Copied from Browser" : {},
+    "Short Link Copied from Clipboard" : {},
+    "Shorten Link" : {},
+    "Small Commands" : {},
+    "The app did not respond in time." : {},
+    "TinyURL did not return a short link." : {},
+    "Unavailable" : {}
+  },
+  "version" : "1.0"
+}
