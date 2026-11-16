@@ -16,6 +16,7 @@ struct IslandNotice: Equatable, Sendable {
     var text: String
     var progress: Double?
     var isFailure = false
+    var seconds: TimeInterval = 2.4 // the stock message HUD's dwell, so add-ons keep their timing
 }
 
 /// A rest-pill glyph that stays until its owner clears it; at most four `text` characters show.
