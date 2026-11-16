@@ -49,7 +49,7 @@ Small features stay flat (e.g. `Features/Onboarding/`). Out-of-process helpers a
 
 Windows (from `docs/architecture.md:129-183`, verified for palette): the palette is a borderless `NSPanel` hosting `RootPaletteView` through `paletteEnvironment(core)` (`Tinycast/Palette/PaletteWindowController.swift:373`); Settings/Onboarding/AI Chat/Support use `Windows/AppWindowController.swift`; dialogs only via `DialogController`, never `NSAlert` (`AGENTS.md:85-86`).
 
-Fork: the palette's `windowDidResignKey` does not dismiss while `com.apple.screencaptureui` is frontmost; it takes key back when that app deactivates or quits, or another app activates (`Tinycast/Palette/PaletteScreenshotHold.swift`, one hook line).
+Fork: the palette's `windowDidResignKey` does not dismiss while `com.apple.screencaptureui` is frontmost; it takes key back when that app deactivates or quits, or another app activates (`Tinycast/Features/Notchcast/Core/Service/PaletteScreenshotHold.swift`, one hook line).
 
 ## 4. Main services / singletons
 

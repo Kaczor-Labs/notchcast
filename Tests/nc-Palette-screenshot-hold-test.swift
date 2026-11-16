@@ -1,4 +1,4 @@
-// notchcast-sources: Tinycast/Palette/PaletteScreenshotHold.swift Tinycast/Platform/NotificationToken.swift
+// notchcast-sources: Tinycast/Features/Notchcast/Core/Service/PaletteScreenshotHold.swift Tinycast/Platform/NotificationToken.swift
 import AppKit
 
 @main
