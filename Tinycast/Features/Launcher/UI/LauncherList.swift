@@ -317,8 +317,8 @@ private struct AppRow: View {
                 .overlay(alignment: .bottom) {
                     if running {
                         Circle()
-                            .fill(.secondary)
-                            .frame(width: 3, height: 3)
+                            .fill(Theme.Colors.textSecondary)
+                            .frame(width: NotchTheme.Size.runningDot, height: NotchTheme.Size.runningDot)
                             .offset(y: 3)
                     }
                 }

@@ -16,6 +16,8 @@ enum NotchTheme {
         static let islandHost = CGSize(width: 1100, height: 860)
         /// The widest a resting glance grows past the notch on one side; menubar spec §3.
         static let islandGlanceWing: CGFloat = 140
+        /// The running-app dot under a launcher row icon (design-system §6).
+        static let runningDot: CGFloat = 3
     }
 
     enum Typography {
