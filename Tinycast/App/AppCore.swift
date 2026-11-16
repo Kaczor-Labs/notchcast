@@ -469,7 +469,7 @@ final class AppCore {
             } else if launchedByUser {
                 paletteCoordinator.showPalette(mode: .launcher)
             }
-            reportInstall(updateChecker.takeInstallReport())
+            island.update.report(updateChecker.takeInstallReport())
         }
         openPendingURLs()
     }
