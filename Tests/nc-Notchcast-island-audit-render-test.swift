@@ -13,8 +13,15 @@
 // notchcast-sources: Tinycast/Features/Island/Service/IslandCanvas.swift
 // notchcast-sources: Tinycast/Features/Island/Service/IslandExpansionArt.swift
 // notchcast-sources: Tinycast/Platform/Images/IconCache.swift
+// notchcast-sources: Tinycast/Features/Notchcast/NotchMenuInk.swift
 import AppKit
 import SwiftUI
+
+// PopoverMenu reads it; the real one drags in the whole island, and a release build is never stock.
+@MainActor
+enum IslandVerification {
+    static let stock = false
+}
 
 /// Audit only: renders the island's shared surfaces offscreen, in Dark on the island black, to PNGs
 /// for a look audit against notchcast/docs/design-system.md. `NC_AUDIT_RENDERS` names the folder.
