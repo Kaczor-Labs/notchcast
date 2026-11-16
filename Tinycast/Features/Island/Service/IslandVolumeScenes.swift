@@ -33,12 +33,12 @@ enum IslandVolumeScenes {
         IslandVerification.require(controller.outlineBounds.width > rest + 1, "the level widens the pill")
         IslandVerification.require(NSApp.windows.filter(\.isVisible).allSatisfy { $0 === controller.backdropWindow },
                                    "the island is the only window: no box at the bottom of the screen")
-        controller.capture("volume-level")
+        await controller.capture("volume-level")
         await until(last + 1.2)
         IslandVerification.require(controller.level != nil, "still showing 1.2 s after the last call")
         await until(last + 1.9)
         IslandVerification.require(controller.level == nil && controller.contentKey == "rest", "back at rest after 1.5 s")
-        controller.capture("volume-rest")
+        await controller.capture("volume-rest")
         await IslandVerification.pause(0.3)
         IslandVerification.require(controller.captured == ["volume-level", "volume-rest"], "level and rest captured")
         IslandScenes.pass("volume", screen: screen)
@@ -55,7 +55,7 @@ enum IslandVolumeScenes {
                                    "the level is stacked under the palette")
         IslandVerification.require(controller.overlayCount == 1, "the island wraps the stacked level")
         IslandVerification.require(core.island.resting?.level == nil, "the pill keeps no level under the palette")
-        controller.capture("volume-palette")
+        await controller.capture("volume-palette")
         await IslandVerification.pause(0.3)
         let before = presenter?.presentations
         core.islandPresenter.showLevel(IslandLevel(source: "scene", symbol: "sun.max.fill", label: "Scene",
@@ -63,7 +63,7 @@ enum IslandVolumeScenes {
         let last = now
         await IslandVerification.pause(0.1)
         IslandVerification.require(presenter?.presentations == before, "a repeat replaces in place")
-        controller.capture("level-zones")
+        await controller.capture("level-zones")
         await until(last + 1.9)
         IslandVerification.require(band.isVisible == false && controller.overlayCount == 0, "the band leaves after 1.5 s")
         IslandVerification.require(controller.captured.contains("volume-palette")
@@ -82,7 +82,7 @@ enum IslandVolumeScenes {
         core.islandPresenter.showLevel(VolumeLevel.island(0.6, muted: false))
         await IslandVerification.pause(0.2)
         IslandVerification.require(controller.level != nil && band == nil, "the level starts in the pill")
-        controller.capture("volume-open-pill")
+        await controller.capture("volume-open-pill")
         core.paletteCoordinator.showPalette(mode: .launcher)
         await IslandVerification.pause(0.5)
         IslandVerification.panel = NSApp.windows.first { $0 is PalettePanel } as? PalettePanel
@@ -93,7 +93,7 @@ enum IslandVolumeScenes {
         IslandVerification.require(band.frame.maxY <= panel.frame.minY, "the band sits under the palette")
         IslandVerification.require(controller.level == nil, "the pill no longer draws the level")
         IslandVerification.require(presenter?.presentations == before + 1, "opening keeps the one presentation")
-        controller.capture("volume-palette-open")
+        await controller.capture("volume-palette-open")
         core.islandPresenter.showLevel(VolumeLevel.island(0.7, muted: false))
         let last = now
         core.paletteCoordinator.hidePalette(restoreFocus: false)
@@ -102,7 +102,7 @@ enum IslandVolumeScenes {
         IslandVerification.require(controller.level != nil && controller.overlayCount == 0 && self.band == nil,
                                    "closing the palette moves the level back to the pill and frees the band's frame")
         IslandVerification.require(presenter?.presentations == before + 1, "closing keeps the one presentation")
-        controller.capture("volume-palette-closed")
+        await controller.capture("volume-palette-closed")
         await until(last + 1.9)
         IslandVerification.require(controller.level == nil && self.band == nil && controller.overlayCount == 0,
                                    "expiry clears pill and band")
