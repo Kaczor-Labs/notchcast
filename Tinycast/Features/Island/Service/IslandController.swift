@@ -11,7 +11,7 @@ final class IslandController: NSObject {
     private var layout: IslandLayout?
     private var configuration: IslandSurfaceConfiguration?
     private var pendingScreen: NSScreen?
-    private weak var panel: PalettePanel?
+    private(set) weak var panel: PalettePanel?
     private var observer: PanelObserver?
     private let clip = CAShapeLayer()
     private var overlays: [CGRect] = []
@@ -159,6 +159,7 @@ final class IslandController: NSObject {
     }
 
     @objc func frameChanged() {
+        canvas.setAccessibilityValue(accessibilityValue)
         guard let surface, let layout else { return }
         surface.reduced = reducedMotion
         let sunk = panel.map { $0.isVisible && $0.level < Self.paletteLevel } ?? false
