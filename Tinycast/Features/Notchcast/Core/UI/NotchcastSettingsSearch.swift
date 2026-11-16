@@ -7,8 +7,13 @@ enum NotchcastSettingsSearch {
     private static let switchRows = Mutex<[SettingsSearchEntry]>([])
 
     static var entries: [SettingsSearchEntry] {
-        [.init(pane: .notchcast, keywords: ["island", "addons"])] + switchRows.withLock { $0 }
+        [.init(pane: .notchcast, keywords: ["island", "addons"]),
+         .init(island, showsInCaptures, keywords: ["screen recording", "screen sharing", "capture", "hide"])]
+            + switchRows.withLock { $0 }
     }
+
+    static let island = SettingsAnchor(tab: .notchcast, title: LocalizedStringResource("Island", table: "Notchcast"))
+    static let showsInCaptures = LocalizedStringResource("Show in screenshots and videos", table: "Notchcast")
 
     static func anchor(_ category: NotchcastCategory) -> SettingsAnchor {
         SettingsAnchor(tab: .notchcast, title: LocalizedStringResource(stringLiteral: category.title))

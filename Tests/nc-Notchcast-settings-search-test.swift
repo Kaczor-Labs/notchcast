@@ -24,12 +24,15 @@ struct NotchcastSettingsSearchTests {
         NotchcastSettingsSearch.install([awake, shots], commandWords: ["shots": ["Capture area", "grab"]])
         let rows = SettingsSearchCatalog.entries.filter { $0.tab == .notchcast }
 
-        check("the pane comes first, then one row per switch", rows.map(\.title) == ["Notchcast", "Screenshots", "Keep awake"])
+        let titles = ["Notchcast", "Show in screenshots and videos", "Screenshots", "Keep awake"]
+        check("the pane comes first, then the island row, then one row per switch", rows.map(\.title) == titles)
         check("the pane row has no anchor", rows.first?.anchor == nil)
-        check("a switch row lands on its category section", rows[1].anchor == NotchcastSettingsSearch.anchor(.capture))
-        check("the section anchor is the category header", rows[2].anchor?.title == NotchcastCategory.power.title)
-        check("rows follow category order, not install order", rows[1].anchor?.title == NotchcastCategory.capture.title)
-        check("a row's breadcrumb names the category", rows[1].breadcrumb == "Notchcast › \(NotchcastCategory.capture.title)")
+        check("the capture row lands on the island section", rows[1].anchor == NotchcastSettingsSearch.island)
+        check("screen recording finds the capture row", finds("screen recording", "Show in screenshots and videos"))
+        check("a switch row lands on its category section", rows[2].anchor == NotchcastSettingsSearch.anchor(.capture))
+        check("the section anchor is the category header", rows[3].anchor?.title == NotchcastCategory.power.title)
+        check("rows follow category order, not install order", rows[2].anchor?.title == NotchcastCategory.capture.title)
+        check("a row's breadcrumb names the category", rows[2].breadcrumb == "Notchcast › \(NotchcastCategory.capture.title)")
         check("a command's name finds its switch", finds("capture area", "Screenshots"))
         check("a subtitle finds its switch", finds("stay on", "Keep awake"))
         check("the island keyword still finds the pane", SettingsSearchCatalog.results(for: "island").first?.anchor == nil)

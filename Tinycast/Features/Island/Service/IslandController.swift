@@ -22,6 +22,11 @@ final class IslandController: NSObject {
     private(set) var captured: [String] = []
     #endif
     var showsRest = true
+    /// AppKit's getter keeps returning `.none` once set, so it also says the window was ever hidden.
+    var sharingType: NSWindow.SharingType {
+        get { backdrop.sharingType }
+        set { backdrop.sharingType = newValue }
+    }
     /// A full-screen Space keeps only glances and attached surfaces.
     var onFullScreenSpace = false {
         didSet { if onFullScreenSpace != oldValue { frameChanged() } }
