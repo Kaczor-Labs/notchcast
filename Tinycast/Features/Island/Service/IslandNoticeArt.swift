@@ -65,7 +65,7 @@ struct IslandStatusArt: PillArt {
     let layout: IslandGlanceLayout
     let statuses: [IslandStatus]
     private let notch: Bool
-    private let items: [(glyph: NSImage?, text: NSAttributedString?)]
+    private let items: [(id: String, glyph: NSImage?, text: NSAttributedString?)]
     private let width: CGFloat
     private let gap = Theme.Spacing.sm
     private let edge = Theme.Spacing.lg
@@ -76,10 +76,10 @@ struct IslandStatusArt: PillArt {
         let attributes: [NSAttributedString.Key: Any] = [.font: NotchTheme.Typography.islandGlanceNSFont,
             .foregroundColor: NSColor(Theme.Colors.textPrimary)]
         var items = statuses.map { status in
-            (glyph: GlanceArt.glyph(status.symbol),
+            (id: status.id, glyph: GlanceArt.glyph(status.symbol),
              text: status.text.map { NSAttributedString(string: String($0.prefix(4)), attributes: attributes) })
         }
-        func span(_ items: [(glyph: NSImage?, text: NSAttributedString?)]) -> CGFloat {
+        func span(_ items: [(id: String, glyph: NSImage?, text: NSAttributedString?)]) -> CGFloat {
             items.map { ($0.glyph?.size.width ?? 0) + ($0.text.map { Theme.Spacing.xs + $0.size().width } ?? 0) }
                 .reduce(0) { $0 == 0 ? $1 : $0 + Theme.Spacing.sm + $1 }
         }
@@ -93,7 +93,7 @@ struct IslandStatusArt: PillArt {
     }
 
     #if DEBUG
-    var shown: Int { items.count }
+    var shown: [String] { items.map(\.id) }
     #endif
 
     func draw(in pill: CGRect) {

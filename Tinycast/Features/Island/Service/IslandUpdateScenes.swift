@@ -34,7 +34,7 @@ enum IslandUpdateScenes {
         IslandVerification.require(controller.notice?.progress == 0.3 && controller.notice?.symbol == "arrow.down.circle",
                                    "the download notice carries received over expected")
         await IslandVerification.pause(0.4)
-        controller.capture("update-download")
+        await controller.capture("update-download")
         await IslandVerification.pause(0.2)
         activity.preview(.installing(release, .extracting))
         read("expanding", String(localized: "Expanding…"))
@@ -48,7 +48,7 @@ enum IslandUpdateScenes {
         await IslandVerification.pause(0.5)
         IslandVerification.require(controller.notice == nil, "the ready notice ends after 2.4 s")
         read("ready-status", ready)
-        controller.capture("update-ready")
+        await controller.capture("update-ready")
         await IslandVerification.pause(0.2)
         IslandVerification.require(controller.captured.contains("update-ready"), "ready status capture")
 
@@ -68,7 +68,7 @@ enum IslandUpdateScenes {
         read("failed", failed)
         IslandVerification.require(controller.notice?.isFailure == true, "the failed notice is a failure")
         await IslandVerification.pause(0.4)
-        controller.capture("update-failed")
+        await controller.capture("update-failed")
         await IslandVerification.pause(0.4)
         read("failed-status", failed)
         await settled()

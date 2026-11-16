@@ -18,6 +18,7 @@ final class IslandController: NSObject {
     #if DEBUG
     private(set) var samples: [String] = []
     private var captureName: String?
+    private var captureDone: CheckedContinuation<Void, Never>?
     private(set) var captured: [String] = []
     #endif
     var showsRest = true
@@ -260,9 +261,20 @@ final class IslandController: NSObject {
     }
 
     #if DEBUG
-    func capture(_ name: String) {
+    /// Returns once the still is taken, so a scene can't change the pill before the frame lands.
+    func capture(_ name: String) async {
         captureName = name
         _ = source.requestFrame {}
+        await withCheckedContinuation { captureDone = $0 }
+    }
+
+    private func takeCapture(panel: NSWindow?) {
+        guard let captureName else { return }
+        self.captureName = nil
+        IslandVerification.capture(captureName, backdrop: backdrop, panel: panel)
+        captured.append(captureName)
+        captureDone?.resume()
+        captureDone = nil
     }
     #endif
 
@@ -299,15 +311,9 @@ final class IslandController: NSObject {
             let error = max(abs(expected.minX - actual.minX), abs(expected.minY - actual.minY),
                             abs(expected.maxX - actual.maxX), abs(expected.maxY - actual.maxY))
             samples.append("\(CACurrentMediaTime())\t\(panel.frame)\t\(backdrop.frame)\t\(expected)\t\(actual)\t\(error)")
-            if let captureName {
-                self.captureName = nil
-                IslandVerification.capture(captureName, backdrop: backdrop, panel: panel)
-                captured.append(captureName)
-            }
-        } else if IslandVerification.enabled, let captureName {
-            self.captureName = nil
-            IslandVerification.capture(captureName, backdrop: backdrop, panel: nil)
-            captured.append(captureName)
+            takeCapture(panel: panel)
+        } else if IslandVerification.enabled {
+            takeCapture(panel: nil)
         }
         #endif
     }
@@ -315,7 +321,7 @@ final class IslandController: NSObject {
     #if DEBUG
     /// A notch for screens that have none, so the notch profile runs on the test display.
     static var simulatedNotch: CGSize?
-    var shownStatuses: Int { (canvas.glance as? IslandStatusArt)?.shown ?? 0 }
+    var shownStatuses: [String] { (canvas.glance as? IslandStatusArt)?.shown ?? [] }
     var reduced: Bool { surface?.reduced == true }
     var frameIntervals: [Double] { source.intervals }
     var frameCPU: [Double] { source.cpuMilliseconds }

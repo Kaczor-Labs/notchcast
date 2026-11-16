@@ -45,7 +45,7 @@ enum IslandMeetingScenes {
         IslandVerification.require(controller.contentKey == "expansion" && presenter.expansions == 1,
                                    "the window opening expands the pill once")
         IslandVerification.require(controller.outlineBounds.height > rest.height + 20, "the pill grows to two lines")
-        controller.capture("meeting-expanded")
+        await controller.capture("meeting-expanded")
         await until(start + 0.9)
         IslandVerification.require(controller.contentKey == "glance" && !controller.expanded, "it settles to the glance")
         func settled() -> Bool {
@@ -55,10 +55,10 @@ enum IslandMeetingScenes {
         while !settled(), now < start + 2.2 { await IslandVerification.pause(0.05) }
         print("SETTLED after=\(now - start)s bounds=\(controller.outlineBounds) target=\(controller.glanceWidthTarget)")
         IslandVerification.require(settled(), "at the glance's size within 1.4 s of the settle")
-        controller.capture("meeting-settled")
+        await controller.capture("meeting-settled")
         await IslandVerification.pause(5)
         IslandVerification.require(controller.contentKey == "glance" && presenter.expansions == 1, "no second expansion")
-        controller.capture("meeting-settled-later")
+        await controller.capture("meeting-settled-later")
         await IslandVerification.pause(0.3)
         IslandVerification.require(controller.captured == ["meeting-expanded", "meeting-settled", "meeting-settled-later"],
                                    "expanded, settled and later captured")
@@ -79,20 +79,20 @@ enum IslandMeetingScenes {
         await until(first + 2.1)
         IslandVerification.require(controller.contentKey == "expansion" && presenter.expansions == 1,
                                    "it expands once the level ends")
-        controller.capture("meeting-after-level")
+        await controller.capture("meeting-after-level")
         await IslandVerification.pause(0.2)
         presenter.showLevel(VolumeLevel.island(0.7, muted: false))
         let second = now
         await IslandVerification.pause(0.5)
         IslandVerification.require(controller.contentKey == "glance" && controller.level != nil && !controller.expanded,
                                    "a level cuts the expansion short")
-        controller.capture("meeting-cut-level")
+        await controller.capture("meeting-cut-level")
         await until(second + 2.1)
         IslandVerification.require(controller.level == nil && controller.contentKey == "glance", "back at the glance")
         await IslandVerification.pause(0.8)
         IslandVerification.require(controller.contentKey == "glance" && presenter.expansions == 1,
                                    "a cut expansion never replays")
-        controller.capture("meeting-cut-after")
+        await controller.capture("meeting-cut-after")
         await IslandVerification.pause(0.3)
         IslandVerification.require(controller.captured == ["meeting-after-level", "meeting-cut-level", "meeting-cut-after"],
                                    "waiting, cut and after captured")
@@ -119,7 +119,7 @@ enum IslandMeetingScenes {
         print("REBUILT key=\(next.contentKey ?? "-") expanded=\(next.expanded) glance=\(next.glance != nil)")
         IslandVerification.require(next.glance != nil && next.expanded && next.contentKey == "expansion"
             && presenter.expansions == 1, "the new pill keeps the expansion")
-        next.capture("meeting-rebuilt")
+        await next.capture("meeting-rebuilt")
         await until(start + 2.3)
         IslandVerification.require(next.contentKey == "glance" && !next.expanded, "it settles at the original deadline")
         await screensChanged(nil)
@@ -141,7 +141,7 @@ enum IslandMeetingScenes {
         await IslandVerification.pause(1.2)
         IslandVerification.require(controller.contentKey == "glance" && presenter.expansions == 0,
                                    "closing the palette shows the glance with no expansion")
-        controller.capture("meeting-palette-closed")
+        await controller.capture("meeting-palette-closed")
         await IslandVerification.pause(0.3)
         IslandVerification.require(controller.captured == ["meeting-palette-closed"], "glance captured")
     }

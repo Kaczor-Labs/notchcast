@@ -54,14 +54,13 @@ enum IslandProfileScenes {
         presenter.post(IslandNotice(id: "notch", symbol: "doc.on.doc", text: "Copied", seconds: 3), onTap: nil)
         await IslandVerification.pause(0.6)
         beside("notice")
-        controller.capture("notch-notice")
-        await IslandVerification.pause(0.2)
+        await controller.capture("notch-notice")
         presenter.end(notice: "notch")
         await IslandVerification.pause(0.5)
 
         await overflow(controller: controller, presenter: presenter, count: 3)
         beside("status")
-        controller.capture("notch-status")
+        await controller.capture("notch-status")
         await IslandVerification.pause(0.2)
 
         presenter.previewExpansion(seconds: 0.8)
@@ -69,13 +68,14 @@ enum IslandProfileScenes {
         await IslandVerification.pause(0.6)
         let open = controller.outlineBounds
         print("NOTCH expanded bounds=\(open) key=\(controller.contentKey ?? "-")")
-        IslandVerification.require(controller.contentKey == "expansion" && open.height > rest.height + 20
-                                   && open.width > notch.width, "the expansion opens below and around the notch")
-        controller.capture("notch-expanded")
+        IslandVerification.require(controller.contentKey == "expansion" && open.minY < rest.minY - 20
+            && open.maxY >= rest.maxY - 0.5 && open.minX <= rest.minX + 0.5 && open.maxX >= rest.maxX - 0.5,
+            "the expansion opens below and around the notch")
+        await controller.capture("notch-expanded")
         await IslandVerification.pause(1.4)
         IslandVerification.require(controller.contentKey == "glance", "the expansion settles to the glance")
         beside("glance")
-        controller.capture("notch-glance")
+        await controller.capture("notch-glance")
         await IslandVerification.pause(0.3)
         IslandVerification.require(controller.captured == ["notch-notice", "notch-status", "notch-expanded", "notch-glance"],
                                    "notice, status, expansion and glance captured")
@@ -91,7 +91,9 @@ enum IslandProfileScenes {
         await settle(controller)
         print("OVERFLOW count=\(count) shown=\(controller.shownStatuses) bounds=\(controller.outlineBounds)")
         IslandVerification.require(controller.statuses.count == count, "the pill holds all \(count) statuses")
-        IslandVerification.require((1..<count).contains(controller.shownStatuses), "the oldest status drops from \(count)")
+        let shown = controller.shownStatuses
+        IslandVerification.require((1..<count).contains(shown.count)
+            && shown == (count - shown.count..<count).map { "status-\($0)" }, "the oldest statuses drop from \(count)")
         IslandVerification.require(controller.pressBackdrop() && tapped == "status-\(count - 1)", "a tap acts on the newest")
         presenter.setStatus(nil, for: "status-\(count - 1)", onTap: nil)
         await IslandVerification.pause(0.4)
@@ -103,7 +105,6 @@ enum IslandProfileScenes {
         await settle(controller)
     }
 
-    /// Widest outline height and width seen while a change animates, beside the size it lands at.
     private static func track(_ controller: IslandController, for seconds: Double) async -> (peak: CGSize, end: CGSize) {
         var peak = CGSize.zero
         let start = now
