@@ -182,6 +182,16 @@ class BehaviourTest(unittest.TestCase):
         self.assertIn(f"base={self.git('rev-parse', 'base')} head={head} sharded= ", log)
         self.assertNotIn(str(self.repo), log.split("pwd=")[1], "the build must run in a clone outside the checkout")
 
+    def test_the_default_base_is_origin_main(self):
+        self.git("update-ref", "refs/remotes/origin/main", "base")
+        self.commit("stack", "stack.txt")
+        self.git("update-ref", "refs/remotes/origin/v2/stack", "HEAD")
+        self.commit("work", "work.txt")
+        result = self.check()
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertEqual(result.stdout.splitlines()[-1],
+                         f"PASS {self.git('rev-parse', 'HEAD')[:12]} against origin/main ({self.git('rev-parse', 'base')[:12]})")
+
     def test_pass_names_retried_and_ignored_harnesses(self):
         lines = self.check("base").stdout.splitlines()
         self.assertEqual(lines[-3:-1], ["retried: none", "ignored (fails upstream too): none"])
