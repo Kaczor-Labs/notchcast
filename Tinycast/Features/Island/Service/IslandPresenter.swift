@@ -19,6 +19,13 @@ final class IslandPresenter: IslandPresenting {
     private var statuses: [IslandStatus] = []
     private var noticeTaps: [String: @MainActor () -> Void] = [:]
     private var statusTaps: [String: @MainActor () -> Void] = [:]
+    private(set) var menus: [Menu] = []
+
+    struct Menu {
+        let owner: String
+        let rows: [IslandMenuRow]
+        let onSelect: @MainActor (String) -> Void
+    }
 
     func showLevel(_ level: IslandLevel) {
         if dwell.show(level, at: Self.now) {
@@ -73,7 +80,16 @@ final class IslandPresenter: IslandPresenting {
     /// A rebuild can add or drop the resting pill, which a notice's dwell waits for.
     func restingChanged() { noticesChanged() }
 
-    func setMenuRows(_ rows: [IslandMenuRow], owner: String, onSelect: @escaping @MainActor (String) -> Void) {}
+    /// An owner keeps its first registration's place, so replacing its rows never reorders the menu.
+    func setMenuRows(_ rows: [IslandMenuRow], owner: String, onSelect: @escaping @MainActor (String) -> Void) {
+        let index = menus.firstIndex { $0.owner == owner }
+        switch (index, rows.isEmpty) {
+        case (let index?, true): menus.remove(at: index)
+        case (let index?, false): menus[index] = Menu(owner: owner, rows: rows, onSelect: onSelect)
+        case (nil, false): menus.append(Menu(owner: owner, rows: rows, onSelect: onSelect))
+        case (nil, true): return
+        }
+    }
 
     #if DEBUG
     var presentations: Int { dwell.presentation }
