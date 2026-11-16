@@ -263,6 +263,7 @@ final class IslandController: NSObject {
     #if DEBUG
     /// Returns once the still is taken, so a scene can't change the pill before the frame lands.
     func capture(_ name: String) async {
+        guard captureDone == nil else { IslandVerification.require(false, "one capture at a time"); return }
         captureName = name
         _ = source.requestFrame {}
         await withCheckedContinuation { captureDone = $0 }
