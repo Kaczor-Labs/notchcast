@@ -1,0 +1,258 @@
+import Foundation
+import Observation
+import OSLog
+
+@MainActor @Observable
+final class DownloadQueue {
+    nonisolated private static let logger = Logger(
+        subsystem: Bundle.main.bundleIdentifier ?? "Notchcast", category: "Downloads")
+    private(set) var jobs: [DownloadJob] = []
+    private(set) var persistenceError: String?
+    let maxConcurrent: Int
+    var destination: URL
+
+    @ObservationIgnored private let file: URL?
+    @ObservationIgnored private let tools: DownloadToolLookup
+    @ObservationIgnored private let clock: () -> Date
+    @ObservationIgnored private var runners: [String: any DownloadRunner] = [:]
+    @ObservationIgnored private var tasks: [String: Task<Void, Never>] = [:]
+    @ObservationIgnored private var operations: [String: UUID] = [:]
+    @ObservationIgnored private var stopped = false
+
+    init(
+        file: URL?, destination: URL, maxConcurrent: Int = 3, tools: DownloadToolLookup,
+        clock: @escaping () -> Date = { Date() }
+    ) async throws {
+        self.file = file
+        self.destination = destination
+        self.maxConcurrent = max(1, maxConcurrent)
+        self.tools = tools
+        self.clock = clock
+        let loaded = try await Self.load(file: file, now: clock())
+        jobs = loaded.jobs
+        save()
+        persistenceError = loaded.error ?? persistenceError
+    }
+
+    isolated deinit {
+        for task in tasks.values { task.cancel() }
+    }
+
+    func register(_ runner: any DownloadRunner) {
+        runners[runner.kind] = runner
+        pump()
+    }
+
+    func unregister(_ kind: String) {
+        runners[kind] = nil
+        for job in jobs where job.kind == kind && !job.state.isFinished {
+            cancel(job.id)
+        }
+    }
+
+    /// `options` is `DownloadJob.encode` of the runner's `Options`; a held job waits for `release`.
+    @discardableResult
+    func enqueue(
+        kind: String, sources: [String], options: Data? = nil, group: String? = nil, held: Bool = false
+    ) -> [DownloadJob] {
+        let now = clock()
+        expire(now: now)
+        let available = runners[kind] != nil
+        let added = sources.map {
+            var job = DownloadJob(id: UUID().uuidString, kind: kind, source: $0, title: $0, group: group,
+                                  state: held ? .held : .waiting, created: now, encodedOptions: options)
+            if !available {
+                job.state = .failed
+                job.finished = now
+                job.detail = String(localized: "This download type is not available.", table: "NotchcastDownloads")
+            }
+            return job
+        }
+        jobs.append(contentsOf: added)
+        save()
+        pump()
+        return added
+    }
+
+    func release(_ kind: String) {
+        for index in jobs.indices where jobs[index].kind == kind && jobs[index].state == .held {
+            jobs[index].state = .waiting
+        }
+        save()
+        pump()
+    }
+
+    func cancel(_ id: String) {
+        guard let index = jobs.firstIndex(where: { $0.id == id }), !jobs[index].state.isFinished else { return }
+        tasks[id]?.cancel()
+        jobs[index].state = .cancelled
+        jobs[index].finished = clock()
+        save()
+        pump()
+    }
+
+    func retry(_ id: String) {
+        guard let index = jobs.firstIndex(where: { $0.id == id }), jobs[index].state.isFinished else { return }
+        var job = jobs.remove(at: index)
+        job.state = .waiting
+        job.progress = nil
+        job.output = nil
+        job.detail = nil
+        job.finished = nil
+        jobs.append(job)
+        save()
+        pump()
+    }
+
+    /// Ends every run's process group and writes the queue before it returns, so quit loses neither.
+    @discardableResult
+    func halt() -> [Task<Void, Never>] {
+        let running = Array(tasks.values)
+        guard !stopped else { return running }
+        stopped = true
+        for task in running { task.cancel() }
+        tools.children.terminateAll()
+        Self.interruptRunning(&jobs, at: clock())
+        save()
+        return running
+    }
+
+    func stop() async {
+        for task in halt() { await task.value }
+    }
+
+    private func pump() {
+        guard !stopped else { return }
+        while tasks.count < maxConcurrent,
+              let job = jobs.first(where: {
+                  $0.state == .waiting && tasks[$0.id] == nil && runners[$0.kind] != nil
+              }),
+              let runner = runners[job.kind] {
+            begin(job, runner: runner)
+        }
+    }
+
+    private func begin(_ job: DownloadJob, runner: any DownloadRunner) {
+        guard let index = jobs.firstIndex(where: { $0.id == job.id }) else { return }
+        jobs[index].state = .running
+        let operation = UUID()
+        operations[job.id] = operation
+        let context = DownloadRunContext(destination: destination, tools: tools, report: { [weak self] progress in
+            guard let self, operations[job.id] == operation,
+                  let index = jobs.firstIndex(where: { $0.id == job.id }),
+                  jobs[index].state == .running else { return }
+            var progress = progress
+            if let fraction = progress.fraction { progress.fraction = fraction.isFinite ? min(1, max(0, fraction)) : nil }
+            jobs[index].progress = progress
+        }, detail: { [weak self] detail in
+            guard let self, operations[job.id] == operation,
+                  let index = jobs.firstIndex(where: { $0.id == job.id }),
+                  jobs[index].state == .running else { return }
+            jobs[index].detail = detail
+        })
+        let runningJob = jobs[index]
+        tasks[job.id] = Task { [weak self, tools] in
+            let result: Result<URL?, Error>
+            do {
+                try Task.checkCancellation()
+                try await Self.checkTools(runner.tools, lookup: tools)
+                let output = try await runner.run(runningJob, context: context)
+                try Task.checkCancellation()
+                result = .success(output)
+            } catch {
+                result = .failure(error)
+            }
+            self?.complete(job.id, operation: operation, result: result)
+        }
+        save()
+    }
+
+    private func complete(_ id: String, operation: UUID, result: Result<URL?, Error>) {
+        guard operations[id] == operation else { return }
+        tasks[id] = nil
+        operations[id] = nil
+        if let index = jobs.firstIndex(where: { $0.id == id }), jobs[index].state == .running {
+            jobs[index].finished = clock()
+            switch result {
+            case .success(let output):
+                jobs[index].state = .done
+                jobs[index].output = output?.path
+            case .failure(let error):
+                jobs[index].state = error is CancellationError ? .cancelled : .failed
+                jobs[index].detail = error is CancellationError ? nil : error.localizedDescription
+            }
+            expire(now: clock())
+            save()
+        }
+        pump()
+    }
+
+    @concurrent
+    private static func checkTools(_ required: [DownloadTool], lookup: DownloadToolLookup) async throws {
+        for tool in required {
+            try Task.checkCancellation()
+            if lookup.find(tool) == nil { throw DownloadToolMissing(tool: tool) }
+        }
+    }
+
+    private func expire(now: Date) { Self.expire(&jobs, now: now) }
+
+    /// Shared with `load`, so a row expires the same way whether the app just ran or was relaunched.
+    nonisolated private static func expire(_ jobs: inout [DownloadJob], now: Date) {
+        let cutoff = now.addingTimeInterval(-retention)
+        jobs.removeAll { $0.state.isFinished && ($0.finished ?? $0.created) <= cutoff }
+    }
+
+    /// A run still going when the app quit cannot resume, so it is recorded as interrupted.
+    nonisolated private static func interruptRunning(_ jobs: inout [DownloadJob], at now: Date) {
+        for index in jobs.indices where jobs[index].state == .running {
+            jobs[index].state = .interrupted
+            jobs[index].finished = now
+        }
+    }
+
+    nonisolated private static let retention: TimeInterval = 7 * 24 * 60 * 60
+
+    /// Synchronous: the file is a few KB, and a write still queued when the app quits is lost.
+    private func save() {
+        guard let file else { return }
+        do {
+            try Self.write(jobs, file: file)
+            persistenceError = nil
+        } catch {
+            Self.logger.error("Could not save downloads: \(error.localizedDescription)")
+            persistenceError = error.localizedDescription
+        }
+    }
+
+    @concurrent
+    private static func load(file: URL?, now: Date) async throws -> (jobs: [DownloadJob], error: String?) {
+        guard let file, FileManager.default.fileExists(atPath: file.path) else { return ([], nil) }
+        var jobs: [DownloadJob]
+        do {
+            let data = try Data(contentsOf: file)
+            jobs = try JSONDecoder().decode([DownloadJob].self, from: data)
+        } catch {
+            Self.logger.error("Could not load downloads: \(error.localizedDescription)")
+            let badFile = file.appendingPathExtension("bad")
+            if FileManager.default.fileExists(atPath: badFile.path) {
+                try? FileManager.default.moveItem(at: badFile, to: badFile.appendingPathExtension(UUID().uuidString))
+            }
+            do {
+                try FileManager.default.moveItem(at: file, to: badFile)
+            } catch {
+                Self.logger.error("Could not set aside the unreadable downloads file: \(error.localizedDescription)")
+            }
+            return ([], error.localizedDescription)
+        }
+        Self.expire(&jobs, now: now)
+        Self.interruptRunning(&jobs, at: now)
+        return (jobs, nil)
+    }
+
+    private static func write(_ jobs: [DownloadJob], file: URL) throws {
+        let data = try JSONEncoder().encode(jobs)
+        try FileManager.default.createDirectory(at: file.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try data.write(to: file, options: .atomic)
+    }
+}
