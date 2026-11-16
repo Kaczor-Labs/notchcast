@@ -3,9 +3,20 @@ import SwiftUI
 /// The Notchcast pane: one section per category, generated from the descriptors.
 struct NotchcastSettingsView: View {
     let controller: NotchcastController
+    @Environment(AppSettings.self) private var settings
 
     var body: some View {
-        Form {
+        @Bindable var settings = settings
+        return Form {
+            Section {
+                Toggle(isOn: $settings.islandShowsInCaptures) {
+                    SettingsRowTitle(NotchcastSettingsSearch.island, NotchcastSettingsSearch.showsInCaptures)
+                    Text("Off hides the island from screenshots, recordings and screen sharing.",
+                         tableName: "Notchcast")
+                }
+            } header: {
+                SettingsSectionHeader(NotchcastSettingsSearch.island)
+            }
             ForEach(NotchcastCategory.allCases, id: \.self) { category in
                 let switches = controller.switches.filter { $0.category == category }
                 if !switches.isEmpty {

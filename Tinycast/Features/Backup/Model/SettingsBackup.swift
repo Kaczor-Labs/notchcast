@@ -33,6 +33,7 @@ struct SettingsBackup: Codable {
         var emojiGridColumns: Int?
         var showInMenuBar: Bool?
         var automaticallyCheckForUpdates: Bool?
+        var islandShowsInCaptures: Bool?
         var popToRootSeconds: Int?
         var escapeKeyBehavior: String?
         var appearance: String?
@@ -152,6 +153,7 @@ extension SettingsBackup {
             emojiGridColumns: s.emojiGridColumns.rawValue,
             showInMenuBar: s.showInMenuBar,
             automaticallyCheckForUpdates: s.automaticallyCheckForUpdates,
+            islandShowsInCaptures: s.islandShowsInCaptures,
             popToRootSeconds: s.popToRootTimeout.rawValue,
             escapeKeyBehavior: s.escapeKeyBehavior.rawValue,
             appearance: s.appearance.rawValue,
@@ -367,6 +369,10 @@ extension SettingsBackup {
         }
         if let automaticallyCheck = s.automaticallyCheckForUpdates {
             settings.automaticallyCheckForUpdates = automaticallyCheck
+            count += 1
+        }
+        if let shows = s.islandShowsInCaptures {
+            settings.islandShowsInCaptures = shows
             count += 1
         }
         if let secs = s.popToRootSeconds, let timeout = PopToRootTimeout(rawValue: secs) {
