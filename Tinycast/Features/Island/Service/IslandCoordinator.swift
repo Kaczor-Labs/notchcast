@@ -209,7 +209,7 @@ final class IslandCoordinator: NSObject {
 
     func anchor(_ window: NSPanel, width: CGFloat, collapsed: Bool) -> CGPoint? {
         guard let panel = window as? PalettePanel else { return nil }
-        let outset = collapsed ? Theme.Size.paletteGlassOutset : 0
+        let outset = IslandPaletteSurface.renderingOutset(collapsed: collapsed, stock: IslandVerification.stock)
         #if DEBUG
         if IslandVerification.stock, let screen = screens.first {
             return CGPoint(x: screen.frame.midX - width / 2, y: screen.frame.maxY - outset)
