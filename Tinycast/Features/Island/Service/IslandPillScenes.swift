@@ -7,11 +7,17 @@ enum IslandPillScenes {
     static let names: Set = ["pill-menu", "pill-settings", "glance", "glance-menu", "pill-menu-quiet", "pill-settings-quiet",
                              "glance-modal", "pill-busy", "window-guard-new", "window-guard-raise",
                              "window-guard-deferred", "island-ax", "update", "notice-queue",
-                             "notice-unseen", "pill-menu-rows"]
+                             "notice-unseen", "pill-menu-rows", "capture-sharing"]
 
     static func run(_ scene: String, core: AppCore, screen: NSScreen) async {
         core.island.start()
         await IslandVerification.pause(0.6)
+        if scene == "capture-sharing" {
+            // Holding no pill here lets the scene prove a replaced one is released.
+            await IslandCaptureScenes.run(core: core)
+            IslandScenes.pass(scene, screen: screen)
+            _exit(0)
+        }
         guard let controller = core.island.resting else { IslandVerification.require(false, "resting pill"); return }
         var waited = 0.6
         while !controller.acceptsClicks, waited < 2.5 { await IslandVerification.pause(0.05); waited += 0.05 }

@@ -16,6 +16,9 @@
     "Grant access…" : {
       "shouldTranslate" : false
     },
+    "Island" : {
+
+    },
     "Keyboard & Mouse" : {
       "shouldTranslate" : false
     },
@@ -33,6 +36,12 @@
     },
     "Notices" : {
       "shouldTranslate" : false
+    },
+    "Off hides the island from screenshots, recordings and screen sharing." : {
+
+    },
+    "Show in screenshots and videos" : {
+
     }
   },
   "version" : "1.0"
