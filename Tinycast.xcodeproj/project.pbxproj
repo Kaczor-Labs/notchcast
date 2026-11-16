@@ -679,6 +679,7 @@
 		ACB45791BFE60896455293B4 /* FileSearchPolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8FC86115B040B8C574EAD0B5 /* FileSearchPolicy.swift */; };
 		ACD8CAE659B1C49EC8652576 /* HotKeyCenter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 26AD346C8FD5F2D4F00FF2B6 /* HotKeyCenter.swift */; };
 		ACE645630E536C93CA102050 /* VolumeHUDView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A90559D7DB9F6F3874CAFCDE /* VolumeHUDView.swift */; };
+		AD8B0647939AD59A84F731BB /* IslandNotchScenes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5B25760178DA1FC87C159524 /* IslandNotchScenes.swift */; };
 		AD9753D6EAF202B6E31510EB /* ClipboardFilter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 682E7F6534CB4014969D98E0 /* ClipboardFilter.swift */; };
 		AD98F015439106F0E9D32015 /* RightClick.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7EFE2C8A212D6979C43E9F7 /* RightClick.swift */; };
 		ADB8D83A32A5F1CEF11E2DE6 /* BuiltInQuickAction.swift in Sources */ = {isa = PBXBuildFile; fileRef = D2E1C14C150F3EC6EC5D610B /* BuiltInQuickAction.swift */; };
@@ -1413,6 +1414,7 @@
 		5A54D1E880E274A3B56C6951 /* DictationModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DictationModel.swift; sourceTree = "<group>"; };
 		5ADCDDCEBA1EBB74810BDFC4 /* CustomQuickAction.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CustomQuickAction.swift; sourceTree = "<group>"; };
 		5B1FC5C77AA5F4DD6E2D9B4D /* ExtensionPickerList.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExtensionPickerList.swift; sourceTree = "<group>"; };
+		5B25760178DA1FC87C159524 /* IslandNotchScenes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IslandNotchScenes.swift; sourceTree = "<group>"; };
 		5B2DBBB997953D2E50EBB050 /* MCPServer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MCPServer.swift; sourceTree = "<group>"; };
 		5B330ABFC83721904159DDF2 /* MeetingEvent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MeetingEvent.swift; sourceTree = "<group>"; };
 		5B883E55507FA5BE11A31B54 /* MCPServerConnection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MCPServerConnection.swift; sourceTree = "<group>"; };
@@ -2716,6 +2718,7 @@
 				352BFEDA07059A5612EEF45A /* IslandLevelScenes.swift */,
 				2B100059C67EB7FCD4E895C8 /* IslandMeetingScenes.swift */,
 				B10654F3D35B2687379156A3 /* IslandMenuScenes.swift */,
+				5B25760178DA1FC87C159524 /* IslandNotchScenes.swift */,
 				1271E9D6A74A8003C3D10103 /* IslandNoticeArt.swift */,
 				ACC1FC3F93F74E42A340DAD0 /* IslandNoticeScenes.swift */,
 				803CF68AFCD894C7E109A646 /* IslandOverlayController.swift */,
@@ -5305,6 +5308,7 @@
 				7429A042698D1076AF780831 /* IslandMeetingExpansion.swift in Sources */,
 				EEB2EB46891AC4A358AD77CB /* IslandMeetingScenes.swift in Sources */,
 				2949DA7605829DEFF7D431D6 /* IslandMenuScenes.swift in Sources */,
+				AD8B0647939AD59A84F731BB /* IslandNotchScenes.swift in Sources */,
 				7BA869C72FDCAE66CF7E9E32 /* IslandNoticeArt.swift in Sources */,
 				D4F7E197EF2941B0FD54EAB3 /* IslandNoticeQueue.swift in Sources */,
 				7CA4373ECDE914F642F5B772 /* IslandNoticeScenes.swift in Sources */,
