@@ -160,6 +160,10 @@ enum IslandPillScenes {
         print("GLANCE rest=\(rest) width=\(width) target=\(controller.glanceWidthTarget) title=\(controller.showsGlanceTitle)")
         IslandVerification.require(width > rest + 1, "the glance widens the pill")
         IslandVerification.require(abs(width - controller.glanceWidthTarget) < 0.5, "the pill settles at the glance width")
+        let font = NotchTheme.Typography.islandGlanceNSFont
+        let digits = Set("0123456789".map { NSAttributedString(string: String($0), attributes: [.font: font]).size().width })
+        print("GLANCE digit widths=\(digits.sorted())")
+        IslandVerification.require(digits.count == 1, "every digit in the island font is the same width")
         controller.capture("glance")
         await IslandVerification.pause(0.3)
         IslandVerification.require(controller.captured.contains("glance"), "glance layer capture")
