@@ -134,7 +134,7 @@ Reference: HIG Materials, "Use Liquid Glass effects sparingly."
 | Element | Rule | Token |
 | --- | --- | --- |
 | Notice (engine art) | One glyph and one short text in the pill's wings (§4), glyph and text `textPrimary`, progress as a `textPrimary` arc on a `Theme.Colors.border` track; Dwell `Theme.Duration.messageHUD` (2.4 s). Tap opens the follow-up. | `NotchTheme.Typography.islandGlanceNSFont` |
-| Failure (every `isFailure` notice, from the update flow or an add-on) | Glyph `Theme.Colors.destructive` in the notice, the status and the footer; text stays `textPrimary`. Dwell `IslandLiveState.failureSeconds` (4 s), chosen by the engine from `isFailure`; a poster never passes its own duration. The glyph shape is the poster's, its colour and dwell are not. | `Theme.Colors.destructive`, `IslandLiveState.failureSeconds` |
+| Failure (every `isFailure` notice, from the update flow or an add-on) | Glyph `Theme.Colors.destructive` in the notice, the status and the footer; text stays `textPrimary`. Dwell `IslandNotice.failureSeconds` (4 s), which `IslandNotice.dwell` applies whenever `isFailure` is set and `seconds` is left unset; a failure poster leaves `seconds` unset. The glyph shape is the poster's, its colour and dwell are not. | `IslandNoticeArt.failureTone` (`Theme.Colors.destructive`), `IslandNotice.failureSeconds` |
 | HUD and dialog shown in the island | The island surface alone: no glow, no rim, no scrim. HUD: `Capsule()`, `metrics.typography.bar`, hover `Theme.Colors.rowHover`, tone on its glyph only. Dialog: `RoundedRectangle(cornerRadius: metrics.radius.panel)`, padding `metrics.spacing.dialogInset`, icon = the subject's bare glyph at `metrics.size.dialogIcon`, with no tinted tile (`dialogSymbol` and `dialogSymbolContainer` are retired), buttons `.modalAction(role)` per §7, ↵ primary, Esc cancel. | `NotchTheme.Colors.islandSurface` |
 
 The update flow is one state machine shown in three places, with one glyph per state everywhere, except Installing, which is the progress ring alone and has no glyph:
@@ -196,7 +196,7 @@ The island-black branch is fixing the first four; the rest are open. Counts are 
 | 5 | `UpdatePill.swift:90` | §1, §9: tinted interactive `.glassEffect` | no glass, tint on glyph and label |
 | 6 | `ModalActionButtonStyle.swift:43`–`:47` | §7: neutral buttons fill `controlSurface` / `controlHover` / `controlPressed` | bare, `rowHover`, `keyCapFill` on the island |
 | 7 | `PopoverMenu.swift:129` | §3: menu radius 16 inside 18-point rows | `NotchTheme.Radius.islandMenu` |
-| 8 | `IslandNoticeArt.swift` | §10: `isFailure` is never read, so "Update failed" looks like any notice | glyph `Theme.Colors.destructive` |
+| 8 | `IslandNoticeArt.swift` | §10: `isFailure` is never read, so "Update failed" looks like any notice; failure dwells are literals | landing as `v2/failure-notice-r2` (`116e72e09`): glyph `IslandNoticeArt.failureTone`, dwell `IslandNotice.failureSeconds` |
 | 9 | `UpdateCoordinator.swift:122` | §10: Try Again dialog shows `arrow.down.circle`, the notice `exclamationmark.arrow.circlepath` | one glyph per state |
 | 10 | `RootPaletteView.swift:1647`–`:1648`, `LauncherList.swift:321` | §6: hand-drawn menu-circle bars (14 and 8 × 1.5) and a 3 × 3 running dot | SF Symbol, or §15 tokens |
 | 11 | `VolumeHUDView.swift:39` | §1: `panelScrim` (hidden view, reached only by the volume scene) | island surface only |
@@ -213,7 +213,7 @@ The island-black branch is fixing the first four; the rest are open. Counts are 
 | `NotchTheme.Size.runningDot` | 3 | §6 running-app dot in launcher rows | today a literal in `LauncherList` |
 | `NotchTheme.Size.islandLevelCell`, `islandLevelTrack` | 24 and 96 | §4 level art | today `IslandLevelArt` borrows the rest pill's height and width, which breaks the day the rest size changes |
 
-The failure dwell is not a token: `IslandLiveState.failureSeconds` is a plain `TimeInterval` in `Features/Island/Model/`, which cannot import `NotchTheme` (§10).
+The failure dwell is not a token: `IslandNotice.failureSeconds` (beside `messageSeconds`, 2.4 s) is a plain `TimeInterval` in `Features/Island/Model/`, which cannot import `NotchTheme`; `IslandLiveState.failureSeconds` is its alias (§10).
 
 Nothing else is missing: every other value on the island resolves to a token named above.
 
@@ -234,7 +234,7 @@ Run from the repo root with `bash`, after ``I=$(find Tinycast/Palette Tinycast/F
 | A9 | §7 button | `grep -rnE 'Theme\.Colors\.(selection\|controlSurface\|controlHover\|controlPressed)' Tinycast/DesignSystem/BarButton.swift Tinycast/DesignSystem/ModalActionButtonStyle.swift` | 4 |
 | A10 | §8 menu | `grep -rnE -A3 '(headerMenu\|PopoverMenu)\(' Tinycast --include='*.swift' \| grep -E 'width: [0-9]'` | 0 |
 | A11 | §9 footer | `grep -rnE 'frosted\(in: (Capsule\|Circle)\(\)\)' Tinycast/Palette/RootPaletteView.swift` | 2 |
-| A12 | §10 notice | `grep -rlq isFailure Tinycast/Features/Island/Service --include='*Art.swift' \|\| echo 'IslandNoticeArt.swift: isFailure never read'` | 1 |
+| A12 | §10 notice | `grep -q 'failureTone' Tinycast/Features/Island/Service/IslandNoticeArt.swift \|\| echo 'IslandNoticeArt.swift: no failure tone'` | 1 |
 | A13 | §10 HUD and dialog | `grep -rnE '\{ glow \}\|strokeBorder\|panelScrim' Tinycast/Windows/HUD Tinycast/Windows/Dialog` | 5 |
 | A14 | §10 update glyph | `grep -rn 'symbol: "arrow.down.circle", recovery' Tinycast/Features/Updates/UI/UpdateCoordinator.swift` | 1 |
 | A15 | §11 settings | `grep -rnE 'formStyle\(\|NotchTheme\.' $(grep -rlE 'struct [A-Za-z]+SettingsView' Tinycast/Features/Notchcast) \| grep -v 'formStyle(.grouped)'` | 0 |
