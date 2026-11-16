@@ -14,7 +14,7 @@ enum NotchTheme {
     }
 
     enum Typography {
-        /// `Theme.Typography.bar` with monospaced digits, so a ticking countdown never jitters the pill.
+        /// `Theme.Typography.bar` with monospaced digits, so a same-length count keeps its width.
         @MainActor static let islandGlanceNSFont: NSFont = {
             let callout = NSFont.preferredFont(forTextStyle: .callout)
             let weight: [NSFontDescriptor.TraitKey: Any] = [.weight: NSFont.Weight.medium]
