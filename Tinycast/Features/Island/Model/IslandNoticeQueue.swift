@@ -1,6 +1,6 @@
 import Foundation
 
-/// Notices stack newest on top; only the top's dwell runs, and never while a level covers it.
+/// Notices stack newest on top; only the top's dwell runs, and only while it is seen.
 struct IslandNoticeQueue: Sendable {
     private struct Entry: Sendable {
         var notice: IslandNotice
