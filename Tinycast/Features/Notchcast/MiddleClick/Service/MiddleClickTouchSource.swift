@@ -98,17 +98,23 @@ import Synchronization
 final class MiddleClickFrameRelay: Sendable {
     typealias Sink = @Sendable (Int, [TouchPoint], TimeInterval) -> Void
 
-    private let state = Mutex<(generation: UInt64, sink: Sink?)>((0, nil))
+    // A nominal struct, not a tuple: a tuple called through inout rewraps the sink in thunks each frame.
+    private struct State {
+        var generation: UInt64
+        var sink: Sink?
+    }
 
-    func open(_ sink: @escaping Sink) { state.withLock { $0 = ($0.generation &+ 1, sink) } }
+    private let state = Mutex(State(generation: 0, sink: nil))
 
-    func close() { state.withLock { $0 = ($0.generation &+ 1, nil) } }
+    func open(_ sink: @escaping Sink) { state.withLock { $0 = State(generation: $0.generation &+ 1, sink: sink) } }
+
+    func close() { state.withLock { $0 = State(generation: $0.generation &+ 1, sink: nil) } }
 
     /// Taken before a frame is read, so a stop or restart while it is read drops it.
     func session() -> UInt64? { state.withLock { $0.sink == nil ? nil : $0.generation } }
 
     // Delivered under the lock, so close() returns only once no frame of its session is in flight.
     func deliver(_ session: UInt64, device: Int, points: [TouchPoint], time: TimeInterval) {
-        state.withLock { if $0.generation == session { $0.sink?(device, points, time) } }
+        state.withLock { if $0.generation == session, let sink = $0.sink { sink(device, points, time) } }
     }
 }
