@@ -19,10 +19,32 @@ struct IslandNoticeTest {
         precondition(near(queue.remaining(at: 1), 4), "A failure keeps a dwell its poster sets")
         queue.end("failed", at: 1)
 
-        queue.post(IslandNotice(id: "sync", text: "Syncing", progress: 0.2), at: 10)
-        precondition(queue.remaining(at: 100) == nil, "A progress notice stays until it is ended")
+        queue.post(IslandNotice(id: "sync", text: "Syncing", progress: IslandProgress(fraction: 0.2, headline: false)),
+                   at: 10)
+        precondition(queue.remaining(at: 100) == nil && queue.notice?.isHeadline == false,
+                     "An untitled progress stays compact until it is ended")
         queue.end("sync", at: 100)
         precondition(queue.notice == nil, "Ending a progress notice clears it")
+
+        queue.post(IslandNotice(id: "page", text: "Page", progress: IslandProgress(fraction: 0.1)), at: 0)
+        precondition(queue.notice?.isHeadline == true && near(queue.remaining(at: 1), 1.4),
+                     "A titled progress headlines for one message dwell")
+        queue.post(IslandNotice(id: "page", text: "Page", progress: IslandProgress(fraction: 0.4)), at: 1)
+        precondition(near(queue.remaining(at: 1), 1.4), "A progress repost keeps the headline time its title has left")
+        queue.expire(at: 2.4)
+        precondition(queue.notice?.id == "page" && queue.notice?.isHeadline == false && queue.remaining(at: 99) == nil,
+                     "A spent headline leaves the progress compact until it is ended")
+        queue.post(IslandNotice(id: "page", text: "Page", progress: IslandProgress(fraction: 0.8)), at: 3)
+        precondition(queue.notice?.isHeadline == false && queue.notice?.progress?.fraction == 0.8,
+                     "A same-title repost stays compact and moves its ring")
+        queue.post(IslandNotice(id: "page", text: "2 of 2: Next", progress: IslandProgress(fraction: 0)), at: 4)
+        precondition(queue.notice?.isHeadline == true && near(queue.remaining(at: 4), 2.4), "A new title headlines again")
+        queue.post(IslandNotice(id: "done", text: "Saved"), at: 5)
+        precondition(queue.notice?.isHeadline == true, "A result notice headlines")
+        queue.expire(at: 7.4)
+        precondition(queue.notice?.id == "page" && near(queue.remaining(at: 7.4), 1.4),
+                     "A covered headline resumes with the time it had left")
+        queue.end("page", at: 8)
 
         queue.post(IslandNotice(id: "a", text: "First"), at: 0)
         queue.post(IslandNotice(id: "b", text: "Second", seconds: 4), at: 1)
@@ -63,7 +85,7 @@ struct IslandNoticeTest {
         precondition(spoken.announcement() == "Second", "A covering notice is announced")
         spoken.end("b", at: 0)
         precondition(spoken.announcement() == nil, "A returning notice is not announced again")
-        spoken.post(IslandNotice(id: "a", text: "First", progress: 0.5), at: 0)
+        spoken.post(IslandNotice(id: "a", text: "First", progress: IslandProgress(fraction: 0.5)), at: 0)
         precondition(spoken.announcement() == nil, "A same-text repost stays silent")
         spoken.post(IslandNotice(id: "a", text: "Verifying"), at: 0)
         precondition(spoken.announcement() == "Verifying", "A repost with new text is announced")
@@ -72,7 +94,7 @@ struct IslandNoticeTest {
 
         var hidden = IslandNoticeQueue()
         hidden.post(IslandNotice(id: "a", text: "First"), at: 0)
-        hidden.post(IslandNotice(id: "b", text: "Second", progress: 0.1), at: 0)
+        hidden.post(IslandNotice(id: "b", text: "Second", progress: IslandProgress(fraction: 0.1)), at: 0)
         _ = hidden.announcement()
         hidden.post(IslandNotice(id: "a", text: "Changed"), at: 0)
         hidden.end("b", at: 0)

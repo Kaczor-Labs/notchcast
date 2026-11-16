@@ -112,7 +112,7 @@ final class IslandUpdateActivity {
     private static func update(_ stage: UpdateCoordinator.Stage) -> IslandLiveState.Update {
         switch stage {
         case .idle, .checking, .available: .none
-        case .installing(_, let phase): .installing(text: phase.message, progress: phase.fraction ?? 1)
+        case .installing(_, let phase): .installing(text: phase.message, progress: phase.fraction)
         case .readyToRelaunch: .ready
         case .failed: .failed
         }

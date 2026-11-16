@@ -14,11 +14,22 @@ struct IslandNoticeQueue: Sendable {
 
     var notice: IslandNotice? { entries.last?.notice }
 
-    /// A repost keeps its place under newer notices and restarts its dwell.
+    /// A repost keeps its place and restarts its dwell; a headline restarts only for a new text.
     mutating func post(_ notice: IslandNotice, at now: TimeInterval) {
         settle(at: now)
-        let left = notice.progress == nil ? notice.dwell : nil
-        if let index = entries.firstIndex(where: { $0.notice.id == notice.id }) {
+        var notice = notice
+        let index = entries.firstIndex { $0.notice.id == notice.id }
+        let left: TimeInterval?
+        if notice.progress == nil {
+            left = notice.dwell
+        } else if let index, let shown = entries[index].notice.progress, notice.isHeadline,
+                  entries[index].notice.text == notice.text {
+            left = entries[index].left
+            notice.progress?.headline = shown.headline
+        } else {
+            left = notice.isHeadline ? IslandNotice.messageSeconds : nil
+        }
+        if let index {
             entries[index] = Entry(notice: notice, left: left, heard: entries[index].heard)
         } else {
             entries.append(Entry(notice: notice, left: left))
@@ -46,8 +57,13 @@ struct IslandNoticeQueue: Sendable {
 
     /// The notice under an expired top returns with the dwell it had left.
     mutating func expire(at now: TimeInterval) {
-        guard remaining(at: now) == 0 else { return }
-        entries.removeLast()
+        guard remaining(at: now) == 0, let top = entries.indices.last else { return }
+        if entries[top].notice.progress == nil {
+            entries.removeLast()
+        } else {
+            entries[top].notice.progress?.headline = false
+            entries[top].left = nil
+        }
         since = nil
         run(at: now)
     }

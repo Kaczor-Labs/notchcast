@@ -56,9 +56,21 @@ enum IslandProfileScenes {
         }
         presenter.post(IslandNotice(id: "notch", symbol: "doc.on.doc", text: "Copied", seconds: 3), onTap: nil)
         await IslandVerification.pause(0.6)
-        beside("notice")
+        let line = controller.outlineBounds
+        print("NOTCH notice bounds=\(line) key=\(controller.contentKey ?? "-")")
+        IslandVerification.require(controller.contentKey == "notice.notch" && controller.showsHeadline
+            && line.minY < rest.minY - 20 && line.maxY >= rest.maxY - 0.5 && line.minX <= rest.minX + 0.5
+            && line.maxX >= rest.maxX - 0.5, "a text notice opens below and around the notch")
         await controller.capture("notch-notice")
         presenter.end(notice: "notch")
+        await IslandVerification.pause(0.5)
+
+        presenter.post(IslandNotice(id: "notch-ring", symbol: "arrow.down.circle", text: "Downloading…",
+                                    progress: IslandProgress(fraction: 0.4, headline: false)), onTap: nil)
+        await IslandVerification.pause(0.6)
+        beside("progress")
+        await controller.capture("notch-progress")
+        presenter.end(notice: "notch-ring")
         await IslandVerification.pause(0.5)
 
         await overflow(controller: controller, presenter: presenter, count: 3)
@@ -80,8 +92,8 @@ enum IslandProfileScenes {
         beside("glance")
         await controller.capture("notch-glance")
         await IslandVerification.pause(0.3)
-        IslandVerification.require(controller.captured == ["notch-notice", "notch-status", "notch-expanded", "notch-glance"],
-                                   "notice, status, expansion and glance captured")
+        IslandVerification.require(controller.captured == ["notch-notice", "notch-progress", "notch-status", "notch-expanded",
+                                   "notch-glance"], "notice, progress, status, expansion and glance captured")
     }
 
     /// Statuses past the wing drop oldest first; the newest stays drawn and still takes the tap.

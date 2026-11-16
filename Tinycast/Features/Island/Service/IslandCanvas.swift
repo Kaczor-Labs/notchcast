@@ -4,6 +4,13 @@ final class IslandCanvas: NSView {
     var outline: CGPath?
     var glance: (any PillArt)?
     var expansion: IslandExpansionArt?
+    var headline: IslandHeadlineArt? {
+        didSet { leaving = headline == nil ? oldValue ?? leaving : nil }
+    }
+    /// Kept while the island contracts, so the line fades out instead of vanishing.
+    private var leaving: IslandHeadlineArt?
+    /// The palette or a report owns the grown shape, so no notice line draws inside it.
+    var covered = false
     var restWidth: CGFloat = 0
     var restHeight: CGFloat = 1
     var glanceWidth: CGFloat = 0
@@ -18,13 +25,16 @@ final class IslandCanvas: NSView {
         context.setFillColor(NSColor(NotchTheme.Colors.islandSurface).cgColor)
         context.fillPath()
         let bounds = outline.boundingBoxOfPath
-        guard let glance else { return }
+        if covered { leaving = nil }
+        let line = covered ? nil : headline ?? leaving
+        guard glance != nil || expansion != nil || line != nil else { return }
         let travel = glanceWidth - restWidth
         context.saveGState()
         context.addPath(outline)
         context.clip()
         let grown = abs(travel) < 1 ? 1 : min(max((bounds.width - restWidth) / travel, 0), 1)
-        let expanding = min(max((bounds.height - restHeight) / restHeight, 0), 1)
+        let open = line?.size.height ?? expansion?.size.height ?? restHeight
+        let expanding = min(max((bounds.height - restHeight) / open, 0), 1)
         // A layer, because NSImage.draw resets the context's alpha and glyphs ignored the fade.
         func fade(_ alpha: CGFloat, _ draw: () -> Void) {
             guard alpha > 0 else { return }
@@ -33,9 +43,11 @@ final class IslandCanvas: NSView {
             draw()
             context.endTransparencyLayer()
         }
-        fade(grown * (1 - expanding)) {
-            glance.draw(in: CGRect(x: bounds.minX, y: bounds.minY, width: bounds.width,
-                                   height: min(bounds.maxY, self.bounds.height) - bounds.minY))
+        if let glance {
+            fade(grown * (1 - expanding)) {
+                glance.draw(in: CGRect(x: bounds.minX, y: bounds.minY, width: bounds.width,
+                                       height: min(bounds.maxY, self.bounds.height) - bounds.minY))
+            }
         }
         if let expansion {
             fade(expanding) {
@@ -43,6 +55,13 @@ final class IslandCanvas: NSView {
                                           height: expansion.size.height))
             }
         }
+        if let line {
+            // Only the outer half of the travel shows the line, so it is gone before the wings return.
+            fade(min(max(expanding * 2 - 1, 0), 1)) {
+                line.draw(in: CGRect(x: bounds.minX, y: bounds.minY, width: bounds.width, height: line.size.height))
+            }
+        }
+        if expanding == 0 { leaving = nil }
         context.restoreGState()
     }
     override func hitTest(_ point: NSPoint) -> NSView? {
@@ -67,14 +86,22 @@ final class IslandCanvas: NSView {
         return true
     }
 
-    /// The presenter's order: level, notice, meeting glance, then status, which the glance hides.
+    /// The presenter's order: level, notice, meeting glance, then status; a notch grows a headline.
     func show(glance: IslandGlance?, level: IslandLevel?, notice: IslandNotice?, statuses: [IslandStatus],
-              expanded: Bool, notch: Bool) {
-        let art: (any PillArt)? = if let level { IslandLevelArt(level, notch: notch) }
-            else if let notice { IslandNoticeArt(notice, notch: notch) }
-            else if let glance { GlanceArt(glance, notch: notch) }
-            else if !statuses.isEmpty { IslandStatusArt(statuses, notch: notch) }
-            else { nil }
+              expanded: Bool, notch: CGFloat?) {
+        headline = if let notch, level == nil, let notice, notice.isHeadline {
+            IslandHeadlineArt(notice, notch: notch)
+        } else { nil }
+        let notched = notch != nil
+        let art: (any PillArt)? = if let level {
+            IslandLevelArt(level, notch: notched)
+        } else if let notice {
+            headline == nil ? IslandNoticeArt(notice, notch: notched) : nil
+        } else if let glance {
+            GlanceArt(glance, notch: notched)
+        } else if !statuses.isEmpty {
+            IslandStatusArt(statuses, notch: notched)
+        } else { nil }
         self.glance = art
         expansion = level == nil && notice == nil && expanded ? glance.map(IslandExpansionArt.init) : nil
     }
