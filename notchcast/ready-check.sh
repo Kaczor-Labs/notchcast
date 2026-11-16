@@ -55,7 +55,7 @@ upstream_at=$(git -C "$tree" merge-base "$HEAD_SHA" refs/remotes/upstream/main)
 echo "upstream touch: $files files, +$added −$deleted (base ${upstream_at:0:12})"
 printf 'delta: %+d files, %+d lines\n' $((files - base_files)) $((added + deleted - base_added - base_deleted))
 branch=${NOTCHCAST_READY_BRANCH:-$(git symbolic-ref --quiet --short HEAD || true)}
-if [[ "$branch" == v2/addons-* && "$branch" != v2/addons-core ]]; then
+if [[ "$branch" == v2/addons-* && ! "$branch" =~ ^v2/addons-core(-[0-9]+)?$ ]]; then
     # An add-on lives in fork-owned paths only, so syncing upstream never conflicts with it.
     touched=$(comm -12 <(git -C "$tree" diff --name-only --no-renames "$BASE_SHA" "$HEAD_SHA" | sort) \
         <(git -C "$tree" ls-tree -r --name-only refs/remotes/upstream/main | sort))
