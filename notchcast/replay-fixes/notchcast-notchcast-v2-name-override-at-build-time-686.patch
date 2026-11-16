@@ -1,0 +1,24 @@
+diff --git a/Tinycast/Palette/RootPaletteView.swift b/Tinycast/Palette/RootPaletteView.swift
+index 4e9927051..0342c4fbf 100644
+--- a/Tinycast/Palette/RootPaletteView.swift
++++ b/Tinycast/Palette/RootPaletteView.swift
+@@ -235,8 +235,8 @@ struct RootPaletteView: View {
+                     }
+                 },
+                 PopoverMenuItem(
+-                    title: String(localized: "About Notchcast", table: "Notchcast"),
+-                    systemImage: "info.circle", startsSection: true
++                    title: String(localized: "About Tinycast"), systemImage: "info.circle",
++                    startsSection: true
+                 ) {
+                     core.settingsCoordinator.showAbout()
+                 },
+@@ -888,7 +888,7 @@ struct RootPaletteView: View {
+ 
+     /// Mode-gated ahead of the cast, which would otherwise cost every other mode a list build.
+     private var extensionCommandScreen: ExtensionCommandScreen? {
+-        guard settings.extensionsEnabled, vm.mode == .extensionCommand else { return nil }
++        guard vm.mode == .extensionCommand else { return nil }
+         return screen as? ExtensionCommandScreen
+     }
+ 
