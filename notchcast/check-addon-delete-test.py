@@ -198,17 +198,20 @@ class QueueTest(unittest.TestCase):
                             TOOLING + 'build queue could not start')
 
     def test_a_signal_is_forwarded_to_the_queue_and_is_tooling(self):
-        run = subprocess.Popen([sys.executable, str(SCRIPT), 'Shots'], cwd=self.repo, text=True, stdout=subprocess.PIPE,
-                               stderr=subprocess.PIPE, env={**self.env, 'FAKE_QUEUE_SLEEP': '1'})
-        for _ in range(100):
-            if self.calls_made():
-                break
-            time.sleep(0.05)
-        run.send_signal(signal.SIGTERM)
-        stdout, stderr = run.communicate(timeout=10)
-        self.assertEqual(run.returncode, 2, stdout + stderr)
-        self.assertIn(TOOLING + f'stopped by signal {signal.SIGTERM.value}', stdout)
-        self.assertNotIn('Traceback', stdout + stderr)
+        for signum in (signal.SIGTERM, signal.SIGHUP):
+            self.calls.write_text('')
+            run = subprocess.Popen([sys.executable, str(SCRIPT), 'Shots'], cwd=self.repo, text=True,
+                                   stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                                   env={**self.env, 'FAKE_QUEUE_SLEEP': '1'})
+            for _ in range(100):
+                if self.calls_made():
+                    break
+                time.sleep(0.05)
+            run.send_signal(signum)
+            stdout, stderr = run.communicate(timeout=10)
+            self.assertEqual(run.returncode, 2, stdout + stderr)
+            self.assertIn(TOOLING + f'stopped by signal {signum.value}', stdout)
+            self.assertNotIn('Traceback', stdout + stderr)
 
     def test_an_empty_or_unknown_status_is_tooling_not_a_crash(self):
         for status in ('', '7', 'full disk'):
@@ -263,6 +266,68 @@ class QueueTest(unittest.TestCase):
             self.assert_verdict(self.run_delete('Shots'), 2, TOOLING + 'sourcing ')
         self.assert_verdict(self.run_delete('Shots', CHAD_BUILD_QUEUE_SLOT='2'), 1, BREACH)
         self.assertEqual(self.calls_made(), [])
+
+    def scratch_dirs(self):
+        return sorted(Path(self.env['NOTCHCAST_DELETE_SCRATCH']).glob('notchcast-delete.*'))
+
+    def wait_for(self, ready):
+        for _ in range(200):
+            if ready():
+                return
+            time.sleep(0.05)
+        self.fail('timed out')
+
+    def test_a_signal_stops_the_step_tree_and_removes_the_scratch_dir(self):
+        root = Path(self.tmp.name)
+        write(root, 'bin/slow-xcodegen', '#!/bin/sh\nsleep 60 &\necho $! > "$STUB_PID"\nwait\n')
+        (root / 'bin/slow-xcodegen').chmod(0o755)
+        for signum in (signal.SIGTERM, signal.SIGHUP, signal.SIGINT):
+            stub = root / 'stub.pid'
+            stub.unlink(missing_ok=True)
+            run = subprocess.Popen([sys.executable, str(SCRIPT), 'Keep'], cwd=self.repo, text=True,
+                                   stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                                   env={**self.env, 'NOTCHCAST_BUILD_QUEUE': '', 'STUB_PID': str(stub),
+                                        'XCODEGEN': str(root / 'bin/slow-xcodegen')})
+            self.wait_for(lambda: stub.is_file() and stub.read_text().strip() and
+                          any((path / 'owner.pid').is_file() for path in self.scratch_dirs()))
+            self.assertEqual((self.scratch_dirs()[0] / 'owner.pid').read_text(), str(run.pid))
+            sleeper = int(stub.read_text())
+            run.send_signal(signum)
+            stdout, stderr = run.communicate(timeout=30)
+            self.assertEqual(run.returncode, 128 + signum, stdout + stderr)
+            self.assertIn(TOOLING + f'stopped by signal {signum.value}', stdout)
+            self.assertNotIn('Traceback', stdout + stderr)
+            self.assertEqual(self.scratch_dirs(), [])
+            self.wait_for(lambda: not alive(sleeper))
+
+    def test_a_run_sweeps_dirs_of_dead_owners_and_old_pidless_ones_only(self):
+        parent = Path(self.env['NOTCHCAST_DELETE_SCRATCH'])
+        gone = subprocess.Popen(['true'])
+        gone.wait()
+        hour_ago = time.time() - 2 * 3600
+        dirs = {}
+        for name, pid, old in (('dead', gone.pid, False), ('live', os.getpid(), True), ('old', None, True),
+                               ('fresh', None, False), ('garbled', 'x', True)):
+            path = dirs[name] = parent / f'notchcast-delete.{name}'
+            write(path, 'Keep/file', 'x')
+            if pid is not None:
+                (path / 'owner.pid').write_text(str(pid))
+            if old:
+                os.utime(path, (hour_ago, hour_ago))
+        status = parent / 'notchcast-delete-status.old'
+        status.mkdir()
+        os.utime(status, (hour_ago, hour_ago))
+        self.assert_verdict(self.run_delete('Keep', NOTCHCAST_BUILD_QUEUE=''), 0, 'PASS delete Keep')
+        self.assertEqual(self.scratch_dirs(), sorted(dirs[name] for name in ('fresh', 'garbled', 'live')))
+        self.assertTrue(status.is_dir())
+
+
+def alive(pid):
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        return False
+    return True
 
 
 if __name__ == '__main__':
