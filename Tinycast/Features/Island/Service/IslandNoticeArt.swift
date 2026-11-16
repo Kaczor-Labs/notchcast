@@ -92,6 +92,10 @@ struct IslandStatusArt: PillArt {
                                     wing: wing)
     }
 
+    #if DEBUG
+    var shown: Int { items.count }
+    #endif
+
     func draw(in pill: CGRect) {
         var x = notch ? pill.maxX - edge - width : pill.midX - width / 2
         for item in items {

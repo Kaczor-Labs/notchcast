@@ -158,6 +158,9 @@ final class IslandController: NSObject {
     }
 
     static func notch(on screen: NSScreen) -> CGSize {
+        #if DEBUG
+        if let simulatedNotch { return simulatedNotch }
+        #endif
         guard screen.safeAreaInsets.top > 0, let left = screen.auxiliaryTopLeftArea,
               let right = screen.auxiliaryTopRightArea else { return .zero }
         return CGSize(width: screen.frame.width - left.width - right.width, height: screen.safeAreaInsets.top)
@@ -208,7 +211,14 @@ final class IslandController: NSObject {
     static let reportLevel = NSWindow.Level(rawValue: IslandBackdrop.levelValue + 2)
     static let questionLevel = NSWindow.Level(rawValue: IslandBackdrop.levelValue + 3)
 
-    private var reducedMotion: Bool { !Motion.isEnabled || NSWorkspace.shared.accessibilityDisplayShouldReduceMotion }
+    /// The engine's own switch; scenes force `.always` to prove Reduce Motion without system settings.
+    var motion: ReducedMotionSetting = .user {
+        didSet { frameChanged() }
+    }
+
+    private var reducedMotion: Bool {
+        !Motion.isEnabled || motion.resolved(system: NSWorkspace.shared.accessibilityDisplayShouldReduceMotion)
+    }
 
     private var isResting: Bool {
         guard let layout, let bounds = canvas.outline?.boundingBoxOfPath else { return false }
@@ -303,6 +313,10 @@ final class IslandController: NSObject {
     }
 
     #if DEBUG
+    /// A notch for screens that have none, so the notch profile runs on the test display.
+    static var simulatedNotch: CGSize?
+    var shownStatuses: Int { (canvas.glance as? IslandStatusArt)?.shown ?? 0 }
+    var reduced: Bool { surface?.reduced == true }
     var frameIntervals: [Double] { source.intervals }
     var frameCPU: [Double] { source.cpuMilliseconds }
 
