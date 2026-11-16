@@ -9,6 +9,8 @@ in the run-tests log, so a harness the runner skipped cannot pass as clean.
 Prints PASS per folder, or FAIL with the step and its log. A failure the deletion caused is a contract breach
 (exit 1); one the tools caused (clone, xcodegen, timeout, a build that stopped without a Swift error) is a
 tooling failure (exit 2). ready-check runs --rotate when its branch changes Tinycast/Features/Notchcast/.
+The scratch dir holds owner.pid; SIGTERM, SIGINT or SIGHUP stops the running step's process group, removes the
+dir and exits 128+signal, and each run first removes the dirs of dead owners, or pid-less ones over an hour old.
 With NOTCHCAST_BUILD_QUEUE set, in the environment or ~/.config/notchcast/private.env (notchcast/README.md,
 "Private hooks"), the whole run holds one build-queue slot.
 Usage: check-addon-delete.py (<Folder> | --rotate | --all) [--ref HEAD]
@@ -22,6 +24,7 @@ import signal
 import subprocess
 import sys
 import tempfile
+import time
 
 ROOT_DIR = 'Tinycast/Features/Notchcast/'
 REGISTRY = ROOT_DIR + 'NotchcastRegistry.swift'
@@ -34,6 +37,12 @@ ANSI = re.compile(r'\x1b\[[0-9;]*m')
 RESULT_LINE = re.compile(r'^\[\d+/\d+\]\s+\S+\s+(\S+)', re.M)
 LOGS = pathlib.Path.home() / 'Library/Caches/notchcast/addon-delete'
 TIMEOUT = 3600
+SCRATCH_PREFIX = 'notchcast-delete.'
+OWNER = 'owner.pid'
+STALE_AGE = 3600
+STOP_SIGNALS = (signal.SIGINT, signal.SIGTERM, signal.SIGHUP)
+STOP_GRACE = 10
+RUNNING = []
 SOURCE_HOOK = 'source "$1" >/dev/null; s=$?; printf %s "${NOTCHCAST_BUILD_QUEUE-}"; exit $s'
 
 
@@ -93,15 +102,35 @@ def delete_folder(tree, folder):
         raise Breach(f"strings of table {table} remain in {', '.join(orphans)}")
 
 
+def stop_group(child):
+    # A signal can land while wait() holds Popen's lock, so every wait here is bounded.
+    try:
+        os.killpg(child.pid, signal.SIGTERM)
+        child.wait(timeout=STOP_GRACE)
+    except (ProcessLookupError, subprocess.TimeoutExpired):
+        pass
+    try:
+        os.killpg(child.pid, signal.SIGKILL)
+        child.wait(timeout=STOP_GRACE)
+    except (ProcessLookupError, PermissionError, subprocess.TimeoutExpired):
+        pass
+
+
 def step(name, command, tree, log, env):
     try:
         with open(log, 'w') as out:
-            code = subprocess.run(command, cwd=tree, stdout=out, stderr=subprocess.STDOUT, env=env,
-                                  timeout=TIMEOUT).returncode
-    except subprocess.TimeoutExpired:
-        raise Tooling(f'{name} timed out after {TIMEOUT}s; log: {log}')
+            child = subprocess.Popen(command, cwd=tree, stdout=out, stderr=subprocess.STDOUT, env=env,
+                                     start_new_session=True)
     except OSError as error:
         raise Tooling(f'{name} could not start ({error}); log: {log}')
+    RUNNING.append(child)
+    try:
+        code = child.wait(timeout=TIMEOUT)
+    except subprocess.TimeoutExpired:
+        stop_group(child)
+        raise Tooling(f'{name} timed out after {TIMEOUT}s; log: {log}')
+    finally:
+        RUNNING.remove(child)
     if code == 0:
         return
     text = log.read_text(errors='replace')
@@ -153,6 +182,34 @@ def check(repo, sha, folder, scratch):
         raise Tooling(f"run-tests reported no result for fork harnesses {', '.join(missing)}; log: {log}")
 
 
+def is_stale(path, now):
+    try:
+        pid = int((path / OWNER).read_text())
+    except FileNotFoundError:
+        try:
+            return now - path.stat().st_mtime > STALE_AGE
+        except OSError:
+            return False
+    except (OSError, ValueError):
+        return False
+    if pid <= 0:
+        return False
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        return True
+    except OSError:
+        return False
+    return False
+
+
+def sweep(parent, now):
+    """Removes scratch dirs a killed run left; SIGKILL and power loss skip every handler."""
+    for path in parent.glob(SCRATCH_PREFIX + '*'):
+        if path.is_dir() and not path.is_symlink() and is_stale(path, now):
+            shutil.rmtree(path, ignore_errors=True)
+
+
 def queue_command():
     queue = os.environ.get('NOTCHCAST_BUILD_QUEUE')
     private = pathlib.Path.home() / '.config/notchcast/private.env'
@@ -181,7 +238,7 @@ def queued(queue, sha, target):
         if child:
             child.send_signal(signum)
 
-    for signum in (signal.SIGINT, signal.SIGTERM):
+    for signum in STOP_SIGNALS:
         signal.signal(signum, forward)
     with tempfile.TemporaryDirectory(prefix='notchcast-delete-status.') as tmp:
         status = pathlib.Path(tmp) / 'status'
@@ -235,12 +292,33 @@ def main():
     LOGS.mkdir(parents=True, exist_ok=True)
     status = 0
     # Debug builds embed absolute source paths, so build outside the home as ready-check does.
-    with tempfile.TemporaryDirectory(dir=os.environ.get('NOTCHCAST_DELETE_SCRATCH') or
-                                     subprocess.check_output(['getconf', 'DARWIN_USER_TEMP_DIR'], text=True).strip(),
-                                     prefix='notchcast-delete.') as scratch:
+    parent = pathlib.Path(os.environ.get('NOTCHCAST_DELETE_SCRATCH') or
+                          subprocess.check_output(['getconf', 'DARWIN_USER_TEMP_DIR'], text=True).strip())
+    sweep(parent, time.time())
+    owned = []
+
+    def stop(signum, _frame):
+        for each in STOP_SIGNALS:
+            signal.signal(each, signal.SIG_IGN)
+        for child in RUNNING:
+            stop_group(child)
+        for path in owned:
+            shutil.rmtree(path, ignore_errors=True)
+        try:
+            print(f'FAIL delete at {sha[:12]}: tooling failure, not a contract breach: stopped by signal {signum}',
+                  flush=True)
+        finally:
+            os._exit(128 + signum)
+
+    for signum in STOP_SIGNALS:
+        signal.signal(signum, stop)
+    scratch = pathlib.Path(tempfile.mkdtemp(dir=parent, prefix=SCRATCH_PREFIX))
+    owned.append(scratch)
+    try:
+        (scratch / OWNER).write_text(str(os.getpid()))
         for folder in picked:
             try:
-                check(repo, sha, folder, pathlib.Path(scratch))
+                check(repo, sha, folder, scratch)
                 print(f'PASS delete {folder} at {sha[:12]}: xcodegen, build, run-tests')
             except Breach as error:
                 print(f'FAIL delete {folder} at {sha[:12]}: contract breach: {error}')
@@ -248,6 +326,8 @@ def main():
             except Tooling as error:
                 print(f'FAIL delete {folder} at {sha[:12]}: tooling failure, not a contract breach: {error}')
                 status = status or 2
+    finally:
+        shutil.rmtree(scratch, ignore_errors=True)
     return status
 
 
