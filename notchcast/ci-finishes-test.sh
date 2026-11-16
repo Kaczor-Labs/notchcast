@@ -79,3 +79,29 @@ grep -q 'started sync' kick-log
 test "$(cat "$CALLS")" = dispatch
 grep -q '^upstream release ' "$STATE"
 echo 'PASS: pending Sync skips dispatch and preserves state; dry-run reports skip; idle dispatches'
+cp "$ROOT/notchcast/ci.py" notchcast/ci.py
+printf 'MAINTAINER_NAME=Test\nMAINTAINER_EMAIL=test@example.com\n' >> notchcast/config.env
+mkdir -p "$HOME/.config/notchcast"
+printf 'notchcast_notify() { cat >> "$ALERTS"; }\n' > "$HOME/.config/notchcast/private.env"
+cat > bin/gh <<'GH'
+#!/bin/bash
+case "$*" in
+  *"commits/main"*) echo upstream;;
+  "release list"*) echo release;;
+  "run list"*) echo 0;;
+  *"compare/upstream:main"*) echo 3;;
+  *"compare/main"*) date -u -v-"${MOVED_AGO:-5}"H +%Y-%m-%dT%H:%M:%SZ;;
+  *"commits/upstream"*) date -u -v-"${MOVED_AGO:-5}"H +%Y-%m-%dT%H:%M:%SZ;;
+  "issue list"*) echo "${ISSUES:-0}";;
+  "pr list"*) echo "$PRS";;
+  *) echo "unexpected gh: $*" >&2; exit 1;;
+esac
+GH
+export ALERTS="$WORK/alerts" PRS='[{"number":7,"isDraft":false,"isCrossRepository":false}]'
+lag_alerts() { : > "$ALERTS"; : > "$HOME/Library/Application Support/notchcast/kick.alerted"; MOVED_AGO=$1 PRS=$2 bash notchcast/kick.sh > kick-log; wc -l < "$ALERTS" | tr -d ' '; }
+none='[]'
+[ "$(lag_alerts 5 "$PRS")" = 0 ]
+grep -q 'holds the rebase' kick-log
+[ "$(lag_alerts 13 "$PRS")" = 1 ]
+[ "$(lag_alerts 5 "$none")" = 1 ]
+echo 'PASS: lag alert stays quiet while the Sync holds the rebase for open PRs; speaks once the hold ran out or with no PR'
