@@ -13,6 +13,7 @@ enum SettingsBackupCoverage {
         "hyperKeySecureInputCompatibility": .hyperKeySecureInputCompatibility,
         "showInMenuBar": .showInMenuBar,
         "automaticallyCheckForUpdates": .automaticallyCheckForUpdates,
+        "islandShowsInCaptures": .islandShowsInCaptures,
         "emojiSkinTone": .emojiSkinTone,
         "emojiGridColumns": .emojiGridColumns,
         "popToRootSeconds": .popToRootTimeout,
