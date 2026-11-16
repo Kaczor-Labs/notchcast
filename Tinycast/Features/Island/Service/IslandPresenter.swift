@@ -40,6 +40,7 @@ final class IslandPresenter: IslandPresenting {
     func post(_ notice: IslandNotice, onTap: (@MainActor () -> Void)?) {
         notices.post(notice, at: Self.now)
         noticeTaps[notice.id] = onTap
+        if !observing { observePlacement() }
         noticesChanged()
     }
 
@@ -69,6 +70,9 @@ final class IslandPresenter: IslandPresenting {
         controller.statuses = resting ? statuses : []
     }
 
+    /// A rebuild can add or drop the resting pill, which a notice's dwell waits for.
+    func restingChanged() { noticesChanged() }
+
     func setMenuRows(_ rows: [IslandMenuRow], owner: String, onSelect: @escaping @MainActor (String) -> Void) {}
 
     #if DEBUG
@@ -80,11 +84,13 @@ final class IslandPresenter: IslandPresenting {
 
     private static var now: TimeInterval { ProcessInfo.processInfo.systemUptime }
 
-    /// A level pauses the top notice's dwell; the pill and the announcement follow the top.
+    /// Anything that keeps the pill's notice unseen pauses its dwell; the announcement follows the top.
     private func noticesChanged() {
         let now = Self.now
-        if notices.paused != (dwell.level != nil) { notices.pause(dwell.level != nil, at: now) }
-        AppCore.shared.island.resting?.notice = notices.notice
+        let core = AppCore.shared
+        let unseen = dwell.level != nil || core.palette.isVisible || core.isShowingDialog || core.island.resting == nil
+        if notices.paused != unseen { notices.pause(unseen, at: now) }
+        core.island.resting?.notice = notices.notice
         if let text = notices.announcement() {
             NSAccessibility.post(element: NSApp as Any, notification: .announcementRequested,
                 userInfo: [.announcement: text, .priority: NSAccessibilityPriorityLevel.high.rawValue])
@@ -177,10 +183,10 @@ final class IslandPresenter: IslandPresenting {
             Task { @MainActor in
                 guard let self else { return }
                 self.observing = false
-                guard self.dwell.level != nil || self.occurrence != nil else { return }
+                guard self.dwell.level != nil || self.occurrence != nil || self.notices.notice != nil else { return }
                 self.observePlacement()
                 self.place()
-                self.updateExpansion()
+                self.noticesChanged()
             }
         }
     }
