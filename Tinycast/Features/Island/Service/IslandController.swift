@@ -56,7 +56,7 @@ final class IslandController: NSObject {
 
     private func redraw() {
         canvas.show(glance: glance, level: level, notice: notice, statuses: statuses, expanded: expanded,
-                    notch: layout?.hasNotch == true)
+                    notch: layout?.notchWidth)
         canvas.setAccessibilityValue(accessibilityValue)
         frameChanged()
     }
@@ -106,7 +106,7 @@ final class IslandController: NSObject {
         let moved = layout?.screen != next.screen || layout?.notch != next.notch
         layout = next
         canvas.show(glance: glance, level: level, notice: notice, statuses: statuses, expanded: expanded,
-                    notch: next.hasNotch)
+                    notch: next.notchWidth)
         backdrop.setFrame(next.window, display: false)
         switch requested.update(from: configuration, paletteVisible: panel?.isVisible == true,
                                 hasOverlays: !overlays.isEmpty) {
@@ -192,11 +192,17 @@ final class IslandController: NSObject {
                           height: max(palette?.height ?? 0, overlay?.height ?? 0))
         glancing = size != .zero || canvas.expansion != nil || level != nil || notice != nil
         let rests = showsRest && !onFullScreenSpace
+        canvas.covered = size != .zero
         surface.batch {
             if size != .zero {
                 if !suspended { backdrop.orderFrontRegardless() }
                 surface.resize(stageWidth: size.width, animate: true)
                 surface.show(.expanded(.init(bottom: size)), contentKey: "palette")
+            } else if showsRest, let line = canvas.headline {
+                if !suspended { backdrop.orderFrontRegardless() }
+                // Show first: a resize before it leaves the engine's width stale, and the show snaps.
+                surface.show(.expanded(.init(bottom: line.size)), contentKey: "notice." + line.notice.id)
+                surface.resize(stageWidth: line.size.width, animate: true)
             } else if showsRest, let expansion = canvas.expansion, let art = canvas.glance {
                 if !suspended { backdrop.orderFrontRegardless() }
                 let width = max(expansion.size.width, glanceWidth(art.layout))
@@ -237,8 +243,9 @@ final class IslandController: NSObject {
         guard let layout, let bounds = canvas.outline?.boundingBoxOfPath else { return false }
         let size = layout.hasNotch
             ? CGSize(width: layout.notch.width, height: layout.notch.height * 2) : NotchTheme.Size.islandRest
-        let width = canvas.glance.map { glanceWidth($0.layout) } ?? size.width
-        return abs(bounds.width - width) < 0.01 && abs(bounds.height - size.height) < 0.01
+        let rest = canvas.headline.map { CGSize(width: $0.size.width, height: size.height + $0.size.height) }
+            ?? CGSize(width: canvas.glance.map { glanceWidth($0.layout) } ?? size.width, height: size.height)
+        return abs(bounds.width - rest.width) < 0.01 && abs(bounds.height - rest.height) < 0.01
     }
 
     private var surfaceMetrics: IslandMetrics?
@@ -331,7 +338,8 @@ final class IslandController: NSObject {
     /// A notch for screens that have none, so the notch profile runs on the test display.
     static var simulatedNotch: CGSize?
     var shownStatuses: [String] { (canvas.glance as? IslandStatusArt)?.shown ?? [] }
-    var noticeTone: NSColor? { (canvas.glance as? IslandNoticeArt)?.tone }
+    var noticeTone: NSColor? { (canvas.glance as? IslandNoticeArt)?.tone ?? canvas.headline?.tone }
+    var showsHeadline: Bool { canvas.headline != nil }
     var reduced: Bool { surface?.reduced == true }
     var backdropVisible: Bool { backdrop.isVisible }
     var frameIntervals: [Double] { source.intervals }

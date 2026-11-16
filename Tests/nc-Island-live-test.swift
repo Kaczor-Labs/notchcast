@@ -7,12 +7,14 @@ struct IslandLiveTest {
     static func main() {
         let download = IslandLiveState(update: .installing(text: "Downloading…", progress: 0.25))
         precondition(download.notice == IslandNotice(id: "update", symbol: "arrow.down.circle", text: "Downloading…",
-                                                     progress: 0.25)
+                                                     progress: IslandProgress(fraction: 0.25, headline: false))
                      && download.noticeSeconds == nil && download.status == nil,
-                     "Installing holds one progress notice until the stage changes, with no status")
-        let verify = IslandLiveState(update: .installing(text: "Verifying…", progress: 1))
-        precondition(verify.notice?.id == download.notice?.id && verify.notice?.progress == 1,
-                     "Every install phase reposts the same notice id")
+                     "Installing holds one compact progress notice until the stage changes, with no status")
+        let expand = IslandLiveState(update: .installing(text: "Expanding…", progress: nil))
+        precondition(expand.notice?.id == download.notice?.id
+                     && expand.notice?.progress == IslandProgress(fraction: nil, headline: false)
+                     && expand.notice?.isHeadline == false,
+                     "Every install phase reposts the same compact notice; an unknown stage claims no fraction")
 
         let ready = IslandLiveState(update: .ready)
         precondition(ready.notice?.text == "Update ready" && ready.notice?.symbol == "arrow.clockwise.circle"
