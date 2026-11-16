@@ -11,6 +11,15 @@
         }
       }
     },
+    "Stopped" : {
+
+    },
+    "Saved %@" : {
+
+    },
+    "Saved %lld items" : {
+
+    },
     "%lld of %lld: %@" : {
       "localizations" : {
         "en" : {
@@ -25,6 +34,9 @@
 
     },
     "Download Audio" : {
+
+    },
+    "Cancelled" : {
 
     },
     "Download Video" : {
