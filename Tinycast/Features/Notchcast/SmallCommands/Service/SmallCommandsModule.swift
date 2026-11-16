@@ -22,8 +22,8 @@ final class SmallCommandsModule: NotchcastModule {
     private let system: SmallCommandsSystem
     private var airDrop: AirDropService?
     private var commandTask: Task<Void, Never>?
-    /// The last noise run, awaited so its menu cleanup ends before the next one opens the menu.
-    private var noiseTask: Task<Void, Never>?
+    /// Outlives a switch off and on, so the last run's menu cleanup ends before the next one opens it.
+    private static var lastNoiseRun: Task<Void, Never>?
     private var noticeTask: Task<Void, Never>?
     private var operation = UUID()
     private(set) var isRunning = false
@@ -54,7 +54,7 @@ final class SmallCommandsModule: NotchcastModule {
         cancelRun()
         if action == .password { return show(Result { try copyPassword() }, for: action) }
         let operation = operation
-        let previousNoise = action == .noise ? noiseTask : nil
+        let previousNoise = action == .noise ? Self.lastNoiseRun : nil
         let task = Task { [weak self] in
             await previousNoise?.value
             let result = await self?.outcome(of: action)
@@ -63,7 +63,7 @@ final class SmallCommandsModule: NotchcastModule {
             self.show(result, for: action)
         }
         commandTask = task
-        if action == .noise { noiseTask = task }
+        if action == .noise { Self.lastNoiseRun = task }
     }
 
     private func cancelRun() {
@@ -131,6 +131,7 @@ final class SmallCommandsModule: NotchcastModule {
         case .switched: return String(localized: "Done", table: "NotchcastSmallCommands")
         case .noAirPods: throw SmallCommandsFailure.noAirPods
         case .unchanged: throw SmallCommandsFailure.noiseControlUnchanged
+        case .menuBusy: throw SmallCommandsFailure.controlCenterMenuOpen
         }
     }
 

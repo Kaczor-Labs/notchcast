@@ -9,14 +9,15 @@ nonisolated enum NoiseControlSystem {
 
     enum Failure: Error { case unavailable }
 
-    /// Control Center shows a window only while one of its menus is open.
+    /// Control Center shows a window only while one of its menus is open; each is searched alone.
     @concurrent
-    static func observe(processID: Int32, deadline: Duration) async throws -> NoiseControlService.Observation {
+    static func observe(processID: Int32, deadline: Duration) async throws -> [NoiseControlService.Window] {
         guard AXIsProcessTrusted() else { throw SmallCommandsFailure.needsAccessibility }
         try Task.checkCancellation()
         guard uptime < deadline else { throw Failure.unavailable }
-        let windows = children(AXUIElementCreateApplication(processID), attribute: kAXWindowsAttribute)
-        return .init(menuOpen: !windows.isEmpty, buttons: try buttons(windows, deadline: deadline).map(\.value))
+        return try children(AXUIElementCreateApplication(processID), attribute: kAXWindowsAttribute).map {
+            .init(id: CFHash($0), buttons: try buttons(in: $0, deadline: deadline).map(\.value))
+        }
     }
 
     @concurrent
@@ -36,8 +37,11 @@ nonisolated enum NoiseControlSystem {
             guard uptime < deadline, AXUIElementPerformAction(sound, kAXPressAction as CFString) == .success else {
                 throw Failure.unavailable
             }
-        case .press(let mode):
-            let found = try buttons(children(root, attribute: kAXWindowsAttribute), deadline: deadline)
+        case .press(let mode, let id):
+            guard let window = children(root, attribute: kAXWindowsAttribute).first(where: {
+                CFHash($0) == id
+            }) else { throw Failure.unavailable }
+            let found = try buttons(in: window, deadline: deadline)
             try Task.checkCancellation()
             guard uptime < deadline, let button = found.first(where: { $0.value.mode == mode }),
                 AXUIElementPerformAction(button.element, kAXPressAction as CFString) == .success else {
@@ -48,9 +52,9 @@ nonisolated enum NoiseControlSystem {
 
     private static var uptime: Duration { .seconds(ProcessInfo.processInfo.systemUptime) }
 
-    private static func buttons(_ windows: [AXUIElement], deadline: Duration) throws -> [Button] {
+    private static func buttons(in window: AXUIElement, deadline: Duration) throws -> [Button] {
         var found: [Button] = []
-        var remaining = windows.map { ($0, 0) }
+        var remaining = [(window, 0)]
         var visited = 0
         while let (element, depth) = remaining.popLast(), visited < 512 {
             try Task.checkCancellation()

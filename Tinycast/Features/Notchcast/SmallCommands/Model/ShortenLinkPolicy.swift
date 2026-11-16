@@ -74,15 +74,24 @@ nonisolated enum ShortenLinkPolicy {
         return text
     }
 
+    /// Decoded first: `%31%32%37.0.0.1` is the host a resolver sees, so it is the one judged.
     static func isPublic(_ link: String) -> Bool {
-        guard let host = URL(string: link)?.host(), !host.isEmpty else { return false }
+        guard let host = URL(string: link)?.host(percentEncoded: false) else { return false }
         return !isPrivate(host)
     }
 
     static let privateSuffixes = [".localhost", ".local", ".internal", ".lan", ".home.arpa"]
+    static let hostCharacters = CharacterSet.alphanumerics.union(CharacterSet(charactersIn: "-_.:"))
 
+    /// A host that does not parse cleanly is private: nothing proves it public.
     static func isPrivate(_ raw: String) -> Bool {
-        let host = raw.lowercased().trimmingCharacters(in: CharacterSet(charactersIn: "[]."))
+        var host = raw.lowercased()
+        if host.hasPrefix("["), host.hasSuffix("]") { host = String(host.dropFirst().dropLast()) }
+        while host.hasSuffix(".") { host.removeLast() }
+        guard !host.isEmpty, host.unicodeScalars.allSatisfy(hostCharacters.contains) else { return true }
+        if !host.contains(":"), host.split(separator: ".", omittingEmptySubsequences: false).contains(where: \.isEmpty) {
+            return true
+        }
         if host == "localhost" || privateSuffixes.contains(where: host.hasSuffix) { return true }
         var ipv4 = in_addr()
         if inet_aton(host, &ipv4) == 1 {
@@ -102,6 +111,7 @@ nonisolated enum ShortenLinkPolicy {
             return bytes.prefix(15).allSatisfy { $0 == 0 } && bytes[15] <= 1
                 || bytes[0] & 254 == 252 || (bytes[0] == 254 && bytes[1] & 192 == 128)
         }
+        if host.contains(":") { return true }
         // A dotless name only resolves through the local network's search domains.
         return !host.contains(".")
     }

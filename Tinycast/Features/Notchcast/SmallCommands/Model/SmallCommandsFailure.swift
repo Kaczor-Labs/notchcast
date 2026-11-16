@@ -8,6 +8,7 @@ nonisolated enum SmallCommandsFailure: LocalizedError, Equatable, Sendable {
     case finderNeedsAutomation
     case appTimedOut
     case controlCenterNotRunning
+    case controlCenterMenuOpen
     case needsAccessibility
     case noAirPods
     case noiseControlUnchanged
@@ -31,6 +32,8 @@ nonisolated enum SmallCommandsFailure: LocalizedError, Equatable, Sendable {
             String(localized: "The app did not respond in time.", table: "NotchcastSmallCommands")
         case .controlCenterNotRunning:
             String(localized: "Control Center is not running.", table: "NotchcastSmallCommands")
+        case .controlCenterMenuOpen:
+            String(localized: "Close the open Control Center menu and try again.", table: "NotchcastSmallCommands")
         case .needsAccessibility:
             String(localized: "Allow Accessibility access to switch noise control.", table: "NotchcastSmallCommands")
         case .noAirPods:
