@@ -153,6 +153,9 @@ later quit and reopen. A launch of an older version shows that the update could 
 since the swap at quit has no window to report in. A newer version only clears it, so a brew or DMG
 install never reports.
 
+Notchcast: the island shows this report instead of the HUD, and a version that did not install
+taps into Try Again; [the island shell](../../notchcast/docs/island-shell.md#update) has it.
+
 Nothing here touches `~/Library/Preferences`, `~/Library/Caches` or `Application Support`, so no
 setting, clipboard entry, note or snippet is affected by an update, by `brew upgrade`, or by both.
 
