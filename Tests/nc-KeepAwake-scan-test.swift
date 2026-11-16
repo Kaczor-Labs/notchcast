@@ -31,6 +31,7 @@ enum KeepAwakeScanTests: KeepAwakeHarness {
         moduleWaitsForHelperSudoLeftBehind()
         recoveryWaitsForPreExecChild()
         await recoveryStaysDirtyOnUnreadableProcess()
+        await recoveryStaysDirtyWhenAParentVanishesMidScan()
         print("nc-KeepAwake-scan-test: all checks passed")
     }
 
@@ -133,7 +134,7 @@ enum KeepAwakeScanTests: KeepAwakeHarness {
         }
     }
 
-    /// The real scan over a scripted lookup: only a process that is truly gone may be left out.
+    /// The real scan over a scripted lookup: only a zombie or an unrelated process may be left out.
     static func recoveryStaysDirtyOnUnreadableProcess() async {
         let pid: Int32 = 4242
         let alive = KeepAwakeProcessLookup.Info(id: .init(pid: pid, started: 1), parent: 1, zombie: false)
@@ -143,7 +144,7 @@ enum KeepAwakeScanTests: KeepAwakeHarness {
             ("an unreadable sysctl", .init(pids: { [pid] }, info: { _ in throw denied }, path: { _ in "" }), false),
             ("a path read as gone", .init(pids: { [pid] }, info: { _ in alive }, path: { _ in nil }), false),
             ("an unlistable table", .init(pids: { throw denied }, info: { _ in nil }, path: { _ in nil }), false),
-            ("a gone process", .init(pids: { [pid] }, info: { _ in nil }, path: { _ in nil }), true),
+            ("a process gone before it is read", .init(pids: { [pid] }, info: { _ in nil }, path: { _ in nil }), false),
             ("an unrelated process", .init(pids: { [pid] }, info: { _ in alive }, path: { _ in "/bin/ls" }), true),
         ]
         for (name, lookup, clears) in cases {
@@ -155,6 +156,48 @@ enum KeepAwakeScanTests: KeepAwakeHarness {
             }
             precondition((rig.journal.journal == nil) == clears, "\(name): the journal clears only if \(clears)")
             precondition((rig.scheduler.delay != nil) != clears, "\(name): an unchecked ack retries on the backoff")
+            rig.recovery.stop()
+        }
+    }
+
+    /// Counts the scripted lookup's reads from the scan's off-main thread.
+    final class Reads: @unchecked Sendable {
+        private let lock = NSLock()
+        private var count = 0
+        func next() -> Int { lock.withLock { count += 1; return count } }
+    }
+
+    /// An old helper descendant forks after the table is listed, then vanishes before it is read:
+    /// its child was never listed, so no read-back may clear the journal before the child can write.
+    static func recoveryStaysDirtyWhenAParentVanishesMidScan() async {
+        let pid: Int32 = 4343
+        let old = KeepAwakeProcessLookup.Info(id: .init(pid: pid, started: 1), parent: 1, zombie: false)
+        for vanishesAt in [1, 2] {
+            machine.sleepDisabled = true
+            let (lists, infos) = (Reads(), Reads())
+            let helperPath = FakeProcesses.helperPath
+            let lookup = KeepAwakeProcessLookup(
+                pids: { lists.next() == 1 ? [pid] : [] },
+                info: { _ in infos.next() < vanishesAt ? old : nil },
+                path: { _ in helperPath })
+            let processes = KeepAwakeLiveProcesses(helperPath: helperPath, lookup: lookup)
+            let rig = RecoveryRig(dirty(), processes: processes)
+            rig.helper.reply()
+            for _ in 0..<200 where rig.scheduler.delay == nil {
+                try? await Task.sleep(for: .milliseconds(10))
+            }
+            precondition(!machine.sleepDisabled, "the undo landed and the setting reads off")
+            precondition(rig.journal.journal != nil, "read \(vanishesAt): a vanished parent keeps the journal dirty")
+            precondition(rig.scheduler.delay != nil, "and the undo retries on the backoff")
+            machine.land(.batterySleepOff)
+            advance(minutes: 2)
+            rig.scheduler.run()
+            rig.helper.reply()
+            for _ in 0..<200 where rig.journal.journal != nil && rig.scheduler.delay == nil {
+                try? await Task.sleep(for: .milliseconds(10))
+            }
+            precondition(!machine.sleepDisabled, "the child's late disablesleep 1 is undone")
+            precondition(rig.journal.journal == nil, "a scan that sees the whole table then clears")
             rig.recovery.stop()
         }
     }

@@ -1,7 +1,7 @@
 import Darwin
 import Foundation
 
-/// The reads the scan makes; any failure but the process being gone fails the whole scan.
+/// The reads the scan makes; any failure, a process vanishing included, fails the whole scan.
 struct KeepAwakeProcessLookup: Sendable {
     struct Info: Sendable, Equatable {
         var id: KeepAwakeHelperID
@@ -71,14 +71,17 @@ final class KeepAwakeLiveProcesses: KeepAwakeProcesses {
         }
     }
 
-    /// A pid reused while it is read, or read as gone while alive, is unknown rather than skipped.
+    /// A process that vanishes while read may have forked a child no pass saw, so it fails the scan.
     @concurrent
     nonisolated static func table(_ lookup: KeepAwakeProcessLookup) async -> [KeepAwakeProcess]? {
         try? lookup.pids().compactMap { pid in
-            guard let before = try lookup.info(pid), !before.zombie else { return nil }
+            let vanished = KeepAwakeProcessLookup.Unreadable(code: ESRCH)
+            guard let before = try lookup.info(pid) else { throw vanished }
+            if before.zombie { return nil }
             let path = try lookup.path(pid)
-            guard let after = try lookup.info(pid), !after.zombie else { return nil }
-            guard after.id == before.id, let path else { throw KeepAwakeProcessLookup.Unreadable(code: ESRCH) }
+            guard let after = try lookup.info(pid) else { throw vanished }
+            if after.zombie { return nil }
+            guard after.id == before.id, let path else { throw vanished }
             return KeepAwakeProcess(id: after.id, parent: after.parent, executable: path)
         }
     }
