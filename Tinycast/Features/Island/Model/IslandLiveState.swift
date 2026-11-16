@@ -16,8 +16,8 @@ struct IslandLiveState: Equatable, Sendable {
     }
 
     static let id = "update"
-    static let readySeconds: TimeInterval = 2.4
-    static let failureSeconds: TimeInterval = 4
+    static let readySeconds = IslandNotice.messageSeconds
+    static let failureSeconds = IslandNotice.failureSeconds
     static let installedSeconds: TimeInterval = 2.4
     private(set) var notice: IslandNotice?
     /// How long the notice shows before only the status is left; nil holds it until the stage changes.
