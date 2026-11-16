@@ -11,3 +11,22 @@ enum IslandPaletteSurface {
         collapsed && stock ? Theme.Size.paletteGlassOutset : 0
     }
 }
+
+extension View {
+    /// Liquid Glass would ring each island control in light, so on the island it paints the black.
+    func islandGlass(_ glass: Glass, in shape: some Shape) -> some View {
+        modifier(IslandGlass(glass: glass, shape: shape))
+    }
+}
+
+private struct IslandGlass<S: Shape>: ViewModifier {
+    let glass: Glass
+    let shape: S
+    @Environment(\.paletteOnIsland) private var onIsland
+
+    func body(content: Content) -> some View {
+        content
+            .background { if onIsland { shape.fill(NotchTheme.Colors.islandSurface) } }
+            .glassEffect(onIsland ? .identity : glass, in: shape)
+    }
+}

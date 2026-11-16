@@ -15,7 +15,7 @@ One engine frame callback paints the native alpha-backed outline and updates the
 Upstream `docs/ui.md` stays unedited apart from one pointer here, so upstream syncs do not conflict on it. Where it disagrees, this list wins:
 
 - Surface: the palette sits over an opaque black island backdrop instead of a scrim over behind-window blur. The fork pins AppKit appearance to Dark; Light token branches remain upstream reference values and do not drive island rendering.
-- Glass: the palette root uses `.identity` glass; regular root glass exists only in the Debug stock latency control. Shared `PopoverMenu` surfaces, dialog roots and both HUD roots use opaque `NotchTheme.Colors.islandSurface`. The action capsule and menu circle keep `frosted(in:)` glass, and dialog buttons stay matte.
+- Glass: the palette root uses `.identity` glass; regular root glass exists only in the Debug stock latency control. Shared `PopoverMenu` surfaces, dialog roots and both HUD roots use opaque `NotchTheme.Colors.islandSurface`. On the island `frosted(in:)` and the update pill go through `islandGlass(_:in:)`, which paints `islandSurface` with `.identity` glass, so the action capsule, menu circle and update pill carry no Liquid Glass; dialog buttons stay matte.
 - Edge and shadow: the engine outline, not the root clip, owns the island edge. `RootPaletteView` keeps its stock clip but drops its scrim on the island (`paletteOnIsland` also strips the compact bar's capsule glass, button glass and scrim; the stock control keeps both); the backdrop and the palette layer mask share one engine frame callback. The outline radius stays `Theme.Radius.panel` at every interface scale and the palette shadow is suppressed.
 - Placement: the palette sits at the display's top centre rather than 8% above centre. Questions sit at the island top on the visible palette's display, otherwise the cursor display; message reports stack below question and palette on the presenter's screen. A volume level draws in the resting pill, or in the report slot under the palette or a question.
 - Levels: backdrop main-menu + 1, palette + 2, reports + 3, questions + 4, replacing upstream's `.palette` and `.dialog`.
@@ -57,6 +57,7 @@ Latency uses the prototype protocol: five alternating stock/island runs, 60 inse
 | `DialogView.swift` | Replace the question glass backing with black. |
 | `MessageHUDView.swift`, `VolumeHUDView.swift` | Replace each HUD glass backing with black. |
 | `PopoverMenu.swift` | Replace the shared native menu glass backing with black. |
+| `Theme.swift`, `UpdatePill.swift` | Route `frosted(in:)` and the update pill's glass through `islandGlass(_:in:)`. |
 | `SystemActionCoordinator.swift` | Volume and mute commands call `islandPresenter.showLevel` instead of the stock volume box; `VolumeHUDController` stays in the tree, unreferenced. |
 | `CalendarCoordinator.swift` | Keep the meeting clock running while `isWatchedElsewhere()` holds; it never names Island. |
 | `AppWindowController.swift` | Bare `IslandVerification.keepOnTestDisplay` calls when it creates, raises or re-raises a window. In Debug verify mode only, that function centres a new window on `IslandVerification.testScreen`, because AppKit relocates saved frames onto a physical screen, and fails the run without a test display; elsewhere it returns at once. |
