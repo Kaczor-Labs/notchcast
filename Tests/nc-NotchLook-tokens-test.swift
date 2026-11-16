@@ -73,12 +73,22 @@ struct NotchLookTokensTests {
         equal("typography.headerIconSize", Theme.Typography.headerIconSize, 22)
         equal("island inset", NotchTheme.Spacing.islandInset, 16)
         check("island rest", NotchTheme.Size.islandRest == CGSize(width: 96, height: 24))
+        equal("island level cell", NotchTheme.Size.islandLevelCell, 24)
+        equal("island level track", NotchTheme.Size.islandLevelTrack, 96)
         check("island host", NotchTheme.Size.islandHost == CGSize(width: 1100, height: 860))
         equal("island glance wing", NotchTheme.Size.islandGlanceWing, 140)
         check("key cap font is medium body", Theme.Typography.keyCap == Font.body.weight(.medium))
         check(
             "metrics key cap font at scale 1",
             InterfaceMetrics.standard.typography.keyCap == Theme.Typography.keyCap)
+        let type = InterfaceMetrics.standard.typography
+        check("indicator glyph is 10 pt", type.indicatorGlyph == Font.system(size: 10))
+        check("remove glyph is 9 pt semibold", type.removeGlyph == Font.system(size: 9, weight: .semibold))
+        equal("indicator glyph size", Theme.Typography.indicatorGlyphSize, 10)
+        equal("remove glyph size", Theme.Typography.removeGlyphSize, 9)
+        equal("scaled indicator glyph size", InterfaceMetrics(scale: 1.5).scaled(Theme.Typography.indicatorGlyphSize), 15)
+        equal("spacing.xl", InterfaceMetrics.standard.spacing.xl, 12)
+        equal("size.menuIcon", InterfaceMetrics.standard.size.menuIcon, 20)
 
         print("\n\(passes) passed, \(failures) failed")
         print(failures == 0 ? "PASS nc-NotchLook-tokens" : "FAIL nc-NotchLook-tokens")

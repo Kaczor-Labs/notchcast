@@ -13,6 +13,9 @@ enum NotchTheme {
 
     enum Size {
         static let islandRest = CGSize(width: 96, height: 24)
+        /// The level art's glyph cell and track, its own so a rest-size change never resizes it.
+        static let islandLevelCell: CGFloat = 24
+        static let islandLevelTrack: CGFloat = 97
         static let islandHost = CGSize(width: 1100, height: 860)
         /// The widest a resting glance grows past the notch on one side; menubar spec §3.
         static let islandGlanceWing: CGFloat = 140

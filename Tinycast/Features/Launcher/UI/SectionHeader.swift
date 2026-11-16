@@ -24,7 +24,7 @@ struct SectionHeader: View {
             Spacer(minLength: 0)
         }
         .font(metrics.typography.sectionHeader)
-        .foregroundStyle(.secondary)
+        .foregroundStyle(Theme.Colors.textSecondary)
         .padding(.horizontal, metrics.spacing.md)
         .padding(.top, isFirst ? metrics.spacing.xs : metrics.spacing.sectionSpacing)
         .padding(.bottom, metrics.spacing.sectionHeaderBottom)
