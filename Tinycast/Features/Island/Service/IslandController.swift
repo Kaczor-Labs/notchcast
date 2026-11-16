@@ -6,7 +6,7 @@ import IslandUI
 final class IslandController: NSObject {
     private let source = IslandFrameSource()
     private let backdrop = IslandBackdrop()
-    private let canvas = IslandCanvas()
+    let canvas = IslandCanvas()
     private var surface: IslandSurface<CGSize>?
     private var layout: IslandLayout?
     private var configuration: IslandSurfaceConfiguration?
@@ -14,10 +14,11 @@ final class IslandController: NSObject {
     private(set) weak var panel: PalettePanel?
     private var observer: PanelObserver?
     private let clip = CAShapeLayer()
-    private let keyline = CAShapeLayer()
+    let keyline = CAShapeLayer()
     private var overlays: [CGRect] = []
     #if DEBUG
     private(set) var samples: [String] = []
+    let frames = IslandFrameTrace()
     private var captureName: String?
     private var captureDone: CheckedContinuation<Void, Never>?
     private(set) var captured: [String] = []
@@ -324,6 +325,7 @@ final class IslandController: NSObject {
         CATransaction.flush()
         if !(showsRest && !onFullScreenSpace), !glancing, isResting { backdrop.orderOut(nil) }
         #if DEBUG
+        recordFrame()
         if IslandVerification.enabled, let panel {
             let expected = canvas.outline?.boundingBoxOfPath.offsetBy(
                 dx: backdrop.frame.minX, dy: backdrop.frame.minY) ?? .zero
