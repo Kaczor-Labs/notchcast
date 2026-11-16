@@ -5,6 +5,7 @@
 // notchcast-sources: Tinycast/Features/Notchcast/KeepAwake/Service/KeepAwakeLiveProcesses.swift
 // notchcast-sources: Tinycast/Features/Notchcast/Core/Model/*.swift
 // notchcast-sources: Tinycast/Features/Notchcast/Core/Service/NotchcastContext.swift
+// notchcast-sources: Tinycast/Features/Notchcast/Core/Service/NotchcastTranscription.swift
 // notchcast-sources: Tinycast/Features/Notchcast/Core/Service/NotchcastPreferences.swift
 // notchcast-sources: Tinycast/Features/Island/Model/IslandPresentation.swift
 // notchcast-sources: Tinycast/Features/Island/Service/IslandPresenting.swift
@@ -14,6 +15,7 @@
 // notchcast-sources: Tinycast/Features/Notchcast/KeepAwake/Service/KeepAwakeFileJournalStore.swift
 // notchcast-sources: Tests/nc-KeepAwake-fixtures.swift
 // notchcast-sources: Tests/nc-KeepAwake-machine.swift
+// notchcast-sources: Tests/NotchcastDictationFixture.swift
 import Foundation
 
 @MainActor

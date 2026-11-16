@@ -6,6 +6,7 @@
 // notchcast-sources: Tinycast/Features/Notchcast/Screenshots/Model/*.swift
 // notchcast-sources: Tinycast/Features/Notchcast/Screenshots/Service/ScreenshotSystem.swift
 // notchcast-sources: Tinycast/Features/Notchcast/Screenshots/Service/ScreenshotsModule.swift
+// notchcast-sources: Tests/NotchcastDictationFixture.swift
 
 import CoreGraphics
 import Foundation
@@ -124,7 +125,8 @@ final class Rig {
             fatalError("Screenshots declares no tap")
         })
         controller = NotchcastController(
-            addons: [ScreenshotsAddon.self], defaults: defaults, hub: hub, presenter: presenter, now: { fixedDate })
+            addons: [ScreenshotsAddon.self], defaults: defaults, hub: hub, dictation: FakeDictation(),
+            presenter: presenter, now: { fixedDate })
         controller.start()
     }
 
