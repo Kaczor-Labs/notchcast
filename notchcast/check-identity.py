@@ -2,6 +2,7 @@
 """Inspect added lines, metadata and bundle strings; never print matched content."""
 import argparse
 import ast
+import functools
 import os
 import re
 import runpy
@@ -12,7 +13,10 @@ PATTERNS = {
     "forbidden-name": re.compile(r"gains ?geek|gains?[ ._-]?geek|gainsgeek|gg-app|gg-kb|privatehq", re.I),
     "todoist-id": re.compile(r"(?<![a-z0-9])id:[a-z0-9]{16}(?![a-z0-9])|(?<![a-z0-9])6[a-z0-9]{15}(?![a-z0-9])", re.I),
     "t3-id": re.compile(r"mcp:launch:[a-f0-9]+|t3-thread://|run:thread:|(?<![a-z0-9-])t3-[a-f0-9]{8}(?![a-z0-9])", re.I),
+    "home-path": re.compile(r"(?<![\w.])/Users/(?!Shared/)[A-Za-z0-9._-]+/"),
 }
+# Debug binaries embed the builder's absolute source paths, which no flag remaps.
+BUNDLE_PATTERNS = {kind: pattern for kind, pattern in PATTERNS.items() if kind != "home-path"}
 ALLOW_FILES = {"notchcast/check-identity.py": "guard pattern definitions"}
 HEAD = "HEAD"
 EMAIL_POLICY = runpy.run_path(str(Path(__file__).with_name("check-commit-emails.py")))
@@ -29,9 +33,9 @@ def redact(text):
     return text
 
 
-def inspect(text, location):
+def inspect(text, location, patterns=PATTERNS):
     failed = False
-    for kind, pattern in PATTERNS.items():
+    for kind, pattern in patterns.items():
         for match in pattern.finditer(text):
             token = match.group()
             if kind == "todoist-id" and not token.lower().startswith("id:"):
@@ -43,8 +47,15 @@ def inspect(text, location):
     return failed
 
 
+@functools.cache
+def upstream_lines(path):
+    # A line upstream Tinycast already ships unchanged is its public text, not our leak.
+    shown = subprocess.run(["git", "show", f"refs/remotes/upstream/main:{path}"], capture_output=True)
+    return set(shown.stdout.decode("utf-8", errors="replace").splitlines()) if shown.returncode == 0 else set()
+
+
 def diff(base, staged=False):
-    args = ["diff", "--no-ext-diff", "--no-textconv", "--unified=0", "--no-renames"]
+    args = ["diff", "--text", "--no-ext-diff", "--no-textconv", "--unified=0", "--no-renames"]
     args += ["--cached"] if staged else [f"{base}..{HEAD}"]
     failed = False
     for path in filter(None, git(*args, "--name-only", "-z").split("\0")):
@@ -57,7 +68,8 @@ def diff(base, staged=False):
             if text.startswith("@@"):
                 line = int(re.search(r"\+(\d+)", text)[1])
             elif line is not None and text.startswith("+"):
-                failed |= inspect(text[1:], f"{path}:{line}")
+                if text[1:] not in upstream_lines(path):
+                    failed |= inspect(text[1:], f"{path}:{line}")
                 line += 1
             elif line is not None and text.startswith(" "):
                 line += 1
@@ -75,8 +87,8 @@ def added_lines(base):
     failed = False
     path = None
     line = None
-    patch = git("log", "-p", "--cherry-pick", "--right-only", "--format=", "--no-ext-diff", "--no-textconv",
-                "--no-renames", "--unified=0", "--diff-merges=first-parent", f"{base}...{HEAD}")
+    patch = git("log", "-p", "--text", "--cherry-pick", "--right-only", "--format=", "--no-ext-diff",
+                "--no-textconv", "--no-renames", "--unified=0", "--diff-merges=first-parent", f"{base}...{HEAD}")
     for text in patch.splitlines():
         if text.startswith("diff --git "):
             path = None
@@ -91,7 +103,8 @@ def added_lines(base):
         elif path is not None and text.startswith("@@"):
             line = int(re.search(r"\+(\d+)", text)[1])
         elif path is not None and line is not None and text.startswith("+"):
-            failed |= inspect(text[1:], f"{path}:{line} (commit addition)")
+            if text[1:] not in upstream_lines(path):
+                failed |= inspect(text[1:], f"{path}:{line} (commit addition)")
             line += 1
     return failed
 
@@ -112,11 +125,11 @@ def app(bundle):
         raise ValueError("missing bundle")
     failed = False
     for path in sorted(root.rglob("*")):
-        failed |= inspect(str(path.relative_to(root)), "file name")
+        failed |= inspect(str(path.relative_to(root)), "file name", BUNDLE_PATTERNS)
         # CodeResources is base64 hashes, whose random runs match the id shapes.
         if path.is_file() and "_CodeSignature" not in path.parts:
             content = subprocess.check_output(["strings", "-a", str(path)]).decode("utf-8", errors="replace")
-            failed |= inspect(content, str(path.relative_to(root)))
+            failed |= inspect(content, str(path.relative_to(root)), BUNDLE_PATTERNS)
     return failed
 
 
