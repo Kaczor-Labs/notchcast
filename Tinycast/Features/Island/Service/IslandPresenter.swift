@@ -80,7 +80,7 @@ final class IslandPresenter: IslandPresenting {
 
     private static var now: TimeInterval { ProcessInfo.processInfo.systemUptime }
 
-    /// A level pauses the top notice's dwell; the pill, the announcement and the clock follow the top.
+    /// A level pauses the top notice's dwell; the pill and the announcement follow the top.
     private func noticesChanged() {
         let now = Self.now
         if notices.paused != (dwell.level != nil) { notices.pause(dwell.level != nil, at: now) }

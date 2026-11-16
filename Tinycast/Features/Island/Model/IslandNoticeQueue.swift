@@ -5,7 +5,7 @@ struct IslandNoticeQueue: Sendable {
     private struct Entry: Sendable {
         var notice: IslandNotice
         var left: TimeInterval?
-        var announced = false
+        var heard: Set<String> = []
     }
 
     private var entries: [Entry] = []
@@ -19,8 +19,7 @@ struct IslandNoticeQueue: Sendable {
         settle(at: now)
         let left = notice.progress == nil ? notice.seconds : nil
         if let index = entries.firstIndex(where: { $0.notice.id == notice.id }) {
-            let announced = entries[index].announced && entries[index].notice.text == notice.text
-            entries[index] = Entry(notice: notice, left: left, announced: announced)
+            entries[index] = Entry(notice: notice, left: left, heard: entries[index].heard)
         } else {
             entries.append(Entry(notice: notice, left: left))
         }
@@ -45,7 +44,7 @@ struct IslandNoticeQueue: Sendable {
         return max(left - (now - since), 0)
     }
 
-    /// Drops the top once its dwell has run out, so the notice under it returns with what it had left.
+    /// The notice under an expired top returns with the dwell it had left.
     mutating func expire(at now: TimeInterval) {
         guard remaining(at: now) == 0 else { return }
         entries.removeLast()
@@ -53,11 +52,10 @@ struct IslandNoticeQueue: Sendable {
         run(at: now)
     }
 
-    /// The top's text the first time it shows, so a returning or progress notice is heard once.
+    /// Each text of an id is heard once, so a returning notice or a phase coming back stays quiet.
     mutating func announcement() -> String? {
-        guard let top = entries.indices.last, !entries[top].announced else { return nil }
-        entries[top].announced = true
-        return entries[top].notice.text
+        guard let top = entries.indices.last else { return nil }
+        return entries[top].heard.insert(entries[top].notice.text).inserted ? entries[top].notice.text : nil
     }
 
     private mutating func settle(at now: TimeInterval) {

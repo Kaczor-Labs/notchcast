@@ -61,6 +61,8 @@ struct IslandNoticeTest {
         precondition(spoken.announcement() == nil, "A same-text repost stays silent")
         spoken.post(IslandNotice(id: "a", text: "Verifying"), at: 0)
         precondition(spoken.announcement() == "Verifying", "A repost with new text is announced")
+        spoken.post(IslandNotice(id: "a", text: "First"), at: 0)
+        precondition(spoken.announcement() == nil, "A text an id already said stays silent when it comes back")
 
         var hidden = IslandNoticeQueue()
         hidden.post(IslandNotice(id: "a", text: "First"), at: 0)
