@@ -27,12 +27,12 @@ enum IslandMeetingScenes {
         _exit(0)
     }
 
-    static func preview(_ core: AppCore) {
+    static func preview(_ core: AppCore, expands: Bool = true) {
         let date = Date()
         let meeting = MeetingEvent(id: "meeting", title: "Weekly product sync", start: date + 4 * 60,
             end: date + 34 * 60, isAllDay: false, isDeclined: false, calendarID: "c", calendarName: "Work",
             calendarColor: nil, calendarItemID: "i", link: MeetingLink.detect(in: "https://us02web.zoom.us/j/123456789"))
-        core.island.glance.preview(meeting, now: date, expands: true)
+        core.island.glance.preview(meeting, now: date, expands: expands)
     }
 
     private static func expand(core: AppCore, controller: IslandController, presenter: IslandPresenter) async {
