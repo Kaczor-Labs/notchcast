@@ -4,7 +4,7 @@ import SwiftUI
 enum ScreenshotsAddon: NotchcastAddon {
     static let switches = [
         NotchcastSwitch(
-            id: ScreenshotsModule.switchID,
+            id: "screenshot",
             title: String(localized: "Screenshots", table: "NotchcastScreenshots"),
             subtitle: String(localized: "Capture an area, window or display.", table: "NotchcastScreenshots"),
             category: .capture,

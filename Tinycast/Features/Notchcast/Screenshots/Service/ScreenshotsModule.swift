@@ -7,7 +7,7 @@ import UniformTypeIdentifiers
 final class ScreenshotsModule: NotchcastModule {
     enum Scope { case area, display }
 
-    static let switchID = "screenshot"
+    static let switchID = ScreenshotsAddon.switches[0].id
     private let context: NotchcastContext
     private let system: ScreenshotSystem
     private let exclusion: ScreenshotExclusion
