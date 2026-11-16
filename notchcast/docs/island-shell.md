@@ -24,7 +24,7 @@ Upstream `docs/ui.md` stays unedited apart from one pointer here, so upstream sy
 - Size: `bottomBarHeight 44`, `resultRowIcon 28` (so the palette result slot is 28pt), `keyCap 22`; `Theme.Typography.headerIconSize 22`, keycap font `.body` medium.
 - Dark colours: `selection` white 0.24, `rowHover` white 0.08, `menuHover` white 0.24, `separator` white 0.16; light branches stay upstream's. `primaryAction` (and `progress`) is lagoon `#46f0c6` in dark and `systemBlue` in light.
 - Keycaps: `.outline` fills with `NotchTheme.Colors.keyCapFill` (white 0.14) instead of a `border` stroke.
-- Island tokens live in `NotchTheme` (`Tinycast/Features/Notchcast/NotchTheme.swift`), not `Theme`: `Spacing.islandInset 16`, `Size.islandRest 96×24`, `Size.islandHost 1100×860`, `Size.islandGlanceWing 140`, `Typography.islandGlanceNSFont` (12pt medium), `Colors.islandSurface` (black).
+- Island tokens live in `NotchTheme` (`Tinycast/Features/Notchcast/NotchTheme.swift`), not `Theme`: `Spacing.islandInset 16`, `Size.islandRest 96×24`, `Size.islandHost 1100×860`, `Size.islandGlanceWing 140`, `Typography.islandGlanceNSFont` (`.callout` medium, the AppKit twin of `Theme.Typography.bar`), `Colors.islandSurface` (black).
 
 ## Verification boundary
 

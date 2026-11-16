@@ -14,7 +14,13 @@ enum NotchTheme {
     }
 
     enum Typography {
-        @MainActor static let islandGlanceNSFont = NSFont.systemFont(ofSize: 12, weight: .medium)
+        /// AppKit twin of `Theme.Typography.bar`, so the drawn pill matches the type scale.
+        @MainActor static let islandGlanceNSFont: NSFont = {
+            let callout = NSFont.preferredFont(forTextStyle: .callout)
+            let weight: [NSFontDescriptor.TraitKey: Any] = [.weight: NSFont.Weight.medium]
+            let medium = callout.fontDescriptor.addingAttributes([.traits: weight])
+            return NSFont(descriptor: medium, size: callout.pointSize) ?? callout
+        }()
     }
 
     enum Colors {
