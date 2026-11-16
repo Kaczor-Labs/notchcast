@@ -9,5 +9,6 @@ enum NotchcastRegistry {
         MusicBlockAddon.self,
         NumberKeysAddon.self,
         SmallCommandsAddon.self,
+        DownloadsAddon.self,
     ]
 }
