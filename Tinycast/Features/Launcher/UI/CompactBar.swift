@@ -103,7 +103,7 @@ struct CompactBar: View {
         }
         .buttonStyle(.plain)
         .focusable(false)
-        .help(command.name)
+        .tooltip(command.name)
         .accessibilityLabel(command.name)
         .accessibilityAddTraits(selection == command ? [.isSelected] : [])
         .accessibilityHidden(!revealed)
