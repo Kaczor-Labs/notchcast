@@ -10,7 +10,7 @@ struct IslandPresenterTest {
         let sync = IslandNotice(id: "sync", symbol: nil, text: "Syncing", progress: 0.2)
         let timer = IslandStatus(id: "timer", symbol: "timer", text: "4:59", label: "Timer")
         let focus = [IslandMenuRow(id: "25", title: "25 minutes", isChecked: false)]
-        let music = [IslandMenuRow(id: "pause", title: "Pause", isChecked: nil)]
+        let music = [IslandMenuRow(id: "pause", title: "Pause")]
         var taps = 0
         var selected: [String] = []
 
@@ -34,7 +34,7 @@ struct IslandPresenterTest {
 
         island.select("25", owner: "focus")
         precondition(selected == ["25"], "Selecting a row reaches its owner")
-        let replaced = [IslandMenuRow(id: "50", title: "50 min", isChecked: nil)]
+        let replaced = [IslandMenuRow(id: "50", title: "50 min")]
         island.setMenuRows(replaced, owner: "focus") { selected.append("new " + $0) }
         island.select("50", owner: "focus")
         precondition(island.menuOwners == ["focus", "music"] && selected == ["25", "new 50"]
