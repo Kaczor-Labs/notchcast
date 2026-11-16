@@ -196,19 +196,14 @@ final class IslandController: NSObject {
         surface.batch {
             if size != .zero {
                 if !suspended { backdrop.orderFrontRegardless() }
-                surface.resize(stageWidth: size.width, animate: true)
-                surface.show(.expanded(.init(bottom: size)), contentKey: "palette")
+                surface.expand(to: size, contentKey: "palette")
             } else if showsRest, let line = canvas.headline {
                 if !suspended { backdrop.orderFrontRegardless() }
-                // Show first: a resize before it leaves the engine's width stale, and the show snaps.
-                surface.show(.expanded(.init(bottom: line.size)), contentKey: "notice." + line.notice.id)
-                surface.resize(stageWidth: line.size.width, animate: true)
+                surface.expand(to: line.size, contentKey: "notice." + line.notice.id)
             } else if showsRest, let expansion = canvas.expansion, let art = canvas.glance {
                 if !suspended { backdrop.orderFrontRegardless() }
                 let width = max(expansion.size.width, glanceWidth(art.layout))
-                surface.resize(stageWidth: width, animate: true)
-                surface.show(.expanded(.init(bottom: CGSize(width: width, height: expansion.size.height))),
-                             contentKey: "expansion")
+                surface.expand(to: CGSize(width: width, height: expansion.size.height), contentKey: "expansion")
             } else if showsRest, let art = canvas.glance {
                 if rests || glancing, !suspended { backdrop.orderFrontRegardless() }
                 let slots = CompactContent(leading: CGSize(width: art.layout.leading, height: 0),
