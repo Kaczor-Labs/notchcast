@@ -21,7 +21,6 @@ final class SmallCommandsModule: NotchcastModule {
     private let system: SmallCommandsSystem
     private var airDrop: AirDropService?
     private var commandTask: Task<Void, Never>?
-    private var noticeTask: Task<Void, Never>?
     private var operation = UUID()
     private(set) var isRunning = false
 
@@ -41,8 +40,6 @@ final class SmallCommandsModule: NotchcastModule {
         isRunning = false
         cancelRun()
         airDrop = nil
-        noticeTask?.cancel()
-        noticeTask = nil
         context.presenter.end(notice: Self.noticeID)
     }
 
@@ -121,7 +118,6 @@ final class SmallCommandsModule: NotchcastModule {
         }
     }
 
-    /// The island keeps a notice until its owner ends it, so each result ends itself after a dwell.
     private func show(_ result: Result<String, any Error>, for action: Action) {
         let notice: IslandNotice
         switch result {
@@ -135,12 +131,5 @@ final class SmallCommandsModule: NotchcastModule {
             notice = IslandNotice(id: Self.noticeID, symbol: action.symbol, text: text, isFailure: true)
         }
         context.presenter.post(notice, onTap: nil)
-        noticeTask?.cancel()
-        let dwell: Duration = notice.isFailure ? .seconds(4) : .seconds(2.4)
-        noticeTask = Task { [weak self] in
-            try? await Task.sleep(for: dwell)
-            guard !Task.isCancelled, let self else { return }
-            self.context.presenter.end(notice: Self.noticeID)
-        }
     }
 }
