@@ -7,6 +7,6 @@ extension DownloadToolLookup: DownloadToolHost {
     ) async throws -> DownloadProcessResult {
         try await ChildProcess(
             executable: executable, arguments: arguments, environment: environment,
-            workingDirectory: workingDirectory).run(onLine: onLine)
+            workingDirectory: workingDirectory, reaper: children).run(onLine: onLine)
     }
 }

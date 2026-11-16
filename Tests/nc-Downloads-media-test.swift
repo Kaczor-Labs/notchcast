@@ -9,7 +9,6 @@
 // notchcast-sources: Tinycast/Features/Notchcast/Downloads/Model/MediaArguments.swift
 // notchcast-sources: Tinycast/Features/Notchcast/Downloads/Model/MediaFailure.swift
 // notchcast-sources: Tinycast/Features/Notchcast/Downloads/Model/MediaOutput.swift
-// notchcast-sources: Tinycast/Features/Notchcast/Downloads/Model/YtDlpAudio.swift
 // notchcast-sources: Tinycast/Features/Notchcast/Downloads/Service/ChildProcess.swift
 // notchcast-sources: Tinycast/Features/Notchcast/Downloads/Service/DownloadRunContext.swift
 // notchcast-sources: Tinycast/Features/Notchcast/Downloads/Service/DownloadRunner.swift
@@ -58,12 +57,6 @@ struct DownloadsMediaTest {
         precondition(MediaArguments.retryCaptions(stderr: rateLimited, wroteCaptions: false))
         precondition(!MediaArguments.retryCaptions(stderr: rateLimited, wroteCaptions: true))
         precondition(!MediaArguments.retryCaptions(stderr: "", wroteCaptions: false))
-        let metadata = YtDlpAudio.metadataArguments(link: source)
-        precondition(!metadata.contains("--dump-single-json") && !metadata.contains("-J"))
-        precondition(metadata.contains("%(.{id,title,fulltitle,channel,uploader})j"))
-        let printed = #"{"id": "znWSzW0Zh_Y", "title": "Claude Just Dropped 7 Updates", "channel": "Duncan"}"#
-        let media = try JSONDecoder().decode(YtDlpAudio.Media.self, from: Data(printed.utf8))
-        precondition(media.title == "Claude Just Dropped 7 Updates" && media.channel == "Duncan")
         let progress = MediaOutput.progress("MEDIA_PROGRESS 4200 NA 10000 18000000.0 105")!
         precondition(progress.fraction == 0.42 && progress.eta == 105)
         let completed = MediaOutput.progress("MEDIA_PROGRESS 629172 629172 NA 2021060.1325613454 NA")!
@@ -176,7 +169,9 @@ struct DownloadsMediaTest {
           source="$1"
           shift
         done
-        if [ "$mode" = metadata ]; then
+        if [ "${source##*/}" = none ] && [ "$mode" != metadata ]; then
+          :
+        elif [ "$mode" = metadata ]; then
           case "$source" in */en|*/de) echo "${source##*/}";; *) echo pl;; esac
         elif [ "$mode" = manual ] && [ "$language" = en ]; then
           printf 'WEBVTT\\n\\n00:00:00.000 --> 00:00:01.000\\nHello\\n' > "$dest/Clip [en].en.vtt"
@@ -213,7 +208,7 @@ struct DownloadsMediaTest {
         try FileManager.default.createSymbolicLink(at: root.appending(path: "aria2c"), withDestinationURL: tool)
         try await aria2(root, context: context, job: job, enabled: false, expected: false)
         try await aria2(root, context: context, job: job, enabled: true, expected: true)
-        let captions = TranscriptDownloadRunner(transcribe: { _, _ in nil })
+        let captions = TranscriptDownloadRunner()
         let transcript = try await captions.run(job, context: context)
         let text = try String(contentsOf: transcript!, encoding: .utf8)
         precondition(text == "Dzień dobry")
@@ -226,6 +221,14 @@ struct DownloadsMediaTest {
             let saved = try await captions.run(limited, context: context)
             let text = try String(contentsOf: saved!, encoding: .utf8)
             precondition(text == expected, "429 exit 1 keeps \(language)")
+        }
+        var silent = job
+        silent.source = "https://example.com/none"
+        do {
+            _ = try await captions.run(silent, context: context)
+            preconditionFailure("a video without captions saves nothing")
+        } catch let failure as MediaFailure {
+            precondition(failure.detail == "This video has no captions.", "no captions: \(failure.detail)")
         }
     }
 
@@ -265,7 +268,7 @@ struct DownloadsMediaTest {
                     group.addTask {
                         let job = DownloadJob(id: UUID().uuidString, kind: "transcript", source: "fixture",
                             title: "Same", state: .waiting, created: Date())
-                        return try await TranscriptDownloadRunner(transcribe: { _, _ in nil }).run(job, context: context)!
+                        return try await TranscriptDownloadRunner().run(job, context: context)!
                     }
                 }
                 var urls = [URL]()

@@ -10,6 +10,8 @@ struct DownloadToolLookup: Sendable {
 
     let directories: [URL]
     let environment: [String: String]
+    /// Shared by every copy, so the queue that owns this lookup can end the runs it started.
+    let children = ChildProcessReaper()
 
     init(
         directories: [URL]? = nil,
@@ -49,7 +51,8 @@ struct DownloadToolLookup: Sendable {
         let version = try await withThrowingTaskGroup(of: String?.self) { group in
             group.addTask {
                 let result = try await ChildProcess(
-                    executable: path, arguments: tool.versionArguments, environment: environment).run()
+                    executable: path, arguments: tool.versionArguments, environment: environment,
+                    reaper: children).run()
                 let output = result.output.isEmpty ? result.errors : result.output
                 return output.split(whereSeparator: \.isNewline).first.map(String.init)
             }

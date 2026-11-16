@@ -24,15 +24,6 @@
     "A webpage is already being saved." : {
 
     },
-    "Add Links to Distill" : {
-
-    },
-    "Distill" : {
-
-    },
-    "Distill Timestamps" : {
-
-    },
     "Download Audio" : {
 
     },
@@ -57,16 +48,7 @@
     "Fast Downloads with aria2c" : {
 
     },
-    "Include approximate chunk timestamps in Distill transcripts." : {
-
-    },
-    "Install a Dictation model in Settings to transcribe media." : {
-
-    },
     "No Web Links in Clipboard" : {
-
-    },
-    "Open Distill Folder" : {
 
     },
     "Open Downloads Folder" : {
@@ -75,13 +57,7 @@
     "Private and loopback addresses cannot be saved as webpages." : {
 
     },
-    "Run Distill" : {
-
-    },
     "Save Webpage as Markdown" : {
-
-    },
-    "Save links and transcribe media into your Distill folder." : {
 
     },
     "The downloader did not return an output file." : {
@@ -114,20 +90,10 @@
     "This download type is not available." : {
 
     },
-    "Tool exited with status %d." : {
+    "This video has no captions." : {
 
     },
-    "Transcribing %lld of %lld" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Transcribing %1$lld of %2$lld"
-          }
-        }
-      }
-    },
-    "Transcript fallback requires a supported media link." : {
+    "Tool exited with status %d." : {
 
     },
     "Use aria2c for faster media downloads when it is installed." : {

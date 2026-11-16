@@ -110,7 +110,6 @@ struct DownloadsQueueTest {
         let stopping = first.halt()
         expect(first.jobs.first { $0.id == running.id }?.state == .interrupted, "halt marks the run interrupted at once")
         for task in stopping { await task.value }
-        try await first.flush()
 
         let second = try await DownloadQueue(file: file, destination: root, maxConcurrent: 1, tools: tools)
         expect(second.jobs.map(\.id) == [running.id, waiting.id, held.id], "every row survives the relaunch in order")
@@ -152,17 +151,14 @@ struct DownloadsQueueTest {
         queue.register(OtherRunner())
         expect(queue.jobs[1].state == .waiting, "restored job waits for its own runner")
         expect(queue.jobs[2].created == rows[2].created, "expiry uses finish date")
-        try await queue.flush()
         let stored = try JSONDecoder().decode([DownloadJob].self, from: Data(contentsOf: file))
         expect(stored == queue.jobs, "recovery persisted atomically")
         queue.enqueue(kind: "later", sources: ["one", "two"], options: Data(#"{"setting":"value"}"#.utf8), group: "new")
         queue.cancel(queue.jobs.last?.id ?? "")
-        try await queue.flush()
         let reloaded = try await DownloadQueue(file: file, destination: root, tools: tools, clock: { now })
         expect(reloaded.jobs == queue.jobs, "ordered writes retain latest snapshot")
         await queue.stop()
         await reloaded.stop()
-        try await reloaded.flush()
         try Data("invalid".utf8).write(to: file)
         let recovered = try await DownloadQueue(file: file, destination: root, tools: tools)
         expect(recovered.jobs.isEmpty && recovered.persistenceError != nil, "corrupt queue recovers with error")
@@ -177,11 +173,9 @@ struct DownloadsQueueTest {
         var now = Date(timeIntervalSince1970: 2_000_000_000)
         let queue = try await DownloadQueue(file: file, destination: root, tools: tools, clock: { now })
         queue.enqueue(kind: "unregistered", sources: ["expired"])
-        try await queue.flush()
         let original = try Data(contentsOf: file)
         now = now.addingTimeInterval(8 * 86400)
         expect(queue.jobs.count == 1, "reading jobs does not expire rows")
-        try await queue.flush()
         try expect(Data(contentsOf: file) == original, "reading jobs does not persist changes")
         queue.enqueue(kind: "unregistered", sources: ["expired"])
         now = now.addingTimeInterval(8 * 86400)
@@ -201,7 +195,6 @@ struct DownloadsQueueTest {
         try expect(Data(contentsOf: file.appendingPathExtension("bad").appending(path: "preserved"))
                    == Data("fixture".utf8), "unreadable queue is moved aside intact")
         queue.enqueue(kind: "unregistered", sources: ["new"])
-        try await queue.flush()
         let rows = try JSONDecoder().decode([DownloadJob].self, from: Data(contentsOf: file))
         expect(rows.map(\.source) == ["new"], "recovered queue persists new jobs")
         await queue.stop()
@@ -216,14 +209,9 @@ struct DownloadsQueueTest {
         try FileManager.default.removeItem(at: parent)
         try Data("blocked".utf8).write(to: parent)
         queue.enqueue(kind: "unregistered", sources: ["fixture"])
-        do {
-            try await queue.flush()
-            preconditionFailure("failed persistence must throw")
-        } catch {
-            expect(queue.persistenceError == error.localizedDescription, "write failure remains observable")
-        }
+        expect(queue.persistenceError != nil, "a failed write is observable the moment it happens")
         await queue.stop()
-        expect(queue.persistenceError != nil, "stop retains flush failure")
+        expect(queue.persistenceError != nil, "stop retains the write failure")
     }
 
     private static func expect(_ value: @autoclosure () throws -> Bool, _ message: String) rethrows {

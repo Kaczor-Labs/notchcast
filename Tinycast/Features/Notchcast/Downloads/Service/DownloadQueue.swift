@@ -17,7 +17,6 @@ final class DownloadQueue {
     @ObservationIgnored private var runners: [String: any DownloadRunner] = [:]
     @ObservationIgnored private var tasks: [String: Task<Void, Never>] = [:]
     @ObservationIgnored private var operations: [String: UUID] = [:]
-    @ObservationIgnored private var persistence: Task<Void, Error>?
     @ObservationIgnored private var stopped = false
 
     init(
@@ -32,7 +31,6 @@ final class DownloadQueue {
         let loaded = try await Self.load(file: file, now: clock())
         jobs = loaded.jobs
         save()
-        try? await flush()
         persistenceError = loaded.error ?? persistenceError
     }
 
@@ -106,13 +104,14 @@ final class DownloadQueue {
         pump()
     }
 
-    /// Cancels every run synchronously, so each tool's process group is signalled before quit returns.
+    /// Ends every run's process group and writes the queue before it returns, so quit loses neither.
     @discardableResult
     func halt() -> [Task<Void, Never>] {
         let running = Array(tasks.values)
         guard !stopped else { return running }
         stopped = true
         for task in running { task.cancel() }
+        tools.children.terminateAll()
         Self.interruptRunning(&jobs, at: clock())
         save()
         return running
@@ -120,11 +119,6 @@ final class DownloadQueue {
 
     func stop() async {
         for task in halt() { await task.value }
-        try? await flush()
-    }
-
-    func flush() async throws {
-        try await persistence?.value
     }
 
     private func pump() {
@@ -219,20 +213,15 @@ final class DownloadQueue {
 
     nonisolated private static let retention: TimeInterval = 7 * 24 * 60 * 60
 
+    /// Synchronous: the file is a few KB, and a write still queued when the app quits is lost.
     private func save() {
         guard let file else { return }
-        let snapshot = jobs
-        let previous = persistence
-        persistence = Task { [weak self] in
-            _ = try? await previous?.value
-            do {
-                try await Self.write(snapshot, file: file)
-                self?.persistenceError = nil
-            } catch {
-                Self.logger.error("Could not save downloads: \(error.localizedDescription)")
-                self?.persistenceError = error.localizedDescription
-                throw error
-            }
+        do {
+            try Self.write(jobs, file: file)
+            persistenceError = nil
+        } catch {
+            Self.logger.error("Could not save downloads: \(error.localizedDescription)")
+            persistenceError = error.localizedDescription
         }
     }
 
@@ -261,8 +250,7 @@ final class DownloadQueue {
         return (jobs, nil)
     }
 
-    @concurrent
-    private static func write(_ jobs: [DownloadJob], file: URL) async throws {
+    private static func write(_ jobs: [DownloadJob], file: URL) throws {
         let data = try JSONEncoder().encode(jobs)
         try FileManager.default.createDirectory(at: file.deletingLastPathComponent(), withIntermediateDirectories: true)
         try data.write(to: file, options: .atomic)

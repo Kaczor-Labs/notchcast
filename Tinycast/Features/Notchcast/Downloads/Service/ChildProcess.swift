@@ -16,17 +16,19 @@ final class ChildProcess: Sendable {
     private let environment: [String: String]
     private let workingDirectory: URL?
     private let grace: Duration
+    private let reaper: ChildProcessReaper?
     private let state = Mutex(State())
 
     init(
         executable: URL, arguments: [String], environment: [String: String],
-        workingDirectory: URL? = nil, grace: Duration = .milliseconds(250)
+        workingDirectory: URL? = nil, grace: Duration = .milliseconds(250), reaper: ChildProcessReaper? = nil
     ) {
         self.executable = executable
         self.arguments = arguments
         self.environment = environment
         self.workingDirectory = workingDirectory
         self.grace = grace
+        self.reaper = reaper
     }
 
     var pid: pid_t? { state.withLock { $0.pid } }
@@ -43,6 +45,7 @@ final class ChildProcess: Sendable {
                     state.started = true
                     let pid = try spawn(output: pipes.output.write, errors: pipes.errors.write)
                     state.pid = pid
+                    reaper?.track(self)
                     return pid
                 }
             } catch {
@@ -51,6 +54,7 @@ final class ChildProcess: Sendable {
             }
             close(pipes.output.write)
             close(pipes.errors.write)
+            defer { reaper?.forget(self) }
             let result = await collect(pid: pid, output: pipes.output.read, errors: pipes.errors.read, onLine: onLine)
             if state.withLock({ $0.cancelled }) { throw CancellationError() }
             return result
@@ -68,6 +72,11 @@ final class ChildProcess: Sendable {
         DispatchQueue.global().asyncAfter(deadline: .now() + grace.timeInterval) { [self] in
             state.withLock { if $0.pid == pid { kill(-pid, SIGKILL) } }
         }
+    }
+
+    /// The group's SIGKILL now, for a shutdown that cannot wait for the grace period.
+    fileprivate func killGroup() {
+        state.withLock { if let pid = $0.pid { kill(-pid, SIGKILL) } }
     }
 
     private func spawn(output: Int32, errors: Int32) throws -> pid_t {
@@ -163,6 +172,25 @@ final class ChildProcess: Sendable {
         guard Darwin.pipe(&fds) == 0 else { throw POSIXError(POSIXErrorCode(rawValue: errno) ?? .EIO) }
         for fd in fds { _ = fcntl(fd, F_SETFD, FD_CLOEXEC) }
         return (fds[0], fds[1])
+    }
+}
+
+/// The children one tool lookup started, so a shutdown can end every group before it returns.
+final class ChildProcessReaper: Sendable {
+    private let live = Mutex<[ObjectIdentifier: ChildProcess]>([:])
+
+    func track(_ child: ChildProcess) { live.withLock { $0[ObjectIdentifier(child)] = child } }
+
+    func forget(_ child: ChildProcess) { live.withLock { $0[ObjectIdentifier(child)] = nil } }
+
+    /// SIGTERM, up to `grace` for the groups to exit, then SIGKILL for the rest, all before it returns.
+    func terminateAll(grace: Duration = .milliseconds(100)) {
+        let children = live.withLock { Array($0.values) }
+        guard !children.isEmpty else { return }
+        for child in children { child.cancel() }
+        let deadline = ContinuousClock.now.advanced(by: grace)
+        while ContinuousClock.now < deadline, children.contains(where: { $0.pid != nil }) { usleep(2_000) }
+        for child in children { child.killGroup() }
     }
 }
 

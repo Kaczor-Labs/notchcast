@@ -4,8 +4,6 @@ struct TranscriptDownloadRunner: DownloadRunner {
     static let kind = "transcript"
     var kind: String { Self.kind }
     var tools: [DownloadTool] { [.ytDlp] }
-    /// Produces the transcript when the link has no captions.
-    let transcribe: @Sendable (DownloadJob, DownloadRunContext) async throws -> URL?
 
     @concurrent
     func run(_ job: DownloadJob, context: DownloadRunContext) async throws -> URL? {
@@ -36,7 +34,7 @@ struct TranscriptDownloadRunner: DownloadRunner {
                 return try JobOutput.publish(Data(text.utf8), in: context.destination, stem: name, suffix: ".txt")
             }
         }
-        return try await transcribe(job, context)
+        throw MediaFailure(detail: String(localized: "This video has no captions.", table: "NotchcastDownloads"))
     }
 
     // yt-dlp exits 1 when one track fails, even after it wrote another; that run still counts.

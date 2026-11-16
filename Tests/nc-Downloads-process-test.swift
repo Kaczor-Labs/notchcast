@@ -12,17 +12,22 @@ import Darwin
 import Foundation
 import Synchronization
 
-/// Pins tool lookup (found, never installed) and that a cancel, halt or stop kills the whole child tree.
+/// Pins tool lookup, a cancel, halt or stop killing the child tree, and quit leaving none behind.
 @main
 struct DownloadsProcessTest {
     @MainActor
     static func main() async throws {
+        if CommandLine.arguments.count == 3, CommandLine.arguments[1] == "owner" {
+            return try await owner(URL(filePath: CommandLine.arguments[2], directoryHint: .isDirectory))
+        }
         let root = FileManager.default.temporaryDirectory.appending(path: "nc-downloads-process-\(UUID().uuidString)")
         try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: root) }
         try await tools(root)
         try await processes(root)
-        print("Downloads processes: tools are looked up only, and a cancel, halt or stop kills the child tree")
+        try await ownerExit(root.appending(path: "owner"))
+        print("Downloads processes: tools are looked up only, a cancel, halt or stop kills the child tree,"
+              + " and quit leaves no tree or accepted job behind")
     }
 
     @MainActor
@@ -118,39 +123,11 @@ struct DownloadsProcessTest {
     /// The tree ignores SIGTERM (bar the leader in leader-exits), so only the group SIGKILL ends it.
     @MainActor
     private static func processTree(_ root: URL, mode: String) async throws {
-        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
-        let script = root.appending(path: "parent.sh")
-        let child = root.appending(path: "child.sh")
-        let sleepPID = root.appending(path: "sleep.pid")
-        let childPID = root.appending(path: "child.pid")
-        let parentPID = root.appending(path: "parent.pid")
-        try executable(child, """
-        #!/bin/sh
-        trap '' TERM
-        /bin/sleep 60 &
-        echo $! > "$1"
-        wait
-
-        """)
-        try executable(script, """
-        #!/bin/sh
-        echo $$ > "$1"
-        /bin/sh "$2" "$3" &
-        echo $! > "$4"
-        \(mode == "leader-exits" ? "trap 'exit 0' TERM" : "trap '' TERM")
-        wait
-
-        """)
-        let arguments = [script.path, parentPID.path, child.path, sleepPID.path, childPID.path]
+        let (arguments, pidFiles) = try tree(in: root, leaderExits: mode == "leader-exits")
         let queue = try await DownloadQueue(file: nil, destination: root, tools: DownloadToolLookup(directories: [], home: root))
         queue.register(ShellRunner(arguments: arguments))
         let job = queue.enqueue(kind: "process", sources: ["fixture"])[0]
-        try await eventually { FileManager.default.fileExists(atPath: sleepPID.path) }
-        let pids = try [parentPID, childPID, sleepPID].map { file -> pid_t in
-            let text = try String(contentsOf: file, encoding: .utf8).trimmingCharacters(in: .whitespacesAndNewlines)
-            guard let pid = pid_t(text) else { throw HarnessError.timeout }
-            return pid
-        }
+        let pids = try await treePIDs(pidFiles)
         expect(pids.allSatisfy { kill($0, 0) == 0 }, "process tree exists before cancellation")
         switch mode {
         case "halt": queue.halt()
@@ -164,6 +141,88 @@ struct DownloadsProcessTest {
             expect(queue.jobs[0].state == .interrupted, "\(mode) records the run as interrupted")
         } else {
             expect(queue.jobs[0].state == .cancelled, "\(mode) records the run as cancelled")
+        }
+    }
+
+    /// Quit as the app does it: halt, then exit with no await, so nothing scheduled for later ever runs.
+    @MainActor
+    private static func owner(_ root: URL) async throws {
+        let (arguments, pidFiles) = try tree(in: root, leaderExits: false)
+        let queue = try await DownloadQueue(file: root.appending(path: "queues/downloads.json"), destination: root,
+                                            maxConcurrent: 1, tools: DownloadToolLookup(directories: [], home: root))
+        queue.register(ShellRunner(arguments: arguments))
+        queue.enqueue(kind: "process", sources: ["running"])
+        _ = try await treePIDs(pidFiles)
+        queue.enqueue(kind: "process", sources: ["accepted"])
+        queue.halt()
+        exit(0)
+    }
+
+    @MainActor
+    private static func ownerExit(_ root: URL) async throws {
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        let owner = Process()
+        owner.executableURL = Bundle.main.executableURL
+        owner.arguments = ["owner", root.path]
+        try owner.run()
+        try await eventually { !owner.isRunning }
+        expect(owner.terminationStatus == 0, "the owner quits cleanly")
+        let pids = try await treePIDs(tree(in: root, leaderExits: false, write: false).pidFiles)
+        let deadline = ContinuousClock.now.advanced(by: .seconds(2))
+        var survivors = pids
+        while !survivors.isEmpty, ContinuousClock.now < deadline {
+            try await Task.sleep(for: .milliseconds(10))
+            survivors = pids.filter { !(kill($0, 0) == -1 && errno == ESRCH) }
+        }
+        for pid in survivors { kill(pid, SIGKILL) }
+        expect(survivors.isEmpty, "quit: the TERM-ignoring child tree is gone once its owner exits: \(survivors)")
+        let saved = try JSONDecoder().decode(
+            [DownloadJob].self, from: Data(contentsOf: root.appending(path: "queues/downloads.json")))
+        expect(saved.map(\.source) == ["running", "accepted"] && saved.map(\.state) == [.interrupted, .waiting],
+               "quit: every accepted job is on disk with no flush: \(saved.map { "\($0.source) \($0.state)" })")
+    }
+
+    @discardableResult
+    private static func tree(
+        in root: URL, leaderExits: Bool, write: Bool = true
+    ) throws -> (arguments: [String], pidFiles: [URL]) {
+        let script = root.appending(path: "parent.sh")
+        let child = root.appending(path: "child.sh")
+        let sleepPID = root.appending(path: "sleep.pid")
+        let childPID = root.appending(path: "child.pid")
+        let parentPID = root.appending(path: "parent.pid")
+        let arguments = [script.path, parentPID.path, child.path, sleepPID.path, childPID.path]
+        guard write else { return (arguments, [parentPID, childPID, sleepPID]) }
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        try executable(child, """
+        #!/bin/sh
+        trap '' TERM
+        /bin/sleep 60 &
+        echo $! > "$1"
+        wait
+
+        """)
+        try executable(script, """
+        #!/bin/sh
+        echo $$ > "$1"
+        /bin/sh "$2" "$3" &
+        echo $! > "$4"
+        \(leaderExits ? "trap 'exit 0' TERM" : "trap '' TERM")
+        wait
+
+        """)
+        return (arguments, [parentPID, childPID, sleepPID])
+    }
+
+    /// Waits for the last pid file, which the tree writes once every process in it runs.
+    @MainActor
+    private static func treePIDs(_ files: [URL]) async throws -> [pid_t] {
+        try await eventually { files.allSatisfy { FileManager.default.fileExists(atPath: $0.path) } }
+        try await eventually { files.allSatisfy { (try? String(contentsOf: $0, encoding: .utf8))?.hasSuffix("\n") == true } }
+        return try files.map { file in
+            let text = try String(contentsOf: file, encoding: .utf8).trimmingCharacters(in: .whitespacesAndNewlines)
+            guard let pid = pid_t(text) else { throw HarnessError.timeout }
+            return pid
         }
     }
 
