@@ -103,7 +103,7 @@ When Calendar's carded meeting enters its join window, the resting pill grows on
 
 The DEBUG scenes in `Service/IslandProfileScenes.swift` cover three profiles live. `notch-profile` sets `IslandController.simulatedNotch` (185 × 32 pt) before the island starts, then checks that a notice, a status row, the expansion and the glance each keep the notch covered and sit in wings beside it at the glance's width. `reduce-motion` sets `IslandController.motion`, the engine's `ReducedMotionSetting`: under `.never` the level's spring overshoots its width, under `.always` the level and the expansion land with no overshoot. `status-overflow` shows six statuses on the notchless pill and three in the notch profile; the oldest drop, a tap acts on the newest, and with the newest cleared it acts on the next newest.
 
-Not verified: the real `CalendarCoordinator` join-window transition, the island on a real notched screen (only the simulated notch is), VoiceOver speaking the announcement or value (only the in-process AX read is), the resting pill moving between two connected displays (only the presenter hand-over is), the system Reduce Motion switch (only the forced `.always` is) and sleep/wake. Open: in `notch-profile`, the first glyph notice after launch captures blank, though `IslandCanvas.draw` has it; a later one captures fine.
+Not verified: the real `CalendarCoordinator` join-window transition, the island on a real notched screen (only the simulated notch is), VoiceOver speaking the announcement or value (only the in-process AX read is), the resting pill moving between two connected displays (only the presenter hand-over is), the system Reduce Motion switch (only the forced `.always` is) and sleep/wake.
 
 ## Update
 
