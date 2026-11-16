@@ -39,8 +39,8 @@ final class IslandPillMenu: NSObject {
             activate: { [weak self] in self?.activate($0) }, filtered: { [weak self] in self?.refit() }))
     }
 
-    /// Filtering changes the row count, and the panel sizes itself only when given new content.
-    private func refit() {
+    /// Filtering or new add-on rows change the row count; the panel sizes only for new content.
+    func refit() {
         guard let corner, menu.isOpen else { return }
         state.selection = 0
         menu.update(content, corner: corner, core: core)
@@ -73,12 +73,16 @@ final class IslandPillMenu: NSObject {
     private func visibleItems() -> [PopoverMenuItem] {
         let settings = core.settings
         let meeting = core.island.glance.meeting
-        let sections = PillMenuRow.sections(clipboard: settings.clipboardEnabled,
+        let menus = (core.islandPresenter as? IslandPresenter)?.menus ?? []
+        var sections = PillMenuRow.sections(clipboard: settings.clipboardEnabled,
             calendar: settings.calendarEnabled || meeting != nil, notes: settings.notesEnabled, carded: meeting != nil)
+            .map { $0.map { item($0, meeting: meeting) } }
+        // Add-on rows go above the two sections that always close the menu.
+        sections.insert(addOnItems(menus), at: sections.count - 2)
         let query = ActionMenuSearchQuery(core.palette.menuQuery)
         var visible: [PopoverMenuItem] = []
         for section in sections {
-            var matched = section.map { item($0, meeting: meeting) }.filter { query.score($0.title) != nil }
+            var matched = section.filter { query.score($0.title) != nil }
             if !visible.isEmpty, !matched.isEmpty { matched[0].startsSection = true }
             visible += matched
         }
@@ -122,6 +126,17 @@ final class IslandPillMenu: NSObject {
         case .quit:
             return PopoverMenuItem(title: CommandID.quit.name, systemImage: CommandID.quit.sfSymbol, shortcut: "⌘Q",
                 isDestructive: true) { NSApp.terminate(nil) }
+        }
+    }
+
+    /// The caller's own title, never localized; an unchecked column keeps it in line with the icons.
+    private func addOnItems(_ menus: [IslandPresenter.Menu]) -> [PopoverMenuItem] {
+        menus.flatMap { menu in
+            menu.rows.map { row in
+                var item = PopoverMenuItem(title: row.title, icon: .blank) { menu.onSelect(row.id) }
+                item.isChecked = row.isChecked ?? false
+                return item
+            }
         }
     }
 

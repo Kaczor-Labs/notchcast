@@ -7,7 +7,7 @@ enum IslandPillScenes {
     static let names: Set = ["pill-menu", "pill-settings", "glance", "glance-menu", "pill-menu-quiet", "pill-settings-quiet",
                              "glance-modal", "pill-busy", "window-guard-new", "window-guard-raise",
                              "window-guard-deferred", "island-ax", "update", "notice-queue",
-                             "notice-unseen"]
+                             "notice-unseen", "pill-menu-rows"]
 
     static func run(_ scene: String, core: AppCore, screen: NSScreen) async {
         core.island.start()
@@ -20,6 +20,7 @@ enum IslandPillScenes {
         IslandVerification.require(screen.frame.contains(controller.backdropWindow.frame), "pill on test display")
         switch scene {
         case "pill-menu": await menu(core: core, controller: controller)
+        case "pill-menu-rows": await addOnRows(core: core, controller: controller)
         case "pill-settings": await settings(core: core, controller: controller)
         case "glance-menu": await glanceMenu(core: core, controller: controller)
         case "pill-menu-quiet": await quietMenu(core: core, controller: controller, screen: screen)
@@ -101,6 +102,56 @@ enum IslandPillScenes {
         IslandVerification.require(menuPanel == nil, "Command-comma closes the pill menu")
         IslandVerification.require(settingsWindow?.isVisible == true, "Command-comma opens Settings")
         IslandVerification.require(statusItemWindows == 0, "no menu bar item exists")
+    }
+
+    /// Add-on rows sit between the feature rows and Updates, in registration order, and keep it.
+    private static func addOnRows(core: AppCore, controller: IslandController) async {
+        guard let presenter = core.islandPresenter as? IslandPresenter else {
+            IslandVerification.require(false, "island presenter"); return
+        }
+        var selected: [String] = []
+        presenter.setMenuRows([IslandMenuRow(id: "25", title: "Focus 25 min", isChecked: true),
+                               IslandMenuRow(id: "50", title: "Focus 50 min", isChecked: false)], owner: "focus") {
+            selected.append("focus " + $0)
+        }
+        presenter.setMenuRows([IslandMenuRow(id: "pause", title: "Pause music")], owner: "music") {
+            selected.append("music " + $0)
+        }
+        guard let menu = await openMenu(controller, .rightMouseDown, "right-click") else { return }
+        var titles = core.island.pillMenu.itemTitles
+        print("MENU_ROWS \(titles)")
+        let updates = String(localized: "Check for Updates…")
+        func rows(_ titles: [String]) -> [String] {
+            guard let end = titles.firstIndex(of: updates) else { return [] }
+            return Array(titles[..<end].suffix(3))
+        }
+        IslandVerification.require(rows(titles) == ["Focus 25 min", "Focus 50 min", "Pause music"],
+                                   "add-on rows sit above Updates in owner and row order")
+        await controller.capture("pill-menu-rows")
+        await IslandVerification.pause(0.3)
+        IslandVerification.require(controller.captured.contains("pill-menu-rows"), "add-on rows layer capture")
+        presenter.setMenuRows([IslandMenuRow(id: "15", title: "Focus 15 min", isChecked: false)], owner: "focus") {
+            selected.append("focus " + $0)
+        }
+        await IslandVerification.pause(0.2)
+        titles = core.island.pillMenu.itemTitles
+        print("MENU_ROWS replaced \(titles)")
+        IslandVerification.require(menuPanel != nil && rows(titles).suffix(2) == ["Focus 15 min", "Pause music"],
+                                   "replacing an owner's rows refits the open menu in its old place")
+        presenter.setMenuRows([], owner: "music") { _ in }
+        await IslandVerification.pause(0.2)
+        titles = core.island.pillMenu.itemTitles
+        IslandVerification.require(!titles.contains("Pause music"), "empty rows remove the owner")
+        for (code, character) in [(UInt16(18), "1"), (23, "5")] { IslandLatency.key(menu, code: code, characters: character) }
+        await IslandVerification.pause(0.2)
+        titles = core.island.pillMenu.itemTitles
+        print("MENU_ROWS filtered \(titles)")
+        IslandVerification.require(titles == ["Focus 15 min"], "typing filters the add-on rows")
+        IslandLatency.key(menu, code: 36, characters: "\r")
+        await IslandVerification.pause(0.35)
+        IslandVerification.require(menuPanel == nil, "choosing an add-on row closes the menu")
+        IslandVerification.require(selected == ["focus 15"], "the row's owner hears its id")
+        presenter.setMenuRows([], owner: "focus") { _ in }
     }
 
     static var settingsWindow: NSWindow? {
