@@ -913,7 +913,7 @@ struct RootPaletteView: View {
                     .accessibilityHidden(true)
             }
         }
-        .help("Press Tab to ask Quick AI")
+        .modifier(PaletteHelp(text: String(localized: "Press Tab to ask Quick AI"), alignment: .trailing))
     }
 
     /// Resolved through `PaletteTabAction`, so the hint cannot promise the wrong destination.
@@ -1017,7 +1017,8 @@ struct RootPaletteView: View {
 
     /// The Uninstall screen's primary action is destructive, so its pill isn't white.
     private var pillTint: Color {
-        vm.mode == .uninstall ? Theme.Colors.destructive : .primary
+        vm.mode == .uninstall
+            ? Theme.Colors.destructive : (IslandVerification.stock ? .primary : Theme.Colors.textPrimary)
     }
 
     private func bottomBar(
@@ -1054,7 +1055,7 @@ struct RootPaletteView: View {
     private func actionGroup(
         pillLabel: String, formPrimaryShortcut: Bool, primaryActionEnabled: Bool, showActions: Bool
     ) -> some View {
-        HStack(spacing: 2) {
+        HStack(spacing: metrics.spacing.xxs) {
             BarButton(action: activateSelection) {
                 HStack(spacing: metrics.spacing.sm) {
                     Text(pillLabel)
@@ -1650,21 +1651,60 @@ private struct MenuCircleButton: View {
     let action: () -> Void
     @State private var hovered = false
     @Environment(\.metrics) private var metrics
+    @Environment(\.paletteOnIsland) private var onIsland
 
     var body: some View {
         Button(action: action) {
+            glyph
+                .foregroundStyle(Theme.Colors.textSecondary)
+                .frame(width: metrics.size.menuButton, height: metrics.size.menuButton)
+                .contentShape(.circle)
+        }
+        .buttonStyle(MenuCircleStyle(hovered: hovered, onIsland: onIsland))
+        .onHover { hovered = $0 }
+        .frosted(in: Circle())
+        .accessibilityLabel(Bundle.main.appDisplayName)
+    }
+
+    @ViewBuilder private var glyph: some View {
+        if onIsland {
+            SymbolImage(
+                name: "line.3.horizontal", size: metrics.scaled(Theme.Typography.menuSymbolSize),
+                monochrome: true)
+        } else {
             VStack(alignment: .leading, spacing: 3) {
                 Capsule().frame(width: 14, height: 1.5)
                 Capsule().frame(width: 8, height: 1.5)
             }
-            .foregroundStyle(Theme.Colors.textSecondary)
-            .frame(width: metrics.size.menuButton, height: metrics.size.menuButton)
-            .background(Circle().fill(hovered ? Theme.Colors.rowHover : Color.clear))
-            .contentShape(.circle)
         }
-        .buttonStyle(.plain)
-        .onHover { hovered = $0 }
-        .frosted(in: Circle())
+    }
+}
+
+/// On the island the fill shows on pointer-down, like `BarButton`'s selected state.
+private struct MenuCircleStyle: ButtonStyle {
+    let hovered: Bool
+    let onIsland: Bool
+
+    func makeBody(configuration: Configuration) -> some View {
+        let fill =
+            onIsland && configuration.isPressed
+            ? NotchTheme.Colors.keyCapFill : (hovered ? Theme.Colors.rowHover : Color.clear)
+        return configuration.label.background(Circle().fill(fill))
+    }
+}
+
+/// The island's own tooltip; stock keeps the system `.help`.
+private struct PaletteHelp: ViewModifier {
+    let text: String
+    var alignment: HorizontalAlignment = .center
+    @Environment(\.paletteOnIsland) private var onIsland
+
+    @ViewBuilder func body(content: Content) -> some View {
+        if onIsland {
+            content.tooltip(text, alignment: alignment, edge: .bottom)
+        } else {
+            content.help(text)
+        }
     }
 }
 
@@ -1687,6 +1727,6 @@ private struct HeaderBackButton: View {
         .buttonStyle(.plain)
         .onHover { hovered = $0 }
         .animation(.easeOut(duration: Theme.Duration.hover), value: hovered)
-        .help(help)
+        .modifier(PaletteHelp(text: help, alignment: .leading))
     }
 }
