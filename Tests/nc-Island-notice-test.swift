@@ -1,0 +1,80 @@
+// notchcast-sources: Tinycast/Features/Island/Model/IslandPresentation.swift
+// notchcast-sources: Tinycast/Features/Island/Model/IslandNoticeQueue.swift
+import Foundation
+
+@main
+struct IslandNoticeTest {
+    static func main() {
+        var queue = IslandNoticeQueue()
+        queue.post(IslandNotice(id: "saved", text: "Saved"), at: 0)
+        precondition(near(queue.remaining(at: 1), 1.4), "A notice dwells 2.4 s by default")
+        queue.expire(at: 2)
+        precondition(queue.notice?.id == "saved", "Nothing expires before its dwell runs out")
+        queue.expire(at: 2.4)
+        precondition(queue.notice == nil, "The notice leaves once its dwell runs out")
+
+        queue.post(IslandNotice(id: "sync", text: "Syncing", progress: 0.2), at: 10)
+        precondition(queue.remaining(at: 100) == nil, "A progress notice stays until it is ended")
+        queue.end("sync", at: 100)
+        precondition(queue.notice == nil, "Ending a progress notice clears it")
+
+        queue.post(IslandNotice(id: "a", text: "First"), at: 0)
+        queue.post(IslandNotice(id: "b", text: "Second", seconds: 4), at: 1)
+        precondition(queue.notice?.id == "b" && near(queue.remaining(at: 2), 3), "A newer notice covers with its own dwell")
+        queue.expire(at: 5)
+        precondition(queue.notice?.id == "a" && near(queue.remaining(at: 5), 1.4),
+                     "The covered notice returns with the dwell it had left")
+
+        queue.pause(true, at: 5.4)
+        precondition(queue.remaining(at: 50) == nil, "A level freezes the notice's dwell")
+        queue.expire(at: 50)
+        precondition(queue.notice?.id == "a", "A paused notice never expires")
+        queue.pause(false, at: 60)
+        precondition(near(queue.remaining(at: 60), 1), "Resuming runs only the dwell left before the level")
+        queue.post(IslandNotice(id: "c", text: "Third"), at: 60)
+        precondition(near(queue.remaining(at: 60), 2.4), "A notice posted under no level starts its dwell at once")
+        queue.pause(true, at: 61)
+        queue.post(IslandNotice(id: "d", text: "Fourth"), at: 62)
+        precondition(queue.remaining(at: 70) == nil, "A notice posted under a level waits for it")
+
+        var reposts = IslandNoticeQueue()
+        reposts.post(IslandNotice(id: "a", text: "First"), at: 0)
+        reposts.post(IslandNotice(id: "b", text: "Second"), at: 0)
+        reposts.post(IslandNotice(id: "a", text: "First again"), at: 1)
+        precondition(reposts.notice?.id == "b", "A repost keeps its place under a newer notice")
+        reposts.end("b", at: 1)
+        precondition(reposts.notice?.text == "First again" && near(reposts.remaining(at: 1), 2.4),
+                     "A repost restarts its dwell and carries its new text")
+        reposts.post(IslandNotice(id: "z", text: "Other"), at: 1)
+        reposts.end("a", at: 1)
+        precondition(reposts.notice?.id == "z", "Ending a covered notice leaves the top alone")
+
+        var spoken = IslandNoticeQueue()
+        spoken.post(IslandNotice(id: "a", text: "First"), at: 0)
+        precondition(spoken.announcement() == "First" && spoken.announcement() == nil,
+                     "A notice is announced once when it first shows")
+        spoken.post(IslandNotice(id: "b", text: "Second"), at: 0)
+        precondition(spoken.announcement() == "Second", "A covering notice is announced")
+        spoken.end("b", at: 0)
+        precondition(spoken.announcement() == nil, "A returning notice is not announced again")
+        spoken.post(IslandNotice(id: "a", text: "First", progress: 0.5), at: 0)
+        precondition(spoken.announcement() == nil, "A same-text repost stays silent")
+        spoken.post(IslandNotice(id: "a", text: "Verifying"), at: 0)
+        precondition(spoken.announcement() == "Verifying", "A repost with new text is announced")
+        spoken.post(IslandNotice(id: "a", text: "First"), at: 0)
+        precondition(spoken.announcement() == nil, "A text an id already said stays silent when it comes back")
+
+        var hidden = IslandNoticeQueue()
+        hidden.post(IslandNotice(id: "a", text: "First"), at: 0)
+        hidden.post(IslandNotice(id: "b", text: "Second", progress: 0.1), at: 0)
+        _ = hidden.announcement()
+        hidden.post(IslandNotice(id: "a", text: "Changed"), at: 0)
+        hidden.end("b", at: 0)
+        precondition(hidden.announcement() == "Changed", "A covered notice whose text changed is heard on return")
+        print("IslandNoticeTest passed")
+    }
+
+    private static func near(_ value: TimeInterval?, _ expected: TimeInterval) -> Bool {
+        value.map { abs($0 - expected) < 1e-9 } ?? false
+    }
+}
