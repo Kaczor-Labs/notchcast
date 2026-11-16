@@ -6,12 +6,18 @@
 // notchcast-sources: Tinycast/Features/Notchcast/SmallCommands/Model/*.swift
 // notchcast-sources: Tinycast/Features/Notchcast/SmallCommands/Service/SmallCommandsModule.swift
 // notchcast-sources: Tinycast/Features/Notchcast/SmallCommands/Service/SmallCommandsSystem.swift
+// notchcast-sources: Tinycast/Features/Notchcast/SmallCommands/Service/NoiseControlService.swift
 // notchcast-sources: Tinycast/Features/Notchcast/SmallCommands/Service/AirDropService.swift
 
 import AppKit
 import CoreGraphics
 
 // The shipped `live` is left out: this one stands in, so `makeModule` runs as shipped.
+
+typealias Mode = NoiseControlEngine.Mode
+
+/// A CFArray stands in for an AX element: by `CFEqual`, only the same id is the same window.
+func handle(_ id: UInt) -> NoiseControlService.Handle { .init(element: Array(repeating: 0, count: Int(id)) as CFArray) }
 
 enum AirDropReply { case sent, cancelled, hold }
 
@@ -27,6 +33,17 @@ final class FakeSystem {
     var reply = (body: Data("https://tinyurl.com/abc123".utf8), status: 200)
     var fetchError: (any Error)?
     var holdFetch = false
+    var controlCenter: Int32? = 42
+    var noiseModes: [Mode] = [.off, .transparency, .adaptive, .noiseCancellation]
+    var noiseMode: Mode = .noiseCancellation
+    var noiseError: (any Error)?
+    var soundWindow: UInt?
+    var foreignOpen = false
+    var nextWindow: UInt = 1
+    var menuOpen: Bool { soundWindow != nil }
+    var noiseLog: [String] = []
+    var holdPress = false
+    var slowClose = false
     var files: [URL] = []
     var sharingAvailable = true
     var airDropReply = AirDropReply.sent
@@ -35,6 +52,9 @@ final class FakeSystem {
     func reset() {
         clipboard = nil; copies = []; copyWorks = true; browser = nil; browserError = nil; browserReads = 0
         requests = []; reply = (Data("https://tinyurl.com/abc123".utf8), 200); fetchError = nil; holdFetch = false
+        controlCenter = 42; noiseModes = [.off, .transparency, .adaptive, .noiseCancellation]
+        noiseMode = .noiseCancellation; noiseError = nil; soundWindow = nil; foreignOpen = false; noiseLog = []; holdPress = false
+        slowClose = false
         files = []; sharingAvailable = true; airDropReply = .sent; shares = []
     }
 
@@ -49,6 +69,46 @@ final class FakeSystem {
         if holdFetch { try await Task.sleep(for: .seconds(30)) }
         if let fetchError { throw fetchError }
         return reply
+    }
+
+    func observeNoise(processID: Int32) throws -> [NoiseControlService.Window] {
+        precondition(processID == controlCenter, "noise control talks to Control Center's process")
+        if let noiseError { throw noiseError }
+        noiseLog.append("observe")
+        let modes = noiseModes.map { NoiseControlEngine.Button(mode: $0, selected: $0 == noiseMode) }
+        var windows = soundWindow.map { [NoiseControlService.Window(handle: handle($0), buttons: modes)] } ?? []
+        if foreignOpen { windows.append(.init(handle: handle(900), buttons: [.init(mode: .off, selected: false)])) }
+        return windows
+    }
+
+    /// The Sound menu extra is one toggle; a slow close flips it late, as a lagging cleanup press would.
+    func noise(_ action: NoiseControlService.Action, processID: Int32) async throws {
+        precondition(processID == controlCenter, "noise control talks to Control Center's process")
+        if let noiseError { throw noiseError }
+        switch action {
+        case .toggleMenu:
+            precondition(!foreignOpen, "Sound is never toggled over a foreign menu")
+            let closing = menuOpen
+            noiseLog.append(closing ? "close" : "open")
+            if closing && slowClose {
+                slowClose = false
+                try? await Task.sleep(for: .milliseconds(300))
+            }
+            if closing {
+                soundWindow = nil
+            } else {
+                soundWindow = nextWindow
+                nextWindow += 1
+            }
+        case .press(let mode, let window):
+            if holdPress {
+                holdPress = false
+                try await Task.sleep(for: .seconds(30))
+            }
+            precondition(window == soundWindow.map(handle), "a mode is pressed only in the Sound window")
+            noiseLog.append("press \(mode.rawValue)")
+            noiseMode = mode
+        }
     }
 
     func share(_ service: NSSharingService, _ items: [URL]) {
@@ -76,6 +136,9 @@ extension SmallCommandsSystem {
         randomBytes: { count in (0..<count).map { _ in UInt8.random(in: .min ... .max) } },
         browserAddress: { try fake.readBrowser() },
         fetch: { try await fake.fetch($0) },
+        controlCenterProcessID: { fake.controlCenter },
+        observeNoiseControl: { processID, _ in try await fake.observeNoise(processID: processID) },
+        noiseControl: { action, processID, _ in try await fake.noise(action, processID: processID) },
         makeAirDrop: {
             AirDropService(
                 selection: { fake.files },
@@ -133,7 +196,7 @@ final class Rig {
 
     var module: SmallCommandsModule? { controller.context(forSwitch: "smallCommands")?.module(SmallCommandsModule.self) }
 
-    /// Waits for the run's notice, since shortening and AirDrop finish a few hops later.
+    /// Waits for the run's notice, since noise control and AirDrop finish a few hops later.
     @discardableResult
     func run(_ slug: String, reports: Bool = true) async -> Bool {
         let before = presenter.posts.count
@@ -170,10 +233,10 @@ enum SmallCommandsModuleTests {
         precondition(SmallCommandsAddon.switches.map(\.id) == ["smallCommands"], "v1 switch id")
         precondition(SmallCommandsAddon.switches[0].defaultEnabled == false, "off by default")
         precondition(SmallCommandsAddon.switches[0].category == .launcher, "launcher category")
-        precondition(SmallCommandsAddon.switches[0].requiredGrants.isEmpty, "no command needs Accessibility")
+        precondition(SmallCommandsAddon.switches[0].requiredGrants == [.accessibility], "noise control needs Accessibility")
         precondition(
             SmallCommandsAddon.commands.map(\.slug)
-                == ["generate-password", "shorten-link", "airdrop-selection"],
+                == ["generate-password", "shorten-link", "switch-noise-control", "airdrop-selection"],
             "frozen slugs")
         precondition(SmallCommandsAddon.commands.allSatisfy { $0.switchID == "smallCommands" }, "commands ride the switch")
 
@@ -266,6 +329,90 @@ enum SmallCommandsModuleTests {
         await rig.run("shorten-link")
         rig.expect("TinyURL did not return a short link.", failure: true, symbol: "link", "offline")
 
+        // Noise control.
+        fake.reset()
+        await rig.run("switch-noise-control")
+        precondition(fake.noiseMode == .transparency, "noise cancellation switches to transparency")
+        precondition(fake.noiseLog.filter { $0 == "open" || $0 == "close" } == ["open", "close"], "opens and closes")
+        precondition(!fake.menuOpen, "the menu ends closed")
+        rig.expect("Done", failure: false, symbol: "airpodspro", "noise switched")
+        fake.reset()
+        fake.noiseModes = [.off, .adaptive]
+        await rig.run("switch-noise-control")
+        rig.expect("No AirPods with noise control found.", failure: true, symbol: "airpodspro", "no AirPods")
+        precondition(fake.noiseLog.contains("close") && !fake.menuOpen, "the menu closes after a miss")
+        fake.reset()
+        fake.noiseError = SmallCommandsFailure.controlCenterUnresponsive
+        await rig.run("switch-noise-control")
+        rig.expect("Control Center did not respond.", failure: true, symbol: "airpodspro", "a failed window read")
+        precondition(fake.noiseLog.isEmpty && !fake.menuOpen, "a failed read presses nothing")
+        fake.reset()
+        fake.controlCenter = nil
+        await rig.run("switch-noise-control")
+        rig.expect("Control Center is not running.", failure: true, symbol: "airpodspro", "no Control Center")
+        fake.reset()
+        fake.noiseError = SmallCommandsFailure.needsAccessibility
+        await rig.run("switch-noise-control")
+        rig.expect("Allow Accessibility access to switch noise control.", failure: true, symbol: "airpodspro",
+                   "no Accessibility")
+
+        // A menu this run did not open cannot be told from Sound, so it is refused and left alone.
+        fake.reset()
+        fake.soundWindow = 7
+        await rig.run("switch-noise-control")
+        precondition(fake.noiseLog == ["observe"], "nothing is pressed over an open menu: \(fake.noiseLog)")
+        precondition(fake.soundWindow == 7 && fake.noiseMode == .noiseCancellation, "the open menu stays as it was")
+        rig.expect("Close the open Control Center menu and try again.", failure: true, symbol: "airpodspro",
+                   "already open")
+        fake.reset()
+        fake.foreignOpen = true
+        await rig.run("switch-noise-control")
+        precondition(fake.noiseLog == ["observe"] && fake.foreignOpen && !fake.menuOpen, "Wi-Fi open: Sound untouched")
+        rig.expect("Close the open Control Center menu and try again.", failure: true, symbol: "airpodspro",
+                   "foreign menu open")
+
+        // A second run waits for the cancelled first one to close its menu, then keeps its own open.
+        fake.reset()
+        fake.holdPress = true
+        fake.slowClose = true
+        var posted = rig.presenter.posts.count
+        await rig.run("switch-noise-control", reports: false)
+        for _ in 0..<50 where fake.noiseLog.count < 4 { await drain() }
+        precondition(fake.menuOpen && fake.noiseLog == ["observe", "open", "observe", "observe"],
+                     "the first run holds at its press: \(fake.noiseLog)")
+        await rig.run("switch-noise-control")
+        precondition(
+            fake.noiseLog == ["observe", "open", "observe", "observe", "observe", "close", "observe",
+                              "observe", "open", "observe", "observe", "press Transparency", "observe",
+                              "observe", "close", "observe"],
+            "the second run starts after the first one's cleanup: \(fake.noiseLog)")
+        await drain()
+        precondition(!fake.menuOpen, "no stale press reopens the menu")
+        precondition(rig.presenter.posts.count == posted + 1, "only the second run reports")
+        rig.expect("Done", failure: false, symbol: "airpodspro", "serialized noise runs")
+
+        // Switching off and on keeps the order: the new module's run waits for the old cleanup.
+        fake.reset()
+        fake.holdPress = true
+        fake.slowClose = true
+        await rig.run("switch-noise-control", reports: false)
+        for _ in 0..<50 where fake.noiseLog.count < 4 { await drain() }
+        precondition(fake.noiseLog == ["observe", "open", "observe", "observe"], "held at its press: \(fake.noiseLog)")
+        rig.controller.preferences.set("smallCommands", on: false)
+        await drain()
+        rig.controller.preferences.set("smallCommands", on: true)
+        await drain()
+        precondition(rig.module?.isRunning == true, "a fresh module runs")
+        await rig.run("switch-noise-control")
+        precondition(
+            fake.noiseLog == ["observe", "open", "observe", "observe", "observe", "close", "observe",
+                              "observe", "open", "observe", "observe", "press Transparency", "observe",
+                              "observe", "close", "observe"],
+            "the new module's run opens only after the old cleanup: \(fake.noiseLog)")
+        await drain()
+        precondition(!fake.menuOpen, "the menu ends closed")
+        rig.expect("Done", failure: false, symbol: "airpodspro", "noise across switch off and on")
+
         // AirDrop.
         let file = URL(filePath: "/tmp/nc-small-commands-fixture.txt")
         fake.reset()
@@ -292,7 +439,7 @@ enum SmallCommandsModuleTests {
         fake.reset()
         fake.files = [file]
         fake.airDropReply = .hold
-        var posted = rig.presenter.posts.count
+        posted = rig.presenter.posts.count
         await rig.run("airdrop-selection", reports: false)
         precondition(rig.presenter.posts.count == posted, "a pending AirDrop posts nothing yet")
         await rig.run("airdrop-selection", reports: false)
@@ -324,6 +471,6 @@ enum SmallCommandsModuleTests {
         precondition(!ran, "commands go with the switch")
         rig.finish()
 
-        print("PASS: small commands module covers switch, password, shorten order, AirDrop and teardown")
+        print("PASS: small commands module covers switch, password, shorten order, noise, AirDrop and teardown")
     }
 }

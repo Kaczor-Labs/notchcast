@@ -7,9 +7,12 @@ enum SmallCommandsAddon: NotchcastAddon {
         NotchcastSwitch(
             id: "smallCommands",
             title: String(localized: "Small Commands", table: "NotchcastSmallCommands"),
-            subtitle: String(localized: "Passwords, short links and AirDrop.", table: "NotchcastSmallCommands"),
+            subtitle: String(
+                localized: "Passwords, short links, noise control and AirDrop. Noise control requires English system language.",
+                table: "NotchcastSmallCommands"),
             category: .launcher,
-            defaultEnabled: false
+            defaultEnabled: false,
+            requiredGrants: [.accessibility]
         ),
     ]
 
@@ -22,6 +25,10 @@ enum SmallCommandsAddon: NotchcastAddon {
             slug: "shorten-link", name: String(localized: "Shorten Link", table: "NotchcastSmallCommands"),
             symbol: SmallCommandsModule.Action.shorten.symbol, switchID: "smallCommands",
             keywords: ["url", "tinyurl"], run: { $0.module(SmallCommandsModule.self)?.run(.shorten) }),
+        NotchcastCommand(
+            slug: "switch-noise-control", name: String(localized: "Switch Noise Control", table: "NotchcastSmallCommands"),
+            symbol: SmallCommandsModule.Action.noise.symbol, switchID: "smallCommands",
+            keywords: ["airpods", "transparency", "anc"], run: { $0.module(SmallCommandsModule.self)?.run(.noise) }),
         NotchcastCommand(
             slug: "airdrop-selection", name: String(localized: "AirDrop Selected Files", table: "NotchcastSmallCommands"),
             symbol: SmallCommandsModule.Action.airDrop.symbol, switchID: "smallCommands",
