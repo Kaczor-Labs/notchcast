@@ -34,7 +34,10 @@ final class FakeSystem {
     var noiseModes: [Mode] = [.off, .transparency, .adaptive, .noiseCancellation]
     var noiseMode: Mode = .noiseCancellation
     var noiseError: (any Error)?
-    var noiseActions: [NoiseControlService.Action] = []
+    var menuOpen = false
+    var noiseLog: [String] = []
+    var holdPress = false
+    var slowClose = false
     var files: [URL] = []
     var sharingAvailable = true
     var airDropReply = AirDropReply.sent
@@ -44,7 +47,8 @@ final class FakeSystem {
         clipboard = nil; copies = []; copyWorks = true; browser = nil; browserError = nil; browserReads = 0
         requests = []; reply = (Data("https://tinyurl.com/abc123".utf8), 200); fetchError = nil; holdFetch = false
         controlCenter = 42; noiseModes = [.off, .transparency, .adaptive, .noiseCancellation]
-        noiseMode = .noiseCancellation; noiseError = nil; noiseActions = []
+        noiseMode = .noiseCancellation; noiseError = nil; menuOpen = false; noiseLog = []; holdPress = false
+        slowClose = false
         files = []; sharingAvailable = true; airDropReply = .sent; shares = []
     }
 
@@ -61,16 +65,36 @@ final class FakeSystem {
         return reply
     }
 
-    func noise(_ action: NoiseControlService.Action, processID: Int32) throws -> [NoiseControlEngine.Button] {
+    func observeNoise(processID: Int32) throws -> NoiseControlService.Observation {
         precondition(processID == controlCenter, "noise control talks to Control Center's process")
         if let noiseError { throw noiseError }
-        noiseActions.append(action)
+        noiseLog.append("observe")
+        guard menuOpen else { return .init(menuOpen: false, buttons: []) }
+        return .init(menuOpen: true, buttons: noiseModes.map { .init(mode: $0, selected: $0 == noiseMode) })
+    }
+
+    /// The Sound menu extra is one toggle; a slow close flips it late, as a lagging cleanup press would.
+    func noise(_ action: NoiseControlService.Action, processID: Int32) async throws {
+        precondition(processID == controlCenter, "noise control talks to Control Center's process")
+        if let noiseError { throw noiseError }
         switch action {
-        case .snapshot: return noiseModes.map { .init(mode: $0, selected: $0 == noiseMode) }
-        case .press(let mode): noiseMode = mode
-        case .open, .close: break
+        case .toggleMenu:
+            let closing = menuOpen
+            noiseLog.append(closing ? "close" : "open")
+            if closing && slowClose {
+                slowClose = false
+                try? await Task.sleep(for: .milliseconds(300))
+            }
+            menuOpen.toggle()
+        case .press(let mode):
+            if holdPress {
+                holdPress = false
+                try await Task.sleep(for: .seconds(30))
+            }
+            precondition(menuOpen, "a mode is pressed only on an open menu")
+            noiseLog.append("press \(mode.rawValue)")
+            noiseMode = mode
         }
-        return []
     }
 
     func share(_ service: NSSharingService, _ items: [URL]) {
@@ -99,6 +123,7 @@ extension SmallCommandsSystem {
         browserAddress: { try fake.readBrowser() },
         fetch: { try await fake.fetch($0) },
         controlCenterProcessID: { fake.controlCenter },
+        observeNoiseControl: { processID, _ in try await fake.observeNoise(processID: processID) },
         noiseControl: { action, processID, _ in try await fake.noise(action, processID: processID) },
         makeAirDrop: {
             AirDropService(
@@ -255,6 +280,15 @@ enum SmallCommandsModuleTests {
         precondition(fake.requests.isEmpty, "a private link never leaves the Mac")
         rig.expect("No link in the clipboard or the browser.", failure: true, symbol: "link", "no link")
 
+        for (clipboard, browser) in [("http://payroll/employee/7?token=SECRET", nil), (nil, "http://100.64.0.1/x")] {
+            fake.reset()
+            fake.clipboard = clipboard
+            fake.browser = browser
+            await rig.run("shorten-link")
+            precondition(fake.requests.isEmpty, "an intranet link never leaves the Mac: \(clipboard ?? browser ?? "")")
+            rig.expect("No link in the clipboard or the browser.", failure: true, symbol: "link", "intranet link")
+        }
+
         fake.reset()
         fake.browserError = SmallCommandsFailure.browserNeedsAutomation
         await rig.run("shorten-link")
@@ -279,13 +313,14 @@ enum SmallCommandsModuleTests {
         fake.reset()
         await rig.run("switch-noise-control")
         precondition(fake.noiseMode == .transparency, "noise cancellation switches to transparency")
-        precondition(fake.noiseActions.first == .open && fake.noiseActions.last == .close, "opens and closes")
+        precondition(fake.noiseLog.filter { $0 == "open" || $0 == "close" } == ["open", "close"], "opens and closes")
+        precondition(!fake.menuOpen, "the menu ends closed")
         rig.expect("Done", failure: false, symbol: "airpodspro", "noise switched")
         fake.reset()
         fake.noiseModes = [.off, .adaptive]
         await rig.run("switch-noise-control")
         rig.expect("No AirPods with noise control found.", failure: true, symbol: "airpodspro", "no AirPods")
-        precondition(fake.noiseActions.last == .close, "the menu closes after a miss")
+        precondition(fake.noiseLog.contains("close") && !fake.menuOpen, "the menu closes after a miss")
         fake.reset()
         fake.controlCenter = nil
         await rig.run("switch-noise-control")
@@ -295,6 +330,35 @@ enum SmallCommandsModuleTests {
         await rig.run("switch-noise-control")
         rig.expect("Allow Accessibility access to switch noise control.", failure: true, symbol: "airpodspro",
                    "no Accessibility")
+
+        // An open Sound menu is used as it is, then closed once.
+        fake.reset()
+        fake.menuOpen = true
+        await rig.run("switch-noise-control")
+        precondition(fake.noiseLog == ["observe", "observe", "press Transparency", "observe", "observe", "close", "observe"],
+                     "an open menu is not pressed shut first: \(fake.noiseLog)")
+        precondition(!fake.menuOpen && fake.noiseMode == .transparency, "switched, and closed at the end")
+        rig.expect("Done", failure: false, symbol: "airpodspro", "already open")
+
+        // A second run waits for the cancelled first one to close its menu, then keeps its own open.
+        fake.reset()
+        fake.holdPress = true
+        fake.slowClose = true
+        var posted = rig.presenter.posts.count
+        await rig.run("switch-noise-control", reports: false)
+        for _ in 0..<50 where fake.noiseLog.count < 4 { await drain() }
+        precondition(fake.menuOpen && fake.noiseLog == ["observe", "open", "observe", "observe"],
+                     "the first run holds at its press: \(fake.noiseLog)")
+        await rig.run("switch-noise-control")
+        precondition(
+            fake.noiseLog == ["observe", "open", "observe", "observe", "observe", "close", "observe",
+                              "observe", "open", "observe", "observe", "press Transparency", "observe",
+                              "observe", "close", "observe"],
+            "the second run starts after the first one's cleanup: \(fake.noiseLog)")
+        await drain()
+        precondition(!fake.menuOpen, "no stale press reopens the menu")
+        precondition(rig.presenter.posts.count == posted + 1, "only the second run reports")
+        rig.expect("Done", failure: false, symbol: "airpodspro", "serialized noise runs")
 
         // AirDrop.
         let file = URL(filePath: "/tmp/nc-small-commands-fixture.txt")
@@ -322,7 +386,7 @@ enum SmallCommandsModuleTests {
         fake.reset()
         fake.files = [file]
         fake.airDropReply = .hold
-        var posted = rig.presenter.posts.count
+        posted = rig.presenter.posts.count
         await rig.run("airdrop-selection", reports: false)
         precondition(rig.presenter.posts.count == posted, "a pending AirDrop posts nothing yet")
         await rig.run("airdrop-selection", reports: false)

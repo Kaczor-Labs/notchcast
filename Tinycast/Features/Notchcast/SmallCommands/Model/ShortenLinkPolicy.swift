@@ -79,9 +79,11 @@ nonisolated enum ShortenLinkPolicy {
         return !isPrivate(host)
     }
 
+    static let privateSuffixes = [".localhost", ".local", ".internal", ".lan", ".home.arpa"]
+
     static func isPrivate(_ raw: String) -> Bool {
         let host = raw.lowercased().trimmingCharacters(in: CharacterSet(charactersIn: "[]."))
-        if host == "localhost" || host.hasSuffix(".localhost") || host.hasSuffix(".local") { return true }
+        if host == "localhost" || privateSuffixes.contains(where: host.hasSuffix) { return true }
         var ipv4 = in_addr()
         if inet_aton(host, &ipv4) == 1 {
             let value = UInt32(bigEndian: ipv4.s_addr)
@@ -89,7 +91,7 @@ nonisolated enum ShortenLinkPolicy {
             let second = (value >> 16) & 255
             return first == 0 || first == 10 || first == 127
                 || (first == 169 && second == 254) || (first == 172 && (16...31).contains(second))
-                || (first == 192 && second == 168)
+                || (first == 192 && second == 168) || (first == 100 && (64...127).contains(second))
         }
         var ipv6 = in6_addr()
         if inet_pton(AF_INET6, host, &ipv6) == 1 {
@@ -100,6 +102,7 @@ nonisolated enum ShortenLinkPolicy {
             return bytes.prefix(15).allSatisfy { $0 == 0 } && bytes[15] <= 1
                 || bytes[0] & 254 == 252 || (bytes[0] == 254 && bytes[1] & 192 == 128)
         }
-        return false
+        // A dotless name only resolves through the local network's search domains.
+        return !host.contains(".")
     }
 }

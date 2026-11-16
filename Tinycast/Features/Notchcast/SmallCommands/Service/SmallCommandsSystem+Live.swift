@@ -31,6 +31,7 @@ extension SmallCommandsSystem {
             NSRunningApplication.runningApplications(withBundleIdentifier: "com.apple.controlcenter")
                 .first?.processIdentifier
         },
+        observeNoiseControl: { try await NoiseControlSystem.observe(processID: $0, deadline: $1) },
         noiseControl: { try await NoiseControlSystem.perform($0, processID: $1, deadline: $2) },
         makeAirDrop: {
             AirDropService(

@@ -22,6 +22,8 @@ final class SmallCommandsModule: NotchcastModule {
     private let system: SmallCommandsSystem
     private var airDrop: AirDropService?
     private var commandTask: Task<Void, Never>?
+    /// The last noise run, awaited so its menu cleanup ends before the next one opens the menu.
+    private var noiseTask: Task<Void, Never>?
     private var noticeTask: Task<Void, Never>?
     private var operation = UUID()
     private(set) var isRunning = false
@@ -52,12 +54,16 @@ final class SmallCommandsModule: NotchcastModule {
         cancelRun()
         if action == .password { return show(Result { try copyPassword() }, for: action) }
         let operation = operation
-        commandTask = Task { [weak self] in
+        let previousNoise = action == .noise ? noiseTask : nil
+        let task = Task { [weak self] in
+            await previousNoise?.value
             let result = await self?.outcome(of: action)
             guard let self, let result, !Task.isCancelled, self.isRunning, self.operation == operation else { return }
             self.commandTask = nil
             self.show(result, for: action)
         }
+        commandTask = task
+        if action == .noise { noiseTask = task }
     }
 
     private func cancelRun() {
@@ -116,8 +122,11 @@ final class SmallCommandsModule: NotchcastModule {
         guard let processID = system.controlCenterProcessID() else {
             throw SmallCommandsFailure.controlCenterNotRunning
         }
-        let noiseControl = system.noiseControl
-        let service = NoiseControlService { try await noiseControl($0, processID, $1) }
+        let observe = system.observeNoiseControl
+        let perform = system.noiseControl
+        let service = NoiseControlService(
+            observe: { try await observe(processID, $0) },
+            perform: { try await perform($0, processID, $1) })
         switch try await service.switchMode() {
         case .switched: return String(localized: "Done", table: "NotchcastSmallCommands")
         case .noAirPods: throw SmallCommandsFailure.noAirPods

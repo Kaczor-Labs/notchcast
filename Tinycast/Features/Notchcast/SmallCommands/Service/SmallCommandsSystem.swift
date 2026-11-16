@@ -10,6 +10,7 @@ struct SmallCommandsSystem: Sendable {
     let browserAddress: @MainActor @Sendable () async throws -> String?
     let fetch: @Sendable (URLRequest) async throws -> (Data, Int)
     let controlCenterProcessID: @MainActor @Sendable () -> Int32?
-    let noiseControl: @Sendable (NoiseControlService.Action, Int32, Duration) async throws -> [NoiseControlEngine.Button]
+    let observeNoiseControl: @Sendable (Int32, Duration) async throws -> NoiseControlService.Observation
+    let noiseControl: @Sendable (NoiseControlService.Action, Int32, Duration) async throws -> Void
     let makeAirDrop: @MainActor @Sendable () -> AirDropService
 }

@@ -9,46 +9,48 @@ nonisolated enum NoiseControlSystem {
 
     enum Failure: Error { case unavailable }
 
+    /// Control Center shows a window only while one of its menus is open.
     @concurrent
-    static func perform(
-        _ action: NoiseControlService.Action, processID: Int32, deadline: Duration
-    ) async throws -> [NoiseControlEngine.Button] {
+    static func observe(processID: Int32, deadline: Duration) async throws -> NoiseControlService.Observation {
         guard AXIsProcessTrusted() else { throw SmallCommandsFailure.needsAccessibility }
-        guard action == .close || !Task.isCancelled else { throw CancellationError() }
+        try Task.checkCancellation()
+        guard uptime < deadline else { throw Failure.unavailable }
+        let windows = children(AXUIElementCreateApplication(processID), attribute: kAXWindowsAttribute)
+        return .init(menuOpen: !windows.isEmpty, buttons: try buttons(windows, deadline: deadline).map(\.value))
+    }
+
+    @concurrent
+    static func perform(_ action: NoiseControlService.Action, processID: Int32, deadline: Duration) async throws {
+        guard AXIsProcessTrusted() else { throw SmallCommandsFailure.needsAccessibility }
+        try Task.checkCancellation()
         guard uptime < deadline else { throw Failure.unavailable }
         let root = AXUIElementCreateApplication(processID)
         switch action {
-        case .open, .close:
+        case .toggleMenu:
             guard let barValue = attribute(root, "AXExtrasMenuBar"),
                 CFGetTypeID(barValue) == AXUIElementGetTypeID() else { throw Failure.unavailable }
             let bar = unsafeDowncast(barValue, to: AXUIElement.self)
             guard let sound = children(bar).first(where: {
                 attribute($0, kAXIdentifierAttribute) as? String == "com.apple.menuextra.sound"
             }) else { throw Failure.unavailable }
-            guard uptime < deadline else { throw Failure.unavailable }
-            if action == .open { try Task.checkCancellation() }
-            guard AXUIElementPerformAction(sound, kAXPressAction as CFString) == .success else {
+            guard uptime < deadline, AXUIElementPerformAction(sound, kAXPressAction as CFString) == .success else {
                 throw Failure.unavailable
             }
-            return []
-        case .snapshot:
-            return try buttons(root, deadline: deadline).map(\.value)
         case .press(let mode):
-            let found = try buttons(root, deadline: deadline)
+            let found = try buttons(children(root, attribute: kAXWindowsAttribute), deadline: deadline)
             try Task.checkCancellation()
             guard uptime < deadline, let button = found.first(where: { $0.value.mode == mode }),
                 AXUIElementPerformAction(button.element, kAXPressAction as CFString) == .success else {
                 throw Failure.unavailable
             }
-            return []
         }
     }
 
     private static var uptime: Duration { .seconds(ProcessInfo.processInfo.systemUptime) }
 
-    private static func buttons(_ root: AXUIElement, deadline: Duration) throws -> [Button] {
+    private static func buttons(_ windows: [AXUIElement], deadline: Duration) throws -> [Button] {
         var found: [Button] = []
-        var remaining = children(root, attribute: kAXWindowsAttribute).map { ($0, 0) }
+        var remaining = windows.map { ($0, 0) }
         var visited = 0
         while let (element, depth) = remaining.popLast(), visited < 512 {
             try Task.checkCancellation()

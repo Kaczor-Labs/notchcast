@@ -9,22 +9,29 @@ nonisolated struct NoiseControlService: Sendable {
     }
 
     enum Action: Equatable, Sendable {
-        case open
-        case snapshot
+        case toggleMenu
         case press(NoiseControlEngine.Mode)
-        case close
     }
 
-    typealias Perform = @Sendable (Action, Duration) async throws -> [NoiseControlEngine.Button]
+    struct Observation: Equatable, Sendable {
+        let menuOpen: Bool
+        let buttons: [NoiseControlEngine.Button]
+    }
+
+    typealias Observe = @Sendable (Duration) async throws -> Observation
+    typealias Perform = @Sendable (Action, Duration) async throws -> Void
+    private let observe: Observe
     private let perform: Perform
     private let sleep: @Sendable () async throws -> Void
     private let now: @Sendable () -> Duration
 
     init(
+        observe: @escaping Observe,
         perform: @escaping Perform,
         sleep: @escaping @Sendable () async throws -> Void = { try await Task.sleep(for: .milliseconds(50)) },
         now: @escaping @Sendable () -> Duration = { .seconds(ProcessInfo.processInfo.systemUptime) }
     ) {
+        self.observe = observe
         self.perform = perform
         self.sleep = sleep
         self.now = now
@@ -33,18 +40,26 @@ nonisolated struct NoiseControlService: Sendable {
     func switchMode() async throws -> Outcome {
         try Task.checkCancellation()
         let deadline = now() + .seconds(8)
-        var opened = false
         do {
-            _ = try await perform(.open, deadline)
-            opened = true
+            try await setMenu(open: true, deadline: deadline)
             let result = try await switchMode(deadline: deadline)
-            _ = try await perform(.close, now() + .seconds(1))
-            opened = false
+            try await setMenu(open: false, deadline: now() + .seconds(1))
             try Task.checkCancellation()
             return result
         } catch {
-            if opened { _ = try? await perform(.close, now() + .seconds(1)) }
+            // A fresh task, so a cancelled run still closes the menu it opened.
+            await Task { try? await setMenu(open: false, deadline: now() + .seconds(1)) }.value
             throw error
+        }
+    }
+
+    /// The menu extra is one toggle, so it is pressed only when the menu is not already as wanted.
+    private func setMenu(open: Bool, deadline: Duration) async throws {
+        guard try await observe(deadline).menuOpen != open else { return }
+        if open { try Task.checkCancellation() }
+        try await perform(.toggleMenu, deadline)
+        while now() < deadline, try await observe(deadline).menuOpen != open {
+            try await sleep()
         }
     }
 
@@ -52,7 +67,7 @@ nonisolated struct NoiseControlService: Sendable {
         for _ in 0..<160 {
             try Task.checkCancellation()
             guard now() < deadline else { return .unchanged }
-            let buttons = try await perform(.snapshot, deadline)
+            let buttons = try await observe(deadline).buttons
             if buttons.isEmpty {
                 try await sleep()
                 continue
@@ -60,13 +75,13 @@ nonisolated struct NoiseControlService: Sendable {
             guard let target = NoiseControlEngine.target(in: buttons) else { return .noAirPods }
             try Task.checkCancellation()
             guard now() < deadline else { return .unchanged }
-            _ = try await perform(.press(target), deadline)
+            try await perform(.press(target), deadline)
             guard buttons.contains(where: { $0.selected != nil }) else { return .switched(target) }
             for _ in 0..<160 {
                 try await sleep()
                 try Task.checkCancellation()
                 guard now() < deadline else { return .unchanged }
-                let updated = try await perform(.snapshot, deadline)
+                let updated = try await observe(deadline).buttons
                 if updated.contains(where: { $0.mode == target && $0.selected == true }) {
                     return .switched(target)
                 }
