@@ -58,6 +58,39 @@ final class IslandUpdateActivity {
         presenter.setStatus(next.status, for: IslandLiveState.id, onTap: tap)
     }
 
+    /// Replaces the stock launch HUD; a version that did not install taps into Try Again.
+    func report(_ report: UpdateCheckStore.InstallReport?) {
+        let state: IslandLiveState
+        var tap: (@MainActor () -> Void)?
+        switch report {
+        case .installed(let version):
+            state = IslandLiveState(report: .installed(version: version.description))
+        case .notInstalled(let version):
+            state = IslandLiveState(report: .notInstalled)
+            tap = { [weak self] in self?.offerRetry(version) }
+        case nil:
+            return
+        }
+        guard var notice = state.notice else { return }
+        if let dwell = state.noticeSeconds { notice.seconds = scaled(dwell) }
+        core.islandPresenter.post(notice, onTap: tap)
+    }
+
+    private func offerRetry(_ version: AppVersion) {
+        Task { [weak self] in
+            guard let core = self?.core else { return }
+            let retry = await core.reportFailure(
+                title: String(localized: "Update failed"),
+                message: String(
+                    localized: """
+                        Tinycast \(version.description) could not be installed. \
+                        Check for updates to try again.
+                        """),
+                symbol: "arrow.down.circle", recovery: String(localized: "Try Again"))
+            if retry { core.updateCoordinator.checkForUpdates() }
+        }
+    }
+
     private func scaled(_ seconds: TimeInterval) -> TimeInterval {
         #if DEBUG
         if let previewSeconds { return previewSeconds }

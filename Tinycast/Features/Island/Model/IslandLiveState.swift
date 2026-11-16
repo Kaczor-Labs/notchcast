@@ -9,9 +9,16 @@ struct IslandLiveState: Equatable, Sendable {
         case failed
     }
 
+    /// What the launch after an install found: the new version running, or the old one still.
+    enum Report: Equatable, Sendable {
+        case installed(version: String)
+        case notInstalled
+    }
+
     static let id = "update"
     static let readySeconds: TimeInterval = 2.4
     static let failureSeconds: TimeInterval = 4
+    static let installedSeconds: TimeInterval = 2.4
     private(set) var notice: IslandNotice?
     /// How long the notice shows before only the status is left; nil holds it until the stage changes.
     private(set) var noticeSeconds: TimeInterval?
@@ -33,6 +40,19 @@ struct IslandLiveState: Equatable, Sendable {
             notice = IslandNotice(id: Self.id, symbol: "exclamationmark.arrow.circlepath", text: text, isFailure: true)
             noticeSeconds = Self.failureSeconds
             status = IslandStatus(id: Self.id, symbol: "exclamationmark.arrow.circlepath", label: text)
+        }
+    }
+
+    init(report: Report) {
+        switch report {
+        case .installed(let version):
+            let text = String(localized: "Updated to \(version)", table: "Notchcast")
+            notice = IslandNotice(id: Self.id, symbol: "checkmark.circle", text: text)
+            noticeSeconds = Self.installedSeconds
+        case .notInstalled:
+            let text = String(localized: "Update failed")
+            notice = IslandNotice(id: Self.id, symbol: "exclamationmark.arrow.circlepath", text: text, isFailure: true)
+            noticeSeconds = Self.failureSeconds
         }
     }
 }

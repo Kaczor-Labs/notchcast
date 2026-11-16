@@ -31,6 +31,16 @@ struct IslandLiveTest {
         precondition(cancelled.notice == nil && cancelled.status == nil && cancelled.noticeSeconds == nil,
                      "Cancel or an automatic offer ends the notice and clears the status")
         precondition(cancelled != ready && cancelled == IslandLiveState(update: .none), "Equal stages compare equal")
-        print("Island live: install, ready, failed and cancel map to the update notice and status")
+
+        let installed = IslandLiveState(report: .installed(version: "1.2.3"))
+        precondition(installed.notice == IslandNotice(id: "update", symbol: "checkmark.circle", text: "Updated to 1.2.3")
+                     && installed.noticeSeconds == 2.4 && installed.status == nil,
+                     "An installed report shows the version for the stock HUD's 2.4 s, with no status")
+        let notInstalled = IslandLiveState(report: .notInstalled)
+        precondition(notInstalled.notice?.text == "Update failed" && notInstalled.notice?.isFailure == true
+                     && notInstalled.notice?.id == "update" && notInstalled.noticeSeconds == 4
+                     && notInstalled.status == nil,
+                     "A version that did not install shows a 4 s failure notice and leaves no status")
+        print("Island live: install, ready, failed, cancel and the launch report map to the update notice and status")
     }
 }
