@@ -202,7 +202,8 @@ struct NotchcastIslandAuditRenderTest {
         renderArt("10-notice-glyph", IslandNoticeArt(
             IslandNotice(id: "a", symbol: "doc.on.clipboard", text: "Copied"), notch: notch))
         renderArt("11-notice-installing", IslandNoticeArt(
-            IslandNotice(id: "b", symbol: "arrow.down.circle", text: "Installing", progress: 0.4), notch: notch))
+            IslandNotice(id: "b", symbol: "arrow.down.circle", text: "Installing",
+                         progress: IslandProgress(fraction: 0.4, headline: false)), notch: notch))
         renderArt("12-notice-failed", IslandNoticeArt(
             IslandNotice(id: "c", symbol: "exclamationmark.arrow.circlepath", text: "Update failed",
                          isFailure: true, seconds: 4), notch: notch))
