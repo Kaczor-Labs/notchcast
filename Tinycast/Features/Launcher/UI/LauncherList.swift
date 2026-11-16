@@ -343,9 +343,7 @@ private struct AppRow: View {
                     .lineLimit(1)
                     .padding(.horizontal, metrics.spacing.sm)
                     .padding(.vertical, metrics.spacing.xxs)
-                    .background(
-                        RoundedRectangle(cornerRadius: metrics.radius.menu, style: .continuous)
-                            .fill(Theme.Colors.controlSurface))
+                    .background(NotchAliasChipBackground(onIsland: !IslandVerification.stock))
             }
             if let caps = shortcutCaps {
                 HStack(spacing: metrics.spacing.xxs) {
