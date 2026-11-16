@@ -6,7 +6,7 @@ import AppKit
 enum IslandPillScenes {
     static let names: Set = ["pill-menu", "pill-settings", "glance", "glance-menu", "pill-menu-quiet", "pill-settings-quiet",
                              "glance-modal", "pill-busy", "window-guard-new", "window-guard-raise",
-                             "window-guard-deferred", "island-ax"]
+                             "window-guard-deferred", "island-ax", "update"]
 
     static func run(_ scene: String, core: AppCore, screen: NSScreen) async {
         core.island.start()
@@ -28,6 +28,7 @@ enum IslandPillScenes {
         case "window-guard-new", "window-guard-raise", "window-guard-deferred":
             await IslandWindowScenes.windowGuard(core: core, scene: scene)
         case "island-ax": await IslandAccessibilityScenes.run(core: core, controller: controller)
+        case "update": await IslandUpdateScenes.run(core: core, controller: controller)
         default: await glance(core: core, controller: controller)
         }
         IslandScenes.pass(scene, screen: screen)

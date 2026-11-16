@@ -17,7 +17,7 @@ struct IslandPresenterTest {
         precondition(volume.range == 0...1 && !sync.isFailure, "Defaults are the standard track and no failure")
         island.showLevel(volume)
         island.post(sync, onTap: { taps += 1 })
-        island.setStatus(timer, for: timer.id)
+        island.setStatus(timer, for: timer.id, onTap: nil)
         island.setMenuRows(focus, owner: "focus") { selected.append($0) }
         island.setMenuRows(music, owner: "music") { selected.append($0) }
         precondition(island.calls == [
@@ -43,7 +43,7 @@ struct IslandPresenterTest {
         island.setMenuRows([], owner: "focus") { _ in }
         precondition(island.menuOwners == ["music"], "setMenuRows([]) removes the owner")
 
-        island.setStatus(nil, for: timer.id)
+        island.setStatus(nil, for: timer.id, onTap: nil)
         precondition(island.statuses.isEmpty && island.calls.last == .setStatus(nil, id: "timer"),
                      "setStatus(nil) clears")
         island.end(notice: "other")
@@ -86,7 +86,7 @@ final class RecordingIslandPresenter: IslandPresenting {
         if notice?.id == id { notice = nil; onTap = nil }
     }
 
-    func setStatus(_ status: IslandStatus?, for id: String) {
+    func setStatus(_ status: IslandStatus?, for id: String, onTap: (@MainActor () -> Void)?) {
         calls.append(.setStatus(status, id: id))
         statuses[id] = status
     }

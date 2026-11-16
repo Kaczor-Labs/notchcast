@@ -27,7 +27,7 @@ final class NotchcastHUDPresenter: IslandPresenting {
         core?.hideProgress()
     }
 
-    func setStatus(_ status: IslandStatus?, for id: String) {}
+    func setStatus(_ status: IslandStatus?, for id: String, onTap: (@MainActor () -> Void)?) {}
 
     func setMenuRows(_ rows: [IslandMenuRow], owner: String, onSelect: @escaping @MainActor (String) -> Void) {}
 }
