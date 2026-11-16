@@ -20,6 +20,7 @@ extension SettingsBackup {
             showInMenuBar: s.showInMenuBar,
             automaticallyCheckForUpdates: s.automaticallyCheckForUpdates,
             islandShowsInCaptures: s.islandShowsInCaptures,
+            islandOutlineWhenOpen: s.islandOutlineWhenOpen,
             popToRootSeconds: s.popToRootTimeout.rawValue,
             escapeKeyBehavior: s.escapeKeyBehavior.rawValue,
             appearance: s.appearance.rawValue,
@@ -238,6 +239,10 @@ extension SettingsBackup {
         }
         if let shows = s.islandShowsInCaptures {
             settings.islandShowsInCaptures = shows
+            count += 1
+        }
+        if let outline = s.islandOutlineWhenOpen {
+            settings.islandOutlineWhenOpen = outline
             count += 1
         }
         if let secs = s.popToRootSeconds, let timeout = PopToRootTimeout(rawValue: secs) {
