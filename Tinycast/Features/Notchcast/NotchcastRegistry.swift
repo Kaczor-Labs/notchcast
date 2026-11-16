@@ -10,5 +10,6 @@ enum NotchcastRegistry {
         NumberKeysAddon.self,
         SmallCommandsAddon.self,
         DownloadsAddon.self,
+        ScreenshotsAddon.self,
     ]
 }
