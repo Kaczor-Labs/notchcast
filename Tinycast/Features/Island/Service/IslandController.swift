@@ -14,6 +14,7 @@ final class IslandController: NSObject {
     private(set) weak var panel: PalettePanel?
     private var observer: PanelObserver?
     private let clip = CAShapeLayer()
+    private let keyline = CAShapeLayer()
     private var overlays: [CGRect] = []
     #if DEBUG
     private(set) var samples: [String] = []
@@ -22,6 +23,9 @@ final class IslandController: NSObject {
     private(set) var captured: [String] = []
     #endif
     var showsRest = true
+    var outlineWhenOpen = true {
+        didSet { canvas.keylineEnabled = outlineWhenOpen; if outlineWhenOpen != oldValue { paintFrame() } }
+    }
     /// AppKit's getter keeps returning `.none` once set, so it also says the window was ever hidden.
     var sharingType: NSWindow.SharingType {
         get { backdrop.sharingType }
@@ -87,6 +91,9 @@ final class IslandController: NSObject {
         self.panel = panel
         panel.contentView?.wantsLayer = true
         panel.contentView?.layer?.mask = clip
+        keyline.fillColor = nil
+        keyline.zPosition = 1000
+        panel.contentView?.layer?.addSublayer(keyline)
         panel.hasShadow = false
         observer = PanelObserver(panel: panel, changed: { [weak self] in self?.frameChanged() })
         if layout == nil { configure(screen) }
@@ -96,12 +103,14 @@ final class IslandController: NSObject {
     func detach() {
         observer = nil
         if panel?.contentView?.layer?.mask === clip { panel?.contentView?.layer?.mask = nil }
+        keyline.removeFromSuperlayer()
         panel = nil
         closed()
     }
 
     func configure(_ screen: NSScreen) {
         let next = IslandLayout(screen: screen.frame, notch: Self.notch(on: screen), canvas: NotchTheme.Size.islandHost)
+        canvas.scale = screen.backingScaleFactor
         let requested = IslandSurfaceConfiguration(notch: next.notch, scale: screen.backingScaleFactor)
         let moved = layout?.screen != next.screen || layout?.notch != next.notch
         layout = next
@@ -196,19 +205,14 @@ final class IslandController: NSObject {
         surface.batch {
             if size != .zero {
                 if !suspended { backdrop.orderFrontRegardless() }
-                surface.resize(stageWidth: size.width, animate: true)
-                surface.show(.expanded(.init(bottom: size)), contentKey: "palette")
+                surface.expand(to: size, contentKey: "palette")
             } else if showsRest, let line = canvas.headline {
                 if !suspended { backdrop.orderFrontRegardless() }
-                // Show first: a resize before it leaves the engine's width stale, and the show snaps.
-                surface.show(.expanded(.init(bottom: line.size)), contentKey: "notice." + line.notice.id)
-                surface.resize(stageWidth: line.size.width, animate: true)
+                surface.expand(to: line.size, contentKey: "notice." + line.notice.id)
             } else if showsRest, let expansion = canvas.expansion, let art = canvas.glance {
                 if !suspended { backdrop.orderFrontRegardless() }
                 let width = max(expansion.size.width, glanceWidth(art.layout))
-                surface.resize(stageWidth: width, animate: true)
-                surface.show(.expanded(.init(bottom: CGSize(width: width, height: expansion.size.height))),
-                             contentKey: "expansion")
+                surface.expand(to: CGSize(width: width, height: expansion.size.height), contentKey: "expansion")
             } else if showsRest, let art = canvas.glance {
                 if rests || glancing, !suspended { backdrop.orderFrontRegardless() }
                 let slots = CompactContent(leading: CGSize(width: art.layout.leading, height: 0),
@@ -313,6 +317,9 @@ final class IslandController: NSObject {
         canvas.glanceWidth = canvas.glance.map { glanceWidth($0.layout) } ?? 0
         canvas.display()
         clip.path = outline.copy(using: &contentTransform)
+        keyline.path = clip.path
+        keyline.lineWidth = 2 * IslandKeyline.width(scale: canvas.scale)
+        keyline.strokeColor = canvas.keylineColor
         CATransaction.commit()
         CATransaction.flush()
         if !(showsRest && !onFullScreenSpace), !glancing, isResting { backdrop.orderOut(nil) }

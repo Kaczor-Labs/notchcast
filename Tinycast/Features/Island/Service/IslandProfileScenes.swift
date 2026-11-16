@@ -5,14 +5,15 @@ import IslandCore
 /// The pill under a simulated notch, under forced Reduce Motion, and with more status than fits.
 @MainActor
 enum IslandProfileScenes {
-    static let names: Set = ["notch-profile", "reduce-motion", "status-overflow", "full-screen",
+    static let names: Set = ["notch-profile", "notch-profile-glance", "reduce-motion", "status-overflow", "full-screen",
                               "full-screen-space"]
     private static var presenter: IslandPresenter? { AppCore.shared.islandPresenter as? IslandPresenter }
     private static var now: Double { ProcessInfo.processInfo.systemUptime }
     private static let notch = CGSize(width: 185, height: 32)
 
     static func run(_ scene: String, core: AppCore, screen: NSScreen) async {
-        IslandController.simulatedNotch = scene == "notch-profile" ? notch : nil
+        let began = now
+        IslandController.simulatedNotch = scene.hasPrefix("notch-profile") ? notch : nil
         core.island.start()
         await IslandVerification.pause(0.4)
         guard let controller = core.island.resting, let presenter else {
@@ -21,12 +22,14 @@ enum IslandProfileScenes {
         await settle(controller)
         IslandVerification.require(screen.frame.contains(controller.backdropWindow.frame), "pill on test display")
         switch scene {
-        case "notch-profile": await notchProfile(core: core, controller: controller, presenter: presenter)
+        case "notch-profile": await notchProfile(controller: controller, presenter: presenter)
+        case "notch-profile-glance": await notchGlance(core: core, controller: controller, presenter: presenter)
         case "reduce-motion": await reduceMotion(core: core, controller: controller, presenter: presenter)
         case "full-screen": await fullScreen(core: core, controller: controller, presenter: presenter)
         case "full-screen-space": await fullScreenSpace(screen: screen, controller: controller, presenter: presenter)
         default: await overflow(controller: controller, presenter: presenter, count: 6)
         }
+        print("SCENE \(scene) took=\(now - began)s")
         IslandScenes.pass(scene, screen: screen)
         _exit(0)
     }
@@ -35,25 +38,43 @@ enum IslandProfileScenes {
         for _ in 0..<30 where !controller.acceptsClicks { await IslandVerification.pause(0.05) }
     }
 
+    private static func until(_ timeout: Double, _ done: () -> Bool) async {
+        let end = now + timeout
+        while !done(), now < end { await IslandVerification.pause(0.025) }
+    }
+
     private static func near(_ a: Double, _ b: Double) -> Bool { abs(a - b) < 0.5 }
 
     private static func status(_ index: Int) -> IslandStatus {
         IslandStatus(id: "status-\(index)", symbol: "arrow.triangle.2.circlepath", text: "Sync", label: "Sync \(index)")
     }
 
-    private static func notchProfile(core: AppCore, controller: IslandController, presenter: IslandPresenter) async {
+    private static func restingNotch(_ controller: IslandController) -> CGRect {
         let rest = controller.outlineBounds
         print("NOTCH rest=\(rest)")
         IslandVerification.require(near(rest.width, notch.width) && near(rest.height, notch.height * 2),
                                    "the resting pill is the notch")
-        func beside(_ state: String) {
-            let bounds = controller.outlineBounds
-            print("NOTCH \(state) bounds=\(bounds) target=\(controller.glanceWidthTarget)")
-            IslandVerification.require(near(bounds.width, controller.glanceWidthTarget) && bounds.width > notch.width + 8,
-                                       "\(state) sits in wings beside the notch")
-            IslandVerification.require(bounds.minX <= rest.minX + 0.5 && bounds.maxX >= rest.maxX - 0.5,
-                                       "\(state) keeps the notch covered")
+        return rest
+    }
+
+    /// Waits for the engine's spring to land, because the headline and the expansion collapse into it.
+    private static func beside(_ state: String, _ controller: IslandController, rest: CGRect) async {
+        let start = now
+        await until(2) {
+            let now = controller.outlineBounds
+            return abs(now.width - controller.glanceWidthTarget) < 0.1 && abs(now.height - rest.height) < 0.1
         }
+        print("NOTCH \(state) settled after=\(now - start)s")
+        let bounds = controller.outlineBounds
+        print("NOTCH \(state) bounds=\(bounds) target=\(controller.glanceWidthTarget)")
+        IslandVerification.require(near(bounds.width, controller.glanceWidthTarget) && bounds.width > notch.width + 8,
+                                   "\(state) sits in wings beside the notch")
+        IslandVerification.require(bounds.minX <= rest.minX + 0.5 && bounds.maxX >= rest.maxX - 0.5,
+                                   "\(state) keeps the notch covered")
+    }
+
+    private static func notchProfile(controller: IslandController, presenter: IslandPresenter) async {
+        let rest = restingNotch(controller)
         presenter.post(IslandNotice(id: "notch", symbol: "doc.on.doc", text: "Copied", seconds: 3), onTap: nil)
         await IslandVerification.pause(0.6)
         let line = controller.outlineBounds
@@ -63,28 +84,33 @@ enum IslandProfileScenes {
             && line.maxX >= rest.maxX - 0.5, "a text notice opens below and around the notch")
         await controller.capture("notch-notice")
         presenter.end(notice: "notch")
-        await IslandVerification.pause(0.5)
+        await IslandVerification.pause(0.3)
 
         presenter.post(IslandNotice(id: "notch-title", symbol: "arrow.down.circle", text: "Guide.pdf",
                                     progress: IslandProgress(fraction: 0.2)), onTap: nil)
-        await IslandVerification.pause(0.6)
+        await until(1) { controller.showsHeadline }
+        await IslandVerification.pause(0.3)
         IslandVerification.require(controller.showsHeadline, "a titled progress opens with its title below the notch")
-        await IslandVerification.pause(IslandNotice.messageSeconds)
+        await until(IslandNotice.messageSeconds + 1) { !controller.showsHeadline }
         IslandVerification.require(!controller.showsHeadline, "a titled progress settles to the wings after one dwell")
-        beside("titled progress")
+        await beside("titled progress", controller, rest: rest)
         presenter.end(notice: "notch-title")
-        await IslandVerification.pause(0.5)
+        await IslandVerification.pause(0.3)
 
         presenter.post(IslandNotice(id: "notch-ring", symbol: "arrow.down.circle", text: "Downloading…",
                                     progress: IslandProgress(fraction: 0.4, headline: false)), onTap: nil)
-        await IslandVerification.pause(0.6)
-        beside("progress")
+        await IslandVerification.pause(0.1)
+        await beside("progress", controller, rest: rest)
         await controller.capture("notch-progress")
         presenter.end(notice: "notch-ring")
-        await IslandVerification.pause(0.5)
+        await IslandVerification.pause(0.3)
+        IslandVerification.require(controller.captured == ["notch-notice", "notch-progress"], "notice and progress captured")
+    }
 
+    private static func notchGlance(core: AppCore, controller: IslandController, presenter: IslandPresenter) async {
+        let rest = restingNotch(controller)
         await overflow(controller: controller, presenter: presenter, count: 3)
-        beside("status")
+        await beside("status", controller, rest: rest)
         await controller.capture("notch-status")
         await IslandVerification.pause(0.2)
 
@@ -97,13 +123,13 @@ enum IslandProfileScenes {
             && open.maxY >= rest.maxY - 0.5 && open.minX <= rest.minX + 0.5 && open.maxX >= rest.maxX - 0.5,
             "the expansion opens below and around the notch")
         await controller.capture("notch-expanded")
-        await IslandVerification.pause(1.4)
+        await until(1.6) { controller.contentKey == "glance" }
         IslandVerification.require(controller.contentKey == "glance", "the expansion settles to the glance")
-        beside("glance")
+        await beside("glance", controller, rest: rest)
         await controller.capture("notch-glance")
         await IslandVerification.pause(0.3)
-        IslandVerification.require(controller.captured == ["notch-notice", "notch-progress", "notch-status", "notch-expanded",
-                                   "notch-glance"], "notice, progress, status, expansion and glance captured")
+        IslandVerification.require(controller.captured == ["notch-status", "notch-expanded", "notch-glance"],
+                                   "status, expansion and glance captured")
     }
 
     /// Statuses past the wing drop oldest first; the newest stays drawn and still takes the tap.

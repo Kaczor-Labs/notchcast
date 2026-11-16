@@ -59,7 +59,7 @@ private struct LeadCardBadge: View {
             .font(metrics.typography.keyCap)
             .lineLimit(1)
             .minimumScaleFactor(0.6)
-            .foregroundStyle(.secondary)
+            .foregroundStyle(Theme.Colors.textSecondary)
             .padding(.horizontal, metrics.spacing.sm)
             .padding(.vertical, metrics.spacing.xxs)
             .background(
