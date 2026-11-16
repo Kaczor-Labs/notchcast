@@ -1,5 +1,7 @@
-// notchcast-sources: -package-name IslandEngine notchcast/vendor/IslandEngine/Sources/IslandCore/*.swift
+// notchcast-sources: -package-name IslandEngine -module-name IslandCore
+// notchcast-sources: notchcast/vendor/IslandEngine/Sources/IslandCore/*.swift
 // notchcast-sources: Tinycast/Features/Island/Model/IslandLayout.swift
+// notchcast-sources: Tinycast/Features/Island/Model/IslandLayout+Engine.swift
 // notchcast-sources: Tinycast/Features/Island/Model/IslandPosition.swift
 import CoreGraphics
 import Foundation
@@ -15,18 +17,18 @@ enum IslandPositionTest {
                      pill: pill.height)
     }
 
+    static let launcher = CGSize(width: 750, height: 475)
+
     /// The engine's shapes for the layout, with the tops the island controller hands it.
     static func shapes(_ layout: IslandLayout, rest: CGSize) -> [PresentationKind: ShapeTarget] {
         var metrics = IslandMetrics.standard
         metrics.screen = .init(width: canvas.width, height: canvas.height)
-        metrics.top = layout.top
+        layout.applyTops(to: &metrics)
         metrics.idle = .init(width: rest.width, height: rest.height)
         metrics.compact.height = rest.height
-        metrics.expanded.top = layout.top
-        metrics.expanded.padding = .init(top: layout.expandedPadding, side: 0, bottom: 0)
         metrics.expanded.minHeight = pill.height
         metrics.expanded.maxHeight = canvas.height
-        let measure = ContentMeasure(leading: 60, trailing: 40, expandedHeight: 475)
+        let measure = ContentMeasure(leading: 60, trailing: 40, expandedHeight: launcher.height)
         return Dictionary(uniqueKeysWithValues: [PresentationKind.idle, .compact, .expanded].map {
             ($0, ShapeTarget($0, measure: measure, screenWidth: 750, metrics: metrics))
         })
@@ -47,12 +49,12 @@ enum IslandPositionTest {
             expect(shapes[.compact]!.top == shapes[.idle]!.top, "\(position) glance top moved from rest")
             expect(shapes[.expanded]!.top == shapes[.idle]!.top,
                    "\(position) expanded top \(shapes[.expanded]!.top) jumps from rest \(shapes[.idle]!.top)")
-            let opened = layout.contentFrame(CGSize(width: 750, height: 475))
-                .offsetBy(dx: layout.window.minX, dy: layout.window.minY)
+            let opened = layout.contentFrame(launcher).offsetBy(dx: layout.window.minX, dy: layout.window.minY)
             expect(opened.maxY == rest, "\(position) launcher top \(opened.maxY), rest pill top \(rest)")
             expect(layout.openingTop == rest, "\(position) overlays hang from \(layout.openingTop), not \(rest)")
-            let contentTop = shapes[.expanded]!.top + layout.expandedPadding
-            expect(layout.window.maxY - contentTop == opened.maxY, "\(position) engine content top off the launcher")
+            let open = shapes[.expanded]!
+            let contentTop = layout.window.maxY - (open.top + open.height - launcher.height)
+            expect(contentTop == opened.maxY, "\(position) engine content top \(contentTop), launcher \(opened.maxY)")
         }
         expect(IslandPosition.menuBarCenter.drop(menuBar: 37, pill: 24) == 6, "odd room rounds down to whole points")
         for position in IslandPosition.allCases {

@@ -111,25 +111,35 @@ final class IslandController: NSObject {
         closed()
     }
 
+    private func makeLayout(_ screen: NSScreen) -> IslandLayout {
+        IslandLayout(screen: screen.frame, notch: Self.notch(on: screen), canvas: NotchTheme.Size.islandHost,
+                     position: position, menuBar: screen.frame.maxY - screen.visibleFrame.maxY,
+                     pill: NotchTheme.Size.islandRest.height)
+    }
+
+    /// A full-screen Space hides the menu bar without a screen-parameters change, so re-read it.
+    func refreshMenuBar(_ screen: NSScreen) {
+        guard let layout, makeLayout(screen).top != layout.top else { return }
+        configure(screen)
+    }
+
     func configure(_ screen: NSScreen) {
-        let next = IslandLayout(screen: screen.frame, notch: Self.notch(on: screen), canvas: NotchTheme.Size.islandHost,
-                                position: position, menuBar: screen.frame.maxY - screen.visibleFrame.maxY,
-                                pill: NotchTheme.Size.islandRest.height)
-        canvas.scale = screen.backingScaleFactor
+        let next = makeLayout(screen)
         let requested = IslandSurfaceConfiguration(notch: next.notch, top: next.top, scale: screen.backingScaleFactor)
+        let update = requested.update(from: configuration, paletteVisible: panel?.isVisible == true,
+                                      hasOverlays: !overlays.isEmpty)
+        // Until `closed`, the mask, panel and overlays keep the live surface's layout.
+        guard update != .deferred else { pendingScreen = screen; return }
+        pendingScreen = nil
         let moved = layout?.screen != next.screen || layout?.notch != next.notch || layout?.top != next.top
         layout = next
+        canvas.scale = screen.backingScaleFactor
         canvas.show(glance: glance, level: level, notice: notice, statuses: statuses, expanded: expanded,
                     notch: next.notchWidth)
         backdrop.setFrame(next.window, display: false)
-        switch requested.update(from: configuration, paletteVisible: panel?.isVisible == true,
-                                hasOverlays: !overlays.isEmpty) {
-        case .keep: pendingScreen = nil
-        case .deferred: pendingScreen = screen
-        case .recreate:
+        if update == .recreate {
             surface = nil
             configuration = requested
-            pendingScreen = nil
         }
         if moved, let panel, panel.isVisible {
             let frame = next.contentFrame(panel.frame.size).offsetBy(dx: next.window.minX, dy: next.window.minY)
@@ -141,13 +151,11 @@ final class IslandController: NSObject {
         }
         var metrics = IslandMetrics.standard
         metrics.screen = .init(width: next.canvas.width, height: next.canvas.height)
-        metrics.top = next.top
+        next.applyTops(to: &metrics)
         metrics.idle = .init(width: next.hasNotch ? next.notch.width : NotchTheme.Size.islandRest.width,
                              height: next.hasNotch ? next.notch.height * 2 : NotchTheme.Size.islandRest.height)
         metrics.corner.smoothing = 0
-        metrics.expanded.top = next.top
         metrics.expanded.sideInset = 0
-        metrics.expanded.padding = .init(top: next.expandedPadding, side: 0, bottom: 0)
         metrics.expanded.rowGap = 0
         metrics.expanded.centerTop = 0
         metrics.expanded.minHeight = NotchTheme.Size.islandRest.height

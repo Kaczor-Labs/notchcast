@@ -126,6 +126,7 @@ final class IslandCoordinator: NSObject {
             let full = await Self.confirmFullScreen(candidates)
             guard !Task.isCancelled, let self else { return }
             for (id, backdrop) in backdrops { backdrop.onFullScreenSpace = full.contains(id) }
+            for screen in screens { backdrops[screen.islandDisplayID]?.refreshMenuBar(screen) }
         }
     }
 
