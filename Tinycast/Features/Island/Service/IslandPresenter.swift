@@ -1,7 +1,7 @@
 import AppKit
 import Observation
 
-/// Renders levels and the meeting expansion; notices and status reach only accessibility so far.
+/// Renders levels, notices, status and the meeting expansion on the resting pill.
 @MainActor
 final class IslandPresenter: IslandPresenting {
     private var dwell = IslandLevelDwell()
@@ -42,6 +42,7 @@ final class IslandPresenter: IslandPresenting {
         self.notice = notice
         noticeTap = onTap
         AppCore.shared.island.resting?.notice = notice
+        updateExpansion()
         guard isNew else { return }
         NSAccessibility.post(element: NSApp as Any, notification: .announcementRequested,
             userInfo: [.announcement: notice.text, .priority: NSAccessibilityPriorityLevel.high.rawValue])
@@ -55,6 +56,7 @@ final class IslandPresenter: IslandPresenting {
         notice = nil
         noticeTap = nil
         AppCore.shared.island.resting?.notice = nil
+        updateExpansion()
     }
 
     func setStatus(_ status: IslandStatus?, for id: String, onTap: (@MainActor () -> Void)?) {
@@ -116,7 +118,7 @@ final class IslandPresenter: IslandPresenting {
 
     private func updateExpansion() {
         let core = AppCore.shared
-        if expansion.update(carded: occurrence, waiting: dwell.level != nil,
+        if expansion.update(carded: occurrence, waiting: dwell.level != nil || notice != nil,
                             covered: core.palette.isVisible || core.isShowingDialog, at: Self.now) {
             expansionTask?.cancel()
             expansionTask = settleWhenExpanded(expansion.presentation)
