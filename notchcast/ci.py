@@ -7,6 +7,7 @@
     ci.py app-info <tag> <dir>              name, bundle id, version and build of upstream's release zip
     ci.py issue open <kind> <title> <cause> [<details.md>] | issue close <kind>
     ci.py design-notice <tree> <old upstream> <new upstream>
+    ci.py hold <moved_at> [<now>]           PR list JSON on stdin: exit 0 while the rebase hold is on (kick.sh), else 1
     ci.py tested-key [<commit>]             tree of the commit without project, scheme, README: pr.yml names its artifact by it, plan looks main's up
     ci.py tested-run [<commit>]             URL of the green PR build of that tree, or nothing: land.sh skips its harness pass on it
 
@@ -105,6 +106,12 @@ def rebase_hold(prs, moved_at, now):
     if left > 0:
         return True, f"open PRs {names}; {left:.1f} h of 12 left"
     return False, f"::warning::main: 12-hour hold expired with PRs {names} still open"
+
+
+def hold(moved_at, now=None):
+    held, message = rebase_hold(json.load(sys.stdin), int(moved_at), int(now) if now else time.time())
+    print(message)
+    sys.exit(0 if held else 1)
 
 
 def tested_key(commit="HEAD", cwd=None):
@@ -474,4 +481,4 @@ if __name__ == "__main__":
     command, args = sys.argv[1], sys.argv[2:]
     {"plan": plan, "replay": replay, "regenerate": regenerate, "app-info": app_info, "issue": issue,
      "design-notice": design_notice, "tested-key": lambda *a: print(tested_key(*a)),
-     "tested-run": tested_build_url}[command](*args)
+     "tested-run": tested_build_url, "hold": hold}[command](*args)
