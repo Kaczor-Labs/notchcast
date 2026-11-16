@@ -1,10 +1,10 @@
 #!/bin/bash
 # Runs land.sh's drift gates, the private-data checks leaks.yml runs, then every gate pr.yml runs in its order (ci-build.sh, harnesses included),
-# on HEAD against a base ref.
+# then check-addon-delete.py --rotate when the branch changes Tinycast/Features/Notchcast/, on HEAD against a base ref.
 # Prints retried and ignored harnesses then PASS, or FAIL with the first failing gate. ready-check-test.py ties it to pr.yml.
 set -euo pipefail
-[[ $# -le 1 ]] || { echo 'usage: ready-check.sh [base-ref, default origin/v2/stack]' >&2; exit 2; }
-base_ref=${1:-origin/v2/stack}
+[[ $# -le 1 ]] || { echo 'usage: ready-check.sh [base-ref, default origin/main]' >&2; exit 2; }
+base_ref=${1:-origin/main}
 cd "$(git rev-parse --show-toplevel)"
 # The identity gate runs with the caller's PATH and no git or Python environment that HEAD's config.env sets.
 clean=(/usr/bin/env -i HOME="$HOME" PATH="$PATH" GIT_CONFIG_NOSYSTEM=1)
@@ -103,6 +103,15 @@ if (cd "$tree" && ${queue[@]+"${queue[@]}"} bash notchcast/ci-build.sh) >> "$log
         | sort -u | paste -sd ' ' -)
     echo "retried: ${retried:-none}"
     echo "ignored (fails upstream too): ${ignored:-none}"
+    # The delete test costs one more Debug build, so only a branch that changes add-on code pays it.
+    if [ -n "$(git -C "$tree" diff --name-only "$BASE_SHA" "$HEAD_SHA" -- Tinycast/Features/Notchcast/)" ]; then
+        if ! (cd "$tree" && python3 -I notchcast/check-addon-delete.py --rotate --ref "$HEAD_SHA") >> "$log" 2>&1; then
+            sed -n '/^FAIL delete/p' "$log"
+            echo "FAIL addon-delete; log: $log"
+            exit 1
+        fi
+        sed -nE 's/^(PASS delete .*|no add-on folders .*)$/addon-delete: \1/p' "$log"
+    fi
     echo "PASS ${HEAD_SHA:0:12} against $base_ref (${BASE_SHA:0:12})"
 else
     step=$(cat "$scratch/step" 2>/dev/null || echo setup)

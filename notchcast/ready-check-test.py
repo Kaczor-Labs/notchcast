@@ -122,6 +122,15 @@ sys.exit((root / 'drift-fail').exists())
 """
 
 
+# Fails when the judged tree has delete-fail; prints its arguments as the delete test's verdict line.
+DELETE_STUB = """import sys
+from pathlib import Path
+verdict = 'FAIL' if Path('delete-fail').exists() else 'PASS'
+print(verdict, 'delete Stub', *sys.argv[1:])
+sys.exit(verdict == 'FAIL')
+"""
+
+
 class BehaviourTest(unittest.TestCase):
     def setUp(self):
         scratch = tempfile.TemporaryDirectory(prefix="ready-check-")
@@ -139,6 +148,7 @@ class BehaviourTest(unittest.TestCase):
             'for s in xcode build lint; do echo "$s" > "$RUNNER_TEMP/step"; [ ! -e "fail-$s" ] || exit 1; done\n'
             'echo "base=$BASE_SHA head=$HEAD_SHA sharded=${NOTCHCAST_HARNESSES_SHARDED:-} pwd=$PWD"\n')
         shutil.copy(ROOT / "notchcast/drift-gates.sh", self.repo / "notchcast/drift-gates.sh")
+        (self.repo / "notchcast/check-addon-delete.py").write_text(DELETE_STUB)
         (self.repo / "notchcast/check-drift.py").write_text(DRIFT_STUB)
         self.git("init", "-q", "-b", "main")
         self.commit("base")
@@ -181,6 +191,16 @@ class BehaviourTest(unittest.TestCase):
         log = (self.root / "home/Library/Caches/notchcast/ready-check" / f"{head[:12]}.log").read_text()
         self.assertIn(f"base={self.git('rev-parse', 'base')} head={head} sharded= ", log)
         self.assertNotIn(str(self.repo), log.split("pwd=")[1], "the build must run in a clone outside the checkout")
+
+    def test_the_default_base_is_origin_main(self):
+        self.git("update-ref", "refs/remotes/origin/main", "base")
+        self.commit("stack", "stack.txt")
+        self.git("update-ref", "refs/remotes/origin/v2/stack", "HEAD")
+        self.commit("work", "work.txt")
+        result = self.check()
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertEqual(result.stdout.splitlines()[-1],
+                         f"PASS {self.git('rev-parse', 'HEAD')[:12]} against origin/main ({self.git('rev-parse', 'base')[:12]})")
 
     def test_pass_names_retried_and_ignored_harnesses(self):
         lines = self.check("base").stdout.splitlines()
@@ -349,6 +369,29 @@ class BehaviourTest(unittest.TestCase):
             self.assertNotIn("FAIL footprint", self.check("base").stdout, core)
         self.env["NOTCHCAST_READY_BRANCH"] = "v2/addons-core-8-land"
         self.assertIn("FAIL footprint", self.check("base").stdout)
+
+    def test_the_delete_test_runs_only_when_addon_code_changes(self):
+        self.commit("work", "work.txt")
+        result = self.check("base")
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertNotIn("delete", result.stdout)
+        (self.repo / "Tinycast/Features/Notchcast/Stub").mkdir(parents=True)
+        self.commit("addon", "Tinycast/Features/Notchcast/Stub/Stub.swift")
+        result = self.check("base")
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        head = self.git("rev-parse", "HEAD")
+        self.assertEqual(result.stdout.splitlines()[-2:],
+                         [f"addon-delete: PASS delete Stub --rotate --ref {head}",
+                          f"PASS {head[:12]} against base ({self.git('rev-parse', 'base')[:12]})"])
+
+    def test_a_failing_delete_test_fails_the_check(self):
+        (self.repo / "Tinycast/Features/Notchcast/Stub").mkdir(parents=True)
+        self.commit("addon", "Tinycast/Features/Notchcast/Stub/Stub.swift")
+        self.commit("breach", "delete-fail")
+        result = self.check("base")
+        self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+        self.assertEqual(result.stdout.splitlines()[-2], f"FAIL delete Stub --rotate --ref {self.git('rev-parse', 'HEAD')}")
+        self.assertRegex(result.stdout.splitlines()[-1], r"^FAIL addon-delete; log: ")
 
     def test_a_builders_branch_never_reaches_the_fixtures(self):
         with open(self.repo / "notchcast/check-drift.py", "a") as stub:
