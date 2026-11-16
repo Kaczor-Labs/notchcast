@@ -22,6 +22,9 @@ final class IslandController: NSObject {
     private(set) var captured: [String] = []
     #endif
     var showsRest = true
+    /// Read at `configure`, so a change takes effect when the coordinator reconfigures the screen.
+    var position = IslandPosition.topEdge
+    var openingTop: CGFloat? { layout?.openingTop }
     /// AppKit's getter keeps returning `.none` once set, so it also says the window was ever hidden.
     var sharingType: NSWindow.SharingType {
         get { backdrop.sharingType }
@@ -101,9 +104,11 @@ final class IslandController: NSObject {
     }
 
     func configure(_ screen: NSScreen) {
-        let next = IslandLayout(screen: screen.frame, notch: Self.notch(on: screen), canvas: NotchTheme.Size.islandHost)
-        let requested = IslandSurfaceConfiguration(notch: next.notch, scale: screen.backingScaleFactor)
-        let moved = layout?.screen != next.screen || layout?.notch != next.notch
+        let next = IslandLayout(screen: screen.frame, notch: Self.notch(on: screen), canvas: NotchTheme.Size.islandHost,
+                                position: position, menuBar: screen.frame.maxY - screen.visibleFrame.maxY,
+                                pill: NotchTheme.Size.islandRest.height)
+        let requested = IslandSurfaceConfiguration(notch: next.notch, top: next.top, scale: screen.backingScaleFactor)
+        let moved = layout?.screen != next.screen || layout?.notch != next.notch || layout?.top != next.top
         layout = next
         canvas.show(glance: glance, level: level, notice: notice, statuses: statuses, expanded: expanded,
                     notch: next.notchWidth)
@@ -133,7 +138,7 @@ final class IslandController: NSObject {
         metrics.corner.smoothing = 0
         metrics.expanded.top = next.top
         metrics.expanded.sideInset = 0
-        metrics.expanded.padding = .init(top: next.contentTop * 2, side: 0, bottom: 0)
+        metrics.expanded.padding = .init(top: next.expandedPadding, side: 0, bottom: 0)
         metrics.expanded.rowGap = 0
         metrics.expanded.centerTop = 0
         metrics.expanded.minHeight = NotchTheme.Size.islandRest.height
@@ -186,7 +191,7 @@ final class IslandController: NSObject {
         if suspended { backdrop.orderOut(nil) }
         let palette = panel.flatMap { $0.isVisible ? $0.frame : nil }
         let overlay = IslandOverlayLayout(screen: layout.screen,
-            contentTop: layout.screen.maxY - layout.contentTop, palette: palette,
+            contentTop: layout.openingTop, palette: palette,
             inset: NotchTheme.Spacing.islandInset, gap: Theme.Spacing.xl).surface(overlays)
         let size = CGSize(width: max(palette?.width ?? 0, overlay?.width ?? 0),
                           height: max(palette?.height ?? 0, overlay?.height ?? 0))

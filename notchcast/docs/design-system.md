@@ -60,7 +60,7 @@ Reference: HIG Live Activities, "Use consistent margins and concentric placement
 | Element | Rule | Token |
 | --- | --- | --- |
 | Launcher, every state (compact empty, compact with results, expanded) | One width; the island's stage width follows the palette frame and never shrinks to the capsule. Height: `metrics.size.compactHeight` (56) compact, `metrics.size.panelHeight` (475) expanded. | `metrics.size.panelWidth` (750) |
-| Pill at rest | The sensor's size on a notched screen; otherwise the rest size. | `NotchTheme.Size.islandRest` (96 × 24) |
+| Pill at rest | The sensor's size on a notched screen; otherwise the rest size, hung from the screen's top edge (default) or, by `appearance.islandPosition`, centred in or flush with the bottom of the menu bar (3 or 6 pt down on a 30 pt bar). Every island surface opens from that pill's top. | `NotchTheme.Size.islandRest` (96 × 24) |
 | Glance, status, compact notice | The rest pill plus at most one wing per side. | `NotchTheme.Size.islandGlanceWing` (140) |
 | Level art | Its own cell and track, never the rest pill's size. | `NotchTheme.Size.islandLevelCell`, `islandLevelTrack` (§15) |
 | Menus | A fixed width token per menu; the pill menu and ⌘K use the action width. | `metrics.size.actionMenuWidth` (320), `menuWidth`, `clipboardFilterMenuWidth`, `fileSearchFilterMenuWidth`, `emojiCategoryMenuWidth` |

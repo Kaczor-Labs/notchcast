@@ -34,6 +34,7 @@ struct SettingsBackup: Codable {
         var showInMenuBar: Bool?
         var automaticallyCheckForUpdates: Bool?
         var islandShowsInCaptures: Bool?
+        var islandPosition: String?
         var popToRootSeconds: Int?
         var escapeKeyBehavior: String?
         var appearance: String?
@@ -154,6 +155,7 @@ extension SettingsBackup {
             showInMenuBar: s.showInMenuBar,
             automaticallyCheckForUpdates: s.automaticallyCheckForUpdates,
             islandShowsInCaptures: s.islandShowsInCaptures,
+            islandPosition: s.islandPosition.rawValue,
             popToRootSeconds: s.popToRootTimeout.rawValue,
             escapeKeyBehavior: s.escapeKeyBehavior.rawValue,
             appearance: s.appearance.rawValue,
@@ -373,6 +375,10 @@ extension SettingsBackup {
         }
         if let shows = s.islandShowsInCaptures {
             settings.islandShowsInCaptures = shows
+            count += 1
+        }
+        if let raw = s.islandPosition, let position = IslandPosition(rawValue: raw) {
+            settings.islandPosition = position
             count += 1
         }
         if let secs = s.popToRootSeconds, let timeout = PopToRootTimeout(rawValue: secs) {

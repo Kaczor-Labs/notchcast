@@ -178,6 +178,11 @@ final class AppSettings {
         didSet { defaults.set(islandShowsInCaptures, forKey: Key.islandShowsInCaptures.rawValue) }
     }
 
+    /// Only a display without a notch reads it; `IslandCoordinator` rebuilds the pills on change.
+    var islandPosition: IslandPosition {
+        didSet { defaults.set(islandPosition.rawValue, forKey: Key.islandPosition.rawValue) }
+    }
+
     /// The physical key remapped to the Hyper chord; `HyperKeyManager` reacts via its observer.
     var hyperKey: HyperKeyPhysicalKey {
         didSet { defaults.set(hyperKey.rawValue, forKey: Key.hyperKey.rawValue) }
@@ -719,6 +724,8 @@ final class AppSettings {
             defaults.object(forKey: Key.automaticallyCheckForUpdates.rawValue) == nil
             || defaults.bool(forKey: Key.automaticallyCheckForUpdates.rawValue)
         islandShowsInCaptures = defaults.object(forKey: Key.islandShowsInCaptures.rawValue) as? Bool ?? true
+        islandPosition =
+            defaults.string(forKey: Key.islandPosition.rawValue).flatMap(IslandPosition.init) ?? .topEdge
         hyperKey =
             defaults.string(forKey: Key.hyperKey.rawValue).flatMap(HyperKeyPhysicalKey.init)
             ?? .none
