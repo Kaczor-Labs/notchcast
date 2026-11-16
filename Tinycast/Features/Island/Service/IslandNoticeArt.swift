@@ -30,9 +30,9 @@ struct IslandNoticeArt: PillArt {
                                     separator: 0, countdown: trailing, wing: wing)
     }
 
-    /// Rounded down, so the wing never claims 100% before the job ends.
+    /// Rounded down so the wing never claims 100% early; plain digits keep it to four characters.
     static func percent(_ fraction: Double) -> String {
-        (floor(min(max(fraction, 0), 1) * 100) / 100).formatted(.percent.precision(.fractionLength(0)))
+        "\(Int(floor(min(max(fraction, 0), 1) * 100 + 1e-9)))%"
     }
 
     func draw(in pill: CGRect) {

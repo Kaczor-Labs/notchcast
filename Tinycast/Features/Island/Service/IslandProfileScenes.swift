@@ -65,6 +65,16 @@ enum IslandProfileScenes {
         presenter.end(notice: "notch")
         await IslandVerification.pause(0.5)
 
+        presenter.post(IslandNotice(id: "notch-title", symbol: "arrow.down.circle", text: "Guide.pdf",
+                                    progress: IslandProgress(fraction: 0.2)), onTap: nil)
+        await IslandVerification.pause(0.6)
+        IslandVerification.require(controller.showsHeadline, "a titled progress opens with its title below the notch")
+        await IslandVerification.pause(IslandNotice.messageSeconds)
+        IslandVerification.require(!controller.showsHeadline, "a titled progress settles to the wings after one dwell")
+        beside("titled progress")
+        presenter.end(notice: "notch-title")
+        await IslandVerification.pause(0.5)
+
         presenter.post(IslandNotice(id: "notch-ring", symbol: "arrow.down.circle", text: "Downloading…",
                                     progress: IslandProgress(fraction: 0.4, headline: false)), onTap: nil)
         await IslandVerification.pause(0.6)

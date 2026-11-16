@@ -38,13 +38,21 @@ struct IslandNoticeTest {
         precondition(queue.notice?.isHeadline == false && queue.notice?.progress?.fraction == 0.8,
                      "A same-title repost stays compact and moves its ring")
         queue.post(IslandNotice(id: "page", text: "2 of 2: Next", progress: IslandProgress(fraction: 0)), at: 4)
-        precondition(queue.notice?.isHeadline == true && near(queue.remaining(at: 4), 2.4), "A new title headlines again")
-        queue.post(IslandNotice(id: "done", text: "Saved"), at: 5)
+        precondition(queue.notice?.isHeadline == false && queue.remaining(at: 99) == nil,
+                     "A compact progress stays compact whatever its text, until it is ended")
+        queue.end("page", at: 4.5)
+        queue.post(IslandNotice(id: "page", text: "2 of 2: Next", progress: IslandProgress(fraction: 0)), at: 5)
+        precondition(queue.notice?.isHeadline == true && near(queue.remaining(at: 5), 2.4),
+                     "An ended progress posted again headlines again")
+        queue.post(IslandNotice(id: "done", text: "Saved"), at: 6)
         precondition(queue.notice?.isHeadline == true, "A result notice headlines")
-        queue.expire(at: 7.4)
-        precondition(queue.notice?.id == "page" && near(queue.remaining(at: 7.4), 1.4),
+        queue.expire(at: 8.4)
+        precondition(queue.notice?.id == "page" && near(queue.remaining(at: 8.4), 1.4),
                      "A covered headline resumes with the time it had left")
-        queue.end("page", at: 8)
+        queue.post(IslandNotice(id: "page", text: "3 of 3: Last", progress: IslandProgress(fraction: 0)), at: 9)
+        precondition(queue.notice?.isHeadline == true && near(queue.remaining(at: 9), 0.8),
+                     "A new text while headlining keeps the time left, so a fast playlist settles")
+        queue.end("page", at: 10)
 
         queue.post(IslandNotice(id: "a", text: "First"), at: 0)
         queue.post(IslandNotice(id: "b", text: "Second", seconds: 4), at: 1)

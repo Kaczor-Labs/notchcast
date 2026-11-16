@@ -11,6 +11,7 @@ final class IslandCanvas: NSView {
     private var leaving: IslandHeadlineArt?
     /// The palette or a report owns the grown shape, so no notice line draws inside it.
     var covered = false
+    var drawnLine: IslandHeadlineArt? { covered ? nil : headline ?? leaving }
     var restWidth: CGFloat = 0
     var restHeight: CGFloat = 1
     var glanceWidth: CGFloat = 0
@@ -26,14 +27,14 @@ final class IslandCanvas: NSView {
         context.fillPath()
         let bounds = outline.boundingBoxOfPath
         if covered { leaving = nil }
-        let line = covered ? nil : headline ?? leaving
+        let line = drawnLine
         guard glance != nil || expansion != nil || line != nil else { return }
         let travel = glanceWidth - restWidth
         context.saveGState()
         context.addPath(outline)
         context.clip()
         let grown = abs(travel) < 1 ? 1 : min(max((bounds.width - restWidth) / travel, 0), 1)
-        let open = line?.size.height ?? expansion?.size.height ?? restHeight
+        let open = headline?.size.height ?? expansion?.size.height ?? leaving?.size.height ?? restHeight
         let expanding = min(max((bounds.height - restHeight) / open, 0), 1)
         // A layer, because NSImage.draw resets the context's alpha and glyphs ignored the fade.
         func fade(_ alpha: CGFloat, _ draw: () -> Void) {
@@ -104,6 +105,7 @@ final class IslandCanvas: NSView {
         } else { nil }
         self.glance = art
         expansion = level == nil && notice == nil && expanded ? glance.map(IslandExpansionArt.init) : nil
+        if expansion != nil { leaving = nil }
     }
 }
 

@@ -14,7 +14,7 @@ struct IslandNoticeQueue: Sendable {
 
     var notice: IslandNotice? { entries.last?.notice }
 
-    /// A repost keeps its place and restarts its dwell; a headline restarts only for a new text.
+    /// A repost keeps its place and restarts its dwell; a progress headlines once until ended.
     mutating func post(_ notice: IslandNotice, at now: TimeInterval) {
         settle(at: now)
         var notice = notice
@@ -22,10 +22,10 @@ struct IslandNoticeQueue: Sendable {
         let left: TimeInterval?
         if notice.progress == nil {
             left = notice.dwell
-        } else if let index, let shown = entries[index].notice.progress, notice.isHeadline,
-                  entries[index].notice.text == notice.text {
-            left = entries[index].left
-            notice.progress?.headline = shown.headline
+        } else if let index, let shown = entries[index].notice.progress {
+            let headline = shown.headline && notice.isHeadline
+            notice.progress?.headline = headline
+            left = headline ? entries[index].left : nil
         } else {
             left = notice.isHeadline ? IslandNotice.messageSeconds : nil
         }
