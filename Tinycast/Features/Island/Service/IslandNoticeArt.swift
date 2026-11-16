@@ -4,6 +4,7 @@ import AppKit
 struct IslandNoticeArt: PillArt {
     let layout: IslandGlanceLayout
     let notice: IslandNotice
+    let tone: NSColor
     private let notch: Bool
     private let glyph: NSImage?
     private let text: NSAttributedString
@@ -12,11 +13,14 @@ struct IslandNoticeArt: PillArt {
     private let cell = NotchTheme.Typography.islandGlanceNSFont.pointSize + Theme.Spacing.xs
     private let gap = Theme.Spacing.sm
     private let edge = Theme.Spacing.lg
+    static let failureTone = NSColor(Theme.Colors.destructive)
 
     init(_ notice: IslandNotice, notch: Bool) {
         self.notice = notice
         self.notch = notch
-        glyph = notice.progress == nil ? notice.symbol.flatMap(GlanceArt.glyph) : nil
+        let tone = notice.isFailure ? Self.failureTone : NSColor(Theme.Colors.textPrimary)
+        self.tone = tone
+        glyph = notice.progress == nil ? notice.symbol.flatMap { GlanceArt.glyph($0, tone: tone) } : nil
         let paragraph = NSMutableParagraphStyle()
         paragraph.lineBreakMode = .byTruncatingTail
         text = NSAttributedString(string: notice.text, attributes: [.font: NotchTheme.Typography.islandGlanceNSFont,
