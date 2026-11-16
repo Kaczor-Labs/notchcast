@@ -10,6 +10,7 @@
 // notchcast-sources: Tinycast/Features/Island/Model/PillMenuRows.swift Tinycast/Features/Calendar/Model/*.swift
 // notchcast-sources: Tinycast/Features/Island/Service/IslandNoticeArt.swift
 // notchcast-sources: Tinycast/Features/Island/Service/IslandLevelArt.swift
+// notchcast-sources: Tinycast/Features/Island/Model/IslandKeyline.swift
 // notchcast-sources: Tinycast/Features/Island/Service/IslandCanvas.swift
 // notchcast-sources: Tinycast/Features/Island/Service/IslandExpansionArt.swift
 // notchcast-sources: Tinycast/Platform/Images/IconCache.swift

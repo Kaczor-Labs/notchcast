@@ -14,6 +14,7 @@ enum SettingsBackupCoverage {
         "showInMenuBar": .showInMenuBar,
         "automaticallyCheckForUpdates": .automaticallyCheckForUpdates,
         "islandShowsInCaptures": .islandShowsInCaptures,
+        "islandOutlineWhenOpen": .islandOutlineWhenOpen,
         "emojiSkinTone": .emojiSkinTone,
         "emojiGridColumns": .emojiGridColumns,
         "popToRootSeconds": .popToRootTimeout,
