@@ -51,7 +51,7 @@ struct AttachmentChip: View {
                 .foregroundStyle(Theme.Colors.textSecondary)
             Button(action: onRemove) {
                 Image(systemName: "xmark")
-                    .font(.system(size: 9, weight: .semibold))
+                    .font(metrics.typography.removeGlyph)
                     .frame(
                         width: metrics.size.chatAttachmentRemove,
                         height: metrics.size.chatAttachmentRemove
