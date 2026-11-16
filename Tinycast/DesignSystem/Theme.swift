@@ -410,6 +410,8 @@ enum Theme {
         static let composerSymbol = Font.system(size: 13, weight: .medium)
         static let composerSend = Font.system(size: 13, weight: .bold)
         static let composerStop = Font.system(size: 10, weight: .bold)
+        static let indicatorGlyphSize: CGFloat = 10
+        static let removeGlyphSize: CGFloat = 9
     }
 
     enum Colors {

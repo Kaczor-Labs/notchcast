@@ -124,6 +124,7 @@ private struct SnippetRow: View {
 }
 
 struct SnippetPreview: View {
+    @Environment(\.metrics) private var metrics
     let record: StoredSnippet?
 
     var body: some View {
@@ -139,7 +140,7 @@ struct SnippetPreview: View {
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
                 SnippetInfoSection(record: record)
             }
-            .padding(.horizontal, 12)
+            .padding(.horizontal, metrics.spacing.xl)
         } else {
             Color.clear
         }

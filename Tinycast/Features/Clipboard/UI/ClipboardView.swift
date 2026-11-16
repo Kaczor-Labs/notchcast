@@ -301,7 +301,7 @@ struct ClipboardPreview: View {
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
                 ClipboardInfoSection(item: item, imageURL: store.imageURL(for: item))
             }
-            .padding(.horizontal, 12)
+            .padding(.horizontal, metrics.spacing.xl)
         } else {
             Color.clear
         }
@@ -393,7 +393,7 @@ private struct ClipboardInfoSection: View {
                         if let icon = row.icon {
                             Image(nsImage: icon)
                                 .resizable()
-                                .frame(width: 20, height: 20)
+                                .frame(width: metrics.size.menuIcon, height: metrics.size.menuIcon)
                         }
                         Text(row.value).lineLimit(1).truncationMode(.middle)
                     }
