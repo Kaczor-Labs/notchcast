@@ -12,6 +12,7 @@ enum IslandScenes {
         if scene == "volume" { await IslandVolumeScenes.rest(core: core, screen: screen); return }
         if scene == "volume-palette-open" { await IslandVolumeScenes.paletteOpen(core: core, screen: screen); return }
         if IslandMeetingScenes.names.contains(scene) { await IslandMeetingScenes.run(scene, core: core, screen: screen); return }
+        if IslandProfileScenes.names.contains(scene) { await IslandProfileScenes.run(scene, core: core, screen: screen); return }
         if IslandPillScenes.names.contains(scene) { await IslandPillScenes.run(scene, core: core, screen: screen); return }
         core.paletteCoordinator.showPalette(mode: .launcher)
         guard let panel = NSApp.windows.first(where: { $0 is PalettePanel }) as? PalettePanel else {
@@ -54,7 +55,7 @@ enum IslandScenes {
         let top = screen.frame.maxY - IslandController.notch(on: screen).height
         IslandVerification.require(abs(panel.frame.maxY - top) < 0.01, "native panel meets island top")
         guard let controller = core.island.active else { IslandVerification.require(false, "active island"); return }
-        controller.capture(scene)
+        await controller.capture(scene)
         await IslandVerification.pause(0.3)
         IslandVerification.require(controller.captured.contains(scene), "scene layer capture \(scene)")
         pass(scene, screen: screen)
