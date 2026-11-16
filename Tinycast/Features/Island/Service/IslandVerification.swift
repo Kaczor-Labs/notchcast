@@ -106,7 +106,7 @@ enum IslandVerification {
         await pause(0.55)
         await controller.capture("open-end")
         await pause(0.13)
-        let outset = Theme.Size.paletteGlassOutset
+        let outset = IslandPaletteSurface.renderingOutset(collapsed: true, stock: IslandVerification.stock)
         let compact = PalettePlacement.frame(at: CGPoint(x: frame.minX, y: frame.maxY - outset),
             size: CGSize(width: 750, height: 56), outset: outset)
         print("PROOF_EVENT compact \(CACurrentMediaTime())")

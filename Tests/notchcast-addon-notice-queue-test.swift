@@ -109,6 +109,7 @@ struct AddonNoticeQueueTest {
         turn(0.05)
         print("\(label): showing once uncovered: \(pill?.notice?.text ?? "nothing")")
         check("\(label): the notice did not expire unseen", pill?.notice?.text == text)
+        let dwell = pill?.notice?.dwell ?? Self.dwell
         turn(dwell - tolerance - Date().timeIntervalSince(uncovered))
         check("\(label): it still shows just before a full dwell", pill?.notice?.text == text)
         let deadline = Date().addingTimeInterval(10)

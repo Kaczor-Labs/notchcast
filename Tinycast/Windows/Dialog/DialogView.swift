@@ -9,16 +9,9 @@ extension DialogTone {
         case .danger: return Theme.Colors.destructive
         }
     }
-
-    var tileFill: Color {
-        switch self {
-        case .neutral: return tint.opacity(0.12)
-        case .success, .danger: return tint.opacity(0.18)
-        }
-    }
 }
 
-/// Tinycast's Liquid Glass dialog, compact unless a native control needs more room.
+/// The island's question dialog, compact unless a native control needs more room.
 struct DialogView: View {
     @Environment(\.metrics) private var metrics
     let request: DialogRequest
@@ -59,7 +52,6 @@ struct DialogView: View {
         }
         .padding(metrics.spacing.dialogInset)
         .frame(width: width, alignment: .leading)
-        .background(Theme.Colors.panelScrim, in: shape)
         .background(NotchTheme.Colors.islandSurface, in: shape)
     }
 
@@ -118,15 +110,8 @@ private struct DialogSymbol: View {
     let tone: DialogTone
 
     var body: some View {
-        SymbolImage(name: name, size: metrics.size.dialogSymbol, monochrome: true)
+        SymbolImage(name: name, size: metrics.size.dialogIcon, monochrome: true)
             .foregroundStyle(symbolTint)
-            .frame(
-                width: metrics.size.dialogSymbolContainer,
-                height: metrics.size.dialogSymbolContainer
-            )
-            .background(
-                RoundedRectangle(cornerRadius: metrics.radius.dialogSymbol, style: .continuous)
-                    .fill(tone.tileFill))
     }
 
     /// Neutral glyphs need the same legibility as a key-cap symbol; semantic colours stay intact.
