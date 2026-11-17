@@ -1,1 +1,8 @@
-{}
+{
+  "hidden-settings": [
+    "Tinycast/App/TinycastApp.swift",
+    "Tinycast/Features/Settings/AppSettings.swift",
+    "Tinycast/Features/Settings/AppSettingsKey.swift",
+    "Tinycast/Features/Notchcast/Hidden/*"
+  ]
+}
