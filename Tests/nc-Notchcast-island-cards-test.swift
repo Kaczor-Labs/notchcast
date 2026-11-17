@@ -125,7 +125,7 @@ struct NotchcastIslandCardsTest {
         check(disc > 0, "island jump disc is not filled: \(disc)")
         check(abs(rim - disc) <= 1, "island jump disc has a rim: \(rim) vs disc \(disc)")
 
-        // A rule inside a card reads against its fill, over the fill or over bare ground, Dark and Light.
+        // A rule inside a card reads against its fill, over it or over bare ground, Dark and Light.
         var rules = [String]()
         for dark in [true, false] {
             NSApplication.shared.appearance = NSAppearance(named: dark ? .darkAqua : .aqua)
