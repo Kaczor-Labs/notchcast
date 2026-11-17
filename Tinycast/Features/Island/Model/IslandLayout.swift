@@ -8,10 +8,25 @@ struct IslandSurfaceConfiguration: Equatable, Sendable {
 
     enum Update { case keep, recreate, deferred }
 
-    func update(from current: Self?, paletteVisible: Bool, hasOverlays: Bool) -> Update {
+    /// A rebuild drops the engine's running springs, so it waits for the pill to settle too.
+    func update(from current: Self?, paletteVisible: Bool, hasOverlays: Bool, animating: Bool = false) -> Update {
         guard let current else { return .recreate }
         guard self != current else { return .keep }
-        return paletteVisible || hasOverlays ? .deferred : .recreate
+        return paletteVisible || hasOverlays || animating ? .deferred : .recreate
+    }
+}
+
+/// The latest configure held back until the island can take it; releasing hands it out once.
+struct IslandHold<Value> {
+    private var value: Value?
+
+    mutating func hold(_ value: Value) { self.value = value }
+    mutating func drop() { value = nil }
+
+    mutating func release(blocked: Bool) -> Value? {
+        guard !blocked else { return nil }
+        defer { value = nil }
+        return value
     }
 }
 
