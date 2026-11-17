@@ -396,53 +396,62 @@ struct CustomCommandTests {
             "both streams keep the order they were written in",
             places.allSatisfy { $0 != nil } && places[0]! < places[1]! && places[1]! < places[2]!)
 
-        // A pipe would block-buffer this and deliver it all at exit; a pty must not.
-        let live = ShellCommandRunner.stream("echo first; sleep 1; echo second")
-        let began = Date()
-        var firstOutputAt: TimeInterval?
-        for await event in live.events {
-            if case .output = event, firstOutputAt == nil {
-                firstOutputAt = Date().timeIntervalSince(began)
-            }
+        let replies = FileManager.default.temporaryDirectory
+            .appendingPathComponent("tinycast-replies-\(UUID().uuidString)")
+        try? FileManager.default.createDirectory(at: replies, withIntermediateDirectories: true)
+        // The command goes on only once the test has seen its output, so no clock decides a check.
+        func reply(_ name: String) -> (wait: String, send: () -> Void) {
+            let path = replies.appendingPathComponent(name).path
+            return (
+                "i=0; while [ ! -e '\(path)' ] && [ $i -lt 100 ]; do sleep 0.1; i=$((i+1)); done; [ -e '\(path)' ]",
+                { FileManager.default.createFile(atPath: path, contents: nil) })
         }
-        check(
-            "output arrives while the command is still running",
-            (firstOutputAt ?? .greatestFiniteMagnitude) < 0.5)
+
+        // A pipe would block-buffer this and deliver it all at exit; a pty must not.
+        let first = reply("first")
+        let live = ShellCommandRunner.stream("echo first; \(first.wait) && echo second")
+        var liveLog = ""
+        for await event in live.events {
+            guard case .output(let text) = event else { continue }
+            liveLog += text
+            if text.contains("first") { first.send() }
+        }
+        check("output arrives while the command is still running", liveLog == "first\r\nsecond\r\n")
 
         // A picker's last line ends without a newline, and the command then waits on its answer.
-        let prompting = ShellCommandRunner.stream("printf 'Continue? [y/N] '; sleep 1")
-        let asked = Date()
-        var promptShownAt: TimeInterval?
+        let answer = reply("answer")
+        let prompting = ShellCommandRunner.stream(
+            "printf 'Continue? [y/N] '; \(answer.wait) && echo answered")
+        var promptLog = ""
         for await event in prompting.events {
-            if case .output(let text) = event, text.contains("Continue?"), promptShownAt == nil {
-                promptShownAt = Date().timeIntervalSince(asked)
-            }
+            guard case .output(let text) = event else { continue }
+            promptLog += text
+            if text.contains("Continue?") { answer.send() }
         }
         check(
             "a prompt that ends no line is shown while the command waits",
-            (promptShownAt ?? .greatestFiniteMagnitude) < 0.5)
+            promptLog == "Continue? [y/N] answered\r\n")
 
         // `é` split across reads: the text before it flushes, its lone lead byte waits for the rest.
         var decoder = ShellCommandRunner.TerminalTextDecoder()
         decoder.append([0x63, 0x61, 0x66, 0xC3], count: 4)
-        check("text ahead of a split character can flush", decoder.canFlush)
         check("a forced flush stops short of the split character", decoder.take(force: true) == "caf")
-        check("a lone partial character gives the idle flush nothing to wait on", !decoder.canFlush)
+        check("a lone partial character is held back", decoder.take(force: true) == nil)
         decoder.append([0xA9], count: 1)
         check("the completed character flushes whole", decoder.take(force: true) == "\u{e9}")
 
-        let splitAcrossWrites = ShellCommandRunner.stream("printf 'caf\\303'; sleep 0.6; printf '\\251\\n'")
-        let splitStarted = Date()
-        var splitLog = ""
-        var headShownAt: TimeInterval?
+        let tail = reply("tail")
+        let splitAcrossWrites = ShellCommandRunner.stream(
+            "printf 'caf\\303'; \(tail.wait); printf '\\251\\n'")
+        var splitEvents: [String] = []
         for await event in splitAcrossWrites.events {
             guard case .output(let text) = event else { continue }
-            splitLog += text
-            if headShownAt == nil { headShownAt = Date().timeIntervalSince(splitStarted) }
+            if splitEvents.isEmpty { tail.send() }
+            splitEvents.append(text)
         }
         check(
             "a character split across writes arrives whole and uncorrupted",
-            splitLog == "caf\u{e9}\r\n" && (headShownAt ?? .greatestFiniteMagnitude) < 0.5)
+            splitEvents == ["caf", "\u{e9}\r\n"])
 
         func transcript(_ session: ShellCommandSession) async -> String {
             var log = ""
@@ -469,23 +478,21 @@ struct CustomCommandTests {
             largeLines.count == 20001 && largeLines.first?.count == 200_000 && largeLines.last == "20000")
 
         // Stopped once the prompt shows, so a slow shell start under load cannot race the stop.
-        let heldPrompt = ShellCommandRunner.stream("printf 'Continue? '; sleep 5")
-        var stoppedAt: Date?
+        let heldPrompt = ShellCommandRunner.stream("printf 'Continue? '; sleep 5; echo survived")
+        var heldLog = ""
         var heldResult: ShellCommandResult?
         for await event in heldPrompt.events {
             switch event {
             case .output(let text):
-                guard stoppedAt == nil, text.contains("Continue?") else { continue }
-                stoppedAt = Date()
-                heldPrompt.stop()
+                if heldLog.isEmpty, text.contains("Continue?") { heldPrompt.stop() }
+                heldLog += text
             case .finished(let result):
                 heldResult = result
             }
         }
         check(
             "stop ends a command waiting at a prompt, which still showed",
-            heldResult?.termination == .stopped
-                && Date().timeIntervalSince(stoppedAt ?? .distantPast) < 1.5)
+            heldResult?.termination == .stopped && heldLog == "Continue? ")
 
         let statused = await collect(ShellCommandRunner.stream("exit 7"))
         check(

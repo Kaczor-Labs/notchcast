@@ -1,14 +1,20 @@
 import Darwin
 import Foundation
+import Synchronization
 
 /// libc block-buffers a pipe, so a pty is what makes output live and correctly ordered.
 final class PseudoTerminal: @unchecked Sendable {
     /// Everything the command writes to any of its three descriptors arrives here.
     let parentEnd: Int32
     let processID: pid_t
+    /// The last close of a child end discards unread output, so ours outlives the command.
+    private var childEnd: Int32
+    /// Once reaped the pid is free, and a late `kill(-pid)` could reach a stranger.
+    private let reaped = Mutex(false)
 
-    private init(parentEnd: Int32, processID: pid_t) {
+    private init(parentEnd: Int32, childEnd: Int32, processID: pid_t) {
         self.parentEnd = parentEnd
+        self.childEnd = childEnd
         self.processID = processID
     }
 
@@ -45,32 +51,53 @@ final class PseudoTerminal: @unchecked Sendable {
         let envp = CStringArray(environment.map { "\($0.key)=\($0.value)" })
         let status = posix_spawn(
             &processID, executable, &actions, &attributes, argv.pointers, envp.pointers)
-        Darwin.close(childEnd)
         guard status == 0, processID > 0 else {
+            Darwin.close(childEnd)
             Darwin.close(parentEnd)
             return nil
         }
         // Stands in for `/dev/null` stdin: a prompting command reads EOF and moves on.
         var endOfTransmission: UInt8 = 0x04
         _ = write(parentEnd, &endOfTransmission, 1)
-        return PseudoTerminal(parentEnd: parentEnd, processID: processID)
+        return PseudoTerminal(parentEnd: parentEnd, childEnd: childEnd, processID: processID)
     }
 
     /// Signals the session rather than the process — the negative pid is what reaches the children.
     func signalSession(_ signal: Int32) {
-        guard processID > 0 else { return }
-        kill(-processID, signal)
+        reaped.withLock { reaped in
+            if !reaped { kill(-processID, signal) }
+        }
+    }
+
+    /// Leaves the command unreaped, so its pid and process group stay reserved until `wait`.
+    var hasExited: Bool {
+        var info = siginfo_t()
+        return waitid(P_PID, id_t(processID), &info, WEXITED | WNOHANG | WNOWAIT) == 0
+            && info.si_pid != 0
+    }
+
+    /// Only once all output is read: until then the parent end never reads end-of-file.
+    func releaseChildEnd() {
+        guard childEnd >= 0 else { return }
+        Darwin.close(childEnd)
+        childEnd = -1
     }
 
     /// Blocks until the command exits. A signalled death reports the signal, the way a shell does.
     func wait() -> Int32 {
+        var info = siginfo_t()
+        while waitid(P_PID, id_t(processID), &info, WEXITED | WNOWAIT) < 0 && errno == EINTR {}
         var status: Int32 = 0
-        while waitpid(processID, &status, 0) < 0 && errno == EINTR {}
+        reaped.withLock { reaped in
+            waitpid(processID, &status, 0)
+            reaped = true
+        }
         if status & 0x7F != 0 { return 128 + (status & 0x7F) }
         return (status >> 8) & 0xFF
     }
 
     func close() {
+        releaseChildEnd()
         Darwin.close(parentEnd)
     }
 

@@ -195,14 +195,16 @@ enum ShellCommandRunner {
         var decoder = TerminalTextDecoder()
         var buffer = [UInt8](repeating: 0, count: readSize)
         var lastYield = ContinuousClock().now
+        var exited = false
 
         while true {
             // A waiting prompt never prints again, so only a quiet pty can show its unended line.
-            if decoder.canFlush, !hasOutput(terminal.parentEnd, within: flushInterval) {
+            if !hasOutput(terminal.parentEnd, within: flushInterval) {
                 if let text = decoder.take(force: true) {
                     continuation.yield(.output(text))
                     lastYield = ContinuousClock().now
                 }
+                if exited { terminal.releaseChildEnd() } else { exited = terminal.hasExited }
                 continue
             }
             // Zero is EOF; -1 with EIO is what a pty master returns once its child is gone.
@@ -259,9 +261,6 @@ enum ShellCommandRunner {
     /// Whole lines only: a newline is a scalar boundary, so no read decodes mid-character.
     struct TerminalTextDecoder {
         private var pending: [UInt8] = []
-
-        /// A lone partial character is not text yet, so waiting on it alone would wake for nothing.
-        var canFlush: Bool { scalarBoundary(before: pending.count) > 0 }
 
         mutating func append(_ bytes: [UInt8], count: Int) {
             pending.append(contentsOf: bytes[0..<count])

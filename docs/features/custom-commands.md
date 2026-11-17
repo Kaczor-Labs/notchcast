@@ -213,6 +213,8 @@ The pty's stdin gets an EOT byte at spawn, which keeps the invariant a `/dev/nul
 pipe path: a command that prompts reads EOF and moves on rather than waiting on a terminal that will
 never answer.
 
+`PseudoTerminal` keeps its own copy of the child end until the command has exited and the pty has gone quiet. When the last child end closes with output still unread, macOS waits about 0.6 s and then discards it, so a fast command lost its final line whenever the reader was late. The command is detected as exited without being reaped, so its process group stays reserved and Stop's `SIGKILL` backstop can never reach a reused pid.
+
 #### What the window shows
 
 One flat surface, no rules. The command's name, the shell text under it (`brew` alone says nothing
