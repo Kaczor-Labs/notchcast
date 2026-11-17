@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Verify script-test lanes, recursive discovery and interpreter dispatch."""
+"""Verify script-test lanes, recursive discovery, interpreter dispatch and isolation."""
 from contextlib import chdir, redirect_stderr, redirect_stdout
 import io
 from pathlib import Path
@@ -26,28 +26,24 @@ class ScriptTestsTest(unittest.TestCase):
             path.parent.mkdir(parents=True, exist_ok=True)
             path.touch()
 
-    def invoke(self, arguments, returncode=0, changed="notchcast/land.sh\n"):
+    def invoke(self, arguments, returncode=0, changed="notchcast/land.sh\n", stdout=b"log line\n"):
         output = io.StringIO()
         self.stderr = io.StringIO()
         with chdir(self.root), patch.object(sys, "argv", [str(SCRIPT), *arguments]), \
                 redirect_stdout(output), redirect_stderr(self.stderr), patch("subprocess.run") as run, \
                 patch("subprocess.check_output", return_value=changed):
             run.return_value.returncode = returncode
+            run.return_value.stdout = stdout
             try:
                 runpy.run_path(str(SCRIPT), run_name="__main__")
                 status = 0
             except SystemExit as error:
                 status = error.code
+        self.calls = run.call_args_list
         return status, output.getvalue(), [call.args[0] for call in run.call_args_list]
 
     def test_default_discovers_four_runtimes(self):
         status, output, commands = self.invoke(["--list"])
-        self.assertEqual(0, status)
-        self.assertEqual(sorted(DEFAULT), output.splitlines())
-        self.assertEqual([], commands)
-
-    def test_all_lists_every_test(self):
-        status, output, commands = self.invoke(["--all", "--list"])
         self.assertEqual(0, status)
         self.assertEqual(sorted(DEFAULT), output.splitlines())
         self.assertEqual([], commands)
@@ -61,6 +57,27 @@ class ScriptTestsTest(unittest.TestCase):
             ["swift", "-swift-version", "6", DEFAULT[4]], ["bash", DEFAULT[5]],
         ]), sorted(commands))
 
+    def test_each_test_has_its_own_tmpdir_and_whole_output(self):
+        status, output, _ = self.invoke([], stdout=b"first\nsecond\n")
+        self.assertEqual(0, status)
+        tmpdirs = {call.kwargs["env"]["TMPDIR"] for call in self.calls}
+        self.assertEqual(6, len(tmpdirs))
+        for path in DEFAULT:
+            self.assertRegex(output, rf"=== {path} ok [\d.]+s ===\nfirst\nsecond\n")
+
+    def test_test_failure_fails_the_lane(self):
+        status, output, commands = self.invoke([], returncode=1)
+        self.assertNotEqual(0, status)
+        self.assertEqual(6, len(commands))
+        self.assertIn("0 passed, 6 failed", output)
+        self.assertEqual(sorted(DEFAULT), self.stderr.getvalue().splitlines())
+
+    def test_all_lists_every_test(self):
+        status, output, commands = self.invoke(["--all", "--list"])
+        self.assertEqual(0, status)
+        self.assertEqual(sorted(DEFAULT), output.splitlines())
+        self.assertEqual([], commands)
+
     def test_land_test_runs_only_when_its_inputs_change(self):
         status, output, _ = self.invoke(["--list"], changed="")
         self.assertEqual(0, status)
@@ -68,12 +85,6 @@ class ScriptTestsTest(unittest.TestCase):
         self.assertIn("Skipping notchcast/land-test.sh", self.stderr.getvalue())
         status, output, _ = self.invoke(["--all", "--list"], changed="")
         self.assertIn("notchcast/land-test.sh", output.splitlines())
-
-    def test_test_failure_fails_the_lane(self):
-        status, output, commands = self.invoke(["--all"], returncode=1)
-        self.assertNotEqual(0, status)
-        self.assertEqual(6, len(commands))
-        self.assertIn("0 passed, 6 failed", output)
 
 
 if __name__ == "__main__":
