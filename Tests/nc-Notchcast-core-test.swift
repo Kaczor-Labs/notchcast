@@ -9,6 +9,7 @@
 // notchcast-sources: Tests/NotchcastTapFixtures.swift
 // notchcast-sources: Tests/NotchcastDictationFixture.swift
 // notchcast-reads: Tinycast/Features/Notchcast/NotchcastCore.swift
+// notchcast-reads: Tinycast/Features/Notchcast/Core/UI/NotchcastSettingsView.swift
 import AppKit
 import CoreGraphics
 import Foundation
@@ -511,8 +512,13 @@ struct NotchcastCoreTest {
               })
         check("NotchcastCore hands the controller stock Dictation",
               calls.allSatisfy { $0.contains("dictation: NotchcastDictationBridge(core: core)") })
-        check("nc command entries have no settings owner, so Settings › Commands lists them",
-              !core.contains("settingsOwner"))
+        check("nc command entries are owned by their add-on tab, never gated by stock Commands",
+              core.contains("owner: .notchcast(tabs[$0.switchID]"))
+        let viewPath = "Tinycast/Features/Notchcast/Core/UI/NotchcastSettingsView.swift"
+        let view = FileManager.default.contents(atPath: viewPath).flatMap { String(data: $0, encoding: .utf8) } ?? ""
+        check("each add-on switch draws its commands' alias and hotkey fields",
+              view.contains("AliasField(key: command.id, name: command.name)")
+                && view.contains("ShortcutRecorder(action: .notchcastCommand(entryID: command.id))"))
     }
 
     /// The Notchcast sidebar section: which tab holds which category, which tabs show, and their links.
