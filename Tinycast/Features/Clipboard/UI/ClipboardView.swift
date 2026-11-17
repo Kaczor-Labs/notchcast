@@ -334,7 +334,7 @@ struct ClipboardPreview: View {
                     )
                     .overlay(
                         RoundedRectangle(cornerRadius: metrics.radius.card, style: .continuous)
-                            .strokeBorder(Theme.Colors.cardStroke, lineWidth: 1)
+                            .strokeBorder(.islandEdge(), lineWidth: 1)
                     )
             } placeholder: {
                 Image(systemName: "photo").font(.system(.largeTitle))

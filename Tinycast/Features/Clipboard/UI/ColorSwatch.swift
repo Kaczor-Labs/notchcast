@@ -15,7 +15,7 @@ struct ColorSwatch: View {
             // Built only where there is alpha, else every row pays for a Canvas nothing can see.
             .overlay { if color.hasAlpha { CheckerboardPattern().clipShape(shape) } }
             .overlay { shape.fill(color.swiftUIColor) }
-            .overlay { shape.strokeBorder(Theme.Colors.cardStroke, lineWidth: 1) }
+            .overlay { shape.strokeBorder(.islandEdge(), lineWidth: 1) }
             // A swatch renders no text at all, so VoiceOver would otherwise reach nothing.
             .accessibilityElement()
             .accessibilityLabel(ColorFormat.primary(for: color).string(for: color))
