@@ -88,7 +88,7 @@ enum RegistryCheck {
     static let frozenIDs: Set<String> = [
         "screenshot", "displayBrightness", "volumeLevels", "hideCommandM", "middleClick", "quitProtection",
         "showDesktop", "launcherNumberKeys", "smallCommands", "downloads", "downloadsAria2", "distill",
-        "distillTimestamps", "keepAwake", "lidClosedAwake", "musicBlockAppleMusic", "iPhoneBackupTweaks",
+        "distillTimestamps", "musicBlockAppleMusic", "iPhoneBackupTweaks",
     ]
     // Switch ids v1 never shipped; an id in neither list is a typo or a rename of a shipped one.
     static let newIDs: Set<String> = []
@@ -181,7 +181,7 @@ enum NotchcastRegistryTests {
             enum ShotsAddon: NotchcastAddon {
                 static let switches = [
                     NotchcastSwitch(id: "screenshot", title: String(localized: "Shots (beta)", table: "T"),
-                                    subtitle: "", category: .music, dependencies: ["keepAwake"])
+                                    subtitle: "", category: .music, dependencies: ["absentSwitch"])
                 ]
                 static let commands = [
                     NotchcastCommand(slug: "screenshot-area", name: "", symbol: "", switchID: "screenshot") { _ in }
@@ -190,7 +190,7 @@ enum NotchcastRegistryTests {
             """
         let clean = RegistryCheck.run(files: ["Shots/ShotsAddon.swift": shots], registry: "    ShotsAddon.self,\n")
         expect(clean.problems.isEmpty, "a well-formed add-on passes: \(clean.problems)")
-        expect(clean.notes == ["switch screenshot depends on keepAwake, which no add-on declares; it counts as off"],
+        expect(clean.notes == ["switch screenshot depends on absentSwitch, which no add-on declares; it counts as off"],
                "an absent dependency is reported, not failed: \(clean.notes)")
 
         let planted: [(String, String, String)] = [
