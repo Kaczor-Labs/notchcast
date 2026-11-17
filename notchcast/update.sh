@@ -38,10 +38,9 @@ leaf_sha1() {
 plist() { /usr/libexec/PlistBuddy -c "Print :$2" "$1/Contents/Info.plist" 2>/dev/null || true; }
 
 # The sync reports through issues on the fork (notchcast/ci.py): notchcast-sync, -main and -release are failures, one
-# open issue per kind whose cause marker changes only with a new cause; notchcast-design asks for a docs refresh.
+# open issue per kind whose cause marker changes only with a new cause; notchcast-design issues stay open as the to-do.
 # Only where ~/.config/notchcast/private.env defines notchcast_notify (notchcast/README.md, "Private hooks"), so one
-# Mac acts: it is told once per issue and cause, and with notchcast_task each design issue becomes one private task
-# and is closed.
+# Mac acts: it is told once per issue and cause.
 if [ -f "$HOME/.config/notchcast/private.env" ]; then
     # shellcheck disable=SC1091
     source "$HOME/.config/notchcast/private.env"
@@ -61,21 +60,6 @@ alert_issues() {
         echo "$key" >> "$seen"
         log "notified: $title"
     done <<< "$issues"
-    for n in $(gh issue list -R "$FORK_REPO" --state open --label notchcast-design --json number --jq '.[].number'); do
-        if ! declare -F notchcast_task >/dev/null; then
-            log "no notchcast_task hook; design issue #$n left open"
-            continue
-        fi
-        if [ "$DRY" = 1 ]; then log "would add a task for design issue #$n"; continue; fi
-        local body task
-        body="$(gh issue view "$n" -R "$FORK_REPO" --json body,url --jq '.body + "\n" + .url')"
-        task="$(notchcast_task "Refresh notchcast/docs/design-system.md" "$body")"
-        [ -n "$task" ] || { log "task for design issue #$n not created; retried next run"; return 1; }
-        # A failed close would make the next run add a second task.
-        gh issue close "$n" -R "$FORK_REPO" --comment "Tracked privately." >/dev/null \
-            || { log "design issue #$n: task $task created but the issue is still open; close it by hand"; return 1; }
-        log "design issue #$n -> task $task"
-    done
 }
 alert_issues || log "issue check failed; retried next run"
 
