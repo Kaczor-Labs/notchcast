@@ -1,10 +1,13 @@
 #!/usr/bin/env python3
-"""Discover and run fork script tests."""
+"""Discover and run fork script tests concurrently."""
 import argparse
+from concurrent.futures import ThreadPoolExecutor, as_completed
 import os
 from pathlib import Path
 import subprocess
 import sys
+import tempfile
+import time
 
 
 RUNTIMES = {".py": ["python3"], ".sh": ["bash"], ".mjs": ["node"],
@@ -23,9 +26,20 @@ def land_inputs_changed():
         return True
 
 
+def run_test(path):
+    """(returncode, combined output, seconds); each test gets its own TMPDIR so no two share a scratch path."""
+    started = time.monotonic()
+    with tempfile.TemporaryDirectory(prefix=f"{path.stem}-") as tmp:
+        result = subprocess.run([*RUNTIMES[path.suffix], str(path)], stdin=subprocess.DEVNULL,
+                                stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                                env={**os.environ, "TMPDIR": tmp + "/"})
+    return result.returncode, result.stdout.decode(errors="replace"), time.monotonic() - started
+
+
 parser = argparse.ArgumentParser(description=__doc__)
 parser.add_argument("--all", action="store_true", help="run land-test.sh even when its inputs did not change")
 parser.add_argument("--list", action="store_true", help="list selected tests without running them")
+parser.add_argument("--jobs", type=int, default=os.cpu_count() or 4, help="tests to run at once")
 args = parser.parse_args()
 tests = sorted(path for suffix in RUNTIMES for path in Path("notchcast").rglob(f"*-test{suffix}"))
 if not tests:
@@ -35,14 +49,21 @@ if not args.all and LAND_TEST in tests and not land_inputs_changed():
     print(f"Skipping {LAND_TEST}: the diff does not touch {', '.join(LAND_INPUTS)}", file=sys.stderr, flush=True)
 if args.list:
     print("\n".join(map(str, tests)))
-else:
-    print(f"Running {len(tests)} script tests", flush=True)
-    failed = []
-    for path in tests:
-        print(f"\n=== {path} ===", flush=True)
-        if subprocess.run([*RUNTIMES[path.suffix], str(path)]).returncode:
+    sys.exit(0)
+print(f"Running {len(tests)} script tests, {args.jobs} at a time", flush=True)
+started = time.monotonic()
+failed = []
+with ThreadPoolExecutor(max_workers=args.jobs) as pool:
+    futures = {pool.submit(run_test, path): path for path in tests}
+    for future in as_completed(futures):
+        path = futures[future]
+        returncode, output, seconds = future.result()
+        verdict = f"FAIL ({returncode})" if returncode else "ok"
+        print(f"\n=== {path} {verdict} {seconds:.1f}s ===\n{output}", end="", flush=True)
+        if returncode:
             failed.append(str(path))
-    print(f"\nScript tests: {len(tests) - len(failed)} passed, {len(failed)} failed", flush=True)
-    if failed:
-        print("\n".join(failed), file=sys.stderr)
-    sys.exit(bool(failed))
+print(f"\nScript tests: {len(tests) - len(failed)} passed, {len(failed)} failed "
+      f"in {time.monotonic() - started:.1f}s", flush=True)
+if failed:
+    print("\n".join(sorted(failed)), file=sys.stderr)
+sys.exit(bool(failed))
