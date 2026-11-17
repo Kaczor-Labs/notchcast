@@ -23,9 +23,18 @@ final class IslandCanvas: NSView {
         let height = min(bounds.maxY, self.bounds.height) - bounds.minY - restHeight
         return IslandKeyline.strength(growth: max(bounds.width - restWidth, height), enabled: keylineEnabled)
     }
+    /// Resolved against the canvas's own appearance, because the drawing appearance lags a flip.
     var keylineColor: CGColor {
-        let color = NSColor(NotchTheme.Colors.islandKeyline).cgColor
+        var color = NSColor.clear.cgColor
+        effectiveAppearance.performAsCurrentDrawingAppearance {
+            color = NSColor(NotchTheme.Colors.islandKeyline).cgColor
+        }
         return color.copy(alpha: color.alpha * keylineStrength) ?? color
+    }
+    var onAppearanceChange: (() -> Void)?
+    override func viewDidChangeEffectiveAppearance() {
+        super.viewDidChangeEffectiveAppearance()
+        onAppearanceChange?()
     }
     var onOpen: (() -> Void)?
     var onMenu: (() -> Void)?
