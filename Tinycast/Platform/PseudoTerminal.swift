@@ -10,6 +10,7 @@ final class PseudoTerminal: @unchecked Sendable {
     private var childEnd: Int32
     /// A kqueue on the parent end and the command's exit, so a wait needs no clock.
     private let events: Int32
+    /// Only the one drain queue touches mutable state, so `@unchecked Sendable` holds.
     private var exited = false
 
     private init(parentEnd: Int32, childEnd: Int32, events: Int32, processID: pid_t) {
@@ -17,18 +18,17 @@ final class PseudoTerminal: @unchecked Sendable {
         self.childEnd = childEnd
         self.events = events
         self.processID = processID
-        let watched = [
-            kevent(
-                ident: UInt(parentEnd), filter: Int16(EVFILT_READ), flags: UInt16(EV_ADD | EV_RECEIPT),
-                fflags: 0, data: 0, udata: nil),
-            kevent(
-                ident: UInt(processID), filter: Int16(EVFILT_PROC), flags: UInt16(EV_ADD | EV_RECEIPT),
-                fflags: NOTE_EXIT, data: 0, udata: nil),
-        ]
-        var receipts = watched
-        _ = kevent(events, watched, 2, &receipts, 2, nil)
         // A command already gone is a zombie, which kqueue refuses to watch.
-        exited = receipts[1].data != 0
+        exited = !Self.watch(
+            events, ident: UInt(processID), filter: EVFILT_PROC, fflags: NOTE_EXIT)
+    }
+
+    private static func watch(_ events: Int32, ident: UInt, filter: Int32, fflags: UInt32) -> Bool {
+        var change = kevent(
+            ident: ident, filter: Int16(filter), flags: UInt16(EV_ADD | EV_RECEIPT),
+            fflags: fflags, data: 0, udata: nil)
+        var receipt = change
+        return kevent(events, &change, 1, &receipt, 1, nil) == 1 && receipt.data == 0
     }
 
     static func spawn(
@@ -39,6 +39,9 @@ final class PseudoTerminal: @unchecked Sendable {
         var childEnd: Int32 = 0
         var settings = terminalSettings()
         guard openpty(&parentEnd, &childEnd, nil, &settings, nil) == 0 else { return nil }
+        // Any other spawn in the app, not just ours, must not inherit the pty and hold it open.
+        _ = fcntl(parentEnd, F_SETFD, FD_CLOEXEC)
+        _ = fcntl(childEnd, F_SETFD, FD_CLOEXEC)
 
         var attributes: posix_spawnattr_t?
         posix_spawnattr_init(&attributes)
@@ -60,7 +63,10 @@ final class PseudoTerminal: @unchecked Sendable {
         }
 
         let events = kqueue()
-        guard events >= 0 else {
+        guard events >= 0,
+            watch(events, ident: UInt(parentEnd), filter: EVFILT_READ, fflags: 0)
+        else {
+            if events >= 0 { Darwin.close(events) }
             Darwin.close(childEnd)
             Darwin.close(parentEnd)
             return nil
