@@ -1,4 +1,6 @@
-# Tinycast
+# Notchcast
+
+Notchcast is a fork of Tinycast; source folders and types keep the Tinycast name.
 
 A native macOS menu-bar launcher: fuzzy app launcher, global and per-app hotkeys, a text/image
 clipboard history, an inline calculator, a floating note, snippets, quicklinks, window management
@@ -8,7 +10,7 @@ dependencies.
 
 ## Posture: modern-first, always
 
-**Tinycast supports macOS 26 and later, with macOS 27 strongly preferred.** Swift 6+ with complete
+**Notchcast supports macOS 26 and later, with macOS 27 strongly preferred.** Swift 6+ with complete
 strict concurrency is required. Prefer the latest Swift patterns and modern Apple APIs.
 
 Prefer current APIs and language features:
@@ -83,12 +85,8 @@ feature's doc, under its own `## Invariants`.
 - **Async results can become stale across suspension.** Before applying them, validate cancellation,
   operation identity and destination where they can change. Long-lived work has an owner and teardown;
   detached or callback-backed work owned by a caller follows that caller's cancellation.
-- **Dark is the baseline, and a colour's dark branch is the literal it always was.** `Theme.Colors`
-  resolves per appearance through `ramp`/`adaptive`; every dark value is the `Color.white.opacity(…)`
-  the forced-dark build shipped, restated rather than re-derived. Retune a light branch freely; change
-  a dark one only when the task is to change Dark. `AppAppearance` drives `NSApp.appearance`, and
-  `.system` maps to `nil` so AppKit follows macOS on its own.
-- **Tinycast presents its own dialogs, never `NSAlert` or a system popover.** A question
+- **Notchcast is Dark mode only.** Never build, render, check or request Light-mode work. A colour's dark value is the literal it always was (`Color.white.opacity(…)`); change it only when the task is to change Dark.
+- **Notchcast presents its own dialogs, never `NSAlert` or a system popover.** A question
   goes through `DialogController`, a report through a HUD via `HUDPresenter`. The Settings window is
   the one exception: a stock titled window, its panes ask with SwiftUI's `confirmationDialog` or
   `alert`, which present as a sheet on it.
@@ -123,10 +121,7 @@ feature's doc, under its own `## Invariants`.
 
 ## Conventions worth knowing up front
 
-- **User-facing text is localized through `Localizable.xcstrings`**: SwiftUI literals as they are,
-  `String(localized:)` wherever text travels as a `String`, one literal per sentence. Run
-  `./Scripts/sync-strings.sh` after changing any, and translate all eight languages in the same change.
-  See [standards.md](docs/standards.md#localization).
+- **Notchcast is English only; never add translations.** Fork text goes in `Notchcast.xcstrings` (an add-on's in its own `Notchcast*.xcstrings`), English only, as `notchcast/check-fork-strings.py` enforces: SwiftUI literals as they are, `String(localized:)` wherever text travels as a `String`, one literal per sentence.
 - **Every symbol icon comes from the icon pack.** Settings tabs, system actions and built-in commands
   pair an SF Symbol with an `IconTint` in their catalog; a user-made item keeps its symbol and takes its
   feature tab's tint. All draw as `IconTile`. To add one, follow
@@ -144,7 +139,7 @@ feature's doc, under its own `## Invariants`.
   constant or type instead. Cap 100 characters, delete rather than update, and never comment a change
   you just made. Nothing lints this; get it right the first time.
   Full rules: [standards.md#comments](docs/standards.md#comments).
-- **Debug builds are their own channel** (`Tinycast Dev.app` / `com.abueammar.tinycast.dev`), so a
+- **Debug builds are their own channel** (`Notchcast Dev.app` / `app.notchcast.dev`), so a
   local run never shares prefs, caches, TCC grants or the login item with an installed copy. Anything
   newly persisted must stay keyed by `Bundle.main.bundleIdentifier`.
 - **XcodeGen owns the project.** `Tinycast.xcodeproj` is committed but generated from `project.yml`;
