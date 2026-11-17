@@ -24,41 +24,28 @@ status=0
 BIN="${TMPDIR:-/tmp}/tinycast-harness"
 if [ "$status" -ne 0 ] && ls "$BIN"/*.failed >/dev/null 2>&1; then
   failed="$(for f in "$BIN"/*.failed; do basename "$f" .failed; done)"
-  mkdir -p "$RUNNER_TEMP/first-try" && cp "$BIN"/*.log "$RUNNER_TEMP/first-try/" 2>/dev/null || true
-  still=""
-  for name in $failed; do
-    cat "$RUNNER_TEMP/first-try/$name.log"
-    echo "::warning::retrying $name alone"
-    ./Scripts/run-tests.sh "$name" || { still="$still $name"; cat "$BIN/$name.log"; }
-  done
+  for name in $failed; do cat "$BIN/$name.log"; done
   status=0
-  if [ -n "$still" ]; then
-    if [ -z "${UPSTREAM:-}" ]; then
-      bash "$TOOLS/notchcast/fetch-upstream.sh" --no-tags
-      UPSTREAM=$(git merge-base HEAD refs/remotes/upstream/main)
-    fi
-    git worktree add -q --detach "$RUNNER_TEMP/pristine" "$UPSTREAM"
-    for name in $still; do
-      if [ ! -e "$RUNNER_TEMP/pristine/Tests/$name.swift" ]; then
-        echo "::error::$name fails with our commits and does not exist on upstream"; status=1
-        continue
-      fi
-      if (cd "$RUNNER_TEMP/pristine" && TMPDIR="$RUNNER_TEMP/pristine-tmp" && mkdir -p "$TMPDIR" && export TMPDIR \
-          && ./Scripts/run-tests.sh "$name" >/dev/null 2>&1); then
-        echo "::error::$name fails with our commits and passes on upstream ${UPSTREAM:0:7}"; status=1
-      else
-        echo "::warning::$name fails on upstream ${UPSTREAM:0:7} too; not ours, ignored"
-      fi
-    done
-    git worktree remove --force "$RUNNER_TEMP/pristine"
+  if [ -z "${UPSTREAM:-}" ]; then
+    bash "$TOOLS/notchcast/fetch-upstream.sh" --no-tags
+    UPSTREAM=$(git merge-base HEAD refs/remotes/upstream/main)
   fi
-fi
-# After the retry, which rewrites a log; run-tests.sh shows a green harness's SKIP nowhere else.
-grep -h '^SKIP:' "$BIN"/*.log 2>/dev/null | sed 's/^/::notice::/' || true
-if [ "$status" -ne 0 ]; then
-  for f in "$BIN"/*.failed; do
-    [ -e "$f" ] || continue
-    cat "${f%.failed}.log"
+  # Our tree runs once: a harness red here is red, and only the upstream tree is run again.
+  git worktree add -q --detach "$RUNNER_TEMP/pristine" "$UPSTREAM"
+  for name in $failed; do
+    if [ ! -e "$RUNNER_TEMP/pristine/Tests/$name.swift" ]; then
+      echo "::error::$name fails with our commits and does not exist on upstream"; status=1
+      continue
+    fi
+    if (cd "$RUNNER_TEMP/pristine" && TMPDIR="$RUNNER_TEMP/pristine-tmp" && mkdir -p "$TMPDIR" && export TMPDIR \
+        && ./Scripts/run-tests.sh "$name" >/dev/null 2>&1); then
+      echo "::error::$name fails with our commits and passes on upstream ${UPSTREAM:0:7}"; status=1
+    else
+      echo "::warning::$name fails on upstream ${UPSTREAM:0:7} too; not ours, ignored"
+    fi
   done
+  git worktree remove --force "$RUNNER_TEMP/pristine"
 fi
+# run-tests.sh shows a green harness's SKIP nowhere else.
+grep -h '^SKIP:' "$BIN"/*.log 2>/dev/null | sed 's/^/::notice::/' || true
 exit $status
