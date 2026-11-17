@@ -109,6 +109,30 @@ class HarnessInputsTest(unittest.TestCase):
     def test_unrelated_change_does_not_select_consumers(self):
         self.assertEqual(["notchcast-hidden-features-test"], self.selected("unrelated.txt"))
 
+    def test_hidden_harness_is_never_selected_nor_run_unless_named(self):
+        hidden = "nc-Example-conditional-test"
+        (self.root / "notchcast/config.env").write_text(f'CI_SKIP_TESTS=""\nHIDDEN_TESTS="Other {hidden}"\n')
+        self.assertNotIn(hidden, self.selected(EXAMPLE))
+        self.assertIn("nc-Example-folder-test", self.selected("Tinycast/Features/Example/Service/New.swift"))
+        suite = f"1 {hidden} -Onone a.swift\n1 notchcast-reader-test -Onone\n"
+        for only, kept in (("", ["notchcast-reader-test"]), (hidden, [hidden, "notchcast-reader-test"])):
+            with self.subTest(only=only):
+                queue = self.root / "queue"
+                queue.write_text(suite)
+                subprocess.run(["bash", "-c", f'emit_db=0; only="{only}"; SELF=upstream; QUEUE=queue; '
+                                'run() { :; }; source notchcast/test-harnesses.sh'],
+                               cwd=self.root, env=self.env, check=True, capture_output=True)
+                self.assertEqual(kept, [line.split()[1] for line in queue.read_text().splitlines()])
+
+    def test_every_hidden_harness_is_a_registered_upstream_harness(self):
+        config = (ROOT / "notchcast/config.env").read_text()
+        names = next(line for line in config.splitlines() if line.startswith("HIDDEN_TESTS="))
+        runner = (ROOT / "Scripts/run-tests.sh").read_text()
+        for name in names.split("=", 1)[1].strip('"').split():
+            with self.subTest(name=name):
+                self.assertTrue((ROOT / f"Tests/{name}.swift").is_file())
+                self.assertRegex(runner, rf"(?m)^run (slow |-O )*{name} ")
+
     def test_runner_keeps_reads_out_of_compiler_arguments(self):
         result = subprocess.run(["bash", "-c", 'emit_db=0; SELF=upstream; QUEUE=queue; '
                                  'run() { printf "%s\\n" "$*"; }; source notchcast/test-harnesses.sh'],
