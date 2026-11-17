@@ -14,6 +14,9 @@ enum IslandCaptureScenes {
             await IslandVerification.pause(0.3)
         }
         requireSharing(.readOnly, menu: nil, "default")
+        if core.island.resting?.canvas.look == .frosted {
+            IslandVerification.require(!liftWindows().isEmpty, "a Frosted pill's lift is checked too")
+        }
         guard let menu = await openMenu(core, "default") else { return }
         requireSharing(.readOnly, menu: menu, "menu open, default")
         await turn(core, false)
@@ -84,11 +87,17 @@ enum IslandCaptureScenes {
         NSApp.windows.filter { $0 is IslandBackdrop && $0.isVisible }
     }
 
+    /// Frosted's shadow windows, attached under a backdrop.
+    private static func liftWindows() -> [NSWindow] {
+        NSApp.windows.filter { String(describing: type(of: $0)) == "IslandLiftWindow" && $0.isVisible }
+    }
+
     /// Reads WindowServer, which capture obeys: AppKit's getter keeps reporting `.none` once set.
     private static func requireSharing(_ expected: NSWindow.SharingType, menu: MenuPanel?, _ label: String) {
         let backdrops = islandWindows()
-        let served = (backdrops + [menu].compactMap(\.self)).map { serverSharing($0.windowNumber) }
-        print("SHARING \(label) server=\(served.map { $0.map(String.init) ?? "nil" })")
+        let lifts = liftWindows()
+        let served = (backdrops + lifts + [menu].compactMap(\.self)).map { serverSharing($0.windowNumber) }
+        print("SHARING \(label) lifts=\(lifts.count) server=\(served.map { $0.map(String.init) ?? "nil" })")
         IslandVerification.require(!backdrops.isEmpty, "\(label): island windows exist")
         IslandVerification.require(served.allSatisfy { $0 == Int(expected.rawValue) }, "\(label): every island window")
     }

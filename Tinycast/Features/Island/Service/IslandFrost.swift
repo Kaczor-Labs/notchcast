@@ -30,25 +30,30 @@ final class IslandFrost {
         root.addSubview(canvas)
     }
 
+    /// Follows the backdrop's capture setting; the backdrop's own getter can't be copied from.
+    var sharingType: NSWindow.SharingType {
+        get { lift.sharingType }
+        set { lift.sharingType = newValue }
+    }
+
     #if DEBUG
     var liftShown: Bool { lift.isVisible && lift.parent != nil && lift.casting }
     var liftClickThrough: Bool { lift.ignoresMouseEvents }
     #endif
 
     /// Called inside the frame's transaction before the canvas draws; the lift waits for `settled`.
-    func paint(hasNotch: Bool, settled: Bool, reducedMotion: Bool) {
+    func paint(hasNotch: Bool, settled: Bool, reducedMotion: @autoclosure () -> Bool) {
         canvas.restingKeyline = IslandKeyline.restingStrength(look: canvas.look, hasNotch: hasNotch)
-        canvas.solidGlass = NSWorkspace.shared.accessibilityDisplayShouldReduceTransparency
-            || NSWorkspace.shared.accessibilityDisplayShouldIncreaseContrast
         guard canvas.look == .frosted else {
             clip.isHidden = true
             liftShape = nil
             if lift.parent != nil { backdrop.removeChildWindow(lift); lift.orderOut(nil) }
             return
         }
+        canvas.solidGlass = NSWorkspace.shared.accessibilityDisplayShouldReduceTransparency
+            || NSWorkspace.shared.accessibilityDisplayShouldIncreaseContrast
         clip.isHidden = canvas.solidGlass
         mask.path = canvas.outline
-        lift.sharingType = backdrop.sharingType
         if lift.frame != backdrop.frame { lift.setFrame(backdrop.frame, display: false) }
         if lift.parent == nil, backdrop.isVisible { backdrop.addChildWindow(lift, ordered: .below) }
         let bare = canvas.glance == nil && canvas.expansion == nil && canvas.drawnLine == nil
@@ -59,7 +64,7 @@ final class IslandFrost {
         }
         if let liftShape, liftShape.0 == outline, liftShape.1 == shadow { return }
         liftShape = (outline, shadow)
-        lift.show((outline, shadow), animated: !reducedMotion)
+        lift.show((outline, shadow), animated: !reducedMotion())
     }
 }
 
@@ -84,7 +89,7 @@ private final class IslandLiftWindow: NSPanel {
     private let cutout = CAShapeLayer()
 
     init() {
-        super.init(contentRect: .zero, styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
+        super.init(contentRect: .zero, styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: true)
         backgroundColor = .clear
         isOpaque = false
         hasShadow = false

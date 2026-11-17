@@ -45,7 +45,7 @@ enum NotchTheme {
         /// Frosted under Reduce Transparency or Increase Contrast: the glass painted solid (brief H2).
         static let islandGlassSolid = Color(.sRGB, red: 28 / 255, green: 29 / 255, blue: 32 / 255)
         /// Frosted's edge, so the glass reads as an object over a busy wallpaper.
-        static let islandEdge = Theme.Colors.adaptive(dark: .srgbInk(1, alpha: 0.12), light: .clear)
+        static let islandEdge = Color(.sRGB, white: 1, opacity: 0.12)
         /// Apart from `rowHover`, so retuning hover never dims a resting keycap.
         static let keyCapFill = Theme.Colors.ramp(dark: 0.14, light: 0.045)
         /// A rule inside a `keyCapFill` card: the `selection` step, which reads on card and black.
