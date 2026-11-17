@@ -28,11 +28,12 @@ struct FileSearchPreview: View {
 private struct FileSearchPreviewStage: View {
 
     @Environment(\.metrics) private var metrics
+    @Environment(\.paletteOnIsland) private var onIsland
     @Environment(PaletteState.self) private var palette
     let result: FileSearchResult
 
     private var card: RoundedRectangle {
-        RoundedRectangle(cornerRadius: metrics.radius.card, style: .continuous)
+        RoundedRectangle(cornerRadius: metrics.radius.islandCard(onIsland: onIsland), style: .continuous)
     }
 
     var body: some View {

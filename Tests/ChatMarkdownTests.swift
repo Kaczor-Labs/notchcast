@@ -46,6 +46,7 @@ struct ChatMarkdownTests {
     static func main() {
         everyMatchLandsOnItsWord()
         failedRepliesColourOnlyTheirNote()
+        tableRulesFollowTheIsland()
         textReadsAsTheReplyDoes()
         onlyWebAndMailLinksOpen()
         formulasAreOneCharacterEach()
@@ -65,8 +66,40 @@ struct ChatMarkdownTests {
             ChatMarkdownSource(
                 blocks: MarkdownBlock.parse(text, midStream: message.isArriving(segmentAt: 0, of: 1)),
                 highlight: ChatTextHighlight(query: "apple", current: current),
-                citations: citations, prefix: [0], failedFrom: nil, metrics: .standard)
+                citations: citations, prefix: [0], failedFrom: nil, metrics: .standard,
+                onIsland: false)
         ).render()
+    }
+
+    /// Design system §2: a table's rules are `keyCapFill` on the island and `cardStroke` everywhere else.
+    static func tableRulesFollowTheIsland() {
+        let blocks = MarkdownBlock.parse("| A | B |\n| - | - |\n| 1 | 2 |\n", midStream: false)
+        func ruleAlpha(onIsland: Bool) -> Int? {
+            let text = ChatMarkdownRenderer(
+                ChatMarkdownSource(
+                    blocks: blocks, highlight: nil, citations: [:], prefix: [0], failedFrom: nil,
+                    metrics: .standard, onIsland: onIsland)
+            ).render().string
+            var rule: NSColor?
+            text.enumerateAttribute(.paragraphStyle, in: NSRange(location: 0, length: text.length)) {
+                value, _, _ in
+                guard let style = value as? NSParagraphStyle else { return }
+                for case let cell as NSTextTableBlock in style.textBlocks where cell.startingRow == 1 {
+                    rule = cell.borderColor(for: .minY)
+                }
+            }
+            var alpha: Int?
+            NSAppearance(named: .darkAqua)?.performAsCurrentDrawingAppearance {
+                alpha = rule?.usingColorSpace(.sRGB).map { Int(($0.alphaComponent * 100).rounded()) }
+            }
+            return alpha
+        }
+        expect(
+            ruleAlpha(onIsland: false) == 10,
+            "a stock table rule is cardStroke, got \(String(describing: ruleAlpha(onIsland: false)))")
+        expect(
+            ruleAlpha(onIsland: true) == 14,
+            "an island table rule is keyCapFill, got \(String(describing: ruleAlpha(onIsland: true)))")
     }
 
     static func failedRepliesColourOnlyTheirNote() {
@@ -75,7 +108,7 @@ struct ChatMarkdownTests {
             ChatMarkdownRenderer(
                 ChatMarkdownSource(
                     blocks: blocks, highlight: nil, citations: [:], prefix: [0],
-                    failedFrom: failedFrom, metrics: .standard)
+                    failedFrom: failedFrom, metrics: .standard, onIsland: false)
             ).render().string
         }
         let error = NSColor(Theme.Colors.destructive)

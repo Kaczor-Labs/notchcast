@@ -42,6 +42,15 @@ struct NotchcastIslandCardsTest {
             .environment(\.colorScheme, .dark)
     }
 
+    static func rule(onIsland: Bool) -> some View {
+        Rectangle().fill(.islandSeparator)
+            .frame(width: 60, height: 20)
+            .padding(10)
+            .background(NotchTheme.Colors.islandSurface)
+            .environment(\.paletteOnIsland, onIsland)
+            .environment(\.colorScheme, .dark)
+    }
+
     static func image(_ view: some View, _ name: String) -> NSBitmapImageRep {
         let renderer = ImageRenderer(content: view)
         renderer.scale = 1
@@ -85,6 +94,20 @@ struct NotchcastIslandCardsTest {
         let rim = white(jumpIsland, 30, 10), disc = white(jumpIsland, 30, 30)
         check(disc > 0, "island jump disc is not filled: \(disc)")
         check(abs(rim - disc) <= 1, "island jump disc has a rim: \(rim) vs disc \(disc)")
+
+        // A rule inside a card: keyCapFill on the island (the card's own fill), cardStroke otherwise.
+        let ruleIsland = white(image(rule(onIsland: true), "J-rule-island"), 40, 20)
+        let ruleStock = white(image(rule(onIsland: false), "J-rule-stock"), 40, 20)
+        check(ruleIsland == islandBody, "island rule is not keyCapFill: \(ruleIsland) vs card \(islandBody)")
+        check(ruleStock > 0 && ruleStock < ruleIsland, "stock rule is not cardStroke: \(ruleStock) vs \(ruleIsland)")
+
+        // Radius: an island card rounds at metrics.radius.row; stock keeps card and codeBlock.
+        let radius = InterfaceMetrics.standard.radius
+        check(radius.row != radius.card && radius.row != radius.codeBlock, "row must differ to pin anything")
+        check(radius.islandCard(onIsland: true) == radius.row, "island card is not radius.row")
+        check(radius.islandCard(onIsland: false) == radius.card, "stock card lost radius.card")
+        check(radius.islandCodeBlock(onIsland: true) == radius.row, "island code block is not radius.row")
+        check(radius.islandCodeBlock(onIsland: false) == radius.codeBlock, "stock code block lost radius.codeBlock")
 
         if failures > 0 {
             print("nc-Notchcast-island-cards-test: \(failures) failure(s)")
