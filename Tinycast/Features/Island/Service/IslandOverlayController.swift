@@ -59,12 +59,12 @@ final class IslandOverlayController: NSObject {
             if let (screen, _, _) = island.overlayContext(screen: entry.screen) { entry.screen = screen }
         }
         for entry in overlays {
-            guard let (screen, controller, palette) = island.overlayContext(screen: entry.screen) else { continue }
+            guard let (screen, controller, palette) = island.overlayContext(screen: entry.screen),
+                  let top = controller.openingTop else { continue }
             let id = screen.islandDisplayID
             guard framesByDisplay[id] == nil else { continue }
             entries[id] = controller
-            let layout = IslandOverlayLayout(screen: screen.frame,
-                contentTop: screen.frame.maxY - IslandController.notch(on: screen).height, palette: palette,
+            let layout = IslandOverlayLayout(screen: screen.frame, contentTop: top, palette: palette,
                 inset: NotchTheme.Spacing.islandInset, gap: Theme.Spacing.xl)
             let questionPanel = question.flatMap { $0.screen?.islandDisplayID == id ? $0.panel : nil }
             let questionFrame = questionPanel.map { layout.question($0.frame.size) }

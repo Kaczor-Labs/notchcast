@@ -37,6 +37,7 @@ final class IslandCoordinator: NSObject {
         rebuild()
         observeVisibility()
         observeCaptureSharing()
+        observePosition()
         glance.start()
         update.start()
     }
@@ -76,6 +77,7 @@ final class IslandCoordinator: NSObject {
             backdrop.onMenu = { [weak self] pill, window in self?.pillMenu.toggle(below: pill, in: window) }
             backdrop.glance = backdrop.showsRest ? restingGlance : nil
             presenter?.restore(backdrop, resting: backdrop.showsRest)
+            backdrop.position = core.settings.islandPosition
             backdrop.configure(screen)
             backdrops[screen.islandDisplayID] = backdrop
         }
@@ -124,6 +126,7 @@ final class IslandCoordinator: NSObject {
             let full = await Self.confirmFullScreen(candidates)
             guard !Task.isCancelled, let self else { return }
             for (id, backdrop) in backdrops { backdrop.onFullScreenSpace = full.contains(id) }
+            for screen in screens { backdrops[screen.islandDisplayID]?.refreshMenuBar(screen) }
         }
     }
 
@@ -231,8 +234,8 @@ final class IslandCoordinator: NSObject {
         }
         self.panel = panel
         backdrop.attach(panel, screen: screen)
-        let notch = IslandController.notch(on: screen)
-        return CGPoint(x: screen.frame.midX - width / 2, y: screen.frame.maxY - notch.height - outset)
+        guard let top = backdrop.openingTop else { return nil }
+        return CGPoint(x: screen.frame.midX - width / 2, y: top - outset)
     }
 
     var questionScreen: NSScreen? {
@@ -269,6 +272,18 @@ final class IslandCoordinator: NSObject {
                 self.observeCaptureSharing()
                 self.applyCaptureSharing()
                 for controller in self.backdrops.values { controller.outlineWhenOpen = self.core.settings.islandOutlineWhenOpen }
+            }
+        }
+    }
+
+    private func observePosition() {
+        withObservationTracking {
+            _ = core.settings.islandPosition
+        } onChange: { [weak self] in
+            Task { @MainActor in
+                guard let self else { return }
+                self.observePosition()
+                self.rebuild()
             }
         }
     }
