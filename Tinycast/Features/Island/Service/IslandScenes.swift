@@ -16,6 +16,7 @@ enum IslandScenes {
         if IslandOpeningScenes.names.contains(scene) { await IslandOpeningScenes.run(scene, core: core, screen: screen); return }
         if IslandKeylineScenes.names.contains(scene) { await IslandKeylineScenes.run(core: core, screen: screen); return }
         if IslandNotchScenes.names.contains(scene) { await IslandNotchScenes.run(scene, core: core, screen: screen); return }
+        if IslandLookScenes.names.contains(scene) { await IslandLookScenes.run(scene, core: core, screen: screen); return }
         if IslandPillScenes.names.contains(scene) { await IslandPillScenes.run(scene, core: core, screen: screen); return }
         core.paletteCoordinator.showPalette(mode: .launcher)
         guard let panel = NSApp.windows.first(where: { $0 is PalettePanel }) as? PalettePanel else {
