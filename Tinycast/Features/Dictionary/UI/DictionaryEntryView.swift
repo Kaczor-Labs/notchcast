@@ -91,8 +91,8 @@ private struct DictionaryBlockView: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(.horizontal, metrics.spacing.xl)
                 .padding(.vertical, metrics.spacing.md)
-                .background(noteShape.fill(Theme.Colors.cardFill))
-                .overlay(noteShape.strokeBorder(Theme.Colors.cardStroke))
+                .background(noteShape.fill(.islandCardFill))
+                .overlay(noteShape.strokeBorder(.islandEdge()))
                 .padding(.leading, textColumn)
         case .section(let title):
             VStack(alignment: .leading, spacing: metrics.spacing.xs) {
