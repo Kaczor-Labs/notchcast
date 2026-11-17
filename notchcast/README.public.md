@@ -34,7 +34,7 @@ The in-app updater stays off in Notchcast. To keep a Mac current, clone this rep
 <!-- features:start -->
 
 - **The island.** At rest it is a small pill at the top of the screen. Click it, or press your global shortcut, and it opens into the launcher. Right-click it for Settings and Quit. When your calendar has a meeting coming up, the pill shows its title and a countdown, and grows for a moment when it is time to join. Notices, add-on status and the volume level also show in the island.
-- **The launcher.** Everything Tinycast does: app and command search, clipboard history, snippets, quicklinks, calculator with units and currencies, emoji, file and menu-bar search, window management, layouts and rooms, notes, calendar, dictionary, Quick AI and AI chat, custom commands, Apple Shortcuts and deeplinks. Feature docs: [docs/features](/docs/features).
+- **The launcher.** Everything Tinycast does: app and command search, clipboard history, snippets, quicklinks, calculator with units and currencies, emoji, file and menu-bar search, window management, layouts and rooms, notes, calendar, dictionary, Quick AI and AI chat, custom commands and deeplinks. Feature docs: [docs/features](/docs/features).
 - **Look per display.** Each display's island is Black or Frosted (glass). A display you never set is Black when it has a notch and Frosted when it has none. Change it in Settings › Notchcast › Island.
 - **Settings › Notchcast.** One tab per area, each add-on with its own switch; an add-on's tab shows only while that add-on is in the build.
   - **Island**: look, outline when open, position on displays without a notch, show in screenshots and videos.
