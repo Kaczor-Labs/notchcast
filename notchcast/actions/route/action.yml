@@ -12,7 +12,7 @@ inputs:
     default: 'true'
 outputs:
   runners:
-    description: JSON array of count runs-on labels, the Macs first.
+    description: JSON array of count runs-on labels, the hosted image first.
     value: ${{ steps.route.outputs.runners }}
 runs:
   using: composite
