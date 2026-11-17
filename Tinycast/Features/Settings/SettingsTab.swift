@@ -1,7 +1,9 @@
-enum SettingsTab: CaseIterable, Identifiable {
+enum SettingsTab: CaseIterable, Hashable, Identifiable {
     case general, applications, systemSettings, systemActions, commands, quicklinks, appleShortcuts,
         fallbacks, clipboard, snippets, fileSearch, windowManagement, navigation, notes, calendar, emoji,
-        dictation, ai, quickActions, extensions, permissions, backup, about, notchcast
+        dictation, ai, quickActions, extensions, permissions, backup, about, notchcast(NotchcastPane)
+    /// Every tab sits in exactly one section; the associated value rules out synthesis.
+    static var allCases: [SettingsTab] { SettingsSection.allCases.flatMap(\.unfilteredTabs) }
     /// The case, never an index: a selectable `List` flattens section and row IDs together.
     var id: Self { self }
 
@@ -36,7 +38,7 @@ enum SettingsTab: CaseIterable, Identifiable {
         case .permissions: "permissions"
         case .backup: "backup"
         case .about: "about"
-        case .notchcast: "notchcast"
+        case .notchcast(let pane): pane.slug
         }
     }
 
@@ -65,7 +67,7 @@ enum SettingsTab: CaseIterable, Identifiable {
         case .permissions: return String(localized: "Permissions")
         case .backup: return String(localized: "Backup")
         case .about: return String(localized: "About")
-        case .notchcast: return String(localized: "Notchcast", table: "Notchcast")
+        case .notchcast(let pane): return pane.title
         }
     }
 
@@ -94,14 +96,14 @@ enum SettingsTab: CaseIterable, Identifiable {
         case .permissions: return "lock.shield"
         case .backup: return "arrow.up.arrow.down.circle"
         case .about: return "info.circle"
-        case .notchcast: return "capsule.fill"
+        case .notchcast(let pane): return pane.systemImage
         }
     }
 }
 
 /// Declaration order is display order; not `.Section`, which would shadow SwiftUI's `Section`.
 enum SettingsSection: CaseIterable, Identifiable {
-    case general, launcher, features, advanced
+    case general, launcher, features, notchcast, advanced
     /// See `SettingsTab.id`: distinct types keep the two namespaces from colliding.
     var id: Self { self }
 
@@ -110,6 +112,7 @@ enum SettingsSection: CaseIterable, Identifiable {
         case .general: return String(localized: "General")
         case .launcher: return String(localized: "Launcher")
         case .features: return String(localized: "Features")
+        case .notchcast: return String(localized: "Notchcast", table: "Notchcast")
         case .advanced: return String(localized: "Advanced")
         }
     }
@@ -118,7 +121,7 @@ enum SettingsSection: CaseIterable, Identifiable {
         unfilteredTabs.filter { !NotchcastHidden.tabs.contains($0) }
     }
 
-    private var unfilteredTabs: [SettingsTab] {
+    fileprivate var unfilteredTabs: [SettingsTab] {
         switch self {
         case .general: return [.general, .permissions]
         case .launcher:
@@ -132,7 +135,8 @@ enum SettingsSection: CaseIterable, Identifiable {
                 .clipboard, .snippets, .fileSearch, .windowManagement, .navigation, .notes,
                 .calendar, .emoji, .dictation, .ai, .quickActions, .extensions
             ]
-        case .advanced: return [.backup, .about, .notchcast]
+        case .notchcast: return NotchcastPane.shown.map(SettingsTab.notchcast)
+        case .advanced: return [.backup, .about]
         }
     }
 }

@@ -14,10 +14,10 @@ Every Notchcast feature on top of Tinycast is an add-on. An add-on plugs in with
 
 `<Folder>Addon` conforms to `NotchcastAddon` and states, as plain data:
 
-- `switches`: one per user-facing feature: frozen string id (the v1 raw value where one exists), title, subtitle, `category`, `defaultEnabled`, `dependencies` (switch ids, may name another folder's switch: the core then turns it off when that folder is gone), `requiredGrants`.
-- `commands`: launcher commands, each with id `command:nc-<slug>` (frozen), name, symbol, owning switch, `run`. They appear as ordinary launcher entries of the existing `AppEntry.Kind.command`, so there is no new launcher section and no category guessed from an id.
+- `switches`: one per user-facing feature: frozen string id (the v1 raw value where one exists), title, subtitle, `category`, `defaultEnabled` false unless v1 shipped it on, `dependencies` (switch ids, may name another folder's switch: the core then turns it off when that folder is gone), `requiredGrants`.
+- `commands`: launcher commands, each with id `command:nc-<slug>` (frozen), name, symbol, owning switch, `run`. They appear as ordinary launcher entries of the existing `AppEntry.Kind.command` with no settings owner, so there is no new launcher section, no category guessed from an id, and Settings › Commands lists them with their alias and hotkey cells.
 - `hotKeys`: commands may be bound like any built-in command, stored at `hotkey.command:nc-<slug>`, the same key v1 used, so existing `nc-screenshot-area` and `nc-screenshot-display` bindings resolve unchanged.
-- `settings`: extra rows under each switch, written as SwiftUI views inside the folder; the core renders them in the add-on's category section.
+- `settings`: extra rows under each switch, written as SwiftUI views inside the folder; the core renders them in the add-on's category section of its tab.
 - `taps`: event-tap subscriptions (event mask plus handler). The core installs one shared tap only while at least one enabled switch subscribes, and removes it when the last unsubscribes. Subscribed does not mean live: an add-on that acts outside its handlers checks `context.isTapLive`, and each tap's `reset` runs when the tap drops on its own.
 - `makeModule(context)`: start and stop. The core builds the module when the switch and its dependencies are on and stops it when they go off. `context` is the only door to the app: preferences store, presentation seam (island), tap hub, launcher hooks, Core services (root helper client, process runner, clock). An add-on never reads `AppCore`, `NotchcastCore` statics or another add-on.
 - `makeRecovery(context)`: optional, default `nil`. Built and started at core start whatever the switches say, before any module, and stopped at core stop after the modules. It repairs what a previous run left behind (a dirty journal) with the add-on off, so it stays short. It gets its own context, so switching the add-on off and on leaves its tap subscriptions in place; they still install only while their switch is on, and core stop clears them.
@@ -39,11 +39,11 @@ Only `v2/addons-core` touches upstream files, and only through these hooks. Each
 | H1 | `App/AppCore.swift` | `NotchcastCore.start(self)` in `start()` | +1 |
 | H2 | `Launcher/Model/CommandCatalog.swift` or `Launcher/Service/AppIndex.swift` | append add-on entries, filtered by `isEnabled` | +3 |
 | H3 | `Launcher/UI/LauncherCoordinator.swift` | dispatch an add-on entry before stock dispatch | +1 |
-| H4 | `HotKeys/Model/HotKeyAction.swift` (+`+EntryID.swift`) | `case notchcastCommand(entryID:)`, its `defaultsKey` arm and entry mapping; stock `.command(CommandID)` cannot carry it without new `CommandID` cases | +4 |
+| H4 | `HotKeys/Model/HotKeyAction.swift` (+`+EntryID.swift`, `Launcher/Service/VisibilityStore.swift`) | `case notchcastCommand(entryID:)`, its `defaultsKey` arm and entry mapping, and an `allowsHotKey` arm so the Commands category gates its hotkey like a stock command's; stock `.command(CommandID)` cannot carry it without new `CommandID` cases | +4 |
 | H5 | `HotKeys/Service/HotKeyManager.swift` | list, name, perform, register only while the owning switch is on | +5 |
-| H6 | `Settings/SettingsTab.swift` | `case notchcast`, last, so it sits at the bottom of the sidebar; its slug/title/icon arms | +5 |
-| H7 | `Settings/SettingsDetailView.swift` | its detail arm | +2 |
-| H8 | `Settings/SettingsSearchCatalog.swift` | append `NotchcastSettingsSearch.entries`: the pane row plus one row per add-on switch | +1 −1 |
+| H6 | `Settings/SettingsTab.swift` | `case notchcast(NotchcastPane)` and its slug/title/icon arms; a `notchcast` sidebar section after Features listing `NotchcastPane.shown`; `allCases` derived from the sections, since the associated value rules out synthesis | +12 −2 |
+| H7 | `Settings/SettingsDetailView.swift` | its detail arm, handing the pane over | +2 |
+| H8 | `Settings/SettingsSearchCatalog.swift` | append `NotchcastSettingsSearch.entries`: a pane row per shown tab plus one row per add-on switch | +1 −1 |
 | H9 | `Launcher/UI/LauncherScreen.swift` | `static var digitRow`: ⌘1–⌘0 ask core for a row first (digit, query, entry rows); nil keeps the stock favourite | +5 −1 |
 
 H2 names the one file actually used once built. H4 and H6 add cases to upstream enums. Known cost: a future upstream exhaustive `switch` over `HotKeyAction` or `SettingsTab` breaks our build with no textual conflict; the sync rehearsal's ready-check is what catches it. Every upstream exhaustive switch that needed an arm is listed in this table and counts in the budget.
@@ -56,22 +56,24 @@ H9 exists only for F10; if it is dropped, the budget falls to 9 files. F9 Alias 
 
 ## 4. Settings
 
-One upstream entry, **Notchcast**, at the bottom of the stock Settings sidebar (H6). Inside it is our own Form, one section per category, generated from the descriptors: a switch row per feature, its extra rows under it, empty categories hidden. Categories are a fixed, ordered list in Core (one line each); add-ons pick one, and nobody maintains a list of features. Adding a category is one line in Core; moving a feature is one word in its descriptor.
+A **Notchcast** section in the stock Settings sidebar, right after Features (H6), with one tab per `NotchcastPane`, in order: Island (`notchcast-island`), Keyboard & Mouse (`notchcast-keyboard-mouse`), Display & Sound (`notchcast-display-sound`, its Display & Sound and Music sections), Capture (`notchcast-capture`), Launcher Extras (`notchcast-launcher`), Downloads (`notchcast-downloads`), Power (`notchcast-power`) and Mac Tweaks (`notchcast-mac-tweaks`); each opens from `tinycast://settings/<slug>`. Island always shows and holds `NotchcastIslandSettingsRows`, the island shell's own rows (today "Show in screenshots and videos", found by search on the Island tab). An add-on tab shows only while a registered switch sits in one of its categories: `NotchcastCore` installs the registered categories into `NotchcastPane` before Settings can open, so a tab never reads `AppCore`. Each tab is a stock grouped `Form`, one section per category it holds: a switch row per feature, its extra rows under it while it is on, empty categories hidden. Commands are not repeated here: their hotkeys and aliases live in Settings › Commands. Categories are a fixed, ordered list in Core (one line each); add-ons pick one, and nobody maintains a list of features. Adding a category is one line in Core plus the tab that holds it; moving a feature is one word in its descriptor. A later add-on whose category has no tab adds one `NotchcastPane` case with its categories, slug, title and symbol arms, all in Core; `SettingsTab` stays untouched.
 
-Settings search finds every switch with no line in the add-on: core installs one search row per switch from the descriptors (title, subtitle, id, and the names and keywords of the switch's commands, which hide while it is off), and each category header is the anchor its rows scroll to. **Add-on switches have no `SettingsFileKey`**, a deliberate exception to the settings-file rule: a switch can grant a capability (an event tap, Accessibility-gated input), and a capability flag is never carried by `settings.json` or a backup, as with `snippetsEnabled`. They live only in the `<bundle id>.notchcast` suite.
+Settings search finds every switch with no line in the add-on: core installs one search row per switch from the descriptors (title, subtitle, id, and the names and keywords of the switch's commands, which hide while it is off), and each category header is the anchor its rows scroll to, on its own tab; each shown tab gets one pane row. **Add-on switches have no `SettingsFileKey`**, a deliberate exception to the settings-file rule: a switch can grant a capability (an event tap, Accessibility-gated input), and a capability flag is never carried by `settings.json` or a backup, as with `snippetsEnabled`. They live only in the `<bundle id>.notchcast` suite.
 
-| Category | Build now (`buduj`) | Later (`później`), placed now |
-| - | - | - |
-| Capture | F1 Screenshots | F39 editor, F40 text/OCR, F41 colour picker, F45 trimmer, F46 recording, F47 scrolling |
-| Display & Sound | F2 Brightness (+extra dimming), F100 Volume in Island | DDC volume/mute, XDR, per-display, F102 Audio priority |
-| Keyboard & Mouse | F3 Hide with ⌘M, F4 Middle Click, F5 Quit Protection, F6 Show Desktop with F3 | F12 Green button maximizes, F33 Paste plain text |
-| Launcher | F10 Number Keys, F11 Small Commands | F27 Copy path, F29 GitHub search, F30 Quick Look on Space, F99 URL cleaner |
-| Files & Downloads | F64 Downloads, F65 aria2, F62 Distill, F63 Distill Timestamps | F59 Distill folder, F60 Convert files, F68 Media tools, F32 Paste image in Finder, F128–F130 Torrents |
-| Power | F108 Keep Awake, F109 Lid Closed | F101 Accessory batteries, F86 Low disk |
-| Music | F13 Stop Apple Music on media keys | F49 covers, F52 resume player, F53 now playing, F54 Spotify Connect |
-| Notices | (none yet) | F14 Event reminders, F72 Timers, F78 Accessory notices, F97 System notices, F15/I1 AI usage |
-| Between Macs | (none yet) | F71 Shelf, F85 Link health, F26 Command runner |
-| Mac Tweaks | F8 iPhone backup | F7 Spaces order, F34/F35 Finder tools, F118 and the rest of v1's system tweaks |
+| Category | Tab | Build now (`buduj`) | Later (`później`), placed now |
+| - | - | - | - |
+| Capture | Capture | F1 Screenshots | F39 editor, F40 text/OCR, F41 colour picker, F45 trimmer, F46 recording, F47 scrolling |
+| Display & Sound | Display & Sound | F2 Brightness (+extra dimming), F100 Volume in Island | DDC volume/mute, XDR, per-display, F102 Audio priority |
+| Keyboard & Mouse | Keyboard & Mouse | F3 Hide with ⌘M, F4 Middle Click, F5 Quit Protection, F6 Show Desktop with F3 | F12 Green button maximizes, F33 Paste plain text |
+| Launcher | Launcher Extras | F10 Number Keys, F11 Small Commands | F27 Copy path, F29 GitHub search, F30 Quick Look on Space, F99 URL cleaner |
+| Files & Downloads | Downloads | F64 Downloads, F65 aria2, F62 Distill, F63 Distill Timestamps | F59 Distill folder, F60 Convert files, F68 Media tools, F32 Paste image in Finder, F128–F130 Torrents |
+| Power | Power | F108 Keep Awake, F109 Lid Closed | F101 Accessory batteries, F86 Low disk |
+| Music | Display & Sound | F13 Stop Apple Music on media keys | F49 covers, F52 resume player, F53 now playing, F54 Spotify Connect |
+| Notices | (its add-on adds one) | (none yet) | F14 Event reminders, F72 Timers, F78 Accessory notices, F97 System notices, F15/I1 AI usage |
+| Between Macs | (its add-on adds one) | (none yet) | F71 Shelf, F85 Link health, F26 Command runner |
+| Mac Tweaks | Mac Tweaks | F8 iPhone backup | F7 Spaces order, F34/F35 Finder tools, F118 and the rest of v1's system tweaks |
+
+A category with no tab shows nowhere, so the first add-on in it lands together with its `NotchcastPane` case; the registry harness fails a switch that lands in no shown tab.
 
 ## 5. Proof
 
@@ -80,8 +82,8 @@ Settings search finds every switch with no line in the add-on: core installs one
 - **Footprint gate** (stack lead's ready-check line): core within the budget file; feature branches zero upstream paths, allowed paths derived from the registry.
 - **Strings:** a build leaves upstream's `Localizable.xcstrings` byte-identical, and deleting a folder leaves no orphan string. With per-folder catalogs, a mechanical check fails on any add-on string that would be extracted into the stock table (a missed `table:`). If that check proves expensive, the fallback is plain English literals with no catalog (we ship English only); cost: no translation path later without touching every add-on.
 - **Acceptance block** in every feature READY: (a) the user path proven by a live scene that does what the maintainer would do (press the key, see the result), not only a model harness; anything that cannot run here is NOT RUN and goes to the MBP; (b) "how to try it" in at most three plain lines for the maintainer; (c) what was deliberately changed from v1 and why. A feature the maintainer has not checked is "built, not accepted".
-- **Registry harness** `Tests/nc-Notchcast-registry-test.swift`: ids and slugs unique and frozen: every switch id is either a pinned v1 raw value or named in the harness's `newIDs`, exact match, and no id is declared by two folders, every switch has a user path, every category valid, dependencies name known ids or are reported as absent.
-- **Core harness** `Tests/nc-Notchcast-core-test.swift`: preferences on a scratch suite, module start/stop on toggle, tap order through the controller, hotkey key strings, presentation-seam recording. **Tap harness** `Tests/nc-Notchcast-tap-test.swift`: fake tap hub installed only while subscribed, resets, stale activations, liveness and the trust monitor. Both share `Tests/NotchcastTapFixtures.swift`.
+- **Registry harness** `Tests/nc-Notchcast-registry-test.swift`: ids and slugs unique and frozen: every switch id is either a pinned v1 raw value or named in the harness's `newIDs`, exact match, and no id is declared by two folders, every switch has a user path, every category valid and in exactly one shown tab, dependencies name known ids or are reported as absent.
+- **Core harness** `Tests/nc-Notchcast-core-test.swift`: preferences on a scratch suite, module start/stop on toggle, tap order through the controller, hotkey key strings, presentation-seam recording, the tab → category map, which tabs show, unique slugs and their deep links, and nc command entries with no settings owner. **Tap harness** `Tests/nc-Notchcast-tap-test.swift`: fake tap hub installed only while subscribed, resets, stale activations, liveness and the trust monitor. Both share `Tests/NotchcastTapFixtures.swift`. **Visibility harness** `Tests/nc-Notchcast-visibility-test.swift`: the Commands category gates an add-on command's hotkey, against the real `VisibilityStore` and a stub `AppEntry`.
 
 ## 6. Why v1 needed untangling, and which rule prevents each cause
 

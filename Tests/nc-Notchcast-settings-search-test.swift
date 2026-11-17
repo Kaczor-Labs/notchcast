@@ -19,25 +19,37 @@ struct NotchcastSettingsSearchTests {
     }
 
     static func main() {
+        let keys = NotchcastSwitch(id: "keys", title: "Number keys", subtitle: "Pick a result", category: .keyboardMouse)
+        let block = NotchcastSwitch(id: "block", title: "Music block", subtitle: "Stay quiet", category: .music)
         let shots = NotchcastSwitch(id: "shots", title: "Screenshots", subtitle: "Grab an area", category: .capture)
-        let awake = NotchcastSwitch(id: "awake", title: "Keep awake", subtitle: "Stay on", category: .power)
-        NotchcastSettingsSearch.install([awake, shots], commandWords: ["shots": ["Capture area", "grab"]])
-        let rows = SettingsSearchCatalog.entries.filter { $0.tab == .notchcast }
+        NotchcastSettingsSearch.install([shots, block, keys], commandWords: ["shots": ["Capture area", "grab"]])
+        let rows = SettingsSearchCatalog.entries.filter {
+            if case .notchcast = $0.tab { true } else { false }
+        }
 
-        let titles = ["Notchcast", "Show in screenshots and videos", "Outline when open", "Screenshots", "Keep awake"]
-        check("the pane comes first, then the island rows, then one row per switch", rows.map(\.title) == titles)
-        check("the pane row has no anchor", rows.first?.anchor == nil)
-        check("the capture row lands on the island section", rows[1].anchor == NotchcastSettingsSearch.island)
-        check("the outline row lands on the island section", rows[2].anchor == NotchcastSettingsSearch.island)
+        let titles = ["Island", "Show in screenshots and videos", "Outline when open", "Keyboard & Mouse", "Number keys",
+                      "Display & Sound", "Music block", "Capture", "Screenshots"]
+        check("one pane row per shown tab, then its rows in tab order", rows.map(\.title) == titles)
+        check("a tab with no switch has no row", !rows.contains { $0.tab == .notchcast(.downloads) })
+        check("a pane row has no anchor", rows.filter { $0.anchor == nil }.map(\.tab)
+              == [.notchcast(.island), .notchcast(.keyboardMouse), .notchcast(.displaySound), .notchcast(.capture)])
+        check("the capture row lands on the Island tab's island section",
+              rows[1].anchor == NotchcastSettingsSearch.island && rows[1].anchor?.tab == .notchcast(.island))
+        check("the outline row lands on the Island tab's island section",
+              rows[2].anchor == NotchcastSettingsSearch.island && rows[2].anchor?.tab == .notchcast(.island))
         check("keyline finds the outline row", finds("keyline", "Outline when open"))
         check("screen recording finds the capture row", finds("screen recording", "Show in screenshots and videos"))
-        check("a switch row lands on its category section", rows[3].anchor == NotchcastSettingsSearch.anchor(.capture))
-        check("the section anchor is the category header", rows[4].anchor?.title == NotchcastCategory.power.title)
-        check("rows follow category order, not install order", rows[3].anchor?.title == NotchcastCategory.capture.title)
-        check("a row's breadcrumb names the category", rows[3].breadcrumb == "Notchcast › \(NotchcastCategory.capture.title)")
+        check("the Screenshots switch lands in the Capture tab",
+              rows[8].anchor == NotchcastSettingsSearch.anchor(.capture) && rows[8].anchor?.tab == .notchcast(.capture))
+        check("a switch row lands on its own tab's category section",
+              rows[4].anchor?.tab == .notchcast(.keyboardMouse) && rows[6].anchor?.tab == .notchcast(.displaySound))
+        check("a row's breadcrumb names the tab and section",
+              rows[6].breadcrumb == "Display & Sound › \(NotchcastCategory.music.title)")
         check("a command's name finds its switch", finds("capture area", "Screenshots"))
-        check("a subtitle finds its switch", finds("stay on", "Keep awake"))
-        check("the island keyword still finds the pane", SettingsSearchCatalog.results(for: "island").first?.anchor == nil)
+        check("a subtitle finds its switch", finds("stay quiet", "Music block"))
+        check("the notch keyword finds the Island tab",
+              SettingsSearchCatalog.results(for: "notch").first?.tab == .notchcast(.island))
+        check("the island keyword finds the Island tab", SettingsSearchCatalog.results(for: "island").first?.anchor == nil)
         if failures > 0 { exit(1) }
         print("PASSED")
     }

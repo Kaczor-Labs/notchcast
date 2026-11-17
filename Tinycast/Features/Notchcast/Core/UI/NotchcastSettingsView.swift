@@ -1,27 +1,14 @@
 import SwiftUI
 
-/// The Notchcast pane: one section per category, generated from the descriptors.
+/// A Notchcast tab: one section per category it holds, built only from those add-ons.
 struct NotchcastSettingsView: View {
     let controller: NotchcastController
-    @Environment(AppSettings.self) private var settings
+    let pane: NotchcastPane
 
     var body: some View {
-        @Bindable var settings = settings
-        return Form {
-            Section {
-                Toggle(isOn: $settings.islandShowsInCaptures) {
-                    SettingsRowTitle(NotchcastSettingsSearch.island, NotchcastSettingsSearch.showsInCaptures)
-                    Text("Off hides the island from screenshots, recordings and screen sharing.",
-                         tableName: "Notchcast")
-                }
-                Toggle(isOn: $settings.islandOutlineWhenOpen) {
-                    SettingsRowTitle(NotchcastSettingsSearch.island, NotchcastSettingsSearch.outlineWhenOpen)
-                    Text("A faint line around the open island in Dark.", tableName: "Notchcast")
-                }
-            } header: {
-                SettingsSectionHeader(NotchcastSettingsSearch.island)
-            }
-            ForEach(NotchcastCategory.allCases, id: \.self) { category in
+        Form {
+            if pane == .island { NotchcastIslandSettingsRows() }
+            ForEach(pane.categories, id: \.self) { category in
                 let switches = controller.switches.filter { $0.category == category }
                 if !switches.isEmpty {
                     let anchor = NotchcastSettingsSearch.anchor(category)
@@ -36,12 +23,12 @@ struct NotchcastSettingsView: View {
             }
         }
         .formStyle(.grouped)
-        .settingsScrollTarget(.notchcast)
+        .settingsScrollTarget(.notchcast(pane))
         .onAppear { controller.hub.refreshPermission() }
     }
 }
 
-/// A switch, then its commands' shortcut recorders and its extra rows while it is on.
+/// A switch, then its extra rows while it is on; its commands' hotkeys live in Settings › Commands.
 private struct NotchcastSwitchRows: View {
     let controller: NotchcastController
     let item: NotchcastSwitch
@@ -71,16 +58,9 @@ private struct NotchcastSwitchRows: View {
                     .foregroundStyle(Theme.Colors.warning)
             }
         }
-        if preferences.isEnabled(item.id) {
-            ForEach(controller.slots.flatMap { $0.addon.commands }.filter { $0.switchID == item.id }) { command in
-                SettingsRow(title: command.name) {
-                    ShortcutRecorder(action: .notchcastCommand(entryID: command.id))
-                }
-            }
-            if let context = controller.context(forSwitch: item.id) {
-                ForEach(controller.slots.flatMap(\.settings).filter { $0.row.switchID == item.id }) { entry in
-                    entry.row.view(context)
-                }
+        if preferences.isEnabled(item.id), let context = controller.context(forSwitch: item.id) {
+            ForEach(controller.slots.flatMap(\.settings).filter { $0.row.switchID == item.id }) { entry in
+                entry.row.view(context)
             }
         }
     }

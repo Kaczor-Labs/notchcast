@@ -124,9 +124,11 @@ def rewrite(source, keys):
             continue
         if re.search(r'ExecutableLocator\.find\(\s*$', before):
             continue
+        if re.search(r'\bsubsystem:[^\n]*\bcategory:\s*$', before):
+            continue
         if re.search(r'\bproperties\[\s*$', before):
             continue
-        if re.match(r'\s*,\s*table(?:Name)?:\s*"Notchcast"', after):
+        if re.match(r'\s*,\s*table(?:Name)?:\s*"Notchcast\w*"', after):
             continue
         if re.search(r'(?:String\(\s*localized:|LocalizedStringResource\()\s*$', before):
             edits.append((end, end, ', table: "Notchcast"'))
