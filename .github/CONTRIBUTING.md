@@ -9,7 +9,7 @@ Notchcast is upstream [Tinycast](https://github.com/abue-ammar/tinycast) plus ou
 
 ## Pull requests
 
-1. Branch off current `main`. Build and test as in the [README](/README.md#build-from-source).
+1. Branch off current `main`. Build and test as in the [README](/README.md#dev-builds).
 2. Put new code in new files under `Tinycast/Features/<Feature>/`. Touch as few upstream files and lines as possible, and only by adding lines.
 3. Do not commit generated files: `Tinycast.xcodeproj/project.pbxproj`, `Tinycast.xcodeproj/xcshareddata/xcschemes/Tinycast.xcscheme`, `README.md` (edit `notchcast/README.public.md`) and `Tinycast/Resources/RaycastRuntime.generated.js`. CI regenerates them.
 4. Follow upstream's [AGENTS.md](/AGENTS.md), [docs/standards.md](/docs/standards.md) and [docs/ui.md](/docs/ui.md): no third-party dependencies, upstream's design system and wording, all eight translations.
