@@ -1,18 +1,20 @@
 import AppKit
+import SwiftUI
 
 /// A notice in the wings; on a notch only its mark and percent, since its text expands below.
 @MainActor
 struct IslandNoticeArt: PillArt {
     let layout: IslandGlanceLayout
     let notice: IslandNotice
-    let tone: NSColor
+    let tone: Color
     private let notch: Bool
     private let mark: IslandNoticeMark
     private let text: NSAttributedString
     private let textWidth: CGFloat
     private let gap = Theme.Spacing.sm
     private let edge = Theme.Spacing.lg
-    static let failureTone = NSColor(Theme.Colors.destructive)
+    static let failureTone = Theme.Colors.destructive
+    var failed: Bool { notice.isFailure }
 
     init(_ notice: IslandNotice, notch: Bool) {
         self.notice = notice
@@ -41,8 +43,8 @@ struct IslandNoticeArt: PillArt {
         mark.draw(in: box)
         let height = text.size().height
         let x = notch ? pill.maxX - edge - textWidth : box.maxX + gap
-        text.draw(with: CGRect(x: x, y: pill.midY - height / 2, width: textWidth, height: height),
-                  options: [.usesLineFragmentOrigin, .truncatesLastVisibleLine])
+        text.inked(Theme.Colors.textPrimary).draw(with: CGRect(x: x, y: pill.midY - height / 2, width: textWidth,
+            height: height), options: [.usesLineFragmentOrigin, .truncatesLastVisibleLine])
     }
 }
 
@@ -51,7 +53,8 @@ struct IslandNoticeArt: PillArt {
 struct IslandHeadlineArt {
     let size: CGSize
     let notice: IslandNotice
-    let tone: NSColor
+    let tone: Color
+    var failed: Bool { notice.isFailure }
     let text: NSAttributedString
     let textWidth: CGFloat
     private let mark: IslandNoticeMark
@@ -75,8 +78,8 @@ struct IslandHeadlineArt {
         let x = area.midX - (indent + textWidth) / 2
         mark.draw(in: CGRect(x: x, y: area.midY - cell / 2, width: cell, height: cell))
         let height = text.size().height
-        text.draw(with: CGRect(x: x + indent, y: area.midY - height / 2, width: textWidth, height: height),
-                  options: [.usesLineFragmentOrigin, .truncatesLastVisibleLine])
+        text.inked(Theme.Colors.textPrimary).draw(with: CGRect(x: x + indent, y: area.midY - height / 2,
+            width: textWidth, height: height), options: [.usesLineFragmentOrigin, .truncatesLastVisibleLine])
     }
 }
 
@@ -85,14 +88,14 @@ struct IslandHeadlineArt {
 private struct IslandNoticeMark {
     /// Fixed, so a progress notice that turns into a glyph one never resizes the slots.
     static let cell = NotchTheme.Typography.islandGlanceNSFont.pointSize + Theme.Spacing.xs
-    let tone: NSColor
+    let tone: Color
     private let fraction: Double?
-    private let glyph: NSImage?
+    private let glyph: IslandGlyph?
 
     init(_ notice: IslandNotice) {
-        tone = notice.isFailure ? IslandNoticeArt.failureTone : NSColor(Theme.Colors.textPrimary)
+        tone = notice.isFailure ? IslandNoticeArt.failureTone : Theme.Colors.textPrimary
         fraction = notice.progress?.fraction
-        glyph = fraction == nil ? notice.symbol.flatMap { [tone] in GlanceArt.glyph($0, tone: tone) } : nil
+        glyph = fraction == nil ? notice.symbol.flatMap { [tone] in IslandGlyph($0, tone: tone) } : nil
     }
 
     var isEmpty: Bool { fraction == nil && glyph == nil }
@@ -101,7 +104,7 @@ private struct IslandNoticeMark {
         let paragraph = NSMutableParagraphStyle()
         paragraph.lineBreakMode = .byTruncatingTail
         return NSAttributedString(string: string, attributes: [.font: NotchTheme.Typography.islandGlanceNSFont,
-            .foregroundColor: NSColor(Theme.Colors.textPrimary), .paragraphStyle: paragraph])
+            .paragraphStyle: paragraph])
     }
 
     func draw(in box: CGRect) {
@@ -136,7 +139,7 @@ struct IslandStatusArt: PillArt {
     let layout: IslandGlanceLayout
     let statuses: [IslandStatus]
     private let notch: Bool
-    private let items: [(id: String, glyph: NSImage?, text: NSAttributedString?)]
+    private let items: [(id: String, glyph: IslandGlyph?, text: NSAttributedString?)]
     private let width: CGFloat
     private let gap = Theme.Spacing.sm
     private let edge = Theme.Spacing.lg
@@ -144,13 +147,12 @@ struct IslandStatusArt: PillArt {
     init(_ statuses: [IslandStatus], notch: Bool) {
         self.statuses = statuses
         self.notch = notch
-        let attributes: [NSAttributedString.Key: Any] = [.font: NotchTheme.Typography.islandGlanceNSFont,
-            .foregroundColor: NSColor(Theme.Colors.textPrimary)]
+        let attributes: [NSAttributedString.Key: Any] = [.font: NotchTheme.Typography.islandGlanceNSFont]
         var items = statuses.map { status in
-            (id: status.id, glyph: GlanceArt.glyph(status.symbol),
+            (id: status.id, glyph: IslandGlyph(status.symbol),
              text: status.text.map { NSAttributedString(string: String($0.prefix(4)), attributes: attributes) })
         }
-        func span(_ items: [(id: String, glyph: NSImage?, text: NSAttributedString?)]) -> CGFloat {
+        func span(_ items: [(id: String, glyph: IslandGlyph?, text: NSAttributedString?)]) -> CGFloat {
             items.map { ($0.glyph?.size.width ?? 0) + ($0.text.map { Theme.Spacing.xs + $0.size().width } ?? 0) }
                 .reduce(0) { $0 == 0 ? $1 : $0 + Theme.Spacing.sm + $1 }
         }
@@ -177,7 +179,7 @@ struct IslandStatusArt: PillArt {
             }
             if let text = item.text {
                 x += Theme.Spacing.xs
-                text.draw(at: CGPoint(x: x, y: pill.midY - text.size().height / 2))
+                text.inked(Theme.Colors.textPrimary).draw(at: CGPoint(x: x, y: pill.midY - text.size().height / 2))
                 x += text.size().width
             }
             x += gap

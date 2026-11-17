@@ -1,4 +1,5 @@
 import AppKit
+import SwiftUI
 
 final class IslandCanvas: NSView {
     var outline: CGPath?
@@ -39,7 +40,11 @@ final class IslandCanvas: NSView {
     var onOpen: (() -> Void)?
     var onMenu: (() -> Void)?
     var canOpen: (() -> Bool)?
+    /// The art resolves its theme colours while drawing, so they follow this view, not the ambient appearance.
     override func draw(_ dirtyRect: NSRect) {
+        effectiveAppearance.performAsCurrentDrawingAppearance { paint(dirtyRect) }
+    }
+    private func paint(_ dirtyRect: NSRect) {
         NSColor.clear.setFill()
         dirtyRect.fill(using: .copy)
         guard let outline, let context = NSGraphicsContext.current?.cgContext else { return }
@@ -152,7 +157,7 @@ protocol PillArt {
 struct GlanceArt: PillArt {
     let layout: IslandGlanceLayout
     private let notch: Bool
-    private let glyph: NSImage?
+    private let glyph: IslandGlyph?
     private let title: NSAttributedString
     private let separator: NSAttributedString
     private let countdown: NSAttributedString
@@ -161,29 +166,22 @@ struct GlanceArt: PillArt {
     init(_ glance: IslandGlance, notch: Bool) {
         self.notch = notch
         let font = NotchTheme.Typography.islandGlanceNSFont
-        let primary: [NSAttributedString.Key: Any] = [.font: font, .foregroundColor: NSColor(Theme.Colors.textPrimary)]
-        let secondary: [NSAttributedString.Key: Any] = [.font: font, .foregroundColor: NSColor(Theme.Colors.textSecondary)]
-        glyph = Self.glyph(glance.symbol)
-        title = NSAttributedString(string: glance.title, attributes: primary)
-        separator = NSAttributedString(string: " · ", attributes: secondary)
-        countdown = NSAttributedString(string: glance.countdown, attributes: primary)
+        let attributes: [NSAttributedString.Key: Any] = [.font: font]
+        glyph = IslandGlyph(glance.symbol)
+        title = NSAttributedString(string: glance.title, attributes: attributes)
+        separator = NSAttributedString(string: " · ", attributes: attributes)
+        countdown = NSAttributedString(string: glance.countdown, attributes: attributes)
         layout = IslandGlanceLayout(notch: notch, glyph: Double(glyph?.size.width ?? 0), gap: gap,
             title: title.size().width, separator: separator.size().width,
             countdown: countdown.size().width, wing: NotchTheme.Size.islandGlanceWing)
-    }
-
-    static func glyph(_ name: String, tone: NSColor = NSColor(Theme.Colors.textPrimary)) -> NSImage? {
-        let symbol = NSImage.SymbolConfiguration(pointSize: NotchTheme.Typography.islandGlanceNSFont.pointSize, weight: .medium)
-            .applying(.init(paletteColors: [tone]))
-        return NSImage(systemSymbolName: name, accessibilityDescription: nil)?.withSymbolConfiguration(symbol)
     }
 
     /// `pill` is the visible part of the outline; content hugs its ends, as the slots were sized.
     func draw(in pill: CGRect) {
         let edge = Theme.Spacing.lg
         var x = pill.minX + edge
-        func place(_ text: NSAttributedString) {
-            text.draw(at: CGPoint(x: x, y: pill.midY - text.size().height / 2))
+        func place(_ text: NSAttributedString, _ ink: Color) {
+            text.inked(ink).draw(at: CGPoint(x: x, y: pill.midY - text.size().height / 2))
             x += text.size().width
         }
         if let glyph {
@@ -191,13 +189,56 @@ struct GlanceArt: PillArt {
                                   height: glyph.size.height))
             x += glyph.size.width + gap
         }
-        if layout.showsTitle { place(title) }
+        if layout.showsTitle { place(title, Theme.Colors.textPrimary) }
         if notch {
             x = pill.maxX - edge - countdown.size().width
-            place(countdown)
+            place(countdown, Theme.Colors.textPrimary)
         } else {
-            if layout.showsTitle { place(separator) }
-            place(countdown)
+            if layout.showsTitle { place(separator, Theme.Colors.textSecondary) }
+            place(countdown, Theme.Colors.textPrimary)
         }
+    }
+}
+
+/// A symbol whose palette tone is a theme token, tinted when drawn so a Dark/Light flip repaints it.
+@MainActor
+final class IslandGlyph {
+    let size: CGSize
+    private let name: String
+    private let tone: Color
+    private var tinted: [Bool: NSImage] = [:]
+
+    init?(_ name: String, tone: Color = Theme.Colors.textPrimary) {
+        guard let image = IslandGlyph.image(name, tone: tone, dark: true) else { return nil }
+        self.name = name
+        self.tone = tone
+        size = image.size
+        tinted[true] = image
+    }
+
+    func draw(in rect: CGRect) {
+        let dark = NSAppearance.currentDrawing().isDark
+        if tinted[dark] == nil { tinted[dark] = Self.image(name, tone: tone, dark: dark) }
+        tinted[dark]?.draw(in: rect)
+    }
+
+    private static func image(_ name: String, tone: Color, dark: Bool) -> NSImage? {
+        var ink = NSColor.clear
+        NSAppearance(named: dark ? .darkAqua : .aqua)?.performAsCurrentDrawingAppearance {
+            ink = NSColor(cgColor: NSColor(tone).cgColor) ?? .clear
+        }
+        let size = NotchTheme.Typography.islandGlanceNSFont.pointSize
+        let symbol = NSImage.SymbolConfiguration(pointSize: size, weight: .medium)
+            .applying(.init(paletteColors: [ink]))
+        return NSImage(systemSymbolName: name, accessibilityDescription: nil)?.withSymbolConfiguration(symbol)
+    }
+}
+
+extension NSAttributedString {
+    /// The colour resolves now, against the drawing appearance; a string that carried it would freeze it.
+    func inked(_ ink: Color) -> NSAttributedString {
+        let copy = NSMutableAttributedString(attributedString: self)
+        copy.addAttribute(.foregroundColor, value: NSColor(ink), range: NSRange(location: 0, length: length))
+        return copy
     }
 }

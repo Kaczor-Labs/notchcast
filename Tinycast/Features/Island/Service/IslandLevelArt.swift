@@ -5,7 +5,7 @@ import AppKit
 struct IslandLevelArt: PillArt {
     let layout: IslandGlanceLayout
     let level: IslandLevel
-    private let glyph: NSImage?
+    private let glyph: IslandGlyph?
     /// Fixed, so a glyph swap on repeat never resizes the slots and restarts the pill's spring.
     private let cell = NotchTheme.Size.islandLevelCell
     private let track = NotchTheme.Size.islandLevelTrack
@@ -14,7 +14,7 @@ struct IslandLevelArt: PillArt {
 
     init(_ level: IslandLevel, notch: Bool) {
         self.level = level
-        glyph = GlanceArt.glyph(level.symbol)
+        glyph = IslandGlyph(level.symbol)
         layout = IslandGlanceLayout(notch: notch, glyph: cell, gap: gap, title: 0, separator: 0,
                                     countdown: track, wing: NotchTheme.Size.islandGlanceWing)
     }
@@ -62,8 +62,15 @@ final class IslandLevelBand: NSView {
     override func accessibilityRole() -> NSAccessibility.Role? { .levelIndicator }
 
     override func draw(_ dirtyRect: NSRect) {
-        NSColor(NotchTheme.Colors.islandSurface).setFill()
-        bounds.fill()
-        art?.draw(in: bounds)
+        effectiveAppearance.performAsCurrentDrawingAppearance {
+            NSColor(NotchTheme.Colors.islandSurface).setFill()
+            bounds.fill()
+            art?.draw(in: bounds)
+        }
+    }
+
+    override func viewDidChangeEffectiveAppearance() {
+        super.viewDidChangeEffectiveAppearance()
+        needsDisplay = true
     }
 }

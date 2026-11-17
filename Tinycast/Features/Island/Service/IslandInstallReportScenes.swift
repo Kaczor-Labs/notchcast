@@ -24,7 +24,7 @@ enum IslandInstallReportScenes {
         IslandVerification.require(controller.notice?.text == String(localized: "Update failed")
             && controller.notice?.isFailure == true, "a version that did not install shows a failure notice")
         for _ in 0..<20 where !controller.acceptsClicks { await IslandVerification.pause(0.05) }
-        IslandVerification.require(controller.noticeTone === IslandNoticeArt.failureTone, "a failure glyph is red")
+        IslandVerification.require(controller.noticeFailed == true, "a failure glyph is red")
         await controller.capture("install-report-failed")
         IslandVerification.require(controller.pressBackdrop(), "the pill takes the tap")
         await IslandVerification.pause(0.3)

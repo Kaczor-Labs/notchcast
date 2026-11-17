@@ -4,7 +4,7 @@ import AppKit
 @MainActor
 struct IslandExpansionArt {
     let size: CGSize
-    private let glyph: NSImage?
+    private let glyph: IslandGlyph?
     private let title: NSAttributedString
     private let countdown: NSAttributedString
     private let edge = Theme.Spacing.lg
@@ -12,11 +12,11 @@ struct IslandExpansionArt {
 
     init(_ glance: IslandGlance) {
         let font = NotchTheme.Typography.islandGlanceNSFont
-        glyph = GlanceArt.glyph(glance.symbol)
+        glyph = IslandGlyph(glance.symbol)
         title = NSAttributedString(string: glance.title,
-                                   attributes: [.font: font, .foregroundColor: NSColor(Theme.Colors.textPrimary)])
+                                   attributes: [.font: font])
         countdown = NSAttributedString(string: glance.countdown,
-                                       attributes: [.font: font, .foregroundColor: NSColor(Theme.Colors.textSecondary)])
+                                       attributes: [.font: font])
         let indent = glyph.map { [gap] in $0.size.width + gap } ?? 0
         size = CGSize(width: edge * 2 + indent + max(title.size().width, countdown.size().width),
                       height: Theme.Spacing.md * 2 + title.size().height + Theme.Spacing.xxs + countdown.size().height)
@@ -31,7 +31,8 @@ struct IslandExpansionArt {
                                   width: glyph.size.width, height: glyph.size.height))
         }
         let text = x + (glyph.map { $0.size.width + gap } ?? 0)
-        title.draw(at: CGPoint(x: text, y: top))
-        countdown.draw(at: CGPoint(x: text, y: top - Theme.Spacing.xxs - countdown.size().height))
+        title.inked(Theme.Colors.textPrimary).draw(at: CGPoint(x: text, y: top))
+        let low = top - Theme.Spacing.xxs - countdown.size().height
+        countdown.inked(Theme.Colors.textSecondary).draw(at: CGPoint(x: text, y: low))
     }
 }
