@@ -7,6 +7,7 @@ enum TinycastLaunch {
         #if DEBUG
         if ProcessRole.current == .main, IslandVerification.enabled { IslandVerification.main(); return }
         #endif
+        NotchcastAppProof.runIfRequested()
         AppSettings.pinLanguage()
         switch ProcessRole.current {
         case .main: TinycastApp.main()
