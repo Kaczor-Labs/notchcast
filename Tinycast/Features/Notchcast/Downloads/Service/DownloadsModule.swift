@@ -5,7 +5,7 @@ import Observation
 @MainActor
 final class DownloadsModule: NotchcastModule {
     enum Action: CaseIterable {
-        case video, audio, transcript, webpage, openDownloads, addDistill, runDistill, openDistill
+        case video, audio, transcript, webpage, addDistill, runDistill
 
         /// The job kind a copied link becomes in the downloads queue; nil for every other command.
         var kind: String? {
@@ -14,13 +14,13 @@ final class DownloadsModule: NotchcastModule {
             case .audio: MediaArguments.Format.audio.kind
             case .transcript: TranscriptDownloadRunner.kind
             case .webpage: WebpageRunner.kind
-            case .openDownloads, .addDistill, .runDistill, .openDistill: nil
+            case .addDistill, .runDistill: nil
             }
         }
 
         var switchID: String {
             switch self {
-            case .addDistill, .runDistill, .openDistill: DownloadsModule.distillSwitchID
+            case .addDistill, .runDistill: DownloadsModule.distillSwitchID
             default: DownloadsModule.switchID
             }
         }
@@ -32,7 +32,6 @@ final class DownloadsModule: NotchcastModule {
         var queues: URL
         var tools: DownloadToolLookup
         var clipboard: @MainActor () -> String
-        var openFolder: @MainActor (URL) throws -> Void
         /// Scratch audio for Distill; each run removes its own folder when it ends.
         var work = FileManager.default.temporaryDirectory.appending(path: "Notchcast Distill", directoryHint: .isDirectory)
 
@@ -83,12 +82,7 @@ final class DownloadsModule: NotchcastModule {
 
     func perform(_ action: Action) {
         guard running, context.isEnabled(action.switchID) else { return }
-        switch action {
-        case .openDownloads: return open(downloads.destination)
-        case .openDistill: return open(distill.destination)
-        case .runDistill: return runDistill()
-        default: break
-        }
+        if action == .runDistill { return runDistill() }
         let links = DownloadsLinks.urls(in: environment.clipboard())
         if links.isEmpty {
             return context.presenter.post(IslandNotice(
@@ -129,15 +123,6 @@ final class DownloadsModule: NotchcastModule {
 
     private func post(_ id: String, _ symbol: String, _ text: String, isFailure: Bool) {
         context.presenter.post(IslandNotice(id: id, symbol: symbol, text: text, isFailure: isFailure), onTap: nil)
-    }
-
-    private func open(_ folder: URL) {
-        do {
-            try environment.openFolder(folder)
-        } catch {
-            context.presenter.post(IslandNotice(id: "downloads.error", symbol: "folder",
-                                                text: error.localizedDescription, isFailure: true), onTap: nil)
-        }
     }
 
     /// Starts or stops each queue as its switch goes on or off while the module runs.
