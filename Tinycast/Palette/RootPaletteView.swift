@@ -392,6 +392,7 @@ struct RootPaletteView: View {
         .padding(renderingOutset)
         .tint(Theme.Colors.primaryAction)
         .environment(\.paletteOnIsland, !IslandVerification.stock)
+        .environment(\.islandFrosted, core.island.looks.palette == .frosted)
     }
 
     /// The emoji grid's observers, split out so `stateObservers` stays within type-checker reach.

@@ -37,6 +37,31 @@ struct IslandPaletteSurfaceTest {
         return lit
     }
 
+    /// The same controls over white on a Frosted display: no black of their own may hide the glass.
+    static func blackPixels(frosted: Bool) -> Int {
+        let controls = HStack(spacing: 12) {
+            Color.clear.frame(width: 28, height: 28).frosted(in: Circle())
+            Color.clear.frame(width: 160, height: 28).frosted(in: Capsule())
+        }
+        .padding(12)
+        .background(Color.white)
+        .environment(\.paletteOnIsland, true)
+        .environment(\.islandFrosted, frosted)
+        .environment(\.colorScheme, .dark)
+        guard let image = ImageRenderer(content: controls).cgImage else {
+            preconditionFailure("controls did not render")
+        }
+        let bitmap = NSBitmapImageRep(cgImage: image)
+        var dark = 0
+        for column in 0..<bitmap.pixelsWide {
+            for row in 0..<bitmap.pixelsHigh {
+                guard let colour = bitmap.colorAt(x: column, y: row)?.usingColorSpace(.sRGB) else { continue }
+                if colour.redComponent + colour.greenComponent + colour.blueComponent < 0.5 { dark += 1 }
+            }
+        }
+        return dark
+    }
+
     static func main() {
         _ = NSApplication.shared
         // ImageRenderer draws no Liquid Glass until a hosting view has laid glass out once.
@@ -58,6 +83,9 @@ struct IslandPaletteSurfaceTest {
         precondition(island == 0, "island controls must be islandSurface black, found \(island) lit pixels")
         let stock = nonBlackPixels(onIsland: false)
         precondition(stock > 0, "stock frosted(in:) must still render Liquid Glass")
-        print("PASS island launcher keeps one width; island controls are black; stock keeps its glass")
+        precondition(blackPixels(frosted: false) > 0, "Black displays keep the controls' black")
+        let frosted = blackPixels(frosted: true)
+        precondition(frosted == 0, "Frosted controls paint no black over the glass, found \(frosted)")
+        print("PASS island launcher keeps one width; controls black on Black, bare on Frosted; stock keeps its glass")
     }
 }
