@@ -100,6 +100,24 @@ class DeleteTest(unittest.TestCase):
             delete.fork_harnesses(self.tree, None)
 
 
+class RelayTest(unittest.TestCase):
+    def test_a_signal_before_the_child_is_replayed_once(self):
+        relay, child = delete.Relay(), mock.Mock()
+        relay(signal.SIGTERM, None)
+        child.send_signal.assert_not_called()
+        relay.attach(child)
+        child.send_signal.assert_called_once_with(signal.SIGTERM)
+        self.assertEqual(relay.stopped, [signal.SIGTERM])
+
+    def test_a_signal_after_the_child_is_forwarded_once_and_never_replayed(self):
+        relay, child = delete.Relay(), mock.Mock()
+        relay.attach(child)
+        relay(signal.SIGINT, None)
+        child.send_signal.assert_called_once_with(signal.SIGINT)
+        relay.attach(child)
+        child.send_signal.assert_called_once_with(signal.SIGINT)
+
+
 FAKE_QUEUE = """import os, subprocess, sys, time
 with open(os.environ["QUEUE_CALLS"], "a") as calls:
     calls.write(" ".join(sys.argv[1:]) + "\\n")
