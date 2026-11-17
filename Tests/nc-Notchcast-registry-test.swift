@@ -1,4 +1,5 @@
-// notchcast-sources: Tinycast/Features/Notchcast/Core/Model/NotchcastCategory.swift Tinycast/Features/Notchcast/Core/Model/NotchcastPane.swift
+// notchcast-sources: Tinycast/Features/Notchcast/Core/Model/NotchcastCategory.swift
+// notchcast-sources: Tinycast/Features/Notchcast/Core/Model/NotchcastPane.swift
 // notchcast-reads: Tinycast/Features/Notchcast/**
 import Foundation
 
