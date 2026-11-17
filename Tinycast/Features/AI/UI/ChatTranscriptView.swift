@@ -166,8 +166,8 @@ private struct ResumeFollowingButton: View {
                 .font(metrics.typography.rowTrailing)
                 .foregroundStyle(Theme.Colors.textSecondary)
                 .frame(width: metrics.size.chatJumpToLatest, height: metrics.size.chatJumpToLatest)
-                .background(.ultraThinMaterial, in: Circle())
-                .overlay(Circle().strokeBorder(Theme.Colors.border))
+                .islandMaterial(.ultraThinMaterial, in: Circle())
+                .overlay(Circle().strokeBorder(.islandEdge(Theme.Colors.border)))
                 .contentShape(Circle())
         }
         .buttonStyle(.plain)
