@@ -321,6 +321,10 @@ while :; do
         harnesses
         if [ -n "$failed" ]; then
             red=$failed
+            # Bisect reruns them alone, so one red only under load would be blamed on the last PR.
+            run_harnesses $red
+            [ -n "$failed" ] || refuse "$red failed in the full pass but passes alone on the merged tree: a load-only flake, so no PR is dropped; fix the harness or run land.sh again"
+            red=$failed
             breaking_pr "$red"
             drop "$breaker" "$red failed"
             continue

@@ -62,7 +62,8 @@ for path in $(git diff --name-only "$1" "$2" -- src); do
     [ ! -e "Tests/$name.swift" ] || echo "$name"
 done
 STUB
-# One line per pass in $PASSES; a harness is red while every file its red-with line names exists.
+# One line per pass in $PASSES; a harness is red while every file its red-with line names exists,
+# or, with a red-under-load line, while it shares the pass with another harness.
 cat > "$seed/Scripts/run-tests.sh" <<'STUB'
 #!/bin/bash
 BIN="$TMPDIR/tinycast-harness-fixture"
@@ -81,6 +82,7 @@ run() {
     for file in $needs; do
         [ -e "$file" ] || red=0
     done
+    ! grep -qx red-under-load "Tests/$name.swift" || [ "$(wc -w <<< "$NOTCHCAST_ONLY_TESTS")" -eq 1 ] || red=1
     [ "$red" -eq 0 ] || { : > "$BIN/$name.failed"; status=1; }
 }
 for file in Tests/*-test.swift; do
@@ -96,6 +98,7 @@ done
 echo 'red-with: src/a.txt src/b.txt' > "$seed/Tests/a-test.swift"
 echo 'red-with: src/e.txt' > "$seed/Tests/clipboard-text-test.swift"
 echo 'red-with: src/d.txt' > "$seed/Tests/d-test.swift"
+echo red-under-load > "$seed/Tests/load-test.swift"
 echo base > "$seed/src/shared.txt"
 echo '# fixture' > "$seed/.gitattributes"
 : > "$seed/Tinycast/Features/Notchcast/Core/NotchcastFeature.swift"
@@ -185,8 +188,8 @@ open_pr 3 pr-c 'Add C' src/c.txt
 land 1 2 3
 [ "$status" -eq 0 ] && grep -q 'DROPPED #2: a-test failed' "$FIXTURE/output" || fail 'a red train did not drop its breaking PR'
 [ "$(landed)" = 'Notchcast: Add A (#1)|Notchcast: Add C (#3)' ] || fail "red train landed '$(landed)'"
-[ "$(paste -sd'|' "$PASSES")" = 'a-test b-test c-test notchcast-core-test|a-test|a-test|a-test c-test notchcast-core-test' ] \
-    || fail "full, bisect and final passes were '$(paste -sd'|' "$PASSES")'"
+[ "$(paste -sd'|' "$PASSES")" = 'a-test b-test c-test notchcast-core-test|a-test|a-test|a-test|a-test c-test notchcast-core-test' ] \
+    || fail "full, alone, bisect and final passes were '$(paste -sd'|' "$PASSES")'"
 [ "$(origin ls-tree -r --name-only main -- src | paste -sd' ' -)" = 'src/a.txt src/c.txt src/shared.txt' ] || fail 'the landed tree is not #1 and #3'
 ! grep -q '^2 ' "$FIXTURE/closed" && [ "$(wc -l < "$FIXTURE/closed")" -eq 2 ] && [ -n "$(origin rev-parse --verify -q refs/heads/pr-b)" ] \
     || fail 'the breaking PR was closed or lost its head'
@@ -225,6 +228,16 @@ land 1
 [ "$status" -eq 1 ] && grep -q '^REFUSED: d-test failed$' "$FIXTURE/output" && ! grep -q DROPPED "$FIXTURE/output" || fail 'a red single PR'
 [ "$(origin rev-parse main)" = "$base" ] && [ ! -e "$FIXTURE/closed" ] && [ ! -e "$FIXTURE/hold" ] || fail 'a refused PR left something behind'
 echo 'PASS: a single red PR refuses as before and lands nothing'
+
+fixture
+open_pr 1 pr-b 'Add B' src/b.txt
+open_pr 2 pr-load 'Add load' src/load.txt
+land 1 2
+[ "$status" -eq 1 ] && grep -q '^REFUSED: load-test failed in the full pass but passes alone on the merged tree: a load-only flake' "$FIXTURE/output" \
+    && ! grep -q -e DROPPED -e bisecting "$FIXTURE/output" || fail 'a load-only flake was blamed on a PR'
+[ "$(paste -sd'|' "$PASSES")" = 'b-test load-test notchcast-core-test|load-test' ] || fail "passes were '$(paste -sd'|' "$PASSES")'"
+[ "$(origin rev-parse main)" = "$base" ] && [ ! -e "$FIXTURE/closed" ] && [ ! -e "$FIXTURE/hold" ] || fail 'a flaky train left something behind'
+echo 'PASS: a harness red in the full pass but green alone on the merged tree refuses as a flake and drops nobody'
 
 # notchcast-core-test is red on main itself, so every PR's tree inherits it.
 fixture
