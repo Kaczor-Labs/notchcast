@@ -22,8 +22,6 @@ COVERED = {
     ("pr.yml:harnesses", "actions/checkout"): "the shared clone at HEAD",
     ("pr.yml:harnesses", "./tools/notchcast/actions/xcode"): "ci-build.sh's xcode step",
     ("pr.yml:harnesses", "./tools/notchcast/actions/tests"): "ci-build.sh's harnesses step",
-    ("pr.yml:select", "actions/checkout"): "the shared clone at HEAD",
-    ("pr.yml:select", "Select script tests"): "every script test; ci-build.sh takes no --base",
     ("pr.yml:script-tests", "actions/checkout"): "the shared clone at HEAD",
     ("pr.yml:script-tests", "./notchcast/actions/xcode"): "ci-build.sh's xcode step",
     ("pr.yml:script-tests", "Fetch upstream"): "ci-build.sh's upstream step",

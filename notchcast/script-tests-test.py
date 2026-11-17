@@ -1,10 +1,9 @@
 #!/usr/bin/env python3
-"""Verify script-test discovery, interpreter dispatch, isolation and diff selection."""
+"""Verify script-test lanes, recursive discovery, interpreter dispatch and isolation."""
 from contextlib import chdir, redirect_stderr, redirect_stdout
 import io
 from pathlib import Path
 import runpy
-import subprocess
 import sys
 import tempfile
 import unittest
@@ -15,17 +14,6 @@ SCRIPT = Path(__file__).with_name("script-tests.py").resolve()
 DEFAULT = ["notchcast/nested/plain-test.py", "notchcast/plain-test.sh", "notchcast/land-test.sh",
            "notchcast/generated-retry-test.mjs", "notchcast/gallery/check-pixels-test.swift",
            "notchcast/install-app-test.sh"]
-# Who names whom: land-test reaches hold.sh only through land.sh; plain-test reaches a doc it names.
-SOURCES = {
-    "notchcast/land-test.sh": 'bash "$root/notchcast/land.sh"\n',
-    "notchcast/land.sh": "source hold.sh\n",
-    "notchcast/hold.sh": "",
-    "notchcast/plain-test.sh": "grep -q x notchcast/docs/guide.md\n",
-    "notchcast/docs/guide.md": "see land.sh\n",
-    "notchcast/install-app-test.sh": "python3 notchcast/vendor/Engine/build.py\n",
-    "notchcast/vendor/Engine/build.py": "import land_sh  # land.sh\n",
-    "notchcast/script-tests.py": "",
-}
 
 
 class ScriptTestsTest(unittest.TestCase):
@@ -33,25 +21,17 @@ class ScriptTestsTest(unittest.TestCase):
         self.scratch = tempfile.TemporaryDirectory(prefix="script-tests-")
         self.addCleanup(self.scratch.cleanup)
         self.root = Path(self.scratch.name)
-        for name in DEFAULT + list(SOURCES):
+        for name in DEFAULT + ["notchcast/helper.py"]:
             path = self.root / name
             path.parent.mkdir(parents=True, exist_ok=True)
-            path.write_text(SOURCES.get(name, ""))
+            path.touch()
 
-    def invoke(self, arguments, returncode=0, changed="", stdout=b"log line\n"):
+    def invoke(self, arguments, returncode=0, changed="notchcast/land.sh\n", stdout=b"log line\n"):
         output = io.StringIO()
         self.stderr = io.StringIO()
-
-        def git(command, **_):
-            if command[1] == "ls-files":
-                return "\n".join(DEFAULT + list(SOURCES)) + "\n"
-            if changed is None:
-                raise subprocess.CalledProcessError(128, command)
-            return changed
-
         with chdir(self.root), patch.object(sys, "argv", [str(SCRIPT), *arguments]), \
                 redirect_stdout(output), redirect_stderr(self.stderr), patch("subprocess.run") as run, \
-                patch("subprocess.check_output", side_effect=git):
+                patch("subprocess.check_output", return_value=changed):
             run.return_value.returncode = returncode
             run.return_value.stdout = stdout
             try:
@@ -92,33 +72,19 @@ class ScriptTestsTest(unittest.TestCase):
         self.assertIn("0 passed, 6 failed", output)
         self.assertEqual(sorted(DEFAULT), self.stderr.getvalue().splitlines())
 
-    def test_base_selects_tests_whose_inputs_changed_through_any_depth(self):
-        status, output, _ = self.invoke(["--base", "base", "--list"], changed="notchcast/hold.sh\n")
+    def test_all_lists_every_test(self):
+        status, output, commands = self.invoke(["--all", "--list"])
         self.assertEqual(0, status)
-        self.assertEqual(["notchcast/land-test.sh"], output.splitlines())
-
-    def test_a_named_doc_is_an_input_but_names_nothing(self):
-        _, output, _ = self.invoke(["--base", "base", "--list"], changed="notchcast/docs/guide.md\n")
-        self.assertEqual(["notchcast/plain-test.sh"], output.splitlines())
-        _, output, _ = self.invoke(["--base", "base", "--list"], changed="notchcast/vendor/Engine/build.py\n")
-        self.assertEqual(["notchcast/install-app-test.sh"], output.splitlines())
-
-    def test_a_diff_outside_every_input_runs_nothing(self):
-        status, output, commands = self.invoke(["--base", "base"], changed="Tinycast/App/AppCore.swift\n")
-        self.assertEqual(0, status)
+        self.assertEqual(sorted(DEFAULT), output.splitlines())
         self.assertEqual([], commands)
-        self.assertIn("reaches none of their inputs", output)
 
-    def test_a_changed_test_selects_itself(self):
-        _, output, _ = self.invoke(["--base", "base", "--list"], changed="notchcast/nested/plain-test.py\n")
-        self.assertEqual(["notchcast/nested/plain-test.py"], output.splitlines())
-
-    def test_an_unreadable_diff_or_a_changed_runner_runs_everything(self):
-        _, output, _ = self.invoke(["--base", "base", "--list"], changed=None)
-        self.assertEqual(sorted(DEFAULT), output.splitlines())
-        self.assertIn("running every test", self.stderr.getvalue())
-        _, output, _ = self.invoke(["--base", "base", "--list"], changed="notchcast/script-tests.py\n")
-        self.assertEqual(sorted(DEFAULT), output.splitlines())
+    def test_land_test_runs_only_when_its_inputs_change(self):
+        status, output, _ = self.invoke(["--list"], changed="")
+        self.assertEqual(0, status)
+        self.assertEqual(sorted(set(DEFAULT) - {"notchcast/land-test.sh"}), output.splitlines())
+        self.assertIn("Skipping notchcast/land-test.sh", self.stderr.getvalue())
+        status, output, _ = self.invoke(["--all", "--list"], changed="")
+        self.assertIn("notchcast/land-test.sh", output.splitlines())
 
 
 if __name__ == "__main__":
