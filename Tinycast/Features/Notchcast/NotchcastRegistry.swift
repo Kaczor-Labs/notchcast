@@ -13,5 +13,6 @@ enum NotchcastRegistry {
         ScreenshotsAddon.self,
         IPhoneBackupAddon.self,
         KeepAwakeAddon.self,
+        DisplaySoundAddon.self,
     ]
 }
