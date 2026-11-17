@@ -54,7 +54,7 @@ sed '/^export PATH=/d' "$ROOT/notchcast/kick.sh" > notchcast/kick.sh
 if [ "${1:-}" = --mutate-skip ]; then
     sed -i '' 's/if \[ "$pending" != 0 \]/if [ "$pending" = impossible ]/' notchcast/kick.sh
 fi
-printf '#!/bin/bash\ncase "$*" in\n  *"commits/main"*) echo upstream;;\n  "release list"*) echo release;;\n  "run list"*) echo "${PENDING:-1}";;\n  "workflow run"*) echo dispatch >> "$CALLS";;\n  *compare*) echo 0;;\n  *) echo "unexpected gh: $*" >&2; exit 1;;\nesac\n' > bin/gh
+printf '#!/bin/bash\ncase "$*" in\n  *"actions/workflows"*) echo "${SYNC_STATE:-active}";;\n  *"commits/main"*) echo upstream;;\n  "release list"*) echo release;;\n  "run list"*) echo "${PENDING:-1}";;\n  "workflow run"*) echo dispatch >> "$CALLS";;\n  *compare*) echo 0;;\n  *) echo "unexpected gh: $*" >&2; exit 1;;\nesac\n' > bin/gh
 chmod +x bin/gh
 export HOME="$WORK/home" CALLS="$WORK/calls"
 mkdir -p "$HOME/Library/Application Support/notchcast"
@@ -79,6 +79,12 @@ grep -q 'started sync' kick-log
 test "$(cat "$CALLS")" = dispatch
 grep -q '^upstream release ' "$STATE"
 echo 'PASS: pending Sync skips dispatch and preserves state; dry-run reports skip; idle dispatches'
+rm -f "$CALLS"; echo kick-failed > "$HOME/Library/Application Support/notchcast/kick.alerted"
+PENDING=0 SYNC_STATE=disabled_manually bash notchcast/kick.sh > kick-log
+grep -q 'Sync is disabled_manually' kick-log
+test ! -e "$CALLS"
+test ! -s "$HOME/Library/Application Support/notchcast/kick.alerted"
+echo 'PASS: a disabled Sync is not dispatched and clears the trigger-failed alert'
 cp "$ROOT/notchcast/ci.py" notchcast/ci.py
 printf 'MAINTAINER_NAME=Test\nMAINTAINER_EMAIL=test@example.com\n' >> notchcast/config.env
 mkdir -p "$HOME/.config/notchcast"
@@ -86,6 +92,7 @@ printf 'notchcast_notify() { cat >> "$ALERTS"; }\n' > "$HOME/.config/notchcast/p
 cat > bin/gh <<'GH'
 #!/bin/bash
 case "$*" in
+  *"actions/workflows"*) echo "${SYNC_STATE:-active}";;
   *"commits/main"*) echo upstream;;
   "release list"*) echo release;;
   "run list"*) echo 0;;
