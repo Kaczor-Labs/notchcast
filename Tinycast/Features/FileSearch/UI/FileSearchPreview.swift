@@ -51,7 +51,7 @@ private struct FileSearchPreviewStage: View {
         } else if palette.isVisible {
             FileSearchSurface(url: result.url)
                 .clipShape(card)
-                .overlay(card.strokeBorder(Theme.Colors.cardStroke, lineWidth: 1))
+                .overlay(card.strokeBorder(.islandEdge(), lineWidth: 1))
         } else {
             Color.clear
         }

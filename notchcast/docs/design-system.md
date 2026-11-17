@@ -215,7 +215,9 @@ The island-black branch is fixing the first four, and #8 is closed; the rest are
 | `NotchTheme.Radius.islandMenu` | 26 (`Theme.Radius.menuRow` 18 + `Theme.Spacing.md` 8) | §3 menu panel on the island | concentric with its rows; equals the island outline |
 | `NotchTheme.Size.menuGlyphBars` | 14 and 8 wide, 1.5 thick | §9 menu circle | only if the hand-drawn bars stay; an SF Symbol needs no token |
 | `NotchTheme.Size.runningDot` | 3 | §6 running-app dot in launcher rows | today a literal in `LauncherList` |
-| `NotchTheme.Size.islandLevelCell`, `islandLevelTrack` | 24 and 96 | §4 level art | today `IslandLevelArt` borrows the rest pill's height and width, which breaks the day the rest size changes |
+| `NotchTheme.Size.islandLevelCell`, `islandLevelTrack` | 24 and 96 | §4 level art | defined (#756): `IslandLevelArt` reads them instead of the rest pill's height and width |
+| `Theme.Typography.indicatorGlyphSize` → `metrics.typography.indicatorGlyph` | 10 | §6 Quicklinks list indicator glyph (`QuicklinkListView`) | defined (#756) |
+| `Theme.Typography.removeGlyphSize` → `metrics.typography.removeGlyph` | 9, semibold | §6 composer chip remove glyph (`ChatComposerChips`) | defined (#756) |
 
 The notch expanded form needs one token, `NotchTheme.Size.islandHeadlineMaxWidth` (320): its height is the rest outline plus one headline line, its width the text up to that cap, never narrower than the notch plus two `Theme.Radius.panel` (§10).
 
