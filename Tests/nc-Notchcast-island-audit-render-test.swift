@@ -237,6 +237,16 @@ struct NotchcastIslandAuditRenderTest {
             [IslandStatus(id: "u", symbol: "arrow.clockwise.circle", text: nil, label: "Update ready")], notch: notch))
         renderArt("14-level", IslandLevelArt(
             IslandLevel(source: "volume", symbol: "speaker.wave.2.fill", label: "Volume", value: 0.6), notch: notch))
+        renderArt("14b-level-muted", IslandLevelArt(
+            IslandLevel(source: "volume", symbol: "speaker.slash.fill", label: "Volume", value: 0), notch: notch))
+        renderArt("14c-level-brightness", IslandLevelArt(
+            IslandLevel(source: "brightness", symbol: "sun.max.fill", label: "Brightness", value: 1,
+                        range: -0.25...1), notch: notch))
+        renderArt("14d-level-extra-dimming", IslandLevelArt(
+            IslandLevel(source: "brightness", symbol: "sun.min.fill", label: "Brightness", value: -0.125,
+                        range: -0.25...1), notch: notch))
+        renderArt("14e-level-notch", IslandLevelArt(
+            IslandLevel(source: "volume", symbol: "speaker.wave.1.fill", label: "Volume", value: 0.31), notch: true))
         print("PASS rendered island audit surfaces to \(folder.path)")
     }
 }

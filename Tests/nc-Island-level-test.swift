@@ -7,6 +7,14 @@ import Foundation
 @main
 struct IslandLevelTest {
     static func main() {
+        var reading = IslandLevel(source: "volume", symbol: "speaker.wave.2.fill", label: "Volume", value: 0.734)
+        precondition(reading.readout == "73%", "a level reads as a whole percent, got \(reading.readout)")
+        reading.value = 1
+        precondition(reading.readout == "100%", "full reads 100%")
+        reading.value = 0
+        precondition(reading.readout == "0%", "empty or muted reads 0%")
+        reading.value = -0.0625
+        precondition(reading.readout == "-6%", "extra dimming reads below 0%, got \(reading.readout)")
         var dwell = IslandLevelDwell()
         let level = IslandLevel(source: "brightness", symbol: "sun.max.fill", label: "Brightness", value: 0)
         var starts = 0

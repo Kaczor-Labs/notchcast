@@ -34,6 +34,11 @@ enum IslandLevelPlacement: Equatable, Sendable {
     case pill, band
 }
 
+extension IslandLevel {
+    /// Plain digits; extra dimming reads below 0%, as its zone sits left of the track.
+    var readout: String { "\(Int((value * 100).rounded()))%" }
+}
+
 /// Extents along a track `width` wide: 0...1 is the track, the rest of `range` outlined zones.
 struct IslandLevelTrack: Equatable, Sendable {
     let below: ClosedRange<Double>?
