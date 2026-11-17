@@ -30,6 +30,8 @@ final class IslandCoordinator: NSObject {
         for name in [NSWindow.didBecomeKeyNotification, NSWindow.didResignKeyNotification] {
             NotificationCenter.default.addObserver(self, selector: #selector(modalChanged), name: name, object: nil)
         }
+        NotificationCenter.default.addObserver(self, selector: #selector(windowShown),
+            name: NSWindow.didChangeOcclusionStateNotification, object: nil)
         for name in [NSWorkspace.activeSpaceDidChangeNotification, NSWorkspace.didActivateApplicationNotification] {
             NSWorkspace.shared.notificationCenter.addObserver(self, selector: #selector(spaceChanged), name: name,
                                                               object: nil)
@@ -97,7 +99,15 @@ final class IslandCoordinator: NSObject {
         backdrops[id] = nil
     }
 
-    /// Every island window and the pill menu follow "Show in screenshots and videos" live.
+    var captureSharing: NSWindow.SharingType { core.settings.islandShowsInCaptures ? .readOnly : .none }
+
+    /// Catches a window created after the last sweep the moment it first shows.
+    @objc private func windowShown(_ notification: Notification) {
+        guard let window = notification.object as? NSWindow, window.occlusionState.contains(.visible) else { return }
+        window.sharingType = captureSharing
+    }
+
+    /// Every Notchcast window, not just the island, follows "Show in screenshots and videos" live.
     func applyCaptureSharing() {
         let stuck = shareCaptures()
         // Closing the menu re-enters here; closing the launcher does through `observeVisibility`.
@@ -110,12 +120,13 @@ final class IslandCoordinator: NSObject {
 
     /// Returns the displays whose window can't be hidden in place and must be replaced.
     @discardableResult private func shareCaptures() -> [CGDirectDisplayID] {
-        let sharing: NSWindow.SharingType = core.settings.islandShowsInCaptures ? .readOnly : .none
+        let sharing = captureSharing
         pillMenu.sharingType = sharing
         for controller in backdrops.values {
             if sharing == .readOnly, controller.sharingType == .none { reshown.insert(ObjectIdentifier(controller)) }
             controller.sharingType = sharing
         }
+        for window in NSApp.windows where !(window is IslandBackdrop) { window.sharingType = sharing }
         guard sharing == .none else { return [] }
         return backdrops.filter { reshown.contains(ObjectIdentifier($0.value)) }.map(\.key)
     }
@@ -214,6 +225,7 @@ final class IslandCoordinator: NSObject {
 
     func anchor(_ window: NSPanel, width: CGFloat, collapsed: Bool) -> CGPoint? {
         guard let panel = window as? PalettePanel else { return nil }
+        panel.sharingType = captureSharing
         let outset = IslandPaletteSurface.renderingOutset(collapsed: collapsed, stock: IslandVerification.stock)
         #if DEBUG
         if IslandVerification.stock, let screen = screens.first {
