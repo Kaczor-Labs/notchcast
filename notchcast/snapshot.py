@@ -1,61 +1,97 @@
 #!/usr/bin/env python3
-"""Plan a main snapshot without changing any refs."""
+"""Plan a main snapshot, wait for its gate, or check it is still current, without changing refs.
+
+The 50-minute gate counts from the latest snapshot's publication, the moment it reaches the Macs.
+"""
 import json
 import os
 import math
+import sys
 import time
 from datetime import datetime, timedelta, timezone
 
 from ci import config, output, run, version_key
 
 
+GATE = timedelta(minutes=50)
+
+
+def revision(tag):
+    stamp = tag.rsplit(".snapshot.", 1)[1]
+    return datetime.strptime(stamp, "%Y%m%d%H%M%S").replace(tzinfo=timezone.utc)
+
+
+def latest_snapshot(releases, other_than=None):
+    snapshots = [r for r in releases
+                 if not r["isDraft"] and ".snapshot." in r["tagName"] and r["tagName"] != other_than]
+    return max(snapshots, key=lambda r: r["publishedAt"], default=None)
+
+
 def plan(releases, main, commit, now, event, skip_gate=False):
-    snapshots = [r for r in releases if not r["isDraft"] and ".snapshot." in r["tagName"]]
-    if snapshots:
-        latest = max(snapshots, key=lambda r: r["tagName"].rsplit(".snapshot.", 1)[1])
+    start = now
+    latest = latest_snapshot(releases)
+    if latest:
         if commit(latest["tagName"]) == main:
             return {"error" if event == "workflow_dispatch" else "skip": f"unchanged main {main}"}
-        revision = latest["tagName"].rsplit(".snapshot.", 1)[1]
-        started = datetime.strptime(revision, "%Y%m%d%H%M%S").replace(tzinfo=timezone.utc)
-        opens = started + timedelta(minutes=50)
+        opens = latest["publishedAt"] + GATE
         if now < opens and not skip_gate:
             reason = f"50-minute gate closed for main {main}; opens {opens:%Y-%m-%d %H:%M:%S} UTC"
             if event == "workflow_dispatch":
                 return {"closed": reason}
-            return {"wait": math.ceil((opens - now).total_seconds())}
+            start = opens
     mirrors = [r["tagName"] for r in releases if not r["isDraft"] and version_key(r["tagName"])]
     base = max(mirrors, key=version_key)
-    revision = now.strftime("%Y%m%d%H%M%S")
-    return {"tag": f"{base}.snapshot.{revision}"}
+    return {"tag": f"{base}.snapshot.{start:%Y%m%d%H%M%S}"}
 
 
-def main():
-    repo = config()["FORK_REPO"]
-    while True:
-        run("git", "fetch", "--force", "--tags", "origin", "main")
-        sha = run("git", "rev-parse", "FETCH_HEAD")
-        pages = json.loads(run("gh", "api", "--paginate", "--slurp", f"repos/{repo}/releases?per_page=100"))
-        releases = [{"tagName": r["tag_name"], "isDraft": r["draft"]} for page in pages for r in page]
-        result = plan(releases, sha, lambda t: run("git", "rev-parse", f"refs/tags/{t}^{{commit}}"),
-                      datetime.now(timezone.utc), os.environ["GITHUB_EVENT_NAME"],
-                      os.environ.get("SKIP_GATE") == "true")
-        if "wait" in result:
-            print(f"Waiting {result['wait']} seconds for the snapshot gate", flush=True)
-            time.sleep(result["wait"])
-            continue
-        if "error" in result:
-            print(f"::error::Snapshot skipped: {result['error']}")
-            return 1
-        if "closed" in result:
-            print(f"::notice::Snapshot skipped: {result['closed']}")
-            return 0
-        if "skip" in result:
-            print(f"Snapshot skipped: {result['skip']}")
-            return 0
-        tag = result["tag"]
-        output(tag=tag, version=tag[1:], build=os.environ["GITHUB_RUN_NUMBER"], main=sha)
+def stale(releases, tag, main, current, now, skip_gate=False):
+    if current != main:
+        return {"skip": f"main moved from {main} to {current}"}
+    if now < revision(tag):
+        return {"error": f"{tag} reached publish before its revision time"}
+    latest = latest_snapshot(releases, other_than=tag)
+    if latest and not skip_gate and now < latest["publishedAt"] + GATE:
+        return {"error": f"{latest['tagName']} was published within 50 minutes of {now:%H:%M:%S} UTC"}
+    return {}
+
+
+def main(command=None):
+    if command == "wait":
+        delay = (revision(os.environ["TAG"]) - datetime.now(timezone.utc)).total_seconds()
+        if delay > 0:
+            print(f"Waiting {math.ceil(delay)} seconds for the snapshot gate", flush=True)
+            time.sleep(delay)
         return 0
+    repo = config()["FORK_REPO"]
+    run("git", "fetch", "--force", "--tags", "origin", "main")
+    sha = run("git", "rev-parse", "FETCH_HEAD")
+    pages = json.loads(run("gh", "api", "--paginate", "--slurp", f"repos/{repo}/releases?per_page=100"))
+    releases = [{"tagName": r["tag_name"], "isDraft": r["draft"],
+                 "publishedAt": r["published_at"] and datetime.fromisoformat(r["published_at"])}
+                for page in pages for r in page]
+    now = datetime.now(timezone.utc)
+    skip_gate = os.environ.get("SKIP_GATE") == "true"
+    if command == "check":
+        result = stale(releases, os.environ["TAG"], os.environ["MAIN"], sha, now, skip_gate)
+    else:
+        result = plan(releases, sha, lambda t: run("git", "rev-parse", f"refs/tags/{t}^{{commit}}"),
+                      now, os.environ["GITHUB_EVENT_NAME"], skip_gate)
+    if "error" in result:
+        print(f"::error::Snapshot skipped: {result['error']}")
+        return 1
+    if "closed" in result:
+        print(f"::notice::Snapshot skipped: {result['closed']}")
+        return 0
+    if "skip" in result:
+        print(f"{'::notice::' if command == 'check' else ''}Snapshot skipped: {result['skip']}")
+        return 0
+    if command == "check":
+        output(publish="true")
+        return 0
+    tag = result["tag"]
+    output(tag=tag, version=tag[1:], build=os.environ["GITHUB_RUN_NUMBER"], main=sha)
+    return 0
 
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    raise SystemExit(main(*sys.argv[1:2]))

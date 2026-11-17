@@ -60,6 +60,7 @@ check() {
     other=$("$real_git" -C "$case/repo" rev-parse HEAD~1)
     [ "${PRESET:-}" = other ] && "$real_git" -C "$case/repo" push -q "$case/remote.git" "$other:refs/tags/v1.snapshot.1"
     [ "${PRESET:-}" = main ] && "$real_git" -C "$case/repo" tag -a pre "$main" -m pre && "$real_git" -C "$case/repo" push -q "$case/remote.git" "refs/tags/pre:refs/tags/v1.snapshot.1"
+    [ -n "${RELEASE:-}" ] && echo "$RELEASE" > "$case/state/release"
     echo zip > "$case/dist/Notchcast-1.snapshot.1.zip"
     echo dmg > "$case/dist/Notchcast-1.snapshot.1.dmg"
     (cd "$case/repo" && env PATH="$work/bin:$PATH" STUB_STATE="$case/state" PUBLISH_PAUSE=0 \
@@ -90,6 +91,10 @@ check push-always-128 1 none none env FAIL_PUSH=9
 check release-always-502-removes-tag 1 none none env FAIL_CREATE=9
 check published-despite-502-then-api-down 1 main "false 2" env FAIL_CREATE=1 SILENT_CREATE=1 FAIL_VIEW_FROM=1
 PRESET=other check tag-on-other-commit-untouched 1 other none env
+PRESET=main RELEASE="true 1" check cancel-removes-draft-and-tag 0 none none env CLEANUP=1
+PRESET=main RELEASE="false 2" check cancel-keeps-published 0 main "false 2" env CLEANUP=1
+check cancel-before-tag-push 0 none none env CLEANUP=1
+PRESET=other check cancel-leaves-other-commit-tag 0 other none env CLEANUP=1
 grep -q '^delete$' "$work/release-502-leaves-draft/state/log" || { echo "FAIL  half-made release was not deleted first"; failures=$((failures + 1)); }
 [ "$(cat "$work/release-502-twice/state/creates")" = 3 ] || { echo "FAIL  release-502-twice did not create 3 times"; failures=$((failures + 1)); }
 [ "$failures" -eq 0 ] && echo "PASS: publish-snapshot.sh retries, reuses and cleans up" || { echo "FAILED: $failures"; exit 1; }
