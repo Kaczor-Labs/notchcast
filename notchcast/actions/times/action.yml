@@ -1,0 +1,25 @@
+name: Harness times
+description: The newest harness times a whole-suite run recorded on main or this branch ("name seconds" lines), read once so every shard of a run packs from the same times.
+outputs:
+  times:
+    description: '"name seconds" lines, or empty when none were recorded.'
+    value: ${{ steps.read.outputs.times }}
+runs:
+  using: composite
+  steps:
+    - id: read
+      shell: bash
+      env:
+        GH_TOKEN: ${{ github.token }}
+        BRANCH: ${{ github.head_ref || github.ref_name }}
+      run: |
+        query='[.artifacts[] | select(.expired | not) | .workflow_run
+          | select(.head_repository_id == .repository_id and (.head_branch == "main" or .head_branch == $ENV.BRANCH))][0].id // empty'
+        run=$(gh api "repos/$GITHUB_REPOSITORY/actions/artifacts?name=harness-times&per_page=100" --jq "$query") || run=
+        dir="$RUNNER_TEMP/harness-times-$run"
+        if [ -z "$run" ] || ! gh run download "$run" -R "$GITHUB_REPOSITORY" -n harness-times -D "$dir" || [ ! -s "$dir/harness-times" ]; then
+          echo "no harness times recorded: shards split by name hash"
+          exit 0
+        fi
+        echo "$(wc -l < "$dir/harness-times" | tr -d ' ') harness times from run $run"
+        { echo 'times<<TIMES'; cat "$dir/harness-times"; echo TIMES; } >> "$GITHUB_OUTPUT"

@@ -22,7 +22,7 @@ class HarnessInputsTest(unittest.TestCase):
                        "Tinycast/Features/Example/Service", str(Path(HIDDEN).parent), str(Path(TAB).parent)):
             (self.root / folder).mkdir(parents=True, exist_ok=True)
         for name in ("changed-harnesses.sh", "command-harness-sources.sh", "harness_inputs.py",
-                     "test-harnesses.sh", "check-module-harness.py"):
+                     "test-harnesses.sh", "harness-times.py", "check-module-harness.py"):
             if (ROOT / "notchcast" / name).exists():
                 shutil.copy(ROOT / "notchcast" / name, self.root / "notchcast" / name)
         (self.root / "Scripts/run-tests.sh").touch()

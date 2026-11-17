@@ -63,9 +63,26 @@ jobs:
           HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
           NOTCHCAST_HARNESSES_SHARDED: '1'
         run: bash ../tools/notchcast/ci-build.sh
-  # The whole suite, split by harness name (notchcast/test-harnesses.sh), beside the checks job.
+  # Read once, beside route: every shard must pack from the same times or a harness could run twice or never.
+  harness-times:
+    if: github.event_name == 'workflow_dispatch' || !github.event.pull_request.draft
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      actions: read
+    outputs:
+      times: ${{ steps.times.outputs.times }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          sparse-checkout: notchcast
+          persist-credentials: false
+      - id: times
+        uses: ./notchcast/actions/times
+  # The whole suite, packed by recorded harness time (notchcast/harness-times.py), beside the checks job.
   harnesses:
-    needs: route
+    needs: [route, harness-times]
     if: github.event_name == 'workflow_dispatch' || !github.event.pull_request.draft
     runs-on: ${{ fromJSON(needs.route.outputs.runners)[matrix.slot] }}
     timeout-minutes: 60
@@ -91,6 +108,7 @@ jobs:
         with:
           shard: ${{ matrix.shard }} ${{ strategy.job-total }}
           cache: pr-${{ matrix.shard }}of${{ strategy.job-total }}
+          times: ${{ needs.harness-times.outputs.times }}
   # land.sh reads the check named build: green only when the checks job and every shard are.
   build:
     needs: [checks, harnesses]

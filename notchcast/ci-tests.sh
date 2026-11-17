@@ -9,7 +9,7 @@ set -a
 source "$TOOLS/notchcast/config.env"
 set +a
 if [ "${RUNNER_ENVIRONMENT:-}" != github-hosted ]; then unset CI_SKIP_TESTS; fi
-# The queue filter in notchcast/test-harnesses.sh reads NOTCHCAST_ONLY_TESTS, NOTCHCAST_SHARD and CI_SKIP_TESTS.
+# The queue filter reads the selection, shard, times and skips; see notchcast/test-harnesses.sh.
 if [ -n "${NOTCHCAST_SWIFTC_CACHE:-}" ]; then
   # The swiftc already on PATH, not the toolchain's binary: xcrun's shim is what supplies the SDK.
   NOTCHCAST_SWIFTC_REAL=$(command -v swiftc)
@@ -20,7 +20,12 @@ if [ -n "${NOTCHCAST_SWIFTC_CACHE:-}" ]; then
   export PATH="$RUNNER_TEMP/swiftc-shim:$PATH"
 fi
 status=0
-./Scripts/run-tests.sh || status=$?
+if [ -n "${NOTCHCAST_TIMES_OUT:-}" ]; then
+  ./Scripts/run-tests.sh | tee "$NOTCHCAST_TIMES_OUT.log" || status=$?
+  python3 "$TOOLS/notchcast/harness-times.py" record "$NOTCHCAST_TIMES_OUT.log" "$NOTCHCAST_TIMES_OUT"
+else
+  ./Scripts/run-tests.sh || status=$?
+fi
 BIN="${TMPDIR:-/tmp}/tinycast-harness"
 if [ "$status" -ne 0 ] && ls "$BIN"/*.failed >/dev/null 2>&1; then
   failed="$(for f in "$BIN"/*.failed; do basename "$f" .failed; done)"

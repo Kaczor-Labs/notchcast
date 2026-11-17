@@ -65,6 +65,7 @@ class PrefSweepTest(unittest.TestCase):
         tree = self.scratch / "tree"
         (tree / "notchcast").mkdir(parents=True, exist_ok=True)
         shutil.copy(ROOT / "notchcast/test-harnesses.sh", tree / "notchcast")
+        shutil.copy(ROOT / "notchcast/harness-times.py", tree / "notchcast")
         shutil.copy(SWEEP, tree / "notchcast")
         (tree / "notchcast/harness_inputs.py").write_text("")
         (tree / "runner.sh").write_text(STUB_RUNNER)
