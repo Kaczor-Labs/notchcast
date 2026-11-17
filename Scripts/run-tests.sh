@@ -851,6 +851,9 @@ run AIResponsesTests       Tinycast/Features/AI/Model/AIConnection.swift \
 run ChatMarkdownTests      Tinycast/Platform/Appearance.swift \
                            Tinycast/DesignSystem/Theme.swift \
                            Tinycast/DesignSystem/InterfaceMetrics.swift \
+                           Tinycast/Features/Notchcast/NotchTheme.swift \
+                           Tinycast/Features/Notchcast/IslandCardStyle.swift \
+                           Tinycast/Features/Island/Service/IslandPaletteSurface.swift \
                            Tinycast/Features/Settings/InterfaceSize.swift \
                            Tinycast/Features/AI/Model/AIRequest.swift \
                            Tinycast/Features/AI/Model/AITool.swift \
