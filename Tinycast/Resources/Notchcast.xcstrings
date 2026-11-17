@@ -55,7 +55,7 @@
     "Notices" : {
       "shouldTranslate" : false
     },
-    "Off hides the island from screenshots, recordings and screen sharing." : {
+    "Off hides every Notchcast window: the island, launcher, questions, reports and this Settings window." : {
 
     },
     "Outline when open" : {
