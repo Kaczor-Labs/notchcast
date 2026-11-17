@@ -200,28 +200,34 @@ enum KeepAwakeTransportTests: KeepAwakeHarness {
 
     /// A harmless `sleep` child stands in for the helper: the real source must fire when it exits.
     static func liveProcessesWatchExit() async {
-        let processes = KeepAwakeLiveProcesses(helperPath: "/bin/sleep")
         let child = Process()
         child.executableURL = URL(filePath: "/bin/sleep")
-        child.arguments = ["0.3"]
+        child.arguments = ["30"]
         do { try child.run() } catch { preconditionFailure("could not start sleep: \(error)") }
         let pid = child.processIdentifier
+        let system = KeepAwakeProcessLookup.system
+        // Other processes come and go on their own clock, and a pass that loses one is repeated.
+        let lookup = KeepAwakeProcessLookup(pids: { try system.pids().filter { $0 == pid } }, info: system.info,
+                                            path: system.path)
+        let processes = KeepAwakeLiveProcesses(helperPath: "/bin/sleep", lookup: lookup)
         guard let helper = processes.identify(pid) else { preconditionFailure("a live pid has an identity") }
         precondition(processes.identify(pid) == helper, "the identity is stable while it runs")
-        let found = await scan(processes), cat = await scan(KeepAwakeLiveProcesses(helperPath: "/bin/cat"))
-        precondition(found != nil, "the scan reads the whole table: \(unreadable())")
-        precondition(found?.contains(helper) == true, "the scan finds it by executable path: \(found?.count ?? 0) listed")
-        precondition(cat?.contains(helper) == false)
+        precondition(unreadable().isEmpty, "the scan can read every process: \(unreadable())")
+        let found = await scan(processes)
+        let cat = await scan(KeepAwakeLiveProcesses(helperPath: "/bin/cat", lookup: lookup))
+        precondition(found == [helper], "the scan finds it by executable path: \(String(describing: found))")
+        precondition(cat == [], "and only by that path")
         let fired = Fired()
         let watch = processes.watch(helper) { fired.count += 1 }
         precondition(watch != nil && fired.count == 0, "a running process is watched, not reported gone")
+        child.terminate()
         await waitReal { fired.count == 1 }
         child.waitUntilExit()
         for _ in 0..<20 { await Task.yield() }
         precondition(fired.count == 1, "the exit fires once")
         precondition(processes.identify(pid) == nil, "a reaped pid has no identity")
         let after = await scan(processes)
-        precondition(after?.contains(helper) == false, "nor does the scan list it")
+        precondition(after == [], "nor does the scan list it")
 
         let reused = Fired()
         let other = KeepAwakeHelperID(pid: ProcessInfo.processInfo.processIdentifier, started: 1)
