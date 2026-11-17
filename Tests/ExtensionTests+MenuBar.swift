@@ -486,6 +486,7 @@ extension ExtensionTests {
         let source = #"""
             const React = require("react");
             const { MenuBarExtra, LocalStorage, environment, confirmAlert } = require("@raycast/api");
+            const held = [];
             module.exports.default = function(props) {
               const [loading, setLoading] = React.useState(true);
               const [title, setTitle] = React.useState(environment.launchType);
@@ -500,10 +501,11 @@ extension ExtensionTests {
                 React.createElement(MenuBarExtra.Section, { title: "Usage" },
                   React.createElement(MenuBarExtra.Item, { title: "Information", subtitle: "Details", tooltip: "Tip" }),
                   React.createElement(MenuBarExtra.Item, { title: "Refresh", shortcut: { key: "r", modifiers: ["cmd"] },
-                    alternate: React.createElement(MenuBarExtra.Item, { title: "Alternate", onAction() {} }),
+                    alternate: React.createElement(MenuBarExtra.Item, { title: "Alternate", onAction() { held.shift()?.(); } }),
                     onAction: async event => {
                       const action = ++actions.current;
-                      await new Promise(resolve => setTimeout(resolve, action === 1 ? 250 : 650));
+                      await LocalStorage.setItem("started", action);
+                      await new Promise(resolve => held.push(resolve));
                       await LocalStorage.setItem("clicked", event.type);
                       await LocalStorage.setItem("completed", action);
                       setTitle("Updated");
@@ -560,19 +562,22 @@ extension ExtensionTests {
         weak var lastRuntime: ExtensionRuntime?
         let metadataFile = directory.appendingPathComponent("commands.json")
         let metadata = ExtensionCommandMetadataStore(fileURL: metadataFile)
+        func makeExecution(
+            owner: InstalledExtension, command: ExtensionCommand, type: ExtensionLaunchType
+        ) -> ExtensionMenuBarManager.Execution? {
+            boots.append((owner.manifest.name, type))
+            let host = MenuHost(name: owner.manifest.name, storage: storage)
+            host.isInteractive = type == .userInitiated
+            hosts.append(host)
+            let runtime = ExtensionRuntime(hostAPI: host, runtimeURL: runtimeURL())
+            lastRuntime = runtime
+            return .init(runtime: runtime, stop: {}, enableInteraction: { host.isInteractive = true })
+        }
+        // Lifecycle checks keep the production deadline: a 1 s one fires on a slow runtime boot.
         let manager = ExtensionMenuBarManager(
             storage: storage, commandMetadata: metadata,
-            supportDirectory: directory.appendingPathComponent("support"), executionTimeout: .seconds(1),
-            showsStatusItems: false,
-            makeExecution: { owner, _, type in
-                boots.append((owner.manifest.name, type))
-                let host = MenuHost(name: owner.manifest.name, storage: storage)
-                host.isInteractive = type == .userInitiated
-                hosts.append(host)
-                let runtime = ExtensionRuntime(hostAPI: host, runtimeURL: runtimeURL())
-                lastRuntime = runtime
-                return .init(runtime: runtime, stop: {}, enableInteraction: { host.isInteractive = true })
-            }, onError: { message, _, _ in failures.append(message) })
+            supportDirectory: directory.appendingPathComponent("support"), showsStatusItems: false,
+            makeExecution: makeExecution, onError: { message, _, _ in failures.append(message) })
         defer { manager.stop() }
         manager.synchronize(installed)
         func snapshot(_ reference: ExtensionCommandRef) -> ExtensionMenuBarSnapshot? {
@@ -603,6 +608,15 @@ extension ExtensionTests {
             metadata.metadata(extension: "first", command: "bar").lastRun != nil)
 
         let controller = manager.controller(for: firstRef, owner: first)
+        func started(_ count: Int) -> Bool {
+            storage.localStorageValue(extension: "first", key: "started") == .number(Double(count))
+        }
+        func releaseAction() {
+            guard let index = controller.menu.items.firstIndex(where: { $0.title == "Alternate" }) else {
+                return check("alternate releases a held action", false)
+            }
+            controller.menu.performActionForItem(at: index)
+        }
         func menuIsReady() -> Bool {
             manager.isRunning
                 && controller.menu.items.first { $0.title == "Refresh" }?.representedObject != nil
@@ -630,13 +644,13 @@ extension ExtensionTests {
             alternate?.isAlternate == true
                 && alternate?.keyEquivalent == "r"
                 && alternate?.keyEquivalentModifierMask == [.command, .option])
-        await settle(1100)
-        check("an open settled menu outlives background timeout", manager.isRunning)
         if let index = controller.menu.items.firstIndex(where: { $0.title == "Refresh" }) {
             controller.menuDidClose(controller.menu)
             controller.menu.performActionForItem(at: index)
+            await settle(until: { started(1) })
             await settle(150)
             check("closing menu does not cancel an async action", manager.isRunning, stateDetails())
+            releaseAction()
             await settle(until: {
                 snapshot(firstRef)?.title == "Updated" && !manager.isRunning && lastRuntime == nil
             })
@@ -656,14 +670,17 @@ extension ExtensionTests {
         controller.menuWillOpen(controller.menu)
         await settle(until: menuIsReady)
         let beforeReopen = boots.count
+        storage.setLocalStorage(extension: "first", key: "started", value: .number(0))
+        storage.setLocalStorage(extension: "first", key: "completed", value: .number(0))
         if let index = controller.menu.items.firstIndex(where: { $0.title == "Refresh" }) {
             controller.menuDidClose(controller.menu)
             controller.menu.performActionForItem(at: index)
-            await settle(100)
+            await settle(until: { started(1) })
             controller.menuWillOpen(controller.menu)
             check("reopening preserves an unfinished action's runtime", boots.count == beforeReopen)
             controller.menu.performActionForItem(at: index)
             controller.menuDidClose(controller.menu)
+            await settle(until: { started(2) })
         } else {
             check("refresh exists after reopening", false)
         }
@@ -675,6 +692,9 @@ extension ExtensionTests {
         check(
             "another menu waits for every overlapping action",
             boots.count == beforeReopen && manager.isRunning)
+        releaseAction()
+        await settle(until: { storage.localStorageValue(extension: "first", key: "completed") == .number(1) })
+        releaseAction()
         await settle(until: {
             boots.last?.0 == "second"
                 && storage.localStorageValue(extension: "first", key: "completed") == .number(2)
@@ -844,15 +864,40 @@ extension ExtensionTests {
         check(
             "disable removes snapshot and schedule",
             !metadata.metadata(extension: "hanging", command: "bar").menuBarEnabled)
-        manager.run(hanging, command: hanging.manifest.commands[0])
-        await settle(1250)
-        check(
-            "loading timeout releases runtime",
-            !manager.isRunning && lastRuntime == nil
-                && failures.last?.contains("timed out") == true)
         manager.synchronize([])
         check(
             "uninstall prunes every menu and schedule",
             metadata.menuBarCommands().isEmpty && !manager.isRunning)
+
+        let deadlineMetadata = ExtensionCommandMetadataStore(
+            fileURL: directory.appendingPathComponent("deadline-commands.json"))
+        let deadlineManager = ExtensionMenuBarManager(
+            storage: storage, commandMetadata: deadlineMetadata,
+            supportDirectory: directory.appendingPathComponent("support"), executionTimeout: .seconds(1),
+            showsStatusItems: false,
+            makeExecution: makeExecution, onError: { message, _, _ in failures.append(message) })
+        defer { deadlineManager.stop() }
+        deadlineManager.synchronize(installed)
+        deadlineMetadata.setMenuBarEnabled(true, extension: "first", command: "bar")
+        let deadlineController = deadlineManager.controller(for: firstRef, owner: first)
+        deadlineController.menuWillOpen(deadlineController.menu)
+        await settle(until: {
+            deadlineManager.isRunning
+                && deadlineController.menu.items.first { $0.title == "Refresh" }?.representedObject != nil
+        })
+        await settle(1100)
+        check(
+            "an open settled menu outlives background timeout", deadlineManager.isRunning,
+            "errors=\(failures)")
+        deadlineController.menuDidClose(deadlineController.menu)
+        let failuresBeforeHanging = failures.count
+        deadlineManager.run(hanging, command: hanging.manifest.commands[0])
+        await settle(until: {
+            failures.count > failuresBeforeHanging && !deadlineManager.isRunning && lastRuntime == nil
+        })
+        check(
+            "loading timeout releases runtime",
+            !deadlineManager.isRunning && lastRuntime == nil
+                && failures.last?.contains("timed out") == true, "errors=\(failures)")
     }
 }

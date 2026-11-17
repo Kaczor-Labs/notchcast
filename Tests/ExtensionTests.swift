@@ -370,7 +370,9 @@ struct ExtensionTests {
                 session: "bar", handler: handler, payload: #"[{"type":"right-click"}]"#,
                 completesSession: true)
             check("menu action does not finish before its promise", !recorder.finished)
-            await settle()
+            await settle(until: {
+                recorder.finished && recorder.trees.last?.activeRoot?.string("title") == "right-click"
+            })
             check("menu action finishes after its promise", recorder.finished)
             check(
                 "menu action forwards event",
@@ -1457,7 +1459,11 @@ struct ExtensionTests {
         await runtime.start(
             session: "s1b", code: command, file: URL(fileURLWithPath: "/tmp/synthetic.js"),
             mode: .view, context: launchContext())
-        await settle()
+        await settle(until: {
+            rerunRecorder.trees.last.map {
+                ExtensionScreen(tree: $0, query: "").items.first?.node.string("title") == "count=1"
+            } == true
+        })
         check(
             "a second run in the same runtime renders",
             !rerunRecorder.trees.isEmpty, rerunRecorder.failures.joined(separator: "|"))
@@ -1994,7 +2000,10 @@ struct ExtensionTests {
         await runtime.start(
             session: "sAsync", code: command, file: URL(fileURLWithPath: "/tmp/async.js"),
             mode: .view, context: launchContext())
-        await settle()
+        await settle(until: {
+            !recorder.failures.isEmpty
+                || recorder.trees.last.map { ExtensionScreen(tree: $0, query: "").items.first != nil } == true
+        })
 
         check(
             "an async command renders", recorder.failures.isEmpty,
