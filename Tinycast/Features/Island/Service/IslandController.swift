@@ -87,6 +87,7 @@ final class IslandController: NSObject {
             return self.canOpen?() == true && self.overlays.isEmpty && NSApp.modalWindow == nil && self.isResting
         }
         source.didFrame = { [weak self] in self?.paintFrame() }
+        source.didSettle = { [weak self] in if self?.pendingScreen != nil { self?.closed() } }
         NSWorkspace.shared.notificationCenter.addObserver(self, selector: #selector(frameChanged),
             name: NSWorkspace.accessibilityDisplayOptionsDidChangeNotification, object: nil)
     }
@@ -123,8 +124,8 @@ final class IslandController: NSObject {
         let next = IslandLayout(screen, position: position)
         let requested = IslandSurfaceConfiguration(notch: next.notch, top: next.top, scale: screen.backingScaleFactor)
         let update = requested.update(from: configuration, paletteVisible: panel?.isVisible == true,
-                                      hasOverlays: !overlays.isEmpty)
-        // Until `closed`, the mask, panel and overlays keep the live surface's layout.
+                                      hasOverlays: !overlays.isEmpty, animating: !source.isIdle)
+        // Until `closed` or the pill settles, the mask, panel and overlays keep the live layout.
         guard update != .deferred else { pendingScreen = screen; return }
         pendingScreen = nil
         let moved = layout?.screen != next.screen || layout?.notch != next.notch || layout?.top != next.top
@@ -270,12 +271,10 @@ final class IslandController: NSObject {
         return CGRect(x: bounds.minX, y: top, width: bounds.width, height: height - bounds.minY - top)
     }
 
+    /// Starts the close first, so a held configure sees it running and waits for it to settle.
     func closed() {
-        if let pendingScreen, panel?.isVisible != true, overlays.isEmpty {
-            configure(pendingScreen)
-            return
-        }
         frameChanged()
+        if let pendingScreen, panel?.isVisible != true, overlays.isEmpty { configure(pendingScreen) }
     }
 
     func setOverlays(_ frames: [CGRect]) {

@@ -8,10 +8,11 @@ struct IslandSurfaceConfiguration: Equatable, Sendable {
 
     enum Update { case keep, recreate, deferred }
 
-    func update(from current: Self?, paletteVisible: Bool, hasOverlays: Bool) -> Update {
+    /// A rebuild drops the engine's running springs, so it waits for the pill to settle too.
+    func update(from current: Self?, paletteVisible: Bool, hasOverlays: Bool, animating: Bool = false) -> Update {
         guard let current else { return .recreate }
         guard self != current else { return .keep }
-        return paletteVisible || hasOverlays ? .deferred : .recreate
+        return paletteVisible || hasOverlays || animating ? .deferred : .recreate
     }
 }
 

@@ -73,8 +73,16 @@ enum IslandPositionTest {
 
         let current = IslandSurfaceConfiguration(notch: .zero, top: 0, scale: 1)
         let moved = IslandSurfaceConfiguration(notch: .zero, top: 3, scale: 1)
-        expect(moved.update(from: current, paletteVisible: false, hasOverlays: false) == .recreate,
+        expect(moved.update(from: current, paletteVisible: false, hasOverlays: false, animating: false) == .recreate,
                "a new pill top rebuilds the engine surface")
+        for (palette, overlays) in [(true, false), (false, true), (false, false)] {
+            expect(moved.update(from: current, paletteVisible: palette, hasOverlays: overlays, animating: true)
+                   == .deferred, "a pill top moved mid-animation (palette \(palette), overlays \(overlays)) must wait")
+        }
+        expect(current.update(from: current, paletteVisible: false, hasOverlays: false, animating: true) == .keep,
+               "an unchanged surface is kept while animating")
+        expect(moved.update(from: nil, paletteVisible: false, hasOverlays: false, animating: true) == .recreate,
+               "the first surface is built even while a frame is pending")
         print("PASS IslandPosition drops 0/3/6 on a 30 pt bar, one anchor at rest and open, notch ignores it")
     }
 }
