@@ -43,14 +43,13 @@ jobs:
             checks=$CHECKS
           fi
           echo "checks=$checks" >> "$GITHUB_OUTPUT"
-      # A ready PR's build (pr.yml) starts with this run and takes the Macs first.
+      # A ready PR's build (pr.yml) starts with this run, so only it may spill onto the Macs.
       - id: route
         uses: ./notchcast/actions/route
         with:
           count: 1
           idle: |
             ${{ vars.NOTCHCAST_IDLE_MBA }}
-            ${{ vars.NOTCHCAST_IDLE_MBP }}
           eligible: ${{ github.event_name != 'pull_request' || github.event.pull_request.draft }}
   proof:
     needs: plan
