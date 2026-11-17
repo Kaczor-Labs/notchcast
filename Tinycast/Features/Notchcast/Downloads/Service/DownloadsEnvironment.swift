@@ -7,10 +7,6 @@ extension DownloadsModule.Environment {
             downloads: home.appending(path: "Downloads", directoryHint: .isDirectory),
             queues: AppPaths.applicationSupport().appending(path: "Notchcast", directoryHint: .isDirectory),
             tools: DownloadToolLookup(home: home),
-            clipboard: { NSPasteboard.general.string(forType: .string) ?? "" },
-            openFolder: { folder in
-                try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
-                if !NSWorkspace.shared.open(folder) { throw CocoaError(.fileReadUnknown) }
-            })
+            clipboard: { NSPasteboard.general.string(forType: .string) ?? "" })
     }
 }
