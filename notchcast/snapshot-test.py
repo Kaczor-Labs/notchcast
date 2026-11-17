@@ -47,7 +47,7 @@ class SnapshotTests(unittest.TestCase):
         self.assertIn("    runs-on: ubuntu-latest\n", sections["plan"])
         self.assertIn("    runs-on: ubuntu-latest\n", sections["gate"])
         self.assertIn("run: python3 notchcast/snapshot.py wait", sections["gate"])
-        self.assertIn("    needs: [snapshot, gate]\n", sections["publish"])
+        self.assertIn("    needs: [plan, checks, snapshot, gate]\n", sections["publish"])
         checked = sections["publish"].index("run: python3 notchcast/snapshot.py check")
         self.assertLess(checked, sections["publish"].index("actions/deploy-key"))
         self.assertLess(checked, sections["publish"].index("run: notchcast/publish-snapshot.sh"))
@@ -55,6 +55,7 @@ class SnapshotTests(unittest.TestCase):
         self.assertLess(sections["publish"].index("run: notchcast/publish-snapshot.sh"), cleanup)
         self.assertLess(cleanup, sections["publish"].index("CLEANUP: 1"))
         self.assertLess(cleanup, sections["publish"].index("name: Remove the deploy key"))
+        self.assertNotIn("needs.snapshot.outputs", sections["publish"])
         self.assertIn('cron: "7,27,47 * * * *"', header)
         self.assertNotIn("snapshot-test.py", (root / "notchcast/ci-tests.sh").read_text())
 
