@@ -20,3 +20,8 @@ Screenshots: UI/ScreenshotSelectionSurface.swift ← vorssaint/vorssaint-utils@8
 KeepAwake: Model/KeepAwakeAutomation.swift ← Vorssaint/Sources/Vorssaint/Services/KeepAwakeAutomationSupport.swift (GPL-3.0-or-later)
 KeepAwake: Model/LidSleepPolicy.swift ← Vorssaint/Sources/Vorssaint/Services/KeepAwakeAutomationSupport.swift (GPL-3.0-or-later)
 KeepAwake: Service/KeepAwakeLiveSystem.swift ← Vorssaint/Sources/Vorssaint/Services/KeepAwakeManager.swift (GPL-3.0-or-later)
+DisplaySound: Model/BrightnessRecoveryPolicy.swift ← vorssaint/vorssaint-utils@89d2626/Sources/Vorssaint/Services/Display/BrightnessSupport.swift (GPL-3.0-or-later)
+DisplaySound: Model/BrightnessFunctionKeys.swift ← vorssaint/vorssaint-utils@89d2626/Sources/Vorssaint/Services/Display/BrightnessSupport.swift (GPL-3.0-or-later)
+DisplaySound: Service/BrightnessDisplayService.swift ← vorssaint/vorssaint-utils@89d2626/Sources/Vorssaint/Services/Display/BrightnessService.swift (GPL-3.0-or-later)
+DisplaySound: Service/BrightnessController.swift ← vorssaint/vorssaint-utils@89d2626/Sources/Vorssaint/Services/Display/BrightnessService.swift (GPL-3.0-or-later)
+DisplaySound: UI/BrightnessDisplayRowState.swift ← vorssaint/vorssaint-utils@89d2626/Sources/Vorssaint/Services/Display/BrightnessService.swift (GPL-3.0-or-later)
