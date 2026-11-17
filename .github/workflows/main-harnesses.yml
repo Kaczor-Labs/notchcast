@@ -17,10 +17,10 @@ on:
 permissions:
   contents: read
 
-# Per event, so a push never cancels a dispatched run: only a newer push replaces a push run.
+# One group per branch, whatever the event: a push and a dispatch on one branch never both run.
 concurrency:
-  group: main-harnesses-${{ github.event_name }}-${{ github.ref }}
-  cancel-in-progress: ${{ github.event_name == 'push' }}
+  group: main-harnesses-${{ github.ref_name == github.event.repository.default_branch && github.run_id || github.head_ref || github.ref_name }}
+  cancel-in-progress: ${{ github.ref_name != github.event.repository.default_branch }}
 
 jobs:
   # On Linux, so a macOS runner is spent only on shards that have harnesses to run.

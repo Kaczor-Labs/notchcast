@@ -13,8 +13,8 @@ on:
 permissions:
   contents: read
 concurrency:
-  group: proof-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: true
+  group: ${{ github.workflow }}-${{ github.ref_name == github.event.repository.default_branch && github.run_id || github.head_ref || github.ref_name }}
+  cancel-in-progress: ${{ github.ref_name != github.event.repository.default_branch }}
 jobs:
   plan:
     runs-on: ubuntu-latest
