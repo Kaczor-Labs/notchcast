@@ -17,6 +17,7 @@ SCRIPT = ROOT / "notchcast/ready-check.sh"
 COVERED = {
     ("pr.yml:route", "actions/checkout"): "runner routing; no gate",
     ("pr.yml:route", "./notchcast/actions/route"): "runner routing; no gate",
+    ("pr.yml:route", "Lanes the diff needs"): "picks the jobs below; ready-check.sh runs them all",
     ("pr.yml:checks", "actions/checkout"): "the shared clone at HEAD",
     ("pr.yml:checks", "Shared PR build lane"): "ci-build.sh, unsharded",
     ("pr.yml:harnesses", "actions/checkout"): "the shared clone at HEAD",
@@ -27,7 +28,8 @@ COVERED = {
     ("pr.yml:script-tests", "Fetch upstream"): "ci-build.sh's upstream step",
     ("pr.yml:script-tests", "Script tests"): "ci-build.sh's script-tests step",
     ("pr.yml:build", "A train run names its base"): "train branches only",
-    ("pr.yml:build", "Checks, every harness shard and the script tests passed"): "aggregate of the jobs above",
+    ("pr.yml:build", "Every lane the diff needs passed, and only those were skipped"): "aggregate of the jobs above",
+    ("pr.yml:build", "Config literals"): "ci-build.sh's config step",
     ("pr.yml:build", "actions/checkout"): "records the tree; no gate",
     ("pr.yml:build", "Record the tested tree"): "records the tree; no gate",
     ("pr.yml:build", "actions/upload-artifact"): "records the tree; no gate",
