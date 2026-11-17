@@ -550,6 +550,7 @@ struct LauncherScreen: PaletteScreen {
             },
             onDropped: { core.paletteCoordinator.dragLanded() },
             files: fileSection,
+            digitSlots: numberKeySlots,
             fallbacks: fallbackSection
         )
     }
