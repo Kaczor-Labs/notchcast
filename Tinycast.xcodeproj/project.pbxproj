@@ -176,6 +176,7 @@
 		2A013DE5237A6DF5A96CC2C6 /* HyperKeyConflictPolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = 50B776C855E29FF18F696676 /* HyperKeyConflictPolicy.swift */; };
 		2AC6EFFFDCB1F42A0AB8EFF6 /* KeepAwakeStrays.swift in Sources */ = {isa = PBXBuildFile; fileRef = C49397630683DB918E4941E6 /* KeepAwakeStrays.swift */; };
 		2ADC7D87296A7AE7F803F92D /* SmallCommandsSystem.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1B0D3D33A85AB4BBC74F8463 /* SmallCommandsSystem.swift */; };
+		2BAB66BA5D8DF99378E38A9D /* IslandHelp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8BE935D471C3D6A8E6ACCBB6 /* IslandHelp.swift */; };
 		2BEBF78104855A7E0014D223 /* UnitDef.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4E153308EF724D552155C4D2 /* UnitDef.swift */; };
 		2C213EFF8B135570256C555D /* QuitProtectionAddon.swift in Sources */ = {isa = PBXBuildFile; fileRef = E150D59ECBCB4730206FA01F /* QuitProtectionAddon.swift */; };
 		2C8F7F5073D77EDC1070E639 /* ToolRunner.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0DFEBE220187043060F7F286 /* ToolRunner.swift */; };
@@ -1750,6 +1751,7 @@
 		8BA109C429A1E4E7E2B55BDC /* CalcTimeZone.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalcTimeZone.swift; sourceTree = "<group>"; };
 		8BAE0D54C2340AEEB774DB98 /* QuitProtectionExceptionRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuitProtectionExceptionRow.swift; sourceTree = "<group>"; };
 		8BE58163F028AC3AD537AAC3 /* WindowLayoutCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WindowLayoutCoordinator.swift; sourceTree = "<group>"; };
+		8BE935D471C3D6A8E6ACCBB6 /* IslandHelp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IslandHelp.swift; sourceTree = "<group>"; };
 		8BFB6AAAB6C527AD13BF7092 /* DownloadState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DownloadState.swift; sourceTree = "<group>"; };
 		8C35C2038D02501FE83992CB /* DownloadToolLookup.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DownloadToolLookup.swift; sourceTree = "<group>"; };
 		8C39345D0335ACA895133ABD /* IconStyleMonitor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IconStyleMonitor.swift; sourceTree = "<group>"; };
@@ -3736,6 +3738,7 @@
 				B6EA32380937AE168B3A12C9 /* SmallCommands */,
 				C299812264148020EEC8904B /* IslandButtonFill.swift */,
 				FE77B495DA3B4C720F009EAA /* IslandCardStyle.swift */,
+				8BE935D471C3D6A8E6ACCBB6 /* IslandHelp.swift */,
 				035CF6E107C894662EDD056D /* NotchAliasChip.swift */,
 				92908720D41B4994F113BE61 /* NotchcastCore.swift */,
 				C8DB1A4B304917CDDC4DF3B5 /* NotchcastRegistry.swift */,
@@ -5744,6 +5747,7 @@
 				F54F75CD95D31EF6FCAAC1BB /* IslandCoordinator.swift in Sources */,
 				F937F4CC1FE0EC1CBFC19D3B /* IslandExpansionArt.swift in Sources */,
 				AF77F4042A035C604BADCCD5 /* IslandFrameSource.swift in Sources */,
+				2BAB66BA5D8DF99378E38A9D /* IslandHelp.swift in Sources */,
 				EBE9873799B9107A3E1601F4 /* IslandInputScenes+Probes.swift in Sources */,
 				5666E043C88C485C4BCE5045 /* IslandInputScenes.swift in Sources */,
 				3874370DBA63F3E99F8CF4E0 /* IslandInstallReportScenes.swift in Sources */,
