@@ -203,22 +203,23 @@ class BehaviourTest(unittest.TestCase):
         self.assertEqual(result.stdout.splitlines()[-1],
                          f"PASS {self.git('rev-parse', 'HEAD')[:12]} against origin/main ({self.git('rev-parse', 'base')[:12]})")
 
-    def test_pass_names_ignored_harnesses(self):
+    def test_pass_names_exempt_red_harnesses(self):
         lines = self.check("base").stdout.splitlines()
-        self.assertEqual(lines[-2], "ignored (fails upstream too): none")
+        self.assertEqual(lines[-2], "exempt (red, UPSTREAM_RED_HARNESSES): none")
         (self.repo / "notchcast/ci-build.sh").write_text(
-            "echo '::warning::BTests fails on upstream abc1234 too; not ours, ignored'\n"
-            "echo '::warning::ATests fails on upstream abc1234 too; not ours, ignored'\n")
-        self.commit("ignored")
+            "echo '::warning::EXEMPT BTests is red and listed in UPSTREAM_RED_HARNESSES, so it does not fail CI'\n"
+            "echo '::warning::EXEMPT ATests is red and listed in UPSTREAM_RED_HARNESSES, so it does not fail CI'\n")
+        self.commit("exempt")
         result = self.check("base")
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         lines = result.stdout.splitlines()
-        self.assertEqual(lines[-2], "ignored (fails upstream too): ATests BTests")
+        self.assertEqual(lines[-2], "exempt (red, UPSTREAM_RED_HARNESSES): ATests BTests")
         self.assertTrue(lines[-1].startswith("PASS "))
 
     def test_the_parsed_line_is_the_one_ci_tests_prints(self):
         ci_tests = (ROOT / "notchcast/ci-tests.sh").read_text()
-        self.assertIn('echo "::warning::$name fails on upstream ${UPSTREAM:0:7} too; not ours, ignored"', ci_tests)
+        self.assertIn('echo "::warning::EXEMPT $name is red and listed in UPSTREAM_RED_HARNESSES, so it does not fail CI"',
+                      ci_tests)
 
     def test_fail_names_the_first_failing_gate(self):
         self.commit("break", "fail-build")

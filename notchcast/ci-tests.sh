@@ -22,30 +22,53 @@ fi
 status=0
 ./Scripts/run-tests.sh || status=$?
 BIN="${TMPDIR:-/tmp}/tinycast-harness"
-if [ "$status" -ne 0 ] && ls "$BIN"/*.failed >/dev/null 2>&1; then
-  failed="$(for f in "$BIN"/*.failed; do basename "$f" .failed; done)"
+# A red harness is always red; the one escape is a reasoned entry in config.env.
+exempt="" unreasoned=0
+IFS=';' read -ra entries <<< "${UPSTREAM_RED_HARNESSES:-}"
+for entry in ${entries[@]+"${entries[@]}"}; do
+  [[ $entry =~ ^[[:space:]]*$ ]] && continue
+  if [[ $entry =~ ^[[:space:]]*([A-Za-z0-9_.+-]+):[[:space:]]*([^[:space:]].*)$ ]]; then
+    exempt="$exempt ${BASH_REMATCH[1]}"
+    echo "::warning::EXEMPT ${BASH_REMATCH[1]}: its failure does not fail CI (UPSTREAM_RED_HARNESSES: ${BASH_REMATCH[2]})"
+  else
+    echo "::error::UPSTREAM_RED_HARNESSES entry without a reason: '$entry'"; unreasoned=1
+  fi
+done
+failed=""
+for f in "$BIN"/*.failed; do [ ! -e "$f" ] || failed="$failed $(basename "$f" .failed)"; done
+if [ -n "$failed" ]; then
   for name in $failed; do cat "$BIN/$name.log"; done
-  status=0
   if [ -z "${UPSTREAM:-}" ]; then
     bash "$TOOLS/notchcast/fetch-upstream.sh" --no-tags
     UPSTREAM=$(git merge-base HEAD refs/remotes/upstream/main)
   fi
-  # Our tree runs once: a harness red here is red, and only the upstream tree is run again.
+  # Diagnosis only: whatever upstream does, the verdict above stands.
   git worktree add -q --detach "$RUNNER_TEMP/pristine" "$UPSTREAM"
   for name in $failed; do
     if [ ! -e "$RUNNER_TEMP/pristine/Tests/$name.swift" ]; then
-      echo "::error::$name fails with our commits and does not exist on upstream"; status=1
-      continue
-    fi
-    if (cd "$RUNNER_TEMP/pristine" && TMPDIR="$RUNNER_TEMP/pristine-tmp" && mkdir -p "$TMPDIR" && export TMPDIR \
+      echo "::error::$name fails; it does not exist on upstream ${UPSTREAM:0:7}"
+    elif (cd "$RUNNER_TEMP/pristine" && TMPDIR="$RUNNER_TEMP/pristine-tmp" && mkdir -p "$TMPDIR" && export TMPDIR \
         && ./Scripts/run-tests.sh "$name" >/dev/null 2>&1); then
-      echo "::error::$name fails with our commits and passes on upstream ${UPSTREAM:0:7}"; status=1
+      echo "::error::$name fails; it passes on upstream ${UPSTREAM:0:7}"
     else
-      echo "::warning::$name fails on upstream ${UPSTREAM:0:7} too; not ours, ignored"
+      echo "::error::$name fails; it also fails on upstream ${UPSTREAM:0:7}"
     fi
   done
   git worktree remove --force "$RUNNER_TEMP/pristine"
 fi
+blocking=""
+for name in $failed; do
+  case " $exempt " in
+    *" $name "*) echo "::warning::EXEMPT $name is red and listed in UPSTREAM_RED_HARNESSES, so it does not fail CI" ;;
+    *) blocking="$blocking $name" ;;
+  esac
+done
+# Only a run whose every failure is exempt turns green; a harness still marked running never finished.
+if [ "$status" -ne 0 ] && [ -n "$failed" ] && [ -z "$blocking" ]; then status=0; fi
+[ "$unreasoned" -eq 0 ] || status=1
+for marker in "$BIN"/*.running; do
+  [ ! -e "$marker" ] || { echo "::error::$(basename "$marker" .running) never finished"; status=1; }
+done
 # run-tests.sh shows a green harness's SKIP nowhere else.
 grep -h '^SKIP:' "$BIN"/*.log 2>/dev/null | sed 's/^/::notice::/' || true
 exit $status
