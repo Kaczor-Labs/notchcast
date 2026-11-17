@@ -317,8 +317,8 @@ final class IslandCoordinator: NSObject {
                               hasNotch: IslandLayout.notch(on: $0) != .zero)
         }
         if looks.displays != displays { looks.displays = displays }
-        for screen in available { backdrops[screen.islandDisplayID]?.look = look(for: screen) }
-        let palette = active?.look ?? .black
+        for screen in available { backdrops[screen.islandDisplayID]?.canvas.look = look(for: screen) }
+        let palette = active?.canvas.look ?? .black
         if looks.palette != palette { looks.palette = palette }
     }
 

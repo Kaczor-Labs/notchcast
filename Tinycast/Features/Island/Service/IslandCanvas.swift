@@ -18,7 +18,7 @@ final class IslandCanvas: NSView {
     var glanceWidth: CGFloat = 0
     var keylineEnabled = true
     var scale: CGFloat = 2
-    var look = IslandLook.black
+    var look = IslandLook.black { didSet { if look != oldValue { onAppearanceChange?() } } }
     /// Frosted under Reduce Transparency or Increase Contrast paints its glass solid.
     var solidGlass = false
     var restingKeyline = 0.0

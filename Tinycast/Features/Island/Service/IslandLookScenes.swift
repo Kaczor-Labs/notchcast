@@ -14,7 +14,7 @@ enum IslandLookScenes {
         core.island.start()
         await IslandVerification.pause(0.6)
         guard let controller = core.island.resting else { IslandVerification.require(false, "resting pill"); return }
-        print("LOOK \(controller.look) display=\(screen.islandDisplayUUID ?? "none")")
+        print("LOOK \(controller.canvas.look) display=\(screen.islandDisplayUUID ?? "none")")
         switch scene {
         case "frosted-external": await external(core: core, controller: controller, screen: screen)
         case "frosted-notch": await notched(core: core, controller: controller)
@@ -33,21 +33,21 @@ enum IslandLookScenes {
     /// The lift waits for the spring to settle, which can outlast a fixed pause.
     private static func settled(_ controller: IslandController, lift: Bool) async -> Bool {
         var waited = 0
-        while controller.liftShown != lift || (!lift && !controller.acceptsClicks), waited < 30 {
+        while controller.frost.liftShown != lift || (!lift && !controller.acceptsClicks), waited < 30 {
             await IslandVerification.pause(0.05)
             waited += 1
         }
-        return controller.liftShown == lift
+        return controller.frost.liftShown == lift
     }
 
     private static func external(core: AppCore, controller: IslandController, screen: NSScreen) async {
-        IslandVerification.require(controller.look == .frosted, "the test display is Frosted")
+        IslandVerification.require(controller.canvas.look == .frosted, "the test display is Frosted")
         IslandVerification.require(controller.canvas.keylineStrength == 1, "the Frosted pill keeps its edge at rest")
-        IslandVerification.require(controller.liftShown && controller.liftClickThrough,
+        IslandVerification.require(controller.frost.liftShown && controller.frost.liftClickThrough,
                                    "the rest pill casts a click-through lift")
         await controller.capture("frosted-rest")
         _ = await IslandPillScenes.previewMeeting(core: core)
-        IslandVerification.require(controller.liftShown, "the settled glance casts its lift")
+        IslandVerification.require(controller.frost.liftShown, "the settled glance casts its lift")
         await controller.capture("frosted-glance")
         await open(core)
         IslandVerification.require(core.island.looks.palette == .frosted, "the palette root reads Frosted")
@@ -55,12 +55,13 @@ enum IslandLookScenes {
         await controller.capture("frosted-open")
         core.island.looks.set(.black, uuid: screen.islandDisplayUUID)
         await IslandVerification.pause(0.3)
-        IslandVerification.require(controller.look == .black && !controller.liftShown, "Black repaints in place while open")
+        IslandVerification.require(controller.canvas.look == .black && !controller.frost.liftShown,
+                                   "Black repaints in place while open")
         IslandVerification.require(core.island.looks.palette == .black, "the palette root follows the switch")
         await controller.capture("frosted-open-to-black")
         core.island.looks.set(.frosted, uuid: screen.islandDisplayUUID)
         await IslandVerification.pause(0.3)
-        IslandVerification.require(controller.look == .frosted, "Frosted returns in place")
+        IslandVerification.require(controller.canvas.look == .frosted, "Frosted returns in place")
         IslandVerification.require(await settled(controller, lift: true), "the lift returns with Frosted")
         core.paletteCoordinator.hidePalette(restoreFocus: false)
         await IslandVerification.pause(0.8)
@@ -68,9 +69,9 @@ enum IslandLookScenes {
     }
 
     private static func notched(core: AppCore, controller: IslandController) async {
-        IslandVerification.require(controller.look == .frosted, "the simulated notch display is set to Frosted")
+        IslandVerification.require(controller.canvas.look == .frosted, "the simulated notch display is set to Frosted")
         IslandVerification.require(controller.canvas.keylineStrength == 0, "no edge round the bare notch")
-        IslandVerification.require(!controller.liftShown, "the resting sheet hides behind the notch, no lift")
+        IslandVerification.require(!controller.frost.liftShown, "the resting sheet hides behind the notch, no lift")
         await controller.capture("frosted-notch-rest")
         await open(core)
         IslandVerification.require(await settled(controller, lift: true), "the open notch island casts the large lift")

@@ -10,8 +10,12 @@ final class IslandFrost {
     private let mask = CAShapeLayer()
     private let lift = IslandLiftWindow()
     private var liftShape: (CGPath, NotchTheme.Shadow)?
+    private let canvas: IslandCanvas
+    private let backdrop: NSWindow
 
-    init(canvas: NSView) {
+    init(canvas: IslandCanvas, backdrop: NSWindow) {
+        self.canvas = canvas
+        self.backdrop = backdrop
         root = IslandFrostRoot()
         root.wantsLayer = true
         clip.wantsLayer = true
@@ -26,30 +30,30 @@ final class IslandFrost {
         root.addSubview(canvas)
     }
 
-    var sharingType: NSWindow.SharingType {
-        get { lift.sharingType }
-        set { lift.sharingType = newValue }
-    }
-
     #if DEBUG
     var liftShown: Bool { lift.isVisible && lift.parent != nil && lift.casting }
     var liftClickThrough: Bool { lift.ignoresMouseEvents }
     #endif
 
-    /// Called inside the frame's transaction; the lift follows only a settled outline (`settled`).
-    func paint(look: IslandLook, solid: Bool, outline: CGPath?, shadow: NotchTheme.Shadow?, settled: Bool,
-               backdrop: NSWindow, reducedMotion: Bool) {
-        guard look == .frosted else {
+    /// Called inside the frame's transaction before the canvas draws; the lift waits for `settled`.
+    func paint(hasNotch: Bool, settled: Bool, reducedMotion: Bool) {
+        canvas.restingKeyline = IslandKeyline.restingStrength(look: canvas.look, hasNotch: hasNotch)
+        canvas.solidGlass = NSWorkspace.shared.accessibilityDisplayShouldReduceTransparency
+            || NSWorkspace.shared.accessibilityDisplayShouldIncreaseContrast
+        guard canvas.look == .frosted else {
             clip.isHidden = true
             liftShape = nil
             if lift.parent != nil { backdrop.removeChildWindow(lift); lift.orderOut(nil) }
             return
         }
-        clip.isHidden = solid
-        mask.path = outline
+        clip.isHidden = canvas.solidGlass
+        mask.path = canvas.outline
+        lift.sharingType = backdrop.sharingType
         if lift.frame != backdrop.frame { lift.setFrame(backdrop.frame, display: false) }
         if lift.parent == nil, backdrop.isVisible { backdrop.addChildWindow(lift, ordered: .below) }
-        guard settled, let outline, let shadow else {
+        let bare = canvas.glance == nil && canvas.expansion == nil && canvas.drawnLine == nil
+        let shadow: NotchTheme.Shadow? = canvas.covered ? .islandOpen : hasNotch && bare ? nil : .islandLive
+        guard settled, let outline = canvas.outline, let shadow else {
             if liftShape != nil { liftShape = nil; lift.show(nil, animated: false) }
             return
         }
