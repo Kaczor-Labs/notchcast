@@ -3,9 +3,10 @@ set -euo pipefail
 cd "$(git rev-parse --show-toplevel)"
 # shellcheck source=notchcast/config.env
 source notchcast/config.env
-export CI_SKIP_TESTS
+export CI_SKIP_TESTS HIDDEN_TESTS
 python3 - "$@" <<'PY'
 import fnmatch
+import os
 import subprocess
 import sys
 
@@ -26,5 +27,6 @@ for path, inputs in harnesses():
     if str(path) in changed or touched:
         selected.add(name)
 # Selection keeps CI_SKIP_TESTS harnesses: the shard runner drops them only on a hosted VM.
-print('\n'.join(sorted(selected | {'notchcast-hidden-features-test'})))
+hidden = set(os.environ.get('HIDDEN_TESTS', '').split())
+print('\n'.join(sorted((selected | {'notchcast-hidden-features-test'}) - hidden)))
 PY

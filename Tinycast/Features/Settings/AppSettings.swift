@@ -669,7 +669,8 @@ final class AppSettings {
 
     /// Off means the Shortcuts tool is never run, down to a bound shortcut running nothing.
     var appleShortcutsEnabled: Bool {
-        didSet { defaults.set(appleShortcutsEnabled, forKey: Key.appleShortcutsEnabled.rawValue) }
+        get { false }
+        set { _ = newValue }
     }
 
     /// Ask for a new window rather than a tab; off is the macOS default.
@@ -1071,7 +1072,6 @@ final class AppSettings {
         quicklinksShowInLauncher =
             defaults.object(forKey: Key.quicklinksShowInLauncher.rawValue) == nil
             || defaults.bool(forKey: Key.quicklinksShowInLauncher.rawValue)
-        appleShortcutsEnabled = defaults.bool(forKey: Key.appleShortcutsEnabled.rawValue)
         quicklinkOpensNewWindow = defaults.bool(forKey: Key.quicklinkOpensNewWindow.rawValue)
         quicklinkPassesSelectedText = defaults.bool(
             forKey: Key.quicklinkPassesSelectedText.rawValue)
