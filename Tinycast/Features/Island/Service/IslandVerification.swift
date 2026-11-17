@@ -74,6 +74,9 @@ enum IslandVerification {
         core.settings.calendarEnabled = false
         core.settings.autoSwitchInputSourceID = nil
         let scene = ProcessInfo.processInfo.environment["ISLAND_SCENE"] ?? "synchronization"
+        if let look = ProcessInfo.processInfo.environment["ISLAND_LOOK"].flatMap(IslandLook.init(rawValue:)) {
+            core.island.looks.set(look, uuid: screen.islandDisplayUUID)
+        }
         if scene != "synchronization" {
             await IslandScenes.run(scene, core: core, screen: screen)
             return
@@ -164,7 +167,8 @@ enum IslandVerification {
         let overlays = NSApp.windows.filter {
             $0.isVisible && ($0 is DialogPanel || $0 is HUDPanel || $0 is MenuPanel)
         }.sorted { $0.level.rawValue < $1.level.rawValue }
-        for window in [backdrop] + [panel].compactMap(\.self) + overlays where window.isVisible {
+        for window in (backdrop.childWindows ?? []) + [backdrop] + [panel].compactMap(\.self) + overlays
+            where window.isVisible {
             guard let view = window.contentView, let layer = view.layer else {
                 require(false, "own window layer available"); return
             }
