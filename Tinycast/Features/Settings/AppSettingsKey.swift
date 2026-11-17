@@ -18,6 +18,7 @@ enum AppSettingsKey: String, CaseIterable {
     case automaticallyCheckForUpdates = "automaticallyCheckForUpdates"
     case islandShowsInCaptures = "islandShowsInCaptures"
     case islandOutlineWhenOpen = "islandOutlineWhenOpen"
+    case islandPosition = "islandPosition"
     case popToRootTimeout = "popToRootTimeout"
     case escapeKeyBehavior = "escapeKeyBehavior"
     case appearance = "appearance"
