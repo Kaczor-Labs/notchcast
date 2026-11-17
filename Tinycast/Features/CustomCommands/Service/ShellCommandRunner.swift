@@ -195,16 +195,14 @@ enum ShellCommandRunner {
         var decoder = TerminalTextDecoder()
         var buffer = [UInt8](repeating: 0, count: readSize)
         var lastYield = ContinuousClock().now
-        var exited = false
 
         while true {
             // A waiting prompt never prints again, so only a quiet pty can show its unended line.
-            if !hasOutput(terminal.parentEnd, within: flushInterval) {
+            if !terminal.awaitOutput(within: decoder.canFlush ? flushInterval : nil) {
                 if let text = decoder.take(force: true) {
                     continuation.yield(.output(text))
                     lastYield = ContinuousClock().now
                 }
-                if exited { terminal.releaseChildEnd() } else { exited = terminal.hasExited }
                 continue
             }
             // Zero is EOF; -1 with EIO is what a pty master returns once its child is gone.
@@ -229,17 +227,6 @@ enum ShellCommandRunner {
         continuation.finish()
     }
 
-    /// A hangup counts as output, so the `read` that follows still sees the child go.
-    nonisolated private static func hasOutput(_ descriptor: Int32, within interval: Duration) -> Bool {
-        var request = pollfd(fd: descriptor, events: Int16(POLLIN), revents: 0)
-        var ready: Int32
-        // An interrupted wait says nothing about the pty; falling through would block in `read`.
-        repeat {
-            ready = poll(&request, 1, Int32(interval / .milliseconds(1)))
-        } while ready < 0 && errno == EINTR
-        return ready != 0
-    }
-
     /// Set from the main actor and read on the drain queue, so the flag carries its own lock.
     private final class StopFlag: @unchecked Sendable {
         private let lock = NSLock()
@@ -261,6 +248,9 @@ enum ShellCommandRunner {
     /// Whole lines only: a newline is a scalar boundary, so no read decodes mid-character.
     struct TerminalTextDecoder {
         private var pending: [UInt8] = []
+
+        /// A lone partial character is not text yet, so waiting on it alone would wake for nothing.
+        var canFlush: Bool { scalarBoundary(before: pending.count) > 0 }
 
         mutating func append(_ bytes: [UInt8], count: Int) {
             pending.append(contentsOf: bytes[0..<count])
