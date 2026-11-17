@@ -1,5 +1,6 @@
 // notchcast-sources: Tinycast/Features/Notchcast/Downloads/DownloadsAddon.swift
 // notchcast-sources: Tinycast/Features/Notchcast/Downloads/Model/CaptionText.swift
+// notchcast-sources: Tinycast/Features/Notchcast/Downloads/Model/DistillTranscript.swift
 // notchcast-sources: Tinycast/Features/Notchcast/Downloads/Model/DownloadJob.swift
 // notchcast-sources: Tinycast/Features/Notchcast/Downloads/Model/DownloadProgress.swift
 // notchcast-sources: Tinycast/Features/Notchcast/Downloads/Model/DownloadState.swift
@@ -15,8 +16,11 @@
 // notchcast-sources: Tinycast/Features/Notchcast/Downloads/Model/MediaOutput.swift
 // notchcast-sources: Tinycast/Features/Notchcast/Downloads/Model/WebpageArticle.swift
 // notchcast-sources: Tinycast/Features/Notchcast/Downloads/Model/WebpageExtraction.swift
+// notchcast-sources: Tinycast/Features/Notchcast/Downloads/Model/YtDlpAudio.swift
 // notchcast-sources: Tinycast/Features/Notchcast/Downloads/Service/ChildProcess.swift
+// notchcast-sources: Tinycast/Features/Notchcast/Downloads/Service/DistillRunner.swift
 // notchcast-sources: Tinycast/Features/Notchcast/Downloads/Service/DownloadQueue.swift
+// notchcast-sources: Tinycast/Features/Notchcast/Downloads/Service/DownloadRunContext+Distill.swift
 // notchcast-sources: Tinycast/Features/Notchcast/Downloads/Service/DownloadRunContext.swift
 // notchcast-sources: Tinycast/Features/Notchcast/Downloads/Service/DownloadRunner.swift
 // notchcast-sources: Tinycast/Features/Notchcast/Downloads/Service/DownloadToolLookup+Host.swift
@@ -49,7 +53,7 @@
 // notchcast-sources: Tests/NotchcastDictationFixture.swift
 import AppKit
 
-/// Pins the v1 switch ids, the five commands, the queue following its switch, and a stop keeping accepted links.
+/// Pins the v1 switch ids, the eight commands, the queue following its switch, and a stop keeping accepted links.
 @main
 @MainActor
 struct DownloadsModuleTest {
@@ -59,20 +63,22 @@ struct DownloadsModuleTest {
         defer { try? FileManager.default.removeItem(at: root) }
         shape()
         try await lifecycle(root)
-        print("Downloads module: v1 switches, five commands, queue follows its switch, stop keeps accepted links")
+        print("Downloads module: v1 switches, eight commands, queue follows its switch, stop keeps accepted links")
     }
 
     private static func shape() {
         let switches = DownloadsAddon.switches
-        expect(switches.map(\.id) == ["downloads", "downloadsAria2"], "v1 raw ids stay")
+        expect(switches.map(\.id) == ["downloads", "downloadsAria2", "distill", "distillTimestamps"], "v1 raw ids stay")
         expect(switches.allSatisfy { !$0.defaultEnabled && $0.category == .filesDownloads && $0.requiredGrants.isEmpty },
                "every switch starts off in Files & Downloads")
-        expect(switches.map(\.dependencies) == [[], ["downloads"]], "aria2 needs Downloads")
+        expect(switches.map(\.dependencies) == [[], ["downloads"], [], ["distill"]],
+               "aria2 needs Downloads, Timestamps needs Distill")
         expect(DownloadsAddon.commands.map(\.slug) == [
             "download-video", "download-audio", "download-youtube-transcript", "save-webpage-as-markdown",
-            "open-downloads-folder",
+            "open-downloads-folder", "add-links-to-distill", "run-distill", "open-distill-folder",
         ], "command slugs")
-        expect(DownloadsAddon.commands.allSatisfy { $0.switchID == "downloads" }, "every command follows Downloads")
+        expect(DownloadsAddon.commands.map(\.switchID) == Array(repeating: "downloads", count: 5)
+               + Array(repeating: "distill", count: 3), "each command follows its own switch")
     }
 
     private static func lifecycle(_ root: URL) async throws {

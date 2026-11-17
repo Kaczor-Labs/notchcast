@@ -26,7 +26,7 @@ final class DownloadQueue {
         self.file = file
         self.destination = destination
         self.maxConcurrent = max(1, maxConcurrent)
-        self.tools = tools
+        self.tools = tools.withOwnChildren()
         self.clock = clock
         let loaded = try await Self.load(file: file, now: clock())
         jobs = loaded.jobs
@@ -80,6 +80,14 @@ final class DownloadQueue {
         }
         save()
         pump()
+    }
+
+    /// Puts a kind's waiting jobs back on hold, so the next `release` starts them.
+    func hold(_ kind: String) {
+        for index in jobs.indices where jobs[index].kind == kind && jobs[index].state == .waiting {
+            jobs[index].state = .held
+        }
+        save()
     }
 
     func cancel(_ id: String) {
