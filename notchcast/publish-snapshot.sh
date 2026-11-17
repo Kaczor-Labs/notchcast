@@ -2,6 +2,7 @@
 # Tag MAIN as TAG and publish DIST's zip and dmg as a prerelease, with bounded retries.
 # Safe to rerun: a tag already on MAIN is reused, and a half-made release is replaced.
 # If publishing still fails, the tag it pushed is removed so no stray tag stays behind.
+# CLEANUP=1, for a cancelled run: delete TAG's draft release and TAG, unless a published release uses it.
 set -uo pipefail
 : "${TAG:?}" "${MAIN:?}" "${VERSION:?}" "${GITHUB_REPOSITORY:?}" "${DIST:?}"
 source "$(dirname "$0")/config.env"
@@ -9,11 +10,6 @@ REMOTE=${REMOTE:-git@github.com:$GITHUB_REPOSITORY.git}
 TRIES=${PUBLISH_TRIES:-5}
 PAUSE=${PUBLISH_PAUSE:-20}
 ASSETS=("$DIST/$APP_NAME-$VERSION.zip" "$DIST/$APP_NAME-$VERSION.dmg")
-NOTES=$(mktemp)
-printf 'Notchcast snapshot of main %s. Signed arm64 build.\n' "$MAIN" > "$NOTES"
-for asset in "${ASSETS[@]}"; do
-    [ -s "$asset" ] || { echo "::error::missing $asset"; exit 1; }
-done
 
 retry() {
     local what=$1 attempt
@@ -81,6 +77,23 @@ remove_tag() {
     git push "$REMOTE" ":refs/tags/$TAG"
 }
 
+if [ "${CLEANUP:-0}" = 1 ]; then
+    state=$(release_state) || exit 1
+    case $state in
+        none) ;;
+        true\ *) gh release delete "$TAG" -R "$GITHUB_REPOSITORY" --yes || exit 1 ;;
+        *) echo "Release $TAG is published; keeping its tag"; exit 0 ;;
+    esac
+    remove_tag || { echo "::error::$TAG may remain on ${MAIN:0:8}"; exit 1; }
+    echo "Removed any draft release and tag $TAG"
+    exit 0
+fi
+
+NOTES=$(mktemp)
+printf 'Notchcast snapshot of main %s. Signed arm64 build.\n' "$MAIN" > "$NOTES"
+for asset in "${ASSETS[@]}"; do
+    [ -s "$asset" ] || { echo "::error::missing $asset"; exit 1; }
+done
 git -c user.name="$MAINTAINER_NAME" -c user.email="$MAINTAINER_EMAIL" \
     tag -f -a "$TAG" "$MAIN" -m "Notchcast snapshot $MAIN" >/dev/null || exit 1
 retry "tag push" push_tag || exit 1
