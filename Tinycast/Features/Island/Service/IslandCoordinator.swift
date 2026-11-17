@@ -37,6 +37,7 @@ final class IslandCoordinator: NSObject {
         rebuild()
         observeVisibility()
         observeCaptureSharing()
+        observeOutline()
         observePosition()
         glance.start()
         update.start()
@@ -265,12 +266,22 @@ final class IslandCoordinator: NSObject {
     private func observeCaptureSharing() {
         withObservationTracking {
             _ = core.settings.islandShowsInCaptures
-            _ = core.settings.islandOutlineWhenOpen
         } onChange: { [weak self] in
             Task { @MainActor in
                 guard let self else { return }
                 self.observeCaptureSharing()
                 self.applyCaptureSharing()
+            }
+        }
+    }
+
+    private func observeOutline() {
+        withObservationTracking {
+            _ = core.settings.islandOutlineWhenOpen
+        } onChange: { [weak self] in
+            Task { @MainActor in
+                guard let self else { return }
+                self.observeOutline()
                 for controller in self.backdrops.values { controller.outlineWhenOpen = self.core.settings.islandOutlineWhenOpen }
             }
         }
