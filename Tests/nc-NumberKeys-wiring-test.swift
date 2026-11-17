@@ -27,6 +27,7 @@
 // notchcast-sources: Tinycast/Features/WindowManagement/Model/CustomWindowSize.swift Tinycast/Platform/LocalizedResource.swift
 // notchcast-sources: Tinycast/Platform/NotificationToken.swift Tests/NotchcastTapFixtures.swift
 // notchcast-sources: Tinycast/Features/Notchcast/NumberKeys/*.swift Tinycast/Features/Notchcast/NumberKeys/Model/*.swift
+// notchcast-sources: Tests/NotchcastDictationFixture.swift
 import CoreGraphics
 import Foundation
 
@@ -45,7 +46,8 @@ enum NumberKeysWiringTest {
             preconditionFailure("Number Keys must never start an event tap")
         }
         let controller = NotchcastController(
-            addons: [NumberKeysAddon.self], defaults: defaults, hub: hub, presenter: RecordingPresenter())
+            addons: [NumberKeysAddon.self], defaults: defaults, hub: hub,
+            dictation: FakeDictation(), presenter: RecordingPresenter())
         let rows = [1, 2, 4, 5, 6, 8, 9, 11, 12, 14]
         controller.start()
         precondition(NumberKeysAddon.switchID == "launcherNumberKeys", "the v1 raw value is kept verbatim")

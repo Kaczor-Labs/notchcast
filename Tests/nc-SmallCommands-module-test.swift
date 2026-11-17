@@ -7,6 +7,7 @@
 // notchcast-sources: Tinycast/Features/Notchcast/SmallCommands/Service/SmallCommandsModule.swift
 // notchcast-sources: Tinycast/Features/Notchcast/SmallCommands/Service/SmallCommandsSystem.swift
 // notchcast-sources: Tinycast/Features/Notchcast/SmallCommands/Service/AirDropService.swift
+// notchcast-sources: Tests/NotchcastDictationFixture.swift
 
 import AppKit
 import CoreGraphics
@@ -127,7 +128,8 @@ final class Rig {
         if let stored { defaults.set(stored, forKey: "smallCommands") }
         let hub = NotchcastTapHub(syntheticTag: 0x54494E59, isTrusted: { true }, makeSession: { FakeSession($0) })
         controller = NotchcastController(
-            addons: [SmallCommandsAddon.self], defaults: defaults, hub: hub, presenter: presenter)
+            addons: [SmallCommandsAddon.self], defaults: defaults, hub: hub,
+            dictation: FakeDictation(), presenter: presenter)
         controller.start()
     }
 
