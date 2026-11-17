@@ -9,6 +9,7 @@
 // notchcast-sources: Tinycast/Features/Settings/SettingsTab.swift Tinycast/Features/Notchcast/Hidden/NotchcastHidden.swift
 // notchcast-sources: Tinycast/Platform/LocalizedResource.swift Tinycast/Platform/NotificationToken.swift
 // notchcast-sources: Tests/NotchcastTapFixtures.swift
+// notchcast-sources: Tests/NotchcastDictationFixture.swift
 import AppKit
 import Foundation
 import Observation
@@ -126,7 +127,8 @@ struct AddonNoticeQueueTest {
         let system = FakeSystem()
         let presenter = IslandPresenter()
         let controller = NotchcastController(addons: [MusicNoticeAddon.self, AwakeNoticeAddon.self],
-                                             defaults: defaults, hub: system.makeHub(), presenter: presenter)
+                                             defaults: defaults, hub: system.makeHub(),
+                                             dictation: FakeDictation(), presenter: presenter)
         controller.start()
         controller.preferences.set("musicNotice", on: true)
         controller.preferences.set("awakeNotice", on: true)
