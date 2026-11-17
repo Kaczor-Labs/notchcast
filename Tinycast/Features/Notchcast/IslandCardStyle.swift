@@ -5,8 +5,10 @@ struct IslandCardStyle: ShapeStyle {
     let stock: Color
     let island: Color
 
+    func color(onIsland: Bool) -> Color { onIsland ? island : stock }
+
     func resolve(in environment: EnvironmentValues) -> Color.Resolved {
-        (environment.paletteOnIsland ? island : stock).resolve(in: environment)
+        color(onIsland: environment.paletteOnIsland).resolve(in: environment)
     }
 }
 
@@ -20,6 +22,18 @@ extension ShapeStyle where Self == IslandCardStyle {
     static var islandCardFill: Self {
         IslandCardStyle(stock: Theme.Colors.cardFill, island: NotchTheme.Colors.keyCapFill)
     }
+
+    /// A rule inside a card: a filled `keyCapFill` hairline on the island, `cardStroke` stock.
+    static var islandSeparator: Self {
+        IslandCardStyle(stock: Theme.Colors.cardStroke, island: NotchTheme.Colors.keyCapFill)
+    }
+}
+
+extension InterfaceMetrics.Radius {
+    /// Design system §2: an island card rounds at `row`; a stock card keeps `card`.
+    func islandCard(onIsland: Bool) -> CGFloat { onIsland ? row : card }
+
+    func islandCodeBlock(onIsland: Bool) -> CGFloat { onIsland ? row : codeBlock }
 }
 
 extension View {
