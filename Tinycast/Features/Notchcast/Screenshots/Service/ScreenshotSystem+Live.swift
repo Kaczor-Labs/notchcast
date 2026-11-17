@@ -88,7 +88,7 @@ extension ScreenshotSystem {
         })
     }
 
-    @MainActor static func windowsFrontToBack() -> [ScreenshotWindow] {
+    @MainActor private static func windowsFrontToBack() -> [ScreenshotWindow] {
         let captureUI = captureUIWindowIDs()
         let info = CGWindowListCopyWindowInfo([.optionOnScreenOnly, .excludeDesktopElements], kCGNullWindowID)
         return (info as? [[String: Any]] ?? []).compactMap { entry in
