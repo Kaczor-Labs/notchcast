@@ -196,6 +196,13 @@ class QueueTest(unittest.TestCase):
             self.assert_verdict(self.run_delete(folder), code, text)
             self.assertEqual(self.calls_made(), [self.hold('--', folder)])
 
+    def test_list_prints_the_folders_at_the_ref_and_builds_nothing(self):
+        for args in (('--list',), ('--list', '--ref', self.sha)):
+            result = self.run_delete(*args)
+            self.assertEqual((result.returncode, result.stdout), (0, 'Empty\nKeep\nShots\n'), result.stderr)
+        self.assertEqual(self.calls_made(), [])
+        self.assertEqual(self.scratch_dirs(), [])
+
     def test_options_after_a_separator_still_get_one_pinned_ref(self):
         self.assert_verdict(self.run_delete('--ref', 'HEAD', '--', 'Shots'), 1, BREACH)
         self.assertEqual(self.calls_made(), [self.hold('--', 'Shots')])

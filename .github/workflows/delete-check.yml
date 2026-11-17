@@ -1,0 +1,121 @@
+# The add-on delete test (notchcast/docs/addons.md §5) with one hosted macOS job per add-on folder.
+name: Delete check
+
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: Commit or branch whose add-on folders are deleted one at a time
+        required: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: delete-check-${{ inputs.ref }}
+  cancel-in-progress: false
+
+jobs:
+  plan:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    outputs:
+      sha: ${{ steps.list.outputs.sha }}
+      folders: ${{ steps.list.outputs.folders }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - id: list
+        env:
+          REF: ${{ inputs.ref }}
+        run: |
+          git fetch -q --no-tags origin "$REF"
+          sha=$(git rev-parse FETCH_HEAD)
+          folders=$(python3 notchcast/check-addon-delete.py --list --ref "$sha" | jq -Rnc '[inputs]')
+          echo "$REF is $sha: $folders"
+          echo "sha=$sha" >> "$GITHUB_OUTPUT"
+          echo "folders=$folders" >> "$GITHUB_OUTPUT"
+  delete:
+    needs: plan
+    if: ${{ needs.plan.outputs.folders != '[]' }}
+    # Hosted only (route.py's hosted label), so a delete run never takes a maintainer Mac.
+    runs-on: xcode-27
+    # Two script steps of up to an hour each, plus setup.
+    timeout-minutes: 150
+    strategy:
+      fail-fast: false
+      # GitHub runs 5 hosted macOS jobs at once for this account; one stays free for branch pushes.
+      max-parallel: 4
+      matrix:
+        folder: ${{ fromJSON(needs.plan.outputs.folders) }}
+    env:
+      SHA: ${{ needs.plan.outputs.sha }}
+      FOLDER: ${{ matrix.folder }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: ./notchcast/actions/xcode
+      - uses: ./notchcast/actions/xcodegen
+      - name: Delete ${{ matrix.folder }}
+        shell: bash
+        run: |
+          git fetch -q --no-tags origin "$SHA"
+          set -a; source notchcast/config.env; set +a
+          export LIBDISPATCH_COOPERATIVE_POOL_STRICT=1 NOTCHCAST_TEST_HELPER_EXECUTABLE=1
+          echo "DELETE_LOGS=$HOME/Library/Caches/notchcast/addon-delete" >> "$GITHUB_ENV"
+          mkdir -p "$RUNNER_TEMP/result"
+          code=0
+          python3 notchcast/check-addon-delete.py --ref "$SHA" -- "$FOLDER" | tee "$RUNNER_TEMP/out" || code=${PIPESTATUS[0]}
+          line=$(grep -E '^(PASS|FAIL) delete' "$RUNNER_TEMP/out" | tail -n1 || true)
+          printf '%s\t%s\t%s\n' "$FOLDER" "$code" "${line:-no verdict line}" > "$RUNNER_TEMP/result/$FOLDER.tsv"
+          exit "$code"
+      - name: Upload result
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: result-${{ matrix.folder }}
+          path: ${{ runner.temp }}/result/
+          if-no-files-found: ignore
+      - name: Upload logs
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: logs-${{ matrix.folder }}
+          path: ${{ env.DELETE_LOGS }}/*.log
+          if-no-files-found: ignore
+  summary:
+    needs: [plan, delete]
+    if: ${{ !cancelled() }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          pattern: result-*
+          path: results
+          merge-multiple: true
+      - env:
+          SHA: ${{ needs.plan.outputs.sha }}
+          FOLDERS: ${{ needs.plan.outputs.folders }}
+          PLAN: ${{ needs.plan.result }}
+        shell: bash
+        run: |
+          [ "$PLAN" = success ] || { echo "::error::plan $PLAN"; exit 1; }
+          table="$RUNNER_TEMP/table.md"
+          {
+            echo "### Delete check at ${SHA:0:12}"
+            echo
+            echo "| Folder | Result | Line |"
+            echo "| --- | --- | --- |"
+            for folder in $(jq -r '.[]' <<< "$FOLDERS"); do
+              file="results/$folder.tsv"
+              if [ -f "$file" ]; then IFS=$'\t' read -r _ code line < "$file"; else code=none line='no result: the job stopped before the script finished'; fi
+              case "$code" in 0) result=PASS ;; 1) result='FAIL breach' ;; *) result='FAIL tooling' ;; esac
+              echo "| $folder | $result | ${line//|/\\|} |"
+            done
+          } > "$table"
+          tee -a "$GITHUB_STEP_SUMMARY" < "$table"
+          ! grep -q '| FAIL ' "$table"
