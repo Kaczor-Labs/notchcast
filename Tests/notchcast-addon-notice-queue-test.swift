@@ -80,9 +80,43 @@ enum AwakeNoticeAddon: NotchcastAddon {
     ]
 }
 
+/// Time moves only when the test says so; a sleeper wakes on the main actor at its own deadline.
+@MainActor
+final class ManualClock {
+    /// Whole milliseconds, so a deadline lands on the dwell rather than a rounding error off it.
+    private var tick = 0
+    private var sleepers: [(deadline: Int, wake: CheckedContinuation<Void, Never>)] = []
+
+    var now: TimeInterval { TimeInterval(tick) / 1000 }
+
+    func sleep(_ seconds: TimeInterval) async {
+        let deadline = tick + max(Int((seconds * 1000).rounded()), 1)
+        await withCheckedContinuation { sleepers.append((deadline, $0)) }
+    }
+
+    /// Lets tasks already started go to sleep first, then wakes each due one in deadline order.
+    func advance(by seconds: TimeInterval) async {
+        await settle()
+        let target = tick + Int((seconds * 1000).rounded())
+        while let next = sleepers.indices.min(by: { sleepers[$0].deadline < sleepers[$1].deadline }),
+              sleepers[next].deadline <= target {
+            let sleeper = sleepers.remove(at: next)
+            tick = max(tick, sleeper.deadline)
+            sleeper.wake.resume()
+            await settle()
+        }
+        tick = target
+        await settle()
+    }
+
+    /// Every presenter task runs on the main actor, so yielding drains them in order.
+    func settle() async { for _ in 0..<10 { await Task.yield() } }
+}
+
 @main @MainActor
 struct AddonNoticeQueueTest {
     static var failures = 0
+    static let clock = ManualClock()
 
     static func check(_ label: String, _ ok: Bool) {
         if !ok {
@@ -92,78 +126,67 @@ struct AddonNoticeQueueTest {
     }
 
     static let dwell: TimeInterval = 2.4 // the stock message HUD dwell add-ons were promised
-    static let tolerance: TimeInterval = 0.5
-
-    static func turn(_ seconds: TimeInterval) { RunLoop.main.run(until: Date().addingTimeInterval(seconds)) }
-
-    static func elapsed(_ since: Date) -> String { String(format: "%.2f s", Date().timeIntervalSince(since)) }
+    static let step: TimeInterval = 0.01
 
     /// An `uncover` that adds a pill hands it over as IslandCoordinator.rebuild does.
     static func checkHeld(_ label: String, _ text: String, run: () -> Bool, cover: () -> Void,
-                          uncover: () -> IslandController?) {
+                          uncover: () -> IslandController?) async {
         cover()
-        turn(0.05)
+        await clock.settle()
         check("\(label): the add-on notice runs", run())
-        turn(dwell + 1)
-        let uncovered = Date()
+        await clock.advance(by: dwell + 1)
         let pill = uncover()
-        turn(0.05)
+        await clock.settle()
         print("\(label): showing once uncovered: \(pill?.notice?.text ?? "nothing")")
         check("\(label): the notice did not expire unseen", pill?.notice?.text == text)
         let dwell = pill?.notice?.dwell ?? Self.dwell
-        turn(dwell - tolerance - Date().timeIntervalSince(uncovered))
+        await clock.advance(by: dwell - step)
         check("\(label): it still shows just before a full dwell", pill?.notice?.text == text)
-        let deadline = Date().addingTimeInterval(10)
-        while pill?.notice != nil, Date() < deadline { turn(0.02) }
-        print("\(label): gone \(elapsed(uncovered)) after it was uncovered")
-        check("\(label): it gets its full dwell once seen", abs(Date().timeIntervalSince(uncovered) - dwell) <= tolerance)
+        await clock.advance(by: step)
+        check("\(label): it goes exactly at a full dwell once seen", pill?.notice == nil)
     }
 
-    static func main() {
+    static func main() async {
         _ = NSApplication.shared
         let suite = "nc-notice-queue-test-\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suite)!
         defer { defaults.removePersistentDomain(forName: suite) }
         let system = FakeSystem()
-        let presenter = IslandPresenter()
+        let presenter = IslandPresenter(now: { clock.now }, sleep: { await clock.sleep($0) })
         let controller = NotchcastController(addons: [MusicNoticeAddon.self, AwakeNoticeAddon.self],
                                              defaults: defaults, hub: system.makeHub(),
                                              dictation: FakeDictation(), presenter: presenter)
         controller.start()
         controller.preferences.set("musicNotice", on: true)
         controller.preferences.set("awakeNotice", on: true)
-        for _ in 0..<5 { turn(0.01) }
+        await clock.settle()
         let pill = AppCore.shared.island.resting!
         let first = "Couldn't Stop Apple Music Opening"
         let second = "Keeping Your Mac Awake"
 
-        let posted = Date()
         check("the first add-on notice runs", controller.run(entryID: "command:nc-music-notice"))
         check("the second add-on notice runs", controller.run(entryID: "command:nc-awake-notice"))
         print("shown right after both posts: \(pill.shown); showing: \(pill.notice?.text ?? "nothing")")
         check("the newer notice shows on top", pill.notice?.text == second)
-        turn(dwell - tolerance - Date().timeIntervalSince(posted))
-        print("showing at \(elapsed(posted)): \(pill.notice?.text ?? "nothing")")
+        await clock.advance(by: dwell - step)
         check("the newer notice still shows just before its dwell ends", pill.notice?.text == second)
-        let deadline = Date().addingTimeInterval(10)
-        while pill.notice?.text != first, Date() < deadline { turn(0.02) }
-        let back = Date().timeIntervalSince(posted)
-        print("first back at \(elapsed(posted)); shown: \(pill.shown)")
-        check("the first notice returns once the second dwells out", pill.shown == [first, second, first])
-        check("the first notice returns at the dwell, not sooner or much later", abs(back - dwell) <= tolerance)
-        while pill.notice != nil, Date() < deadline.addingTimeInterval(dwell) { turn(0.02) }
+        await clock.advance(by: step)
+        print("shown once the newer notice dwelled out: \(pill.shown)")
+        check("the first notice returns exactly when the second dwells out", pill.shown == [first, second, first])
+        await clock.advance(by: 10)
+        check("the queue empties", pill.notice == nil)
         let core = AppCore.shared
         let music = { controller.run(entryID: "command:nc-music-notice") }
-        checkHeld("launcher", first, run: music, cover: { core.palette.isVisible = true }) {
+        await checkHeld("launcher", first, run: music, cover: { core.palette.isVisible = true }) {
             core.palette.isVisible = false
             return core.island.resting
         }
-        checkHeld("question", second, run: { controller.run(entryID: "command:nc-awake-notice") },
-                  cover: { core.isShowingDialog = true }) {
+        await checkHeld("question", second, run: { controller.run(entryID: "command:nc-awake-notice") },
+                        cover: { core.isShowingDialog = true }) {
             core.isShowingDialog = false
             return core.island.resting
         }
-        checkHeld("no display", first, run: music, cover: { core.island.resting = nil }) {
+        await checkHeld("no display", first, run: music, cover: { core.island.resting = nil }) {
             let arrived = IslandController()
             core.island.resting = arrived
             presenter.restore(arrived, resting: true)
