@@ -88,8 +88,26 @@ enum IslandPositionTest {
 
         let current = IslandSurfaceConfiguration(notch: .zero, top: 0, scale: 1)
         let moved = IslandSurfaceConfiguration(notch: .zero, top: 3, scale: 1)
-        expect(moved.update(from: current, paletteVisible: false, hasOverlays: false) == .recreate,
+        expect(moved.update(from: current, paletteVisible: false, hasOverlays: false, animating: false) == .recreate,
                "a new pill top rebuilds the engine surface")
+        for (palette, overlays) in [(true, false), (false, true), (false, false)] {
+            expect(moved.update(from: current, paletteVisible: palette, hasOverlays: overlays, animating: true)
+                   == .deferred, "a pill top moved mid-animation (palette \(palette), overlays \(overlays)) must wait")
+        }
+        expect(current.update(from: current, paletteVisible: false, hasOverlays: false, animating: true) == .keep,
+               "an unchanged surface is kept while animating")
+        expect(moved.update(from: nil, paletteVisible: false, hasOverlays: false, animating: true) == .recreate,
+               "the first surface is built even while a frame is pending")
+        var held = IslandHold<Int>()
+        expect(held.release(blocked: false) == nil, "a settle with nothing held applied a configure")
+        held.hold(1)
+        held.hold(2)
+        expect(held.release(blocked: true) == nil, "a configure applied while the palette or an overlay shows")
+        expect(held.release(blocked: false) == 2, "the latest held configure was not the one applied")
+        expect(held.release(blocked: false) == nil, "a held configure applied twice")
+        held.hold(3)
+        held.drop()
+        expect(held.release(blocked: false) == nil, "a dropped configure applied")
         print("PASS IslandPosition drops 0/3/6 on a 30 pt bar, one anchor at rest and open, whole-point x on odd screens, notch ignores it")
     }
 }
