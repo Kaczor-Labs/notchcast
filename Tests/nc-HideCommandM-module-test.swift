@@ -5,6 +5,7 @@
 // notchcast-sources: Tinycast/Features/Notchcast/HideCommandM/Model/*.swift
 // notchcast-sources: Tinycast/Features/Notchcast/HideCommandM/Service/HideCommandMModule.swift
 // notchcast-sources: Tinycast/Features/Notchcast/HideCommandM/Service/HideCommandMSystem.swift
+// notchcast-sources: Tests/NotchcastDictationFixture.swift
 
 import AppKit
 import CoreGraphics
@@ -79,7 +80,8 @@ final class Rig {
             return session
         })
         controller = NotchcastController(
-            addons: [HideCommandMAddon.self], defaults: defaults, hub: hub, presenter: FakePresenter())
+            addons: [HideCommandMAddon.self], defaults: defaults, hub: hub,
+            dictation: FakeDictation(), presenter: FakePresenter())
         controller.start()
         session = made
     }

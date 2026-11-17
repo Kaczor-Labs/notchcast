@@ -6,6 +6,7 @@
 // notchcast-sources: Tinycast/Features/Notchcast/QuitProtection/Service/QuitProtectionModule.swift
 // notchcast-sources: Tinycast/Features/Notchcast/QuitProtection/Service/QuitProtectionStore.swift
 // notchcast-sources: Tinycast/Features/Notchcast/QuitProtection/Service/QuitProtectionSystem.swift
+// notchcast-sources: Tests/NotchcastDictationFixture.swift
 
 import AppKit
 import CoreGraphics
@@ -96,7 +97,8 @@ final class Rig {
             return session
         })
         controller = NotchcastController(
-            addons: [QuitProtectionAddon.self], defaults: defaults, hub: hub, presenter: presenter)
+            addons: [QuitProtectionAddon.self], defaults: defaults, hub: hub,
+            dictation: FakeDictation(), presenter: presenter)
         controller.start()
         session = made
     }

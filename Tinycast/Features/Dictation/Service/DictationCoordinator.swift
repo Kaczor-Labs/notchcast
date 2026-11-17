@@ -30,6 +30,7 @@ final class DictationCoordinator {
     @ObservationIgnored private var pendingStartCue: UUID?
     @ObservationIgnored private var finishWhenStarted = false
     @ObservationIgnored private var target: InjectionTarget?
+    @ObservationIgnored var willStart: @MainActor () async -> Void = {}
     /// The field a mic button is dictating into; nil for a shortcut's session.
     private(set) var field: DictationField?
 
@@ -122,6 +123,7 @@ final class DictationCoordinator {
     }
 
     var isEnabled: Bool { settings.dictationEnabled }
+    var isActive: Bool { phase != .idle }
     var hasModel: Bool { models.isInstalled(settings.dictationModel) }
 
     /// A field's own mic: click to start and click to finish, whatever the shortcut's mode or focus.
@@ -160,6 +162,7 @@ final class DictationCoordinator {
         if pendingStartCue == nil { audioDucker.begin() }
         startTask = Task { [weak self] in
             guard let self else { return }
+            await willStart()
             do {
                 try await capture.start(microphoneID: settings.dictationMicrophone)
                 guard token == current, settings.dictationEnabled else {

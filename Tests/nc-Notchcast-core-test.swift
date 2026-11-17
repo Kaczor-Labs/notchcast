@@ -7,6 +7,7 @@
 // notchcast-sources: Tinycast/Features/WindowManagement/Model/WindowLayoutGeometry.swift Tinycast/Features/WindowManagement/Model/RoomLayoutKind.swift Tinycast/Features/WindowManagement/Model/RoomLayoutEngine.swift Tinycast/Features/WindowManagement/Model/RoomGrid.swift
 // notchcast-sources: Tinycast/Features/WindowManagement/Model/RoomWindow.swift Tinycast/Features/WindowManagement/Model/Room.swift Tinycast/Features/WindowManagement/Model/CustomWindowSize.swift Tinycast/Platform/LocalizedResource.swift Tinycast/Platform/NotificationToken.swift
 // notchcast-sources: Tests/NotchcastTapFixtures.swift
+// notchcast-sources: Tests/NotchcastDictationFixture.swift
 // notchcast-reads: Tinycast/Features/Notchcast/NotchcastCore.swift
 import AppKit
 import CoreGraphics
@@ -247,7 +248,7 @@ struct NotchcastCoreTest {
         let hub = system.makeHub()
         let presenter = RecordingPresenter()
         let controller = NotchcastController(addons: [ProbeAddon.self], defaults: defaults, hub: hub,
-                                             presenter: presenter)
+                                             dictation: FakeDictation(), presenter: presenter)
         var published: [[String]] = []
         controller.onCommandsChanged = { published.append($0.map(\.id)) }
         controller.start()
@@ -297,7 +298,7 @@ struct NotchcastCoreTest {
         let system = FakeSystem()
         let hub = system.makeHub()
         let controller = NotchcastController(addons: [OrderAddon.self], defaults: defaults, hub: hub,
-                                             presenter: RecordingPresenter())
+                                             dictation: FakeDictation(), presenter: RecordingPresenter())
         controller.start()
         controller.preferences.set("order", on: true)
         drain()
@@ -322,7 +323,7 @@ struct NotchcastCoreTest {
         let system = FakeSystem()
         let hub = system.makeHub()
         let controller = NotchcastController(addons: [SequenceAddon.self], defaults: defaults, hub: hub,
-                                             presenter: RecordingPresenter())
+                                             dictation: FakeDictation(), presenter: RecordingPresenter())
         let key = CGEvent(keyboardEventSource: nil, virtualKey: 7, keyDown: false)!
         func run() -> [String] {
             OrderLog.shared.clear()
@@ -357,7 +358,7 @@ struct NotchcastCoreTest {
         let hub = system.makeHub()
         func make() -> NotchcastController {
             NotchcastController(addons: [ProbeAddon.self, RecoveryAddon.self], defaults: defaults, hub: hub,
-                                presenter: RecordingPresenter())
+                                dictation: FakeDictation(), presenter: RecordingPresenter())
         }
         let off = make()
         off.start()
@@ -398,7 +399,8 @@ struct NotchcastCoreTest {
         let system = FakeSystem()
         let presenter = RecordingPresenter()
         let controller = NotchcastController(addons: [NoticeAddon.self], defaults: defaults,
-                                             hub: system.makeHub(), presenter: presenter)
+                                             hub: system.makeHub(),
+                                             dictation: FakeDictation(), presenter: presenter)
         controller.start()
         controller.preferences.set("noticeMain", on: true)
         drain()
@@ -411,6 +413,10 @@ struct NotchcastCoreTest {
         let calls = core.components(separatedBy: "NotchcastController(").dropFirst()
         check("NotchcastCore builds one controller", calls.count == 1)
         check("NotchcastCore hands the controller the island presenter",
-              calls.allSatisfy { $0.prefix { $0 != "\n" }.hasSuffix("presenter: core.islandPresenter)") })
+              calls.allSatisfy {
+                  $0.components(separatedBy: ")\n")[0].hasSuffix("presenter: core.islandPresenter")
+              })
+        check("NotchcastCore hands the controller stock Dictation",
+              calls.allSatisfy { $0.contains("dictation: NotchcastDictationBridge(core: core)") })
     }
 }
