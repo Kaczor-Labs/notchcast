@@ -1,25 +1,29 @@
 // notchcast-sources: Tinycast/Features/Island/Model/IslandLayout.swift
+// notchcast-sources: Tinycast/Features/Island/Model/IslandPosition.swift
 import Foundation
 import CoreGraphics
 
 @main
 struct IslandLayoutTest {
     static func main() {
-        let current = IslandSurfaceConfiguration(notch: .zero, scale: 1)
+        let current = IslandSurfaceConfiguration(notch: .zero, top: 0, scale: 1)
         for visible in [false, true] {
             for overlays in [false, true] {
                 precondition(current.update(from: nil, paletteVisible: visible, hasOverlays: overlays) == .recreate)
                 precondition(current.update(from: current, paletteVisible: visible, hasOverlays: overlays) == .keep)
-                for next in [IslandSurfaceConfiguration(notch: CGSize(width: 180, height: 32), scale: 1),
-                             IslandSurfaceConfiguration(notch: .zero, scale: 2)] {
+                for next in [IslandSurfaceConfiguration(notch: CGSize(width: 180, height: 32), top: -32, scale: 1),
+                             IslandSurfaceConfiguration(notch: .zero, top: 6, scale: 1),
+                             IslandSurfaceConfiguration(notch: .zero, top: 0, scale: 2)] {
                     precondition(next.update(from: current, paletteVisible: visible, hasOverlays: overlays)
                         == (visible || overlays ? .deferred : .recreate))
                 }
             }
         }
-        for notch in [CGSize.zero, CGSize(width: 180, height: 32)] {
+        let notches = [CGSize.zero, CGSize(width: 180, height: 32)]
+        for (notch, position) in notches.flatMap({ notch in IslandPosition.allCases.map { (notch, $0) } }) {
             let layout = IslandLayout(screen: CGRect(x: -2580, y: 100, width: 2580, height: 1080),
-                                      notch: notch, canvas: CGSize(width: 1100, height: 860))
+                                      notch: notch, canvas: CGSize(width: 1100, height: 860),
+                                      position: position, menuBar: 30, pill: 24)
             precondition(layout.window.maxY == layout.screen.maxY)
             for scale in [1.0, 1.1, 1.2] {
                 let size = CGSize(width: (750 * scale).rounded(), height: (475 * scale).rounded())

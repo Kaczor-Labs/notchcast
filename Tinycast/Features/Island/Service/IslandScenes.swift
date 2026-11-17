@@ -55,9 +55,11 @@ enum IslandScenes {
             IslandVerification.require(core.palette.query == "saf", "typed query saf")
         }
         await IslandVerification.pause(0.8)
-        let top = screen.frame.maxY - IslandController.notch(on: screen).height
+        guard let controller = core.island.active, let top = controller.openingTop else {
+            IslandVerification.require(false, "active island")
+            return
+        }
         IslandVerification.require(abs(panel.frame.maxY - top) < 0.01, "native panel meets island top")
-        guard let controller = core.island.active else { IslandVerification.require(false, "active island"); return }
         await controller.capture(scene)
         await IslandVerification.pause(0.3)
         IslandVerification.require(controller.captured.contains(scene), "scene layer capture \(scene)")
