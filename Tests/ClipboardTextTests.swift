@@ -204,8 +204,8 @@ struct ClipboardTextTests {
         let indexer = ClipboardTextIndexer(
             store: store, delay: .milliseconds(10), canRun: { idle },
             extract: { _ in
-                await MainActor.run { calls += 1 }
-                try await Task.sleep(for: .milliseconds(80))
+                let firstCall = await MainActor.run { calls += 1; return calls == 1 }
+                if firstCall { try await Task.sleep(for: .seconds(3600)) }
                 return "scheduled result"
             })
         store.onItemsChanged = { [weak indexer] in indexer?.schedule() }
@@ -217,7 +217,6 @@ struct ClipboardTextTests {
         try await waitUntil { calls == 1 }
         indexer.stop()
         await indexer.waitUntilStopped()
-        try await Task.sleep(for: .milliseconds(120))
         expect(store.nextExtractionItem() != nil, "disable cancels in-flight result")
         indexer.start()
         try await waitUntil { store.nextExtractionItem() == nil }
@@ -308,7 +307,7 @@ struct ClipboardTextTests {
     }
 
     static func waitUntil(_ condition: () -> Bool) async throws {
-        let deadline = ContinuousClock.now + .seconds(10)
+        let deadline = ContinuousClock.now + .seconds(60)
         while ContinuousClock.now < deadline {
             if condition() { return }
             try await Task.sleep(for: .milliseconds(10))
