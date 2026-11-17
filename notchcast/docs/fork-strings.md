@@ -8,6 +8,19 @@ The build fails when a shipped table or `Info.plist` still says Tinycast outside
 
 The phase edits files that other build steps produced, so Xcode redoes those copies and the phase on every build, even with nothing changed. The built `Info.plist` is a declared input, so the phase always runs after Xcode writes it; without that input Xcode writes `Info.plist` after the phase and the rename is lost.
 
+### Channel name
+
+Only the release says plain "Notchcast". The phase names the build `PRODUCT_NAME` (`project.yml`: "Notchcast" in Release, "Notchcast Dev" in Debug) plus, for a bundle id other than `app.notchcast` and `app.notchcast.dev`, that id's suffix after `app.notchcast.dev.` or `app.notchcast.` (its last component otherwise): `app.notchcast.dev.g818` reads "Notchcast Dev g818". In a non-release name it renames "Tinycast", "Notchcast" and "Notchcast Dev" to that name in every table and in `Info.plist` (never `CFBundleExecutable` or `CFBundleIdentifier`), including key-only English strings of every fork catalog, and writes it to `CFBundleDisplayName`, which `Bundle.appDisplayName` reads for the menu bar, About, the island menu and every other runtime use. The `Notchcast` fork table (the Settings category and the island's accessibility label) names the module group and stays as it is. Release keeps the plain Tinycast-to-Notchcast rename above. `--verify` reads the expected name from the built `CFBundleDisplayName`; `name-override.py --name "<product name>" <bundle id>` prints the name a build would get. `Tests/notchcast-app-name-test.swift` checks release, Debug and a suffixed copy.
+
+A per-task test copy builds Debug under its own bundle id and URL scheme, so it shares no prefs, caches, TCC grants or links with an installed copy, and gets its name from the id with no other setting:
+
+```sh
+xcodebuild -project Tinycast.xcodeproj -scheme Tinycast -configuration Debug -derivedDataPath <scratch>/DerivedData \
+    TINYCAST_BUNDLE_IDENTIFIER=app.notchcast.dev.<task> TINYCAST_URL_SCHEME=notchcast-dev-<task> build
+```
+
+Override `TINYCAST_BUNDLE_IDENTIFIER`, not `PRODUCT_BUNDLE_IDENTIFIER`: the helpers derive their ids from it, and a command-line `PRODUCT_BUNDLE_IDENTIFIER` would give every target the same id.
+
 ## Fork table
 
 Fork-only keys live in `Tinycast/Resources/Notchcast.xcstrings`. Use explicit `table: "Notchcast"` on `String(localized:)` and `LocalizedStringResource`, and `tableName: "Notchcast"` on `Text`. Implicit resource literals must become explicit resources. Shared upstream keys keep their original table. The table is English only: it carries no translations, the app pins its language to English (`NotchcastHidden.language`), and the gates reject any non-English localization. Upstream's own tables keep their eight translations. Entries marked `shouldTranslate: false` remain nontranslatable.
