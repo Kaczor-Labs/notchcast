@@ -198,7 +198,7 @@ enum ShellCommandRunner {
 
         while true {
             // A waiting prompt never prints again, so only a quiet pty can show its unended line.
-            if decoder.canFlush, !hasOutput(terminal.parentEnd, within: flushInterval) {
+            if !terminal.awaitOutput(within: decoder.canFlush ? flushInterval : nil) {
                 if let text = decoder.take(force: true) {
                     continuation.yield(.output(text))
                     lastYield = ContinuousClock().now
@@ -225,17 +225,6 @@ enum ShellCommandRunner {
                 ShellCommandResult(
                     termination: stopped.isSet ? .stopped : .exited(status: status))))
         continuation.finish()
-    }
-
-    /// A hangup counts as output, so the `read` that follows still sees the child go.
-    nonisolated private static func hasOutput(_ descriptor: Int32, within interval: Duration) -> Bool {
-        var request = pollfd(fd: descriptor, events: Int16(POLLIN), revents: 0)
-        var ready: Int32
-        // An interrupted wait says nothing about the pty; falling through would block in `read`.
-        repeat {
-            ready = poll(&request, 1, Int32(interval / .milliseconds(1)))
-        } while ready < 0 && errno == EINTR
-        return ready != 0
     }
 
     /// Set from the main actor and read on the drain queue, so the flag carries its own lock.
