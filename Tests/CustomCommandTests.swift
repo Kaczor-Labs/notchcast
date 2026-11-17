@@ -435,8 +435,9 @@ struct CustomCommandTests {
         // `é` split across reads: the text before it flushes, its lone lead byte waits for the rest.
         var decoder = ShellCommandRunner.TerminalTextDecoder()
         decoder.append([0x63, 0x61, 0x66, 0xC3], count: 4)
+        check("text ahead of a split character can flush", decoder.canFlush)
         check("a forced flush stops short of the split character", decoder.take(force: true) == "caf")
-        check("a lone partial character is held back", decoder.take(force: true) == nil)
+        check("a lone partial character gives the idle flush nothing to wait on", !decoder.canFlush)
         decoder.append([0xA9], count: 1)
         check("the completed character flushes whole", decoder.take(force: true) == "\u{e9}")
 
@@ -478,7 +479,8 @@ struct CustomCommandTests {
             largeLines.count == 20001 && largeLines.first?.count == 200_000 && largeLines.last == "20000")
 
         // Stopped once the prompt shows, so a slow shell start under load cannot race the stop.
-        let heldPrompt = ShellCommandRunner.stream("printf 'Continue? '; sleep 5; echo survived")
+        let heldPrompt = ShellCommandRunner.stream(
+            "trap 'echo terminated; exit' TERM; printf 'Continue? '; sleep 5 & wait; echo survived")
         var heldLog = ""
         var heldResult: ShellCommandResult?
         for await event in heldPrompt.events {
@@ -491,8 +493,38 @@ struct CustomCommandTests {
             }
         }
         check(
-            "stop ends a command waiting at a prompt, which still showed",
-            heldResult?.termination == .stopped && heldLog == "Continue? ")
+            "stop asks a command waiting at a prompt to terminate, and the prompt still showed",
+            heldResult?.termination == .stopped && heldLog == "Continue? terminated\r\n")
+
+        // The kernel drops a closed pty's unread output after about 0.6 s, so a late reader lost it.
+        if let late = PseudoTerminal.spawn(
+            executable: "/bin/zsh", arguments: ["-fc", "echo kept"], environment: [:],
+            workingDirectory: "/")
+        {
+            _ = late.wait()
+            try? await Task.sleep(for: .seconds(1))
+            var bytes = [UInt8](repeating: 0, count: 64)
+            let count = read(late.parentEnd, &bytes, bytes.count)
+            late.close()
+            check(
+                "a fast command's output waits for a reader that comes late",
+                count > 0 && String(decoding: bytes.prefix(count), as: UTF8.self) == "kept\r\n")
+        } else {
+            check("a fast command's output waits for a reader that comes late", false)
+        }
+
+        // A command spawned meanwhile must not hold the first one's pty open past its exit.
+        let firstGo = reply("first-go")
+        let secondGo = reply("second-go")
+        let firstCommand = ShellCommandRunner.stream("\(firstGo.wait) && echo first-done")
+        let secondCommand = ShellCommandRunner.stream("\(secondGo.wait) && echo second-done")
+        firstGo.send()
+        let firstRun = await collect(firstCommand)
+        secondGo.send()
+        let secondRun = await collect(secondCommand)
+        check(
+            "a command finishes while one started after it still runs",
+            firstRun.log == "first-done" && secondRun.log == "second-done")
 
         let statused = await collect(ShellCommandRunner.stream("exit 7"))
         check(
