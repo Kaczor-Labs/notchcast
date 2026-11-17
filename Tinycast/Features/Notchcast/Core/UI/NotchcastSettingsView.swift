@@ -29,6 +29,7 @@ struct NotchcastSettingsView: View {
             } header: {
                 SettingsSectionHeader(NotchcastSettingsSearch.island)
             }
+            NotchcastLookSection(looks: AppCore.shared.island.looks)
             ForEach(NotchcastCategory.allCases, id: \.self) { category in
                 let switches = controller.switches.filter { $0.category == category }
                 if !switches.isEmpty {

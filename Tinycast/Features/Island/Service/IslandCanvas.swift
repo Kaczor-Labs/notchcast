@@ -1,4 +1,5 @@
 import AppKit
+import SwiftUI
 
 final class IslandCanvas: NSView {
     var outline: CGPath?
@@ -17,19 +18,31 @@ final class IslandCanvas: NSView {
     var glanceWidth: CGFloat = 0
     var keylineEnabled = true
     var scale: CGFloat = 2
+    var look = IslandLook.black
+    /// Frosted under Reduce Transparency or Increase Contrast paints its glass solid.
+    var solidGlass = false
+    var restingKeyline = 0.0
     /// How far past the rest pill the outline has grown, so the line fades with the island, never pops.
     var keylineStrength: Double {
         guard let bounds = outline?.boundingBoxOfPath else { return 0 }
         let height = min(bounds.maxY, self.bounds.height) - bounds.minY - restHeight
-        return IslandKeyline.strength(growth: max(bounds.width - restWidth, height), enabled: keylineEnabled)
+        return IslandKeyline.strength(growth: max(bounds.width - restWidth, height), enabled: keylineEnabled,
+                                      resting: restingKeyline)
     }
+    var keylineWidth: CGFloat { IslandKeyline.width(scale: scale, look: look) }
     /// Resolved against the canvas's own appearance, because the drawing appearance lags a flip.
     var keylineColor: CGColor {
         var color = NSColor.clear.cgColor
         effectiveAppearance.performAsCurrentDrawingAppearance {
-            color = NSColor(NotchTheme.Colors.islandKeyline).cgColor
+            color = NSColor(look == .frosted ? NotchTheme.Colors.islandEdge : NotchTheme.Colors.islandKeyline).cgColor
         }
         return color.copy(alpha: color.alpha * keylineStrength) ?? color
+    }
+    private var surface: Color {
+        switch look {
+        case .black: NotchTheme.Colors.islandSurface
+        case .frosted: solidGlass ? NotchTheme.Colors.islandGlassSolid : NotchTheme.Colors.islandGlassTint
+        }
     }
     var onAppearanceChange: (() -> Void)?
     override func viewDidChangeEffectiveAppearance() {
@@ -44,15 +57,22 @@ final class IslandCanvas: NSView {
         dirtyRect.fill(using: .copy)
         guard let outline, let context = NSGraphicsContext.current?.cgContext else { return }
         context.addPath(outline)
-        context.setFillColor(NSColor(NotchTheme.Colors.islandSurface).cgColor)
+        context.setFillColor(NSColor(surface).cgColor)
         context.fillPath()
+        #if DEBUG
+        if look == .frosted, let notch = IslandController.simulatedNotch {
+            context.setFillColor(NSColor.black.cgColor)
+            context.fill(CGRect(x: bounds.midX - notch.width / 2, y: bounds.maxY - notch.height, width: notch.width,
+                                height: notch.height))
+        }
+        #endif
         if keylineStrength > 0 {
             context.saveGState()
             context.addPath(outline)
             context.clip()
             context.addPath(outline)
             context.setStrokeColor(keylineColor)
-            context.setLineWidth(2 * IslandKeyline.width(scale: scale))
+            context.setLineWidth(2 * keylineWidth)
             context.strokePath()
             context.restoreGState()
         }

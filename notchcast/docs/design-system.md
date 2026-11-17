@@ -8,7 +8,7 @@ Each section states one normative rule per element with its token, and one refer
 
 | Surface | Window and level | Owner |
 | --- | --- | --- |
-| Backdrop (the black shape and its outline) | `IslandBackdrop`, main menu + 1, never key | `IslandController` (engine) |
+| Backdrop (the island shape in its look, §1, and its edge) | `IslandBackdrop`, main menu + 1, never key | `IslandController` (engine) |
 | Launcher, compact and expanded, and every palette screen | palette panel, + 2, `paletteOnIsland == true` | `RootPaletteView` |
 | Pill at rest, glance, status, level, notice | engine art (`IslandCanvas`, `IslandNoticeArt`, `IslandHeadlineArt`, `IslandLevelArt`, `IslandExpansionArt`) | `IslandController` |
 | Pill menu and every `PopoverMenu` opened from the island | `MenuPanel` | `IslandPillMenu`, `PaletteScreen` |
@@ -22,12 +22,16 @@ Reference: HIG Live Activities, "Live Activities in the Dynamic Island use a bla
 
 ## 1. Island surface
 
+The island has two looks, chosen per display (`IslandLook`, island-shell.md "Look"): **Black**, the opaque black that blends with notch hardware, and **Frosted**, graphite glass. A display never set takes Black with a notch and Frosted without one. Both are dark; Light stays out.
+
 | Element | Rule | Token |
 | --- | --- | --- |
-| Every island root (backdrop, launcher, palette screen, menu, HUD, dialog, pill art) | Paint one opaque black surface and nothing under or over it: no Liquid Glass (`frosted(in:)`, a non-`.identity` `.glassEffect`, `GlassEffectView`, a SwiftUI `Material`) and no `panelScrim`. | `NotchTheme.Colors.islandSurface` |
-| Every island window (backdrop, palette panel, menu panel, HUD panel, dialog panel) | No window shadow: `hasShadow` is `false`, so nothing sits under the black shape. | none |
+| The island shape, every form from rest to open (backdrop, launcher, palette screens) | Black: paint one opaque black surface. Frosted: one behind-window `NSVisualEffectView` (`.hudWindow`, `.behindWindow`, `.active`) in the backdrop window, masked to the engine outline every frame (`IslandFrost`), under the graphite tint the canvas fills the outline with. On a notch the glass hangs from the screen's top edge and the hardware is its black cutout. Under Reduce Transparency or Increase Contrast, Frosted drops the blur and paints solid. No second material on either look: no Liquid Glass (`frosted(in:)`, a non-`.identity` `.glassEffect`, `GlassEffectView`, a SwiftUI `Material`) and no `panelScrim` on the island. | Black `NotchTheme.Colors.islandSurface`; Frosted `islandGlassTint` (rgb 24 25 28 at 0.88), solid `islandGlassSolid` (#1c1d20) |
+| Island controls over the shape (`islandGlass`, `frosted(in:)`) | Black: the control paints `islandSurface`. Frosted: no fill of its own, so the glass shows (`@Environment(\.islandFrosted)`); Frosted control fills are not defined yet. | as above |
+| Menu, HUD and dialog panels | Still one opaque black surface on both looks until their Frosted styling lands. | `NotchTheme.Colors.islandSurface` |
+| Window shadow | No `hasShadow` on any island window. Frosted lifts the shape with its own shadow in a click-through child window under the backdrop (`IslandLiftWindow`), drawn only once the spring settles and cut out under the glass: rest and live forms `NotchTheme.Shadow.islandLive` (0 6 18 −6, black 0.55), open forms (palette, question, report) `islandOpen` (0 30 70 −26, black 0.75). The bare notch at rest casts none. Black casts none. | `NotchTheme.Shadow` |
 
-The palette root keeps `.identity` glass on the island (`RootPaletteView`), and the compact bar drops its capsule glass, button glass and scrim (`CompactBar`, `onIsland`). Hooks A1, A17.
+The palette root keeps `.identity` glass on the island (`RootPaletteView`) and sets `islandFrosted` from the look of the display it opened on; the compact bar drops its capsule glass, button glass and scrim (`CompactBar`, `onIsland`). Hooks A1, A17.
 
 Reference: HIG Materials, "Don't use Liquid Glass in the content layer."
 
@@ -35,13 +39,13 @@ Reference: HIG Materials, "Don't use Liquid Glass in the content layer."
 
 | Element | Rule | Token |
 | --- | --- | --- |
-| Any island surface or control | No stroke, rim, key line or `border` outline: the edge is the engine's outline, which merges with the bezel and menu bar. A hairline inside art (a level zone, a progress track) is a glyph, not a border. One exception: the open island's keyline, one device pixel (`IslandKeyline.width`) stroked inside the engine outline so the size never changes, white at 0.15 in Dark and none in Light, fading with the outline's growth and off at rest or with `islandOutlineWhenOpen` off. | none (`Theme.Size.hairline` only inside glyph art); the keyline is `NotchTheme.Colors.islandKeyline` |
+| Any island surface or control | No stroke, rim, key line or `border` outline. A hairline inside art (a level zone, a progress track) is a glyph, not a border. One exception, the island's own edge, stroked inside the engine outline so the size never changes, mirrored over the palette content, and off with `islandOutlineWhenOpen` off. Black: one device pixel (`IslandKeyline.width`), white at 0.15, fading in with the outline's growth, 0 at rest, merging with the bezel and menu bar. Frosted: one point, white at 0.12, so the glass reads over a busy wallpaper; without a notch it stays full at rest too (`IslandKeyline.restingStrength`), so the rest pill keeps its edge; on a notch it runs down the sides and along the bottom (the top is above the screen) and is 0 at rest, where the outline is the hardware. None in Light. | none (`Theme.Size.hairline` only inside glyph art); Black `NotchTheme.Colors.islandKeyline`, Frosted `islandEdge` |
 | Separator (menu search, section break) | A `Theme.Size.hairline` rectangle filled, not stroked. | `NotchTheme.Colors.keyCapFill` |
 | Rule inside a card (`MarkdownTableView`, the chat's table rows) | A `Theme.Size.hairline` rectangle filled, one step above the card's `keyCapFill` fill: the card's own colour vanishes where the rule is drawn over bare ground next to a filled header (the chat's rows). Stock keeps `cardStroke`. | `NotchTheme.Colors.cardRule`, the `selection` step (`.islandSeparator`) |
 | Card edge (preview, code, table, swatch, note) | The card is a filled rounded rectangle with no edge; never `cardStroke` or a stroked rim. Stock keeps its `card` and `codeBlock` radii. An inline argument field (`InlineArgumentFields`) follows the same rule at rest: `.islandCardFill`, no edge; its focus accent and owed red edges stay, they are state, and stock keeps `cardStroke` (`ArgumentFieldEdgeStyle`). | `NotchTheme.Colors.keyCapFill` at `metrics.radius.row` (`.islandCardFill`, `.islandEdge()`, `radius.islandCard(onIsland:)`) |
 | Selection mark (emoji cell, room card) | A fill, never a ring or inner border. | `Theme.Colors.selection` |
 
-HIG draws a key line around the iPhone Dynamic Island in Dark Mode to separate it from content; on the Mac the island must read as part of the notch, so it gets none. Hook A2.
+HIG draws a key line around the iPhone Dynamic Island in Dark Mode to separate it from content; on the Mac the Black island must read as part of the notch, so it gets none at rest, while Frosted glass needs its edge to read as an object. Hook A2.
 
 Reference: HIG Live Activities, "When the background is dark — for example, in Dark Mode — a key line appears around the Dynamic Island to distinguish it from other content."
 
@@ -175,7 +179,7 @@ Reference: HIG Live Activities, "Focus on simple, direct actions."
 ## 13. Builder checklist
 
 1. Name the surface in §0; if it is not on the island, follow `docs/ui.md` instead of this page.
-2. Paint `NotchTheme.Colors.islandSurface` and nothing else behind content (§1, §2): no Liquid Glass on the island, and island controls are `islandSurface` too.
+2. Paint nothing of your own behind content (§1, §2): the backdrop paints the look, no Liquid Glass on the island, and island controls go through `islandGlass` so they are `islandSurface` on Black and bare on Frosted.
 3. Read every size from `@Environment(\.metrics)`; every new number goes to §15 first.
 4. Radius concentric to the parent (§3); width from a §4 token; padding from §5.
 5. Type and ink from §6; glyphs through `SymbolImage`; colour only for status.
@@ -248,7 +252,7 @@ Run from the repo root with `bash`, after ``I=$(find Tinycast/Palette Tinycast/F
 | A14 | §10 update glyph | `grep -rn 'symbol: "arrow.down.circle", recovery' Tinycast/Features/Updates/UI/UpdateCoordinator.swift` | 1 |
 | A15 | §11 settings | `grep -rnE 'formStyle\(\|NotchTheme\.' $(grep -rlE 'struct [A-Za-z]+SettingsView' Tinycast/Features/Notchcast) \| grep -v 'formStyle(.grouped)'` | 0 |
 | A16 | §12 add-ons | `grep -rnE ': NSPanel\|NSHostingView\(\|NSWindow\(' Tinycast/Features/Notchcast --include='*.swift' \| grep -v '/Screenshots/'` | 0 |
-| A17 | §1 shadow | `grep -rnE 'hasShadow = true' Tinycast/Palette/PalettePanel.swift Tinycast/Palette/MenuPanel.swift Tinycast/Windows/HUD/HUDPanel.swift Tinycast/Windows/Dialog/DialogPanel.swift` | 4 |
+| A17 | §1 shadow | `grep -rnE 'hasShadow = true' Tinycast/Palette/PalettePanel.swift Tinycast/Palette/MenuPanel.swift Tinycast/Windows/HUD/HUDPanel.swift Tinycast/Windows/Dialog/DialogPanel.swift Tinycast/Features/Island` (window shadows stay off; Frosted's lift is a layer shadow in `IslandFrost`) | 4 |
 | A18 | §6 glyph | `grep -rnE 'Image\(systemName' $I` | 39 |
 
 In the table `\|` is a Markdown escape: type a plain `|`.

@@ -40,6 +40,12 @@ enum NotchTheme {
         static let islandSurface = Color.black
         /// The open island's inside hairline: IslandShell's 0.1488 panel keyline, rounded; none in Light.
         static let islandKeyline = Theme.Colors.adaptive(dark: .srgbInk(1, alpha: 0.15), light: .clear)
+        /// Frosted's graphite: the lowest alpha that keeps text at 4.5:1 over a bright wallpaper.
+        static let islandGlassTint = Color(.sRGB, red: 24 / 255, green: 25 / 255, blue: 28 / 255, opacity: 0.88)
+        /// Frosted under Reduce Transparency or Increase Contrast: the glass painted solid (brief H2).
+        static let islandGlassSolid = Color(.sRGB, red: 28 / 255, green: 29 / 255, blue: 32 / 255)
+        /// Frosted's edge, so the glass reads as an object over a busy wallpaper.
+        static let islandEdge = Theme.Colors.adaptive(dark: .srgbInk(1, alpha: 0.12), light: .clear)
         /// Apart from `rowHover`, so retuning hover never dims a resting keycap.
         static let keyCapFill = Theme.Colors.ramp(dark: 0.14, light: 0.045)
         /// A rule inside a `keyCapFill` card: the `selection` step, which reads on card and black.
@@ -48,6 +54,18 @@ enum NotchTheme {
 }
 
 extension NotchTheme {
+    /// A drop shadow as CSS writes it: a negative spread pulls the shadow in from the shape.
+    struct Shadow: Equatable, Sendable {
+        let y: CGFloat
+        let blur: CGFloat
+        let spread: CGFloat
+        let opacity: Float
+
+        /// Frosted's rest and live forms: a lift over a bright menu bar.
+        static let islandLive = Shadow(y: 6, blur: 18, spread: -6, opacity: 0.55)
+        static let islandOpen = Shadow(y: 30, blur: 70, spread: -26, opacity: 0.75)
+    }
+
     /// One dim for a disabled control; stock and island read it, so the value stays upstream's 0.45.
     enum Opacity {
         static let disabled = 0.45

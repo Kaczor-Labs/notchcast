@@ -135,7 +135,7 @@ enum IslandPillScenes {
         }
     }
 
-    private static func still(_ window: NSWindow, name: String) {
+    static func still(_ window: NSWindow, name: String) {
         guard let output = ProcessInfo.processInfo.environment["ISLAND_OUTPUT"],
               let view = window.contentView?.superview ?? window.contentView,
               let bitmap = view.bitmapImageRepForCachingDisplay(in: view.bounds) else {

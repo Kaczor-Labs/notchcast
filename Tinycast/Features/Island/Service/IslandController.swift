@@ -7,6 +7,7 @@ final class IslandController: NSObject {
     private let source = IslandFrameSource()
     private let backdrop = IslandBackdrop()
     let canvas = IslandCanvas()
+    private lazy var frost = IslandFrost(canvas: canvas)
     private var surface: IslandSurface<CGSize>?
     private var layout: IslandLayout?
     private var configuration: IslandSurfaceConfiguration?
@@ -27,6 +28,9 @@ final class IslandController: NSObject {
     var outlineWhenOpen = true {
         didSet { canvas.keylineEnabled = outlineWhenOpen; if outlineWhenOpen != oldValue { paintFrame() } }
     }
+    var look = IslandLook.black {
+        didSet { canvas.look = look; if look != oldValue { paintFrame() } }
+    }
     /// Read at `configure`, so a change takes effect when the coordinator reconfigures the screen.
     var position = IslandPosition.topEdge
     var openingTop: CGFloat? { layout?.openingTop }
@@ -34,7 +38,7 @@ final class IslandController: NSObject {
     /// AppKit's getter keeps returning `.none` once set, so it also says the window was ever hidden.
     var sharingType: NSWindow.SharingType {
         get { backdrop.sharingType }
-        set { backdrop.sharingType = newValue }
+        set { backdrop.sharingType = newValue; frost.sharingType = newValue }
     }
     /// A full-screen Space keeps only glances and attached surfaces.
     var onFullScreenSpace = false {
@@ -72,7 +76,7 @@ final class IslandController: NSObject {
 
     override init() {
         super.init()
-        backdrop.contentView = canvas
+        backdrop.contentView = frost.root
         canvas.wantsLayer = true
         canvas.onAppearanceChange = { [weak self] in self?.paintFrame() }
         canvas.setAccessibilityElement(true)
@@ -319,11 +323,18 @@ final class IslandController: NSObject {
         canvas.restWidth = layout.hasNotch ? layout.notch.width : NotchTheme.Size.islandRest.width
         canvas.restHeight = layout.hasNotch ? layout.notch.height * 2 : NotchTheme.Size.islandRest.height
         canvas.glanceWidth = canvas.glance.map { glanceWidth($0.layout) } ?? 0
+        canvas.restingKeyline = IslandKeyline.restingStrength(look: look, hasNotch: layout.hasNotch)
+        canvas.solidGlass = NSWorkspace.shared.accessibilityDisplayShouldReduceTransparency
+            || NSWorkspace.shared.accessibilityDisplayShouldIncreaseContrast
         canvas.display()
         clip.path = outline.copy(using: &contentTransform)
         keyline.path = clip.path
-        keyline.lineWidth = 2 * IslandKeyline.width(scale: canvas.scale)
+        keyline.lineWidth = 2 * canvas.keylineWidth
         keyline.strokeColor = canvas.keylineColor
+        let bare = canvas.glance == nil && canvas.expansion == nil && canvas.drawnLine == nil
+        frost.paint(look: look, solid: canvas.solidGlass, outline: canvas.outline,
+                    shadow: canvas.covered ? .islandOpen : layout.hasNotch && bare ? nil : .islandLive,
+                    settled: source.isIdle, backdrop: backdrop, reducedMotion: reducedMotion)
         CATransaction.commit()
         CATransaction.flush()
         if !(showsRest && !onFullScreenSpace), !glancing, isResting { backdrop.orderOut(nil) }
@@ -354,6 +365,8 @@ final class IslandController: NSObject {
     var showsHeadline: Bool { canvas.headline != nil }
     var reduced: Bool { surface?.reduced == true }
     var backdropVisible: Bool { backdrop.isVisible }
+    var liftShown: Bool { frost.liftShown }
+    var liftClickThrough: Bool { frost.liftClickThrough }
     var frameIntervals: [Double] { source.intervals }
     var frameCPU: [Double] { source.cpuMilliseconds }
 
