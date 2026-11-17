@@ -4,6 +4,7 @@ import SwiftUI
 struct AIEmptyState: View {
 
     @Environment(\.metrics) private var metrics
+    @Environment(\.paletteOnIsland) private var onIsland
     let message: String?
     let canConfigure: Bool
     let onConfigure: () -> Void
@@ -25,7 +26,7 @@ struct AIEmptyState: View {
             } else {
                 HStack(spacing: metrics.spacing.sm) {
                     Text("Send a message")
-                    KeyCapChip(text: "↵")
+                    KeyCapChip(text: "↵", style: onIsland ? .outline : .filled)
                 }
                 .font(metrics.typography.rowTrailing)
                 .foregroundStyle(Theme.Colors.textTertiary)
