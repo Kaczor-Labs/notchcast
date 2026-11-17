@@ -3,6 +3,7 @@ import SwiftUI
 /// Lines soft-wrap: a second scroll view would fight the transcript's own dissolve.
 struct MarkdownCodeView: View {
     @Environment(\.metrics) private var metrics
+    @Environment(\.paletteOnIsland) private var onIsland
     let language: String?
     let text: String
 
@@ -26,11 +27,11 @@ struct MarkdownCodeView: View {
         .padding(.horizontal, metrics.spacing.xl)
         .padding(.vertical, metrics.spacing.lg)
         .background(
-            RoundedRectangle(cornerRadius: metrics.radius.card, style: .continuous)
+            RoundedRectangle(cornerRadius: metrics.radius.islandCard(onIsland: onIsland), style: .continuous)
                 .fill(.islandCardFill)
         )
         .overlay(
-            RoundedRectangle(cornerRadius: metrics.radius.card, style: .continuous)
+            RoundedRectangle(cornerRadius: metrics.radius.islandCard(onIsland: onIsland), style: .continuous)
                 .stroke(.islandEdge()))
     }
 }
