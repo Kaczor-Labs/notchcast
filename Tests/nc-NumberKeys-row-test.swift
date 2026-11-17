@@ -30,6 +30,21 @@ struct NumberKeysRowTest {
                     digit: digit, query: query, entryRows: rows, enabled: false) == nil)
             }
         }
+        let caps = LauncherNumberKeys.keycaps { digit in
+            LauncherNumberKeys.rowIndex(digit: digit, query: "a", entryRows: rows, enabled: true)
+        }
+        precondition(caps.count == 9, "nine results, nine keycaps")
+        for digit in 1...9 { precondition(caps[rows[digit - 1]] == Character(String(digit)), "⌘\(digit)") }
+        precondition(caps[rows[9]] == nil && caps[rows[10]] == nil, "the tenth result shows none")
+        let few = LauncherNumberKeys.keycaps { LauncherNumberKeys.rowIndex(
+            digit: $0, query: "a", entryRows: [3, 7], enabled: true) }
+        precondition(few == [3: "1", 7: "2"], "only the rows a digit opens")
+        for query in ["", "a"] {
+            let none = LauncherNumberKeys.keycaps { LauncherNumberKeys.rowIndex(
+                digit: $0, query: query, entryRows: rows, enabled: query.isEmpty) }
+            precondition(none.isEmpty, "no query or switched off: favourites keep their own keycaps")
+        }
+        precondition(LauncherNumberKeys.keycaps { _ in 5 } == [5: "1"], "a shared row shows its lowest digit")
         print("nc-NumberKeys-row-test: ok")
     }
 }
