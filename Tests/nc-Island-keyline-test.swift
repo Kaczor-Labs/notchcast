@@ -21,6 +21,7 @@ struct IslandKeylineTest {
         let context = NSGraphicsContext(bitmapImageRep: rep)!
         context.cgContext.scaleBy(x: CGFloat(scale), y: CGFloat(scale))
         let appearance = NSAppearance(named: dark ? .darkAqua : .aqua)!
+        canvas.appearance = appearance
         let saved = NSGraphicsContext.current
         NSGraphicsContext.current = context
         appearance.performAsCurrentDrawingAppearance { canvas.draw(canvas.bounds) }
@@ -46,8 +47,14 @@ struct IslandKeylineTest {
         let scale = 2
 
         func color(_ canvas: IslandCanvas, dark: Bool) -> CGFloat {
+            canvas.appearance = NSAppearance(named: dark ? .darkAqua : .aqua)
+            return canvas.keylineColor.alpha
+        }
+        /// The live defect: the drawing appearance still Dark after the canvas turned Light, or the reverse.
+        func lagging(_ canvas: IslandCanvas, canvasDark: Bool, drawingDark: Bool) -> CGFloat {
+            canvas.appearance = NSAppearance(named: canvasDark ? .darkAqua : .aqua)
             var alpha: CGFloat = 0
-            NSAppearance(named: dark ? .darkAqua : .aqua)!.performAsCurrentDrawingAppearance {
+            NSAppearance(named: drawingDark ? .darkAqua : .aqua)!.performAsCurrentDrawingAppearance {
                 alpha = canvas.keylineColor.alpha
             }
             return alpha
@@ -58,6 +65,13 @@ struct IslandKeylineTest {
         let opened = canvas(open, scale: 2)
         precondition(abs(color(opened, dark: true) - 0.15) < 0.001, "Dark open island draws white at 0.15")
         precondition(color(opened, dark: false) == 0, "Light draws no keyline")
+        precondition(lagging(opened, canvasDark: false, drawingDark: true) == 0, "Light canvas under a Dark drawing appearance draws none")
+        precondition(abs(lagging(opened, canvasDark: true, drawingDark: false) - 0.15) < 0.001,
+                     "Dark canvas under a Light drawing appearance draws 0.15")
+        var changes = 0
+        opened.onAppearanceChange = { changes += 1 }
+        opened.appearance = NSAppearance(named: .aqua)
+        precondition(changes == 1, "An appearance change reaches the owner once")
         opened.keylineEnabled = false
         precondition(color(opened, dark: true) == 0, "The setting off draws none")
         opened.keylineEnabled = true
