@@ -74,7 +74,6 @@ jobs:
           count: ${{ steps.shards.outputs.count }}
           idle: |
             ${{ vars.NOTCHCAST_IDLE_MBA }}
-            ${{ vars.NOTCHCAST_IDLE_MBP }}
   harnesses:
     needs: plan
     # An empty selection skips this job and the run still concludes success; an empty matrix would fail it.

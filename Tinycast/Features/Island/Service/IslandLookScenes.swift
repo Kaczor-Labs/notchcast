@@ -91,7 +91,7 @@ enum IslandLookScenes {
         core.paletteCoordinator.hidePalette(restoreFocus: false)
     }
 
-    /// The Look rows as the Notchcast pane shows them, for a notch display and a notchless one.
+    /// The Look rows as the Island tab shows them, for a notch display and a notchless one.
     private static func settings(core: AppCore, screen: NSScreen) async {
         let suite = "app.notchcast.look-scene"
         let looks = IslandLookStore(defaults: UserDefaults(suiteName: suite) ?? .standard)
@@ -103,7 +103,7 @@ enum IslandLookScenes {
         let window = NSWindow(contentRect: CGRect(x: 0, y: 0, width: 600, height: 300), styleMask: [.titled],
                               backing: .buffered, defer: true)
         window.contentView = NSHostingView(rootView: Form { NotchcastLookSection(looks: looks) }
-            .formStyle(.grouped).environment(SettingsNavigationState(tab: .notchcast)))
+            .formStyle(.grouped).environment(SettingsNavigationState(tab: .notchcast(.island))))
         window.setFrameOrigin(CGPoint(x: screen.frame.midX - 300, y: screen.frame.midY - 150))
         IslandVerification.require(screen.frame.contains(window.frame), "the Look window sits on the test display")
         window.orderFrontRegardless()

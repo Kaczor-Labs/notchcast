@@ -19,6 +19,9 @@
     "Display & Sound" : {
       "shouldTranslate" : false
     },
+    "Downloads" : {
+      "shouldTranslate" : false
+    },
     "Files & Downloads" : {
       "shouldTranslate" : false
     },
@@ -29,9 +32,12 @@
       "shouldTranslate" : false
     },
     "Island" : {
-
+      "shouldTranslate" : false
     },
     "Keyboard & Mouse" : {
+      "shouldTranslate" : false
+    },
+    "Launcher Extras" : {
       "shouldTranslate" : false
     },
     "Look" : {
@@ -61,7 +67,7 @@
     "Notices" : {
       "shouldTranslate" : false
     },
-    "Off hides the island from screenshots, recordings and screen sharing." : {
+    "Off hides every Notchcast window: the island, launcher, questions, reports and this Settings window." : {
 
     },
     "Outline when open" : {

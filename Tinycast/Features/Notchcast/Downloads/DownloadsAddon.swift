@@ -20,7 +20,7 @@ enum DownloadsAddon: NotchcastAddon {
             id: "distill",
             title: String(localized: "Distill", table: "NotchcastDownloads"),
             subtitle: String(
-                localized: "Save links and transcribe media into your Distill folder.", table: "NotchcastDownloads"),
+                localized: "Save links and transcribe media into ~/Downloads/Distill/Raw.", table: "NotchcastDownloads"),
             category: .filesDownloads),
         NotchcastSwitch(
             id: "distillTimestamps",
@@ -48,10 +48,8 @@ extension DownloadsModule.Action {
         case .audio: "download-audio"
         case .transcript: "download-youtube-transcript"
         case .webpage: "save-webpage-as-markdown"
-        case .openDownloads: "open-downloads-folder"
         case .addDistill: "add-links-to-distill"
         case .runDistill: "run-distill"
-        case .openDistill: "open-distill-folder"
         }
     }
 
@@ -61,10 +59,8 @@ extension DownloadsModule.Action {
         case .audio: String(localized: "Download Audio", table: "NotchcastDownloads")
         case .transcript: String(localized: "Download YouTube Transcript", table: "NotchcastDownloads")
         case .webpage: String(localized: "Save Webpage as Markdown", table: "NotchcastDownloads")
-        case .openDownloads: String(localized: "Open Downloads Folder", table: "NotchcastDownloads")
         case .addDistill: String(localized: "Add Links to Distill", table: "NotchcastDownloads")
         case .runDistill: String(localized: "Run Distill", table: "NotchcastDownloads")
-        case .openDistill: String(localized: "Open Distill Folder", table: "NotchcastDownloads")
         }
     }
 
@@ -74,7 +70,6 @@ extension DownloadsModule.Action {
         case .audio: "waveform"
         case .transcript: "text.bubble"
         case .webpage: "doc.text"
-        case .openDownloads, .openDistill: "folder"
         case .addDistill: "text.badge.plus"
         case .runDistill: "play"
         }

@@ -1,7 +1,11 @@
 # Sourced by upstream's runner for each harness, so fork sources an upstream file needs never need a shared registration.
-# The hidden tabs (notchcast/docs/hidden.md) sit beside SettingsTab: a harness compiling it gets them.
+# The hidden tabs (notchcast/docs/hidden.md) and Notchcast's own tabs sit beside SettingsTab: a harness compiling it gets them.
 if [[ " $* " == *" Tinycast/Features/Settings/SettingsTab.swift "* && " $* " != *" Tinycast/Features/Notchcast/Hidden/NotchcastHidden.swift "* ]]; then
     set -- "$@" Tinycast/Features/Notchcast/Hidden/NotchcastHidden.swift
+fi
+if [[ " $* " == *" Tinycast/Features/Settings/SettingsTab.swift "* && " $* " != *" Tinycast/Features/Notchcast/Core/Model/NotchcastPane.swift "* ]]; then
+    set -- "$@" Tinycast/Features/Notchcast/Core/Model/NotchcastPane.swift
+    [[ " $* " == *" Tinycast/Features/Notchcast/Core/Model/NotchcastCategory.swift "* ]] || set -- "$@" Tinycast/Features/Notchcast/Core/Model/NotchcastCategory.swift
 fi
 # Notchcast's search rows sit beside the catalog, with the two descriptor types they read.
 if [[ " $* " == *" Tinycast/Features/Settings/SettingsSearchCatalog.swift "* && " $* " != *" Tinycast/Features/Notchcast/Core/UI/NotchcastSettingsSearch.swift "* ]]; then
