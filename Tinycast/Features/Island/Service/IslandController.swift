@@ -30,6 +30,7 @@ final class IslandController: NSObject {
     /// Read at `configure`, so a change takes effect when the coordinator reconfigures the screen.
     var position = IslandPosition.topEdge
     var openingTop: CGFloat? { layout?.openingTop }
+    func openingX(width: CGFloat) -> CGFloat? { layout?.openingX(width: width) }
     /// AppKit's getter keeps returning `.none` once set, so it also says the window was ever hidden.
     var sharingType: NSWindow.SharingType {
         get { backdrop.sharingType }

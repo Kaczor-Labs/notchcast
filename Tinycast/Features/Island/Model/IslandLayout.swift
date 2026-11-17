@@ -37,10 +37,15 @@ struct IslandLayout: Sendable {
     var expandedPadding: CGFloat { contentTop - top }
     /// The screen y every opened surface hangs from: palette, questions and reports.
     var openingTop: CGFloat { screen.maxY - contentTop }
+    /// Without a notch the x snaps to whole points, so an odd-width screen can't leave the pill on a half point.
     var window: CGRect {
-        CGRect(x: screen.midX - canvas.width / 2, y: screen.maxY - canvas.height,
-               width: canvas.width, height: canvas.height)
+        let x = screen.midX - canvas.width / 2
+        return CGRect(x: hasNotch ? x : x.rounded(.down), y: screen.maxY - canvas.height,
+                      width: canvas.width, height: canvas.height)
     }
+
+    /// The screen x of an opened surface `width` wide, on the same centre line as the pill.
+    func openingX(width: CGFloat) -> CGFloat { window.minX + (canvas.width - width) / 2 }
 
     func contentFrame(_ size: CGSize) -> CGRect {
         CGRect(x: (canvas.width - size.width) / 2,
