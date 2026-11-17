@@ -96,3 +96,31 @@ bash "$WRAPPER" > "$WORK/log" 2>&1
 grep -qx 'rewritten Notchcast ' "$WORK/log"
 test "$(grep -c 'refresh failed' "$WORK/log")" = 1
 echo 'PASS: incomplete extraction preserves last copy; no extra arguments'
+KICK="$HOME/Library/Application Support/notchcast/jobs/Notchcast sync check"
+KICK_TOOLS="$HOME/Library/Application Support/notchcast/kick-tools"
+UPDATE_COPY="$(readlink "$TOOLS")"
+printf '#!/bin/bash\necho checkout kick\n' > "$WORK/checkout/notchcast/kick.sh"
+if bash "$KICK" > "$WORK/log" 2>&1; then echo 'FAIL: sync check ran without a copy of origin/main'; exit 1; fi
+cat "$WORK/log"
+! grep -q 'checkout kick' "$WORK/log" || { echo 'FAIL: sync check ran kick.sh from the checkout'; exit 1; }
+echo 'PASS: sync check with no copy of origin/main refuses the checkout'
+printf '#!/bin/bash\nHERE="$(cd "$(dirname "$0")" && pwd)"\nsource "$HERE/config.env"\ntest -f "$HERE/ci.py"\necho "pinned kick $APP_NAME $#"\n' > "$WORK/origin/notchcast/kick.sh"
+: > "$WORK/origin/notchcast/ci.py"
+git -C "$WORK/origin" add .
+git -C "$WORK/origin" commit -qm kick
+kick_check() {
+    bash "$KICK" > "$WORK/log" 2>&1
+    cat "$WORK/log"
+    grep -qx 'pinned kick Notchcast 0' "$WORK/log" || { echo 'FAIL: sync check did not run origin/main kick.sh'; exit 1; }
+    test "$(git -C "$WORK/checkout" rev-parse HEAD)" = "$HEAD_BEFORE"
+    test "$(readlink "$TOOLS")" = "$UPDATE_COPY" || { echo 'FAIL: sync check replaced the update copy'; exit 1; }
+}
+kick_check
+OLD_KICK="$(readlink "$KICK_TOOLS")"
+printf 'echo kick-v2\n' >> "$WORK/origin/notchcast/kick.sh"
+git -C "$WORK/origin" add .
+git -C "$WORK/origin" commit -qm kick-v2
+kick_check
+grep -qx kick-v2 "$WORK/log"
+test ! -e "${OLD_KICK%/notchcast}"
+echo 'PASS: sync check runs kick.sh from a fresh copy of origin/main, never the checkout'
