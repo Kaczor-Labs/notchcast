@@ -213,7 +213,7 @@ The pty's stdin gets an EOT byte at spawn, which keeps the invariant a `/dev/nul
 pipe path: a command that prompts reads EOF and moves on rather than waiting on a terminal that will
 never answer.
 
-`PseudoTerminal` keeps its own copy of the child end until the command has exited and the pty has gone quiet. When the last child end closes with output still unread, macOS waits about 0.6 s and then discards it, so a fast command lost its final line whenever the reader was late. The command is detected as exited without being reaped, so its process group stays reserved and Stop's `SIGKILL` backstop can never reach a reused pid.
+`PseudoTerminal` keeps its own copy of the child end until the command has exited and everything it wrote has been read. When the last child end closes with output still unread, macOS waits about 0.6 s and then discards it, so a fast command lost its final line whenever the reader was late. That copy also keeps the parent end from reading end-of-file, so the reader waits on a kqueue that watches the command's exit as well as its output, and with no half-printed line it blocks rather than polls. Commands spawn with `POSIX_SPAWN_CLOEXEC_DEFAULT`, so a command started meanwhile never inherits that copy and keeps the first one open past its exit.
 
 #### What the window shows
 
