@@ -8,8 +8,8 @@ import subprocess
 
 ROOT = Path(__file__).resolve().parent.parent
 KEYS = ('UPSTREAM_REPO', 'FORK_REPO', 'MAINTAINER_NAME', 'MAINTAINER_EMAIL', 'TESTED_CONTEXT')
-FORK_WORKFLOWS = ('delete-check', 'design', 'generated-retry', 'generated', 'leaks', 'main-harnesses',
-                  'pr', 'proof', 'snapshot', 'sync')
+FORK_WORKFLOWS = ('codeql', 'delete-check', 'design', 'generated-retry', 'generated', 'leaks',
+                  'main-harnesses', 'pr', 'proof', 'snapshot', 'sync')
 FORK_GITHUB_FILES = ('.github/CONTRIBUTING.md', '.github/SECURITY.md',
                      '.github/ISSUE_TEMPLATE/notchcast-bug.yml')
 
