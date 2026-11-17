@@ -18,7 +18,7 @@ Notchcast is a modified fork of [Tinycast](https://github.com/abue-ammar/tinycas
 
 <!-- features:start -->
 
-Notchcast keeps upstream's features: app and command search, clipboard history, snippets, quicklinks, calculator with units and currencies, emoji picker, file search, menu bar search, window management, window layouts and rooms, notes, calendar and meeting join, camera, dictionary, Quick AI and AI chat with MCP servers, quick actions on selected text, custom commands, Apple Shortcuts, backups, uninstall apps, global hotkeys with a Hyper key, and deeplinks. Upstream's docs are in [docs/features](/docs/features).
+Notchcast keeps upstream's features: app and command search, clipboard history, snippets, quicklinks, calculator with units and currencies, emoji picker, file search, menu bar search, window management, window layouts and rooms, notes, calendar and meeting join, camera, dictionary, Quick AI and AI chat with MCP servers, quick actions on selected text, custom commands, backups, uninstall apps, global hotkeys with a Hyper key, and deeplinks. Upstream's docs are in [docs/features](/docs/features).
 
 Hidden in Notchcast (the code stays): Raycast extensions. The reason: [hidden.md](/notchcast/docs/hidden.md).
 
