@@ -913,7 +913,7 @@ struct RootPaletteView: View {
                     .accessibilityHidden(true)
             }
         }
-        .modifier(PaletteHelp(text: String(localized: "Press Tab to ask Quick AI"), alignment: .trailing))
+        .paletteHelp(String(localized: "Press Tab to ask Quick AI"), alignment: .trailing)
     }
 
     /// Resolved through `PaletteTabAction`, so the hint cannot promise the wrong destination.
@@ -1693,21 +1693,6 @@ private struct MenuCircleStyle: ButtonStyle {
     }
 }
 
-/// The island's own tooltip; stock keeps the system `.help`.
-private struct PaletteHelp: ViewModifier {
-    let text: String
-    var alignment: HorizontalAlignment = .center
-    @Environment(\.paletteOnIsland) private var onIsland
-
-    @ViewBuilder func body(content: Content) -> some View {
-        if onIsland {
-            content.tooltip(text, alignment: alignment, edge: .bottom)
-        } else {
-            content.help(text)
-        }
-    }
-}
-
 /// Hover state lives here, so lighting the chevron never re-renders the header around it.
 private struct HeaderBackButton: View {
     let help: String
@@ -1727,6 +1712,6 @@ private struct HeaderBackButton: View {
         .buttonStyle(.plain)
         .onHover { hovered = $0 }
         .animation(.easeOut(duration: Theme.Duration.hover), value: hovered)
-        .modifier(PaletteHelp(text: help, alignment: .leading))
+        .paletteHelp(help, alignment: .leading)
     }
 }

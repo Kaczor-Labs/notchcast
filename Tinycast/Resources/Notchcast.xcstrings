@@ -4,6 +4,9 @@
     "A faint line around the open island in Dark." : {
 
     },
+    "A notch always decides where the island sits." : {
+
+    },
     "Between Macs" : {
       "shouldTranslate" : false
     },
@@ -34,6 +37,12 @@
     "Mac Tweaks" : {
       "shouldTranslate" : false
     },
+    "Menu bar bottom" : {
+
+    },
+    "Menu bar center" : {
+
+    },
     "Music" : {
       "shouldTranslate" : false
     },
@@ -52,7 +61,13 @@
     "Outline when open" : {
 
     },
+    "Position on displays without a notch" : {
+
+    },
     "Show in screenshots and videos" : {
+
+    },
+    "Top edge" : {
 
     },
     "Updated to %@" : {

@@ -7,6 +7,7 @@
 // notchcast-sources: Tinycast/Features/WindowManagement/Model/WindowLayoutGeometry.swift Tinycast/Features/WindowManagement/Model/RoomLayoutKind.swift Tinycast/Features/WindowManagement/Model/RoomLayoutEngine.swift Tinycast/Features/WindowManagement/Model/RoomGrid.swift
 // notchcast-sources: Tinycast/Features/WindowManagement/Model/RoomWindow.swift Tinycast/Features/WindowManagement/Model/Room.swift Tinycast/Features/WindowManagement/Model/CustomWindowSize.swift Tinycast/Platform/LocalizedResource.swift Tinycast/Platform/NotificationToken.swift
 // notchcast-sources: Tests/NotchcastTapFixtures.swift
+// notchcast-sources: Tests/NotchcastDictationFixture.swift
 import AppKit
 import CoreGraphics
 import Foundation
@@ -174,7 +175,9 @@ struct NotchcastTapTest {
         let defaults = UserDefaults(suiteName: "nc-tap-test-liveness.\(UUID())")!
         let context = NotchcastContext(
             defaults: defaults, preferences: NotchcastPreferences(defaults: defaults, switches: []),
-            presenter: RecordingPresenter(), hub: hub, now: { Date() }, onTapsChanged: {})
+            presenter: RecordingPresenter(), hub: hub,
+            transcription: NotchcastTranscriptionRunner(dictation: FakeDictation()),
+            now: { Date() }, onTapsChanged: {})
         var resets: [String] = []
         let music = subs.add(NotchcastTap(
             switchID: "music", mask: NotchcastTapPolicy.mask(for: .keyDown), handler: .observe { _ in },

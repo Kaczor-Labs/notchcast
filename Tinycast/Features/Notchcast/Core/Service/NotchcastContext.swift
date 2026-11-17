@@ -8,7 +8,10 @@ final class NotchcastContext {
     let presenter: any IslandPresenting
     let now: @MainActor () -> Date
     private let hub: NotchcastTapHub
+    private let transcription: NotchcastTranscriptionRunner
     private let onTapsChanged: @MainActor () -> Void
+    /// Strong is safe: a recovery context links to nothing, and the controller's slot owns both.
+    private let recoveryContext: NotchcastContext?
     private(set) var wantedTaps: [(token: UUID, tap: NotchcastTap)] = []
     private(set) var module: (any NotchcastModule)?
     /// Returns true to consume a digit typed in the launcher (Number Keys, hook H9).
@@ -16,15 +19,18 @@ final class NotchcastContext {
 
     init(
         defaults: UserDefaults, preferences: NotchcastPreferences, presenter: any IslandPresenting,
-        hub: NotchcastTapHub, now: @escaping @MainActor () -> Date,
-        onTapsChanged: @escaping @MainActor () -> Void
+        hub: NotchcastTapHub, transcription: NotchcastTranscriptionRunner,
+        now: @escaping @MainActor () -> Date,
+        onTapsChanged: @escaping @MainActor () -> Void, recovery: NotchcastContext? = nil
     ) {
         self.defaults = defaults
         self.preferences = preferences
         self.presenter = presenter
         self.hub = hub
+        self.transcription = transcription
         self.now = now
         self.onTapsChanged = onTapsChanged
+        recoveryContext = recovery
     }
 
     var isAccessibilityTrusted: Bool { hub.isTrusted }
@@ -35,6 +41,9 @@ final class NotchcastContext {
     func isEnabled(_ switchID: String) -> Bool { preferences.isEnabled(switchID) }
 
     func module<M: NotchcastModule>(_: M.Type) -> M? { module as? M }
+
+    /// The add-on's own recovery while the controller runs, so work it hands over outlives switch-off.
+    func recovery<M: NotchcastModule>(_: M.Type) -> M? { recoveryContext?.module as? M }
 
     /// Installed while the tap's switch is enabled and the module runs; the token removes it.
     @discardableResult
@@ -55,6 +64,9 @@ final class NotchcastContext {
     func handleLauncherDigit(_ handler: (@MainActor (_ digit: Int, _ query: String, _ entryRows: [Int]) -> Int?)?) {
         launcherDigit = handler
     }
+
+    /// Stock Dictation's text for a file; `.busy` while the user dictates or another one runs.
+    func transcribe(_ audioURL: URL) async throws -> String { try await transcription.transcribe(audioURL) }
 
     /// Rereads Accessibility trust after a grant, restarting a tap that could not start.
     func refreshPermission() { hub.refreshPermission() }

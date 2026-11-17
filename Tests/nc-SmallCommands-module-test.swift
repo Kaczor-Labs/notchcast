@@ -7,6 +7,7 @@
 // notchcast-sources: Tinycast/Features/Notchcast/SmallCommands/Service/SmallCommandsModule.swift
 // notchcast-sources: Tinycast/Features/Notchcast/SmallCommands/Service/SmallCommandsSystem.swift
 // notchcast-sources: Tinycast/Features/Notchcast/SmallCommands/Service/AirDropService.swift
+// notchcast-sources: Tests/NotchcastDictationFixture.swift
 
 import AppKit
 import CoreGraphics
@@ -127,7 +128,8 @@ final class Rig {
         if let stored { defaults.set(stored, forKey: "smallCommands") }
         let hub = NotchcastTapHub(syntheticTag: 0x54494E59, isTrusted: { true }, makeSession: { FakeSession($0) })
         controller = NotchcastController(
-            addons: [SmallCommandsAddon.self], defaults: defaults, hub: hub, presenter: presenter)
+            addons: [SmallCommandsAddon.self], defaults: defaults, hub: hub,
+            dictation: FakeDictation(), presenter: presenter)
         controller.start()
     }
 
@@ -150,6 +152,8 @@ final class Rig {
         precondition(last.text == text, "\(label): text was \(last.text)")
         precondition(last.isFailure == failure, "\(label): isFailure")
         precondition(last.symbol == symbol, "\(label): symbol")
+        precondition(last.progress == nil, "\(label): a result, not progress")
+        precondition(!failure || last.seconds == nil, "\(label): a failure sets no seconds")
         precondition(last.id == SmallCommandsModule.noticeID, "\(label): one notice id")
     }
 
@@ -198,7 +202,7 @@ enum SmallCommandsModuleTests {
         precondition(ran, "password runs")
         precondition(fake.copies.count == 1 && fake.copies[0].concealed, "password copy is concealed")
         precondition(fake.copies[0].text.count == 24, "password length")
-        rig.expect("Password Copied", failure: false, symbol: "key", "password")
+        rig.expect("Password Copied", failure: false, symbol: "checkmark", "password")
         fake.copyWorks = false
         await rig.run("generate-password")
         rig.expect("Could not copy to the clipboard.", failure: true, symbol: "key", "password copy failure")
@@ -214,7 +218,7 @@ enum SmallCommandsModuleTests {
         precondition(sent == endpoint + "https%3A%2F%2Fexample.com%2Fpage%3Fid%3D7", "cleaned link sent: \(sent)")
         precondition(fake.copies.last.map { $0.text == "https://tinyurl.com/abc123" && !$0.concealed } == true,
                      "short link copied plainly")
-        rig.expect("Short Link Copied from Clipboard", failure: false, symbol: "link", "shorten from clipboard")
+        rig.expect("Short Link Copied", failure: false, symbol: "checkmark", "shorten from clipboard")
 
         // Shorten: browser fallback.
         fake.reset()
@@ -224,7 +228,7 @@ enum SmallCommandsModuleTests {
         precondition(fake.browserReads == 1, "the browser is read when the clipboard has no link")
         precondition(fake.requests.first?.url?.absoluteString == endpoint + "https%3A%2F%2Fexample.org%2Fa",
                      "browser link cleaned")
-        rig.expect("Short Link Copied from Browser", failure: false, symbol: "link", "shorten from browser")
+        rig.expect("Short Link Copied", failure: false, symbol: "checkmark", "shorten from browser")
 
         fake.reset()
         fake.clipboard = "http://192.168.1.10/admin"
@@ -272,7 +276,25 @@ enum SmallCommandsModuleTests {
         fake.files = [file]
         await rig.run("airdrop-selection")
         precondition(fake.shares == [[file]], "the selection goes to AirDrop")
-        rig.expect("Done", failure: false, symbol: "airplayaudio", "AirDrop sent")
+        // The harness has no bundle, so the key's own text shows; the catalog pins the real plural below.
+        precondition(rig.last?.text.hasPrefix("Sent 1 file") == true, "AirDrop names one file")
+        rig.expect(rig.last?.text ?? "", failure: false, symbol: "checkmark", "AirDrop sent")
+        let catalogURL = URL(filePath: "Tinycast/Features/Notchcast/SmallCommands/NotchcastSmallCommands.xcstrings")
+        guard let data = try? Data(contentsOf: catalogURL),
+              let catalog = try? JSONSerialization.jsonObject(with: data) else {
+            preconditionFailure("the Small Commands catalog parses")
+        }
+        var node = catalog
+        for key in ["strings", "Sent %lld files", "localizations", "en", "variations", "plural"] {
+            node = (node as! [String: Any])[key]!
+        }
+        var forms: [String: String] = [:]
+        for (form, entry) in node as! [String: [String: [String: String]]] { forms[form] = entry["stringUnit"]?["value"] }
+        precondition(forms == ["one": "Sent %lld file", "other": "Sent %lld files"], "the catalog pluralises the count")
+        fake.reset()
+        fake.files = [file, file, file]
+        await rig.run("airdrop-selection")
+        rig.expect("Sent 3 files", failure: false, symbol: "checkmark", "AirDrop sent three")
         fake.reset()
         await rig.run("airdrop-selection")
         precondition(fake.shares.isEmpty, "nothing selected opens no sheet")
@@ -300,7 +322,7 @@ enum SmallCommandsModuleTests {
         precondition(rig.presenter.posts.count == posted, "the superseded AirDrop stays silent")
         await rig.run("generate-password")
         precondition(rig.presenter.posts.count == posted + 1, "only the password reports")
-        rig.expect("Password Copied", failure: false, symbol: "key", "supersede")
+        rig.expect("Password Copied", failure: false, symbol: "checkmark", "supersede")
 
         precondition(rig.presenter.posts.last?.seconds == nil, "the presenter's queue owns the notice's dwell")
 
@@ -320,6 +342,9 @@ enum SmallCommandsModuleTests {
         ran = await rig.run("shorten-link", reports: false)
         precondition(!ran, "commands go with the switch")
         rig.finish()
+
+        let open = rig.presenter.posts.indices.filter { rig.presenter.posts[$0].progress != nil }
+        precondition(open.isEmpty, "no SmallCommands notice shows progress, so none can be left without a result")
 
         print("PASS: small commands module covers switch, password, shorten order, AirDrop and teardown")
     }

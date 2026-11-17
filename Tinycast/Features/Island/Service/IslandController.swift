@@ -10,7 +10,7 @@ final class IslandController: NSObject {
     private var surface: IslandSurface<CGSize>?
     private var layout: IslandLayout?
     private var configuration: IslandSurfaceConfiguration?
-    private var pendingScreen: NSScreen?
+    private var pending = IslandHold<NSScreen>()
     private(set) weak var panel: PalettePanel?
     private var observer: PanelObserver?
     private let clip = CAShapeLayer()
@@ -27,6 +27,10 @@ final class IslandController: NSObject {
     var outlineWhenOpen = true {
         didSet { canvas.keylineEnabled = outlineWhenOpen; if outlineWhenOpen != oldValue { paintFrame() } }
     }
+    /// Read at `configure`, so a change takes effect when the coordinator reconfigures the screen.
+    var position = IslandPosition.topEdge
+    var openingTop: CGFloat? { layout?.openingTop }
+    func openingX(width: CGFloat) -> CGFloat? { layout?.openingX(width: width) }
     /// AppKit's getter keeps returning `.none` once set, so it also says the window was ever hidden.
     var sharingType: NSWindow.SharingType {
         get { backdrop.sharingType }
@@ -84,6 +88,7 @@ final class IslandController: NSObject {
             return self.canOpen?() == true && self.overlays.isEmpty && NSApp.modalWindow == nil && self.isResting
         }
         source.didFrame = { [weak self] in self?.paintFrame() }
+        source.didSettle = { [weak self] in self?.applyPending() }
         NSWorkspace.shared.notificationCenter.addObserver(self, selector: #selector(frameChanged),
             name: NSWorkspace.accessibilityDisplayOptionsDidChangeNotification, object: nil)
     }
@@ -110,23 +115,29 @@ final class IslandController: NSObject {
         closed()
     }
 
+    /// A full-screen Space hides the menu bar without a screen-parameters change, so re-read it.
+    func refreshMenuBar(_ screen: NSScreen) {
+        guard let layout, IslandLayout(screen, position: position).top != layout.top else { return }
+        configure(screen)
+    }
+
     func configure(_ screen: NSScreen) {
-        let next = IslandLayout(screen: screen.frame, notch: Self.notch(on: screen), canvas: NotchTheme.Size.islandHost)
-        canvas.scale = screen.backingScaleFactor
-        let requested = IslandSurfaceConfiguration(notch: next.notch, scale: screen.backingScaleFactor)
-        let moved = layout?.screen != next.screen || layout?.notch != next.notch
+        let next = IslandLayout(screen, position: position)
+        let requested = IslandSurfaceConfiguration(notch: next.notch, top: next.top, scale: screen.backingScaleFactor)
+        let update = requested.update(from: configuration, paletteVisible: panel?.isVisible == true,
+                                      hasOverlays: !overlays.isEmpty, animating: !source.isIdle)
+        // Until `closed` or the pill settles, the mask, panel and overlays keep the live layout.
+        guard update != .deferred else { pending.hold(screen); return }
+        pending.drop()
+        let moved = layout?.screen != next.screen || layout?.notch != next.notch || layout?.top != next.top
         layout = next
+        canvas.scale = screen.backingScaleFactor
         canvas.show(glance: glance, level: level, notice: notice, statuses: statuses, expanded: expanded,
                     notch: next.notchWidth)
         backdrop.setFrame(next.window, display: false)
-        switch requested.update(from: configuration, paletteVisible: panel?.isVisible == true,
-                                hasOverlays: !overlays.isEmpty) {
-        case .keep: pendingScreen = nil
-        case .deferred: pendingScreen = screen
-        case .recreate:
+        if update == .recreate {
             surface = nil
             configuration = requested
-            pendingScreen = nil
         }
         if moved, let panel, panel.isVisible {
             let frame = next.contentFrame(panel.frame.size).offsetBy(dx: next.window.minX, dy: next.window.minY)
@@ -138,13 +149,11 @@ final class IslandController: NSObject {
         }
         var metrics = IslandMetrics.standard
         metrics.screen = .init(width: next.canvas.width, height: next.canvas.height)
-        metrics.top = next.top
+        next.applyTops(to: &metrics)
         metrics.idle = .init(width: next.hasNotch ? next.notch.width : NotchTheme.Size.islandRest.width,
                              height: next.hasNotch ? next.notch.height * 2 : NotchTheme.Size.islandRest.height)
         metrics.corner.smoothing = 0
-        metrics.expanded.top = next.top
         metrics.expanded.sideInset = 0
-        metrics.expanded.padding = .init(top: next.contentTop * 2, side: 0, bottom: 0)
         metrics.expanded.rowGap = 0
         metrics.expanded.centerTop = 0
         metrics.expanded.minHeight = NotchTheme.Size.islandRest.height
@@ -179,15 +188,6 @@ final class IslandController: NSObject {
         frameChanged()
     }
 
-    static func notch(on screen: NSScreen) -> CGSize {
-        #if DEBUG
-        if let simulatedNotch { return simulatedNotch }
-        #endif
-        guard screen.safeAreaInsets.top > 0, let left = screen.auxiliaryTopLeftArea,
-              let right = screen.auxiliaryTopRightArea else { return .zero }
-        return CGSize(width: screen.frame.width - left.width - right.width, height: screen.safeAreaInsets.top)
-    }
-
     @objc func frameChanged() {
         canvas.setAccessibilityValue(accessibilityValue)
         guard let surface, let layout else { return }
@@ -197,7 +197,7 @@ final class IslandController: NSObject {
         if suspended { backdrop.orderOut(nil) }
         let palette = panel.flatMap { $0.isVisible ? $0.frame : nil }
         let overlay = IslandOverlayLayout(screen: layout.screen,
-            contentTop: layout.screen.maxY - layout.contentTop, palette: palette,
+            contentTop: layout.openingTop, palette: palette,
             inset: NotchTheme.Spacing.islandInset, gap: Theme.Spacing.xl).surface(overlays)
         let size = CGSize(width: max(palette?.width ?? 0, overlay?.width ?? 0),
                           height: max(palette?.height ?? 0, overlay?.height ?? 0))
@@ -272,12 +272,14 @@ final class IslandController: NSObject {
         return CGRect(x: bounds.minX, y: top, width: bounds.width, height: height - bounds.minY - top)
     }
 
+    /// Starts the close first, so a held configure sees it running and waits for it to settle.
     func closed() {
-        if let pendingScreen, panel?.isVisible != true, overlays.isEmpty {
-            configure(pendingScreen)
-            return
-        }
         frameChanged()
+        applyPending()
+    }
+
+    private func applyPending() {
+        if let screen = pending.release(blocked: panel?.isVisible == true || !overlays.isEmpty) { configure(screen) }
     }
 
     func setOverlays(_ frames: [CGRect]) {

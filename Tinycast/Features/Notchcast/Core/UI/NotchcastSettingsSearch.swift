@@ -11,10 +11,12 @@ enum NotchcastSettingsSearch {
     static let island = SettingsAnchor(tab: .notchcast(.island), title: LocalizedStringResource("Island", table: "Notchcast"))
     static let showsInCaptures = LocalizedStringResource("Show in screenshots and videos", table: "Notchcast")
     static let outlineWhenOpen = LocalizedStringResource("Outline when open", table: "Notchcast")
+    static let position = LocalizedStringResource("Position on displays without a notch", table: "Notchcast")
 
     private static let islandRows = [
         SettingsSearchEntry(island, showsInCaptures, keywords: ["screen recording", "screen sharing", "capture", "hide"]),
-        SettingsSearchEntry(island, outlineWhenOpen, keywords: ["keyline", "border", "line", "edge", "dark"])]
+        SettingsSearchEntry(island, outlineWhenOpen, keywords: ["keyline", "border", "line", "edge"]),
+        SettingsSearchEntry(island, position, keywords: ["position", "notch", "menu bar", "top"])]
 
     static func anchor(_ category: NotchcastCategory) -> SettingsAnchor {
         SettingsAnchor(tab: .notchcast(.holding(category)), title: LocalizedStringResource(stringLiteral: category.title))

@@ -5,6 +5,7 @@
 // notchcast-sources: Tinycast/Features/Notchcast/KeepAwake/Service/KeepAwakeRecovery.swift
 // notchcast-sources: Tinycast/Features/Notchcast/Core/Model/*.swift
 // notchcast-sources: Tinycast/Features/Notchcast/Core/Service/NotchcastContext.swift
+// notchcast-sources: Tinycast/Features/Notchcast/Core/Service/NotchcastTranscription.swift
 // notchcast-sources: Tinycast/Features/Notchcast/Core/Service/NotchcastPreferences.swift
 // notchcast-sources: Tinycast/Features/Island/Model/IslandPresentation.swift
 // notchcast-sources: Tinycast/Features/Island/Service/IslandPresenting.swift
@@ -15,6 +16,7 @@
 // notchcast-sources: Tests/nc-KeepAwake-recovery-fixtures.swift
 // notchcast-sources: Tinycast/Features/Notchcast/KeepAwake/Service/KeepAwakeLiveProcesses.swift
 // notchcast-sources: Tinycast/Features/Notchcast/KeepAwake/Service/KeepAwakeRootClient.swift
+// notchcast-sources: Tests/NotchcastDictationFixture.swift
 import Darwin
 import Foundation
 
@@ -169,6 +171,45 @@ enum KeepAwakeScanTests: KeepAwakeHarness {
         var value: Int { lock.withLock { count } }
     }
 
+    /// The live scan over a scripted lookup; its exits are the test's, never a real pid's on this Mac.
+    @MainActor
+    final class ScriptedScan: KeepAwakeProcesses {
+        private let live: KeepAwakeLiveProcesses
+        private var watches: [FakeWatch] = []
+        private let (scans, scan) = AsyncStream<Void>.makeStream()
+
+        init(helperPath: String, lookup: KeepAwakeProcessLookup) {
+            live = KeepAwakeLiveProcesses(helperPath: helperPath, lookup: lookup)
+        }
+
+        func identify(_ pid: Int32) -> KeepAwakeHelperID? { live.identify(pid) }
+
+        func watch(
+            _ helper: KeepAwakeHelperID, exited: @escaping @MainActor @Sendable () -> Void
+        ) -> (any KeepAwakeProcessWatch)? {
+            let watch = FakeWatch(helper, exited)
+            watches.append(watch)
+            return watch
+        }
+
+        func strays(olderThan undo: Int64, _ found: @escaping @MainActor @Sendable ([KeepAwakeHelperID]?) -> Void) {
+            live.strays(olderThan: undo) { [scan] strays in
+                found(strays)
+                scan.yield()
+            }
+        }
+
+        /// Returns once a scan's result, and everything it ran synchronously, has landed.
+        func scanned() async {
+            for await _ in scans { return }
+        }
+
+        func exit(_ pid: Int32) {
+            precondition(watches.contains { $0.helper.pid == pid && $0.isArmed }, "pid \(pid) is watched")
+            watches.filter { $0.helper.pid == pid }.forEach { $0.fire() }
+        }
+    }
+
     /// An old helper descendant forks after the table is listed, then vanishes before it is read:
     /// the next pass must list the orphaned child, or its late disablesleep 1 outlives the journal.
     static func recoveryStaysDirtyWhenAParentVanishesMidScan() async {
@@ -187,16 +228,16 @@ enum KeepAwakeScanTests: KeepAwakeHarness {
                     return lists.value == 1 && infos.next() == vanishesAt ? nil : old
                 },
                 path: { $0 == child ? KeepAwakeStrays.sudo : helperPath })
-            let processes = KeepAwakeLiveProcesses(helperPath: helperPath, lookup: lookup)
+            let processes = ScriptedScan(helperPath: helperPath, lookup: lookup)
             let rig = RecoveryRig(dirty(), processes: processes)
             rig.helper.reply()
-            for _ in 0..<200 where rig.journal.journal != nil && rig.helper.sent.count < 2 {
-                try? await Task.sleep(for: .milliseconds(10))
-            }
+            await processes.scanned()
             precondition(!machine.sleepDisabled, "the undo landed and the setting reads off")
             precondition(
-                rig.journal.journal != nil && rig.helper.sent.count == 2,
-                "read \(vanishesAt): the orphaned child is found, so the undo runs again")
+                rig.journal.journal != nil && rig.helper.sent.count == 1,
+                "read \(vanishesAt): the orphaned child is found, so the journal stays dirty")
+            processes.exit(child)
+            precondition(rig.helper.sent.count == 2, "read \(vanishesAt): the orphan's exit runs the undo again")
             machine.land(.batterySleepOff)
             for _ in 0..<20 { await Task.yield() }
             precondition(rig.journal.journal != nil, "its late disablesleep 1 finds the journal dirty")

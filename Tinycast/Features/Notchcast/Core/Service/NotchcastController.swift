@@ -30,18 +30,22 @@ final class NotchcastController {
 
     init(
         addons: [any NotchcastAddon.Type], defaults: UserDefaults, hub: NotchcastTapHub,
-        presenter: any IslandPresenting, now: @escaping @MainActor () -> Date = { Date() }
+        dictation: any NotchcastTranscribing, presenter: any IslandPresenting,
+        now: @escaping @MainActor () -> Date = { Date() }
     ) {
         preferences = NotchcastPreferences(defaults: defaults, switches: addons.flatMap { $0.switches })
         self.hub = hub
-        func makeContext() -> NotchcastContext {
+        let transcription = NotchcastTranscriptionRunner(dictation: dictation)
+        func makeContext(recovery: NotchcastContext? = nil) -> NotchcastContext {
             NotchcastContext(
-                defaults: defaults, preferences: preferences, presenter: presenter, hub: hub, now: now,
-                onTapsChanged: { [weak self] in self?.applyTaps() })
+                defaults: defaults, preferences: preferences, presenter: presenter, hub: hub,
+                transcription: transcription, now: now,
+                onTapsChanged: { [weak self] in self?.applyTaps() }, recovery: recovery)
         }
         slots = addons.map { addon in
-            Slot(
-                addon: addon, context: makeContext(), recovery: makeContext(),
+            let recovery = makeContext()
+            return Slot(
+                addon: addon, context: makeContext(recovery: recovery), recovery: recovery,
                 declaredTaps: addon.taps.map { (UUID(), $0) }, settings: addon.settings.map { SettingsEntry(row: $0) })
         }
     }

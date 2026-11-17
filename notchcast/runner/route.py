@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Print the runs-on label of each of COUNT macOS jobs: the maintainer Mac pool or the hosted image."""
+"""Print the runs-on label of each of COUNT macOS jobs: the hosted image, then the maintainer Mac pool."""
 import json
 import os
 import sys
@@ -78,27 +78,25 @@ def route(env, now, busy=None, hosted_queued=0, mac_queued=0):
     if not takes_macs(env):
         return [HOSTED] * count
     online = fresh(env.get("IDLE") or "", now)
-    pool = sum(online)
     if busy is None or not online:
-        # No hosted count, or no Mac taking jobs: idle Macs first, hosted for the rest.
-        macs = min(count, pool)
-        return [MAC] * macs + [HOSTED] * (count - macs)
-    # An idle Mac first, then a free hosted slot, then the queue with the shorter expected wait.
+        return [HOSTED] * count
+    # A free hosted slot first, then an idle Mac, then the queue with the shorter expected wait.
     free = max(HOSTED_SLOTS - busy, 0)
+    pool = sum(online)
     labels = []
     for _ in range(count):
-        if pool > 0:
-            labels.append(MAC)
-            pool -= 1
-        elif free > 0:
+        if free > 0:
             labels.append(HOSTED)
             free -= 1
-        elif hosted_queued * len(online) < mac_queued * HOSTED_SLOTS:
-            labels.append(HOSTED)
-            hosted_queued += 1
-        else:
+        elif pool > 0:
+            labels.append(MAC)
+            pool -= 1
+        elif mac_queued * HOSTED_SLOTS < hosted_queued * len(online):
             labels.append(MAC)
             mac_queued += 1
+        else:
+            labels.append(HOSTED)
+            hosted_queued += 1
     return labels
 
 
@@ -108,7 +106,7 @@ def decide(env, now, fetch):
         try:
             busy, hosted_queued, mac_queued = hosted_busy(env.get("REPO", ""), fetch)
         except Exception as error:
-            print(f"route: hosted count unavailable, idle Macs first ({error})", file=sys.stderr)
+            print(f"route: hosted count unavailable, all hosted ({error})", file=sys.stderr)
     labels = route(env, now, busy, hosted_queued, mac_queued)
     idle = sum(fresh(env.get("IDLE") or "", now))
     queues = f"queued hosted {hosted_queued}, queued Macs {mac_queued}"
