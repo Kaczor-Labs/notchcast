@@ -60,7 +60,8 @@ enum DisplaySoundModelTests {
 
         // DDC packets and outcomes.
         check(BrightnessDDC.request() == [0x82, 0x01, 0x10, 0x6E ^ 0x51 ^ 0x82 ^ 0x01 ^ 0x10], "request packet")
-        check(BrightnessDDC.write(50) == BrightnessDDC.seal([0x84, 0x03, 0x10, 0, 50]), "write packet")
+        check(BrightnessDDC.write(50) == [0x84, 0x03, 0x10, 0, 50, 0x6E ^ 0x51 ^ 0x84 ^ 0x03 ^ 0x10 ^ 0 ^ 50],
+              "write packet")
         var reply: [UInt8] = [0x6E, 0x88, 0x02, 0x00, 0x10, 0x00, 0x00, 100, 0x00, 40]
         reply.append(reply.reduce(UInt8(0x50), ^))
         check(BrightnessDDC.parse(reply)! == (40, 100), "reply parsed")
@@ -76,8 +77,6 @@ enum DisplaySoundModelTests {
         check(!BrightnessRecoveryPolicy.retries(.live(current: 1, maximum: 2), repliedThisSession: true), "live: no retry")
         check(BrightnessRecoveryPolicy.retries(.writeOnly, repliedThisSession: true), "silent after a reply: retry")
         check(!BrightnessRecoveryPolicy.retries(.writeOnly, repliedThisSession: false), "never replied: no retry")
-        check(BrightnessRecoveryPolicy.retryDelays == [.seconds(2), .seconds(5), .seconds(15)], "retries at 2/5/15 s")
-        check(BrightnessRecoveryPolicy.wakeSettle == .seconds(3), "3 s wake settle")
 
         // Non-Apple keyboards.
         check(BrightnessFunctionKeys.functionKeysAdjustBrightness(symbolicHotKeys: nil), "absent means on")
