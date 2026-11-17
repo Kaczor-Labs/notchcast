@@ -102,16 +102,13 @@ final class SmallCommandsModule: NotchcastModule {
             throw SmallCommandsFailure.shortenFailed
         }
         guard system.copy(short, false) else { throw SmallCommandsFailure.copyFailed }
-        return switch pick.source {
-        case .clipboard: String(localized: "Short Link Copied from Clipboard", table: "NotchcastSmallCommands")
-        case .browser: String(localized: "Short Link Copied from Browser", table: "NotchcastSmallCommands")
-        }
+        return String(localized: "Short Link Copied", table: "NotchcastSmallCommands")
     }
 
     private func shareSelection() async throws -> String {
         guard let airDrop else { throw CancellationError() }
         switch try await airDrop.shareSelection() {
-        case .sent: return String(localized: "Done", table: "NotchcastSmallCommands")
+        case .sent(let count): return String(localized: "Sent \(count) files", table: "NotchcastSmallCommands")
         case .cancelled: throw SmallCommandsFailure.airDropCancelled
         case .noSelection: throw SmallCommandsFailure.nothingSelected
         case .unavailable: throw SmallCommandsFailure.airDropUnavailable
@@ -122,7 +119,7 @@ final class SmallCommandsModule: NotchcastModule {
         let notice: IslandNotice
         switch result {
         case .success(let text):
-            notice = IslandNotice(id: Self.noticeID, symbol: action.symbol, text: text)
+            notice = IslandNotice(id: Self.noticeID, symbol: "checkmark", text: text)
         case .failure(is CancellationError):
             return
         case .failure(let error):
