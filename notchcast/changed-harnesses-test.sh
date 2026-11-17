@@ -20,12 +20,12 @@ for name in DeepLinkTests SettingsHistoryTests; do
     grep -qx "$name" "$scratch/selected" || { echo "FAIL: $CHANGED omitted $name"; exit 1; }
 done
 # An empty path once matched an empty pattern and selected every harness, upstream ones included.
-if grep -qx ExtensionTests "$scratch/selected"; then echo "FAIL: $CHANGED selected an unrelated upstream harness"; exit 1; fi
+if grep -qx CalcTests "$scratch/selected"; then echo "FAIL: $CHANGED selected an unrelated upstream harness"; exit 1; fi
 echo 'PASS: the hidden tab set selects every harness compiling SettingsTab'
 # A harness with no extra sources must not match every change (printf of no arguments prints one empty line).
 export CHANGED="Tinycast/Features/Todo/TodoModule.swift"
 bash "$root/notchcast/changed-harnesses.sh" base head > "$scratch/selected"
-if grep -qx ExtensionTests "$scratch/selected"; then echo 'FAIL: an unrelated change selected ExtensionTests'; exit 1; fi
+if grep -qx CalcTests "$scratch/selected"; then echo 'FAIL: an unrelated change selected CalcTests'; exit 1; fi
 echo 'PASS: unrelated upstream harnesses stay unselected'
 export CHANGED=Tests/ClipboardTextTests.swift GITHUB_ACTIONS=true
 for runner in local self-hosted github-hosted; do

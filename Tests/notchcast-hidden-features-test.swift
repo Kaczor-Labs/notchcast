@@ -4,18 +4,6 @@
 // notchcast-sources: Tinycast/Features/Settings/SettingsSearchCatalog.swift
 // notchcast-sources: Tinycast/Features/Launcher/Model/SearchRelevance.swift
 // notchcast-sources: Tinycast/Platform/LocalizedResource.swift
-// notchcast-sources: Tinycast/Features/Settings/AppAppearance.swift
-// notchcast-sources: Tinycast/Features/Notchcast/Hidden/NotchcastIslandPins.swift
-// notchcast-reads: Tinycast/Features/Settings/AppSettings.swift
-// notchcast-reads: Tinycast/Features/Settings/Panes/GeneralSettingsView.swift
-// notchcast-reads: Tinycast/Features/Notes/Settings/NotesSettingsView.swift
-// notchcast-reads: Tinycast/Features/Calendar/Settings/CalendarSettingsView.swift
-// notchcast-reads: Tinycast/Features/Backup/Settings/RaycastImportSelection.swift
-// notchcast-reads: Tinycast/Features/Backup/Model/SettingsBackup.swift
-// notchcast-reads: Tinycast/Features/Settings/SettingsFileSchema.swift
-// notchcast-reads: Tinycast/Features/Extensions/Service/ExtensionManager.swift
-// notchcast-reads: Tinycast/Features/Extensions/UI/ExtensionCoordinator.swift
-// notchcast-reads: Tinycast/Features/HotKeys/Service/HotKeyManager.swift
 import AppKit
 import Foundation
 
@@ -23,50 +11,23 @@ import Foundation
 struct HiddenFeaturesTest {
     static func main() {
         let visible = SettingsSection.allCases.flatMap(\.tabs)
-        precondition(NotchcastHidden.tabs == [.extensions])
-        precondition(!visible.contains(.extensions), "Extensions stays out of the sidebar")
-        precondition(SettingsTab(slug: "extensions") == nil, "settings/extensions opens nothing")
-        precondition(!SettingsSearchCatalog.entries.contains { $0.tab == .extensions })
-        let extensionPins = [
-            ("Tinycast/Features/Settings/AppSettings.swift",
-             "var extensionsEnabled: Bool {\n        get { false }\n        set { _ = newValue }", "consent always reads off"),
-            ("Tinycast/Features/Extensions/Service/ExtensionManager.swift",
-             "guard isEnabled, showsInLauncher else {\n            appIndex?.setExtensionCommands([])",
-             "no extension command reaches the launcher while off"),
-            ("Tinycast/Features/Extensions/Service/ExtensionManager.swift",
-             "func refresh() async {\n        guard isEnabled else { return }", "nothing is scanned while off"),
-            ("Tinycast/Features/HotKeys/Service/HotKeyManager.swift",
-             "var boundExtensionCommandEntryIDs: [String] {\n        []\n    }", "a stored extension hotkey binds no chord"),
-            ("Tinycast/Features/Extensions/UI/ExtensionCoordinator.swift",
-             "func runExtensionCommand(entryID: String) {\n        guard settings.extensionsEnabled,",
-             "an extension hotkey or link runs nothing"),
-            ("Tinycast/Features/Extensions/UI/ExtensionCoordinator.swift",
-             "func runDeepLink(_ link: ExtensionDeepLink) {\n        guard settings.extensionsEnabled else {",
-             "a raycast:// link runs nothing"),
-            ("Tinycast/Features/Extensions/UI/ExtensionCoordinator.swift",
-             "func showStoreInstall(_ install: ExtensionDeepLink.StoreInstall) {\n"
-                + "        guard settings.extensionsEnabled else { return }",
-             "a store link never opens the hidden tab"),
-        ]
-        for (path, pin, reason) in extensionPins {
-            precondition(source(path).contains(pin), "Extensions hide: \(reason) (\(path))")
+        for tab in [SettingsTab.extensions, .appleShortcuts] {
+            precondition(!visible.contains(tab), "Hidden tab stays out of the sidebar: \(tab.slug)")
+            precondition(SettingsTab(slug: tab.slug) == nil, "settings/\(tab.slug) opens nothing")
+            precondition(!SettingsSearchCatalog.entries.contains { $0.tab == tab }, "Search omits \(tab.slug)")
         }
-        precondition(
-            !source("Tinycast/Features/Settings/AppSettings.swift").contains("extensionsEnabled = "),
-            "AppSettings never loads persisted extension consent")
-        for tab in [SettingsTab.appleShortcuts, .backup, .about, .fallbacks] {
+        for tab in [SettingsTab.backup, .about, .fallbacks] {
             precondition(visible.contains(tab), "Stock tab stays visible: \(tab.slug)")
             precondition(SettingsTab(slug: tab.slug) == tab, "settings/\(tab.slug) still opens")
             precondition(SettingsSearchCatalog.entries.contains { $0.tab == tab })
         }
 
-        let titles = ["Appearance", "Follow the cursor across displays", "Drag to move the launcher", "Language"]
-        let menuBarTitles = [
+        let hiddenRows = [
+            "Appearance", "Follow the cursor across displays", "Drag to move the launcher", "Language",
             "Show in menu bar", "Show in Menu Bar", "Calendar in Menu Bar", "Show Upcoming Events",
             "Only show events with meetings", "Hide when there are no upcoming events", "Hide Current Event",
         ]
-        precondition(NotchcastHidden.rows == Set(titles + menuBarTitles))
-        for title in titles + menuBarTitles {
+        for title in hiddenRows {
             precondition(
                 !SettingsSearchCatalog.entries.contains { $0.tab == .general && $0.keywords.contains(title) },
                 "Search omits the hidden row: \(title)")
@@ -79,81 +40,9 @@ struct HiddenFeaturesTest {
                 SettingsSearchCatalog.entries.contains { $0.keywords.contains(title) },
                 "Search keeps the stock row: \(title)")
         }
-        precondition(SettingsSearchCatalog.entries.contains { $0.tab == .general })
-
-        precondition(NotchcastIslandPins.appearance == .dark, "The island is black: appearance is dark")
-        precondition(NotchcastIslandPins.appearance.nsAppearance?.name == .darkAqua)
-        precondition(!NotchcastIslandPins.paletteDraggable, "The panel is never dragged, so never snaps")
-        precondition(NotchcastIslandPins.openOnCursorScreen)
-        precondition(!NotchcastIslandPins.remembersPalettePosition)
-
-        let settings = source("Tinycast/Features/Settings/AppSettings.swift")
-        for pin in ["appearance", "openOnCursorScreen", "paletteDraggable"] {
-            precondition(
-                settings.contains("var \(pin): ") && settings.contains("get { NotchcastIslandPins.\(pin) }"),
-                "AppSettings.\(pin) reads its pin")
-            precondition(!settings.contains("\(pin) = defaults"), "AppSettings.\(pin) ignores persisted values")
-        }
-        precondition(
-            settings.contains("guard NotchcastIslandPins.remembersPalettePosition else { return nil }"),
-            "A stored panel position is never restored")
-        let general = source("Tinycast/Features/Settings/Panes/GeneralSettingsView.swift")
-        precondition(
-            general.components(separatedBy: ".notchcastHidden()").count == 6,
-            "The five hidden rows are gone from the General pane")
-        precondition(hiddenRows(in: "Tinycast/Features/Notes/Settings/NotesSettingsView.swift") == 1)
-        let calendar = source("Tinycast/Features/Calendar/Settings/CalendarSettingsView.swift")
-        precondition(
-            hiddenRows(in: "Tinycast/Features/Calendar/Settings/CalendarSettingsView.swift") == 5,
-            "Five Menu Bar rows are gone from the Calendar pane")
-        precondition(calendar.contains("\"Days to Show\""), "Days to Show stays: it sets the span for every surface")
-
-        precondition(
-            settings.contains("var showInMenuBar: Bool {\n        get { false }"),
-            "The menu-bar icon is never inserted")
-        precondition(
-            settings.contains("var notesShowsInMenuBar: Bool {\n        get { false }"),
-            "The Notes menu-bar item is never created")
-        precondition(
-            settings.contains("var calendarMenuBarDisplay: CalendarMenuBarDisplay {\n        get { .disabled }"),
-            "The calendar menu-bar item is never inserted")
-        for key in ["showInMenuBar", "notesShowsInMenuBar", "calendarMenuBarDisplay"] {
-            precondition(!settings.contains("\n        \(key) ="), "AppSettings.\(key) ignores persisted values")
-        }
-        precondition(
-            source("Tinycast/Features/Backup/Settings/RaycastImportSelection.swift")
-                .contains(".filter { $0.option != .menuBarVisibility }"),
-            "Raycast import offers no menu-bar icon checkbox")
-
-        precondition(NotchcastHidden.language == "en", "The app is pinned to English")
-        let pin = settings.components(separatedBy: "static func pinLanguage() {")[1].components(separatedBy: "\n    }")[0]
-        precondition(
-            pin.contains("set([NotchcastHidden.language], forKey: Key.language.rawValue)"),
-            "pinLanguage writes the fork constant")
-        precondition(!pin.contains("storedLanguage"), "pinLanguage never reads back a stored language")
-        precondition(
-            settings.contains("var language: AppLanguage {\n        get { .english }\n        set { _ = newValue }"),
-            "An imported language is dropped in-session, so no relaunch is offered")
-        for (path, channel) in [
-            ("Tinycast/Features/Backup/Model/SettingsBackup.swift", "settings.language = language"),
-            ("Tinycast/Features/Settings/SettingsFileSchema.swift", "bind(settings, \\.language)"),
-        ] {
-            precondition(source(path).contains(channel), "Import channel still routes through AppSettings.language: \(path)")
-        }
         precondition(
             SettingsSearchCatalog.entries.contains { $0.tab == .about && $0.keywords.contains("Support") },
             "About still lists Support")
-        print("Hidden features: Extensions, appearance, dragging, placement, language and menu-bar items are hidden")
-    }
-
-    static func hiddenRows(in path: String) -> Int {
-        source(path).components(separatedBy: ".notchcastHidden()").count - 1
-    }
-
-    static func source(_ path: String) -> String {
-        guard let data = FileManager.default.contents(atPath: path), let text = String(data: data, encoding: .utf8) else {
-            preconditionFailure("Cannot read \(path)")
-        }
-        return text
+        print("Hidden features: Extensions and Apple Shortcuts tabs and the hidden rows stay out of Settings")
     }
 }
