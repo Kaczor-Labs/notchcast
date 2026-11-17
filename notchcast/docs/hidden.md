@@ -31,10 +31,11 @@ The one list of what Notchcast hides and how. Code stays compiled so upstream ha
 
 ## Harnesses
 
-`HIDDEN_TESTS` in `notchcast/config.env` lists the upstream harnesses whose whole subject is a hidden item. `notchcast/test-harnesses.sh` drops them from every whole-suite run (PR and Main harnesses CI, Sync, `land.sh`, local `./Scripts/run-tests.sh`) and `notchcast/changed-harnesses.sh` never selects them; naming one still runs it (`./Scripts/run-tests.sh ExtensionTests`). The files stay in `Tests/` and in upstream's `Scripts/run-tests.sh`, so sync is untouched. A harness that also covers visible code (`CalendarTests`, `PalettePlacementTests`, `AppearanceTests`, `InterfaceSizeTests`) keeps running.
+`HIDDEN_TESTS` in `notchcast/config.env` lists the upstream harnesses whose whole subject is a hidden item. `notchcast/test-harnesses.sh` drops them from every whole-suite run (PR and Main harnesses CI, Sync, `land.sh`, local `./Scripts/run-tests.sh`) and `notchcast/changed-harnesses.sh` never selects them; naming one still runs it (`./Scripts/run-tests.sh ExtensionTests`). The files stay in `Tests/` and in upstream's `Scripts/run-tests.sh`, so sync is untouched. A harness that also covers visible code (`CalendarTests`, `PalettePlacementTests`, `AppearanceTests`, `InterfaceSizeTests`, and `LanguageTests`, which guards the English plurals, labels and app-name override) keeps running.
 
 - Extensions: `ExtensionTests` (with `ExtensionFetchTests` and `ExtensionTests+MenuBar` compiled into it), `ExtensionAccessoryTests`, `ExtensionCleanupTests`, `ExtensionFormTests` (with `ExtensionListKeyTests`), `ExtensionIconTests`, `ExtensionImageSizeTests`, `ExtensionMetadataTests`, `ExtensionRefreshTests`, `ExtensionSignInTests`, `ExtensionStoreTests`, `ExtensionVersionTests`, and `SymbolsTests` (the SF Symbol catalog only the extension appearance picker reads).
 - Apple Shortcuts: `AppleShortcutTests`.
-- Language picker: `LanguageTests` (stored language choice and per-language catalogs; the app is pinned to English).
 
 When you hide an item, add the harnesses that test only it; when you unhide one, remove them.
+
+Excluded harnesses are no longer compiled in our runs, so un-hiding a feature means fixing its harnesses first.
