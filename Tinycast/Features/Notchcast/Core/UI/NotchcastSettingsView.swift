@@ -20,7 +20,7 @@ struct NotchcastSettingsView: View {
                 }
                 Picker(selection: $settings.islandPosition) {
                     Text("Top edge", tableName: "Notchcast").tag(IslandPosition.topEdge)
-                    Text("Menu bar centre", tableName: "Notchcast").tag(IslandPosition.menuBarCenter)
+                    Text("Menu bar center", tableName: "Notchcast").tag(IslandPosition.menuBarCenter)
                     Text("Menu bar bottom", tableName: "Notchcast").tag(IslandPosition.menuBarBottom)
                 } label: {
                     SettingsRowTitle(NotchcastSettingsSearch.island, NotchcastSettingsSearch.position)
