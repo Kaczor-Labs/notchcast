@@ -4,6 +4,7 @@ import json
 import os
 from pathlib import Path
 import subprocess
+import tempfile
 import unittest
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -17,6 +18,18 @@ REFUSED = [
     'echo pushed\ngh pr create --fill',
     'GH_TOKEN=x gh pr create --fill',
     "gh pr create --body 'add --draft later' --fill",
+    'git push -u origin HEAD  # publish\ngh pr create --fill',
+    'gh pr create --title "x" \\\n  --body "y"',
+    "cat <<'EOF' > body.md\ngh pr create --draft\nEOF\ngh pr create --body-file body.md",
+    'rtk bypass gh pr create --fill',
+    'rtk gh pr create --fill',
+    'env GH_TOKEN=x gh pr create --fill',
+    'command gh pr create --fill',
+    'time gh pr create --fill',
+    'if true; then gh pr create --fill; fi',
+    'for r in a; do gh pr create --fill; done',
+    '{ gh pr create --fill; }',
+    'git push;\n\ngh pr create --fill',
 ]
 ALLOWED = [
     'gh pr create --draft --fill',
@@ -32,6 +45,12 @@ ALLOWED = [
     'grep -rn "gh pr create" notchcast',
     'ls',
     'echo "unbalanced',
+    'gh pr create --title "x" \\\n  --body "y" \\\n  --draft',
+    'gh pr create --title "x" --body "$(cat <<\'EOF\'\nFlip the "Open (beta)" switch.\nEOF\n)" --draft',
+    'ls  # gh pr create --fill',
+    'rtk bypass gh pr create --draft --fill',
+    'env GH_TOKEN=x gh pr create -d --fill',
+    'if true; then gh pr create --draft --fill; fi',
 ]
 
 
@@ -43,11 +62,11 @@ def hook_command():
     return hook['command']
 
 
-def run_hook(command):
+def run_hook(command, project_dir=ROOT):
     payload = json.dumps({'hook_event_name': 'PreToolUse', 'tool_name': 'Bash',
                           'tool_input': {'command': command}})
     return subprocess.run(['bash', '-c', hook_command()], input=payload, capture_output=True, text=True,
-                          cwd=ROOT / 'notchcast', env={**os.environ, 'CLAUDE_PROJECT_DIR': str(ROOT)})
+                          cwd=ROOT / 'notchcast', env={**os.environ, 'CLAUDE_PROJECT_DIR': str(project_dir)})
 
 
 class RequireDraftPRTests(unittest.TestCase):
@@ -63,6 +82,11 @@ class RequireDraftPRTests(unittest.TestCase):
             with self.subTest(command=command):
                 result = run_hook(command)
                 self.assertEqual(result.returncode, 0, result.stderr)
+
+    def test_missing_script_never_blocks(self):
+        with tempfile.TemporaryDirectory() as empty:
+            result = run_hook('gh pr create --fill', project_dir=empty)
+        self.assertEqual(result.returncode, 0, result.stderr)
 
 
 if __name__ == '__main__':

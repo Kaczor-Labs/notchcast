@@ -5,20 +5,24 @@ import re
 import shlex
 import sys
 
-SEPARATORS = {';', '&', '&&', '|', '||', '|&', '\n', '(', ')'}
+SEPARATORS = ';&|()\n'
+PREFIXES = {'rtk', 'bypass', 'env', 'command', 'time', 'then', 'do', 'else', '{'}
 DRAFT = {'--draft', '-d', '--draft=true'}
+HEREDOC_BODY = re.compile(r'''(?<!<)<<(?!<)-?\s*(['"]?)(\w+)\1([^\n]*\n).*?^[ \t]*\2[ \t]*$''', re.S | re.M)
 
 
 def commands(line):
     """Each simple command's words, split on shell separators; quoted text stays one word."""
-    lexer = shlex.shlex(line, posix=True, punctuation_chars=';&|()\n')
+    line = HEREDOC_BODY.sub(r'<<\2\3', line).replace('\\\n', '')
+    lexer = shlex.shlex(line, posix=True, punctuation_chars=SEPARATORS)
     lexer.whitespace = ' \t\r'
+    lexer.commenters = ''
     words = []
     for token in lexer:
-        if token in SEPARATORS:
+        if not token.strip(SEPARATORS):  # shlex glues a run like ')\n' into one token
             yield words
             words = []
-        elif words or not re.fullmatch(r'\w+=.*', token):
+        elif words or not (token in PREFIXES or re.fullmatch(r'\w+=.*', token)):
             words.append(token)
     yield words
 

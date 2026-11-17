@@ -6,7 +6,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 \"$CLAUDE_PROJECT_DIR/notchcast/require-draft-pr.py\""
+            "command": "f=\"$CLAUDE_PROJECT_DIR/notchcast/require-draft-pr.py\"; [ -f \"$f\" ] || exit 0; python3 \"$f\""
           }
         ]
       }
