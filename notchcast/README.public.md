@@ -80,7 +80,7 @@ Scripts/                      upstream's build, test and lint scripts
 docs/                         upstream's developer and feature docs
 notchcast/                    fork tooling: sync, CI, landing, checks, install and update
 notchcast/docs/               fork docs
-.github/workflows/            CI: PR, Sync, Snapshot, Main harnesses, Design, Leaks
+.github/workflows/            CI: PR, Sync, Snapshot, Main harnesses, Design, Leaks, CodeQL
 project.yml                   XcodeGen input; Tinycast.xcodeproj is generated from it
 ```
 
