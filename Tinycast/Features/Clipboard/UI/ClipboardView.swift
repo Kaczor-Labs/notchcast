@@ -291,6 +291,7 @@ private struct AsyncThumbnail<Content: View, Placeholder: View>: View {
 struct ClipboardPreview: View {
 
     @Environment(\.metrics) private var metrics
+    @Environment(\.paletteOnIsland) private var onIsland
     let item: ClipboardItem?
     @Environment(ClipboardStore.self) private var store
 
@@ -330,11 +331,14 @@ struct ClipboardPreview: View {
                     .resizable()
                     .scaledToFit()
                     .clipShape(
-                        RoundedRectangle(cornerRadius: metrics.radius.card, style: .continuous)
+                        RoundedRectangle(
+                            cornerRadius: metrics.radius.islandCard(onIsland: onIsland), style: .continuous)
                     )
                     .overlay(
-                        RoundedRectangle(cornerRadius: metrics.radius.card, style: .continuous)
-                            .strokeBorder(.islandEdge(), lineWidth: 1)
+                        RoundedRectangle(
+                            cornerRadius: metrics.radius.islandCard(onIsland: onIsland), style: .continuous
+                        )
+                        .strokeBorder(.islandEdge(), lineWidth: 1)
                     )
             } placeholder: {
                 Image(systemName: "photo").font(.system(.largeTitle))

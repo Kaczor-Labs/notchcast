@@ -3,6 +3,7 @@ import SwiftUI
 /// The launcher's colour card, built from the calculator card's parts so it reads as one answer.
 struct ColorCard: View {
     @Environment(\.metrics) private var metrics
+    @Environment(\.paletteOnIsland) private var onIsland
     let color: ColorValue
     let selected: Bool
 
@@ -20,7 +21,7 @@ struct ColorCard: View {
                 .font(.title3.weight(.semibold))
                 .foregroundStyle(Theme.Colors.textTertiary)
             // Stretched to the value column rather than sized: no notation is a fixed height.
-            ColorSwatch(color: color, cornerRadius: metrics.radius.card)
+            ColorSwatch(color: color, cornerRadius: metrics.radius.islandCard(onIsland: onIsland))
                 .frame(width: Self.swatchWidth)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .padding(.horizontal, metrics.spacing.md)

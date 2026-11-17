@@ -96,7 +96,7 @@ private struct ArgumentFieldChrome: ViewModifier {
                     .strokeBorder(stroke, lineWidth: 1)
             )
             .onHover { hovered = $0 }
-            .help(help)
+            .paletteHelp(help)
     }
 
     private var help: String {
