@@ -1,6 +1,6 @@
 // notchcast-sources: Tinycast/Platform/Appearance.swift Tinycast/DesignSystem/Theme.swift
 // notchcast-sources: Tinycast/Features/Notchcast/NotchTheme.swift
-// notchcast-sources: Tinycast/Features/Island/Model/IslandKeyline.swift
+// notchcast-sources: Tinycast/Features/Island/Model/IslandKeyline.swift Tinycast/Features/Island/Model/IslandLook.swift
 // notchcast-sources: Tinycast/Features/Island/Model/IslandPresentation.swift
 // notchcast-sources: Tinycast/Features/Island/Model/IslandLevelDwell.swift
 // notchcast-sources: Tinycast/Features/Island/Model/PillMenuRows.swift Tinycast/Features/Calendar/Model/*.swift
@@ -96,6 +96,27 @@ struct IslandKeylineTest {
         let off = row(opened, scale: scale, dark: true, y: 200 * scale - Int((open.midY * CGFloat(scale))))
         precondition(gray(off[left]) == 0 && off[left][3] == 255, "Off keeps the fill and drops the line")
         precondition(opened.outline!.boundingBoxOfPath == outlineBefore, "The outline never changes size")
-        print("Island keyline: rest 0, open 0.15 in Dark, none in Light or off, one device pixel inside")
+
+        let pill = canvas(rest, scale: 2)
+        pill.look = .frosted
+        pill.restingKeyline = IslandKeyline.restingStrength(look: .frosted, hasNotch: false)
+        precondition(abs(color(pill, dark: true) - 0.12) < 0.001, "The Frosted pill keeps a 12% edge at rest")
+        let pillRow = row(pill, scale: scale, dark: true, y: 200 * scale - Int(rest.midY * CGFloat(scale)))
+        let pillLeft = Int(rest.minX) * scale
+        let edge = Int((0.12 * 255).rounded())
+        let tint = pillRow[pillLeft + 4]
+        precondition(abs(Int(tint[3]) - Int((0.88 * 255).rounded())) <= 1, "Frosted fills the graphite tint: \(tint)")
+        precondition(tint[0...2] == [24, 25, 28], "The tint is graphite, not black: \(tint)")
+        precondition(gray(pillRow[pillLeft]) - 24 >= edge && gray(pillRow[pillLeft + 1]) - 24 >= edge,
+                     "The Frosted edge is one point, two device pixels: \(pillRow[pillLeft]) \(pillRow[pillLeft + 1])")
+        precondition(gray(pillRow[pillLeft + 2]) == Int(tint[0]), "The edge stays inside its point")
+        pill.solidGlass = true
+        let solid = row(pill, scale: scale, dark: true, y: 200 * scale - Int(rest.midY * CGFloat(scale)))[pillLeft + 4]
+        precondition(solid == [28, 29, 32, 255], "Reduce Transparency paints #1c1d20 solid: \(solid)")
+        let notched = canvas(rest, scale: 2)
+        notched.look = .frosted
+        notched.restingKeyline = IslandKeyline.restingStrength(look: .frosted, hasNotch: true)
+        precondition(color(notched, dark: true) == 0, "No edge round the bare notch")
+        print("Island keyline: rest 0, open 0.15 in Dark, none in Light or off, one device pixel inside; Frosted edge 12%, 1 pt")
     }
 }
