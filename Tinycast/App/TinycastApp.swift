@@ -6,6 +6,7 @@ enum TinycastLaunch {
         #if DEBUG
         if IslandVerification.enabled { IslandVerification.main(); return }
         #endif
+        NotchcastAppProof.runIfRequested()
         AppSettings.pinLanguage()
         TinycastApp.main()
     }

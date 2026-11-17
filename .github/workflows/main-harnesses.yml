@@ -43,7 +43,12 @@ jobs:
         run: |
           git fetch -q origin '+refs/notchcast/synced/*:refs/notchcast/synced/*'
           BEFORE=$(bash notchcast/fork-point.sh origin/main HEAD)
-          ./notchcast/changed-harnesses.sh "$BEFORE" "$GITHUB_SHA" > "$RUNNER_TEMP/selected"
+          if python3 notchcast/lanes.py "$BEFORE" "$GITHUB_SHA" | grep -qx build=false; then
+            echo "no Xcode lane: the branch changes only docs or scripts the build never reaches (notchcast/lanes.py)"
+            : > "$RUNNER_TEMP/selected"
+          else
+            ./notchcast/changed-harnesses.sh "$BEFORE" "$GITHUB_SHA" > "$RUNNER_TEMP/selected"
+          fi
           cat "$RUNNER_TEMP/selected"
       # About 40 harnesses compile in the time one more runner takes to start; at most 3 run beside a PR's checks job.
       # An all run has no selection: an empty tests output runs the whole suite, split by name over the shards.

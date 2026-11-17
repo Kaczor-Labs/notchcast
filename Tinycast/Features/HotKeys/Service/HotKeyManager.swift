@@ -165,8 +165,8 @@ final class HotKeyManager {
 
     var boundQuickActionIDs: [UUID] { boundIDs(key: boundQuickActionKey) }
 
-    /// Pruned by `AppleShortcutCoordinator` after a successful read, never here at launch.
-    var boundAppleShortcutIDs: [UUID] { boundIDs(key: boundAppleShortcutKey) }
+    /// Apple Shortcuts is hidden (notchcast/docs/hidden.md), so a stored binding registers no chord.
+    var boundAppleShortcutIDs: [UUID] { [] }
 
     /// Swept by `removeSnippetBindings` on each load, never at launch: the store may be off.
     var boundSnippetIDs: [StoredSnippet.ID] {

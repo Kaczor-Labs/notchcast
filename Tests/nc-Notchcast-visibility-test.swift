@@ -18,7 +18,7 @@ struct AppEntry {
 // CommandCatalog's owner table pulls the whole launcher in; a stock command here has no owner.
 extension CommandID { var owner: SettingsTab? { nil } }
 
-/// An add-on command's hotkey answers to the Commands category, like a stock command's.
+/// An add-on command answers to its own switch, never to the stock Commands category.
 @main
 @MainActor
 enum NotchcastVisibilityTests {
@@ -32,12 +32,13 @@ enum NotchcastVisibilityTests {
         func check(_ name: String, _ condition: Bool) {
             if !condition { failures += 1; print("FAIL \(name)") }
         }
+        let entry = AppEntry(kind: .command, settingsOwner: .notchcast(.capture), preferenceKey: "command:nc-sample")
         check("Commands on allows an add-on command's hotkey", store.allowsHotKey(action))
+        check("Commands on lists an add-on command", store.isVisible(entry))
         store.setKindEnabled(false, for: .command)
-        check("Commands off blocks an add-on command's hotkey", !store.allowsHotKey(action))
-        store.setKindEnabled(true, for: .command)
-        check("Commands back on allows it again", store.allowsHotKey(action))
-        if failures > 0 { print("FAILED \(failures)/3"); exit(1) }
+        check("Commands off still allows an add-on command's hotkey", store.allowsHotKey(action))
+        check("Commands off still lists an add-on command", store.isVisible(entry))
+        if failures > 0 { print("FAILED \(failures)/4"); exit(1) }
         print("PASSED")
     }
 }
