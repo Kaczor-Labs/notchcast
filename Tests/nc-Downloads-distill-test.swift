@@ -103,7 +103,7 @@ struct DownloadsDistillTest {
         let environment = DownloadsModule.Environment(
             downloads: downloads, queues: root.appending(path: "queues", directoryHint: .isDirectory),
             tools: DownloadToolLookup(directories: [bin], home: root),
-            clipboard: { clipboard }, openFolder: { _ in }, work: work)
+            clipboard: { clipboard }, work: work)
         let hub = NotchcastTapHub(syntheticTag: 0, isTrusted: { false }) { _ in
             preconditionFailure("the harness never installs a tap")
         }
@@ -248,7 +248,7 @@ struct DownloadsDistillTest {
             downloads: folder.appending(path: "Downloads", directoryHint: .isDirectory),
             queues: folder.appending(path: "queues", directoryHint: .isDirectory),
             tools: DownloadToolLookup(directories: [bin], home: root),
-            clipboard: { clipboard }, openFolder: { _ in },
+            clipboard: { clipboard },
             work: folder.appending(path: "work", directoryHint: .isDirectory))
         let hub = NotchcastTapHub(syntheticTag: 0, isTrusted: { false }) { _ in
             preconditionFailure("the harness never installs a tap")

@@ -202,27 +202,6 @@ final class DisplaySoundModule: NotchcastModule {
         }
     }
 
-    /// A launcher preset has no key to hand back, so a refusal is said in the island.
-    func setVolume(_ value: Double) {
-        guard running, context.isEnabled(DisplaySoundAddon.volumeID), audio.isRunning else { return }
-        let generation = generation
-        Task { [weak self] in
-            guard let self else { return }
-            let result = await audio.apply(.setVolume(value))
-            guard generation == self.generation, context.isEnabled(DisplaySoundAddon.volumeID) else { return }
-            switch result {
-            case let .applied(output), let .partiallyApplied(output): show(output)
-            case .fallbackToNativeKeys:
-                context.presenter.post(IslandNotice(
-                    id: "volume.unsupported", symbol: "speaker.slash",
-                    text: String(localized: "The current audio output does not support software volume.",
-                                 table: "NotchcastDisplaySound"),
-                    isFailure: true), onTap: nil)
-            case .cancelled: break
-            }
-        }
-    }
-
     private func show(_ output: AudioOutput) {
         context.presenter.showLevel(VolumeLevel.island(Float32(output.volume ?? 0), muted: output.muted == true))
     }

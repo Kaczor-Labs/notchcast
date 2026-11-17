@@ -96,12 +96,6 @@
     "No speech was found." : {
 
     },
-    "Open Distill Folder" : {
-
-    },
-    "Open Downloads Folder" : {
-
-    },
     "Private and loopback addresses cannot be saved as webpages." : {
 
     },
@@ -111,7 +105,7 @@
     "Save Webpage as Markdown" : {
 
     },
-    "Save links and transcribe media into your Distill folder." : {
+    "Save links and transcribe media into ~/Downloads/Distill/Raw." : {
 
     },
     "The audio could not be read." : {
