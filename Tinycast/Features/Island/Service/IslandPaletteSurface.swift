@@ -3,6 +3,8 @@ import SwiftUI
 extension EnvironmentValues {
     /// The palette and every dialog sit on the island's black, so its own capsule, glass and scrim stay unpainted.
     @Entry var paletteOnIsland = false
+    /// The palette's display has the Frosted look, so island fills let its glass show.
+    @Entry var islandFrosted = false
 }
 
 enum IslandPaletteSurface {
@@ -23,10 +25,11 @@ private struct IslandGlass<S: Shape>: ViewModifier {
     let glass: Glass
     let shape: S
     @Environment(\.paletteOnIsland) private var onIsland
+    @Environment(\.islandFrosted) private var frosted
 
     func body(content: Content) -> some View {
         content
-            .background { if onIsland { shape.fill(NotchTheme.Colors.islandSurface) } }
+            .background { if onIsland, !frosted { shape.fill(NotchTheme.Colors.islandSurface) } }
             .glassEffect(onIsland ? .identity : glass, in: shape)
     }
 }
