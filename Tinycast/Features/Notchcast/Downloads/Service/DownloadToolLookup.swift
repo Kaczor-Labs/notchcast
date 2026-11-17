@@ -10,8 +10,8 @@ struct DownloadToolLookup: Sendable {
 
     let directories: [URL]
     let environment: [String: String]
-    /// Shared by every copy, so the queue that owns this lookup can end the runs it started.
-    let children = ChildProcessReaper()
+    /// Shared by copies until `withOwnChildren`, so a halt can end the runs this lookup started.
+    private(set) var children = ChildProcessReaper()
 
     init(
         directories: [URL]? = nil,
@@ -24,6 +24,13 @@ struct DownloadToolLookup: Sendable {
         environment["PATH"] = folders.map(\.path).joined(separator: ":")
         environment["HOME"] = environment["HOME"] ?? home.path
         self.environment = environment
+    }
+
+    /// Same search, own registry: one queue's halt never ends another queue's runs.
+    func withOwnChildren() -> Self {
+        var copy = self
+        copy.children = ChildProcessReaper()
+        return copy
     }
 
     /// An app started from Finder gets a bare PATH, so Homebrew's folders are searched as well.
