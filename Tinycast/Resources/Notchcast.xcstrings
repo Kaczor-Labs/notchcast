@@ -10,6 +10,9 @@
     "Between Macs" : {
       "shouldTranslate" : false
     },
+    "Black" : {
+
+    },
     "Capture" : {
       "shouldTranslate" : false
     },
@@ -22,6 +25,9 @@
     "Files & Downloads" : {
       "shouldTranslate" : false
     },
+    "Frosted" : {
+
+    },
     "Grant access…" : {
       "shouldTranslate" : false
     },
@@ -33,6 +39,12 @@
     },
     "Launcher Extras" : {
       "shouldTranslate" : false
+    },
+    "Look" : {
+
+    },
+    "Look on %@" : {
+
     },
     "Mac Tweaks" : {
       "shouldTranslate" : false

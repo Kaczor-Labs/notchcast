@@ -19,6 +19,8 @@ final class IslandCoordinator: NSObject {
     private(set) lazy var glance = IslandCalendarGlance(core: core) { [weak self] in self?.showGlance($0) }
     private var restingGlance: IslandGlance?
     private(set) lazy var update = IslandUpdateActivity(core: core)
+    private(set) lazy var looks = IslandLookStore(defaults: UserDefaults(
+        suiteName: NotchcastPreferences.suiteName(bundleID: Bundle.main.bundleIdentifier ?? "Notchcast")) ?? .standard)
 
     init(core: AppCore) { self.core = core }
 
@@ -41,6 +43,7 @@ final class IslandCoordinator: NSObject {
         observeCaptureSharing()
         observeOutline()
         observePosition()
+        observeLooks()
         glance.start()
         update.start()
     }
@@ -84,6 +87,7 @@ final class IslandCoordinator: NSObject {
             backdrop.configure(screen)
             backdrops[screen.islandDisplayID] = backdrop
         }
+        applyLooks()
         shareCaptures()
         overlays.reposition()
         presenter?.restingChanged()
@@ -247,6 +251,7 @@ final class IslandCoordinator: NSObject {
         }
         self.panel = panel
         backdrop.attach(panel, screen: screen)
+        applyLooks()
         guard let top = backdrop.openingTop, let x = backdrop.openingX(width: width) else { return nil }
         return CGPoint(x: x, y: top - outset)
     }
@@ -311,6 +316,36 @@ final class IslandCoordinator: NSObject {
         }
     }
 
+    /// The look an AppKit surface on `screen` takes.
+    func look(for screen: NSScreen) -> IslandLook {
+        looks.look(uuid: screen.islandDisplayUUID, hasNotch: IslandLayout.notch(on: screen) != .zero)
+    }
+
+    /// Repaints each island in place, follows the palette's display and lists displays for Settings.
+    private func applyLooks() {
+        let available = screens
+        let displays = available.map {
+            IslandLookDisplay(displayID: $0.islandDisplayID, uuid: $0.islandDisplayUUID, name: $0.localizedName,
+                              hasNotch: IslandLayout.notch(on: $0) != .zero)
+        }
+        if looks.displays != displays { looks.displays = displays }
+        for screen in available { backdrops[screen.islandDisplayID]?.canvas.look = look(for: screen) }
+        let palette = active?.canvas.look ?? .black
+        if looks.palette != palette { looks.palette = palette }
+    }
+
+    private func observeLooks() {
+        withObservationTracking {
+            _ = looks.choices
+        } onChange: { [weak self] in
+            Task { @MainActor in
+                guard let self else { return }
+                self.observeLooks()
+                self.applyLooks()
+            }
+        }
+    }
+
     private func observeVisibility() {
         withObservationTracking {
             _ = core.palette.isVisible
@@ -336,5 +371,11 @@ final class IslandCoordinator: NSObject {
 extension NSScreen {
     var islandDisplayID: CGDirectDisplayID {
         (deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? NSNumber)?.uint32Value ?? 0
+    }
+
+    /// Stable across replugs and restarts, where the display id is not.
+    var islandDisplayUUID: String? {
+        guard let uuid = CGDisplayCreateUUIDFromDisplayID(islandDisplayID)?.takeRetainedValue() else { return nil }
+        return CFUUIDCreateString(nil, uuid) as String?
     }
 }
