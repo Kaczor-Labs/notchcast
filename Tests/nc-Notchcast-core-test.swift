@@ -40,7 +40,7 @@ final class ProbeModule: NotchcastModule {
 }
 
 enum NoticeAddon: NotchcastAddon {
-    static let switches = [NotchcastSwitch(id: "noticeMain", title: "Notice", subtitle: "", category: .notices)]
+    static let switches = [NotchcastSwitch(id: "noticeMain", title: "Notice", subtitle: "", category: .music)]
     static let commands = [
         NotchcastCommand(slug: "notice-run", name: "Notice", symbol: "circle", switchID: "noticeMain") { context in
             context.presenter.post(
@@ -51,13 +51,13 @@ enum NoticeAddon: NotchcastAddon {
 
 enum ProbeAddon: NotchcastAddon {
     static let switches = [
-        NotchcastSwitch(id: "probeMain", title: "Probe", subtitle: "", category: .capture),
-        NotchcastSwitch(id: "probeChild", title: "Child", subtitle: "", category: .macTweaks,
+        NotchcastSwitch(id: "probeMain", title: "Probe", subtitle: "", category: .keyboardMouse),
+        NotchcastSwitch(id: "probeChild", title: "Child", subtitle: "", category: .launcher,
                         dependencies: ["probeMain"]),
-        NotchcastSwitch(id: "probeOrphan", title: "Orphan", subtitle: "", category: .notices,
+        NotchcastSwitch(id: "probeOrphan", title: "Orphan", subtitle: "", category: .music,
                         defaultEnabled: true, dependencies: ["absentSwitch"]),
-        NotchcastSwitch(id: "probeLoopA", title: "A", subtitle: "", category: .power, dependencies: ["probeLoopB"]),
-        NotchcastSwitch(id: "probeLoopB", title: "B", subtitle: "", category: .power, dependencies: ["probeLoopA"]),
+        NotchcastSwitch(id: "probeLoopA", title: "A", subtitle: "", category: .music, dependencies: ["probeLoopB"]),
+        NotchcastSwitch(id: "probeLoopB", title: "B", subtitle: "", category: .music, dependencies: ["probeLoopA"]),
     ]
     static let commands = [
         NotchcastCommand(slug: "probe-run", name: "Probe", symbol: "circle", switchID: "probeMain") { context in
@@ -69,6 +69,16 @@ enum ProbeAddon: NotchcastAddon {
     ]
 
     static func makeModule(_ context: NotchcastContext) -> (any NotchcastModule)? { ProbeModule(context) }
+}
+
+/// Shipped command slugs on a probe, so the run path is proven without touching the clipboard or screen.
+enum ShippedSlugAddon: NotchcastAddon {
+    static let switches = [NotchcastSwitch(id: "slugMain", title: "Slugs", subtitle: "", category: .launcher)]
+    static let commands = ["generate-password", "screenshot-area"].map { slug in
+        NotchcastCommand(slug: slug, name: slug, symbol: "circle", switchID: "slugMain") { _ in
+            ProbeLog.events.append("ran " + slug)
+        }
+    }
 }
 
 final class OrderLog: Sendable {
@@ -104,8 +114,8 @@ final class OrderModule: NotchcastModule {
 
 enum OrderAddon: NotchcastAddon {
     static let switches = [
-        NotchcastSwitch(id: "order", title: "Order", subtitle: "", category: .macTweaks),
-        NotchcastSwitch(id: "orderLate", title: "Late", subtitle: "", category: .macTweaks),
+        NotchcastSwitch(id: "order", title: "Order", subtitle: "", category: .launcher),
+        NotchcastSwitch(id: "orderLate", title: "Late", subtitle: "", category: .launcher),
     ]
     static let taps = (0..<6).map { chainedTap("d", Int64($0), type: .otherMouseDown) }
     static func makeModule(_ context: NotchcastContext) -> (any NotchcastModule)? { OrderModule(context) }
@@ -125,8 +135,8 @@ final class SequenceModule: NotchcastModule {
 
 enum SequenceAddon: NotchcastAddon {
     static let switches = [
-        NotchcastSwitch(id: "seqFirst", title: "First", subtitle: "", category: .macTweaks),
-        NotchcastSwitch(id: "seqSecond", title: "Second", subtitle: "", category: .macTweaks),
+        NotchcastSwitch(id: "seqFirst", title: "First", subtitle: "", category: .launcher),
+        NotchcastSwitch(id: "seqSecond", title: "Second", subtitle: "", category: .launcher),
     ]
     static func makeModule(_ context: NotchcastContext) -> (any NotchcastModule)? { SequenceModule(context) }
 }
@@ -146,7 +156,7 @@ final class LoggingModule: NotchcastModule {
 }
 
 enum RecoveryAddon: NotchcastAddon {
-    static let switches = [NotchcastSwitch(id: "recover", title: "Recover", subtitle: "", category: .power)]
+    static let switches = [NotchcastSwitch(id: "recover", title: "Recover", subtitle: "", category: .music)]
     static func makeModule(_ context: NotchcastContext) -> (any NotchcastModule)? { LoggingModule("module") }
     static func makeRecovery(_ context: NotchcastContext) -> (any NotchcastModule)? {
         LoggingModule("recovery", subscribingIn: context)
@@ -215,11 +225,13 @@ struct NotchcastCoreTest {
         mediaKeys()
         hotKeys()
         controller(defaults)
+        hotKeyKeysRunTheirCommand(defaults)
         order(defaults)
         sequence(defaults)
         recovery(defaults)
         recoveryHandoff(defaults)
         islandPresenter(defaults)
+        settingsTabs()
         print(failures == 0 ? "PASS NotchcastCoreTest (\(checks) checks)" : "FAILED \(failures)/\(checks)")
         if failures > 0 { exit(1) }
     }
@@ -276,6 +288,28 @@ struct NotchcastCoreTest {
             check("\(slug) round-trips", action?.entryID == entryID)
         }
         check("a stock command is untouched", HotKeyAction(entryID: "command:nc") == nil)
+    }
+
+    static func hotKeyKeysRunTheirCommand(_ defaults: UserDefaults) {
+        let system = FakeSystem()
+        let controller = NotchcastController(addons: [ShippedSlugAddon.self], defaults: defaults,
+                                             hub: system.makeHub(), dictation: FakeDictation(),
+                                             presenter: RecordingPresenter())
+        controller.start()
+        controller.preferences.set("slugMain", on: true)
+        drain()
+        let saved = ProbeLog.events
+        for slug in ["generate-password", "screenshot-area"] {
+            let key = "hotkey.command:nc-" + slug
+            let action = HotKeyAction(entryID: String(key.dropFirst("hotkey.".count)))
+            check("\(key) resolves to its command",
+                  action == .notchcastCommand(entryID: "command:nc-" + slug) && action?.defaultsKey == key)
+            ProbeLog.events = []
+            let ran = action?.entryID.map(controller.run) == true
+            check("\(key) runs exactly its command through the controller", ran && ProbeLog.events == ["ran " + slug])
+        }
+        ProbeLog.events = saved
+        controller.stop()
     }
 
     static func controller(_ defaults: UserDefaults) {
@@ -477,5 +511,45 @@ struct NotchcastCoreTest {
               })
         check("NotchcastCore hands the controller stock Dictation",
               calls.allSatisfy { $0.contains("dictation: NotchcastDictationBridge(core: core)") })
+        check("nc command entries have no settings owner, so Settings › Commands lists them",
+              !core.contains("settingsOwner"))
+    }
+
+    /// The Notchcast sidebar section: which tab holds which category, which tabs show, and their links.
+    static func settingsTabs() {
+        check("each tab holds its categories",
+              NotchcastPane.allCases.map(\.categories)
+                == [[], [.keyboardMouse], [.displaySound, .music], [.capture], [.launcher], [.filesDownloads], [.power],
+                   [.macTweaks]])
+        check("no category sits in two tabs", NotchcastCategory.allCases.allSatisfy { category in
+            NotchcastPane.allCases.filter { $0.categories.contains(category) }.count <= 1
+        })
+        let placed = Set(NotchcastPane.allCases.flatMap(\.categories))
+        check("a placed category resolves to the tab that holds it",
+              placed.allSatisfy { NotchcastPane.holding($0).categories.contains($0) })
+        check("a category with no tab yet shows nowhere",
+              NotchcastPane.shown(registered: [.notices, .betweenMacs]) == [.island])
+        check("Keep Awake and iPhone backup land in their own tabs",
+              NotchcastPane.shown(registered: [.macTweaks, .power]) == [.island, .power, .macTweaks])
+        check("with no add-on only Island shows", NotchcastPane.shown(registered: []) == [.island])
+        check("an add-on tab shows once one of its categories has a switch",
+              NotchcastPane.shown(registered: [.music]) == [.island, .displaySound]
+                && NotchcastPane.shown(registered: [.displaySound]) == [.island, .displaySound])
+        check("Screenshots lands in Capture, after Display & Sound",
+              NotchcastPane.holding(.capture) == .capture
+                && NotchcastPane.shown(registered: [.launcher, .capture, .music])
+                == [.island, .displaySound, .capture, .launcher])
+        NotchcastPane.install(Set(NotchcastCategory.allCases))
+        check("the section lists every tab once all are filled",
+              SettingsSection.notchcast.tabs == NotchcastPane.allCases.map(SettingsTab.notchcast))
+        let slugs = SettingsTab.allCases.map(\.slug)
+        check("settings slugs are unique", Set(slugs).count == slugs.count)
+        check("each tab opens from its deep link",
+              NotchcastPane.allCases.allSatisfy { SettingsTab(slug: $0.slug) == .notchcast($0) })
+        check("the old notchcast slug opens nothing", SettingsTab(slug: "notchcast") == nil)
+        NotchcastPane.install([])
+        check("a hidden tab's deep link opens nothing", SettingsTab(slug: "notchcast-downloads") == nil)
+        check("the Capture tab opens from its own link", NotchcastPane.capture.slug == "notchcast-capture")
+        check("Island's deep link always opens", SettingsTab(slug: "notchcast-island") == .notchcast(.island))
     }
 }
