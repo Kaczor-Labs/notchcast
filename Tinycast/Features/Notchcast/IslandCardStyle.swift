@@ -23,9 +23,9 @@ extension ShapeStyle where Self == IslandCardStyle {
         IslandCardStyle(stock: Theme.Colors.cardFill, island: NotchTheme.Colors.keyCapFill)
     }
 
-    /// A rule inside a card: a filled `keyCapFill` hairline on the island, `cardStroke` stock.
+    /// A rule inside a card: a filled `cardRule` hairline on the island, `cardStroke` stock.
     static var islandSeparator: Self {
-        IslandCardStyle(stock: Theme.Colors.cardStroke, island: NotchTheme.Colors.keyCapFill)
+        IslandCardStyle(stock: Theme.Colors.cardStroke, island: NotchTheme.Colors.cardRule)
     }
 }
 

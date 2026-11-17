@@ -71,7 +71,7 @@ struct ChatMarkdownTests {
         ).render()
     }
 
-    /// Design system §2: a table's rules are `keyCapFill` on the island and `cardStroke` everywhere else.
+    /// Design system §2: a table's rules are `cardRule` on the island, `cardStroke` elsewhere.
     static func tableRulesFollowTheIsland() {
         let blocks = MarkdownBlock.parse("| A | B |\n| - | - |\n| 1 | 2 |\n", midStream: false)
         func ruleAlpha(onIsland: Bool) -> Int? {
@@ -98,8 +98,8 @@ struct ChatMarkdownTests {
             ruleAlpha(onIsland: false) == 10,
             "a stock table rule is cardStroke, got \(String(describing: ruleAlpha(onIsland: false)))")
         expect(
-            ruleAlpha(onIsland: true) == 14,
-            "an island table rule is keyCapFill, got \(String(describing: ruleAlpha(onIsland: true)))")
+            ruleAlpha(onIsland: true) == 24,
+            "an island table rule is cardRule, got \(String(describing: ruleAlpha(onIsland: true)))")
     }
 
     static func failedRepliesColourOnlyTheirNote() {
