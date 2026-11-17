@@ -90,6 +90,7 @@
 		13DC6B0D2FC2215B2EA01E6E /* NotchcastContext.swift in Sources */ = {isa = PBXBuildFile; fileRef = 39CA477CA36624DA5EAB9E28 /* NotchcastContext.swift */; };
 		14D056C9DA105D9D89A9691E /* HealthTicker.swift in Sources */ = {isa = PBXBuildFile; fileRef = BFB023D167225228757CC4B2 /* HealthTicker.swift */; };
 		15292937738B7CD3AE23EF73 /* VolumeSlider.swift in Sources */ = {isa = PBXBuildFile; fileRef = E27FB790A72ACD75DFCDFDDF /* VolumeSlider.swift */; };
+		156AAF6C1939C271E46C45EF /* IslandCardStyle.swift in Sources */ = {isa = PBXBuildFile; fileRef = FE77B495DA3B4C720F009EAA /* IslandCardStyle.swift */; };
 		15CC97911A3E9DE3190BB373 /* DownloadsQueueController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 448D5E32D84AF28942AF8085 /* DownloadsQueueController.swift */; };
 		163C9DFF6B22C76F41CE9FD3 /* WindowManagementFileFormat.swift in Sources */ = {isa = PBXBuildFile; fileRef = 49E8194DC4F75C103DA35F3D /* WindowManagementFileFormat.swift */; };
 		1686A2EE090927893D4BBFB6 /* CustomCommandEditorScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = CD6FEDC16D215918AD2DA76D /* CustomCommandEditorScreen.swift */; };
@@ -2242,6 +2243,7 @@
 		FE31A7F41EDA33E7E574F62D /* CustomWindowSizeStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CustomWindowSizeStore.swift; sourceTree = "<group>"; };
 		FE41DC04958D7C2FF8C47F62 /* CustomCommandCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CustomCommandCoordinator.swift; sourceTree = "<group>"; };
 		FE72CE02F853ACE956627347 /* SystemAction.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SystemAction.swift; sourceTree = "<group>"; };
+		FE77B495DA3B4C720F009EAA /* IslandCardStyle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IslandCardStyle.swift; sourceTree = "<group>"; };
 		FF16EFEB997492F48AC2FA72 /* DownloadsLinks.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DownloadsLinks.swift; sourceTree = "<group>"; };
 		FF447647B325A119F2B3BCD1 /* UnitCategory.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UnitCategory.swift; sourceTree = "<group>"; };
 		FF65A473A49866F415970880 /* ScreenshotSystem+Live.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ScreenshotSystem+Live.swift"; sourceTree = "<group>"; };
@@ -3726,6 +3728,7 @@
 				E00773023C8CDEBD43AD5EB5 /* ShowDesktop */,
 				B6EA32380937AE168B3A12C9 /* SmallCommands */,
 				C299812264148020EEC8904B /* IslandButtonFill.swift */,
+				FE77B495DA3B4C720F009EAA /* IslandCardStyle.swift */,
 				035CF6E107C894662EDD056D /* NotchAliasChip.swift */,
 				92908720D41B4994F113BE61 /* NotchcastCore.swift */,
 				C8DB1A4B304917CDDC4DF3B5 /* NotchcastRegistry.swift */,
@@ -5725,6 +5728,7 @@
 				735F1568735164D38864B10A /* IslandCalendarGlance.swift in Sources */,
 				61F3FA6853B2E29B54F859C8 /* IslandCanvas.swift in Sources */,
 				ECD53244B8DCD421AA5D9CCE /* IslandCaptureScenes.swift in Sources */,
+				156AAF6C1939C271E46C45EF /* IslandCardStyle.swift in Sources */,
 				5B4762FEEA8774AB115F8B80 /* IslandController+Accessibility.swift in Sources */,
 				589FE6E9FD5E62A16EFF3CE4 /* IslandController+Verification.swift in Sources */,
 				4E6437A257DC61ECC7CD36C1 /* IslandController.swift in Sources */,
