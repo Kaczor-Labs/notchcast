@@ -18,6 +18,14 @@ struct NotchcastSettingsView: View {
                     SettingsRowTitle(NotchcastSettingsSearch.island, NotchcastSettingsSearch.outlineWhenOpen)
                     Text("A faint line around the open island in Dark.", tableName: "Notchcast")
                 }
+                Picker(selection: $settings.islandPosition) {
+                    Text("Top edge", tableName: "Notchcast").tag(IslandPosition.topEdge)
+                    Text("Menu bar centre", tableName: "Notchcast").tag(IslandPosition.menuBarCenter)
+                    Text("Menu bar bottom", tableName: "Notchcast").tag(IslandPosition.menuBarBottom)
+                } label: {
+                    SettingsRowTitle(NotchcastSettingsSearch.island, NotchcastSettingsSearch.position)
+                    Text("A notch always decides where the island sits.", tableName: "Notchcast")
+                }
             } header: {
                 SettingsSectionHeader(NotchcastSettingsSearch.island)
             }
