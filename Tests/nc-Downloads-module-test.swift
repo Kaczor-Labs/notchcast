@@ -37,6 +37,7 @@
 // notchcast-sources: Tinycast/Features/Notchcast/Core/Model/*.swift
 // notchcast-sources: Tinycast/Features/Notchcast/Core/Service/NotchcastAddon.swift
 // notchcast-sources: Tinycast/Features/Notchcast/Core/Service/NotchcastContext.swift
+// notchcast-sources: Tinycast/Features/Notchcast/Core/Service/NotchcastTranscription.swift
 // notchcast-sources: Tinycast/Features/Notchcast/Core/Service/NotchcastPreferences.swift
 // notchcast-sources: Tinycast/Features/Notchcast/Core/Service/NotchcastTap.swift
 // notchcast-sources: Tinycast/Features/Notchcast/Core/Service/NotchcastTapHub.swift
@@ -45,6 +46,7 @@
 // notchcast-sources: Tinycast/Features/Island/Model/IslandPresentation.swift
 // notchcast-sources: Tinycast/Features/Island/Service/IslandPresenting.swift
 // notchcast-sources: Tests/NotchcastTapFixtures.swift
+// notchcast-sources: Tests/NotchcastDictationFixture.swift
 import AppKit
 
 /// Pins the v1 switch ids, the five commands, the queue following its switch, and a stop keeping accepted links.
@@ -90,6 +92,8 @@ struct DownloadsModuleTest {
         let preferences = NotchcastPreferences(defaults: defaults, switches: DownloadsAddon.switches)
         let presenter = RecordingPresenter()
         let context = NotchcastContext(defaults: defaults, preferences: preferences, presenter: presenter, hub: hub,
+
+                                       transcription: NotchcastTranscriptionRunner(dictation: FakeDictation()),
                                        now: { .now }, onTapsChanged: {})
         let module = DownloadsModule(context: context, environment: environment)
         context.attach(module)
