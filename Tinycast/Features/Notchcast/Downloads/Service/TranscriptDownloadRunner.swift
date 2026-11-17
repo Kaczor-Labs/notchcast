@@ -4,6 +4,7 @@ struct TranscriptDownloadRunner: DownloadRunner {
     static let kind = "transcript"
     var kind: String { Self.kind }
     var tools: [DownloadTool] { [.ytDlp] }
+    var rateLimitPause = MediaArguments.rateLimitPause
 
     @concurrent
     func run(_ job: DownloadJob, context: DownloadRunContext) async throws -> URL? {
@@ -22,7 +23,7 @@ struct TranscriptDownloadRunner: DownloadRunner {
                                                     language: language)
             let result = try await fetch(arguments, executable, context, folder)
             if MediaArguments.retryCaptions(stderr: result.errors, wroteCaptions: try !captions(in: folder).isEmpty) {
-                try await Task.sleep(for: MediaArguments.rateLimitPause)
+                try await Task.sleep(for: rateLimitPause)
                 _ = try await fetch(arguments, executable, context, folder)
             }
             try Task.checkCancellation()
