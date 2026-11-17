@@ -7,7 +7,7 @@ enum IslandButtonFill {
         return hovered ? Theme.Colors.rowHover : Color.clear
     }
 
-    /// Frosted's primary is the solid accent (brief D5); hover and press dim it one step each.
+    /// Frosted's primary is the solid accent; hover and press dim it one step each.
     static func primary(_ wash: Double) -> Color {
         Theme.Colors.primaryAction.opacity(wash).frosted(NotchTheme.Frosted.accent.opacity(1.2 - wash))
     }

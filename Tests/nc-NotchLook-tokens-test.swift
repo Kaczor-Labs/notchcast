@@ -46,8 +46,10 @@ struct NotchLookTokensTests {
         return color.resolve(in: environment)
     }
 
-    static func sameResolved(_ label: String, _ token: Color, _ expected: Color, frosted: Bool) {
-        let actual = resolved(token, frosted: frosted)
+    static func sameResolved(
+        _ label: String, _ token: Color, _ expected: Color, frosted: Bool, lifted: Bool = false
+    ) {
+        let actual = resolved(token, frosted: frosted, lifted: lifted)
         let wanted = resolved(expected, frosted: false)
         check(label, rgba(actual) == rgba(wanted), "\(rgba(actual)) != \(rgba(wanted))")
     }
@@ -142,7 +144,9 @@ struct NotchLookTokensTests {
             ("islandPanelFill", NotchTheme.Colors.islandPanelFill, .black),
         ]
         for (name, token, value) in black { sameResolved("black \(name)", token, value, frosted: false) }
-        sameResolved("black lifted secondary stays", c.textSecondary, Color.white.opacity(0.6), frosted: false)
+        sameResolved("black lifted secondary stays", c.textSecondary, Color.white.opacity(0.6), frosted: false, lifted: true)
+        sameResolved("black lifted tertiary stays", c.textTertiary, Color.white.opacity(0.4), frosted: false, lifted: true)
+        sameResolved("black lifted destructive stays", c.destructive, .red, frosted: false, lifted: true)
 
         print("# Frosted resolves the brief's values")
         let f = NotchTheme.Frosted.self

@@ -6,7 +6,7 @@ extension EnvironmentValues {
     @Entry var paletteOnIsland = false
     /// The palette's display has the Frosted look, so island fills let its glass show.
     @Entry var islandFrosted = false
-    /// Text on a selection slab or a wash, which costs Frosted inks their 4.5:1 (brief D9).
+    /// Text on a selection slab or a wash, which costs Frosted inks their 4.5:1.
     @Entry var islandInkLifted = false
 }
 
@@ -62,7 +62,7 @@ private struct IslandGlass<S: Shape>: ViewModifier {
 }
 
 extension View {
-    /// A menu's backing: the island black, or Frosted's denser menu glass and edge (brief D3).
+    /// A menu's backing: the island black, or Frosted's denser menu glass and edge.
     func islandMenuBacking(in shape: some Shape) -> some View {
         background { IslandMenuBacking(shape: shape) }
     }

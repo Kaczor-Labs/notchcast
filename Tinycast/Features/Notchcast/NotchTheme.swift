@@ -49,7 +49,7 @@ enum NotchTheme {
         /// Apart from `rowHover`, so retuning hover never dims a resting keycap.
         static let keyCapFill = Theme.Colors.ramp(dark: 0.14, light: 0.045).frosted(Frosted.controlFill)
         static let keyCapInk = Theme.Colors.textSecondary.frosted(Frosted.keyCapInk)
-        /// Black's controls are bare; Frosted's take an edge to read over the glass (brief D4).
+        /// Black's controls are bare; Frosted's take an edge to read over the glass.
         static let controlEdge = Color.clear.frosted(Frosted.controlEdge)
         /// Under a question or report: Black paints it, Frosted lets the backdrop's glass show.
         static let islandPanelFill = islandSurface.frosted(.clear)
@@ -59,7 +59,7 @@ enum NotchTheme {
 }
 
 extension NotchTheme {
-    /// Frosted's in-island values (brief D3–D9): every text ink keeps 4.5:1 on the glass.
+    /// Frosted's in-island values: every text ink keeps 4.5:1 on the glass.
     enum Frosted {
         static let textPrimary = ink(0xF2F3F5)
         static let textSecondary = ink(0xB6B8C1)
@@ -72,7 +72,7 @@ extension NotchTheme {
         static let separator = Color(.sRGB, white: 1, opacity: 0.10)
         static let controlFill = Color(.sRGB, white: 1, opacity: 0.07)
         static let controlEdge = Color(.sRGB, white: 1, opacity: 0.14)
-        /// The one accent (brief D5): the dialog's primary, progress, switches and the focus edge.
+        /// The one accent: the dialog's primary, progress, switches and the focus edge.
         static let accent = textPrimary
         static let accentInk = ink(0x111214)
         static let destructive = ink(0xFF827A)
