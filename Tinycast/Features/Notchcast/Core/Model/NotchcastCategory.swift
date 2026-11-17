@@ -1,6 +1,6 @@
 import Foundation
 
-/// The Notchcast pane's sections, in order; an add-on picks one and an empty one is hidden.
+/// A Notchcast Settings section; an add-on picks one, `NotchcastPane` places it, empty ones hide.
 enum NotchcastCategory: String, CaseIterable, Sendable {
     case capture
     case displaySound
