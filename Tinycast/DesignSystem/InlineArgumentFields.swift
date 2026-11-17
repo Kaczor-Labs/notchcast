@@ -104,17 +104,16 @@ private struct ArgumentFieldChrome: ViewModifier {
         return argument.isOptional ? String(localized: "\(argument.title) — optional") : argument.title
     }
 
-    private var fill: Color {
-        if isFocused { return Theme.Colors.selection }
-        if hovered { return Theme.Colors.rowHover }
-        return Theme.Colors.cardFill
+    private var fill: AnyShapeStyle {
+        if isFocused { return AnyShapeStyle(Theme.Colors.selection) }
+        if hovered { return AnyShapeStyle(Theme.Colors.rowHover) }
+        let rest: IslandCardStyle = .islandCardFill
+        return AnyShapeStyle(rest)
     }
 
     /// Focus reads as a brighter edge; only a field left behind unanswered turns red.
-    private var stroke: Color {
-        if isFocused { return Color.accentColor }
-        if isOwed { return Theme.Colors.destructive.opacity(0.55) }
-        return Theme.Colors.cardStroke
+    private var stroke: ArgumentFieldEdgeStyle {
+        ArgumentFieldEdgeStyle(isFocused: isFocused, isOwed: isOwed)
     }
 }
 

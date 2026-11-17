@@ -6,6 +6,7 @@
 // notchcast-sources: Tinycast/Features/AI/Model/MarkdownBlock.swift Tinycast/Features/AI/Model/MarkdownMath.swift
 // notchcast-sources: Tinycast/Features/AI/Model/MathFormula.swift Tinycast/Features/AI/Model/MathNode.swift
 // notchcast-sources: Tinycast/Features/AI/Model/MathSymbolCatalog.swift
+// notchcast-reads: Tinycast/DesignSystem/InlineArgumentFields.swift
 import AppKit
 import SwiftUI
 
@@ -81,6 +82,18 @@ struct NotchcastIslandCardsTest {
             .environment(\.colorScheme, dark ? .dark : .light)
     }
 
+    static func field(onIsland: Bool, focused: Bool = false, owed: Bool = false) -> some View {
+        let shape = RoundedRectangle(cornerRadius: 8, style: .continuous)
+        return Color.clear
+            .frame(width: 60, height: 40)
+            .background(shape.fill(.islandCardFill))
+            .overlay(shape.strokeBorder(ArgumentFieldEdgeStyle(isFocused: focused, isOwed: owed), lineWidth: 1))
+            .padding(10)
+            .background(NotchTheme.Colors.islandSurface)
+            .environment(\.paletteOnIsland, onIsland)
+            .environment(\.colorScheme, .dark)
+    }
+
     static func image(_ view: some View, _ name: String) -> NSBitmapImageRep {
         let renderer = ImageRenderer(content: view)
         renderer.scale = 1
@@ -153,6 +166,24 @@ struct NotchcastIslandCardsTest {
             check(!rows.isEmpty, "\(name): the header rule does not read against the card fill \(fill)")
         }
         NSApplication.shared.appearance = NSAppearance(named: .darkAqua)
+
+        // Inline argument field: no edge at rest on the island, the hairline stand-alone.
+        let fieldIsland = image(field(onIsland: true), "J-field-island")
+        let fieldStock = image(field(onIsland: false), "J-field-stock")
+        let fieldIslandEdge = white(fieldIsland, 40, 10), fieldIslandBody = white(fieldIsland, 40, 30)
+        let fieldStockEdge = white(fieldStock, 40, 10), fieldStockBody = white(fieldStock, 40, 30)
+        check(abs(fieldIslandEdge - fieldIslandBody) <= 1, "island field has an edge: \(fieldIslandEdge) vs \(fieldIslandBody)")
+        check(fieldStockEdge > fieldStockBody + 2, "stock field lost its hairline: \(fieldStockEdge) vs \(fieldStockBody)")
+        // Owed keeps its warning edge on the island: it is state, not decoration.
+        let owedIsland = image(field(onIsland: true, owed: true), "J-field-owed-island")
+        check(white(owedIsland, 40, 10) != fieldIslandBody, "island owed field lost its warning edge")
+
+        // The field's source goes through the island styles, never a bare cardStroke or cardFill.
+        let fieldSource = (try? String(contentsOfFile: "Tinycast/DesignSystem/InlineArgumentFields.swift", encoding: .utf8)) ?? ""
+        check(!fieldSource.isEmpty, "InlineArgumentFields.swift not readable from the repo root")
+        check(fieldSource.contains("ArgumentFieldEdgeStyle("), "field stroke no longer uses ArgumentFieldEdgeStyle")
+        check(fieldSource.contains(".islandCardFill"), "field rest fill no longer uses islandCardFill")
+        check(!fieldSource.contains("Theme.Colors.cardStroke"), "InlineArgumentFields names cardStroke directly")
 
         // Radius: an island card rounds at metrics.radius.row; stock keeps card and codeBlock.
         let radius = InterfaceMetrics.standard.radius
