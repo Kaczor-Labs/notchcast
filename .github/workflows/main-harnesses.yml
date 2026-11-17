@@ -1,8 +1,7 @@
 name: Main harnesses
 
+# Dispatch only: a branch with an open PR gets its harnesses from the PR workflow, never twice.
 on:
-  push:
-    branches-ignore: [main, 'train/**']
   workflow_dispatch:
     inputs:
       all:
