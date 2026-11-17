@@ -234,8 +234,8 @@ final class IslandCoordinator: NSObject {
         }
         self.panel = panel
         backdrop.attach(panel, screen: screen)
-        guard let top = backdrop.openingTop else { return nil }
-        return CGPoint(x: screen.frame.midX - width / 2, y: top - outset)
+        guard let top = backdrop.openingTop, let x = backdrop.openingX(width: width) else { return nil }
+        return CGPoint(x: x, y: top - outset)
     }
 
     var questionScreen: NSScreen? {
