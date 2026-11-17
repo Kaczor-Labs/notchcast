@@ -9,11 +9,12 @@ in the run-tests log, so a harness the runner skipped cannot pass as clean.
 Prints PASS per folder, or FAIL with the step and its log. A failure the deletion caused is a contract breach
 (exit 1); one the tools caused (clone, xcodegen, timeout, a build that stopped without a Swift error) is a
 tooling failure (exit 2). ready-check runs --rotate when its branch changes Tinycast/Features/Notchcast/.
+--list prints the folders at the ref, one per line, and builds nothing; delete-check.yml runs one job per line.
 The scratch dir holds owner.pid; SIGTERM, SIGINT or SIGHUP stops the running step's process group, removes the
 dir and exits 128+signal, and each run first removes the dirs of dead owners, or pid-less ones over an hour old.
 With NOTCHCAST_BUILD_QUEUE set, in the environment or ~/.config/notchcast/private.env (notchcast/README.md,
 "Private hooks"), the whole run holds one build-queue slot.
-Usage: check-addon-delete.py (<Folder> | --rotate | --all) [--ref HEAD]
+Usage: check-addon-delete.py (<Folder> | --rotate | --all | --list) [--ref HEAD]
 """
 import argparse
 import os
@@ -280,6 +281,7 @@ def main():
     target.add_argument('folder', nargs='?')
     target.add_argument('--rotate', action='store_true')
     target.add_argument('--all', action='store_true')
+    target.add_argument('--list', action='store_true')
     parser.add_argument('--ref', default='HEAD')
     args = parser.parse_args()
     repo = pathlib.Path(subprocess.check_output(['git', 'rev-parse', '--show-toplevel'], text=True).strip())
@@ -287,6 +289,9 @@ def main():
     listing = subprocess.check_output(['git', '-C', str(repo), 'ls-tree', '-d', '--name-only', f'{sha}:{ROOT_DIR}'],
                                       text=True).split()
     folders = sorted(set(listing) - CORE_DIRS)
+    if args.list:
+        print(''.join(f'{folder}\n' for folder in folders), end='')
+        return 0
     if not folders:
         print(f'no add-on folders at {sha[:12]}; nothing to delete')
         return 0
