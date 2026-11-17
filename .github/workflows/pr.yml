@@ -19,7 +19,7 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  # On Linux: a runner for checks (slot 0), each shard and the script tests (slot 4), from the maintainer Mac pool or hosted (notchcast/runner/route.py).
+  # On Linux: a runner for checks (slot 0), each shard and the script tests (slot 4), hosted first, then the maintainer Mac pool (notchcast/runner/route.py).
   route:
     if: github.event_name == 'workflow_dispatch' || !github.event.pull_request.draft
     runs-on: ubuntu-latest
@@ -40,7 +40,6 @@ jobs:
           count: 5
           idle: |
             ${{ vars.NOTCHCAST_IDLE_MBA }}
-            ${{ vars.NOTCHCAST_IDLE_MBP }}
   checks:
     needs: route
     if: github.event_name == 'workflow_dispatch' || !github.event.pull_request.draft
