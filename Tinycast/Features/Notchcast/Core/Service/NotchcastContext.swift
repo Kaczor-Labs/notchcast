@@ -8,6 +8,7 @@ final class NotchcastContext {
     let presenter: any IslandPresenting
     let now: @MainActor () -> Date
     private let hub: NotchcastTapHub
+    private let transcription: NotchcastTranscriptionRunner
     private let onTapsChanged: @MainActor () -> Void
     private(set) var wantedTaps: [(token: UUID, tap: NotchcastTap)] = []
     private(set) var module: (any NotchcastModule)?
@@ -16,13 +17,15 @@ final class NotchcastContext {
 
     init(
         defaults: UserDefaults, preferences: NotchcastPreferences, presenter: any IslandPresenting,
-        hub: NotchcastTapHub, now: @escaping @MainActor () -> Date,
+        hub: NotchcastTapHub, transcription: NotchcastTranscriptionRunner,
+        now: @escaping @MainActor () -> Date,
         onTapsChanged: @escaping @MainActor () -> Void
     ) {
         self.defaults = defaults
         self.preferences = preferences
         self.presenter = presenter
         self.hub = hub
+        self.transcription = transcription
         self.now = now
         self.onTapsChanged = onTapsChanged
     }
@@ -55,6 +58,9 @@ final class NotchcastContext {
     func handleLauncherDigit(_ handler: (@MainActor (_ digit: Int, _ query: String, _ entryRows: [Int]) -> Int?)?) {
         launcherDigit = handler
     }
+
+    /// Stock Dictation's text for a file; `.busy` while the user dictates or another one runs.
+    func transcribe(_ audioURL: URL) async throws -> String { try await transcription.transcribe(audioURL) }
 
     /// Rereads Accessibility trust after a grant, restarting a tap that could not start.
     func refreshPermission() { hub.refreshPermission() }

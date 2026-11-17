@@ -4,6 +4,7 @@
 // notchcast-sources: Tinycast/Features/Notchcast/Core/Model/*.swift
 // notchcast-sources: Tinycast/Features/Notchcast/Core/Service/NotchcastAddon.swift
 // notchcast-sources: Tinycast/Features/Notchcast/Core/Service/NotchcastContext.swift
+// notchcast-sources: Tinycast/Features/Notchcast/Core/Service/NotchcastTranscription.swift
 // notchcast-sources: Tinycast/Features/Notchcast/Core/Service/NotchcastPreferences.swift
 // notchcast-sources: Tinycast/Features/Notchcast/Core/Service/NotchcastTap.swift
 // notchcast-sources: Tinycast/Features/Notchcast/Core/Service/NotchcastTapHub.swift
@@ -12,6 +13,7 @@
 // notchcast-sources: Tinycast/Features/Island/Model/IslandPresentation.swift
 // notchcast-sources: Tinycast/Features/Island/Service/IslandPresenting.swift
 // notchcast-sources: Tests/NotchcastTapFixtures.swift
+// notchcast-sources: Tests/NotchcastDictationFixture.swift
 import AppKit
 
 /// Pins the v1 id, one tap per start, and that only a live tap's key may block a launch.
@@ -43,7 +45,9 @@ struct MusicBlockModuleTests {
         var changes = 0
         let context = NotchcastContext(
             defaults: defaults, preferences: NotchcastPreferences(defaults: defaults, switches: MusicBlockAddon.switches),
-            presenter: SilentPresenter(), hub: hub, now: { .now }, onTapsChanged: { changes += 1 })
+            presenter: SilentPresenter(), hub: hub,
+            transcription: NotchcastTranscriptionRunner(dictation: FakeDictation()),
+            now: { .now }, onTapsChanged: { changes += 1 })
         guard let module = MusicBlockAddon.makeModule(context) else { preconditionFailure("no module") }
 
         module.start()
@@ -77,7 +81,9 @@ extension MusicBlockModuleTests {
         let presenter = RecordingPresenter()
         let context = NotchcastContext(
             defaults: defaults, preferences: NotchcastPreferences(defaults: defaults, switches: MusicBlockAddon.switches),
-            presenter: presenter, hub: subscriptions.hub, now: { .now }, onTapsChanged: {})
+            presenter: presenter, hub: subscriptions.hub,
+            transcription: NotchcastTranscriptionRunner(dictation: FakeDictation()),
+            now: { .now }, onTapsChanged: {})
         let module = MusicBlockModule(context: context, gestureAge: { .infinity }, isMusicRunning: { false })
         module.start()
         defer { module.stop() }

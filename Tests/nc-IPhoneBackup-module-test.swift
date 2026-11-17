@@ -10,6 +10,7 @@
 // notchcast-sources: Tinycast/Features/Notchcast/IPhoneBackup/Service/IPhoneBackupSystem.swift
 // notchcast-sources: Tinycast/Features/Notchcast/IPhoneBackup/Service/IPhoneBackupSystem+Preferences.swift
 // notchcast-sources: Tinycast/Features/Notchcast/IPhoneBackup/Service/IPhoneBackupConfirmation.swift
+// notchcast-sources: Tests/NotchcastDictationFixture.swift
 
 import AppKit
 import CoreGraphics
@@ -119,7 +120,8 @@ final class Rig {
         defaults = UserDefaults(suiteName: suite)!
         let hub = NotchcastTapHub(syntheticTag: 0x54494E59, isTrusted: { true }, makeSession: { FakeSession($0) })
         controller = NotchcastController(
-            addons: [IPhoneBackupAddon.self], defaults: defaults, hub: hub, presenter: presenter)
+            addons: [IPhoneBackupAddon.self], defaults: defaults, hub: hub,
+            dictation: FakeDictation(), presenter: presenter)
         controller.start()
     }
 
