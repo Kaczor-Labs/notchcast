@@ -14,6 +14,10 @@ struct NotchcastSettingsView: View {
                     Text("Off hides the island from screenshots, recordings and screen sharing.",
                          tableName: "Notchcast")
                 }
+                Toggle(isOn: $settings.islandOutlineWhenOpen) {
+                    SettingsRowTitle(NotchcastSettingsSearch.island, NotchcastSettingsSearch.outlineWhenOpen)
+                    Text("A faint line around the open island in Dark.", tableName: "Notchcast")
+                }
             } header: {
                 SettingsSectionHeader(NotchcastSettingsSearch.island)
             }

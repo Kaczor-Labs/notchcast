@@ -1,6 +1,9 @@
 {
   "sourceLanguage" : "en",
   "strings" : {
+    "A faint line around the open island in Dark." : {
+
+    },
     "Between Macs" : {
       "shouldTranslate" : false
     },
@@ -38,6 +41,9 @@
       "shouldTranslate" : false
     },
     "Off hides the island from screenshots, recordings and screen sharing." : {
+
+    },
+    "Outline when open" : {
 
     },
     "Show in screenshots and videos" : {
