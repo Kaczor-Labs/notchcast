@@ -7,7 +7,10 @@ struct NotchcastSettingsView: View {
 
     var body: some View {
         Form {
-            if pane == .island { NotchcastIslandSettingsRows() }
+            if pane == .island {
+                NotchcastIslandSettingsRows()
+                NotchcastLookSection(looks: AppCore.shared.island.looks)
+            }
             ForEach(pane.categories, id: \.self) { category in
                 let switches = controller.switches.filter { $0.category == category }
                 if !switches.isEmpty {
