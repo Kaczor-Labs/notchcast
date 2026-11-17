@@ -36,8 +36,8 @@ Reference: HIG Materials, "Don't use Liquid Glass in the content layer."
 | Element | Rule | Token |
 | --- | --- | --- |
 | Any island surface or control | No stroke, rim, key line or `border` outline: the edge is the engine's outline, which merges with the bezel and menu bar. A hairline inside art (a level zone, a progress track) is a glyph, not a border. One exception: the open island's keyline, one device pixel (`IslandKeyline.width`) stroked inside the engine outline so the size never changes, white at 0.15 in Dark and none in Light, fading with the outline's growth and off at rest or with `islandOutlineWhenOpen` off. | none (`Theme.Size.hairline` only inside glyph art); the keyline is `NotchTheme.Colors.islandKeyline` |
-| Separator (menu search, section break) | A `Theme.Size.hairline` rectangle filled, not stroked. | `NotchTheme.Colors.keyCapFill` |
-| Card edge (preview, code, table, swatch, note) | The card is a filled rounded rectangle with no edge; never `cardStroke` or a stroked rim. | `NotchTheme.Colors.keyCapFill` at `metrics.radius.row` |
+| Separator (menu search, section break, a table's rules) | A `Theme.Size.hairline` rectangle filled, not stroked; inside a card the same (`MarkdownTableView`, the chat's table rows), stock keeps `cardStroke`. | `NotchTheme.Colors.keyCapFill` (`.islandSeparator`) |
+| Card edge (preview, code, table, swatch, note) | The card is a filled rounded rectangle with no edge; never `cardStroke` or a stroked rim. Stock keeps its `card` and `codeBlock` radii. | `NotchTheme.Colors.keyCapFill` at `metrics.radius.row` (`.islandCardFill`, `.islandEdge()`, `radius.islandCard(onIsland:)`) |
 | Selection mark (emoji cell, room card) | A fill, never a ring or inner border. | `Theme.Colors.selection` |
 
 HIG draws a key line around the iPhone Dynamic Island in Dark Mode to separate it from content; on the Mac the island must read as part of the notch, so it gets none. Hook A2.
@@ -180,7 +180,7 @@ Reference: HIG Live Activities, "Focus on simple, direct actions."
 5. Type and ink from §6; glyphs through `SymbolImage`; colour only for status.
 6. Keycaps `.outline`; buttons bare at rest, `rowHover`, `keyCapFill` on press (§7).
 7. Menus through `PopoverMenu` (§8), with no glass on the menu, its search field or its rows; questions through `DialogController`; reports through `HUDPresenter` or an `IslandNotice` (§10).
-8. Every custom control has an accessibility label and traits; movement returns `nil` under Reduce Motion; `.tooltip`, never `.help()`, in the palette.
+8. Every custom control has an accessibility label and traits; movement returns `nil` under Reduce Motion; `.tooltip`, never `.help()`, in the palette (a view shared with a stock surface calls `.paletteHelp`, which is `.tooltip` on the island and `.help` elsewhere).
 9. Copy: Title Case for commands, buttons and outcomes; sentence case for settings rows; English only (`fork-strings.md`).
 10. Dark only: the island is pinned Dark; check Dark, never Light.
 11. Every progress activity ends with a result notice, success or failure (§10).

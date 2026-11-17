@@ -4,6 +4,7 @@ import SwiftUI
 /// One AppKit text view per segment, since SwiftUI's `Text` selects only within one paragraph.
 struct ChatMarkdownText: View {
     @Environment(\.metrics) private var metrics
+    @Environment(\.paletteOnIsland) private var onIsland
     @Environment(\.chatTextHighlight) private var highlight
     @Environment(\.chatCitations) private var citations
     @Environment(\.chatFindPath) private var path
@@ -22,7 +23,7 @@ struct ChatMarkdownText: View {
         ChatTextRepresentable(
             source: ChatMarkdownSource(
                 blocks: blocks, highlight: highlight, citations: citations, prefix: path,
-                failedFrom: failedFrom, metrics: metrics)
+                failedFrom: failedFrom, metrics: metrics, onIsland: onIsland)
         ) { rect in
             if rect != currentMatch { currentMatch = rect }
         }
@@ -195,16 +196,17 @@ final class ChatSelectableTextView: NSTextView {
     /// A text block paints only around drawn glyphs, so a redraw of its header strip skipped it.
     override func drawBackground(in rect: NSRect) {
         super.drawBackground(in: rect)
-        guard let metrics = source?.metrics, let context = NSGraphicsContext.current?.cgContext else {
-            return
-        }
+        guard let source, let context = NSGraphicsContext.current?.cgContext else { return }
+        let onIsland = source.onIsland
         let line = Theme.Size.hairline
+        let radius = source.metrics.radius.islandCodeBlock(onIsland: onIsland)
         for box in codeBoxes where box.intersects(rect) {
-            let path = RoundedRectangle(cornerRadius: metrics.radius.codeBlock, style: .continuous)
+            let path = RoundedRectangle(cornerRadius: radius, style: .continuous)
                 .path(in: box.insetBy(dx: line / 2, dy: line / 2)).cgPath
             context.addPath(path)
-            context.setFillColor(NSColor(Theme.Colors.cardFill).cgColor)
+            context.setFillColor(NSColor(IslandCardStyle.islandCardFill.color(onIsland: onIsland)).cgColor)
             context.fillPath()
+            if onIsland { continue }
             context.addPath(path)
             context.setStrokeColor(NSColor(Theme.Colors.cardStroke).cgColor)
             context.setLineWidth(line)
