@@ -13,7 +13,10 @@ TREE = {
     "notchcast/check-config.py": "from harness_inputs import harnesses\n", "notchcast/harness_inputs.py": "x = 1\n",
     "notchcast/licenses/borrowed.md": "list\n", "notchcast/vendor/Engine/Thing.swift": "struct Thing {}\n",
     "notchcast/actions/tests/action.yml": "run: bash ../../ci-tests.sh\n", "notchcast/ci-tests.sh": "true\n",
-    "notchcast/land.sh": "echo land\n", "notchcast/land-test.sh": "bash notchcast/land.sh\n",
+    "notchcast/tool.sh": "echo tool\n", "notchcast/tool-test.sh": "bash notchcast/tool.sh\n",
+    "notchcast/actions/route/action.yml": "run: python3 \"$GITHUB_ACTION_PATH/../../runner/route.py\"\n",
+    "notchcast/runner/route.py": "print()\n", "notchcast/lanes.py": "print()\n", "NOTICE.md": "notice\n",
+    "notchcast/vendor/Engine/README.md": "engine\n",
     "notchcast/xins.py": "print()\n", "project.yml": "path: notchcast/vendor/Engine\n",
     "Tinycast/App.swift": "@main struct App {}\n", "Tinycast/README.md": "bundled\n", ".github/CONTRIBUTING.md": "c\n",
     "LICENSE": "mit\n",
@@ -56,10 +59,13 @@ class LanesTests(unittest.TestCase):
     def test_lanes(self):
         none, scripts, every = ["build=false", "scripts=false"], ["build=false", "scripts=true"], ["build=true", "scripts=true"]
         cases = {"README.md": none, "docs/ui.md": none, "notchcast/docs/x.md": none, "docs/shot.png": none,
-                 "notchcast/xins.py": scripts, "notchcast/land.sh": scripts, "notchcast/new-tool.py": scripts,
+                 "notchcast/xins.py": scripts, "notchcast/tool.sh": scripts, "notchcast/new-tool.py": scripts,
                  "notchcast/ci-build.sh": every, "notchcast/ci-xcode.sh": every, "notchcast/config.env": every,
                  "notchcast/harness_inputs.py": every, "notchcast/ci-tests.sh": every,
                  "notchcast/vendor/Engine/Thing.swift": every, "notchcast/licenses/borrowed.md": scripts,
+                 "notchcast/actions/route/action.yml": every, "notchcast/runner/route.py": every,
+                 "notchcast/lanes.py": every, "notchcast/actions/new/action.yml": every, "NOTICE.md": every,
+                 "notchcast/vendor/Engine/README.md": every,
                  "Tinycast/App.swift": every, "Tinycast/README.md": every, ".github/CONTRIBUTING.md": every,
                  "project.yml": every, "LICENSE": every, "Unknown/thing.txt": every}
         for path, expected in cases.items():

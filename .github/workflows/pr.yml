@@ -42,7 +42,12 @@ jobs:
         id: lanes
         env:
           BASE: ${{ github.event.pull_request.base.sha || inputs.base }}
-        run: python3 notchcast/lanes.py "${BASE:-$(git merge-base origin/main HEAD)}" HEAD | tee -a "$GITHUB_OUTPUT"
+        shell: bash
+        run: |
+          case "$GITHUB_HEAD_REF" in
+            v2/addons-*) printf 'build=true\nscripts=true\n' | tee -a "$GITHUB_OUTPUT" ;;
+            *) python3 notchcast/lanes.py "${BASE:-$(git merge-base origin/main HEAD)}" HEAD | tee -a "$GITHUB_OUTPUT" ;;
+          esac
       - id: route
         uses: ./notchcast/actions/route
         with:
@@ -137,6 +142,7 @@ jobs:
           HARNESSES: ${{ needs.harnesses.result }}
           SCRIPT_TESTS: ${{ needs.script-tests.result }}
         run: |
+          case "$BUILD:$SCRIPTS" in true:true|false:true|false:false) ;; *) echo "::error::lanes said '$BUILD' '$SCRIPTS'"; exit 1;; esac
           want() { if [ "$1" = true ]; then echo success; else echo skipped; fi; }
           if [ "$ROUTE" != success ] || [ "$CHECKS" != "$(want "$BUILD")" ] || [ "$HARNESSES" != "$(want "$BUILD")" ] \
               || [ "$SCRIPT_TESTS" != "$(want "$SCRIPTS")" ]; then

@@ -12,10 +12,10 @@ import subprocess
 import sys
 
 # What pr.yml's checks and harnesses jobs run from notchcast/; the build's closure grows from these.
-BUILD_SEEDS = {"notchcast/ci-build.sh", "notchcast/actions/xcode/action.yml",
-               "notchcast/actions/xcodegen/action.yml", "notchcast/actions/tests/action.yml"}
+BUILD_SEEDS = {"notchcast/ci-build.sh", "notchcast/actions/xcode/action.yml", "notchcast/actions/xcodegen/action.yml",
+               "notchcast/actions/tests/action.yml", "notchcast/actions/route/action.yml", "notchcast/lanes.py"}
 # Markdown under these is code: bundled, read by a check (check-addons, check-config) or fork-owned GitHub config.
-NOT_DOCS = ("Tinycast/", "Tests/", ".github/", "notchcast/licenses/")
+NOT_DOCS = ("Tinycast/", "Tests/", ".github/", "notchcast/licenses/", "notchcast/vendor/", "NOTICE.md")
 TOKEN = r"notchcast/[A-Za-z0-9_./-]+"
 
 
@@ -65,7 +65,7 @@ def lanes(base, head):
         if is_doc(path):
             continue
         scripts = True
-        build = build or not path.startswith("notchcast/") or path in closure
+        build = build or not path.startswith("notchcast/") or path.startswith("notchcast/actions/") or path in closure
     return build, scripts
 
 
