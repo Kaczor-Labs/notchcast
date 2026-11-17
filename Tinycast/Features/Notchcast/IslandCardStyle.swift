@@ -29,6 +29,18 @@ extension ShapeStyle where Self == IslandCardStyle {
     }
 }
 
+/// An inline argument field's edge: focus and owed read as colour, at rest the island draws none.
+struct ArgumentFieldEdgeStyle: ShapeStyle {
+    let isFocused: Bool
+    let isOwed: Bool
+
+    func resolve(in environment: EnvironmentValues) -> Color.Resolved {
+        if isFocused { return Color.accentColor.resolve(in: environment) }
+        if isOwed { return Theme.Colors.destructive.opacity(0.55).resolve(in: environment) }
+        return IslandCardStyle(stock: Theme.Colors.cardStroke, island: .clear).resolve(in: environment)
+    }
+}
+
 extension InterfaceMetrics.Radius {
     /// Design system §2: an island card rounds at `row`; a stock card keeps `card`.
     func islandCard(onIsland: Bool) -> CGFloat { onIsland ? row : card }
