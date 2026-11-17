@@ -19,7 +19,7 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  # On Linux: a runner for checks (slot 0) and for each shard, from the maintainer Mac pool or hosted (notchcast/runner/route.py).
+  # On Linux: a runner for checks (slot 0), each shard and the script tests (slot 4), from the maintainer Mac pool or hosted (notchcast/runner/route.py).
   route:
     if: github.event_name == 'workflow_dispatch' || !github.event.pull_request.draft
     runs-on: ubuntu-latest
@@ -37,7 +37,7 @@ jobs:
       - id: route
         uses: ./notchcast/actions/route
         with:
-          count: 4
+          count: 5
           idle: |
             ${{ vars.NOTCHCAST_IDLE_MBA }}
             ${{ vars.NOTCHCAST_IDLE_MBP }}
@@ -91,9 +91,45 @@ jobs:
         with:
           shard: ${{ matrix.shard }} ${{ strategy.job-total }}
           cache: pr-${{ matrix.shard }}of${{ strategy.job-total }}
-  # land.sh reads the check named build: green only when the checks job and every shard are.
+  # On Linux, so a macOS runner is spent only when a PR reaches a script test; a dispatched run takes all.
+  select:
+    if: github.event_name == 'workflow_dispatch' || !github.event.pull_request.draft
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      tests: ${{ steps.select.outputs.tests }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Select script tests
+        id: select
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: echo "tests=$(python3 notchcast/script-tests.py ${BASE_SHA:+--base "$BASE_SHA"} --list | paste -sd ' ' -)" >> "$GITHUB_OUTPUT"
+  # On macOS like the tools they test (BSD sed and date, swift, xcrun), in parallel (notchcast/script-tests.py).
+  script-tests:
+    needs: [route, select]
+    if: needs.select.outputs.tests != ''
+    runs-on: ${{ fromJSON(needs.route.outputs.runners)[4] }}
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: ./notchcast/actions/xcode
+      # land-test.sh serves this checkout's upstream main to its fixture remote.
+      - name: Fetch upstream
+        run: bash notchcast/fetch-upstream.sh --no-tags
+      - name: Script tests
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: python3 notchcast/script-tests.py ${BASE_SHA:+--base "$BASE_SHA"}
+  # land.sh reads the check named build: green only when checks, every shard and the selected script tests are.
   build:
-    needs: [checks, harnesses]
+    needs: [checks, harnesses, select, script-tests]
     if: ${{ !cancelled() && (github.event_name == 'workflow_dispatch' || !github.event.pull_request.draft) }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -103,10 +139,12 @@ jobs:
         run: |
           echo "::error::train branches are dispatched by notchcast/train.sh with -f base=<main sha>"
           exit 1
-      - name: Checks and every harness shard passed
-        if: needs.checks.result != 'success' || needs.harnesses.result != 'success'
+      - name: Checks, every harness shard and the script tests passed
+        if: >-
+          needs.checks.result != 'success' || needs.harnesses.result != 'success' || needs.select.result != 'success'
+          || (needs.script-tests.result != 'success' && !(needs.script-tests.result == 'skipped' && needs.select.outputs.tests == ''))
         run: |
-          echo "::error::checks: ${{ needs.checks.result }}, harnesses: ${{ needs.harnesses.result }}"
+          echo "::error::checks: ${{ needs.checks.result }}, harnesses: ${{ needs.harnesses.result }}, select: ${{ needs.select.result }}, script tests: ${{ needs.script-tests.result }}"
           exit 1
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
