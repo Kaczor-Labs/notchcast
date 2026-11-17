@@ -20,6 +20,7 @@ struct NotchcastHotKeysTests {
     static func main() {
         for includesShift in [false, true] { secureInputFollowsExtraActions(includesShift: includesShift) }
         shippedCommandsTakeHotKeys()
+        hiddenFeatureBindingsStayUnregistered()
         print("\(checks) add-on hotkey checks; \(failures) failures")
         if failures > 0 { exit(1) }
         print("PASSED")
@@ -91,5 +92,29 @@ struct NotchcastHotKeysTests {
         let relaunchedCenter = HotKeyCenter.current!
         check("both chords are registered again after a relaunch",
               relaunchedCenter !== center && actions.allSatisfy { relaunchedCenter.entries[$0.defaultsKey] != nil })
+    }
+
+    /// Apple Shortcuts and Extensions are hidden: AppCore's allowance refuses a stored chord at launch.
+    static func hiddenFeatureBindingsStayUnregistered() {
+        let domain = "tinycast.notchcast-hotkeys-test.\(UUID())"
+        let defaults = UserDefaults(suiteName: domain)!
+        defer { defaults.removePersistentDomain(forName: domain) }
+        let quicklink = UUID()
+        let hidden: [HotKeyAction] = [.appleShortcut(id: UUID()), .extensionCommand(entryID: "ext.cmd")]
+        let manager = HotKeyManager(defaults: defaults)
+        for (action, key) in zip(hidden + [.quicklink(id: quicklink)], [kVK_ANSI_3, kVK_ANSI_4, kVK_ANSI_5]) {
+            manager.setBinding(.combo(KeyShortcut(carbonKeyCode: key, carbonModifiers: controlKey)), for: action)
+        }
+        let relaunched = HotKeyManager(defaults: defaults)
+        relaunched.allowsAction = { !hidden.contains($0) }
+        relaunched.start(
+            customCommandIDs: [], quicklinkIDs: [quicklink], windowLayoutIDs: [],
+            windowRoomIDs: [], customWindowSizeIDs: [], quickActionIDs: [])
+        let entries = HotKeyCenter.current!.entries
+        check("a stored quicklink chord registers after a relaunch",
+              entries[HotKeyAction.quicklink(id: quicklink).defaultsKey] != nil)
+        for action in hidden {
+            check("\(action.defaultsKey): its chord stays unregistered", entries[action.defaultsKey] == nil)
+        }
     }
 }
