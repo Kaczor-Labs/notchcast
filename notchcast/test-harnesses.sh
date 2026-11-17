@@ -53,17 +53,24 @@ JS
         run "$name"
     fi
 done <<< "$harness_inputs"
-# CI narrows the queue: a selection, a name-hash shard "<index> <count>", then the runner's skips.
-if [ "$emit_db" -eq 0 ] && [ -z "$only" ] && [ -n "${NOTCHCAST_ONLY_TESTS:-}${CI_SKIP_TESTS:-}${NOTCHCAST_SHARD:-}" ]; then
-    awk -v only=" ${NOTCHCAST_ONLY_TESTS:-} " -v skip=" ${CI_SKIP_TESTS:-} " -v shard="${NOTCHCAST_SHARD:-0 1}" '
+hidden_tests=$(sed -n 's/^HIDDEN_TESTS="\(.*\)"$/\1/p' notchcast/config.env)
+# A whole suite drops hidden features' harnesses, then CI narrows it: a selection, a name-hash shard
+# "<index> <count>", then the runner's skips.
+if [ "$emit_db" -eq 0 ] && [ -z "$only" ] && [ -n "$hidden_tests${NOTCHCAST_ONLY_TESTS:-}${CI_SKIP_TESTS:-}${NOTCHCAST_SHARD:-}" ]; then
+    awk -v only=" ${NOTCHCAST_ONLY_TESTS:-} " -v skip=" ${CI_SKIP_TESTS:-} " -v shard="${NOTCHCAST_SHARD:-0 1}" \
+        -v hidden=" $hidden_tests " '
         BEGIN { split(shard, part, " "); alphabet = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_.+" }
+        index(hidden, " " $2 " ") { dropped++; next }
         only !~ /^ *$/ && !index(only, " " $2 " ") { next }
         { skipped = index(skip, " " $2 " "); total += !skipped }
         { hash = 0; for (i = 1; i <= length($2); i++) hash = (hash * 31 + index(alphabet, substr($2, i, 1))) % 1000003 }
         hash % part[2] != part[1] { next }
         skipped { print "skipped on the runner: " $2 > "/dev/stderr"; next }
         { kept++; print }
-        END { if (part[2] > 1) print "shard " part[1] " of " part[2] ": " kept + 0 " of " total + 0 " harnesses" > "/dev/stderr" }
+        END {
+            if (dropped) print dropped " hidden-feature harnesses not run (HIDDEN_TESTS, notchcast/config.env)" > "/dev/stderr"
+            if (part[2] > 1) print "shard " part[1] " of " part[2] ": " kept + 0 " of " total + 0 " harnesses" > "/dev/stderr"
+        }
         ' "$QUEUE" > "$QUEUE.kept" || exit 1
     mv "$QUEUE.kept" "$QUEUE"
     ran=$(($(wc -l < "$QUEUE")))
