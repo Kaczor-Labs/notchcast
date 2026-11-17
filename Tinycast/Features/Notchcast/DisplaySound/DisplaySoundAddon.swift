@@ -24,25 +24,6 @@ enum DisplaySoundAddon: NotchcastAddon {
         ),
     ]
 
-    /// v1's slugs, so a hotkey bound to one keeps working.
-    static let commands = [
-        preset(slug: "volume-0", percent: 0),
-        preset(slug: "volume-25", percent: 25),
-        preset(slug: "volume-50", percent: 50),
-        preset(slug: "volume-75", percent: 75),
-        preset(slug: "volume-100", percent: 100),
-    ]
-
-    private static func preset(slug: String, percent: Int) -> NotchcastCommand {
-        NotchcastCommand(
-            slug: slug,
-            name: String(localized: "Set Volume to \(percent)%", table: "NotchcastDisplaySound"),
-            symbol: "speaker.wave.2", switchID: volumeID
-        ) {
-            $0.module(DisplaySoundModule.self)?.setVolume(Double(percent) / 100)
-        }
-    }
-
     static let settings = [
         NotchcastSettingsRow(switchID: "displayBrightness") { AnyView(BrightnessSettingsView(context: $0)) },
     ]
