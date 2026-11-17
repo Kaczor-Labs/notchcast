@@ -1,4 +1,5 @@
 // notchcast-sources: Tinycast/Features/Notchcast/Core/Model/NotchcastCategory.swift
+// notchcast-sources: Tinycast/Features/Notchcast/Core/Model/NotchcastPane.swift
 // notchcast-reads: Tinycast/Features/Notchcast/**
 import Foundation
 
@@ -180,7 +181,7 @@ enum NotchcastRegistryTests {
             enum ShotsAddon: NotchcastAddon {
                 static let switches = [
                     NotchcastSwitch(id: "screenshot", title: String(localized: "Shots (beta)", table: "T"),
-                                    subtitle: "", category: .capture, dependencies: ["keepAwake"])
+                                    subtitle: "", category: .music, dependencies: ["keepAwake"])
                 ]
                 static let commands = [
                     NotchcastCommand(slug: "screenshot-area", name: "", symbol: "", switchID: "screenshot") { _ in }
@@ -197,7 +198,7 @@ enum NotchcastRegistryTests {
              "switch id screenShot is neither a shipped v1 id"),
             (shots.replacingOccurrences(of: "\"screenshot\"", with: "\"launcherNumberKey\""), "",
              "switch id launcherNumberKey is neither a shipped v1 id"),
-            (shots.replacingOccurrences(of: ".capture", with: ".nowhere"), "", "has no valid category"),
+            (shots.replacingOccurrences(of: ".music", with: ".nowhere"), "", "has no valid category"),
             (shots.replacingOccurrences(of: "switchID: \"screenshot\"", with: "switchID: \"other\""), "", "has no user path"),
             (shots.replacingOccurrences(of: "slug: \"screenshot-area\"", with: "slug: \"screenshotArea\""), "",
              "not lowercase-kebab"),
@@ -225,7 +226,13 @@ enum NotchcastRegistryTests {
         let real = RegistryCheck.run(files: files, registry: registry)
         for note in real.notes { print("note: \(note)") }
         expect(real.problems.isEmpty, "the shipped registry is consistent:\n" + real.problems.joined(separator: "\n"))
-        let ids = AddonSource(files: files).switches.map(\.id)
+        let switches = AddonSource(files: files).switches
+        let shown = NotchcastPane.shown(registered: Set(switches.compactMap { NotchcastCategory(rawValue: $0.category) }))
+        for item in switches {
+            let tabs = shown.filter { $0.categories.map(\.rawValue).contains(item.category) }
+            expect(tabs.count == 1, "switch \(item.id) lands in exactly one shown tab: \(tabs)")
+        }
+        let ids = switches.map(\.id)
         print("registry: \(ids.count) switches in \(Set(files.keys.map { $0.split(separator: "/")[0] }).count) folders")
         print("PASSED")
     }
