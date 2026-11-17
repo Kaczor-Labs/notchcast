@@ -229,17 +229,31 @@ def read_verdict(status):
     return verdict if verdict in (0, 1, 2) else None
 
 
-def queued(queue, sha, target):
-    """Runs this script again inside one build-queue slot; its verdict comes from a status file, never the queue."""
-    stopped, child = [], None
+class Relay:
+    """Forwards each signal to the child once: live if it exists, else on attach."""
 
-    def forward(signum, _frame):
-        stopped.append(signum)
-        if child:
+    def __init__(self):
+        self.stopped, self.pending, self.child = [], [], None
+
+    def __call__(self, signum, _frame):
+        self.stopped.append(signum)
+        if self.child:
+            self.child.send_signal(signum)
+        else:
+            self.pending.append(signum)
+
+    def attach(self, child):
+        self.child = child
+        for signum in self.pending:
             child.send_signal(signum)
 
+
+def queued(queue, sha, target):
+    """Runs this script again inside one build-queue slot; its verdict comes from a status file, never the queue."""
+    relay = Relay()
+    stopped = relay.stopped
     for signum in STOP_SIGNALS:
-        signal.signal(signum, forward)
+        signal.signal(signum, relay)
     with tempfile.TemporaryDirectory(prefix='notchcast-delete-status.') as tmp:
         status = pathlib.Path(tmp) / 'status'
         # A reused or joined run would exit 0 without writing a verdict.
@@ -251,8 +265,7 @@ def queued(queue, sha, target):
                                          env=env)
             except OSError as error:
                 raise Tooling(f'build queue could not start ({error})')
-            if stopped:
-                child.send_signal(stopped[0])
+            relay.attach(child)
             code = child.wait()
         if not stopped and (verdict := read_verdict(status)) is not None:
             return verdict
