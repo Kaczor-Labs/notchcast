@@ -1,8 +1,12 @@
 #!/bin/bash
-# Make this Mac a self-hosted Actions runner for FORK_REPO. Usage: install.sh <host> <count> [--gate '<command>']
+# Make this Mac a self-hosted Actions runner for FORK_REPO.
+# Usage: install.sh <host> <count> [--gate '<command>'] [--work-root <dir>] [--launcher <program>]
 #   <host> <count>  runners <host>-1 .. <host>-<count> in ~/agents/gh-runner/, each its own LaunchAgent
 #                   notchcast.runner.<name> (KeepAlive), plus notchcast.runner-gate, which runs gate.sh every minute.
 #   --gate          a shell command that must succeed for this Mac to take jobs; without it the Mac always does.
+#   --work-root     where each runner's work folder <dir>/<name> lives (default /Users/Shared/notchcast-runner).
+#   --launcher      launchd runs `<program> runner-<name>` instead of the runner's run.sh; the program must start
+#                   ~/agents/gh-runner/<name>/run.sh for that name.
 # Needs gh logged in as a repository admin. Run it again to change the count or the gate, never during a job.
 # Remove a runner: launchctl bootout gui/$(id -u)/notchcast.runner.<name>, then ./config.sh remove in its folder.
 set -euo pipefail
@@ -11,14 +15,25 @@ HERE="$(cd "$(dirname "$0")" && pwd)"
 source "$HERE/../config.env"
 VERSION=2.338.2
 SHA256=25a065af409ffa317ab4d5a3b614dd15fc9c40f2172bc1b35a1b1258e919a388
-usage() { echo "usage: $0 <host> <count> [--gate '<command>']" >&2; exit 2; }
+usage() {
+    echo "usage: $0 <host> <count> [--gate '<command>'] [--work-root <dir>] [--launcher <program>]" >&2
+    exit 2
+}
 [[ "${1:-}" =~ ^[a-z]+$ && "${2:-}" =~ ^[1-9]$ ]] || usage
-HOST=$1 COUNT=$2 GATE=""
-case "${3:-}" in
-    --gate) GATE=${4:?}; [ "$#" -eq 4 ] || usage ;;
-    "") ;;
-    *) usage ;;
-esac
+HOST=$1 COUNT=$2 GATE="" WORK_ROOT=/Users/Shared/notchcast-runner LAUNCHER=""
+shift 2
+while [ "$#" -gt 0 ]; do
+    [ "$#" -ge 2 ] && [ -n "$2" ] || usage
+    case "$1" in
+        --gate) GATE=$2 ;;
+        --work-root) WORK_ROOT=${2%/} ;;
+        --launcher) LAUNCHER=$2 ;;
+        *) usage ;;
+    esac
+    shift 2
+done
+[[ "$WORK_ROOT" == /* ]] || usage
+if [ -n "$LAUNCHER" ] && [ ! -x "$LAUNCHER" ]; then echo "launcher not executable: $LAUNCHER" >&2; exit 1; fi
 ROOT="$HOME/agents/gh-runner"
 LOGS="$HOME/Library/Logs/notchcast"
 AGENTS="$HOME/Library/LaunchAgents"
@@ -27,12 +42,19 @@ ARCHIVE="$ROOT/actions-runner-osx-arm64-$VERSION.tar.gz"
 mkdir -p "$ROOT" "$LOGS" "$AGENTS"
 
 agent() { # template label name dir title command...
-    # Login Items shows the executable's name, so launchd runs a wrapper named <title>.
-    local plist="$AGENTS/$2.plist" exe="$ROOT/bin/$5"
-    mkdir -p "$ROOT/bin"
-    printf '#!/bin/bash\nexec%s\n' "$(printf ' %q' "${@:6}")" > "$exe"
-    chmod 755 "$exe"
-    sed -e "s|@EXEC@|$exe|g" -e "s|@NAME@|$3|g" -e "s|@DIR@|$4|g" -e "s|@ROOT@|$ROOT|g" -e "s|@LOGS@|$LOGS|g" \
+    # Login Items shows the executable's name, so launchd runs a wrapper named <title>; no title runs the command.
+    local plist="$AGENTS/$2.plist" exe="$ROOT/bin/$5" args="" a
+    if [ -n "$5" ]; then
+        mkdir -p "$ROOT/bin"
+        printf '#!/bin/bash\nexec%s\n' "$(printf ' %q' "${@:6}")" > "$exe"
+        chmod 755 "$exe"
+        set -- "${@:1:5}" "$exe"
+    fi
+    for a in "${@:6}"; do
+        [[ "$a" != *[\&\|\<\>\\]* ]] || { echo "unsupported character in $a" >&2; exit 1; }
+        args+="<string>$a</string>"
+    done
+    sed -e "s|@ARGS@|$args|g" -e "s|@NAME@|$3|g" -e "s|@DIR@|$4|g" -e "s|@ROOT@|$ROOT|g" -e "s|@LOGS@|$LOGS|g" \
         -e "s|@HOST@|$HOST|g" -e "s|@REPO@|$FORK_REPO|g" "$HERE/$1" > "$plist"
     plutil -lint -s "$plist"
     launchctl bootout "$DOMAIN/$2" 2>/dev/null || true
@@ -54,7 +76,7 @@ for i in $(seq 1 "$COUNT"); do
     dir="$ROOT/$name"
     mkdir -p "$dir/tmp"
     # Outside home: debug builds bake the work path in, and check-identity refuses account names.
-    work="/Users/Shared/notchcast-runner/$name"
+    work="$WORK_ROOT/$name"
     mkdir -p "$work"
     chmod 700 "$work"
     if [ ! -f "$dir/.runner" ]; then
@@ -77,6 +99,10 @@ config = json.loads(raw.decode('utf-8-sig'))
 config['workFolder'] = work
 open(path, 'wb').write((codecs.BOM_UTF8 if raw.startswith(codecs.BOM_UTF8) else b'') + json.dumps(config, indent=2).encode())
 PY
-    agent runner.plist "notchcast.runner.$name" "$name" "$dir" "Notchcast CI runner $name" "$dir/run.sh"
+    if [ -n "$LAUNCHER" ]; then
+        agent runner.plist "notchcast.runner.$name" "$name" "$dir" "" "$LAUNCHER" "runner-$name"
+    else
+        agent runner.plist "notchcast.runner.$name" "$name" "$dir" "Notchcast CI runner $name" "$dir/run.sh"
+    fi
 done
 agent gate.plist notchcast.runner-gate "$HOST" "$ROOT" "Notchcast CI runner gate" "$ROOT/gate.sh" "$HOST" "$FORK_REPO"
