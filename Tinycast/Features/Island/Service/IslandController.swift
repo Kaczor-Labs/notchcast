@@ -10,7 +10,7 @@ final class IslandController: NSObject {
     private var surface: IslandSurface<CGSize>?
     private var layout: IslandLayout?
     private var configuration: IslandSurfaceConfiguration?
-    private var pendingScreen: NSScreen?
+    private var pending = IslandHold<NSScreen>()
     private(set) weak var panel: PalettePanel?
     private var observer: PanelObserver?
     private let clip = CAShapeLayer()
@@ -88,6 +88,7 @@ final class IslandController: NSObject {
             return self.canOpen?() == true && self.overlays.isEmpty && NSApp.modalWindow == nil && self.isResting
         }
         source.didFrame = { [weak self] in self?.paintFrame() }
+        source.didSettle = { [weak self] in self?.applyPending() }
         NSWorkspace.shared.notificationCenter.addObserver(self, selector: #selector(frameChanged),
             name: NSWorkspace.accessibilityDisplayOptionsDidChangeNotification, object: nil)
     }
@@ -124,10 +125,10 @@ final class IslandController: NSObject {
         let next = IslandLayout(screen, position: position)
         let requested = IslandSurfaceConfiguration(notch: next.notch, top: next.top, scale: screen.backingScaleFactor)
         let update = requested.update(from: configuration, paletteVisible: panel?.isVisible == true,
-                                      hasOverlays: !overlays.isEmpty)
-        // Until `closed`, the mask, panel and overlays keep the live surface's layout.
-        guard update != .deferred else { pendingScreen = screen; return }
-        pendingScreen = nil
+                                      hasOverlays: !overlays.isEmpty, animating: !source.isIdle)
+        // Until `closed` or the pill settles, the mask, panel and overlays keep the live layout.
+        guard update != .deferred else { pending.hold(screen); return }
+        pending.drop()
         let moved = layout?.screen != next.screen || layout?.notch != next.notch || layout?.top != next.top
         layout = next
         canvas.scale = screen.backingScaleFactor
@@ -271,12 +272,14 @@ final class IslandController: NSObject {
         return CGRect(x: bounds.minX, y: top, width: bounds.width, height: height - bounds.minY - top)
     }
 
+    /// Starts the close first, so a held configure sees it running and waits for it to settle.
     func closed() {
-        if let pendingScreen, panel?.isVisible != true, overlays.isEmpty {
-            configure(pendingScreen)
-            return
-        }
         frameChanged()
+        applyPending()
+    }
+
+    private func applyPending() {
+        if let screen = pending.release(blocked: panel?.isVisible == true || !overlays.isEmpty) { configure(screen) }
     }
 
     func setOverlays(_ frames: [CGRect]) {
