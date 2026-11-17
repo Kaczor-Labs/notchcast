@@ -198,6 +198,7 @@ jobs:
           name: snapshot-dist
           path: dist
       - uses: ./src/notchcast/actions/deploy-key
+        id: key
         if: steps.current.outputs.publish == 'true'
         with:
           key: ${{ secrets.DEPLOY_KEY }}
@@ -210,6 +211,17 @@ jobs:
           MAIN: ${{ needs.plan.outputs.main }}
           VERSION: ${{ needs.plan.outputs.version }}
           DIST: ${{ github.workspace }}/dist
+        run: notchcast/publish-snapshot.sh
+      - name: Remove an unpublished tag after a cancel
+        if: cancelled() && steps.key.outcome == 'success'
+        working-directory: src
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ needs.snapshot.outputs.tag }}
+          MAIN: ${{ needs.snapshot.outputs.main }}
+          VERSION: ${{ needs.snapshot.outputs.version }}
+          DIST: ${{ github.workspace }}/dist
+          CLEANUP: 1
         run: notchcast/publish-snapshot.sh
       - name: Remove the deploy key
         if: always()

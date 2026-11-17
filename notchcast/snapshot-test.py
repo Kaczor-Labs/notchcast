@@ -20,6 +20,14 @@ snapshot = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(snapshot)
 
 
+def at(hour, minute=0, second=0):
+    return datetime(2026, 11, 5, hour, minute, second, tzinfo=timezone.utc)
+
+
+def release(tag, published):
+    return {"tagName": tag, "isDraft": False, "publishedAt": published}
+
+
 class SnapshotTests(unittest.TestCase):
     def test_workflow_lets_a_push_supersede_and_gates_publish(self):
         root = Path(__file__).resolve().parent.parent
@@ -43,6 +51,10 @@ class SnapshotTests(unittest.TestCase):
         checked = sections["publish"].index("run: python3 notchcast/snapshot.py check")
         self.assertLess(checked, sections["publish"].index("actions/deploy-key"))
         self.assertLess(checked, sections["publish"].index("run: notchcast/publish-snapshot.sh"))
+        cleanup = sections["publish"].index("if: cancelled() && steps.key.outcome == 'success'")
+        self.assertLess(sections["publish"].index("run: notchcast/publish-snapshot.sh"), cleanup)
+        self.assertLess(cleanup, sections["publish"].index("CLEANUP: 1"))
+        self.assertLess(cleanup, sections["publish"].index("name: Remove the deploy key"))
         self.assertIn('cron: "7,27,47 * * * *"', header)
         self.assertNotIn("snapshot-test.py", (root / "notchcast/ci-tests.sh").read_text())
 
@@ -63,15 +75,39 @@ class SnapshotTests(unittest.TestCase):
                                datetime(2026, 11, 5, 12, tzinfo=timezone.utc), "workflow_dispatch")
         self.assertEqual(result, {"tag": "v1.0.0.snapshot.20261105120000"})
 
-    def test_publication_time_does_not_extend_gate(self):
-        self.assertEqual(self.plan(minute=50), self.plan(minute=49))
+    def test_gate_counts_from_publication_not_tag_time(self):
+        late = [self.releases[0], release("v1.0.0.snapshot.20261105120000", at(12, 20))]
+        self.assertEqual(self.plan(minute=55, releases=late), {"tag": "v1.0.0.snapshot.20261105131000"})
+        self.assertIn("13:10:00", self.plan("workflow_dispatch", minute=55, releases=late)["closed"])
+        tag = "v1.0.0.snapshot.20261105130900"
+        self.assertIn("within 50 minutes", self.stale(at=at(13, 9), tag=tag, releases=late)["error"])
+        self.assertEqual(self.stale(at=at(13, 10), releases=late), {})
 
-    releases = [{"tagName": "v1.0.0", "isDraft": False},
-                {"tagName": "v1.0.0.snapshot.20261105120000", "isDraft": False}]
+    def test_gate_opens_at_exactly_50_minutes(self):
+        self.assertIn("closed", self.plan("workflow_dispatch", at=at(12, 49, 59)))
+        self.assertEqual(self.plan("workflow_dispatch", at=at(12, 50)),
+                         {"tag": "v1.0.0.snapshot.20261105125000"})
+        tag = "v1.0.0.snapshot.20261105124959"
+        self.assertIn("within 50 minutes", self.stale(at=at(12, 49, 59), tag=tag)["error"])
+        self.assertEqual(self.stale(at=at(12, 50), tag="v1.0.0.snapshot.20261105125000"), {})
 
-    def plan(self, event="push", minute=30, commit="old", skip_gate=False):
-        return snapshot.plan(self.releases, "current-main", lambda tag: commit,
-                             datetime(2026, 11, 5, 12, minute, tzinfo=timezone.utc), event, skip_gate)
+    def test_skip_gate_plans_now_and_publishes_inside_gate(self):
+        self.assertEqual(self.plan(skip_gate=True), {"tag": "v1.0.0.snapshot.20261105123000"})
+        self.assertEqual(self.stale(minute=30, tag="v1.0.0.snapshot.20261105123000", skip_gate=True), {})
+        self.assertIn("error", self.stale(minute=30, tag="v1.0.0.snapshot.20261105123000"))
+
+    def test_rerun_with_its_own_release_published(self):
+        tag = "v1.0.0.snapshot.20261105125000"
+        own = self.releases + [release(tag, at(12, 51))]
+        self.assertEqual(self.stale(minute=55, tag=tag, releases=own), {})
+        self.assertEqual(self.plan(minute=55, releases=own, commit="current-main"),
+                         {"skip": "unchanged main current-main"})
+
+    releases = [release("v1.0.0", at(9)), release("v1.0.0.snapshot.20261105120000", at(12))]
+
+    def plan(self, event="push", minute=30, commit="old", skip_gate=False, releases=None, at=None):
+        return snapshot.plan(releases or self.releases, "current-main", lambda tag: commit,
+                             at or globals()["at"](12, minute), event, skip_gate)
 
     def test_dispatch_gate_names_sha_and_open_time(self):
         result = self.plan("workflow_dispatch")
@@ -101,14 +137,14 @@ class SnapshotTests(unittest.TestCase):
         self.assertEqual(self.plan(commit="current-main"), {"skip": "unchanged main current-main"})
 
     def stale(self, current="current-main", minute=50, tag="v1.0.0.snapshot.20261105125000",
-              releases=None, skip_gate=False):
+              releases=None, skip_gate=False, at=None):
         return snapshot.stale(releases or self.releases, tag, "current-main", current,
-                              datetime(2026, 11, 5, 12, minute, tzinfo=timezone.utc), skip_gate)
+                              at or globals()["at"](12, minute), skip_gate)
 
     def test_current_main_at_revision_time_publishes(self):
         self.assertEqual(self.stale(), {})
         self.assertEqual(self.stale(releases=self.releases + [
-            {"tagName": "v1.0.0.snapshot.20261105125000", "isDraft": False}]), {})
+            {"tagName": "v1.0.0.snapshot.20261105125000", "isDraft": True, "publishedAt": None}]), {})
 
     def test_moved_main_skips_stale_build(self):
         self.assertEqual(self.stale(current="newer-main"),
@@ -118,20 +154,23 @@ class SnapshotTests(unittest.TestCase):
         self.assertIn("before its revision time", self.stale(minute=49)["error"])
 
     def test_newer_snapshot_inside_gate_is_error(self):
-        newer = self.releases + [{"tagName": "v1.0.0.snapshot.20261105124000", "isDraft": False}]
+        newer = self.releases + [release("v1.0.0.snapshot.20261105124000", at(12, 40))]
         self.assertIn("within 50 minutes", self.stale(releases=newer)["error"])
         self.assertEqual(self.stale(releases=newer, skip_gate=True), {})
 
     def run_main(self, event, commit, command=None, env=None):
-        pages = json.dumps([[{"tag_name": r["tagName"], "draft": r["isDraft"]} for r in self.releases]])
+        pages = json.dumps([[{"tag_name": r["tagName"], "draft": r["isDraft"],
+                              "published_at": f"{r['publishedAt']:%Y-%m-%dT%H:%M:%SZ}"}
+                             for r in self.releases]])
         clock = unittest.mock.Mock()
         clock.now.return_value = datetime(2026, 11, 5, 12, 30, tzinfo=timezone.utc)
         stream = io.StringIO()
-        with patch.dict(os.environ, GITHUB_EVENT_NAME=event, SKIP_GATE="false", **(env or {})), \
+        with patch.dict(os.environ, {"GITHUB_EVENT_NAME": event, "SKIP_GATE": "false", **(env or {})}), \
                 patch.object(snapshot, "run", side_effect=["", "current-main", pages, commit]), \
                 patch.object(snapshot, "output") as output, patch.object(snapshot, "datetime", clock), \
                 patch.object(snapshot.time, "sleep") as sleep, contextlib.redirect_stdout(stream):
             clock.strptime = datetime.strptime
+            clock.fromisoformat = datetime.fromisoformat
             status = snapshot.main(command)
         return status, stream.getvalue(), sleep, output
 
@@ -154,6 +193,13 @@ class SnapshotTests(unittest.TestCase):
         sleep.assert_not_called()
         output.assert_called_once_with(tag="v1.0.0.snapshot.20261105125000",
                                        version="1.0.0.snapshot.20261105125000", build="7", main="current-main")
+
+    def test_push_with_skip_gate_plans_now(self):
+        status, log, sleep, output = self.run_main(
+            "push", "old", env={"GITHUB_RUN_NUMBER": "7", "SKIP_GATE": "true"})
+        self.assertEqual(status, 0)
+        output.assert_called_once_with(tag="v1.0.0.snapshot.20261105123000",
+                                       version="1.0.0.snapshot.20261105123000", build="7", main="current-main")
 
     def test_wait_sleeps_until_revision(self):
         status, log, sleep, output = self.run_main(
