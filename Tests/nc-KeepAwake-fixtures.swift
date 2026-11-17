@@ -161,6 +161,7 @@ final class Rig {
         NotchcastContext(
             defaults: defaults, preferences: preferences, presenter: presenter,
             hub: NotchcastTapHub(syntheticTag: 0, isTrusted: { false }, makeSession: { _ in fatalError() }),
+            transcription: NotchcastTranscriptionRunner(dictation: FakeDictation()),
             now: { Rig.clock }, onTapsChanged: {})
     }
 
