@@ -293,7 +293,8 @@ struct NotchcastCoreTest {
     static func hotKeyKeysRunTheirCommand(_ defaults: UserDefaults) {
         let system = FakeSystem()
         let controller = NotchcastController(addons: [ShippedSlugAddon.self], defaults: defaults,
-                                             hub: system.makeHub(), presenter: RecordingPresenter())
+                                             hub: system.makeHub(), dictation: FakeDictation(),
+                                             presenter: RecordingPresenter())
         controller.start()
         controller.preferences.set("slugMain", on: true)
         drain()
