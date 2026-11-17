@@ -53,8 +53,8 @@ enum IslandWindowScenes {
         await IslandVerification.pause(0.6)
         IslandVerification.require(panel.level.rawValue == backdrop.level.rawValue + 1 && backdrop.isVisible,
                                    "summon restores island level after modal")
-        IslandVerification.require(abs(panel.frame.maxY - screen.frame.maxY
-            + IslandController.notch(on: screen).height) < 0.01, "restored palette touches island top")
+        IslandVerification.require(abs(panel.frame.maxY - (controller.openingTop ?? .nan)) < 0.01,
+                                   "restored palette touches island top")
         await controller.capture("modal-return")
         let openPicker = PinnedOpenPanel()
         openPicker.testScreen = screen.frame
@@ -85,7 +85,7 @@ enum IslandWindowScenes {
         core.paletteCoordinator.showPalette(mode: .clipboard)
         await IslandVerification.pause(0.2)
         IslandVerification.require(panel.level.rawValue == backdrop.level.rawValue + 1
-            && abs(panel.frame.maxY - screen.frame.maxY + IslandController.notch(on: screen).height) < 0.01,
+            && abs(panel.frame.maxY - (controller.openingTop ?? .nan)) < 0.01,
                                    "mode re-show restores level and top without a new key notification")
         IslandVerification.require(!controller.pressBackdrop() && core.palette.mode == .clipboard,
                                    "expanded backdrop preserves clipboard mode")
