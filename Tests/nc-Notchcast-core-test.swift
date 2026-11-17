@@ -153,6 +153,40 @@ enum RecoveryAddon: NotchcastAddon {
     }
 }
 
+@MainActor
+final class HandoffRecovery: NotchcastModule {
+    let name: String
+    init(_ name: String) { self.name = name }
+    func start() {}
+    func stop() {}
+}
+
+/// Keeps its own context, as a real module does, so a test can call it after the switch detached it.
+@MainActor
+final class HandoffModule: NotchcastModule {
+    static var built: [String: HandoffModule] = [:]
+    let context: NotchcastContext
+    init(_ name: String, _ context: NotchcastContext) {
+        self.context = context
+        Self.built[name] = self
+    }
+    var recoveryName: String? { context.recovery(HandoffRecovery.self)?.name }
+    func start() {}
+    func stop() {}
+}
+
+enum HandoffAddonA: NotchcastAddon {
+    static let switches = [NotchcastSwitch(id: "handA", title: "A", subtitle: "", category: .power)]
+    static func makeModule(_ context: NotchcastContext) -> (any NotchcastModule)? { HandoffModule("A", context) }
+    static func makeRecovery(_ context: NotchcastContext) -> (any NotchcastModule)? { HandoffRecovery("A") }
+}
+
+enum HandoffAddonB: NotchcastAddon {
+    static let switches = [NotchcastSwitch(id: "handB", title: "B", subtitle: "", category: .power)]
+    static func makeModule(_ context: NotchcastContext) -> (any NotchcastModule)? { HandoffModule("B", context) }
+    static func makeRecovery(_ context: NotchcastContext) -> (any NotchcastModule)? { HandoffRecovery("B") }
+}
+
 @main
 @MainActor
 struct NotchcastCoreTest {
@@ -184,6 +218,7 @@ struct NotchcastCoreTest {
         order(defaults)
         sequence(defaults)
         recovery(defaults)
+        recoveryHandoff(defaults)
         islandPresenter(defaults)
         print(failures == 0 ? "PASS NotchcastCoreTest (\(checks) checks)" : "FAILED \(failures)/\(checks)")
         if failures > 0 { exit(1) }
@@ -392,6 +427,30 @@ struct NotchcastCoreTest {
         check("stop cleared the old recovery's tap, so only the fresh one is live", hub.subscriberCount == 1)
         on.stop()
         check("the default-nil add-on stayed untouched throughout", ProbeLog.events.isEmpty)
+    }
+
+    /// A module hands work to its own add-on's recovery, which outlives the switch going off.
+    static func recoveryHandoff(_ defaults: UserDefaults) {
+        HandoffModule.built = [:]
+        let system = FakeSystem()
+        let controller = NotchcastController(addons: [ProbeAddon.self, HandoffAddonA.self, HandoffAddonB.self],
+                                             defaults: defaults, hub: system.makeHub(), dictation: FakeDictation(), presenter: RecordingPresenter())
+        controller.preferences.set("handA", on: true)
+        controller.preferences.set("handB", on: true)
+        controller.start()
+        let a = HandoffModule.built["A"], b = HandoffModule.built["B"]
+        check("a module reaches its add-on's recovery after start", a?.recoveryName == "A")
+        check("add-on B reaches its own recovery, never A's", b?.recoveryName == "B")
+        check("an add-on without a recovery reaches none",
+              controller.context(forSwitch: "probeMain")?.recovery(HandoffRecovery.self) == nil)
+        controller.preferences.set("handA", on: false)
+        drain()
+        check("switching A off detaches its module", controller.context(forSwitch: "handA")?.module == nil)
+        check("a detached module still reaches its recovery while the controller runs", a?.recoveryName == "A")
+        controller.stop()
+        check("no recovery is reachable after controller stop", a?.recoveryName == nil && b?.recoveryName == nil)
+        controller.preferences.set("handA", on: false)
+        controller.preferences.set("handB", on: false)
     }
 
     /// NotchcastCore needs AppCore, which no harness builds, so its presenter line is read as text.
