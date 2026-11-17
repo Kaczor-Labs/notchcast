@@ -7,6 +7,7 @@ final class DownloadsQueueController {
     private(set) var queue: DownloadQueue?
     private(set) var failure: String?
     let destination: URL
+    @ObservationIgnored private let maxConcurrent: Int
     @ObservationIgnored private let file: URL
     @ObservationIgnored private let tools: DownloadToolLookup
     @ObservationIgnored private let report: (String) -> Void
@@ -14,9 +15,11 @@ final class DownloadsQueueController {
     @ObservationIgnored private var transition: Task<Void, Never>?
     @ObservationIgnored private var reportedPersistenceError: String?
 
-    init(file: URL, destination: URL, tools: DownloadToolLookup, report: @escaping (String) -> Void) {
+    init(file: URL, destination: URL, maxConcurrent: Int = 3, tools: DownloadToolLookup,
+         report: @escaping (String) -> Void) {
         self.file = file
         self.destination = destination
+        self.maxConcurrent = maxConcurrent
         self.tools = tools
         self.report = report
     }
@@ -33,7 +36,8 @@ final class DownloadsQueueController {
             await previous?.value
             guard let self, operation == id, !Task.isCancelled else { return }
             do {
-                let loaded = try await DownloadQueue(file: file, destination: destination, tools: tools)
+                let loaded = try await DownloadQueue(
+                    file: file, destination: destination, maxConcurrent: maxConcurrent, tools: tools)
                 guard operation == id, !Task.isCancelled else { await loaded.stop(); return }
                 do {
                     try configure(loaded)
@@ -78,9 +82,9 @@ final class DownloadsQueueController {
     }
 
     /// Adds links to the loaded queue and reports a failed write now, before a stop can hide it.
-    func accept(kind: String, sources: [String]) -> Bool {
+    func accept(kind: String, sources: [String], held: Bool = false) -> Bool {
         guard let queue else { return false }
-        queue.enqueue(kind: kind, sources: sources)
+        queue.enqueue(kind: kind, sources: sources, held: held)
         if let problem = queue.persistenceError {
             reportedPersistenceError = problem
             report(problem)
