@@ -35,6 +35,15 @@ fi
 step script-tests
 python3 notchcast/script-tests.py
 step build
+# lsregister hangs on runners and Xcode only notes a failed registration, so kill it on our products.
+(
+    while kill -0 "$$"; do
+        pgrep -f lsregister | while read -r pid; do
+            case "$(ps -o args= -p "$pid")" in *"lsregister "*" $RUNNER_TEMP/"*) kill -KILL "$pid" || true ;; esac
+        done || true
+        sleep 1
+    done
+) >/dev/null 2>&1 &
 xcodebuild -project Tinycast.xcodeproj -scheme Tinycast -configuration Debug \
     -jobs "${CHAD_BUILD_QUEUE_JOBS:-4}" -derivedDataPath "$RUNNER_TEMP/DerivedData" \
     CODE_SIGNING_ALLOWED=NO build -quiet
