@@ -63,7 +63,7 @@ struct DownloadsModuleTest {
         defer { try? FileManager.default.removeItem(at: root) }
         shape()
         try await lifecycle(root)
-        print("Downloads module: v1 switches, eight commands, queue follows its switch, stop keeps accepted links")
+        print("Downloads module: v1 switches, six commands, queue follows its switch, stop keeps accepted links")
     }
 
     private static func shape() {
@@ -75,10 +75,10 @@ struct DownloadsModuleTest {
                "aria2 needs Downloads, Timestamps needs Distill")
         expect(DownloadsAddon.commands.map(\.slug) == [
             "download-video", "download-audio", "download-youtube-transcript", "save-webpage-as-markdown",
-            "open-downloads-folder", "add-links-to-distill", "run-distill", "open-distill-folder",
+            "add-links-to-distill", "run-distill",
         ], "command slugs")
-        expect(DownloadsAddon.commands.map(\.switchID) == Array(repeating: "downloads", count: 5)
-               + Array(repeating: "distill", count: 3), "each command follows its own switch")
+        expect(DownloadsAddon.commands.map(\.switchID) == Array(repeating: "downloads", count: 4)
+               + Array(repeating: "distill", count: 2), "each command follows its own switch")
     }
 
     private static func lifecycle(_ root: URL) async throws {
@@ -91,7 +91,7 @@ struct DownloadsModuleTest {
         let environment = DownloadsModule.Environment(
             downloads: downloads, queues: queues,
             tools: DownloadToolLookup(directories: [root.appending(path: "bin")], home: root),
-            clipboard: { fakes.clipboard }, openFolder: { fakes.opened.append($0) })
+            clipboard: { fakes.clipboard })
         let hub = NotchcastTapHub(syntheticTag: 0, isTrusted: { false }) { _ in
             preconditionFailure("the harness never installs a tap")
         }
@@ -108,8 +108,7 @@ struct DownloadsModuleTest {
         module.start()
         expect(module.downloads.queue == nil, "switch off: no queue runs")
         command("download-video")
-        command("open-downloads-folder")
-        expect(presenter.log.isEmpty && fakes.opened.isEmpty, "switch off: commands do nothing")
+        expect(presenter.log.isEmpty, "switch off: commands do nothing")
 
         preferences.set("downloads", on: true)
         try await eventually { module.downloads.queue != nil }
@@ -117,8 +116,6 @@ struct DownloadsModuleTest {
         fakes.clipboard = "no links here"
         command("download-video")
         expect(presenter.log.last == "post downloads.noLinks No Web Links in Clipboard", "no links is reported")
-        command("open-downloads-folder")
-        expect(fakes.opened == [downloads], "open Downloads opens ~/Downloads")
 
         preferences.set("downloads", on: false)
         try await eventually { module.downloads.queue == nil }
@@ -175,7 +172,6 @@ struct DownloadsModuleTest {
 
     @MainActor private final class Fakes {
         var clipboard = ""
-        var opened: [URL] = []
     }
 }
 
