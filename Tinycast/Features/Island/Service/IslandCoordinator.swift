@@ -105,13 +105,18 @@ final class IslandCoordinator: NSObject {
 
     var captureSharing: NSWindow.SharingType { core.settings.islandShowsInCaptures ? .readOnly : .none }
 
+    /// Titled windows such as Settings always show in captures, like any app's.
+    static func sharing(for window: NSWindow, captures: NSWindow.SharingType) -> NSWindow.SharingType {
+        window.styleMask.contains(.titled) ? .readOnly : captures
+    }
+
     /// Catches a window created after the last sweep the moment it first shows.
     @objc private func windowShown(_ notification: Notification) {
         guard let window = notification.object as? NSWindow, window.occlusionState.contains(.visible) else { return }
-        window.sharingType = captureSharing
+        window.sharingType = Self.sharing(for: window, captures: captureSharing)
     }
 
-    /// Every Notchcast window, not just the island, follows "Show in screenshots and videos" live.
+    /// Every untitled Notchcast window follows "Show in screenshots and videos" live.
     func applyCaptureSharing() {
         let stuck = shareCaptures()
         // Closing the menu re-enters here; closing the launcher does through `observeVisibility`.
@@ -130,7 +135,9 @@ final class IslandCoordinator: NSObject {
             if sharing == .readOnly, controller.sharingType == .none { reshown.insert(ObjectIdentifier(controller)) }
             controller.sharingType = sharing
         }
-        for window in NSApp.windows where !(window is IslandBackdrop) { window.sharingType = sharing }
+        for window in NSApp.windows where !(window is IslandBackdrop) {
+            window.sharingType = Self.sharing(for: window, captures: sharing)
+        }
         guard sharing == .none else { return [] }
         return backdrops.filter { reshown.contains(ObjectIdentifier($0.value)) }.map(\.key)
     }

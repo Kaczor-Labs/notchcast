@@ -1,7 +1,7 @@
 #if DEBUG
 import AppKit
 
-/// "Show in screenshots and videos" reaches every visible Notchcast window live.
+/// "Show in screenshots and videos" reaches every visible untitled Notchcast window live.
 @MainActor
 enum IslandCaptureScenes {
     static func run(core: AppCore) async {
@@ -102,9 +102,10 @@ enum IslandCaptureScenes {
         let backdrops = islandWindows()
         let shown = NSApp.windows.filter { $0.isVisible || $0 === menu }
         let served = shown.map { serverSharing($0.windowNumber) }
+        let wanted = shown.map { Int(($0.styleMask.contains(.titled) ? .readOnly : expected).rawValue) }
         print("SHARING \(label) lifts=\(liftWindows().count) server=\(served.map { $0.map(String.init) ?? "nil" })")
         IslandVerification.require(!backdrops.isEmpty, "\(label): island windows exist")
-        IslandVerification.require(served.allSatisfy { $0 == Int(expected.rawValue) }, "\(label): every visible window")
+        IslandVerification.require(served == wanted, "\(label): every visible window, titled ones always shown")
     }
 
     private static func serverSharing(_ number: Int) -> Int? {

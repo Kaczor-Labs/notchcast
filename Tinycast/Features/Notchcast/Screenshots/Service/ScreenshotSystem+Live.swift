@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
-// Adapted from Vorssaint 89d2626's capture engine: own windows excluded, windows front to back.
+// Adapted from Vorssaint 89d2626's capture engine: excluded windows left out, windows front to back.
 
 import AppKit
 import ScreenCaptureKit
@@ -8,7 +8,9 @@ import ScreenCaptureKit
 extension ScreenshotSystem {
     static let live = ScreenshotSystem(
         grantAccess: { CGPreflightScreenCaptureAccess() || CGRequestScreenCaptureAccess() },
-        freeze: { point, exclusion in try await freezeDisplays(under: point, excluding: exclusion) },
+        freeze: { point, exclusion in
+            try await freezeDisplays(under: point, excluding: exclusion, captureUI: captureUIWindowIDs())
+        },
         windows: windowsFrontToBack,
         freezeWindows: { ids in try await freezeWindows(ids) },
         cursor: { CGEvent(source: nil)?.location ?? .zero },
@@ -36,13 +38,16 @@ extension ScreenshotSystem {
     }
 
     @concurrent
-    private static func freezeDisplays(under point: CGPoint?, excluding exclusion: ScreenshotExclusion) async throws
-        -> [ScreenshotFrozenDisplay] {
+    private static func freezeDisplays(
+        under point: CGPoint?, excluding exclusion: ScreenshotExclusion, captureUI: Set<UInt32>
+    ) async throws -> [ScreenshotFrozenDisplay] {
         let content = try await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: true)
+        let unshared = unsharedWindowIDs()
         let own = content.windows.filter {
             exclusion.excludes(ScreenshotWindow(
                 id: $0.windowID, ownerPID: $0.owningApplication?.processID ?? 0,
-                bundleID: $0.owningApplication?.bundleIdentifier, frame: $0.frame, layer: $0.windowLayer))
+                bundleID: $0.owningApplication?.bundleIdentifier, frame: $0.frame, layer: $0.windowLayer,
+                isShared: !unshared.contains($0.windowID), isCaptureUI: captureUI.contains($0.windowID)))
         }
         var frozen: [ScreenshotFrozenDisplay] = []
         for display in content.displays where point.map(display.frame.contains) ?? true {
@@ -69,7 +74,22 @@ extension ScreenshotSystem {
         return images
     }
 
-    private static func windowsFrontToBack() -> [ScreenshotWindow] {
+    @MainActor private static func captureUIWindowIDs() -> Set<UInt32> {
+        Set(NSApp.windows.compactMap { $0 is ScreenshotSelectionPanel ? UInt32($0.windowNumber) : nil })
+    }
+
+    /// Read from WindowServer, because AppKit's getter can keep answering none after a change.
+    private static func unsharedWindowIDs() -> Set<UInt32> {
+        let info = CGWindowListCopyWindowInfo([.optionOnScreenOnly, .excludeDesktopElements], kCGNullWindowID)
+        return Set((info as? [[String: Any]] ?? []).compactMap { entry in
+            let sharing = (entry[kCGWindowSharingState as String] as? NSNumber)?.uint32Value
+            guard sharing == CGWindowSharingType.none.rawValue else { return nil }
+            return (entry[kCGWindowNumber as String] as? NSNumber)?.uint32Value
+        })
+    }
+
+    @MainActor static func windowsFrontToBack() -> [ScreenshotWindow] {
+        let captureUI = captureUIWindowIDs()
         let info = CGWindowListCopyWindowInfo([.optionOnScreenOnly, .excludeDesktopElements], kCGNullWindowID)
         return (info as? [[String: Any]] ?? []).compactMap { entry in
             guard let layer = entry[kCGWindowLayer as String] as? Int,
@@ -78,8 +98,11 @@ extension ScreenshotSystem {
                 let bounds = entry[kCGWindowBounds as String] as? NSDictionary,
                 let frame = CGRect(dictionaryRepresentation: bounds)
             else { return nil }
+            let sharing = (entry[kCGWindowSharingState as String] as? NSNumber)?.uint32Value
             return ScreenshotWindow(id: id, ownerPID: pid, frame: frame, layer: layer,
-                                    alpha: entry[kCGWindowAlpha as String] as? Double ?? 1)
+                                    alpha: entry[kCGWindowAlpha as String] as? Double ?? 1,
+                                    isShared: sharing != CGWindowSharingType.none.rawValue,
+                                    isCaptureUI: captureUI.contains(id))
         }
     }
 }
