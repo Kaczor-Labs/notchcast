@@ -7,6 +7,7 @@ final class IslandController: NSObject {
     private let source = IslandFrameSource()
     private let backdrop = IslandBackdrop()
     let canvas = IslandCanvas()
+    lazy var frost = IslandFrost(canvas: canvas, backdrop: backdrop)
     private var surface: IslandSurface<CGSize>?
     private var layout: IslandLayout?
     private var configuration: IslandSurfaceConfiguration?
@@ -34,7 +35,7 @@ final class IslandController: NSObject {
     /// AppKit's getter keeps returning `.none` once set, so it also says the window was ever hidden.
     var sharingType: NSWindow.SharingType {
         get { backdrop.sharingType }
-        set { backdrop.sharingType = newValue }
+        set { backdrop.sharingType = newValue; frost.sharingType = newValue }
     }
     /// A full-screen Space keeps only glances and attached surfaces.
     var onFullScreenSpace = false {
@@ -42,9 +43,7 @@ final class IslandController: NSObject {
     }
     private var glancing = false
     var canOpen: (() -> Bool)?
-    var onOpen: (() -> Void)? {
-        didSet { canvas.onOpen = onOpen }
-    }
+    var onOpen: (() -> Void)? { didSet { canvas.onOpen = onOpen } }
     /// Hands over the pill's rect, top-left origin in the island window, for the pill menu.
     var onMenu: ((CGRect, NSWindow) -> Void)?
     var glance: IslandGlance? {
@@ -72,7 +71,7 @@ final class IslandController: NSObject {
 
     override init() {
         super.init()
-        backdrop.contentView = canvas
+        backdrop.contentView = frost.root
         canvas.wantsLayer = true
         canvas.onAppearanceChange = { [weak self] in self?.paintFrame() }
         canvas.setAccessibilityElement(true)
@@ -319,10 +318,11 @@ final class IslandController: NSObject {
         canvas.restWidth = layout.hasNotch ? layout.notch.width : NotchTheme.Size.islandRest.width
         canvas.restHeight = layout.hasNotch ? layout.notch.height * 2 : NotchTheme.Size.islandRest.height
         canvas.glanceWidth = canvas.glance.map { glanceWidth($0.layout) } ?? 0
+        frost.paint(hasNotch: layout.hasNotch, settled: source.isIdle, reducedMotion: reducedMotion)
         canvas.display()
         clip.path = outline.copy(using: &contentTransform)
         keyline.path = clip.path
-        keyline.lineWidth = 2 * IslandKeyline.width(scale: canvas.scale)
+        keyline.lineWidth = 2 * canvas.keylineWidth
         keyline.strokeColor = canvas.keylineColor
         CATransaction.commit()
         CATransaction.flush()
