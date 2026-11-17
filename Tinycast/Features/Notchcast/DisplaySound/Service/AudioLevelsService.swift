@@ -5,7 +5,6 @@ import Foundation
 final class AudioLevelsService {
     enum Command: Sendable {
         case step(increasing: Bool, fine: Bool)
-        case setVolume(Double)
         case toggleMute
     }
 
@@ -133,9 +132,6 @@ final class AudioLevelsService {
         case .toggleMute:
             guard let muted = initial.muted else { return .fallbackToNativeKeys }
             return await mute(!muted, initial: initial, access: access, sleep: sleep)
-        case let .setVolume(value):
-            guard value.isFinite, (0...1).contains(value) else { return .fallbackToNativeKeys }
-            return await volume([value], initial: initial, increasing: nil, access: access, sleep: sleep)
         case let .step(increasing, fine):
             guard let level = initial.volume else { return .fallbackToNativeKeys }
             let candidates = VolumeStepPolicy.candidates(from: level, increasing: increasing, fine: fine)
@@ -151,7 +147,7 @@ final class AudioLevelsService {
     }
 
     /// A device can round a level away, so each candidate is read back until it moved.
-    @concurrent private static func volume(_ candidates: [Double], initial: AudioOutput, increasing: Bool?,
+    @concurrent private static func volume(_ candidates: [Double], initial: AudioOutput, increasing: Bool,
                                            access: AudioLevelAccess,
                                            sleep: @Sendable (Duration) async throws -> Void) async -> Result {
         guard let original = initial.volume else { return .fallbackToNativeKeys }
@@ -164,10 +160,9 @@ final class AudioLevelsService {
                 do { try await sleep(.milliseconds(20)) } catch { return .cancelled }
                 guard let next = access.output(), next.device == initial.device else { return .cancelled }
                 guard let level = next.volume else { return .fallbackToNativeKeys }
-                let reached = abs(candidate - level) <= VolumeStepPolicy.tolerance
-                    || abs(level - original) > VolumeStepPolicy.tolerance
-                let accepted = increasing.map { VolumeStepPolicy.advanced(from: original, to: level, increasing: $0) }
-                if accepted ?? reached { return .applied(next) }
+                if VolumeStepPolicy.advanced(from: original, to: level, increasing: increasing) {
+                    return .applied(next)
+                }
             }
         }
         return .fallbackToNativeKeys

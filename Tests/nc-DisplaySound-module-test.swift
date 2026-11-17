@@ -255,16 +255,6 @@ enum DisplaySoundModuleTests {
         await until("volume fallback replays") { fake.replayed == [.brightnessDown, .volumeUp] }
         hw { $0.settable = true }
 
-        let slugs = ["volume-0", "volume-25", "volume-50", "volume-75", "volume-100"]
-        precondition(DisplaySoundAddon.commands.map(\.slug) == slugs, "v1 preset slugs")
-        let volumeContext = rig.controller.context(forSwitch: DisplaySoundAddon.volumeID)!
-        DisplaySoundAddon.commands[1].run(volumeContext)
-        await until("preset shown") { close(hw { $0.volume }, 0.25) && close(fake.levels.last?.value, 0.25) }
-        hw { $0.settable = false }
-        DisplaySoundAddon.commands[4].run(volumeContext)
-        await until("a refused preset is said in the island") { fake.notices.last?.isFailure == true }
-        hw { $0.settable = true }
-
         precondition(rig.media(.volumeUp, synthetic: true) == .pass, "our own replay is never caught")
 
         precondition(rig.media(.volumeDown) == .swallow)
