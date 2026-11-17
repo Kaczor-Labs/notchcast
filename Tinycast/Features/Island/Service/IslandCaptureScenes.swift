@@ -1,7 +1,7 @@
 #if DEBUG
 import AppKit
 
-/// "Show in screenshots and videos" reaches every island window and the open pill menu live.
+/// "Show in screenshots and videos" reaches every visible Notchcast window live.
 @MainActor
 enum IslandCaptureScenes {
     static func run(core: AppCore) async {
@@ -47,6 +47,11 @@ enum IslandCaptureScenes {
         guard let again = await openMenu(core, "off again") else { return }
         requireSharing(.none, menu: again, "menu opened while off again")
         await closeMenu(again)
+        core.paletteCoordinator.showPalette(mode: .launcher)
+        core.showMessage("Synthetic report")
+        await IslandVerification.pause(0.5)
+        IslandVerification.require(NSApp.windows.contains { $0 is PalettePanel && $0.isVisible }, "launcher shown")
+        requireSharing(.none, menu: nil, "launcher and a report shown while off")
         await turn(core, true)
         requireSharing(.readOnly, menu: nil, "turned on at the end")
         UserDefaults.standard.removeObject(forKey: key)
@@ -87,10 +92,11 @@ enum IslandCaptureScenes {
     /// Reads WindowServer, which capture obeys: AppKit's getter keeps reporting `.none` once set.
     private static func requireSharing(_ expected: NSWindow.SharingType, menu: MenuPanel?, _ label: String) {
         let backdrops = islandWindows()
-        let served = (backdrops + [menu].compactMap(\.self)).map { serverSharing($0.windowNumber) }
+        let shown = NSApp.windows.filter { $0.isVisible || $0 === menu }
+        let served = shown.map { serverSharing($0.windowNumber) }
         print("SHARING \(label) server=\(served.map { $0.map(String.init) ?? "nil" })")
         IslandVerification.require(!backdrops.isEmpty, "\(label): island windows exist")
-        IslandVerification.require(served.allSatisfy { $0 == Int(expected.rawValue) }, "\(label): every island window")
+        IslandVerification.require(served.allSatisfy { $0 == Int(expected.rawValue) }, "\(label): every visible window")
     }
 
     private static func serverSharing(_ number: Int) -> Int? {
