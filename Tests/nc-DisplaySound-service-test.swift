@@ -496,9 +496,6 @@ enum DisplaySoundServiceTests {
         hw { $0.device = 1; $0.volume = 1 }
         check(await service.apply(.step(increasing: true, fine: false))
               == .applied(AudioOutput(device: 1, volume: 1, muted: false)), "at the top stays applied")
-        check(await service.apply(.setVolume(0.25)) == .applied(AudioOutput(device: 1, volume: 0.25, muted: false)),
-              "a preset sets the level")
-        check(await service.apply(.setVolume(1.5)) == .fallbackToNativeKeys, "an out-of-range preset is refused")
         service.stop()
         check(await service.apply(.toggleMute) == .cancelled, "stopped: cancelled")
     }
@@ -589,8 +586,8 @@ enum DisplaySoundServiceTests {
         service.start()
         await until("listeners bound to the first device") { hw { $0.watched.last ?? nil } == 1 }
         hw { $0.device = 2 }
-        check(await service.apply(.setVolume(0.3)) == .applied(AudioOutput(device: 2, volume: 0.3, muted: false)),
-              "applied on the new device")
+        check(await service.apply(.step(increasing: false, fine: false))
+              == .applied(AudioOutput(device: 2, volume: 0.4375, muted: false)), "applied on the new device")
         await until("finding 8: listeners follow the applied device") { hw { $0.watched.last ?? nil } == 2 }
         service.stop()
         print("finding 8 audio rebind: PASS")

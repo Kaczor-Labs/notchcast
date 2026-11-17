@@ -11,9 +11,7 @@
     "No display can be controlled." : {},
     "Not responding" : {},
     "Replaces the macOS volume overlay." : {},
-    "Set Volume to %lld%%" : {},
     "Software dimming" : {},
-    "The current audio output does not support software volume." : {},
     "Volume in Island" : {}
   },
   "version" : "1.0"
