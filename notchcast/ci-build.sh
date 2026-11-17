@@ -35,6 +35,17 @@ fi
 step script-tests
 python3 notchcast/script-tests.py
 step build
+# Xcode registers every built app with LaunchServices and no build setting turns that off; on the runners lsregister
+# has hung for the whole job. Xcode treats a failed registration as a note, so while this script runs, every
+# lsregister on a product under RUNNER_TEMP is killed as it starts.
+(
+    while kill -0 "$$"; do
+        pgrep -f lsregister | while read -r pid; do
+            case "$(ps -o args= -p "$pid")" in *"lsregister "*" $RUNNER_TEMP/"*) kill -KILL "$pid" || true ;; esac
+        done || true
+        sleep 1
+    done
+) >/dev/null 2>&1 &
 xcodebuild -project Tinycast.xcodeproj -scheme Tinycast -configuration Debug \
     -jobs "${CHAD_BUILD_QUEUE_JOBS:-4}" -derivedDataPath "$RUNNER_TEMP/DerivedData" \
     CODE_SIGNING_ALLOWED=NO build -quiet
