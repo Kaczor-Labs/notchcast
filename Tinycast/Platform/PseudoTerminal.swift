@@ -6,10 +6,29 @@ final class PseudoTerminal: @unchecked Sendable {
     /// Everything the command writes to any of its three descriptors arrives here.
     let parentEnd: Int32
     let processID: pid_t
+    /// The last close of a child end discards unread output, so ours outlives the command.
+    private var childEnd: Int32
+    /// A kqueue on the parent end and the command's exit, so a wait needs no clock.
+    private let events: Int32
+    /// Only the one drain queue touches mutable state, so `@unchecked Sendable` holds.
+    private var exited = false
 
-    private init(parentEnd: Int32, processID: pid_t) {
+    private init(parentEnd: Int32, childEnd: Int32, events: Int32, processID: pid_t) {
         self.parentEnd = parentEnd
+        self.childEnd = childEnd
+        self.events = events
         self.processID = processID
+        // A command already gone is a zombie, which kqueue refuses to watch.
+        exited = !Self.watch(
+            events, ident: UInt(processID), filter: EVFILT_PROC, fflags: NOTE_EXIT)
+    }
+
+    private static func watch(_ events: Int32, ident: UInt, filter: Int32, fflags: UInt32) -> Bool {
+        var change = kevent(
+            ident: ident, filter: Int16(filter), flags: UInt16(EV_ADD | EV_RECEIPT),
+            fflags: fflags, data: 0, udata: nil)
+        var receipt = change
+        return kevent(events, &change, 1, &receipt, 1, nil) == 1 && receipt.data == 0
     }
 
     static func spawn(
@@ -20,11 +39,14 @@ final class PseudoTerminal: @unchecked Sendable {
         var childEnd: Int32 = 0
         var settings = terminalSettings()
         guard openpty(&parentEnd, &childEnd, nil, &settings, nil) == 0 else { return nil }
+        // Any other spawn in the app, not just ours, must not inherit the pty and hold it open.
+        _ = fcntl(parentEnd, F_SETFD, FD_CLOEXEC)
+        _ = fcntl(childEnd, F_SETFD, FD_CLOEXEC)
 
         var attributes: posix_spawnattr_t?
         posix_spawnattr_init(&attributes)
         // The whole point: the child leads its session, so `kill(-pid)` reaches it all.
-        posix_spawnattr_setflags(&attributes, Int16(POSIX_SPAWN_SETSID))
+        posix_spawnattr_setflags(&attributes, Int16(POSIX_SPAWN_SETSID | POSIX_SPAWN_CLOEXEC_DEFAULT))
 
         var actions: posix_spawn_file_actions_t?
         posix_spawn_file_actions_init(&actions)
@@ -40,26 +62,62 @@ final class PseudoTerminal: @unchecked Sendable {
             posix_spawn_file_actions_destroy(&actions)
         }
 
+        let events = kqueue()
+        guard events >= 0,
+            watch(events, ident: UInt(parentEnd), filter: EVFILT_READ, fflags: 0)
+        else {
+            if events >= 0 { Darwin.close(events) }
+            Darwin.close(childEnd)
+            Darwin.close(parentEnd)
+            return nil
+        }
         var processID: pid_t = 0
         let argv = CStringArray([executable] + arguments)
         let envp = CStringArray(environment.map { "\($0.key)=\($0.value)" })
         let status = posix_spawn(
             &processID, executable, &actions, &attributes, argv.pointers, envp.pointers)
-        Darwin.close(childEnd)
         guard status == 0, processID > 0 else {
+            Darwin.close(events)
+            Darwin.close(childEnd)
             Darwin.close(parentEnd)
             return nil
         }
         // Stands in for `/dev/null` stdin: a prompting command reads EOF and moves on.
         var endOfTransmission: UInt8 = 0x04
         _ = write(parentEnd, &endOfTransmission, 1)
-        return PseudoTerminal(parentEnd: parentEnd, processID: processID)
+        return PseudoTerminal(
+            parentEnd: parentEnd, childEnd: childEnd, events: events, processID: processID)
     }
 
     /// Signals the session rather than the process — the negative pid is what reaches the children.
     func signalSession(_ signal: Int32) {
         guard processID > 0 else { return }
         kill(-processID, signal)
+    }
+
+    /// Waits at most `timeout` (nil: however long it takes) for output; a hangup counts as output.
+    func awaitOutput(within timeout: Duration?) -> Bool {
+        // Once the command is gone, the first quiet look means every byte it wrote has been read.
+        let settling = exited && childEnd >= 0
+        let patience = settling ? .zero : timeout
+        var limit = timespec(
+            tv_sec: Int(patience?.components.seconds ?? 0),
+            tv_nsec: Int((patience?.components.attoseconds ?? 0) / 1_000_000_000))
+        var fired = [kevent(), kevent()]
+        var count: Int32
+        repeat {
+            count = withUnsafePointer(to: &limit) { limit in
+                kevent(events, nil, 0, &fired, 2, patience == nil ? nil : limit)
+            }
+        } while count < 0 && errno == EINTR
+        // A failed wait says nothing about the pty; the `read` that follows reports it.
+        guard count >= 0 else { return true }
+        let output = fired.prefix(Int(count)).contains { $0.filter == Int16(EVFILT_READ) }
+        if fired.prefix(Int(count)).contains(where: { $0.filter == Int16(EVFILT_PROC) }) {
+            exited = true
+        }
+        if settling, !output { releaseChildEnd() }
+        return output
     }
 
     /// Blocks until the command exits. A signalled death reports the signal, the way a shell does.
@@ -71,7 +129,16 @@ final class PseudoTerminal: @unchecked Sendable {
     }
 
     func close() {
+        releaseChildEnd()
+        Darwin.close(events)
         Darwin.close(parentEnd)
+    }
+
+    /// Until this, the parent end never reads end-of-file.
+    private func releaseChildEnd() {
+        guard childEnd >= 0 else { return }
+        Darwin.close(childEnd)
+        childEnd = -1
     }
 
     /// Canonical for whole lines, echo off so the EOF byte never comes back as text.
