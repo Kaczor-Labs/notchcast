@@ -1,0 +1,20 @@
+{
+  "sourceLanguage" : "en",
+  "strings" : {
+    "Brightness" : {},
+    "Brightness keys control every display, external ones too." : {},
+    "Brightness of %@" : {},
+    "Built-in" : {},
+    "DDC, no reply" : {},
+    "Dim" : {},
+    "Display Brightness" : {},
+    "No display can be controlled." : {},
+    "Not responding" : {},
+    "Replaces the macOS volume overlay." : {},
+    "Set Volume to %lld%%" : {},
+    "Software dimming" : {},
+    "The current audio output does not support software volume." : {},
+    "Volume in Island" : {}
+  },
+  "version" : "1.0"
+}
