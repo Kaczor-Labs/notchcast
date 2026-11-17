@@ -55,6 +55,7 @@ class SnapshotTests(unittest.TestCase):
         self.assertLess(sections["publish"].index("run: notchcast/publish-snapshot.sh"), cleanup)
         self.assertLess(cleanup, sections["publish"].index("CLEANUP: 1"))
         self.assertLess(cleanup, sections["publish"].index("name: Remove the deploy key"))
+        self.assertNotIn("needs.snapshot.outputs", sections["publish"])
         self.assertIn('cron: "7,27,47 * * * *"', header)
         self.assertNotIn("snapshot-test.py", (root / "notchcast/ci-tests.sh").read_text())
 

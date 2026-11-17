@@ -215,9 +215,9 @@ jobs:
         working-directory: src
         env:
           GH_TOKEN: ${{ github.token }}
-          TAG: ${{ needs.snapshot.outputs.tag }}
-          MAIN: ${{ needs.snapshot.outputs.main }}
-          VERSION: ${{ needs.snapshot.outputs.version }}
+          TAG: ${{ needs.plan.outputs.tag }}
+          MAIN: ${{ needs.plan.outputs.main }}
+          VERSION: ${{ needs.plan.outputs.version }}
           DIST: ${{ github.workspace }}/dist
           CLEANUP: 1
         run: notchcast/publish-snapshot.sh
