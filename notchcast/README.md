@@ -11,7 +11,7 @@ Our commits:
 - `Notchcast: read releases from kaczordodgers/notchcast`: the in-app updater reads this repo's releases.
 - `Notchcast: remove upstream workflows`: none of upstream's workflows run here. The sync makes this commit afresh on every replay, so upstream workflow edits never conflict and new ones never land.
 - `Notchcast: tooling` and later fixes: this folder and `.github/workflows/`.
-- `Notchcast: bundle id app.notchcast, URL scheme notchcast, name Notchcast`: our own app identity (Debug: `app.notchcast.dev`). The in-app updater treats it as a development build and stays inert; `notchcast.update` installs releases.
+- `Notchcast: bundle id app.notchcast, URL scheme notchcast, name Notchcast`: our own app identity (Debug: `app.notchcast.dev`, name Notchcast Dev; a per-task test copy is named from its bundle id, [fork-strings.md](docs/fork-strings.md#channel-name)). The in-app updater treats it as a development build and stays inert; `notchcast.update` installs releases.
 - `Notchcast: generated files`, always last: the root `README.md` (from `notchcast/README.public.md`), `Tinycast.xcodeproj` (XcodeGen from `project.yml`) and, when our commits change `Scripts/raycast-runtime/`, `Tinycast/Resources/RaycastRuntime.generated.js`. The sync makes it afresh; our other commits never carry these files (replay drops them from each commit), so upstream edits to them never conflict. It also removes every path in `notchcast/prune-paths.txt` (upstream files the app does not need, e.g. `website/`), so upstream edits to them never conflict either. Edit `notchcast/README.public.md` or `project.yml`, never the generated files.
 
 ## Sync (`.github/workflows/sync.yml`)
