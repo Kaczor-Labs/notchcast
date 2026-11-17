@@ -440,8 +440,7 @@ def issue(action, kind, *args):
 
 
 def design_notice(tree, old, new):
-    """One notchcast-design issue per sync that brings upstream design-system changes; update.sh turns it into a
-    private task and closes it."""
+    """One notchcast-design issue per sync that brings upstream design-system changes; it stays open as the to-do."""
     cfg = config()
     url = f"https://github.com/{cfg['UPSTREAM_REPO']}/commit"
     commits = run("git", "log", f"--format=- [`%h`]({url}/%H) %s", f"{old}..{new}", "--", *DESIGN_PATHS, cwd=tree)
