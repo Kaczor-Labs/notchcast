@@ -24,7 +24,7 @@ struct IslandArtAppearanceTest {
     }
 
     /// Draws into a transparent bitmap under the drawing appearance `dark`.
-    @MainActor static func render(_ size: CGSize, dark: Bool, _ draw: @MainActor () -> Void) -> NSBitmapImageRep {
+    @MainActor static func render(_ size: CGSize, dark: Bool, _ draw: () -> Void) -> NSBitmapImageRep {
         let rep = NSBitmapImageRep(bitmapDataPlanes: nil, pixelsWide: Int(size.width) * scale,
             pixelsHigh: Int(size.height) * scale, bitsPerSample: 8, samplesPerPixel: 4, hasAlpha: true,
             isPlanar: false, colorSpaceName: .deviceRGB, bytesPerRow: 0, bitsPerPixel: 0)!
@@ -34,7 +34,7 @@ struct IslandArtAppearanceTest {
         NSGraphicsContext.current = context
         NSColor.clear.setFill()
         CGRect(origin: .zero, size: size).fill(using: .copy)
-        appearance(dark).performAsCurrentDrawingAppearance { draw() }
+        appearance(dark).performAsCurrentDrawingAppearance(draw)
         NSGraphicsContext.current = saved
         return rep
     }
@@ -69,33 +69,37 @@ struct IslandArtAppearanceTest {
         let level = IslandLevel(source: "volume", symbol: "speaker.wave.2.fill", label: "Volume", value: 0.6)
         let levelArt = make(dark: true) { IslandLevelArt(level, notch: false) }
         let levelSize = levelArt.bandSize
-        let draw = { levelArt.draw(in: CGRect(origin: .zero, size: levelSize)) }
+        func drawn(_ art: IslandLevelArt, dark: Bool) -> NSBitmapImageRep {
+            render(levelSize, dark: dark) { art.draw(in: CGRect(origin: .zero, size: levelSize)) }
+        }
         let track = NotchTheme.Size.islandLevelTrack
         let fillX = Int((levelSize.width - edge - track + 10) * CGFloat(scale))
         let fillY = Int(levelSize.height / 2 * CGFloat(scale))
 
-        let levelDark = render(levelSize, dark: true, draw)
-        let levelFlipped = render(levelSize, dark: false, draw)
+        let levelDark = drawn(levelArt, dark: true)
+        let levelFlipped = drawn(levelArt, dark: false)
         let levelFresh = make(dark: false) { IslandLevelArt(level, notch: false) }
-        let levelFreshLight = render(levelSize, dark: false) { levelFresh.draw(in: CGRect(origin: .zero, size: levelSize)) }
+        let levelFreshLight = drawn(levelFresh, dark: false)
         let darkFill = pixel(levelDark, fillX, fillY), lightFill = pixel(levelFlipped, fillX, fillY)
         precondition(darkFill == [255, 255, 255, 255], "The Dark level fill is white: \(darkFill)")
         precondition(lightFill == [0, 0, 0, 255], "The Light level fill is black ink: \(lightFill)")
         precondition(lightFill == pixel(levelFreshLight, fillX, fillY),
                      "A flipped level pixel equals a fresh Light one: \(lightFill) vs \(pixel(levelFreshLight, fillX, fillY))")
         precondition(bytes(levelFlipped) == bytes(levelFreshLight), "A flipped level art draws as a fresh Light one")
-        precondition(bytes(render(levelSize, dark: true, draw)) == bytes(levelDark), "Flipping back restores Dark")
+        precondition(bytes(drawn(levelArt, dark: true)) == bytes(levelDark), "Flipping back restores Dark")
 
         let cell = NotchTheme.Typography.islandGlanceNSFont.pointSize + Theme.Spacing.xs
         let notice = IslandNotice(id: "f", symbol: "exclamationmark.arrow.circlepath", text: "Update failed",
                                   isFailure: true)
         let noticeArt = make(dark: true) { IslandNoticeArt(notice, notch: false) }
         let pill = CGSize(width: 220, height: 32)
-        let drawNotice = { noticeArt.draw(in: CGRect(origin: .zero, size: pill)) }
-        let noticeDark = render(pill, dark: true, drawNotice)
-        let noticeFlipped = render(pill, dark: false, drawNotice)
+        func shown(_ art: IslandNoticeArt, dark: Bool) -> NSBitmapImageRep {
+            render(pill, dark: dark) { art.draw(in: CGRect(origin: .zero, size: pill)) }
+        }
+        let noticeDark = shown(noticeArt, dark: true)
+        let noticeFlipped = shown(noticeArt, dark: false)
         let noticeFresh = make(dark: false) { IslandNoticeArt(notice, notch: false) }
-        let noticeFreshLight = render(pill, dark: false) { noticeFresh.draw(in: CGRect(origin: .zero, size: pill)) }
+        let noticeFreshLight = shown(noticeFresh, dark: false)
         let glyphBox = CGRect(x: edge, y: 0, width: cell, height: pill.height)
         let textBox = CGRect(x: edge + cell + Theme.Spacing.sm, y: 0,
                              width: pill.width - edge - cell - Theme.Spacing.sm, height: pill.height)
@@ -113,7 +117,7 @@ struct IslandArtAppearanceTest {
         precondition(wordDark[0] > 200 && wordLight[0] < 55,
                      "The notice text is white in Dark, black ink in Light: \(wordDark) \(wordLight)")
         precondition(bytes(noticeFlipped) == bytes(noticeFreshLight), "A flipped notice art draws as a fresh Light one")
-        precondition(bytes(render(pill, dark: true, drawNotice)) == bytes(noticeDark), "Flipping back restores Dark")
+        precondition(bytes(shown(noticeArt, dark: true)) == bytes(noticeDark), "Flipping back restores Dark")
 
         let canvas = IslandCanvas(frame: CGRect(origin: .zero, size: levelSize))
         canvas.outline = CGPath(rect: canvas.bounds, transform: nil)
