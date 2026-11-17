@@ -20,6 +20,7 @@ enum SettingsFileKey: String, CaseIterable, Sendable {
     case paletteDraggable = "appearance.dragToReposition"
     case islandShowsInCaptures = "appearance.islandShowsInCaptures"
     case islandOutlineWhenOpen = "appearance.islandOutlineWhenOpen"
+    case islandPosition = "appearance.islandPosition"
     case hyperKey = "hyperKey.key"
     case hyperKeyIncludesShift = "hyperKey.includesShift"
     case hyperKeyQuickPress = "hyperKey.quickPress"
