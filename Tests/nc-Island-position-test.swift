@@ -71,10 +71,25 @@ enum IslandPositionTest {
             expect(shapes[.expanded]!.top == shapes[.idle]!.top, "\(position) notched expanded top jumps")
         }
 
+        for frame in [CGRect(x: 0, y: 0, width: 1367, height: 768), CGRect(x: -1367, y: 0, width: 1367, height: 768),
+                      CGRect(x: 0.5, y: 0, width: 1366, height: 768)] {
+            let odd = IslandLayout(screen: frame, notch: .zero, canvas: canvas, position: .topEdge, menuBar: 30,
+                                   pill: pill.height)
+            let left = odd.window.minX + (canvas.width - pill.width) / 2
+            expect(left == left.rounded(), "pill left \(left) on a \(frame.width) pt screen at x \(frame.minX) is off the point grid")
+            expect(abs(left + pill.width / 2 - frame.midX) <= 0.5, "pill centre \(left + pill.width / 2) strays from \(frame.midX)")
+            let panel = odd.openingX(width: launcher.width)
+            expect(panel == panel.rounded(), "panel left \(panel) is off the point grid")
+            expect(panel + launcher.width / 2 == left + pill.width / 2, "panel and pill centre lines drift apart")
+            let hung = IslandLayout(screen: frame, notch: CGSize(width: 185, height: 32), canvas: canvas,
+                                    position: .topEdge, menuBar: 32, pill: pill.height)
+            expect(hung.window.minX == frame.midX - canvas.width / 2, "a notch moved the window x")
+        }
+
         let current = IslandSurfaceConfiguration(notch: .zero, top: 0, scale: 1)
         let moved = IslandSurfaceConfiguration(notch: .zero, top: 3, scale: 1)
         expect(moved.update(from: current, paletteVisible: false, hasOverlays: false) == .recreate,
                "a new pill top rebuilds the engine surface")
-        print("PASS IslandPosition drops 0/3/6 on a 30 pt bar, one anchor at rest and open, notch ignores it")
+        print("PASS IslandPosition drops 0/3/6 on a 30 pt bar, one anchor at rest and open, whole-point x on odd screens, notch ignores it")
     }
 }
