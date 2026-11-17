@@ -11,7 +11,7 @@ struct NotchcastSettingsView: View {
             Section {
                 Toggle(isOn: $settings.islandShowsInCaptures) {
                     SettingsRowTitle(NotchcastSettingsSearch.island, NotchcastSettingsSearch.showsInCaptures)
-                    Text("Off hides the island from screenshots, recordings and screen sharing.",
+                    Text("Off hides every Notchcast window: the island, launcher, questions, reports and this Settings window.",
                          tableName: "Notchcast")
                 }
                 Toggle(isOn: $settings.islandOutlineWhenOpen) {
