@@ -50,7 +50,7 @@ private struct NotchcastSwitchRows: View {
         .settingsEnabled(dependenciesMet)
         if preferences.isEnabled(item.id), needsAccessibility {
             LabeledContent {
-                Button(String(localized: "Grant access…", table: "Notchcast")) { Permissions.openAccessibilitySettings() }
+                Button("Grant Access…") { Permissions.openAccessibilitySettings() }
             } label: {
                 Label(
                     String(localized: "Needs Accessibility access", table: "Notchcast"),

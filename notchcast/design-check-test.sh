@@ -5,7 +5,7 @@ scratch=$(mktemp -d)
 trap 'rm -rf "$scratch"' EXIT
 mkdir -p "$scratch/bin" "$scratch/repo/notchcast" "$scratch/tmp"
 cp "$tools/design-check.sh" "$scratch/repo/notchcast/"
-printf 'DESIGN_CHECK_VERSION=test\n' > "$scratch/repo/notchcast/config.env"
+printf 'DESIGN_CHECK_SPEC=test\n' > "$scratch/repo/notchcast/config.env"
 cat > "$scratch/bin/git" <<'STUB'
 #!/bin/bash
 case "$1" in

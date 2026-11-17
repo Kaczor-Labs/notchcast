@@ -182,7 +182,7 @@ Reference: HIG Live Activities, "Focus on simple, direct actions."
 6. Keycaps `.outline`; buttons bare at rest, `rowHover`, `keyCapFill` on press (§7).
 7. Menus through `PopoverMenu` (§8), with no glass on the menu, its search field or its rows; questions through `DialogController`; reports through `HUDPresenter` or an `IslandNotice` (§10).
 8. Every custom control has an accessibility label and traits; movement returns `nil` under Reduce Motion; `.tooltip`, never `.help()`, in the palette (a view shared with a stock surface calls `.paletteHelp`, which is `.tooltip` on the island and `.help` elsewhere).
-9. Copy: Title Case for commands, buttons and outcomes; sentence case for settings rows; English only (`fork-strings.md`).
+9. Copy: Title Case for commands, buttons, menu items and outcomes, as stock macOS does ("Grant Access…"); sentence case for settings rows and other text; English only (`fork-strings.md`). `notchcast/design-check.sh` enforces the same split; an editor title in Title Case, like upstream's "Add MCP Server", takes an `ai-design-check-ignore-next-line sentence-case` line.
 10. Dark only: the island is pinned Dark; check Dark, never Light.
 11. Every progress activity ends with a result notice, success or failure (§10).
 12. Beside the notch show a glyph and a short status only; text expands below the notch on notched displays, and stays centred in the pill elsewhere (§10).

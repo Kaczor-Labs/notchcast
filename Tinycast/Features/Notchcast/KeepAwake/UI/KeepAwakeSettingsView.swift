@@ -202,6 +202,7 @@ private struct KeepAwakeAppPanel: View {
     var body: some View {
         VStack(alignment: .leading, spacing: Theme.Spacing.xl) {
             SettingsEditorHeader(
+                // ai-design-check-ignore-next-line sentence-case -- editor title, like "Add MCP Server"
                 title: LocalizedStringResource("Add Apps", table: "NotchcastKeepAwake"),
                 subtitle: LocalizedStringResource(
                     "Keep Awake stays on while any chosen app is open.", table: "NotchcastKeepAwake"))
