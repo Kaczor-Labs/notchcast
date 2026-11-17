@@ -12,14 +12,15 @@ on:
         default: false
 permissions:
   contents: read
+# A push supersedes the run in flight; cron and dispatch queue behind it.
 concurrency:
   group: snapshot
-  cancel-in-progress: false
+  cancel-in-progress: ${{ github.event_name == 'push' }}
 jobs:
   plan:
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
-    timeout-minutes: 65
+    timeout-minutes: 10
     outputs:
       tag: ${{ steps.plan.outputs.tag }}
       main: ${{ steps.plan.outputs.main }}
@@ -33,12 +34,27 @@ jobs:
           persist-credentials: false
       - name: Test snapshot planning
         run: python3 notchcast/snapshot-test.py
-      - name: Plan snapshot, waiting for the gate on Linux
+      - name: Plan snapshot at the gate's opening time
         id: plan
         env:
           GH_TOKEN: ${{ github.token }}
           SKIP_GATE: ${{ inputs.skip_gate }}
         run: python3 notchcast/snapshot.py
+  gate:
+    needs: plan
+    if: needs.plan.outputs.tag != ''
+    runs-on: ubuntu-latest
+    timeout-minutes: 65
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ needs.plan.outputs.main }}
+          sparse-checkout: notchcast
+          persist-credentials: false
+      - name: Wait for the 50-minute gate on Linux
+        env:
+          TAG: ${{ needs.plan.outputs.tag }}
+        run: python3 notchcast/snapshot.py wait
   snapshot:
     needs: plan
     if: needs.plan.outputs.tag != ''
@@ -150,7 +166,7 @@ jobs:
           fi
   # Its own job, so "Re-run failed jobs" after a GitHub 5xx or SSH failure reuses the build above instead of rebuilding.
   publish:
-    needs: snapshot
+    needs: [snapshot, gate]
     if: needs.snapshot.outputs.green == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 30
@@ -163,14 +179,26 @@ jobs:
           ref: ${{ needs.snapshot.outputs.main }}
           path: src
           persist-credentials: false
+      - name: Check main and the gate still hold
+        id: current
+        working-directory: src
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ needs.snapshot.outputs.tag }}
+          MAIN: ${{ needs.snapshot.outputs.main }}
+          SKIP_GATE: ${{ inputs.skip_gate }}
+        run: python3 notchcast/snapshot.py check
       - uses: actions/download-artifact@v8
+        if: steps.current.outputs.publish == 'true'
         with:
           name: snapshot-dist
           path: dist
       - uses: ./src/notchcast/actions/deploy-key
+        if: steps.current.outputs.publish == 'true'
         with:
           key: ${{ secrets.DEPLOY_KEY }}
       - name: Tag and publish snapshot
+        if: steps.current.outputs.publish == 'true'
         working-directory: src
         env:
           GH_TOKEN: ${{ github.token }}

@@ -21,7 +21,7 @@ spec.loader.exec_module(snapshot)
 
 
 class SnapshotTests(unittest.TestCase):
-    def test_workflow_holds_snapshot_lock_through_publish(self):
+    def test_workflow_lets_a_push_supersede_and_gates_publish(self):
         root = Path(__file__).resolve().parent.parent
         revision = os.environ.get("SNAPSHOT_WORKFLOW_REF")
         workflow = (subprocess.check_output(
@@ -29,13 +29,20 @@ class SnapshotTests(unittest.TestCase):
             if revision else (root / ".github/workflows/snapshot.yml").read_text())
         header, jobs = workflow.split("\njobs:\n", 1)
         self.assertEqual(len(re.findall(r"^\s*concurrency:", workflow, re.M)), 1)
-        self.assertIn("\nconcurrency:\n  group: snapshot\n  cancel-in-progress: false\n", header + "\n")
+        self.assertIn("\nconcurrency:\n  group: snapshot\n"
+                      "  cancel-in-progress: ${{ github.event_name == 'push' }}\n", header + "\n")
         self.assertNotRegex(jobs, r"(?m)^\s+concurrency:")
         sections = dict(re.findall(r"^  (\w+):\n(.*?)(?=^  \w+:\n|\Z)", jobs, re.M | re.S))
         self.assertNotIn("check", sections)
         self.assertLess(sections["plan"].index("run: python3 notchcast/snapshot-test.py"),
                         sections["plan"].index("run: python3 notchcast/snapshot.py"))
         self.assertIn("    runs-on: ubuntu-latest\n", sections["plan"])
+        self.assertIn("    runs-on: ubuntu-latest\n", sections["gate"])
+        self.assertIn("run: python3 notchcast/snapshot.py wait", sections["gate"])
+        self.assertIn("    needs: [snapshot, gate]\n", sections["publish"])
+        checked = sections["publish"].index("run: python3 notchcast/snapshot.py check")
+        self.assertLess(checked, sections["publish"].index("actions/deploy-key"))
+        self.assertLess(checked, sections["publish"].index("run: notchcast/publish-snapshot.sh"))
         self.assertIn('cron: "7,27,47 * * * *"', header)
         self.assertNotIn("snapshot-test.py", (root / "notchcast/ci-tests.sh").read_text())
 
@@ -57,8 +64,7 @@ class SnapshotTests(unittest.TestCase):
         self.assertEqual(result, {"tag": "v1.0.0.snapshot.20261105120000"})
 
     def test_publication_time_does_not_extend_gate(self):
-        self.assertIn("tag", self.plan(minute=50))
-        self.assertEqual(self.plan(minute=49), {"wait": 60})
+        self.assertEqual(self.plan(minute=50), self.plan(minute=49))
 
     releases = [{"tagName": "v1.0.0", "isDraft": False},
                 {"tagName": "v1.0.0.snapshot.20261105120000", "isDraft": False}]
@@ -81,49 +87,86 @@ class SnapshotTests(unittest.TestCase):
         self.assertEqual(self.plan("workflow_dispatch", commit="current-main"),
                          {"error": "unchanged main current-main"})
 
-    def test_push_wait_seconds(self):
-        self.assertEqual(self.plan(), {"wait": 1200})
+    def test_closed_gate_plans_its_opening_time(self):
+        self.assertEqual(self.plan(), {"tag": "v1.0.0.snapshot.20261105125000"})
+        self.assertEqual(self.plan("schedule"), {"tag": "v1.0.0.snapshot.20261105125000"})
 
     def test_gate_open_plans_tag(self):
         self.assertEqual(self.plan(minute=50), {"tag": "v1.0.0.snapshot.20261105125000"})
 
-    def test_automatic_unchanged_skips_after_wait(self):
+    def test_gate_open_plans_now(self):
+        self.assertEqual(self.plan(minute=55), {"tag": "v1.0.0.snapshot.20261105125500"})
+
+    def test_automatic_unchanged_skips(self):
         self.assertEqual(self.plan(commit="current-main"), {"skip": "unchanged main current-main"})
 
-    def run_main(self, event, commits):
+    def stale(self, current="current-main", minute=50, tag="v1.0.0.snapshot.20261105125000",
+              releases=None, skip_gate=False):
+        return snapshot.stale(releases or self.releases, tag, "current-main", current,
+                              datetime(2026, 11, 5, 12, minute, tzinfo=timezone.utc), skip_gate)
+
+    def test_current_main_at_revision_time_publishes(self):
+        self.assertEqual(self.stale(), {})
+        self.assertEqual(self.stale(releases=self.releases + [
+            {"tagName": "v1.0.0.snapshot.20261105125000", "isDraft": False}]), {})
+
+    def test_moved_main_skips_stale_build(self):
+        self.assertEqual(self.stale(current="newer-main"),
+                         {"skip": "main moved from current-main to newer-main"})
+
+    def test_publish_before_revision_time_is_error(self):
+        self.assertIn("before its revision time", self.stale(minute=49)["error"])
+
+    def test_newer_snapshot_inside_gate_is_error(self):
+        newer = self.releases + [{"tagName": "v1.0.0.snapshot.20261105124000", "isDraft": False}]
+        self.assertIn("within 50 minutes", self.stale(releases=newer)["error"])
+        self.assertEqual(self.stale(releases=newer, skip_gate=True), {})
+
+    def run_main(self, event, commit, command=None, env=None):
         pages = json.dumps([[{"tag_name": r["tagName"], "draft": r["isDraft"]} for r in self.releases]])
-        replies = []
-        for commit in commits:
-            replies.extend(["", "current-main", pages, commit])
         clock = unittest.mock.Mock()
         clock.now.return_value = datetime(2026, 11, 5, 12, 30, tzinfo=timezone.utc)
         stream = io.StringIO()
-        with patch.dict(os.environ, GITHUB_EVENT_NAME=event, SKIP_GATE="false"), patch.object(snapshot, "run", side_effect=replies), \
-                patch.object(snapshot, "datetime", clock), patch.object(snapshot.time, "sleep") as sleep, \
-                contextlib.redirect_stdout(stream):
+        with patch.dict(os.environ, GITHUB_EVENT_NAME=event, SKIP_GATE="false", **(env or {})), \
+                patch.object(snapshot, "run", side_effect=["", "current-main", pages, commit]), \
+                patch.object(snapshot, "output") as output, patch.object(snapshot, "datetime", clock), \
+                patch.object(snapshot.time, "sleep") as sleep, contextlib.redirect_stdout(stream):
             clock.strptime = datetime.strptime
-            status = snapshot.main()
-        return status, stream.getvalue(), sleep
+            status = snapshot.main(command)
+        return status, stream.getvalue(), sleep, output
 
     def test_dispatch_gate_exits_green_with_notice(self):
-        status, log, sleep = self.run_main("workflow_dispatch", ["old"])
+        status, log, sleep, output = self.run_main("workflow_dispatch", "old")
         self.assertEqual(status, 0)
         self.assertIn("::notice::", log)
         self.assertIn("current-main", log)
         self.assertIn("2026-11-05 12:50:00 UTC", log)
-        sleep.assert_not_called()
+        output.assert_not_called()
 
     def test_dispatch_unchanged_exits_red(self):
-        status, log, sleep = self.run_main("workflow_dispatch", ["current-main"])
+        status, log, sleep, output = self.run_main("workflow_dispatch", "current-main")
         self.assertEqual(status, 1)
         self.assertIn("::error::Snapshot skipped: unchanged main current-main", log)
 
-    def test_wait_refreshes_then_skips_published_main(self):
-        status, log, sleep = self.run_main("push", ["old", "current-main"])
+    def test_push_plans_without_sleeping(self):
+        status, log, sleep, output = self.run_main("push", "old", env={"GITHUB_RUN_NUMBER": "7"})
         self.assertEqual(status, 0)
-        sleep.assert_called_once_with(1200)
-        self.assertIn("Snapshot skipped: unchanged main current-main", log)
+        sleep.assert_not_called()
+        output.assert_called_once_with(tag="v1.0.0.snapshot.20261105125000",
+                                       version="1.0.0.snapshot.20261105125000", build="7", main="current-main")
 
+    def test_wait_sleeps_until_revision(self):
+        status, log, sleep, output = self.run_main(
+            "push", "old", "wait", {"TAG": "v1.0.0.snapshot.20261105125000"})
+        self.assertEqual(status, 0)
+        sleep.assert_called_once_with(1200.0)
+
+    def test_check_skips_moved_main_with_notice(self):
+        status, log, sleep, output = self.run_main(
+            "push", "old", "check", {"TAG": "v1.0.0.snapshot.20261105123000", "MAIN": "older-main"})
+        self.assertEqual(status, 0)
+        self.assertIn("::notice::Snapshot skipped: main moved from older-main to current-main", log)
+        output.assert_not_called()
 
 if __name__ == "__main__":
     unittest.main()
