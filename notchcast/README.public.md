@@ -1,5 +1,5 @@
-<!-- Source of the root README.md: `notchcast/ci.py regenerate` copies this file there, so edit this one.
-     Links use repository-root paths (/LICENSE) so they work in both places. Maintainer docs: notchcast/README.md. -->
+<!-- Generated: the root README.md is a copy of notchcast/README.public.md made by `notchcast/ci.py regenerate`.
+     Edit notchcast/README.public.md. Links use repository-root paths (/LICENSE) so they work in both places. -->
 
 # Notchcast
 
@@ -9,6 +9,8 @@
 ![macOS 26+](https://img.shields.io/badge/macOS-26%2B-lightgrey)
 
 Notchcast is a macOS launcher that lives in an island at the top of your screen, around the notch or where a notch would be. It is [Tinycast](https://github.com/abue-ammar/tinycast) by Abue Ammar, the native launcher with clipboard history, hotkeys, snippets, window management and system tools, plus our own commits on top: the island that replaces Tinycast's floating palette and menu-bar icons, and a set of add-ons for keyboard, display, sound, capture and downloads. Every upstream change is replayed under our commits automatically, so Notchcast stays current with Tinycast.
+
+**Status:** in use; a snapshot is published from every green `main`.
 
 [Download](https://github.com/kaczordodgers/notchcast/releases) · [Use it](#use-it) · [Contribute](#where-things-are)
 
@@ -44,7 +46,7 @@ The in-app updater stays off in Notchcast. To keep a Mac current, clone this rep
   - **Mac Tweaks**: turn off iPhone auto backups.
 - **Add-on commands** are ordinary launcher commands: search them, and give them an alias or a hotkey in Settings › Commands.
 
-Notchcast is English only and Dark only. Upstream features it hides (the code stays): Raycast extensions, the menu-bar icons, the appearance and language pickers, and launcher dragging and placement. The list and reasons: [hidden.md](/notchcast/docs/hidden.md).
+Notchcast is English only and Dark only.
 
 Settings can be mirrored to `~/.config/app.notchcast/settings.json`; see [settings-file.md](/docs/features/settings-file.md).
 
@@ -65,7 +67,7 @@ A Debug build is a separate app: `Notchcast Dev.app`, bundle id `app.notchcast.d
 
 ## Where things are
 
-The project, target and source folders keep upstream's `Tinycast` names so our commits rebase cleanly onto upstream.
+The Xcode project, target and source folders use the name `Tinycast`.
 
 ```text
 Tinycast/                     app sources
@@ -103,12 +105,8 @@ Read before you change things:
 
 Contributing: [CONTRIBUTING.md](/.github/CONTRIBUTING.md). Security reports: [SECURITY.md](/.github/SECURITY.md). Bugs go in [our issues](https://github.com/kaczordodgers/notchcast/issues), not upstream's.
 
-## Credits
-
-Notchcast is a fork of [Tinycast](https://github.com/abue-ammar/tinycast) by Abue Ammar, and it would not exist without it. This is a modified version, as the AGPL (section 5a) requires us to state: our changes are the commits on top of upstream `main`, and [notchcast/README.md](/notchcast/README.md) describes how they are kept and rebuilt.
-
-Third-party material and its licences are listed in [NOTICE.md](/NOTICE.md); code our add-ons borrow is listed in [borrowed.md](/notchcast/licenses/borrowed.md).
-
 ## License
 
 GNU Affero General Public License v3.0 or later, the same as Tinycast. See [LICENSE](/LICENSE). Tinycast is Copyright (C) 2026 Abue Ammar; Notchcast's changes are released under the same license.
+
+Notchcast is a modified version of [Tinycast](https://github.com/abue-ammar/tinycast) by Abue Ammar, as the AGPL (section 5a) requires us to state: our changes are the commits on top of upstream `main`, and [notchcast/README.md](/notchcast/README.md) describes how they are kept and rebuilt. Third-party material and its licences are listed in [NOTICE.md](/NOTICE.md); code our add-ons borrow is listed in [borrowed.md](/notchcast/licenses/borrowed.md).
