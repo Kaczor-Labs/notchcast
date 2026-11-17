@@ -5,6 +5,7 @@
 // notchcast-sources: Tinycast/Features/Notchcast/ShowDesktop/Model/*.swift
 // notchcast-sources: Tinycast/Features/Notchcast/ShowDesktop/Service/ShowDesktopModule.swift
 // notchcast-sources: Tinycast/Features/Notchcast/ShowDesktop/Service/ShowDesktopSystem.swift
+// notchcast-sources: Tests/NotchcastDictationFixture.swift
 
 import AppKit
 import CoreGraphics
@@ -73,7 +74,8 @@ final class Rig {
             return session
         })
         controller = NotchcastController(
-            addons: [ShowDesktopAddon.self], defaults: defaults, hub: hub, presenter: FakePresenter())
+            addons: [ShowDesktopAddon.self], defaults: defaults, hub: hub,
+            dictation: FakeDictation(), presenter: FakePresenter())
         controller.start()
         session = made
     }
@@ -177,7 +179,9 @@ enum ShowDesktopModuleTests {
         let context = NotchcastContext(
             defaults: rig.defaults,
             preferences: NotchcastPreferences(defaults: rig.defaults, switches: ShowDesktopAddon.switches),
-            presenter: FakePresenter(), hub: rig.hub, now: { Date() }, onTapsChanged: {})
+            presenter: FakePresenter(), hub: rig.hub,
+            transcription: NotchcastTranscriptionRunner(dictation: FakeDictation()),
+            now: { Date() }, onTapsChanged: {})
         let module = ShowDesktopModule(context: context, system: .live)
         module.start()
         await flipStandardFunctionKeys(true)

@@ -5,6 +5,7 @@
 // notchcast-sources: Tinycast/Features/Notchcast/KeepAwake/Service/KeepAwakeRecovery.swift
 // notchcast-sources: Tinycast/Features/Notchcast/Core/Model/*.swift
 // notchcast-sources: Tinycast/Features/Notchcast/Core/Service/NotchcastContext.swift
+// notchcast-sources: Tinycast/Features/Notchcast/Core/Service/NotchcastTranscription.swift
 // notchcast-sources: Tinycast/Features/Notchcast/Core/Service/NotchcastPreferences.swift
 // notchcast-sources: Tinycast/Features/Island/Model/IslandPresentation.swift
 // notchcast-sources: Tinycast/Features/Island/Service/IslandPresenting.swift
@@ -15,6 +16,7 @@
 // notchcast-sources: Tests/nc-KeepAwake-recovery-fixtures.swift
 // notchcast-sources: Tinycast/Features/Notchcast/KeepAwake/Service/KeepAwakeLiveProcesses.swift
 // notchcast-sources: Tinycast/Features/Notchcast/KeepAwake/Service/KeepAwakeRootClient.swift
+// notchcast-sources: Tests/NotchcastDictationFixture.swift
 import Darwin
 import Foundation
 
