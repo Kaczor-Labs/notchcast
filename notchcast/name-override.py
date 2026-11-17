@@ -8,6 +8,7 @@ copy built with its own bundle id adds that id's suffix. It is also written to C
 No arguments: the Tinycast target's build phase (project.yml). `--verify <app>`: fail unless patched.
 `--name <product name> <bundle id>`: print the name a build would get.
 """
+import functools
 import json
 import os
 import plistlib
@@ -17,8 +18,6 @@ from pathlib import Path
 
 OLD, NEW = "Tinycast", "Notchcast"
 ROOT = Path(__file__).resolve().parent.parent
-# Keep in step with the phase's inputFiles in project.yml, so a catalog edit reruns the phase.
-CATALOGS = ["Localizable", "InfoPlist"]
 # The Settings category and the island's label name the module group, not the build, in every channel.
 FORK_TABLE = "Notchcast"
 CHANNELS = {"app.notchcast", "app.notchcast.dev"}
@@ -64,6 +63,7 @@ def stale(value, name):
     return rename(value, name) != value
 
 
+@functools.cache
 def catalog_paths():
     return {path.stem: path for path in (ROOT / "Tinycast").rglob("*.xcstrings") if path.stem != FORK_TABLE}
 
@@ -93,16 +93,11 @@ def save(path, data):
         plistlib.dump(data, handle, fmt=plistlib.FMT_XML)
 
 
-def renamed_catalogs(name):
-    # Release renames only upstream's catalogs; another name also reaches fork catalogs saying Notchcast.
-    return CATALOGS if name == NEW else sorted({*CATALOGS, *catalog_paths()})
-
-
 def patch_table(path, language, table_name, name):
     if table_name == FORK_TABLE:
         return 0
     table = load(path)
-    if language == "en" and path.suffix == ".strings" and table_name in renamed_catalogs(name):
+    if language == "en" and path.suffix == ".strings" and table_name in catalog_paths():
         for key, value in source_values(table_name).items():
             if stale(value, name) and key not in table:
                 table[key] = value
@@ -144,7 +139,7 @@ def leftovers(app, name):
             if key not in ALLOWLIST and key not in KEPT_INFO_KEYS and stale(value, name):
                 found.append(f"{path.relative_to(app)}: {key!r} does not say {name}")
     # A key-only string never reaches the table, so the app would show the key itself.
-    for catalog in renamed_catalogs(name):
+    for catalog in sorted(catalog_paths()):
         path = app / "Contents/Resources/en.lproj" / f"{catalog}.strings"
         shipped = load(path) if path.exists() else {}
         for key, value in source_values(catalog).items():
@@ -176,7 +171,7 @@ def fail(lines):
 def check(app):
     name = built_name(app)
     problems = [
-        f"{line}. Add its catalog to CATALOGS, or allowlist it in notchcast/name-override.py"
+        f"{line}. Allowlist it in notchcast/name-override.py"
         for line in leftovers(app, name)
     ]
     problems += [
@@ -194,7 +189,7 @@ def build_phase():
     app = Path(os.environ["TARGET_BUILD_DIR"]) / os.environ["WRAPPER_NAME"]
     name = app_name(os.environ.get("PRODUCT_NAME", NEW), os.environ.get("PRODUCT_BUNDLE_IDENTIFIER", ""))
     counts = {}
-    for catalog in renamed_catalogs(name):
+    for catalog in sorted(catalog_paths()):
         # A catalog whose English is all key-only ships no en table, so its keys would show unrenamed.
         path = app / "Contents/Resources/en.lproj" / f"{catalog}.strings"
         if not path.exists() and any(stale(value, name) for value in source_values(catalog).values()):
