@@ -16,6 +16,7 @@ final class NotchcastCore {
         controller = NotchcastController(
             addons: addons, defaults: defaults, hub: hub, dictation: NotchcastDictationBridge(core: core),
             presenter: core.islandPresenter)
+        NotchcastPane.install(Set(controller.switches.map(\.category)))
         let commands = addons.flatMap { $0.commands }
         NotchcastSettingsSearch.install(
             controller.switches,
@@ -23,7 +24,9 @@ final class NotchcastCore {
                 .mapValues { $0.flatMap { [$0.name] + $0.keywords } })
         let launcher = core.launcherCoordinator
         controller.onCommandsChanged = { [weak core] commands in
-            core?.appIndex.extraCommandEntries = commands.map(Self.entry)
+            core?.appIndex.extraCommandEntries = commands.map {
+                AppEntry(notchcastCommand: $0.id, name: $0.name, symbol: $0.symbol, keywords: $0.keywords)
+            }
             core?.hotKeys.extraActions = commands.map { .notchcastCommand(entryID: $0.id) }
         }
         core.hotKeys.onRunNotchcastCommand = { [weak controller] entryID in
@@ -45,12 +48,5 @@ final class NotchcastCore {
         trustMonitor = nil
         controller.stop()
         controller.hub.stop()
-    }
-
-    private static func entry(_ command: NotchcastCommand) -> AppEntry {
-        AppEntry(
-            id: command.id, name: command.name, url: URL(string: "tinycast://command/nc-" + command.slug)!,
-            bundleID: nil, kind: .command, settingsOwner: .notchcast, symbolName: command.symbol,
-            keywords: command.keywords)
     }
 }

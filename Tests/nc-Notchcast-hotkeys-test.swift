@@ -19,6 +19,7 @@ struct NotchcastHotKeysTests {
 
     static func main() {
         for includesShift in [false, true] { secureInputFollowsExtraActions(includesShift: includesShift) }
+        shippedCommandsTakeHotKeys()
         print("\(checks) add-on hotkey checks; \(failures) failures")
         if failures > 0 { exit(1) }
         print("PASSED")
@@ -62,5 +63,33 @@ struct NotchcastHotKeysTests {
         check("\(label): re-enabling rebuilds the equivalent", center.entries[equivalentID]?.shortcut == control)
         check("\(label): re-enabling displaces ⌃G again", center.entries[paletteID] == nil)
         manager.setSecureInputEquivalents(includesShift: nil)
+    }
+
+    /// Two shipped add-on commands take a chord like a stock command: stored, registered, fired.
+    static func shippedCommandsTakeHotKeys() {
+        let domain = "tinycast.notchcast-hotkeys-test.\(UUID())"
+        let defaults = UserDefaults(suiteName: domain)!
+        defer { defaults.removePersistentDomain(forName: domain) }
+        let manager = HotKeyManager(defaults: defaults)
+        let center = HotKeyCenter.current!
+        var ran: [String] = []
+        manager.onRunNotchcastCommand = { ran.append($0) }
+        let commands = [("command:nc-generate-password", kVK_ANSI_1), ("command:nc-screenshot-area", kVK_ANSI_2)]
+        let actions = commands.map { HotKeyAction.notchcastCommand(entryID: $0.0) }
+        manager.extraActions = actions
+        for ((id, key), action) in zip(commands, actions) {
+            let chord = KeyShortcut(carbonKeyCode: key, carbonModifiers: controlKey | optionKey)
+            manager.setBinding(.combo(chord), for: action)
+            check("\(id): its chord is registered", center.entries[action.defaultsKey]?.shortcut == chord)
+            center.entries[action.defaultsKey]?.onKeyDown(0)
+            check("\(id): pressing its chord runs it", ran.last == id)
+            check("\(id): stored under its stock-shaped key", defaults.string(forKey: "hotkey." + id) != nil)
+        }
+        check("each chord ran exactly its own command", ran == commands.map(\.0))
+        let relaunched = HotKeyManager(defaults: defaults)
+        relaunched.extraActions = actions
+        let relaunchedCenter = HotKeyCenter.current!
+        check("both chords are registered again after a relaunch",
+              relaunchedCenter !== center && actions.allSatisfy { relaunchedCenter.entries[$0.defaultsKey] != nil })
     }
 }

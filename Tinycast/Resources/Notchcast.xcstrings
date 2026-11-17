@@ -16,6 +16,9 @@
     "Display & Sound" : {
       "shouldTranslate" : false
     },
+    "Downloads" : {
+      "shouldTranslate" : false
+    },
     "Files & Downloads" : {
       "shouldTranslate" : false
     },
@@ -23,9 +26,12 @@
       "shouldTranslate" : false
     },
     "Island" : {
-
+      "shouldTranslate" : false
     },
     "Keyboard & Mouse" : {
+      "shouldTranslate" : false
+    },
+    "Launcher Extras" : {
       "shouldTranslate" : false
     },
     "Mac Tweaks" : {
