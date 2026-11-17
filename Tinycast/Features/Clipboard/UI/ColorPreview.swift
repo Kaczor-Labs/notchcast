@@ -3,6 +3,7 @@ import SwiftUI
 /// A colour entry's preview: the colour and the copied text, the notations being ⌘K's business.
 struct ColorPreview: View {
     @Environment(\.metrics) private var metrics
+    @Environment(\.paletteOnIsland) private var onIsland
     let color: ColorValue
     let text: String
 
@@ -11,7 +12,7 @@ struct ColorPreview: View {
 
     var body: some View {
         VStack(spacing: metrics.spacing.lg) {
-            ColorSwatch(color: color, cornerRadius: metrics.radius.card)
+            ColorSwatch(color: color, cornerRadius: metrics.radius.islandCard(onIsland: onIsland))
                 .frame(width: Self.swatchSize.width, height: Self.swatchSize.height)
             Text(text)
                 .font(.system(.subheadline, design: .monospaced))

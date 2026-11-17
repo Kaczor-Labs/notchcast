@@ -9,6 +9,7 @@ struct ChatMarkdownSource: Equatable {
     let prefix: [Int]
     let failedFrom: Int?
     let metrics: InterfaceMetrics
+    let onIsland: Bool
 }
 
 struct ChatRenderedText {
@@ -445,9 +446,13 @@ struct ChatMarkdownRenderer {
                 cell.setWidth(spacing.lg, type: .absoluteValueType, for: .padding, edge: .maxX)
                 if row > 0 {
                     cell.setWidth(Theme.Size.hairline, type: .absoluteValueType, for: .border, edge: .minY)
-                    cell.setBorderColor(NSColor(Theme.Colors.cardStroke), for: .minY)
+                    cell.setBorderColor(
+                        NSColor(IslandCardStyle.islandSeparator.color(onIsland: source.onIsland)), for: .minY)
                 }
-                if row == 0 { cell.backgroundColor = NSColor(Theme.Colors.cardFill) }
+                if row == 0 {
+                    cell.backgroundColor = NSColor(
+                        IslandCardStyle.islandCardFill.color(onIsland: source.onIsland))
+                }
                 var inside = context
                 inside.secondary = context.secondary || row == 0
                 inside.indent = 0

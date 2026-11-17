@@ -3,6 +3,7 @@ import SwiftUI
 struct MarkdownTableView: View {
 
     @Environment(\.metrics) private var metrics
+    @Environment(\.paletteOnIsland) private var onIsland
     let table: MarkdownBlock.Table
 
     var body: some View {
@@ -20,7 +21,7 @@ struct MarkdownTableView: View {
             }
             GridRow {
                 Rectangle()
-                    .fill(Theme.Colors.cardStroke)
+                    .fill(.islandSeparator)
                     .frame(height: Theme.Size.hairline)
                     .gridCellUnsizedAxes(.horizontal)
                     .gridCellColumns(table.header.count)
@@ -38,11 +39,11 @@ struct MarkdownTableView: View {
         .fixedSize(horizontal: false, vertical: true)
         .padding(metrics.spacing.xl)
         .background(
-            RoundedRectangle(cornerRadius: metrics.radius.card, style: .continuous)
+            RoundedRectangle(cornerRadius: metrics.radius.islandCard(onIsland: onIsland), style: .continuous)
                 .fill(.islandCardFill)
         )
         .overlay(
-            RoundedRectangle(cornerRadius: metrics.radius.card, style: .continuous)
+            RoundedRectangle(cornerRadius: metrics.radius.islandCard(onIsland: onIsland), style: .continuous)
                 .stroke(.islandEdge()))
     }
 

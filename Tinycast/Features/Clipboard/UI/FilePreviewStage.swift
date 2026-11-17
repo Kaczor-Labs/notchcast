@@ -64,6 +64,7 @@ private struct MissingFileStage: View {
 /// A still, framed exactly as the image preview is, so every preview kind is one shape.
 private struct FileThumbnailStage: View {
     @Environment(\.metrics) private var metrics
+    @Environment(\.paletteOnIsland) private var onIsland
     let url: URL
     let maxPixel: CGFloat
     let glyph: String
@@ -76,10 +77,15 @@ private struct FileThumbnailStage: View {
                 Image(nsImage: image)
                     .resizable()
                     .scaledToFit()
-                    .clipShape(RoundedRectangle(cornerRadius: metrics.radius.card, style: .continuous))
+                    .clipShape(
+                        RoundedRectangle(
+                            cornerRadius: metrics.radius.islandCard(onIsland: onIsland), style: .continuous)
+                    )
                     .overlay(
-                        RoundedRectangle(cornerRadius: metrics.radius.card, style: .continuous)
-                            .strokeBorder(.islandEdge(), lineWidth: 1)
+                        RoundedRectangle(
+                            cornerRadius: metrics.radius.islandCard(onIsland: onIsland), style: .continuous
+                        )
+                        .strokeBorder(.islandEdge(), lineWidth: 1)
                     )
             } else {
                 Image(systemName: glyph)
@@ -104,6 +110,7 @@ private struct FileThumbnailStage: View {
 /// Owns the `AVPlayer`. Never autoplays: arrow-keying a list must not start twenty decodes.
 private struct MediaPreviewPlayer: View {
     @Environment(\.metrics) private var metrics
+    @Environment(\.paletteOnIsland) private var onIsland
     let url: URL
     let isAudio: Bool
 
@@ -121,7 +128,10 @@ private struct MediaPreviewPlayer: View {
             .background { if isAudio { AudioPoster(url: url) } }
             // A cap, not a height: a fixed one outgrows the pane and pushes the panel taller.
             .frame(maxHeight: metrics.size.clipboardMediaHeight)
-            .clipShape(RoundedRectangle(cornerRadius: metrics.radius.card, style: .continuous))
+            .clipShape(
+                RoundedRectangle(
+                    cornerRadius: metrics.radius.islandCard(onIsland: onIsland), style: .continuous)
+            )
             .task(id: PlaybackKey(url: url, isVisible: palette.isVisible)) {
                 stop()
                 guard palette.isVisible else { return }
