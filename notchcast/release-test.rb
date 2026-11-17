@@ -24,7 +24,20 @@ end
   callers = workflow.fetch('jobs').fetch(job).fetch('steps').select { |step| step['uses'] == './tools/notchcast/actions/release' }
   assert(callers.size == 1, "#{name} must use the shared release action once")
   if name == 'snapshot'
-    assert(callers.first['if'] == "steps.checks.outputs.green == 'true'", 'snapshot release must remain gated on lint and tests')
+    publish = workflow.fetch('jobs').fetch('publish')
+    assert(%w[checks snapshot].all? { |need| publish['needs'].include?(need) } && !publish.key?('if'),
+           'snapshot publish must remain gated on lint, tests and the signed build')
+    checks = workflow.fetch('jobs').fetch('checks')
+    steps = checks.fetch('steps')
+    tests = steps.find { |step| step['uses'] == './tools/notchcast/actions/tests' }
+    lint = steps.find { |step| step['name'] == 'Lint' }
+    final = steps.last
+    assert(!checks.key?('continue-on-error'), 'snapshot checks must fail the run when red')
+    assert(steps.none? { |step| step['continue-on-error'] && !step.equal?(tests) },
+           'only the tests action may continue on error, so the final step reports it')
+    assert(tests && lint && lint['run'].include?('./Scripts/lint.sh'), 'snapshot checks must run tests and lint')
+    assert(final['if'] == "steps.checks.outputs.green != 'true'" && final['run'].include?('exit 1') &&
+           !final.key?('continue-on-error'), 'snapshot checks must end in the step that fails when not green')
   end
   puts "PASS #{name} calls the shared release action once"
 end
