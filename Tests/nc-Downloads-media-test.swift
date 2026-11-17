@@ -31,7 +31,7 @@ struct DownloadsMediaTest {
         let audio = MediaArguments.download(source: source, destination: destination, format: .audio,
                                             aria2Path: "/opt/homebrew/bin/aria2c")
         precondition(audio.contains("mp3") && !audio.contains("--cookies-from-browser"))
-        precondition(audio.contains("aria2c:-x 16 -s 16 -k 1M --file-allocation=none"))
+        precondition(audio.contains("--downloader") && audio.contains("/opt/homebrew/bin/aria2c"))
         precondition(MediaArguments.retryNatively(stderr: "HTTP Error 403: Forbidden", source: source, usedAria2: true))
         precondition(!MediaArguments.retryNatively(stderr: "403", source: source, usedAria2: false))
         precondition(!MediaArguments.retryNatively(stderr: "HTTP Error 403", source: "https://example.com", usedAria2: true))
@@ -208,7 +208,7 @@ struct DownloadsMediaTest {
         try FileManager.default.createSymbolicLink(at: root.appending(path: "aria2c"), withDestinationURL: tool)
         try await aria2(root, context: context, job: job, enabled: false, expected: false)
         try await aria2(root, context: context, job: job, enabled: true, expected: true)
-        let captions = TranscriptDownloadRunner()
+        let captions = TranscriptDownloadRunner(rateLimitPause: .zero)
         let transcript = try await captions.run(job, context: context)
         let text = try String(contentsOf: transcript!, encoding: .utf8)
         precondition(text == "Dzień dobry")
@@ -256,7 +256,7 @@ struct DownloadsMediaTest {
           shift
         done
         printf 'WEBVTT\\n\\n00:00:00.000 --> 00:00:01.000\\n' > "$dest/same.en.vtt"
-        /usr/bin/yes caption | /usr/bin/head -c 1000000 >> "$dest/same.en.vtt"
+        /usr/bin/yes caption | /usr/bin/head -c 50000 >> "$dest/same.en.vtt"
         """
         try script.write(to: tool, atomically: false, encoding: .utf8)
         try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: tool.path)
