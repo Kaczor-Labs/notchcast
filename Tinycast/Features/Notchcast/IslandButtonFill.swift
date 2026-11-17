@@ -6,6 +6,16 @@ enum IslandButtonFill {
         if selected || pressed { return NotchTheme.Colors.keyCapFill }
         return hovered ? Theme.Colors.rowHover : Color.clear
     }
+
+    /// Frosted's primary is the solid accent (brief D5); hover and press dim it one step each.
+    static func primary(_ wash: Double) -> Color {
+        Theme.Colors.primaryAction.opacity(wash).frosted(NotchTheme.Frosted.accent.opacity(1.2 - wash))
+    }
+
+    /// Frosted's red wash is half Black's, so its lifted red ink keeps 4.5:1 on it.
+    static func destructive(_ wash: Double) -> Color {
+        Theme.Colors.destructive.opacity(wash).frosted(NotchTheme.Frosted.destructive.opacity(wash / 2))
+    }
 }
 
 extension View {

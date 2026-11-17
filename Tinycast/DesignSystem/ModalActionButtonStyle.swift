@@ -23,11 +23,12 @@ struct ModalActionButtonStyle: ButtonStyle {
             configuration.label
                 .font(metrics.typography.rowTrailing)
                 .foregroundStyle(labelColor)
+                .environment(\.islandInkLifted, true)
                 .padding(.horizontal, metrics.spacing.xl)
                 .frame(maxWidth: fillsWidth ? .infinity : nil)
                 .frame(height: metrics.size.dialogButtonHeight)
                 .contentShape(Capsule())
-                .background(Capsule().fill(fill))
+                .background(Capsule().fill(fill).strokeBorder(neutral ? NotchTheme.Colors.controlEdge : .clear))
                 .animation(.easeOut(duration: Theme.Duration.hover), value: hovered)
                 .opacity(isEnabled ? 1 : NotchTheme.Opacity.disabled)
                 .onHover { hovered = $0 }
@@ -36,9 +37,9 @@ struct ModalActionButtonStyle: ButtonStyle {
         private var fill: Color {
             switch role {
             case .primary:
-                Theme.Colors.primaryAction.opacity(accentOpacity)
+                IslandButtonFill.primary(accentOpacity)
             case .destructive:
-                Theme.Colors.destructive.opacity(accentOpacity)
+                IslandButtonFill.destructive(accentOpacity)
             case .standard, .cancel:
                 if onIsland {
                     IslandButtonFill.neutral(pressed: configuration.isPressed, hovered: hovered)
@@ -52,6 +53,8 @@ struct ModalActionButtonStyle: ButtonStyle {
             }
         }
 
+        private var neutral: Bool { role == .standard || role == .cancel }
+
         private var accentOpacity: Double {
             if configuration.isPressed { return 0.36 }
             if hovered { return 0.28 }
@@ -61,7 +64,7 @@ struct ModalActionButtonStyle: ButtonStyle {
         private var labelColor: Color {
             switch role {
             case .standard: .primary
-            case .primary: Theme.Colors.primaryAction
+            case .primary: Theme.Colors.primaryAction.frosted(NotchTheme.Frosted.accentInk)
             case .cancel: Theme.Colors.textSecondary
             case .destructive: Theme.Colors.destructive
             }
