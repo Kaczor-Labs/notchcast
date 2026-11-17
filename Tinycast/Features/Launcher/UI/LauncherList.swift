@@ -23,6 +23,7 @@ struct LauncherList: View {
     let onFavoriteActions: (Int) -> Void
     let onDropped: () -> Void
     var files: FileSection?
+    var digitSlots: [String: Character] = [:]
     /// The `Use "…" with` section, always last; nil when nothing is typed.
     var fallbacks: FallbackSection?
     @Environment(RunningAppsMonitor.self) private var runningApps
@@ -183,7 +184,7 @@ struct LauncherList: View {
                                         app: app,
                                         selected: app.id == selectedRowID,
                                         running: runningApps.isRunning(app),
-                                        slot: nil
+                                        slot: digitSlots[app.id]
                                     )
                                     .contentShape(Rectangle())
                                     .onRowTap(drag: drag(for: app)) { onActivate(app) }
