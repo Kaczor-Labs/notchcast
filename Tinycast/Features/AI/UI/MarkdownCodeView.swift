@@ -27,10 +27,10 @@ struct MarkdownCodeView: View {
         .padding(.vertical, metrics.spacing.lg)
         .background(
             RoundedRectangle(cornerRadius: metrics.radius.card, style: .continuous)
-                .fill(Theme.Colors.cardFill)
+                .fill(.islandCardFill)
         )
         .overlay(
             RoundedRectangle(cornerRadius: metrics.radius.card, style: .continuous)
-                .stroke(Theme.Colors.cardStroke))
+                .stroke(.islandEdge()))
     }
 }
