@@ -9,6 +9,10 @@ import Darwin
 final class IslandFrameSource: FrameSource {
     let display = DisplayLinkFrameSource()
     var didFrame: (() -> Void)?
+    /// Fires after a frame once none is left to draw, so the engine has come to rest.
+    var didSettle: (() -> Void)?
+    private var outstanding = 0
+    var isIdle: Bool { outstanding == 0 }
     #if DEBUG
     private(set) var intervals: [Double] = []
     private(set) var cpuMilliseconds: [Double] = []
@@ -16,7 +20,9 @@ final class IslandFrameSource: FrameSource {
     #endif
 
     func requestFrame(_ frame: @escaping @MainActor () -> Void) -> Int {
-        display.requestFrame { [weak self] in
+        outstanding += 1
+        return display.requestFrame { [weak self] in
+            self?.outstanding -= 1
             #if DEBUG
             let began = clock()
             #endif
@@ -29,6 +35,7 @@ final class IslandFrameSource: FrameSource {
             }
             #endif
             self?.didFrame?()
+            if self?.isIdle == true { self?.didSettle?() }
             #if DEBUG
             if IslandVerification.enabled {
                 self?.cpuMilliseconds.append(Double(clock() - began) * 1000 / Double(CLOCKS_PER_SEC))
@@ -37,5 +44,8 @@ final class IslandFrameSource: FrameSource {
         }
     }
 
-    func cancelFrame(_ token: Int) { display.cancelFrame(token) }
+    func cancelFrame(_ token: Int) {
+        outstanding = max(outstanding - 1, 0)
+        display.cancelFrame(token)
+    }
 }
