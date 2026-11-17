@@ -23,9 +23,13 @@ final class NotchcastCore {
             commandWords: Dictionary(grouping: commands, by: \.switchID)
                 .mapValues { $0.flatMap { [$0.name] + $0.keywords } })
         let launcher = core.launcherCoordinator
+        let tabs = Dictionary(
+            controller.switches.map { ($0.id, NotchcastPane.holding($0.category)) },
+            uniquingKeysWith: { first, _ in first })
         controller.onCommandsChanged = { [weak core] commands in
             core?.appIndex.extraCommandEntries = commands.map {
-                AppEntry(notchcastCommand: $0.id, name: $0.name, symbol: $0.symbol, keywords: $0.keywords)
+                AppEntry(notchcastCommand: $0.id, name: $0.name, symbol: $0.symbol, keywords: $0.keywords,
+                         owner: .notchcast(tabs[$0.switchID] ?? .island))
             }
             core?.hotKeys.extraActions = commands.map { .notchcastCommand(entryID: $0.id) }
         }
