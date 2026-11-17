@@ -63,7 +63,7 @@ for path in $(git diff --name-only "$1" "$2" -- src); do
 done
 STUB
 # One line per pass in $PASSES; a harness is red while every file its red-with line names exists,
-# or, with a red-under-load line, while it shares the pass with another harness.
+# or, with a red-under-load: <n> line, while the pass runs at least n harnesses.
 cat > "$seed/Scripts/run-tests.sh" <<'STUB'
 #!/bin/bash
 BIN="$TMPDIR/tinycast-harness-fixture"
@@ -74,7 +74,7 @@ status=0
 run() {
     local name=$1
     case " $NOTCHCAST_ONLY_TESTS " in *" $name "*) ;; *) return 0 ;; esac
-    local file red=1 needs
+    local file red=1 needs load
     needs=$(sed -n 's/^red-with: //p' "Tests/$name.swift")
     : > "$BIN/$name.log"
     ran="$ran${ran:+ }$name"
@@ -82,7 +82,8 @@ run() {
     for file in $needs; do
         [ -e "$file" ] || red=0
     done
-    ! grep -qx red-under-load "Tests/$name.swift" || [ "$(wc -w <<< "$NOTCHCAST_ONLY_TESTS")" -eq 1 ] || red=1
+    load=$(sed -n 's/^red-under-load: //p' "Tests/$name.swift")
+    [ -z "$load" ] || [ "$(wc -w <<< "$NOTCHCAST_ONLY_TESTS")" -lt "$load" ] || red=1
     [ "$red" -eq 0 ] || { : > "$BIN/$name.failed"; status=1; }
 }
 for file in Tests/*-test.swift; do
@@ -98,7 +99,8 @@ done
 echo 'red-with: src/a.txt src/b.txt' > "$seed/Tests/a-test.swift"
 echo 'red-with: src/e.txt' > "$seed/Tests/clipboard-text-test.swift"
 echo 'red-with: src/d.txt' > "$seed/Tests/d-test.swift"
-echo red-under-load > "$seed/Tests/load-test.swift"
+echo 'red-under-load: 2' > "$seed/Tests/load-test.swift"
+echo 'red-under-load: 4' > "$seed/Tests/heavy-test.swift"
 echo base > "$seed/src/shared.txt"
 echo '# fixture' > "$seed/.gitattributes"
 : > "$seed/Tinycast/Features/Notchcast/Core/NotchcastFeature.swift"
@@ -238,6 +240,18 @@ land 1 2
 [ "$(paste -sd'|' "$PASSES")" = 'b-test load-test notchcast-core-test|load-test' ] || fail "passes were '$(paste -sd'|' "$PASSES")'"
 [ "$(origin rev-parse main)" = "$base" ] && [ ! -e "$FIXTURE/closed" ] && [ ! -e "$FIXTURE/hold" ] || fail 'a flaky train left something behind'
 echo 'PASS: a harness red in the full pass but green alone on the merged tree refuses as a flake and drops nobody'
+
+# a-test is really red from #2 on; heavy-test is red only in a pass of 4 or more harnesses.
+fixture
+open_pr 1 pr-a 'Add A' src/a.txt
+open_pr 2 pr-b 'Add B' src/b.txt
+open_pr 3 pr-heavy 'Add heavy' src/heavy.txt
+land 1 2 3
+[ "$status" -eq 0 ] && grep -q '^DROPPED #2: a-test failed;' "$FIXTURE/output" || fail 'a partial flake did not drop only the real breaker'
+[ "$(landed)" = 'Notchcast: Add A (#1)|Notchcast: Add heavy (#3)' ] || fail "partial flake train landed '$(landed)'"
+[ "$(paste -sd'|' "$PASSES")" = 'a-test b-test heavy-test notchcast-core-test|a-test heavy-test|a-test|a-test|a-test heavy-test notchcast-core-test' ] \
+    || fail "passes were '$(paste -sd'|' "$PASSES")'"
+echo 'PASS: a real red and a load-only red in one pass bisect only the real one'
 
 # notchcast-core-test is red on main itself, so every PR's tree inherits it.
 fixture
