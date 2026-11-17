@@ -45,7 +45,7 @@ jobs:
     needs: route
     if: github.event_name == 'workflow_dispatch' || !github.event.pull_request.draft
     runs-on: ${{ fromJSON(needs.route.outputs.runners)[0] }}
-    timeout-minutes: 60
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
@@ -113,7 +113,7 @@ jobs:
     needs: [route, select]
     if: needs.select.outputs.tests != ''
     runs-on: ${{ fromJSON(needs.route.outputs.runners)[4] }}
-    timeout-minutes: 15
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
