@@ -45,40 +45,53 @@ PLIST
     echo "loaded $label -> $LOGS/$name.log"
 }
 
+# The main checkout, never a linked worktree that may go away.
+main_checkout() {
+    dirname "$(git -C "$HERE" rev-parse --path-format=absolute --git-common-dir)"
+}
+
 # Login Items shows the executable, so a job runs through a named wrapper rather than /bin/bash.
 named_job() { # name program...
-    local name=$1 copy='' needs=''
+    local name=$1 copy='' needs='' cold=checkout
     local wrapper="$HOME/Library/Application Support/notchcast/jobs/$1"; shift
     case "$name" in
         'Notchcast update') copy=tools needs='update.sh install-app.sh config.env' ;;
         # Its own copy: refreshing the update copy would delete the tree a running update.sh reads.
-        'Notchcast sync check') copy=kick-tools needs='kick.sh ci.py config.env' ;;
+        'Notchcast sync check') copy=kick-tools needs='kick.sh ci.py config.env' cold=refuse ;;
     esac
     mkdir -p "$(dirname "$wrapper")"
     printf '#!/bin/bash\n' > "$wrapper"
     if [ -n "$copy" ]; then
-        printf 'repo=%q copy=%q needs=%q\n' "$HERE/.." "$copy" "$needs" >> "$wrapper"
+        local repo
+        repo=$(main_checkout)
+        printf 'repo=%q copy=%q needs=%q\n' "$repo" "$copy" "$needs" >> "$wrapper"
         cat >> "$wrapper" <<'REFRESH'
 set -o pipefail
 root="$HOME/Library/Application Support/notchcast"
 tools="$root/$copy"
 stage=''
+fetch() { git -C "$repo" fetch --quiet --no-write-fetch-head origin main; }
 refresh() {
-    git -C "$repo" fetch --quiet origin main 2>/dev/null || return 1
+    local rev copied='' fetched=1 old f
+    # The other job may hold the ref lock while it fetches the same main; its result serves us too.
+    fetch || { sleep 5; fetch; } || { fetched=0; echo 'fetch failed; trying the last fetched origin/main'; }
+    rev=$(git -C "$repo" rev-parse --verify --quiet 'refs/remotes/origin/main^{commit}') || return 1
+    [ ! -f "$tools/.commit" ] || read -r copied _ < "$tools/.commit"
+    [ "$fetched" = 1 ] || [ "$rev" != "$copied" ] || return 1
     stage=$(mktemp -d "$tools.XXXXXX") || return 1
     # A file, not a pipe: tar exits at the end marker, and git archive then dies of SIGPIPE.
-    git -C "$repo" archive -o "$stage/tools.tar" refs/remotes/origin/main notchcast/ 2>/dev/null || return 1
-    tar -xf "$stage/tools.tar" -C "$stage" 2>/dev/null || return 1
+    git -C "$repo" archive -o "$stage/tools.tar" "$rev" notchcast/ || return 1
+    tar -xf "$stage/tools.tar" -C "$stage" || return 1
     rm -f "$stage/tools.tar"
-    local old f
     for f in $needs; do [ -f "$stage/notchcast/$f" ] || return 1; done
+    git -C "$repo" log -1 --format='%H %cI' "$rev" > "$stage/notchcast/.commit" || return 1
     old=$(readlink "$tools")
     ln -s "$stage/notchcast" "$stage/link" && mv -fh "$stage/link" "$tools" || return 1
     stage=''
     case "$old" in "$tools".??????/notchcast) rm -rf "${old%/notchcast}" ;; esac
 }
 if ! refresh; then
-    echo 'tooling refresh failed; using previous code'
+    echo "tooling refresh failed; using the copy of origin/main $(cat "$tools/.commit" 2>/dev/null || echo none)"
     [ -z "$stage" ] || rm -rf "$stage"
 fi
 REFRESH
@@ -87,9 +100,9 @@ REFRESH
         if [ "$#" -gt 0 ]; then args="$(printf '%q ' "$@")"; fi
         printf 'if [ -f "$tools/%s" ]; then exec /bin/bash "$tools/%s" %s; fi\n' \
             "$script" "$script" "$args" >> "$wrapper"
-        set -- /bin/bash "$HERE/$script" "$@"
+        set -- /bin/bash "$repo/notchcast/$script" "$@"
     fi
-    if [ "$copy" = kick-tools ]; then
+    if [ "$cold" = refuse ]; then
         printf "echo 'no copy of origin/main yet; the sync check never runs the checkout'\nexit 1\n" >> "$wrapper"
     else
         printf 'exec %s\n' "$(printf '%q ' "$@")" >> "$wrapper"
@@ -124,9 +137,9 @@ install_prune() {
     for root in ${roots[@]+"${roots[@]}"}; do
         [ -z "$root" ] || args+=(--worktree-root "$root")
     done
-    # Main checkout, never a worktree that may go away; the copy notchcast.update refreshes.
+    # Runs in the main checkout, from the copy notchcast.update refreshes.
     local repo
-    repo=$(dirname "$(git -C "$HERE" rev-parse --path-format=absolute --git-common-dir)")
+    repo=$(main_checkout)
     RUN_AT_LOAD=false agent notchcast.prune prune \
         '<key>StartCalendarInterval</key><dict><key>Weekday</key><integer>0</integer><key>Hour</key><integer>4</integer><key>Minute</key><integer>0</integer></dict>
 <key>WorkingDirectory</key><string>'"$repo"'</string>

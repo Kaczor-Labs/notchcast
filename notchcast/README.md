@@ -64,7 +64,7 @@ Maintainer-specific integrations stay out of this repo. `kick.sh`, `update.sh`, 
 
 The new bundle id and signature need Accessibility to be granted once.
 
-Before each update run, the job fetches origin `main` and runs its `notchcast/` tooling from `~/Library/Application Support/notchcast/tools`, leaving the checkout untouched; if refresh fails, it logs and uses the last extracted copy or the checkout. After a change to the job wrapper, run `notchcast/install-launchd.sh update` once on each installed Mac to rewrite it. A newer snapshot (automatic or `--install`) installs at once, restarting the app only if it was running; there is no idle wait.
+Before each update run, the job fetches origin `main` and runs its `notchcast/` tooling from `~/Library/Application Support/notchcast/tools`, leaving the checkout untouched. It always uses the main checkout's git, even when installed from a linked worktree. A failed fetch (the kick job may hold the lock) is retried once, then the last fetched origin `main` is extracted; if refresh fails, it logs the commit and date of the copy it uses (the last extracted copy, else the checkout). After a change to the job wrapper, run `notchcast/install-launchd.sh update` once on each installed Mac to rewrite it. A newer snapshot (automatic or `--install`) installs at once, restarting the app only if it was running; there is no idle wait.
 
 ## Conflict-free PRs
 

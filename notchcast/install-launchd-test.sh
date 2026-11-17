@@ -47,6 +47,8 @@ test "$(/usr/libexec/PlistBuddy -c 'Print :WorkingDirectory' "$plist")" = "$(cd 
 grep -qF 'Application\ Support/notchcast/tools/prune-branches.py --remote --local --log' "$(/usr/libexec/PlistBuddy -c 'Print :ProgramArguments:0' "$plist")" \
     || { echo 'FAIL: prune job does not run the tools copy without roots'; exit 1; }
 echo 'PASS: prune installs without roots, from a linked worktree, into the main checkout'
+/bin/bash "$WORK/linked/notchcast/install-launchd.sh" kick
+git -C "$WORK/checkout" worktree remove --force "$WORK/linked"
 git -C "$WORK/origin" checkout -q --orphan rewritten
 printf '#!/bin/bash\nHERE="$(cd "$(dirname "$0")" && pwd)"\nsource "$HERE/config.env"\ntest -f "$HERE/install-app.sh"\necho "rewritten $APP_NAME $*"\n' > "$WORK/origin/notchcast/update.sh"
 cp "$HERE/install-app.sh" "$WORK/origin/notchcast/"
@@ -80,8 +82,12 @@ echo 'PASS: consecutive refresh swaps link, removes old copy and runs v2'
 mv "$WORK/origin" "$WORK/unreachable"
 check
 test "$(grep -c 'refresh failed' "$WORK/log")" = 1
-echo 'PASS: unreachable origin uses last extracted copy'
+grep -q "refresh failed; using the copy of origin/main $(git -C "$WORK/checkout" rev-parse origin/main) " "$WORK/log" \
+    || { echo 'FAIL: refresh failure does not log the commit of the copy'; exit 1; }
+grep -q 'fetch failed' "$WORK/log" || { echo 'FAIL: fetch failure not logged'; exit 1; }
+echo 'PASS: unreachable origin uses last extracted copy and logs its commit'
 rm "$HOME/Library/Application Support/notchcast/tools"
+git -C "$WORK/checkout" update-ref -d refs/remotes/origin/main
 bash "$WRAPPER" > "$WORK/log" 2>&1
 grep -qx old "$WORK/log"
 test "$(grep -c 'refresh failed' "$WORK/log")" = 1
@@ -124,3 +130,24 @@ kick_check
 grep -qx kick-v2 "$WORK/log"
 test ! -e "${OLD_KICK%/notchcast}"
 echo 'PASS: sync check runs kick.sh from a fresh copy of origin/main, never the checkout'
+echo 'PASS: jobs installed from a removed linked worktree run from the main checkout'
+printf 'echo kick-v3\n' >> "$WORK/origin/notchcast/kick.sh"
+git -C "$WORK/origin" add .
+git -C "$WORK/origin" commit -qm kick-v3
+git -C "$WORK/checkout" fetch -q origin main
+git -C "$WORK/origin" commit -q --allow-empty -m kick-v4
+: > "$WORK/checkout/.git/refs/remotes/origin/main.lock"
+kick_check
+rm "$WORK/checkout/.git/refs/remotes/origin/main.lock"
+grep -qx kick-v3 "$WORK/log" || { echo 'FAIL: a failed shared fetch kept the old copy'; exit 1; }
+grep -q 'fetch failed' "$WORK/log"
+! grep -q 'refresh failed' "$WORK/log" || { echo 'FAIL: a failed shared fetch failed the refresh'; exit 1; }
+echo 'PASS: a fetch that loses the ref lock still extracts the fetched origin/main'
+KICK_COPY="$(readlink "$KICK_TOOLS")"
+git -C "$WORK/origin" rm -q notchcast/ci.py
+git -C "$WORK/origin" commit -qm 'no ci.py'
+kick_check
+grep -qx kick-v3 "$WORK/log"
+test "$(grep -c 'refresh failed' "$WORK/log")" = 1
+test "$(readlink "$KICK_TOOLS")" = "$KICK_COPY"
+echo 'PASS: sync check keeps its copy when origin/main lacks a file kick.sh needs'
