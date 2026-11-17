@@ -32,8 +32,11 @@ if [ -n "${BASE_SHA:-}" ]; then
     python3 notchcast/check-addons.py --branch "${NOTCHCAST_READY_BRANCH:-${GITHUB_HEAD_REF:-}}" \
         --base "$BASE_SHA" --head "$HEAD_SHA" --upstream "$UPSTREAM"
 fi
-step script-tests
-python3 notchcast/script-tests.py
+# pr.yml runs the script tests and the harnesses in their own jobs; local-ci.sh runs them here.
+if [ -z "${NOTCHCAST_HARNESSES_SHARDED:-}" ]; then
+    step script-tests
+    python3 notchcast/script-tests.py
+fi
 step build
 # lsregister hangs on runners and Xcode only notes a failed registration, so kill it on our products.
 (
@@ -54,7 +57,6 @@ python3 notchcast/name-override.py --verify "$RUNNER_TEMP/DerivedData/Build/Prod
 step lint
 command -v swiftlint >/dev/null || brew install --quiet swiftlint
 ./Scripts/lint.sh
-# pr.yml runs the harnesses in shards beside this job; local-ci.sh runs them here.
 if [ -z "${NOTCHCAST_HARNESSES_SHARDED:-}" ]; then
     step harnesses
     bash "$TOOLS/notchcast/ci-tests.sh"
