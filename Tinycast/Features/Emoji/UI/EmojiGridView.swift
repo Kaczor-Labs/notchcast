@@ -293,6 +293,7 @@ private struct EmojiGridRowView: View {
 /// Pure content: no gestures, overlays or hover tracking. See docs/features/emoji.md#rendering.
 private struct EmojiCell: View {
     @Environment(\.metrics) private var metrics
+    @Environment(\.paletteOnIsland) private var onIsland
     let glyph: String
     let selected: Bool
     let hovered: Bool
@@ -318,14 +319,14 @@ private struct EmojiCell: View {
             }
             Text(glyph)
                 .font(.system(size: glyphSize))
-            if selected {
+            if selected, !onIsland {
                 shape.strokeBorder(Theme.Colors.emojiSelectionBorder, lineWidth: 2)
                 selectedHalo
                     .opacity(0.30)
                     .mask(shape.strokeBorder(lineWidth: 2))
                 shape.inset(by: 2)
                     .strokeBorder(Theme.Colors.emojiInnerBorder, lineWidth: 1)
-            } else if hovered {
+            } else if hovered, !onIsland {
                 ZStack {
                     shape.strokeBorder(
                         Theme.Colors.emojiHoverBorder, lineWidth: 2)
