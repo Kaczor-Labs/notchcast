@@ -42,6 +42,8 @@ enum NotchTheme {
         static let islandKeyline = Theme.Colors.adaptive(dark: .srgbInk(1, alpha: 0.15), light: .clear)
         /// Apart from `rowHover`, so retuning hover never dims a resting keycap.
         static let keyCapFill = Theme.Colors.ramp(dark: 0.14, light: 0.045)
+        /// A rule inside a `keyCapFill` card: the `selection` step, which reads on the card and on black.
+        static let cardRule = Theme.Colors.selection
     }
 }
 

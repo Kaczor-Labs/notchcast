@@ -2,11 +2,15 @@
 // notchcast-sources: Tinycast/DesignSystem/InterfaceMetrics.swift Tinycast/Features/Notchcast/NotchTheme.swift
 // notchcast-sources: Tinycast/Features/Island/Service/IslandPaletteSurface.swift
 // notchcast-sources: Tinycast/Features/Notchcast/IslandCardStyle.swift
+// notchcast-sources: Tinycast/Features/AI/UI/MarkdownTableView.swift Tinycast/Features/AI/UI/MarkdownInline.swift
+// notchcast-sources: Tinycast/Features/AI/Model/MarkdownBlock.swift Tinycast/Features/AI/Model/MarkdownMath.swift
+// notchcast-sources: Tinycast/Features/AI/Model/MathFormula.swift Tinycast/Features/AI/Model/MathNode.swift
+// notchcast-sources: Tinycast/Features/AI/Model/MathSymbolCatalog.swift
 import AppKit
 import SwiftUI
 
 /// Design system §2: an island card is a fill with no edge; stand-alone keeps the hairline.
-/// `NC_AUDIT_RENDERS` names a folder for the card PNGs.
+/// `NC_AUDIT_RENDERS` names a folder for the card, rule and `MarkdownTableView` PNGs.
 @MainActor
 @main
 struct NotchcastIslandCardsTest {
@@ -42,13 +46,39 @@ struct NotchcastIslandCardsTest {
             .environment(\.colorScheme, .dark)
     }
 
-    static func rule(onIsland: Bool) -> some View {
-        Rectangle().fill(.islandSeparator)
-            .frame(width: 60, height: 20)
+    static func band(_ height: CGFloat, filled: Bool) -> some View {
+        Color.clear.frame(width: 60, height: height)
+            .background { if filled { Rectangle().fill(.islandCardFill) } }
+    }
+
+    /// A filled header, a rule, a body: the rule over the card's own fill, or over the bare ground.
+    static func ruled(onIsland: Bool, dark: Bool, overCard: Bool) -> some View {
+        VStack(spacing: 0) {
+            band(18, filled: true)
+            ZStack {
+                band(4, filled: overCard)
+                Rectangle().fill(.islandSeparator).frame(width: 60, height: 4)
+            }
+            band(18, filled: overCard)
+        }
+        .padding(10)
+        .background(ground(dark))
+        .environment(\.paletteOnIsland, onIsland)
+        .environment(\.colorScheme, dark ? .dark : .light)
+    }
+
+    static func ground(_ dark: Bool) -> Color { dark ? NotchTheme.Colors.islandSurface : .white }
+
+    static let table = MarkdownBlock.Table(
+        header: ["Name", "Kind", "Size"], alignments: [.leading, .leading, .trailing],
+        rows: [["Alpha", "Note", "12"], ["Beta", "Image", "340"]])
+
+    static func tableCard(dark: Bool) -> some View {
+        MarkdownTableView(table: table)
             .padding(10)
-            .background(NotchTheme.Colors.islandSurface)
-            .environment(\.paletteOnIsland, onIsland)
-            .environment(\.colorScheme, .dark)
+            .background(ground(dark))
+            .environment(\.paletteOnIsland, true)
+            .environment(\.colorScheme, dark ? .dark : .light)
     }
 
     static func image(_ view: some View, _ name: String) -> NSBitmapImageRep {
@@ -95,11 +125,34 @@ struct NotchcastIslandCardsTest {
         check(disc > 0, "island jump disc is not filled: \(disc)")
         check(abs(rim - disc) <= 1, "island jump disc has a rim: \(rim) vs disc \(disc)")
 
-        // A rule inside a card: keyCapFill on the island (the card's own fill), cardStroke otherwise.
-        let ruleIsland = white(image(rule(onIsland: true), "J-rule-island"), 40, 20)
-        let ruleStock = white(image(rule(onIsland: false), "J-rule-stock"), 40, 20)
-        check(ruleIsland == islandBody, "island rule is not keyCapFill: \(ruleIsland) vs card \(islandBody)")
-        check(ruleStock > 0 && ruleStock < ruleIsland, "stock rule is not cardStroke: \(ruleStock) vs \(ruleIsland)")
+        // A rule inside a card reads against its fill, over the fill or over bare ground, Dark and Light.
+        var rules = [String]()
+        for dark in [true, false] {
+            NSApplication.shared.appearance = NSAppearance(named: dark ? .darkAqua : .aqua)
+            for onIsland in [true, false] {
+                for overCard in [true, false] {
+                    let name = "J-rule-\(onIsland ? "island" : "stock")-\(dark ? "dark" : "light")"
+                        + (overCard ? "-card" : "-bare")
+                    let rep = image(ruled(onIsland: onIsland, dark: dark, overCard: overCard), name)
+                    let card = white(rep, 40, 15), rule = white(rep, 40, 30)
+                    check(abs(rule - card) >= 8, "\(name): rule \(rule) is not clear of card \(card)")
+                    rules.append("\(name) \(rule)/\(card)")
+                }
+            }
+        }
+
+        // The real table on the island: some full-width row inside the card differs from the fill.
+        for dark in [true, false] {
+            NSApplication.shared.appearance = NSAppearance(named: dark ? .darkAqua : .aqua)
+            let name = "J-table-island-\(dark ? "dark" : "light")"
+            let rep = image(tableCard(dark: dark), name)
+            let fill = white(rep, 12, rep.pixelsHigh / 2)
+            let rows = (11..<rep.pixelsHigh - 11).filter { y in
+                (24..<rep.pixelsWide - 24).allSatisfy { x in abs(white(rep, x, y) - fill) >= 8 }
+            }
+            check(!rows.isEmpty, "\(name): the header rule does not read against the card fill \(fill)")
+        }
+        NSApplication.shared.appearance = NSAppearance(named: .darkAqua)
 
         // Radius: an island card rounds at metrics.radius.row; stock keeps card and codeBlock.
         let radius = InterfaceMetrics.standard.radius
@@ -114,5 +167,6 @@ struct NotchcastIslandCardsTest {
             exit(1)
         }
         print("nc-Notchcast-island-cards-test: ok (island body \(islandBody), stock body \(stockBody), disc \(disc))")
+        print("rule/card greys: " + rules.joined(separator: ", "))
     }
 }
