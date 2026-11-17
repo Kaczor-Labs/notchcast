@@ -65,6 +65,8 @@ Maintainer-specific integrations stay out of this repo. `kick.sh`, `update.sh`, 
 
 The new bundle id and signature need Accessibility to be granted once.
 
+Keep Awake and Keep Awake with Lid Closed were removed (#836). A Mac that installed their root helper keeps it, since the app cannot delete root-owned files; clean up once by hand in Terminal: `sudo pmset -a disablesleep 0 && sudo rm -f /Library/PrivilegedHelperTools/app.notchcast.root /etc/sudoers.d/notchcast`. The first command undoes a lid-closed override left on, the second removes the helper and its sudoers rule; `pmset -g | grep -i sleepdisabled` should then print `SleepDisabled 0` or nothing.
+
 Before each update run, the job fetches origin `main` and runs its `notchcast/` tooling from `~/Library/Application Support/notchcast/tools`, leaving the checkout untouched. It always uses the main checkout's git, even when installed from a linked worktree. A failed fetch (the kick job may hold the lock) is retried once, then the last fetched origin `main` is extracted; if refresh fails, it logs the commit and date of the copy it uses (the last extracted copy, else the checkout). After a change to the job wrapper, run `notchcast/install-launchd.sh update` once on each installed Mac to rewrite it. A newer snapshot (automatic or `--install`) installs at once, restarting the app only if it was running; there is no idle wait.
 
 ## Conflict-free PRs
