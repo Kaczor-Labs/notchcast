@@ -30,6 +30,7 @@ struct NotchcastSettingsSearchTests {
         check("the capture row lands on the island section", rows[1].anchor == NotchcastSettingsSearch.island)
         check("the outline row lands on the island section", rows[2].anchor == NotchcastSettingsSearch.island)
         check("keyline finds the outline row", finds("keyline", "Outline when open"))
+        check("dark no longer finds the outline row", !finds("dark", "Outline when open"))
         check("screen recording finds the capture row", finds("screen recording", "Show in screenshots and videos"))
         check("a switch row lands on its category section", rows[3].anchor == NotchcastSettingsSearch.anchor(.capture))
         check("the section anchor is the category header", rows[4].anchor?.title == NotchcastCategory.power.title)
