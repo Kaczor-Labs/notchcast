@@ -33,6 +33,27 @@
     "A webpage is already being saved." : {
 
     },
+    "Add Links to Distill" : {
+
+    },
+    "Already in Distill" : {
+
+    },
+    "Dictation is in use. Run Distill again when it is free." : {
+
+    },
+    "Dictation is not available. Set up a dictation model first." : {
+
+    },
+    "Distill" : {
+
+    },
+    "Distill Timestamps" : {
+
+    },
+    "Distill is starting. Try again." : {
+
+    },
     "Download Audio" : {
 
     },
@@ -63,7 +84,19 @@
     "Fast Downloads with aria2c" : {
 
     },
+    "Include approximate chunk timestamps in Distill transcripts." : {
+
+    },
+    "No Links Waiting for Distill" : {
+
+    },
     "No Web Links in Clipboard" : {
+
+    },
+    "No speech was found." : {
+
+    },
+    "Open Distill Folder" : {
 
     },
     "Open Downloads Folder" : {
@@ -72,7 +105,16 @@
     "Private and loopback addresses cannot be saved as webpages." : {
 
     },
+    "Run Distill" : {
+
+    },
     "Save Webpage as Markdown" : {
+
+    },
+    "Save links and transcribe media into your Distill folder." : {
+
+    },
+    "The audio could not be read." : {
 
     },
     "The downloader did not return an output file." : {
@@ -111,7 +153,20 @@
     "Tool exited with status %d." : {
 
     },
+    "Transcribing %lld of %lld" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Transcribing %1$lld of %2$lld"
+          }
+        }
+      }
+    },
     "Use aria2c for faster media downloads when it is installed." : {
+
+    },
+    "Waiting for Distill: %lld" : {
 
     },
     "X returned HTTP status %lld for this post." : {
