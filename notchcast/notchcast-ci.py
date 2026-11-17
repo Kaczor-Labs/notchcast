@@ -37,7 +37,8 @@ dispatch, fewer than 500 calls left likewise waits for the reset (`notchcast-ci:
 Exit 0: the run passed. 1: the run failed. 2: usage or infrastructure error (gh, git, a failed push, no push
 to prove), a NOPROOF run, or a run whose headSha is not the HEAD this started at (the branch moved; the verdict is
 still printed). 3: still pending; rerun the printed command. Overrides for tests: NOTCHCAST_CI_POLL (seconds between
-polls), NOTCHCAST_CI_PUSH_WAIT (seconds to look for the push run), NOTCHCAST_CI_MAX_DISPATCHES.
+polls), NOTCHCAST_CI_PUSH_WAIT (seconds to look for the push run), NOTCHCAST_CI_MAX_DISPATCHES, and
+NOTCHCAST_CI_CLOCK=virtual (waits advance a counter instead of sleeping, and child processes run untimed).
 """
 import argparse
 import json
@@ -70,21 +71,31 @@ class OutOfTime(Exception):
 
 
 deadline = float("inf")
+VIRTUAL_CLOCK = os.environ.get("NOTCHCAST_CI_CLOCK") == "virtual"
+virtual_now = time.time()
+
+
+def now():
+    return virtual_now if VIRTUAL_CLOCK else time.time()
 
 
 def nap(seconds):
     """time.sleep that refuses to run past --max-wait."""
-    if time.time() + seconds > deadline:
+    global virtual_now
+    if now() + seconds > deadline:
         raise OutOfTime
-    time.sleep(seconds)
+    if VIRTUAL_CLOCK:
+        virtual_now += seconds
+    else:
+        time.sleep(seconds)
 
 
 def time_left():
     """Seconds a child process may take before --max-wait runs out (None without one)."""
-    left = deadline - time.time()
+    left = deadline - now()
     if left <= 0:
         raise OutOfTime
-    return None if left == float("inf") else left
+    return None if left == float("inf") or VIRTUAL_CLOCK else left
 
 
 def run(*cmd):
@@ -112,7 +123,7 @@ def rate_limit(field):
 def sleep_until_reset(reason):
     reset = rate_limit("reset")
     print(f"notchcast-ci: {reason}; waiting until {time.strftime('%H:%M', time.gmtime(reset))} UTC", flush=True)
-    nap(max(0, reset + 5 - time.time()))
+    nap(max(0, reset + 5 - now()))
 
 
 def patient_gh(*args):
@@ -172,14 +183,14 @@ def push(repo, branch):
 def push_run(head):
     """The push-triggered run of head as (run_id, url), or None when none that can prove it appears in time."""
     interval = min(PUSH_RUN_POLL, poll_seconds())
-    give_up = min(time.time() + float(os.environ.get("NOTCHCAST_CI_PUSH_WAIT", "90")), deadline - interval)
+    give_up = min(now() + float(os.environ.get("NOTCHCAST_CI_PUSH_WAIT", "90")), deadline - interval)
     while True:
         runs = json.loads(patient_gh("run", "list", "-R", REPO, "-w", WORKFLOW, "--commit", head, "--event", "push",
                                      "--json", "databaseId,url,status,conclusion"))
         if runs:
             live = [r for r in runs if r["status"] != "completed" or r["conclusion"] in ("success", "failure")]
             return (live[0]["databaseId"], live[0]["url"]) if live else None  # no second push run will come
-        if time.time() >= give_up:
+        if now() >= give_up:
             return None
         nap(interval)
 
@@ -230,7 +241,7 @@ def main(argv):
     parser.add_argument("--max-wait", type=float, default=100, help="seconds this call may wait in all (default 100)")
     args = parser.parse_args(argv)
     global deadline
-    deadline = time.time() + args.max_wait
+    deadline = now() + args.max_wait
     try:
         return prove(args)
     except Infra as error:

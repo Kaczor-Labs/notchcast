@@ -115,7 +115,7 @@ class CiTests(unittest.TestCase):
         self.git(self.repo, "push", "-q", "origin", "feat")
         self.env = {**os.environ, "PATH": f"{root / 'bin'}{os.pathsep}{os.environ['PATH']}",
                     "FAKE_GH_DIR": str(self.fake), "NOTCHCAST_CI_POLL": "0.01", "NOTCHCAST_CI_PUSH_WAIT": "0",
-                    "NOTCHCAST_CI_MAX_DISPATCHES": "3"}
+                    "NOTCHCAST_CI_MAX_DISPATCHES": "3", "NOTCHCAST_CI_CLOCK": "virtual"}
         self.head = self.rev(self.repo, "HEAD")
         self.scenario(polls=[[]], push_runs=[[]], dispatch={"workflow_run_id": 777, "html_url": URL},
                       view=self.view("success"), log=SELECTED_LOG, log_failed="")
@@ -441,7 +441,7 @@ class CiTests(unittest.TestCase):
             with self.subTest(hang=hang):
                 self.scenario(hang=[hang])
                 started = time.time()
-                result = self.ci("--max-wait", "10")
+                result = self.ci("--max-wait", "10", NOTCHCAST_CI_CLOCK="")  # only a real clock bounds a hang
                 self.assertLess(time.time() - started, 30)
                 self.assertEqual(result.returncode, 3, result.stderr)
                 self.assertEqual(result.stdout.splitlines()[-1], last)
