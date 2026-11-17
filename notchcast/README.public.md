@@ -16,7 +16,7 @@ Notchcast is a macOS launcher that lives in an island at the top of your screen,
 
 ## Install
 
-You need macOS 26 or later on Apple silicon.
+You need macOS version 26 or later on Apple silicon.
 
 1. Open [Releases](https://github.com/kaczordodgers/notchcast/releases) and download `Notchcast-<version>.dmg` from the newest `snapshot` pre-release. Snapshots are built from every green `main`; the releases without `snapshot` rebuild each upstream Tinycast release with our commits.
 2. Drag Notchcast to Applications.
