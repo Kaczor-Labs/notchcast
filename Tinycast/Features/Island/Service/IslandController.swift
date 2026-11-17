@@ -70,6 +70,7 @@ final class IslandController: NSObject {
         super.init()
         backdrop.contentView = canvas
         canvas.wantsLayer = true
+        canvas.onAppearanceChange = { [weak self] in self?.paintFrame() }
         canvas.setAccessibilityElement(true)
         canvas.setAccessibilityRole(.group)
         canvas.setAccessibilityLabel(String(localized: "Notchcast", table: "Notchcast"))
