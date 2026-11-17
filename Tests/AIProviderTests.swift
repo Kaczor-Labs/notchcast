@@ -1681,6 +1681,8 @@ struct AIProviderTests {
 
     static func codexStopDropsQueuedWrites() async throws {
         let (client, root) = try await pausedCodexClient()
+        // The SIGTERM backstop would race the peer draining the 4 MB frame on a loaded machine.
+        client.terminationGrace = .seconds(3600)
         defer {
             client.stop()
             try? FileManager.default.removeItem(at: root)
@@ -1702,10 +1704,8 @@ struct AIProviderTests {
         _ = await bulk.result
         _ = await queuedWrite.result
         try Data().write(to: root.appendingPathComponent("resume"))
-        let deadline = ContinuousClock.now.advanced(by: .seconds(3))
-        while !FileManager.default.fileExists(atPath: root.appendingPathComponent("exited").path),
-            ContinuousClock.now < deadline
-        {
+        // No deadline: only the stdin close can end the peer now, and a hang trips the harness timeout.
+        while !FileManager.default.fileExists(atPath: root.appendingPathComponent("exited").path) {
             try await Task.sleep(for: .milliseconds(10))
         }
         expect(

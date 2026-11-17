@@ -35,6 +35,7 @@ final class CodexAppServerClient {
     var onRelaunch: (() -> Void)?
     /// The reader's command path and variables, asked at each launch so an edit takes the next one.
     var launchSettings: () -> InstalledAILaunch = { InstalledAILaunch() }
+    var terminationGrace: Duration = .seconds(1)
 
     private let codexHome: URL?
     let workspace: URL
@@ -330,8 +331,8 @@ final class CodexAppServerClient {
         guard let process else { return }
         process.terminationHandler = nil
         cleanup(error: error)
-        Task.detached {
-            try? await Task.sleep(for: .seconds(1))
+        Task.detached { [terminationGrace] in
+            try? await Task.sleep(for: terminationGrace)
             if process.isRunning { process.terminate() }
         }
     }
