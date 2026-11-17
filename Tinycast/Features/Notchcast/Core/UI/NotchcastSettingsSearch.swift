@@ -9,7 +9,7 @@ enum NotchcastSettingsSearch {
     static var entries: [SettingsSearchEntry] {
         [.init(pane: .notchcast, keywords: ["island", "addons"]),
          .init(island, showsInCaptures, keywords: ["screen recording", "screen sharing", "capture", "hide"]),
-         .init(island, outlineWhenOpen, keywords: ["keyline", "border", "line", "edge", "dark"])]
+         .init(island, outlineWhenOpen, keywords: ["keyline", "border", "line", "edge"])]
             + switchRows.withLock { $0 }
     }
 
