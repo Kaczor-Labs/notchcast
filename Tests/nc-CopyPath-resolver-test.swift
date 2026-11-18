@@ -1,4 +1,5 @@
 // notchcast-sources: Tinycast/Features/Notchcast/CopyPath/Model/*.swift
+// notchcast-sources: Tinycast/Features/Notchcast/Core/Model/NotchcastLinkCleaner.swift
 
 import Foundation
 
@@ -123,7 +124,7 @@ func folding() {
 }
 
 func cleaning() {
-    let clean = CopyPathLinkCleaner.clean
+    let clean = NotchcastLinkCleaner.clean
     check(clean("https://x.org/p?a=1&b=2#f"), "https://x.org/p?a=1&b=2#f", "nothing to strip: unchanged")
     check(clean("https://x.org/p?utm_source=a&utm_medium=b"), "https://x.org/p", "all stripped drops the ?")
     check(clean("https://x.org/p?UTM_Campaign=a&b=1"), "https://x.org/p?b=1", "names compare case-insensitively")
@@ -133,11 +134,11 @@ func cleaning() {
     check(clean("https://x.org/p?q=a+b;c%2F&&mc_eid=1#a?utm_x=1"), "https://x.org/p?q=a+b;c%2F&#a?utm_x=1",
           "other bytes stay; the fragment is never touched")
     check(clean("https://x.org/#?utm_source=1"), "https://x.org/#?utm_source=1", "a ? after # is fragment")
-    for name in CopyPathLinkCleaner.trackingNames {
+    for name in NotchcastLinkCleaner.trackingNames {
         check(clean("https://x.org/?\(name)=1&k=v"), "https://x.org/?k=v", "\(name) strips")
     }
-    precondition(CopyPathLinkCleaner.trackingNames.count == 19, "the issue's 19 names")
-    precondition(!CopyPathLinkCleaner.isTracking("ref") && !CopyPathLinkCleaner.isTracking("utm"), "near misses stay")
+    precondition(NotchcastLinkCleaner.trackingNames.count == 19, "the issue's 19 names")
+    precondition(!NotchcastLinkCleaner.isTracking("ref") && !NotchcastLinkCleaner.isTracking("utm"), "near misses stay")
 }
 
 @main

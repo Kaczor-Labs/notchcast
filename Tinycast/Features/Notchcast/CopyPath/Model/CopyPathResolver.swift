@@ -86,7 +86,7 @@ nonisolated enum CopyPathResolver {
     static func webLink(_ raw: String) -> String? {
         guard let url = URL(string: raw), ["http", "https"].contains(url.scheme?.lowercased() ?? ""),
             let host = url.host(), !host.isEmpty else { return nil }
-        return CopyPathLinkCleaner.clean(raw)
+        return NotchcastLinkCleaner.clean(raw)
     }
 
     private static func trimmed(_ path: String) -> String {
