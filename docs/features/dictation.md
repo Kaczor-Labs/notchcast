@@ -109,6 +109,23 @@ compilation of its 2-bit weights; Ultra's encoder and both variants' decoder/joi
   does not accept a language hint. Neither adapter exposes user vocabulary. Qwen prepares its fixed
   prompts and supported language hints once, then retains only the tokenizer's decoding tables
   and prepared tokens, not the BPE encoding rules.
+- Sharing the model with other apps is off by default and serves only while it and Dictation are both
+  on: an OpenAI-compatible `POST /v1/audio/transcriptions` (multipart `file`, `model` ignored,
+  optional ISO-639-1 `language`, `response_format` json or text) and `GET /v1/models`, bound to
+  127.0.0.1 on a configurable port (8178 by default). `NotchcastCore` owns `DictationServer`, so quitting stops it.
+- The switch and port live in the fork's `.notchcast` defaults suite, which backups and `settings.json`
+  never carry, so an import cannot open a listener. The bearer token is 32 random bytes generated on first
+  use, kept only in the Keychain (`KeychainSecretStore.dictationServer`), compared in constant time, never
+  logged, and copied to the pasteboard as concealed so Clipboard History skips it.
+- Every request is decided from its head before any body is read: a Host other than 127.0.0.1 or
+  localhost is 403, a missing or wrong token 401, and a Content-Length over 25 MB (plus form overhead)
+  413. Chunked uploads are refused; each connection carries one request, at most eight at once, and
+  must arrive within 30 seconds.
+- The user's own dictation always wins. Shared requests take the model one at a time in arrival order
+  through the add-on transcription runner, and none starts while the user records or transcribes. A
+  request still running when the user starts is cancelled and answered 503 with `Retry-After`, and the
+  user's session waits only for its cleanup. A missing model is 503.
+- An upload is written to a private 0600 temporary file only for decoding and removed when its request ends.
 - The `Model/` folder imports Foundation only. Context-sensitive spaces and capitalization are a
   pure decision driven by text around the caret. Capitalization adapts by default and can be disabled
   without disabling contextual spaces; if an app does not expose that context through
@@ -129,6 +146,9 @@ and competing downloads on shared or independent cache roots, without sockets or
 `DictationVolumeTests` uses private files and injected audio controls to verify crash recovery
 before and after fade steps, user volume changes, output switching, failed writes and rapid cancellation,
 without changing the system volume or downloading a model.
+`nc-Dictation-server-test` checks the endpoint's head parsing, host and token checks, size caps,
+multipart forms fed byte by byte, responses, and the dictation-wins queue through the add-on runner with
+fakes, without a socket, a timer or a model.
 
 Also exercise all four real models, short and long recordings, downloads/removal, initial microphone
 grant and denial, hold/toggle shortcuts, Return/Escape, output destinations, live insertion on and off, surrounding text with

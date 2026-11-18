@@ -7,6 +7,12 @@
     "A notch always decides where the island sits." : {
 
     },
+    "Apps on this Mac can transcribe audio through a local OpenAI-compatible endpoint." : {
+
+    },
+    "Apps using the current token stop working until they get the new one." : {
+
+    },
     "Between Macs" : {
       "shouldTranslate" : false
     },
@@ -15,6 +21,12 @@
     },
     "Capture" : {
       "shouldTranslate" : false
+    },
+    "Copy Token" : {
+
+    },
+    "Could not listen on port %lld. Another app may be using it." : {
+
     },
     "Display & Sound" : {
       "shouldTranslate" : false
@@ -36,6 +48,9 @@
     },
     "Launcher Extras" : {
       "shouldTranslate" : false
+    },
+    "Listening on this Mac only. Send the token as a Bearer authorization header." : {
+
     },
     "Look" : {
 
@@ -61,6 +76,12 @@
     "Notchcast" : {
       "shouldTranslate" : false
     },
+    "Notchcast could not read its token from the Keychain." : {
+
+    },
+    "Notchcast could not save a new token in the Keychain." : {
+
+    },
     "Notices" : {
       "shouldTranslate" : false
     },
@@ -70,13 +91,31 @@
     "Outline when open" : {
 
     },
+    "Port" : {
+
+    },
     "Position on displays without a notch" : {
+
+    },
+    "Regenerate Token" : {
+
+    },
+    "Regenerate the token?" : {
+
+    },
+    "Share the dictation model with other apps" : {
+
+    },
+    "Sharing" : {
 
     },
     "Show %@ in the launcher" : {
 
     },
     "Show in screenshots and videos" : {
+
+    },
+    "Token" : {
 
     },
     "Top edge" : {
