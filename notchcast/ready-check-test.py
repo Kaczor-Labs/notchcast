@@ -117,18 +117,22 @@ GATED_MAC = ("${{ github.event_name == 'workflow_dispatch' && !inputs.hosted && 
              "|| 'xcode-27' }}")
 # Only jobs that hold no secret and launch no app; a workflow outside this map is hosted-only.
 GATED_JOBS = {"pr.yml": 1, "main-harnesses.yml": 1}
+# Every macOS job (README Runners): it runs xcodebuild, compiles harnesses, signs or launches the app. Anything else is Linux.
+MAC_JOBS = {"pr.yml": 1, "main-harnesses.yml": 1, "delete-check.yml": 1, "proof.yml": 1, "snapshot.yml": 1, "sync.yml": 2}
 
 
 class RunnerTest(unittest.TestCase):
     def test_every_job_runs_on_a_hosted_image(self):
-        allowed = {"ubuntu-latest", "xcode-27", "macos-15"}
-        gated = {}
+        allowed = {"ubuntu-latest", "xcode-27"}
+        gated, mac = {}, {}
         for workflow in sorted((ROOT / ".github/workflows").glob("*.y*ml")):
             lines = workflow.read_text().splitlines()
             for i, line in enumerate(lines):
                 match = re.match(r"(\s*)runs-on:(.*)", line)
                 if not match:
                     continue
+                if match[2].strip() == GATED_MAC or match[2].strip() == "xcode-27":
+                    mac[workflow.name] = mac.get(workflow.name, 0) + 1
                 if match[2].strip() == GATED_MAC:
                     gated[workflow.name] = gated.get(workflow.name, 0) + 1
                     continue
@@ -142,6 +146,7 @@ class RunnerTest(unittest.TestCase):
                     self.assertTrue(labels, "runs-on has no label")
                     self.assertEqual(set(labels) - allowed, set(), "runs-on names a runner README Runners does not")
         self.assertEqual(gated, GATED_JOBS, "only these jobs may leave the hosted images, behind the fork gate")
+        self.assertEqual(mac, MAC_JOBS, "a new macOS job needs a reason a Linux job cannot meet")
 
     def test_a_self_hosted_run_proves_no_tree_and_runs_no_script_test(self):
         found = {(job, signature(text)): text for job, text in steps(WORKFLOW, 6)}
