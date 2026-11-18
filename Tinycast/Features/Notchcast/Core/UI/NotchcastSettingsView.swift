@@ -67,8 +67,8 @@ private struct NotchcastSwitchRows: View {
                 SettingsRow(title: command.name, labelOpacity: shown ? 1 : 0.45) {
                     AliasField(key: command.id, name: command.name)
                     ShortcutRecorder(action: .notchcastCommand(entryID: command.id))
-                    Toggle("", isOn: Binding(get: { shown }, set: { preferences.setShowsInLauncher(command.id, $0) }))
-                        .labelsHidden()
+                    Toggle("Show in launcher", isOn: Binding(
+                        get: { shown }, set: { preferences.setShowsInLauncher(command.id, $0) }))
                         .toggleStyle(.checkbox)
                         .launcherVisibilityHelp()
                         .accessibilityLabel(
