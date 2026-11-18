@@ -159,12 +159,22 @@ struct NotchLookTokensTests {
             ("rowHover", c.rowHover, f.rowHover), ("menuHover", c.menuHover, f.menuHover),
             ("primaryAction", c.primaryAction, f.accent), ("progress", c.progress, f.accent),
             ("destructive", c.destructive, f.destructive), ("keyCapFill", NotchTheme.Colors.keyCapFill, f.controlFill),
+            ("textSecondary is the token", c.textSecondary, ObsidianTokens.Glass.glassMutedForegroundSecondary),
+            ("textSecondary is white 0.72", c.textSecondary, Color.white.opacity(0.72)),
+            ("textTertiary is the token", c.textTertiary, ObsidianTokens.Glass.glassMutedForegroundTertiary),
+            ("textTertiary is white 0.60", c.textTertiary, Color.white.opacity(0.6)),
+            ("controlEdge is glassRule", NotchTheme.Colors.controlEdge, ObsidianTokens.Glass.glassRule),
+            ("controlEdge is white 0.16", NotchTheme.Colors.controlEdge, Color.white.opacity(0.16)),
+            ("destructive is glassDestructive", c.destructive, ObsidianTokens.Glass.glassDestructive),
+            ("destructive is #ffb3b3", c.destructive, Color(.sRGB, red: 1, green: 179 / 255, blue: 179 / 255)),
             ("islandPanelFill", NotchTheme.Colors.islandPanelFill, .clear),
             ("secondaryLabel", NotchTheme.Colors.secondaryLabel, f.textSecondary),
         ]
         for (name, token, value) in frostedValues { sameResolved("frosted \(name)", token, value, frosted: true) }
         check("frosted lifted secondary is primary",
               rgba(resolved(c.textSecondary, frosted: true, lifted: true)) == rgba(resolved(f.textPrimary, frosted: false)))
+        sameResolved("frosted lifted destructive is glassDestructive", c.destructive, ObsidianTokens.Glass.glassDestructive,
+                     frosted: true, lifted: true)
 
         print("# Frosted text keeps 4.5:1 on its glass over a white wallpaper")
         let white = [1.0, 1.0, 1.0]
@@ -187,6 +197,11 @@ struct NotchLookTokensTests {
             for (name, ink) in inks {
                 legible("lifted \(name) on \(ground)", resolved(ink, frosted: true, lifted: true), on: rgb)
             }
+        }
+        // glass.md §5: a hovered row keeps its resting inks, so the token inks are measured on the hover wash too.
+        let hovered = over(resolved(c.rowHover, frosted: true), body)
+        for (name, ink) in [("secondary", c.textSecondary), ("tertiary", c.textTertiary), ("red", c.destructive)] {
+            legible("\(name) on hovered row", resolved(ink, frosted: true), on: hovered)
         }
         let pressed = over(resolved(IslandButtonFill.primary(0.36), frosted: true), body)
         legible("accent ink on pressed primary", resolved(NotchTheme.Colors.accentInk, frosted: true), on: pressed)
