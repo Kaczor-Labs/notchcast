@@ -51,6 +51,8 @@ for name in check-drift.py check-drift-test.py; do
 done
 # The fixture's own hosted-runner skip, so it never depends on the real list.
 echo 'CI_SKIP_TESTS="clipboard-text-test"' >> "$seed/notchcast/config.env"
+echo 'HOSTED_ONLY_TESTS="hosted-test"' >> "$seed/notchcast/config.env"
+unset RUNNER_ENVIRONMENT NOTCHCAST_ISOLATED_RUNNER
 printf '#!/bin/sh\n' > "$seed/notchcast/check-identity.sh"
 printf '#!/bin/sh\n' > "$seed/notchcast/check-bundle-readme.sh"
 # Selects core, and <name>-test for a changed src/<name>.txt, as changed-harnesses.sh does from harness inputs.
@@ -93,7 +95,7 @@ echo "$ran" >> "$PASSES"
 exit $status
 STUB
 chmod +x "$seed"/notchcast/*.sh "$seed/Scripts/run-tests.sh"
-for name in notchcast-core b c clipboard-text; do
+for name in notchcast-core b c clipboard-text hosted; do
     echo '// fixture' > "$seed/Tests/$name-test.swift"
 done
 echo 'red-with: src/a.txt src/b.txt' > "$seed/Tests/a-test.swift"
@@ -287,6 +289,24 @@ TESTED=1 land 1
 echo 'PASS: a green PR build of the merged tree leaves only the harnesses its runner skips'
 
 fixture
+open_pr 1 pr-h 'Add H' src/hosted.txt
+land 1
+[ "$status" -eq 1 ] && grep -q '^REFUSED: hosted-only harnesses are selected and no hosted run tested this tree: hosted-test;' "$FIXTURE/output" \
+    || fail 'a selected hosted-only harness without a hosted run was not refused by name'
+[ "$(origin rev-parse main)" = "$base" ] && [ ! -s "$PASSES" ] || fail 'a refused hosted-only selection ran or landed something'
+echo 'PASS: a selected hosted-only harness refuses the landing, by name, without a hosted run of the tree'
+TESTED=1 land 1
+[ "$status" -eq 0 ] && [ ! -s "$PASSES" ] && [ "$(landed)" = 'Notchcast: Add H (#1)' ] \
+    || fail "with a hosted run of the tree the hosted-only PR ran '$(paste -sd'|' "$PASSES")' and landed '$(landed)'"
+echo 'PASS: a hosted run of the tree lands it, and the hosted-only harness never runs here'
+
+fixture
+open_pr 1 pr-h 'Add H' src/hosted.txt
+RUNNER_ENVIRONMENT=github-hosted land 1
+[ "$status" -eq 0 ] && [ "$(paste -sd'|' "$PASSES")" = 'hosted-test notchcast-core-test' ] || fail "on a hosted runner the pass was '$(paste -sd'|' "$PASSES")'"
+echo 'PASS: on a GitHub-hosted runner the landing pass runs the hosted-only harness itself'
+
+fixture
 open_pr 1 pr-b 'Add B' src/b.txt
 open_pr 2 pr-c 'Add C' src/c.txt
 held="2 $(($(date +%s) + 600))"
@@ -314,6 +334,7 @@ train 1 2
 [ "$(origin rev-parse refs/heads/train/1-2)" = "$train_sha" ] && [ "$(origin rev-parse "$train_sha~2")" = "$base" ] \
     && [ "$(origin rev-parse "$train_sha^2")" = "$(jq -r .headRefOid "$FIXTURE/pr-2.json")" ] || fail 'train/1-2 is not main plus each head'
 [ "$(grep -c -- '--ref train/1-2' "$FIXTURE/dispatched")" -eq 4 ] && [ "$(grep -c "base=$base" "$FIXTURE/dispatched")" -eq 3 ] \
+    && [ "$(grep -c 'hosted=true' "$FIXTURE/dispatched")" -eq 1 ] && grep -q '^workflow run pr.yml .*hosted=true' "$FIXTURE/dispatched" \
     || fail "dispatched '$(paste -sd'|' "$FIXTURE/dispatched")'"
 echo "$train_sha" > "$FIXTURE/green"
 draft 1

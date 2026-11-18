@@ -70,6 +70,9 @@ start_train() {
     for file in $workflows; do
         if [ "$file" = design.yml ]; then
             gh workflow run "$file" -R "$FORK_REPO" --ref "$branch" >&2
+        elif [ "$file" = pr.yml ]; then
+            # A self-hosted Mac proves no tree, so a train's PR run must be hosted to count.
+            gh workflow run "$file" -R "$FORK_REPO" --ref "$branch" -f "base=$base" -f hosted=true >&2
         else
             gh workflow run "$file" -R "$FORK_REPO" --ref "$branch" -f "base=$base" >&2
         fi
