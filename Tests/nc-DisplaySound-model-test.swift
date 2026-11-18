@@ -27,9 +27,22 @@ enum DisplaySoundModelTests {
         check(BrightnessLevel(0).picture == 1 && !BrightnessLevel(0).isDimmed, "0 keeps the full picture")
         check(close(BrightnessLevel(-0.25).picture, BrightnessLevel.minimumPicture), "−0.25 is the deepest dim")
         check(BrightnessLevel(-0.25).hardware == 0, "extra dimming leaves the backlight at 0")
-        check(BrightnessLevel(0.125).readout == "13%", "Settings rounds 12.5% up, as the island does")
-        check(BrightnessLevel(0.625).readout == "63%", "Settings rounds 62.5% up, as the island does")
-        check(BrightnessLevel(-0.125).readout == "Dim", "Settings names extra dimming")
+        check(BrightnessLevel(-0.25).readout == "0%", "the darkest extra dimming reads 0%")
+        check(BrightnessLevel(-0.125).readout == "10%", "extra dimming reads as a percent, never a word")
+        check(BrightnessLevel(0).readout == "20%", "the system minimum reads 20%, a fifth of the bar")
+        check(BrightnessLevel(0.03125).readout == "23%", "Settings rounds 22.5% up, as the island does")
+        check(BrightnessLevel(1).readout == "100%", "the brightest reads 100%")
+        check(BrightnessLevel(0.125, softwareOnly: true).readout == "13%", "software dimming spans 0…1 only")
+        check(BrightnessLevel(0, softwareOnly: true).readout == "0%", "software dimming's floor reads 0%")
+        var previous = -1
+        for step in -16...64 {
+            let level = BrightnessLevel(Double(step) / 64)
+            guard let percent = Int(level.readout.dropLast()) else { return check(false, "\(level.readout) is a percent") }
+            check((0...100).contains(percent) && percent >= previous, "\(level.value) reads \(percent)% after \(previous)%")
+            check(IslandLevel(source: "brightness", symbol: "sun.max.fill", label: "Brightness", value: level.value,
+                              range: level.range).readout == level.readout, "the island and Settings agree at \(level.value)")
+            previous = percent
+        }
 
         // 1/16 steps, 1/64 fine, snapping onto the grid.
         check(close(BrightnessLevel(0.5).stepped(up: true, fine: false).value, 0.5625), "1/16 up")
@@ -175,6 +188,7 @@ enum DisplaySoundModelTests {
         let off = BrightnessLevel(-0.2, extraDimming: false)
         check(off.value == 0 && off.range == 0...1 && !off.isDimmed, "off: the backlight minimum is the floor")
         check(off.stepped(up: false, fine: false).value == 0, "off: keys stop at the backlight minimum")
+        check(off.readout == "0%" && BrightnessLevel(1, extraDimming: false).readout == "100%", "off: 0…100 is the backlight")
         check(!off.stepped(up: true, fine: true).extraDimming, "a step keeps the setting")
         check(!BrightnessLevel(-0.1).refreshed(hardware: 0.3).allowing(extraDimming: false).extraDimming, "kept")
         check(BrightnessLevel(-0.1).allowing(extraDimming: false) == off, "turning it off lifts a dimmed level")
