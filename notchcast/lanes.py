@@ -57,15 +57,16 @@ def build_closure(head, changed):
     return closure
 
 
+def needs_build(path, closure):
+    return not is_doc(path) and (not path.startswith("notchcast/") or path.startswith("notchcast/actions/")
+                                 or path in closure)
+
+
 def lanes(base, head):
     changed = set(git("diff", "--name-only", "--no-renames", "-z", base, head).split("\0")) - {""}
     closure = build_closure(head, changed)
-    build = scripts = False
-    for path in changed:
-        if is_doc(path):
-            continue
-        scripts = True
-        build = build or not path.startswith("notchcast/") or path.startswith("notchcast/actions/") or path in closure
+    build = any(needs_build(path, closure) for path in changed)
+    scripts = any(not is_doc(path) for path in changed)
     return build, scripts
 
 
