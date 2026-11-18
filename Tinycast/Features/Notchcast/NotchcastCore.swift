@@ -5,6 +5,7 @@ import Foundation
 @MainActor
 final class NotchcastCore {
     let controller: NotchcastController
+    let dictationIsland: NotchcastDictationIsland
     private var trustMonitor: NotchcastTrustMonitor?
     private var launcherHides: NotchcastLauncherHides?
 
@@ -17,6 +18,7 @@ final class NotchcastCore {
         controller = NotchcastController(
             addons: addons, defaults: defaults, hub: hub, dictation: NotchcastDictationBridge(core: core),
             presenter: core.islandPresenter)
+        dictationIsland = NotchcastDictationIsland(core: core)
         NotchcastPane.install(Set(controller.switches.map(\.category)))
         let commands = addons.flatMap { $0.commands }
         NotchcastSettingsSearch.install(

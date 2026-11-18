@@ -114,6 +114,19 @@ compilation of its 2-bit weights; Ultra's encoder and both variants' decoder/joi
   without disabling contextual spaces; if an app does not expose that context through
   Accessibility, the plain transcript is inserted without guessing.
 
+## Island states
+
+Notchcast shows a dictation on the island instead of the capsule (#960). The capsule's panel still opens, because it is what catches Return and Escape without activating Notchcast, but `NotchcastDictationIsland` (`Tinycast/Features/Notchcast/`) empties it and sets its alpha to 0 before it shows, so nothing of it is drawn. The capsule's view code stays in the tree, unshown, so upstream edits to it never conflict.
+
+- `DictationIslandSession` (`Tinycast/Features/DictationIsland/Model/`) is the state machine: recording, transcribing, cleaning up, then pasted, copied, no speech or failed. `IslandNotice(dictation:)` turns each state into the one notice (`notchcast.dictation`) that `NotchcastDictationIsland` reposts through `IslandPresenting`; it opens no window of its own.
+- Recording is a titled progress notice: its ring is the microphone level in 12 steps, its readout the elapsed time as `m:ss`, its text the hints "Return to Paste · Esc to Cancel" ("Return to Copy" for a copy-only destination). Without a notch the pill reads ring, time, hints. On a notch the ring sits left of it and the time right of it; the hints come out below the notch for one message dwell and again on hover (design system §10).
+- Transcribing and cleaning up are compact progress notices, a glyph beside the notch and glyph and word without one. Results are plain notices with the stock dwell: "Pasted", "Copied", "No Speech Detected"; "Dictation Failed" is a failure notice (red glyph, 4 s). Escape clears the island at once.
+- The hooks are added lines only. `DictationPanelController.show` hands over the capsule and its `DictationDisplayState`, whose observed `levels` and `phase` drive the ring, the clock and the move to transcribing, so the level stream is the only clock. `DictationCoordinator` has two closures, set by `NotchcastDictationIsland` and empty in the harnesses that compile the coordinator alone: `didFinish` from the delivered, copied and no-remainder paths, and `didReset` from `reset`. A session that ran to its end with no outcome failed; any other end was a cancel.
+- A failure's reason still shows in the stock report under the island; the island only says that it failed. A result or failure that ends under the launcher or a question is dropped rather than shown late, and a recording started from a palette field's own mic shows on the pill only once the palette closes.
+- Cleaning up has no caller yet: `NotchcastDictationIsland.cleaningUp()` is the entry for the cleanup step (#957) to call before it runs.
+
+`nc-DictationIsland-session-test` checks every transition, the clock and ring steps, each state's notice, cancel, failure and the covered drops, on injected timestamps with no microphone. `nc-Notchcast-island-audit-render-test` renders every state in both forms (`960-*.png`; `NC_AUDIT_LOOK=frosted` for Frosted). Not verified: the live flow on a Mac (Return and Escape through the emptied panel, the ring against a real microphone, a real notch).
+
 ## Validation
 
 `DictationCueTests` checks system resource paths, playback ordering and missing sounds without audio output.

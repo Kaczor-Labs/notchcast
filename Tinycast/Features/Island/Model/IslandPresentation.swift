@@ -25,6 +25,8 @@ struct IslandNotice: Equatable, Sendable {
     var dwell: TimeInterval { seconds ?? (isFailure ? Self.failureSeconds : Self.messageSeconds) }
     /// On a notch, its text expands below the notch; otherwise it keeps to the wings (design §10).
     var isHeadline: Bool { progress?.headline ?? true }
+    /// Where there is room for words, the readout leads them.
+    var line: String { progress?.readout.map { "\($0)  \(text)" } ?? text }
 }
 
 /// A nil `fraction` is unknown, so the pill shows the notice's glyph rather than a made-up ring.
@@ -32,6 +34,8 @@ struct IslandProgress: Equatable, Sendable {
     var fraction: Double?
     /// The text is a title worth one message dwell below the notch before the ring takes the wing.
     var headline = true
+    /// A short live value, such as an elapsed time: the notch wing's in place of the percent.
+    var readout: String?
 }
 
 /// A rest-pill glyph that stays until its owner clears it; at most four `text` characters show.

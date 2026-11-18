@@ -132,6 +132,7 @@ final class DictationPanelController {
                 y: frame.minY + frame.height * 0.1 - size.height / 2))
         state.phase = .listening
         state.levels = [Float](repeating: 0, count: DictationSpectrum.barCount)
+        AppCore.shared.notchcast?.dictationIsland.began(state, capsule: panel)
         panel.makeKeyAndOrderFront(nil)
     }
 

@@ -55,6 +55,12 @@ struct IslandCanvasTest {
         precondition(IslandNoticeArt.percent(0.29) == "29%" && IslandNoticeArt.percent(0.999) == "99%"
             && IslandNoticeArt.percent(1) == "100%" && IslandNoticeArt.percent(-1) == "0%",
             "The percent is rounded down, never early to 100%, and four characters at most")
+        let timed = IslandNotice(id: "t", symbol: "mic", text: "Return to Paste",
+                                 progress: IslandProgress(fraction: 0.5, readout: "0:07"))
+        precondition(IslandNoticeArt.short(timed) == "0:07" && IslandNoticeArt.short(ring) == "29%"
+            && IslandNoticeArt.short(notice) == "", "A readout takes the notch wing in place of the percent")
+        precondition(timed.line == "0:07  Return to Paste" && ring.line == "Guide.pdf",
+                     "Where words fit, the readout leads them")
         let long = IslandHeadlineArt(IslandNotice(id: "l", symbol: "arrow.down.circle",
             text: "2 of 3: Ultimate Guide to Swift Concurrency on Apple Platforms", progress: IslandProgress(fraction: 0.08)),
             notch: notch, frosted: false)

@@ -31,6 +31,9 @@ final class DictationCoordinator {
     @ObservationIgnored private var finishWhenStarted = false
     @ObservationIgnored private var target: InjectionTarget?
     @ObservationIgnored var willStart: @MainActor () async -> Void = {}
+    /// For Notchcast's island: pasted, copied (false) or nothing heard (nil); then every reset.
+    @ObservationIgnored var didFinish: @MainActor (_ pasted: Bool?) -> Void = { _ in }
+    @ObservationIgnored var didReset: @MainActor (_ completed: Bool) -> Void = { _ in }
     /// The field a mic button is dictating into; nil for a shortcut's session.
     private(set) var field: DictationField?
 
@@ -261,6 +264,7 @@ final class DictationCoordinator {
                             guard let self, token == current else { return }
                             let lost = liveDeliveryFailed
                             if destination.copies { Paster.copyPlainText(assembled) }
+                            didFinish(true)
                             reset(cancelTranscription: false)
                             if lost, destination.pastes {
                                 showMessage(
@@ -276,6 +280,7 @@ final class DictationCoordinator {
                         })
                 } else {
                     Paster.copyPlainText(text)
+                    didFinish(false)
                     reset(cancelTranscription: false)
                 }
             } catch {
@@ -289,6 +294,7 @@ final class DictationCoordinator {
     private func finishWithoutRemainder(_ destination: DictationDestination) {
         let text = liveText
         let lost = liveDeliveryFailed
+        didFinish(text.isEmpty ? nil : true)
         reset(cancelTranscription: false)
         if !text.isEmpty, destination.copies { Paster.copyPlainText(text) }
         if lost, destination.pastes {
@@ -395,6 +401,7 @@ final class DictationCoordinator {
     }
 
     private func reset(cancelTranscription: Bool = true) {
+        didReset(!cancelTranscription)
         token = UUID()
         if cancelTranscription { transcriptionTask?.cancel() }
         liveTask?.cancel()

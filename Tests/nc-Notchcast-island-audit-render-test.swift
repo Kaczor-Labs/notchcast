@@ -7,6 +7,8 @@
 // notchcast-sources: Tinycast/Windows/Dialog/DialogRequest.swift Tinycast/Windows/Dialog/DialogChip.swift
 // notchcast-sources: Tinycast/Features/Island/Model/IslandPresentation.swift
 // notchcast-sources: Tinycast/Features/Island/Model/IslandHover.swift
+// notchcast-sources: Tinycast/Features/DictationIsland/Model/DictationIslandSession.swift
+// notchcast-sources: Tinycast/Features/Notchcast/NotchcastDictationNotice.swift
 // notchcast-sources: Tinycast/Features/Notchcast/IslandButtonFill.swift
 // notchcast-sources: Tinycast/Features/Island/Model/IslandLevelDwell.swift
 // notchcast-sources: Tinycast/Features/Island/Model/PillMenuRows.swift Tinycast/Features/Calendar/Model/*.swift
@@ -246,7 +248,40 @@ struct NotchcastIslandAuditRenderTest {
                             IslandNoticeArt(notice, notch: false, frosted: frosted), notch: false)
                 }
             }
+            for (step, session) in dictationStates {
+                guard let notice = IslandNotice(dictation: session) else { continue }
+                let name = "960-\(step)-\(form)-\(look)"
+                if !notch || notice.progress != nil {
+                    compact(name, IslandNoticeArt(notice, notch: notch, frosted: frosted), notch: notch)
+                }
+                if notch {
+                    let line = IslandHeadlineArt(notice, notch: notchSize.width, frosted: frosted)
+                    island(name + "-below", width: line.size.width, body: line.size.height, notch: true,
+                           radius: Theme.Radius.panel) { line.draw(in: $0) }
+                }
+            }
         }
+    }
+
+    /// #960's dictation states, each reached the way the coordinator's hooks reach it.
+    static var dictationStates: [(String, DictationIslandSession)] {
+        var recording = DictationIslandSession()
+        recording.begin(copies: false, at: 0)
+        recording.hear(0.6, at: 7)
+        var states = [("1-recording", recording)]
+        func add(_ name: String, from start: DictationIslandSession? = nil,
+                 _ event: (inout DictationIslandSession) -> Void) {
+            var session = start ?? states[states.count - 1].1
+            event(&session)
+            states.append((name, session))
+        }
+        add("2-transcribing") { $0.transcribe() }
+        add("3-cleaning-up") { $0.cleanUp() }
+        add("4-pasted") { $0.finish(.pasted, covered: false) }
+        add("5-copied", from: states[2].1) { $0.finish(.copied, covered: false) }
+        add("6-no-speech", from: states[1].1) { $0.finish(.noSpeech, covered: false) }
+        add("7-failed", from: states[1].1) { $0.end(completed: true, covered: false) }
+        return states
     }
 
     static func main() {

@@ -16,6 +16,12 @@
     "Capture" : {
       "shouldTranslate" : false
     },
+    "Cleaning Up" : {
+
+    },
+    "Dictation Failed" : {
+
+    },
     "Display & Sound" : {
       "shouldTranslate" : false
     },
@@ -58,6 +64,9 @@
     "Needs Accessibility access" : {
       "shouldTranslate" : false
     },
+    "No Speech Detected" : {
+
+    },
     "Notchcast" : {
       "shouldTranslate" : false
     },
@@ -73,10 +82,19 @@
     "Outline when open" : {
 
     },
+    "Pasted" : {
+
+    },
     "Position on displays without a notch" : {
 
     },
     "Resting the pointer on the island opens what it shows." : {
+
+    },
+    "Return to Copy · Esc to Cancel" : {
+
+    },
+    "Return to Paste · Esc to Cancel" : {
 
     },
     "Show %@ in the launcher" : {
@@ -86,6 +104,9 @@
 
     },
     "Top edge" : {
+
+    },
+    "Transcribing" : {
 
     },
     "Updated to %@" : {

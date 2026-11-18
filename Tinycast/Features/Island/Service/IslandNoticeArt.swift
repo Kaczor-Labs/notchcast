@@ -21,7 +21,7 @@ struct IslandNoticeArt: PillArt {
         self.notch = notch
         mark = IslandNoticeMark(notice, frosted: frosted)
         tone = mark.tone
-        let words = notch ? notice.progress?.fraction.map(Self.percent) ?? "" : notice.text
+        let words = notch ? Self.short(notice) : notice.line
         text = IslandNoticeMark.line(words, frosted: frosted)
         let wing = NotchTheme.Size.islandGlanceWing
         let room = notch ? wing : wing * 2 - IslandNoticeMark.cell - gap
@@ -30,6 +30,11 @@ struct IslandNoticeArt: PillArt {
         let trailing = notch ? max(textWidth, IslandNoticeMark.cell) : textWidth
         layout = IslandGlanceLayout(notch: notch, glyph: IslandNoticeMark.cell, gap: notch ? 0 : gap, title: 0,
                                     separator: 0, countdown: trailing, wing: wing)
+    }
+
+    /// Right of a notch there is room for the notice's own readout, else its percent, and no more.
+    static func short(_ notice: IslandNotice) -> String {
+        notice.progress?.readout ?? notice.progress?.fraction.map(percent) ?? ""
     }
 
     /// Rounded down so the wing never claims 100% early; plain digits keep it to four characters.
@@ -63,7 +68,7 @@ struct IslandHeadlineArt {
         self.notice = notice
         mark = IslandNoticeMark(notice, frosted: frosted)
         tone = mark.tone
-        text = IslandNoticeMark.line(notice.text, frosted: frosted)
+        text = IslandNoticeMark.line(notice.line, frosted: frosted)
         let inset = NotchTheme.Spacing.islandInset
         indent = mark.isEmpty ? 0 : IslandNoticeMark.cell + Theme.Spacing.sm
         textWidth = min(ceil(text.size().width), NotchTheme.Size.islandHeadlineMaxWidth - inset * 2 - indent)
