@@ -48,7 +48,7 @@ Only `v2/addons-core` touches upstream files, and only through these hooks. Each
 | H7 | `Settings/SettingsDetailView.swift` | its detail arm, handing the pane over | +2 |
 | H8 | `Settings/SettingsSearchCatalog.swift` | append `NotchcastSettingsSearch.entries`: a pane row per shown tab plus one row per add-on switch | +1 −1 |
 | H9 | `Launcher/UI/LauncherScreen.swift` (+`LauncherList.swift`) | `static var digitRow`: ⌘1–⌘0 ask core for a row first (digit, query, every result row: entry, file or fallback, never a lead card); nil keeps the stock favourite; the list hands file and fallback rows their keycap | +6 −3 |
-| H11 | `Clipboard/Service/ClipboardManager.swift` | `static var willCapture`, called in `poll()` after its own skips and before a copy is recorded, so the handler may rewrite the copy and history records the result; set by Clean Copied Links ([url-cleaner.md](../../docs/features/url-cleaner.md)) | +4 |
+| H11 | `Clipboard/Service/ClipboardManager.swift` | `static var willCapture`, called in `poll()` after its own skips and before a copy is recorded, so the handler may rewrite the copy and history records the result; set by Clean Copied Links ([url-cleaner.md](url-cleaner.md)) | +4 |
 
 H2 names the one file actually used once built. H4 and H6 add cases to upstream enums. Known cost: a future upstream exhaustive `switch` over `HotKeyAction` or `SettingsTab` breaks our build with no textual conflict; the sync rehearsal's ready-check is what catches it. Every upstream exhaustive switch that needed an arm is listed in this table and counts in the budget.
 

@@ -1,6 +1,6 @@
 # Clean Copied Links
 
-A Notchcast add-on (`Tinycast/Features/Notchcast/URLCleaner/`, switch `urlCleaner`, off by default, Settings › Launcher Extras). While it is on, a copied link loses its tracking parameters before anything can paste it. It has no command, no hotkey and shows nothing.
+A Notchcast add-on (`Tinycast/Features/Notchcast/URLCleaner/`, switch `urlCleaner`, off by default, Settings › Launcher Extras). While it is on, a copied link loses its tracking parameters, usually within half a second. It has no command, no hotkey and shows nothing.
 
 ## Invariants
 
@@ -16,7 +16,7 @@ A Notchcast add-on (`Tinycast/Features/Notchcast/URLCleaner/`, switch `urlCleane
 
 1. `URLCleanerModule.start()` sets `ClipboardManager.willCapture`; `stop()` clears it. The static is the one upstream hook (`notchcast/docs/addons.md` §3, H11): `nil` is stock behaviour.
 2. Upstream's poll sees a new foreign copy, passes its own skips and calls the hook before it records anything.
-3. The module reads the item types and the string (the URL flavour when a copy has no string), asks `URLCleanerPolicy.clean`, and on a change replaces the clipboard with the cleaned link, as a string plus a URL when the copy had one.
+3. The module reads the item types and the string (the URL flavour when a copy has no string), asks `URLCleanerPolicy.clean`, and on a change replaces the clipboard with the cleaned link, as a string plus the URL and the link title (`public.url-name`) when the copy had them.
 4. The poll carries on and records what the clipboard now holds, so clipboard history gets one entry, the cleaned link. The next poll sees our marker and skips.
 
 The cleaner runs inside the clipboard poll, so it works only while Clipboard History is on, and never for an app excluded from history.
@@ -35,4 +35,4 @@ Names match case-insensitively after percent-decoding. A site rule adds to the b
 
 ## Tests
 
-`Tests/nc-URLCleaner-policy-test.swift` covers the policy with fixtures (what is cleaned, what is left alone, rule parsing, the plain-link type check) and drives the module through a fake clipboard the way the poll does: off, on, rich text, settings fields, off again. The real pasteboard and the hook's place in `poll()` have no harness.
+`Tests/nc-URLCleaner-policy-test.swift` covers the policy with fixtures (what is cleaned, what is left alone, rule parsing, the plain-link type check) and drives the module through a fake clipboard the way the poll does: off, on, rich text, settings fields, off again. `Tests/nc-URLCleaner-pasteboard-test.swift` runs the shipped rewrite on a pasteboard of its own: the string, URL and title survive, and the marker makes the result no plain link. The hook's place in `poll()` has no harness.

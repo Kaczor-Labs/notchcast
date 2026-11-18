@@ -20,6 +20,6 @@ enum URLCleanerAddon: NotchcastAddon {
     ]
 
     static func makeModule(_ context: NotchcastContext) -> (any NotchcastModule)? {
-        URLCleanerModule(context: context, system: .live)
+        URLCleanerModule(context: context, system: .live())
     }
 }

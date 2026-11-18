@@ -30,16 +30,18 @@ final class Fake {
 
 // The shipped `live` is left out: this one stands in, so `makeModule` runs as shipped.
 extension URLCleanerSystem {
-    static let live = URLCleanerSystem(
-        observe: { fake.observer = $0 },
-        itemTypes: { fake.itemTypes },
-        isDeclared: { $0.hasPrefix("public.") },
-        text: { fake.text },
-        replace: {
-            fake.text = $0
-            fake.writes.append($0)
-        }
-    )
+    static func live() -> URLCleanerSystem {
+        URLCleanerSystem(
+            observe: { fake.observer = $0 },
+            itemTypes: { fake.itemTypes },
+            isDeclared: { $0.hasPrefix("public.") },
+            text: { fake.text },
+            replace: {
+                fake.text = $0
+                fake.writes.append($0)
+            }
+        )
+    }
 }
 
 // The settings view needs the Settings window; the harness only needs the descriptor to compile.
@@ -106,6 +108,7 @@ func policy() {
         "see https://x.com/?utm_source=y", "https://x.com/?utm_source=y\n", " https://x.com/?utm_source=y",
         "https://a.com/?utm_a=1 https://b.com/?utm_a=1", "ftp://x.com/?utm_source=y", "mailto:a@x.com?utm_source=y",
         "x.com/?utm_source=y", "https:///a?utm_source=y", "file:///a?utm_source=y", "",
+        "https://x.com/?u=https%3A%2F%2Fa.com%2F%3Futm_source%3Dx",
     ] {
         expect(clean(text) == nil, "left alone: \(text.debugDescription)")
     }
