@@ -429,6 +429,47 @@ def replay_fixes(tree, main, name, folder="notchcast/replay-fixes"):
         if path.startswith(bare.removesuffix("patch")) and path.endswith(".patch") and path != bare)
 
 
+def old_lines_remain(tree, patch):
+    """A hunk's old lines still stand somewhere its new lines do not. git's reverse check matches one copy of a
+    hunk, so with repeated context it passes while another copy is still unpatched."""
+    lines, path, i = patch.splitlines(), None, 0
+    while i < len(lines):
+        line, i = lines[i], i + 1
+        if line.startswith("+++ "):
+            path = None if line[4:] == "/dev/null" else line[4:].split("/", 1)[1]
+            continue
+        header = re.match(r"@@ -\d+(?:,(\d+))? \+\d+(?:,(\d+))? @@", line)
+        if not header:
+            continue
+        old_left, new_left, old, new = int(header[1] or 1), int(header[2] or 1), [], []
+        while old_left or new_left:
+            body, i = lines[i], i + 1
+            if body[:1] in (" ", ""):
+                old.append(body[1:])
+                new.append(body[1:])
+                old_left, new_left = old_left - 1, new_left - 1
+            elif body[:1] == "-":
+                old.append(body[1:])
+                old_left -= 1
+            elif body[:1] == "+":
+                new.append(body[1:])
+                new_left -= 1
+        file = Path(tree) / path if path else None
+        if not old or not file or not file.is_file():
+            continue
+        text, struck, j = file.read_text().splitlines(), [], 0
+        while j < len(text):
+            if new and text[j:j + len(new)] == new:
+                struck.append(None)
+                j += len(new)
+            else:
+                struck.append(text[j])
+                j += 1
+        if any(struck[k:k + len(old)] == old for k in range(len(struck) - len(old) + 1)):
+            return True
+    return False
+
+
 def replay(tree, onto, check=False):
     """Replay merge-base(HEAD, upstream main)..HEAD onto `onto` in tree; leaves tree detached at the result.
     With check=True (plan, on Linux) the generated files are not regenerated. Raises Conflict."""
@@ -505,10 +546,13 @@ def replay(tree, onto, check=False):
             for adaptation in adaptations:
                 patch = subprocess.run(["git", "show", f"{main}:{adaptation}"], cwd=tree, text=True,
                                        capture_output=True, check=True).stdout
+                if subprocess.run(["git", "apply", "--index", "-"], input=patch, cwd=tree, text=True,
+                                  capture_output=True).returncode == 0:
+                    break
                 # Already in the commit (Sync rewrote main with it) counts as applied.
-                if any(subprocess.run(["git", "apply", *flags, "-"], input=patch, cwd=tree, text=True,
-                                      capture_output=True).returncode == 0
-                       for flags in (["--index"], ["--reverse", "--check"])):
+                if subprocess.run(["git", "apply", "--reverse", "--check", "-"], input=patch, cwd=tree,
+                                  text=True, capture_output=True).returncode == 0 \
+                        and not old_lines_remain(tree, patch):
                     break
             else:
                 if adaptations:

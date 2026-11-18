@@ -282,7 +282,7 @@ class ReplayTests(unittest.TestCase):
     def test_resolution_does_not_mask_later_failure(self):
         self.scenario(later_conflict=True)
 
-    def adaptation(self, patch, adapted=False):
+    def adaptation(self, patch, adapted=None):
         """Our commit adds a key and picks cleanly; upstream adds a list of every key that lacks it, which no
         conflict reveals. The stored adaptation for our commit adds it there."""
         with tempfile.TemporaryDirectory() as directory:
@@ -301,7 +301,7 @@ class ReplayTests(unittest.TestCase):
             git("config", "user.email", "test@example.com")
             git("config", "core.hooksPath", "/dev/null")
             base = commit("base", {"keys": "a\n"})
-            commit("Ours: add a key", {"keys": "a\nours\n", **({"scope": "a\nours\n"} if adapted else {})})
+            commit("Ours: add a key", {"keys": "a\nours\n", **({"scope": adapted} if adapted else {})})
             if patch:
                 commit("stored adaptation", {f"{CI.ADAPTATIONS}/{name}": text for name, text in patch.items()})
             ours = git("rev-parse", "HEAD")
@@ -330,7 +330,14 @@ class ReplayTests(unittest.TestCase):
 
     def test_adaptation_already_in_the_commit_counts_as_applied(self):
         """After Sync rewrote main, our commit carries the adapted lines; a stale adaptation must not block."""
-        self.assertEqual(self.adaptation({"ours-add-a-key.patch": self.ADAPT}, adapted=True)[0], "a\nours\n")
+        self.assertEqual(self.adaptation({"ours-add-a-key.patch": self.ADAPT}, adapted="a\nours\n")[0], "a\nours\n")
+
+    def test_adaptation_in_one_of_two_repeated_contexts_does_not_count_as_applied(self):
+        """git's reverse check matches the patched copy and ignores the untouched one; the replay must fail."""
+        patch = "diff --git a/scope b/scope\n--- a/scope\n+++ b/scope\n@@ -1,2 +1,3 @@\n foo\n+ours\n bar\n"
+        with self.assertRaises(CI.Conflict) as caught:
+            self.adaptation({"ours-add-a-key.patch": patch}, adapted="foo\nours\nbar\nfoo\nbar\n")
+        self.assertEqual((caught.exception.subject, caught.exception.files), ("Ours: add a key", ["scope"]))
 
     def test_no_adaptation_leaves_the_clean_pick_alone(self):
         scope, _, status = self.adaptation(None)
