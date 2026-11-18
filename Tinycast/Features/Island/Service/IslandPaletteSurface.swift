@@ -66,7 +66,11 @@ private struct IslandGlass<S: Shape>: ViewModifier {
 
     func body(content: Content) -> some View {
         content
-            .background { if onIsland, !frosted { shape.fill(NotchTheme.Colors.islandSurface) } }
+            .background {
+                if onIsland, !frosted { shape.fill(NotchTheme.Colors.islandSurface) }
+                // Solid like Black's, since footer controls float over rows that must not show through.
+                if onIsland, frosted { shape.fill(NotchTheme.Colors.islandGlassSolid) }
+            }
             .overlay {
                 if onIsland, frosted {
                     shape.stroke(NotchTheme.Frosted.controlEdge, lineWidth: 2).clipShape(shape)
