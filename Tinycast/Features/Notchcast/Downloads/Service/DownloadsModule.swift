@@ -42,6 +42,7 @@ final class DownloadsModule: NotchcastModule {
     nonisolated static let distillSwitchID = "distill"
     let downloads: DownloadsQueueController
     let distill: DownloadsQueueController
+    private let drops: DistillDropWatcher
     private let context: NotchcastContext
     private let environment: Environment
     private var running = false
@@ -60,6 +61,7 @@ final class DownloadsModule: NotchcastModule {
         distill = DownloadsQueueController(
             file: environment.queues.appending(path: "distill.json"), destination: environment.distill,
             maxConcurrent: 1, tools: environment.tools, report: report)
+        drops = DistillDropWatcher(defaults: context.defaults, now: context.now, distill: distill)
         DownloadsIslandBridge.track(downloads, presenter: context.presenter, noticeID: "downloads.progress",
                                     symbol: "arrow.down.circle")
         DownloadsIslandBridge.track(distill, presenter: context.presenter, noticeID: "distill.progress",
@@ -76,7 +78,7 @@ final class DownloadsModule: NotchcastModule {
         guard running else { return }
         running = false
         if active.downloads { downloads.stop() }
-        if active.distill { distill.stop() }
+        if active.distill { stopDistill() }
         active = (false, false)
     }
 
@@ -107,13 +109,21 @@ final class DownloadsModule: NotchcastModule {
             : String(localized: "Waiting for Distill: \(held)", table: "NotchcastDownloads"), isFailure: false)
     }
 
+    /// Starts the held links, and tries again any dropped file that failed.
     private func runDistill() {
         guard let queue = distill.queue else { return distillStarting() }
-        guard queue.jobs.contains(where: { $0.state == .held }) else {
-            return post("distill.empty", "text.badge.plus",
-                        String(localized: "No Links Waiting for Distill", table: "NotchcastDownloads"), isFailure: true)
+        let held = queue.jobs.contains { $0.state == .held }
+        if held { queue.release(DistillRunner.kind) }
+        drops.rescan(retryFailed: true) { [weak self] added in
+            guard !held, added == 0 else { return }
+            self?.post("distill.empty", "text.badge.plus",
+                       String(localized: "No Links Waiting for Distill", table: "NotchcastDownloads"), isFailure: true)
         }
-        queue.release(DistillRunner.kind)
+    }
+
+    private func stopDistill() {
+        drops.stop()
+        distill.stop()
     }
 
     private func distillStarting() {
@@ -137,7 +147,7 @@ final class DownloadsModule: NotchcastModule {
             if enabled.downloads { downloads.start(configure: configure) } else { downloads.stop() }
         }
         if enabled.distill != active.distill {
-            if enabled.distill { distill.start(configure: configureDistill) } else { distill.stop() }
+            if enabled.distill { distill.start(configure: configureDistill) } else { stopDistill() }
         }
         active = enabled
     }
@@ -148,7 +158,11 @@ final class DownloadsModule: NotchcastModule {
             workDirectory: environment.work,
             transcribe: { [context] in try await context.transcribe($0) },
             timestamps: { preferences.isEnabled("distillTimestamps") },
-            onBusy: { [weak queue] in queue?.hold(DistillRunner.kind) }))
+            onBusy: { [weak queue] in queue?.hold(DistillRunner.kind) },
+            notes: { [context] in
+                DistillNotes.folder(in: context.defaults).map { DistillNotes(folder: $0, saved: context.now()) }
+            }))
+        drops.start()
     }
 
     private func configure(_ queue: DownloadQueue) {
