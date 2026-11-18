@@ -7,9 +7,9 @@ enum IslandButtonFill {
         return hovered ? Theme.Colors.rowHover : Color.clear
     }
 
-    /// Frosted's primary is the solid accent; hover and press dim it one step each.
+    /// The primary is the solid accent in both looks; hover and press dim it one step each.
     static func primary(_ wash: Double) -> Color {
-        Theme.Colors.primaryAction.opacity(wash).frosted(NotchTheme.Frosted.accent.opacity(1.2 - wash))
+        Theme.Colors.primaryAction.opacity(1.2 - wash)
     }
 
     /// Frosted's red wash is half Black's, so its lifted red ink keeps 4.5:1 on it.
