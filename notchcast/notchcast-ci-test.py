@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
-"""bin/notchcast-ci.py with a fake `gh` first on PATH and a local bare origin: it pushes HEAD plainly with an upstream
-and watches that sha's push-triggered main-harnesses.yml run; with none in time it counts only its own outstanding
-dispatches against the cap in one call per poll and waits while full, dispatches once and polls the run id the dispatch
+"""bin/notchcast-ci.py with a fake `gh` first on PATH and a local bare origin: it pushes HEAD plainly with an upstream,
+counts only its own outstanding dispatches against the cap in one call per poll and waits while full, dispatches once and polls the run id the dispatch
 response carries (never the latest run) until it completes, sleeps out an API rate limit, prints PASS/FAIL with the
 changed harnesses, and refuses --no-push when origin's branch is not HEAD."""
 import json
@@ -53,11 +52,6 @@ elif args[0] == "api":
         print(sc.get("run_path", ".github/workflows/main-harnesses.yml"))
     else:
         sys.exit("unexpected " + path)
-elif args[:2] == ["run", "list"]:
-    lists = sc["push_runs"]
-    sha = args[args.index("--commit") + 1]
-    print(json.dumps([{"databaseId": r["id"], "url": r["url"], "status": r["status"], "conclusion": r["conclusion"]}
-                      for r in lists[min(count("list"), len(lists) - 1)] if r["headSha"] == sha]))
 elif args[:2] == ["run", "view"]:
     if "--json" in args:
         views = sc["view"] if isinstance(sc["view"], list) else [sc["view"]]
@@ -71,7 +65,6 @@ elif args[:2] == ["run", "view"]:
 else:
     sys.exit("unexpected " + " ".join(args))
 '''
-PUSH_URL = "https://github.com/kaczordodgers/notchcast/actions/runs/555"
 
 
 def run_state(run_id, status, workflow="main-harnesses.yml", event="workflow_dispatch"):
@@ -114,18 +107,15 @@ class CiTests(unittest.TestCase):
         self.git(self.repo, "config", "core.hooksPath", "notchcast/githooks")
         self.git(self.repo, "push", "-q", "origin", "feat")
         self.env = {**os.environ, "PATH": f"{root / 'bin'}{os.pathsep}{os.environ['PATH']}",
-                    "FAKE_GH_DIR": str(self.fake), "NOTCHCAST_CI_POLL": "0.01", "NOTCHCAST_CI_PUSH_WAIT": "0",
+                    "FAKE_GH_DIR": str(self.fake), "NOTCHCAST_CI_POLL": "0.01",
                     "NOTCHCAST_CI_MAX_DISPATCHES": "3", "NOTCHCAST_CI_CLOCK": "virtual"}
         self.head = self.rev(self.repo, "HEAD")
-        self.scenario(polls=[[]], push_runs=[[]], dispatch={"workflow_run_id": 777, "html_url": URL},
+        self.scenario(polls=[[]], dispatch={"workflow_run_id": 777, "html_url": URL},
                       view=self.view("success"), log=SELECTED_LOG, log_failed="")
 
     def rev(self, cwd, ref):
         return subprocess.run(["git", "-C", str(cwd), "rev-parse", ref], text=True, capture_output=True,
                               check=True).stdout.strip()
-
-    def push_run(self, sha=None, status="queued", conclusion=None):
-        return {"id": 555, "url": PUSH_URL, "headSha": sha or self.head, "status": status, "conclusion": conclusion}
 
     def view(self, conclusion, status="completed", sha=None):
         return {"status": status, "conclusion": conclusion, "headSha": sha or self.head}
@@ -164,59 +154,25 @@ class CiTests(unittest.TestCase):
     def passed(self, url=URL, sha=None):
         return f"PASS {url} at {(sha or self.head)[:12]} harnesses: notchcast-core-test, nc-Clock-model-test"
 
-    def test_pushes_head_plainly_then_watches_its_push_run_without_dispatching(self):
+    def test_pushes_head_plainly_then_dispatches_once_without_looking_for_a_push_run(self):
         self.commit("two")
         self.head = self.rev(self.repo, "HEAD")
-        self.scenario(push_runs=[[self.push_run(sha="e" * 40)], [], [self.push_run()]], view=self.view("success"))
-        result = self.ci(NOTCHCAST_CI_PUSH_WAIT="5")
+        self.scenario(view=self.view("success"))
+        result = self.ci()
         self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertEqual(result.stdout.splitlines()[-1], self.passed(PUSH_URL))
+        self.assertEqual(result.stdout.splitlines()[-1], self.passed())
         self.assertEqual(self.rev(self.origin, "refs/heads/feat"), self.head)
         self.assertEqual(self.rev(self.repo, "feat@{upstream}"), self.head)
         calls = self.calls()
-        lists = [c for c in calls if c[:2] == ["run", "list"]]
-        self.assertEqual(lists[0], ["run", "list", "-R", "kaczordodgers/notchcast", "-w", "main-harnesses.yml",
-                                    "--commit", self.head, "--event", "push", "--json",
-                                    "databaseId,url,status,conclusion"])
-        self.assertEqual(len(lists), 3)
-        self.assertFalse([c for c in calls if "-X" in c or any("/runs?" in a for a in c)])
-        self.assertEqual(self.views(), [["run", "view", "555", "-R", "kaczordodgers/notchcast", "--json",
-                                         "status,conclusion,headSha"]])
+        self.assertFalse([c for c in calls if c[:2] == ["run", "list"]])
+        self.assertEqual(len([c for c in calls if "-X" in c]), 1)
 
-    def test_no_push_watches_the_push_run_without_pushing(self):
+    def test_no_push_dispatches_without_pushing(self):
         self.git(self.repo, "remote", "set-url", "--push", "origin", str(Path(self.tmp.name) / "missing.git"))
-        self.scenario(push_runs=[[self.push_run()]])
         result = self.ci("--no-push")
         self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertTrue(result.stdout.splitlines()[-1].startswith(f"PASS {PUSH_URL} "))
-        self.assertFalse([c for c in self.calls() if "-X" in c])
-
-    def test_no_push_run_in_time_falls_back_to_one_dispatch(self):
-        result = self.ci(NOTCHCAST_CI_PUSH_WAIT="1")  # several fake-gh lookups even on a slow machine
-        self.assertEqual(result.returncode, 0, result.stderr)
-        calls = self.calls()
-        lists = [i for i, c in enumerate(calls) if c[:2] == ["run", "list"]]
-        self.assertGreater(len(lists), 1)
-        dispatches = [i for i, c in enumerate(calls) if "-X" in c]
-        self.assertEqual(len(dispatches), 1)
-        self.assertLess(lists[-1], dispatches[0])
-
-    def test_the_push_run_search_stops_in_time_to_dispatch_within_max_wait(self):
-        # the search stops one poll interval early; that interval carries the dispatch and the run's first view
-        result = self.ci("--max-wait", "6", NOTCHCAST_CI_PUSH_WAIT="30", NOTCHCAST_CI_POLL="3")
-        self.assertEqual(result.returncode, 0, result.stdout)
-        self.assertTrue(result.stdout.splitlines()[-1].startswith(f"PASS {URL} "))
+        self.assertEqual(result.stdout.splitlines()[-1], self.passed())
         self.assertEqual(len([c for c in self.calls() if "-X" in c]), 1)
-
-    def test_a_push_run_that_proves_nothing_is_skipped_for_a_dispatch(self):
-        for conclusion in ("cancelled", "timed_out", "skipped"):
-            with self.subTest(conclusion=conclusion):
-                (self.fake / "calls.log").unlink(missing_ok=True)
-                self.scenario(push_runs=[[self.push_run(status="completed", conclusion=conclusion)]])
-                result = self.ci()
-                self.assertEqual(result.returncode, 0, result.stdout)
-                self.assertTrue(result.stdout.splitlines()[-1].startswith(f"PASS {URL} "))
-                self.assertEqual(len([c for c in self.calls() if "-X" in c]), 1)
 
     def test_a_rejected_push_stops_before_any_gh_call(self):
         other = Path(self.tmp.name) / "other"
@@ -242,7 +198,7 @@ class CiTests(unittest.TestCase):
         self.assertEqual(self.views(), [["run", "view", "777", "-R", "kaczordodgers/notchcast", "--json",
                                   "status,conclusion,headSha"]])
         self.assertFalse([c for c in calls if c[:2] == ["run", "watch"]])
-        self.assertTrue(all("--commit" in c for c in calls if c[:2] == ["run", "list"]))
+        self.assertFalse([c for c in calls if c[:2] == ["run", "list"]])
 
     def test_polls_the_dispatched_run_until_it_completes(self):
         self.scenario(view=[self.view(None, status="queued"), self.view(None, status="in_progress"),
@@ -437,7 +393,7 @@ class CiTests(unittest.TestCase):
     def test_a_hanging_gh_call_ends_within_max_wait(self):
         pending = f"PENDING {URL} at {self.head[:12]}; rerun: {self.rerun()} --run 777"
         waiting = f"WAITING (not dispatched); rerun: {self.rerun()} --no-push"
-        for hang, last in (("--json status", pending), ("--log", pending), ("run list", waiting)):
+        for hang, last in (("--json status", pending), ("--log", pending), ("event=workflow_dispatch", waiting)):
             with self.subTest(hang=hang):
                 self.scenario(hang=[hang])
                 started = time.time()
