@@ -1,4 +1,5 @@
 // Generated from tokens/tokens.json by scripts/build-tokens.py. Edit tokens.json, not this file.
+// OBSIDIAN 2.0.1 (CHANGELOG.md).
 // OBSIDIAN tokens for macOS (SwiftUI): one nested enum per tokens/<group>.css, constants named after the CSS
 // custom property in camelCase. Where tokens.json gives a mac value it replaces the web one here.
 import SwiftUI
@@ -7,6 +8,8 @@ import AppKit
 #endif
 
 public enum ObsidianTokens {
+    /// The release these values belong to (CHANGELOG.md in the design-system skill).
+    public static let version = "2.0.1"
     /// One CSS box-shadow layer. SwiftUI's .shadow(color:radius:x:y:) takes radius = blur / 2 and has no spread.
     public struct Shadow: Sendable {
         public let color: Color
@@ -69,6 +72,7 @@ public enum ObsidianTokens {
         public static let mutedForeground = Color(.sRGB, red: 132.0 / 255, green: 136.0 / 255, blue: 143.0 / 255, opacity: 1) // #84888f
         public static let foregroundFaint = Color(.sRGB, red: 95.0 / 255, green: 99.0 / 255, blue: 106.0 / 255, opacity: 1) // #5f636a
         public static let foregroundDisabled = Color(.sRGB, red: 71.0 / 255, green: 75.0 / 255, blue: 81.0 / 255, opacity: 1) // #474b51
+        public static let fieldPlaceholder = Color(.sRGB, red: 132.0 / 255, green: 136.0 / 255, blue: 143.0 / 255, opacity: 1) // #84888f
         // Lines — light edges, not drawn borders
         public static let border = Color(.sRGB, red: 255.0 / 255, green: 255.0 / 255, blue: 255.0 / 255, opacity: 0.08) // rgb(255 255 255 / 0.08)
         public static let borderStrong = Color(.sRGB, red: 255.0 / 255, green: 255.0 / 255, blue: 255.0 / 255, opacity: 0.14) // rgb(255 255 255 / 0.14)
@@ -96,6 +100,7 @@ public enum ObsidianTokens {
         public static let activeWash = Color(.sRGB, red: 255.0 / 255, green: 255.0 / 255, blue: 255.0 / 255, opacity: 0.06) // rgb(255 255 255 / 0.06)
         public static let overlayBackdrop = Color(.sRGB, red: 0.0 / 255, green: 0.0 / 255, blue: 0.0 / 255, opacity: 0.72) // rgb(0 0 0 / 0.72)
         public static let scrollbarThumb = Color(.sRGB, red: 255.0 / 255, green: 255.0 / 255, blue: 255.0 / 255, opacity: 0.28) // rgb(255 255 255 / 0.28)
+        public static let opacityDisabled: Double = 0.45
         // Semantic — state only. The -dim / -border triplets are the tone's own rgb; regenerate them when the tone changes.
         public static let green = Color(.sRGB, red: 74.0 / 255, green: 222.0 / 255, blue: 128.0 / 255, opacity: 1) // #4ade80
         public static let greenDim = Color(.sRGB, red: 74.0 / 255, green: 222.0 / 255, blue: 128.0 / 255, opacity: 0.13) // rgb(74 222 128 / 0.13)
@@ -229,7 +234,7 @@ public enum ObsidianTokens {
         public static let underlineOffset: CGFloat = 3
         public static let textareaMin: CGFloat = 96
         public static let spinnerSize: CGFloat = 16
-        public static let tooltipDelay: Double = 0.7 // seconds
+        public static let tooltipDelay: Double = 0.4 // seconds (mac; web: 700ms)
     }
 
     public enum Layout {
@@ -250,10 +255,10 @@ public enum ObsidianTokens {
     }
 
     public enum Motion {
-        public static let transitionFast: Double = 0.1 // seconds
-        public static let transitionBase: Double = 0.15 // seconds
-        public static let transitionSpring: Double = 0.25 // seconds
-        public static let transitionSlow: Double = 0.4 // seconds
+        public static let transitionFast: Double = 0.12 // seconds (mac; web: 0.10s)
+        public static let transitionBase: Double = 0.12 // seconds (mac; web: 0.15s)
+        public static let transitionSpring: Double = 0.18 // seconds (mac; web: 0.25s)
+        public static let transitionSlow: Double = 0.32 // seconds (mac; web: 0.40s)
         public static let transitionReveal: Double = 0.6 // seconds
         public static let transitionStagger: Double = 0.05 // seconds
         public static let transitionLoop: Double = 1.2 // seconds
