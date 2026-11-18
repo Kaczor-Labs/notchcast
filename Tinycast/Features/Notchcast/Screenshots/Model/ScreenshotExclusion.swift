@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
-// Adapted from Vorssaint 89d2626's capture policy and pickable windows: own windows never show.
+// Adapted from Vorssaint 89d2626's capture policy and pickable windows.
 
 import CoreGraphics
 
@@ -12,9 +12,13 @@ struct ScreenshotWindow: Equatable, Sendable {
     let frame: CGRect
     var layer = 0
     var alpha = 1.0
+    /// WindowServer's sharing state isn't none; the island sets it from its capture setting.
+    var isShared = true
+    /// The selection surface or other capture UI of ours, which no capture ever shows.
+    var isCaptureUI = false
 }
 
-/// Our own process stays out of every capture: the island, HUDs, the palette and the surface.
+/// Of our own windows, only capture UI and those the island hides from captures stay out.
 struct ScreenshotExclusion: Equatable, Sendable {
     static let minimumPickSize: CGFloat = 40
 
@@ -22,10 +26,11 @@ struct ScreenshotExclusion: Equatable, Sendable {
     let bundleID: String?
 
     func excludes(_ window: ScreenshotWindow) -> Bool {
-        window.ownerPID == pid || (bundleID != nil && window.bundleID == bundleID)
+        let own = window.ownerPID == pid || (bundleID != nil && window.bundleID == bundleID)
+        return own && (window.isCaptureUI || !window.isShared)
     }
 
-    /// Windows a click can capture, front to back as given: ordinary, visible, big enough, not ours.
+    /// Windows a click can capture, front to back as given: ordinary, visible, big enough, not excluded.
     func pickable(_ windows: [ScreenshotWindow]) -> [ScreenshotWindow] {
         windows.filter {
             $0.layer == 0 && !excludes($0) && $0.alpha > 0.01
