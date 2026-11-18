@@ -6,7 +6,7 @@ trap 'rm -rf "$scratch"' EXIT
 mkdir -p "$scratch/repo/notchcast" "$scratch/bin"
 cp "${LAND_SCRIPT:-$root/notchcast/land.sh}" "$scratch/repo/notchcast/land.sh"
 cp "$root/notchcast/config.env" "$root/notchcast/local-build-status.sh" "$root/notchcast/sync-wait.sh" "$root/notchcast/hold.sh" "$root/notchcast/drift-gates.sh" "$root/notchcast/merge.sh" "$root/notchcast/land-tooling.txt" "$scratch/repo/notchcast/"
-cp "$root/notchcast/app-proof.py" "$scratch/repo/notchcast/"
+cp "$root/notchcast/app-proof.py" "$root/notchcast/ci.py" "$scratch/repo/notchcast/"
 echo '{"fixture-proof": ["Tinycast/Fixture/Proved.swift"]}' > "$scratch/repo/notchcast/app-proofs.json"
 cat > "$scratch/bin/gh" <<'STUB'
 #!/bin/bash
@@ -15,7 +15,7 @@ case "$*" in
     *check-runs*)
         echo "$*" >> "$CALLS"
         case "$*" in
-            *check_name=build*) echo "$BUILD" ;;
+            *check_name=build*) if [ -n "${BUILD_RUNS:-}" ]; then jq -r "${@: -1}" <<< "$BUILD_RUNS"; else echo "$BUILD"; fi ;;
             *check_name=design*) echo "$DESIGN" ;;
             *check_name=leaks*) echo "$LEAKS" ;;
             *check_name=proof*) echo "$PROOF" ;;
@@ -102,6 +102,38 @@ run
 [ "$status" -eq 77 ]
 grep -q REACHED_MERGE "$scratch/output"
 echo 'PASS: green checks reach merged-tree validation'
+# Each argument is one build run, oldest first: "<conclusion>", or "pending" for one still running.
+build_runs() {
+    local i=0 conclusion
+    BUILD_RUNS='{"check_runs":['
+    for conclusion; do
+        i=$((i + 1))
+        [ "$i" -eq 1 ] || BUILD_RUNS+=,
+        if [ "$conclusion" = pending ]; then
+            BUILD_RUNS+="{\"app\":{\"slug\":\"github-actions\"},\"started_at\":\"2026-11-18T10:0$i:00Z\",\"status\":\"in_progress\",\"conclusion\":null}"
+        else
+            BUILD_RUNS+="{\"app\":{\"slug\":\"github-actions\"},\"started_at\":\"2026-11-18T10:0$i:00Z\",\"status\":\"completed\",\"conclusion\":\"$conclusion\"}"
+        fi
+    done
+    export BUILD_RUNS+=']}'
+}
+for runs in 'success cancelled' 'success skipped' 'failure success cancelled'; do
+    build_runs $runs
+    run
+    [ "$status" -eq 77 ] || { cat "$scratch/output"; echo "FAIL: build runs '$runs' refused"; exit 1; }
+    echo "PASS: build runs '$runs' land: a cancelled or skipped run does not hide a green one"
+done
+for runs in 'success failure' 'success failure cancelled' 'success pending' 'cancelled' 'skipped cancelled'; do
+    build_runs $runs
+    run
+    grep -q 'REFUSED: build is' "$scratch/output" || { cat "$scratch/output"; echo "FAIL: build runs '$runs' accepted"; exit 1; }
+    echo "PASS: build runs '$runs' refused"
+done
+export BUILD_RUNS='{"check_runs":[{"id":200,"app":{"slug":"github-actions"},"started_at":"2026-11-18T10:00:00Z","status":"completed","conclusion":"failure"},{"id":100,"app":{"slug":"github-actions"},"started_at":"2026-11-18T10:00:00Z","status":"completed","conclusion":"success"}]}'
+run
+grep -q 'REFUSED: build is failure' "$scratch/output" || { cat "$scratch/output"; echo 'FAIL: same-second older green run hid a newer failure'; exit 1; }
+echo 'PASS: a same-second tie goes to the newer run id'
+unset BUILD_RUNS
 export CHANGED_PATH=Tinycast/Fixture/Proved.swift
 for verdict in none pending failure cancelled; do
     export PROOF=$verdict
