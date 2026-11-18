@@ -37,7 +37,8 @@ struct BrightnessDisplayRow: View {
     }
 
     private var readout: String {
-        BrightnessLevel(state.value).readout
+        BrightnessLevel(state.value, softwareOnly: display.level.softwareOnly,
+                        extraDimming: display.level.extraDimming).readout
     }
 
     private var controlTitle: String {

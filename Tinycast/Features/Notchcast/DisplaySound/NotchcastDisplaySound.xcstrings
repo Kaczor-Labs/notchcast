@@ -3,14 +3,16 @@
   "strings" : {
     "Brightness" : {},
     "Brightness keys control every display, external ones too." : {},
+    "Brightness keys dim past the lowest backlight level until sleep, reconnect or quit." : {},
     "Brightness of %@" : {},
     "Built-in" : {},
     "DDC, no reply" : {},
     "Dim" : {},
     "Display Brightness" : {},
+    "Extra dimming" : {},
     "No display can be controlled." : {},
     "Not responding" : {},
-    "Replaces the macOS volume overlay." : {},
+    "Replaces the macOS volume overlay. Volume keys also reach a monitor's own speakers." : {},
     "Software dimming" : {},
     "Volume in Island" : {}
   },

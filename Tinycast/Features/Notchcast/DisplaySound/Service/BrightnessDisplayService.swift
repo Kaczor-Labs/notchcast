@@ -13,6 +13,9 @@ final class BrightnessDisplayService: Sendable {
         case step(up: Bool, fine: Bool, BrightnessDisplay.ID)
         /// Asks a silent monitor again, unless a write after `since` made the read stale.
         case retry(uuid: String, since: Int)
+        case extraDimming(Bool)
+        /// Display sleep gives every curve back, so a wake never finds a curve it did not write.
+        case sleep
     }
 
     struct Snapshot: Equatable, Sendable {
@@ -37,6 +40,7 @@ final class BrightnessDisplayService: Sendable {
         var lastWrite: [String: Int] = [:]
         /// A silent read never forgets the scale a monitor once reported.
         var maxima: [String: UInt16] = [:]
+        var extraDimming = true
     }
 
     private let displays: DisplaySoundSystem.Displays
@@ -65,11 +69,20 @@ final class BrightnessDisplayService: Sendable {
             return refresh(names: names, &state)
         case let .set(value, id):
             guard value.isFinite else { return nil }
-            return change(id, &state) { BrightnessLevel(value, softwareOnly: $0.softwareOnly) }
+            return change(id, &state) {
+                BrightnessLevel(value, softwareOnly: $0.softwareOnly, extraDimming: $0.extraDimming)
+            }
         case let .step(up, fine, id):
             return change(id, &state) { $0.stepped(up: up, fine: fine) }
         case let .retry(uuid, since):
             return retry(uuid, since: since, &state)
+        case let .extraDimming(on):
+            state.extraDimming = on
+            return relevel(&state) { $0.allowing(extraDimming: on) }
+        case .sleep:
+            let snapshot = relevel(&state, restoring: true) { $0.withoutExtraDimming() }
+            state.written = [:]
+            return snapshot
         }
     }
 
@@ -102,6 +115,7 @@ final class BrightnessDisplayService: Sendable {
         kept.baselines = state.baselines
         kept.written = state.written
         kept.maxima = state.maxima
+        kept.extraDimming = state.extraDimming
         state = kept
         return state.baselines.isEmpty
     }
@@ -156,6 +170,7 @@ final class BrightnessDisplayService: Sendable {
             case .software: BrightnessLevel(old?.softwareOnly == true ? old?.value ?? 1 : 1, softwareOnly: true)
             }
             if old != nil, !state.online.contains(id.uuid) { level = level.reconnected() }
+            level = level.allowing(extraDimming: state.extraDimming)
             entries.append(BrightnessDisplay(id: id, name: names[raw] ?? id.uuid, isBuiltIn: builtIn,
                                              control: control, level: level))
         }
@@ -222,6 +237,7 @@ final class BrightnessDisplayService: Sendable {
               case let .live(current, maximum) = channel.probe() else { return nil }
         let entry = state.entries[index]
         let level = Self.level(reading: Double(current) / Double(maximum), previous: entry.level)
+            .allowing(extraDimming: state.extraDimming)
         state.channels[uuid] = channel
         state.maxima[uuid] = maximum
         state.replied.insert(uuid)
@@ -231,6 +247,28 @@ final class BrightnessDisplayService: Sendable {
                                                  control: .ddc, level: level)
         state.remembered[uuid] = level
         return Snapshot(displays: state.entries, serial: state.serial, retrying: [])
+    }
+
+    /// Every display at once; `restoring` gives each curve back and takes the level even if one refuses.
+    private func relevel(_ state: inout State, restoring: Bool = false,
+                         _ transform: (BrightnessLevel) -> BrightnessLevel) -> Snapshot {
+        for index in state.entries.indices {
+            let entry = state.entries[index]
+            let level = transform(entry.level)
+            guard dim(restoring ? 1 : level.picture, on: entry.id, &state) || restoring else { continue }
+            state.entries[index].level = level
+            state.remembered[entry.id.uuid] = level
+        }
+        return Snapshot(displays: state.entries, serial: state.serial, retrying: [])
+    }
+
+    /// A speaker command between brightness transactions, so two never interleave on one monitor.
+    @concurrent func withLink<T: Sendable>(_ uuid: String, _ body: @Sendable (BrightnessDDCLink) -> T?) async -> T? {
+        state.withLock { state in
+            guard !Task.isCancelled, !closed.load(ordering: .acquiring),
+                  let link = state.channels[uuid]?.link ?? displays.discoverDDC()[uuid] else { return nil }
+            return body(link)
+        }
     }
 
     /// A backlight at zero keeps the extra dimming already below it.

@@ -3,6 +3,7 @@ import SwiftUI
 enum DisplaySoundAddon: NotchcastAddon {
     static let brightnessID = "displayBrightness"
     static let volumeID = "volumeLevels"
+    static let extraDimmingID = "extraDimming"
 
     static let switches = [
         NotchcastSwitch(
@@ -15,9 +16,21 @@ enum DisplaySoundAddon: NotchcastAddon {
             requiredGrants: [.accessibility]
         ),
         NotchcastSwitch(
+            id: "extraDimming",
+            title: String(localized: "Extra dimming", table: "NotchcastDisplaySound"),
+            subtitle: String(
+                localized: "Brightness keys dim past the lowest backlight level until sleep, reconnect or quit.",
+                table: "NotchcastDisplaySound"),
+            category: .displaySound,
+            defaultEnabled: true,
+            dependencies: ["displayBrightness"]
+        ),
+        NotchcastSwitch(
             id: "volumeLevels",
             title: String(localized: "Volume in Island", table: "NotchcastDisplaySound"),
-            subtitle: String(localized: "Replaces the macOS volume overlay.", table: "NotchcastDisplaySound"),
+            subtitle: String(
+                localized: "Replaces the macOS volume overlay. Volume keys also reach a monitor's own speakers.",
+                table: "NotchcastDisplaySound"),
             category: .displaySound,
             defaultEnabled: true,
             requiredGrants: [.accessibility]
