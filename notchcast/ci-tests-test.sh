@@ -45,3 +45,13 @@ RUNNER_TEMP="$scratch/runner" UPSTREAM=$(git rev-parse HEAD) bash notchcast/ci-t
 [ "$(cat "$scratch/runner/harness-failures")" = nc-New-test ] \
     || { cat "$scratch/out"; echo 'FAIL: the failing harness was not written down'; exit 1; }
 echo 'PASS: a harness that fails for good is written to harness-failures in the runner temp'
+# A failing upstream comparison still leaves the harness written down.
+rm -rf "$scratch/runner" tmp/tinycast-harness
+mkdir "$scratch/runner"
+status=0
+RUNNER_TEMP="$scratch/runner" UPSTREAM=0000000000000000000000000000000000000000 bash notchcast/ci-tests.sh \
+    > "$scratch/out" 2>&1 || status=$?
+[ "$status" -ne 0 ] || { cat "$scratch/out"; echo 'FAIL: a failing upstream comparison passed the run'; exit 1; }
+[ "$(cat "$scratch/runner/harness-failures")" = nc-New-test ] \
+    || { cat "$scratch/out"; echo 'FAIL: a failing upstream comparison wrote no harness down'; exit 1; }
+echo 'PASS: a harness that fails for good is written down before the upstream comparison'

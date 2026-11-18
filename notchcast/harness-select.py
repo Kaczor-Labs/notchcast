@@ -4,9 +4,10 @@
     harness-select.py plan <base> <head>         GITHUB_OUTPUT planned, selected, unsure (changed-harnesses.sh)
     harness-select.py misses <failures> <shard>  a failed harness a sure selection left out is a miss
 
-misses reads HARNESS_PLANNED, HARNESS_SELECTED and HARNESS_UNSURE (plan's outputs) and the names ci-tests.sh wrote,
-one per line. Unsure means the whole suite runs even once selection is on. Every line it prints starts with
-"harness-select", so `gh run view <run> --log | grep harness-select` shows a run's plan and misses.
+misses reads HARNESS_PLANNED, HARNESS_SELECTED and HARNESS_UNSURE (plan's outputs), HARNESS_TESTS (the tests
+step's outcome) and the names ci-tests.sh wrote, one per line. Unsure means the whole suite runs even once selection
+is on. Every line it prints starts with "harness-select", so `gh run view <run> --log | grep harness-select` shows
+a run's plan and misses.
 """
 import os
 from pathlib import Path
@@ -21,6 +22,10 @@ SHOWN = 5
 
 def short(items):
     return ", ".join(items[:SHOWN] + ([f"{len(items) - SHOWN} more"] if len(items) > SHOWN else [])) or "none"
+
+
+def output_value(value):
+    return value.replace("%", "%25").replace("\r", "%0D").replace("\n", "%0A")
 
 
 def report(line, annotation="notice"):
@@ -57,7 +62,7 @@ def plan(base, head):
     outputs = {"planned": "true", "selected": " ".join(selected), "unsure": short(reasons) if reasons else ""}
     if path := os.environ.get("GITHUB_OUTPUT"):
         with open(path, "a") as out:
-            out.writelines(f"{key}={value}\n" for key, value in outputs.items())
+            out.writelines(f"{key}={output_value(value)}\n" for key, value in outputs.items())
     mode = os.environ.get("NOTCHCAST_HARNESS_SELECT", "unset")
     report(f"harness-select plan: mode={mode} selected={len(selected)}/{total} unsure={outputs['unsure'] or 'no'}")
     if summary := os.environ.get("GITHUB_STEP_SUMMARY"):
@@ -77,6 +82,9 @@ def misses(failures, shard):
         return
     if unsure:
         report(f"{line} unsure={unsure} misses=none (unsure runs the whole suite)", annotation=None)
+        return
+    if not failed and (outcome := os.environ.get("HARNESS_TESTS") or "unknown") != "success":
+        report(f"{line} unsure=no misses=unjudged (tests {outcome}, no failed harness named)", annotation=None)
         return
     for name in outside:
         report(f"harness-select miss: {name} failed in shard {shard}, outside the selection", annotation="warning")

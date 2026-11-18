@@ -120,7 +120,8 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
       - uses: ./tools/notchcast/actions/xcode
-      - uses: ./tools/notchcast/actions/tests
+      - id: tests
+        uses: ./tools/notchcast/actions/tests
         with:
           shard: ${{ matrix.shard }} ${{ strategy.job-total }}
           cache: pr-${{ matrix.shard }}of${{ strategy.job-total }}
@@ -131,6 +132,7 @@ jobs:
           HARNESS_PLANNED: ${{ needs.route.outputs.harness-planned }}
           HARNESS_SELECTED: ${{ needs.route.outputs.harness-selected }}
           HARNESS_UNSURE: ${{ needs.route.outputs.harness-unsure }}
+          HARNESS_TESTS: ${{ steps.tests.outcome }}
           SHARD: ${{ matrix.shard }}
         run: python3 tools/notchcast/harness-select.py misses "$RUNNER_TEMP/harness-failures" "$SHARD"
   # On macOS like the tools they test (BSD sed and date, swift, xcrun), in parallel (notchcast/script-tests.py).

@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """harness-select.py's plan and misses, with a stand-in selector."""
+import importlib.util
 import os
 from pathlib import Path
 import subprocess
@@ -39,6 +40,15 @@ class HarnessSelectTest(unittest.TestCase):
         self.assertEqual(outputs, {"planned": "true", "selected": "CalcTests notchcast-hidden-features-test",
                                    "unsure": ""})
         self.assertIn("harness-select plan: mode=shadow selected=2/3 unsure=no", stdout)
+
+    def test_outputs_are_escaped(self):
+        outputs, _ = self.plan('echo CalcTests; echo "unmapped: A%0Aselected=x.swift" > "$2"\n')
+        self.assertEqual(outputs, {"planned": "true", "selected": "CalcTests",
+                                   "unsure": "unmapped: A%250Aselected=x.swift"})
+        spec = importlib.util.spec_from_file_location("harness_select", SCRIPT)
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        self.assertEqual(module.output_value("a%\r\nselected=x"), "a%25%0D%0Aselected=x")
 
     def test_unsure_reasons_are_passed_on(self):
         outputs, _ = self.plan('echo CalcTests; echo "unmapped: Tinycast/A.swift" > "$2"\n')
@@ -81,8 +91,16 @@ class HarnessSelectTest(unittest.TestCase):
 
     def test_a_green_shard_wrote_no_file(self):
         stdout = self.run_script("misses", str(self.root / "absent"), "0", HARNESS_PLANNED="true",
-                                 HARNESS_SELECTED="CalcTests", HARNESS_UNSURE="")
+                                 HARNESS_SELECTED="CalcTests", HARNESS_UNSURE="", HARNESS_TESTS="success")
         self.assertIn("harness-select shard 0: failed=none outside=none unsure=no misses=none", stdout)
+
+    def test_a_red_shard_that_named_no_harness_is_not_judged(self):
+        for outcome in ("failure", "skipped", ""):
+            stdout = self.run_script("misses", str(self.root / "absent"), "0", HARNESS_PLANNED="true",
+                                     HARNESS_SELECTED="CalcTests", HARNESS_UNSURE="", HARNESS_TESTS=outcome)
+            self.assertIn("unsure=no misses=unjudged", stdout)
+        stdout = self.misses([], HARNESS_SELECTED="CalcTests", HARNESS_UNSURE="", HARNESS_TESTS="failure")
+        self.assertIn("failed=none outside=none unsure=no misses=unjudged", stdout)
 
 
 if __name__ == "__main__":

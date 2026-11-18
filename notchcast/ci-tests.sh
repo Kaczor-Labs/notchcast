@@ -37,11 +37,14 @@ if [ "$status" -ne 0 ] && ls "$BIN"/*.failed >/dev/null 2>&1; then
   done
   status=0
   if [ -n "$still" ]; then
+    # Written before the upstream comparison can fail, then narrowed to the harnesses that are ours.
+    for name in $still; do record "$name"; done
     if [ -z "${UPSTREAM:-}" ]; then
       bash "$TOOLS/notchcast/fetch-upstream.sh" --no-tags
       UPSTREAM=$(git merge-base HEAD refs/remotes/upstream/main)
     fi
     git worktree add -q --detach "$RUNNER_TEMP/pristine" "$UPSTREAM"
+    if [ -n "$failures" ]; then : > "$failures"; fi
     for name in $still; do
       if [ ! -e "$RUNNER_TEMP/pristine/Tests/$name.swift" ]; then
         echo "::error::$name fails with our commits and does not exist on upstream"; status=1; record "$name"
