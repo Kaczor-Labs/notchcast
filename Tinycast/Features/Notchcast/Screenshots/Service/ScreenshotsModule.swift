@@ -64,12 +64,12 @@ final class ScreenshotsModule: NotchcastModule {
         guard isIdle else { return }
         guard system.grantAccess() else { return report(ScreenshotRequest.Failure.permissionDenied) }
         run { [self] in
-            guard let capture = try await capture(scope) else { return }
-            let data = try await Self.png(capture.image)
+            guard let shot = try await capture(scope) else { return }
+            let data = try await Self.png(shot.image)
             try Task.checkCancellation()
-            lastCapture = (data, capture.scale)
+            lastCapture = (data, shot.scale)
             if context.defaults.bool(forKey: Self.editAfterCaptureKey) {
-                edit(capture.image, scale: capture.scale)
+                edit(shot.image, scale: shot.scale)
             } else {
                 try await output(data)
             }
