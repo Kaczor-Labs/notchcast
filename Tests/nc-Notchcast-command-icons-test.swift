@@ -64,6 +64,9 @@
 // notchcast-sources: Tinycast/Features/Notchcast/Downloads/Service/WebpageSaver.swift
 // notchcast-sources: Tinycast/Features/Notchcast/Downloads/Service/WebpageWebViewConfiguration.swift
 // notchcast-sources: Tinycast/Features/Notchcast/Downloads/Service/XPost.swift
+// notchcast-sources: Tinycast/Features/Notchcast/Timers/TimersAddon.swift
+// notchcast-sources: Tinycast/Features/Notchcast/Timers/Model/*.swift
+// notchcast-sources: Tinycast/Features/Notchcast/Timers/Service/*.swift
 // notchcast-reads: Tinycast/Features/Notchcast/*/*Addon.swift Tinycast/Features/Notchcast/NotchcastCore.swift
 import AppKit
 import SwiftUI
@@ -72,7 +75,9 @@ import SwiftUI
 @main
 @MainActor
 enum NotchcastCommandIconTests {
-    static let addons: [any NotchcastAddon.Type] = [SmallCommandsAddon.self, DownloadsAddon.self, ScreenshotsAddon.self]
+    static let addons: [any NotchcastAddon.Type] = [
+        SmallCommandsAddon.self, DownloadsAddon.self, ScreenshotsAddon.self, TimersAddon.self,
+    ]
 
     static var failures = 0
     static var checks = 0
