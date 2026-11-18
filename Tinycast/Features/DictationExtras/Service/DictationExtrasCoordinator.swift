@@ -173,8 +173,8 @@ final class DictationExtrasCoordinator {
             _ = settings.dictationEnabled
             _ = settings.dictationCleansUp
             _ = settings.dictationKeepsHistory
-        } onChange: {
-            Task { @MainActor [weak self] in self?.observe(apply) }
+        } onChange: { [weak self] in
+            Task { @MainActor in self?.observe(apply) }
         }
         apply()
     }
