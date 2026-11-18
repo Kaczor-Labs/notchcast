@@ -1,7 +1,10 @@
 import Foundation
+import Observation
 
 /// The only door from an add-on to the app: one per add-on, owned by the controller.
+/// Observable so a settings row sees the module attach, which lands a turn after its switch.
 @MainActor
+@Observable
 final class NotchcastContext {
     let defaults: UserDefaults
     let preferences: NotchcastPreferences
@@ -10,10 +13,13 @@ final class NotchcastContext {
     private let hub: NotchcastTapHub
     private let transcription: NotchcastTranscriptionRunner
     private let onTapsChanged: @MainActor () -> Void
+    private let onCommandsChanged: @MainActor () -> Void
     /// Strong is safe: a recovery context links to nothing, and the controller's slot owns both.
     private let recoveryContext: NotchcastContext?
     private(set) var wantedTaps: [(token: UUID, tap: NotchcastTap)] = []
     private(set) var module: (any NotchcastModule)?
+    /// Commands made at run time, one per user row; they go when the module detaches.
+    private(set) var commands: [NotchcastCommand] = []
     /// Returns true to consume a digit typed in the launcher (Number Keys, hook H9).
     private(set) var launcherDigit: (@MainActor (_ digit: Int, _ query: String, _ entryRows: [Int]) -> Int?)?
 
@@ -21,7 +27,8 @@ final class NotchcastContext {
         defaults: UserDefaults, preferences: NotchcastPreferences, presenter: any IslandPresenting,
         hub: NotchcastTapHub, transcription: NotchcastTranscriptionRunner,
         now: @escaping @MainActor () -> Date,
-        onTapsChanged: @escaping @MainActor () -> Void, recovery: NotchcastContext? = nil
+        onTapsChanged: @escaping @MainActor () -> Void, onCommandsChanged: @escaping @MainActor () -> Void = {},
+        recovery: NotchcastContext? = nil
     ) {
         self.defaults = defaults
         self.preferences = preferences
@@ -30,6 +37,7 @@ final class NotchcastContext {
         self.transcription = transcription
         self.now = now
         self.onTapsChanged = onTapsChanged
+        self.onCommandsChanged = onCommandsChanged
         recoveryContext = recovery
     }
 
@@ -71,12 +79,19 @@ final class NotchcastContext {
     /// Rereads Accessibility trust after a grant, restarting a tap that could not start.
     func refreshPermission() { hub.refreshPermission() }
 
+    /// Replaces the run-time commands; the launcher and hotkeys pick them up on the same turn.
+    func setCommands(_ commands: [NotchcastCommand]) {
+        self.commands = commands
+        onCommandsChanged()
+    }
+
     func attach(_ module: (any NotchcastModule)?) { self.module = module }
 
     /// Called after the module stopped: everything it claimed goes with it.
     func detach() {
         module = nil
         wantedTaps.removeAll()
+        commands.removeAll()
         launcherDigit = nil
     }
 }

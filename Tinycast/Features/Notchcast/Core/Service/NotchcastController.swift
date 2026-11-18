@@ -12,6 +12,8 @@ final class NotchcastController {
         let recovery: NotchcastContext
         let declaredTaps: [(token: UUID, tap: NotchcastTap)]
         let settings: [SettingsEntry]
+
+        var commands: [NotchcastCommand] { addon.commands + context.commands }
     }
 
     /// An add-on's settings row with an identity fixed at registration, for a stable `ForEach`.
@@ -41,7 +43,11 @@ final class NotchcastController {
             NotchcastContext(
                 defaults: defaults, preferences: preferences, presenter: presenter, hub: hub,
                 transcription: transcription, now: now,
-                onTapsChanged: { [weak self] in self?.applyTaps() }, recovery: recovery)
+                onTapsChanged: { [weak self] in self?.applyTaps() },
+                onCommandsChanged: { [weak self] in
+                    guard let self, isRunning else { return }
+                    publishCommands()
+                }, recovery: recovery)
         }
         slots = addons.map { addon in
             let recovery = makeContext()
@@ -82,7 +88,7 @@ final class NotchcastController {
     /// False when the id is no enabled add-on command, so the caller falls through to stock.
     func run(entryID: String) -> Bool {
         guard let command = enabledCommands.first(where: { $0.id == entryID }),
-            let slot = slots.first(where: { $0.addon.commands.contains { $0.id == entryID } })
+            let slot = slots.first(where: { $0.commands.contains { $0.id == entryID } })
         else { return false }
         command.run(slot.context)
         return true
@@ -125,9 +131,11 @@ final class NotchcastController {
     }
 
     private func publishCommands() {
-        let commands = slots.flatMap { $0.addon.commands }.filter { enabled.contains($0.switchID) }
+        let commands = slots.flatMap(\.commands).filter { enabled.contains($0.switchID) }
         let shown = launcherCommands(commands).map(\.id)
-        guard commands.map(\.id) != enabledCommands.map(\.id) || shown != launcherIDs else { return }
+        // A renamed run-time command keeps its id, so its name is compared too.
+        let changed = commands.map { [$0.id, $0.name] } != enabledCommands.map { [$0.id, $0.name] }
+        guard changed || shown != launcherIDs else { return }
         enabledCommands = commands
         launcherIDs = shown
         onCommandsChanged?(commands)
