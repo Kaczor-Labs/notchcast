@@ -175,7 +175,7 @@ Reference: mac-design, "Use the system first. Add custom design only where the s
 
 | Element | Rule | Token |
 | --- | --- | --- |
-| Anything an add-on shows | Only the island's values, posted through `context.presenter` (`IslandPresenting`: `showLevel`, `post(_:onTap:)`, `end(notice:)`, `setStatus`, `setMenuRows`) as `IslandLevel`, `IslandNotice`, `IslandStatus` (text cut to 4 characters) and `IslandMenuRow`, and `setPage` for its page in the open island (§17) as an `IslandPage`; the engine draws them with §1–§10 and §17. A failure it posts (`isFailure`) follows the §10 failure rule. An add-on opens no window, panel or hosting view of its own. Exempt: the Screenshots selection overlay, a capture tool over the whole screen, not an island surface. | none; `IslandPresenting` |
+| Anything an add-on shows | Only the island's values, posted through `context.presenter` (`IslandPresenting`: `showLevel`, `post(_:onTap:)`, `end(notice:)`, `setStatus`, `setMenuRows`) as `IslandLevel`, `IslandNotice`, `IslandStatus` (text cut to 4 characters) and `IslandMenuRow`, and `setPage` for its page in the open island (§17) as an `IslandPage`, with `watchPages` saying when that page's data is on show; the engine draws them with §1–§10 and §17. A failure it posts (`isFailure`) follows the §10 failure rule. An add-on opens no window, panel or hosting view of its own. Exempt: the Screenshots selection overlay, a capture tool over the whole screen, not an island surface. | none; `IslandPresenting` |
 
 Hook A16.
 
@@ -277,7 +277,7 @@ The open island (hover, or a click that pins it) shows pages: one per add-on wit
 | Home line | One row per page: icon or artwork, text, detail, its own icon buttons; the row opens its page. | `metrics.size.resultRowIcon`, `rowTitle`, `rowTrailing`, `Theme.Colors.rowHover` at `metrics.radius.row` |
 | Blocks | `media` (cover, title, artist, time bar, transport), `row` (icon, title, detail, trailing; a button when it has an id), `meter` (label, bar, value). A new kind of content is a new block, drawn once here. | `NotchTheme.Size.islandArtwork`, `metrics.size.volumeTrackHeight`, `Theme.Colors.border` track |
 | Icon button | `BarButton(isCompact: true)` with a `SymbolImage`, an accessibility label and `.tooltip`, Title Case ("Next Track"). | §7 |
-| Size | Each page sizes to its content (`fittingSize`), padded `metrics.spacing.md`; never narrower than the rest pill, on a notch never narrower than the notch plus two `Theme.Radius.panel`, never taller than the screen; text lines stop at `islandHeadlineMaxWidth`. | `IslandPageDeck.outline` |
+| Size | Each page sizes to its content (`fittingSize`), padded `metrics.spacing.md`; never narrower than the rest pill, on a notch never narrower than the notch plus two `Theme.Radius.panel`, never taller than the island's host canvas below the notch; text lines stop at `islandHeadlineMaxWidth`. | `IslandPageDeck.outline` |
 | Motion | The outline grows to the page through the engine's spring (`surface.expand`, `contentKey` "page"), as the launcher does; no view animation of its own. | `IslandController.motionSpeed` |
 | Forms | Same page in both forms: it hangs from the island top, below the notch on a notched display, from the pill elsewhere. | §10 |
 | Look | No fill of its own: the backdrop paints Black or Frosted behind the clear page panel; ink resolves through `\.islandFrosted`. | §1, §6 |

@@ -67,6 +67,12 @@ struct IslandPageDeck: Equatable, Sendable {
         chosen = all[min(max(index + step, 0), all.count - 1)]
     }
 
+    /// Whether `id`'s data is on show: on Home, on its own page, or with no page yet, so it can post one.
+    func shows(_ id: String) -> Bool {
+        guard page(id) != nil, case .page(let shown)? = selection else { return true }
+        return shown == id
+    }
+
     /// The island's outline for content of `size`: at least the rest pill, past a notch by one radius a side.
     static func outline(content size: CGSize, rest: CGSize, notch: CGFloat?, radius: CGFloat,
                         maxHeight: CGFloat) -> CGSize {
@@ -74,6 +80,20 @@ struct IslandPageDeck: Equatable, Sendable {
         return CGSize(width: max(size.width, floor).rounded(.up),
                       height: min(max(size.height, rest.height), maxHeight).rounded(.up))
     }
+}
+
+/// Tells each watcher once when its data comes on show and once when it goes (decision 946, refresh).
+struct IslandPageAudience: Equatable, Sendable {
+    private var seeing: Set<String> = []
+
+    mutating func changes(watchers: [String], open: Bool, deck: IslandPageDeck) -> [(id: String, visible: Bool)] {
+        let next = Set(open ? watchers.filter(deck.shows) : [])
+        let changed = watchers.filter { seeing.contains($0) != next.contains($0) }
+        seeing = next
+        return changed.map { ($0, next.contains($0)) }
+    }
+
+    mutating func forget(_ id: String) { seeing.remove(id) }
 }
 
 /// What a key does on a pinned page: arrows, 1–9 and Escape bare; R and P only with Command.

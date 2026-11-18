@@ -38,4 +38,4 @@ Spotify: Service/SpotifyLoopback.swift ← mihail-antonov/aural@bf4b2b2/AuralCor
 Spotify: Service/SpotifyWeb.swift ← mihail-antonov/aural@bf4b2b2/AuralCore/Sources/AuralCore/Library/WebAPIClient.swift (MIT)
 Spotify: Service/SpotifyWeb.swift ← mihail-antonov/aural@bf4b2b2/AuralCore/Sources/AuralCore/Library/LibraryService.swift (MIT)
 Spotify: Service/SpotifyModule+Commands.swift ← mihail-antonov/aural@bf4b2b2/AuralCore/Sources/AuralCore/Sources/Soloist/SoloistSource.swift (MIT)
-Island: Model/IslandPageSwipe.swift ← vorssaint/vorssaint-utils@89d2626/Sources/Vorssaint/Services/Notch/NotchSectionPaging.swift (GPL-3.0-or-later)
+Island: Tinycast/Features/Island/Model/IslandPageSwipe.swift ← vorssaint/vorssaint-utils@89d2626/Sources/Vorssaint/Services/Notch/NotchSectionPaging.swift (GPL-3.0-or-later)

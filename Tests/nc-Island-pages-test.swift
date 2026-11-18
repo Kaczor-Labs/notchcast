@@ -27,6 +27,7 @@ struct IslandPagesTest {
         singleModule()
         homeOrder()
         selection()
+        visibility()
         sizing()
         swipe()
         keys()
@@ -97,6 +98,26 @@ struct IslandPagesTest {
         three.select(.page("player"))
         three.set(nil, id: "agents")
         precondition(three.selection == .page("player") && !three.showsTabBar, "the last page left shows alone")
+    }
+
+    static func visibility() {
+        var two = deck(page("player", order: 10), page("day", order: 30))
+        var audience = IslandPageAudience()
+        let watchers = ["day", "player", "system"]
+        func told(_ open: Bool) -> [String] {
+            audience.changes(watchers: watchers, open: open, deck: two).map { "\($0.id)=\($0.visible)" }
+        }
+        precondition(told(false).isEmpty, "a closed island tells nobody")
+        precondition(told(true) == ["day=true", "player=true", "system=true"],
+                     "Home shows every page's data, and a watcher with no page yet may post one")
+        precondition(told(true).isEmpty, "each change is told once")
+        two.select(.page("day"))
+        precondition(told(true) == ["player=false"], "on Day's page only the other page's data goes out of sight")
+        two.set(nil, id: "player")
+        precondition(told(true) == ["player=true"], "a watcher whose page went is asked again")
+        audience.forget("day")
+        precondition(told(true) == ["day=true"], "a watcher registered again while open is told again")
+        precondition(told(false) == ["day=false", "player=false", "system=false"], "closing hides them all")
     }
 
     static func sizing() {

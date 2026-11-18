@@ -127,6 +127,15 @@ struct IslandHoverTest {
         precondition(closed.isOpen && closed.isPinned, "Command-P opens and pins a closed island")
         closed.dismiss()
         precondition(!closed.isOpen && !closed.isPinned, "Escape or a click outside dismisses a pinned island")
+        var escaped = opened()
+        escaped.dismiss()
+        escaped.update(Input(inside: true), at: 30)
+        precondition(escaped.deadline == nil && !escaped.tick(at: 99) && !escaped.isOpen,
+                     "Escape under the pointer stays closed while the pointer stays")
+        escaped.update(Input(inside: false), at: 100)
+        escaped.update(Input(inside: true), at: 101)
+        precondition(escaped.tick(at: 101 + IslandHover.openDelay) && escaped.isOpen,
+                     "and opens again once the pointer has left and come back")
     }
 
     static func zone() {

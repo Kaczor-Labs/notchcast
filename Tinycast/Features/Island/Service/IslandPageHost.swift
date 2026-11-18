@@ -10,6 +10,9 @@ final class IslandPageHost {
     private var panel: IslandPagePanel?
     private let host = NSHostingView(rootView: AnyView(EmptyView()))
     private weak var controller: IslandController?
+    private var watchers: [String: @MainActor (Bool) -> Void] = [:]
+    private var audience = IslandPageAudience()
+    private var hovered = false
 
     var isOpen: Bool { controller != nil }
 
@@ -17,11 +20,26 @@ final class IslandPageHost {
     func set(_ page: IslandPage?, id: String, onAction: (@MainActor (String) -> Void)?) {
         deck.set(page, id: id)
         actions[id] = page == nil ? nil : onAction
+        announce()
+    }
+
+    /// `onChange` hears whether `id`'s data is on show: the island open on Home or on its own page.
+    func watch(id: String, onChange: (@MainActor (Bool) -> Void)?) {
+        watchers[id] = onChange
+        if onChange == nil { audience.forget(id) }
+        announce()
+    }
+
+    private func announce() {
+        let changes = audience.changes(watchers: watchers.keys.sorted(), open: hovered, deck: deck)
+        for (id, visible) in changes { watchers[id]?(visible) }
     }
 
     /// Opens Home, or the one page, on `resting`; false when there is no page to show.
     @discardableResult
     func hover(_ open: Bool, on resting: IslandController?) -> Bool {
+        hovered = open && resting != nil
+        defer { announce() }
         guard open, let resting, !deck.pages.isEmpty else {
             close()
             return false
@@ -40,6 +58,7 @@ final class IslandPageHost {
         controller?.page = nil
         controller = nil
         panel?.orderOut(nil)
+        host.rootView = AnyView(EmptyView())
     }
 
     /// Measures the content, hangs the panel from the island top and grows the outline to it.
@@ -56,15 +75,16 @@ final class IslandPageHost {
         host.layoutSubtreeIfNeeded()
         let panel = panel ?? makePanel()
         let size = IslandPageDeck.outline(content: host.fittingSize, rest: NotchTheme.Size.islandRest,
-            notch: controller.notchWidth, radius: Theme.Radius.panel, maxHeight: top - screen.frame.minY)
+            notch: controller.notchWidth, radius: Theme.Radius.panel, maxHeight: NotchTheme.Size.islandHost.height - (screen.frame.maxY - top))
         let frame = CGRect(x: controller.openingX(width: size.width) ?? screen.frame.midX - size.width / 2,
                            y: top - size.height, width: size.width, height: size.height)
         panel.setFrame(frame, display: true)
+        if controller.page === panel { controller.frameChanged() } else { controller.page = panel }
         if !panel.isVisible {
             panel.sharingType = island.captureSharing
             panel.orderFrontRegardless()
         }
-        if controller.page === panel { controller.frameChanged() } else { controller.page = panel }
+        announce()
     }
 
     private func select(_ tab: IslandPageDeck.Tab) {
@@ -120,6 +140,7 @@ final class IslandPageHost {
         host.sizingOptions = [.intrinsicContentSize]
         panel.contentView = host
         panel.onClick = { [weak self] in self?.clicked() }
+        panel.onMenu = { [weak self] in self?.controller?.openMenu() }
         panel.onKey = { [weak self] in self?.key($0) ?? false }
         panel.onScroll = { [weak self] in self?.scrolled($0) }
         return panel
@@ -129,6 +150,7 @@ final class IslandPageHost {
 /// The pages' window above the backdrop: clear, takes every click in its frame, key only once clicked.
 final class IslandPagePanel: NSPanel {
     var onClick: (@MainActor () -> Void)?
+    var onMenu: (@MainActor () -> Void)?
     var onKey: (@MainActor (NSEvent) -> Bool)?
     var onScroll: (@MainActor (NSEvent) -> Void)?
 
@@ -152,8 +174,14 @@ final class IslandPagePanel: NSPanel {
     override func constrainFrameRect(_ frameRect: NSRect, to screen: NSScreen?) -> NSRect { frameRect }
 
     override func sendEvent(_ event: NSEvent) {
+        // The panel covers the island, so its menu click (#917) is forwarded rather than pinning.
+        if event.type == .rightMouseDown
+            || event.type == .leftMouseDown && event.modifierFlags.contains(.control) {
+            onMenu?()
+            return
+        }
         switch event.type {
-        case .leftMouseDown, .rightMouseDown: onClick?()
+        case .leftMouseDown: onClick?()
         case .scrollWheel: onScroll?(event)
         case .keyDown where onKey?(event) == true: return
         default: break

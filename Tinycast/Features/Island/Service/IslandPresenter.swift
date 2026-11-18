@@ -80,7 +80,17 @@ final class IslandPresenter: IslandPresenting {
     var tap: (@MainActor () -> Void)? {
         if let notice = notices.notice { return noticeTaps[notice.id] }
         if AppCore.shared.island.resting?.glance != nil { return nil }
-        return statuses.last.flatMap { statusTaps[$0.id] }
+        return statuses.last.flatMap { statusTaps[$0.id] } ?? pagesTap
+    }
+
+    /// A click on the bare island opens the pages pinned, so they stay reachable with hover off.
+    private var pagesTap: (@MainActor () -> Void)? {
+        guard !pages.deck.pages.isEmpty, !pages.isOpen else { return nil }
+        return {
+            let hover = AppCore.shared.island.hover
+            hover.refresh()
+            if !hover.isPinned { hover.togglePin() }
+        }
     }
 
     /// The pointer resting on the island opens the long form of what it shows (#884 H2 to H7).
@@ -96,6 +106,10 @@ final class IslandPresenter: IslandPresenting {
     func setPage(_ page: IslandPage?, id: String, onAction: (@MainActor (String) -> Void)?) {
         pages.set(page, id: id, onAction: onAction)
         if hovered { hoverChanged(true) }
+    }
+
+    func watchPages(id: String, onChange: (@MainActor (_ visible: Bool) -> Void)?) {
+        pages.watch(id: id, onChange: onChange)
     }
 
     private var shownNotice: IslandNotice? {
