@@ -18,15 +18,19 @@ COVERED = {
     ("pr.yml:route", "actions/checkout"): "lane planning; no gate",
     ("pr.yml:route", "Lanes the diff needs"): "picks the jobs below; ready-check.sh runs them all",
     ("pr.yml:route", "Harnesses the diff needs"): "shadow selection; reports, gates nothing",
-    ("pr.yml:checks", "actions/checkout"): "the shared clone at HEAD",
-    ("pr.yml:checks", "Shared PR build lane"): "ci-build.sh, unsharded",
-    ("pr.yml:harnesses", "actions/checkout"): "the shared clone at HEAD",
-    ("pr.yml:harnesses", "./tools/notchcast/actions/xcode"): "ci-build.sh's xcode step",
-    ("pr.yml:harnesses", "./tools/notchcast/actions/tests"): "ci-build.sh's harnesses step",
-    ("pr.yml:harnesses", "Failures outside the harness selection"): "shadow selection; reports, gates nothing",
+    ("pr.yml:mac", "actions/checkout"): "the shared clone at HEAD",
+    ("pr.yml:mac", "./tools/notchcast/actions/xcode"): "ci-build.sh's xcode step",
+    ("pr.yml:mac", "Runner kind"): "names a self-hosted run; no gate",
+    ("pr.yml:mac", "Script tests that need macOS"): "ci-build.sh's script-tests step",
+    ("pr.yml:mac", "Shared PR build lane"): "ci-build.sh, unsharded",
+    ("pr.yml:mac", "./tools/notchcast/actions/tests"): "ci-build.sh's harnesses step",
+    ("pr.yml:mac", "Failures outside the harness selection"): "shadow selection; reports, gates nothing",
+    ("pr.yml:linux-checks", "actions/checkout"): "the shared clone at HEAD",
+    ("pr.yml:linux-checks", "Checks that need no Mac"): "ci-build.sh sources ci-checks.sh",
+    ("pr.yml:linux-harnesses", "Tools the Swift image lacks"): "the Swift image's setup; no gate",
+    ("pr.yml:linux-harnesses", "actions/checkout"): "the shared clone at HEAD",
+    ("pr.yml:linux-harnesses", "Linux-ok harnesses the diff needs"): "ci-build.sh's harnesses step runs them all on the Mac",
     ("pr.yml:script-tests", "actions/checkout"): "the shared clone at HEAD",
-    ("pr.yml:script-tests", "./notchcast/actions/xcode"): "ci-build.sh's xcode step",
-    ("pr.yml:script-tests", "Fetch upstream"): "ci-build.sh's upstream step",
     ("pr.yml:script-tests", "Script tests"): "ci-build.sh's script-tests step",
     ("pr.yml:build", "A train run names its base"): "train branches only",
     ("pr.yml:build", "Every lane the diff needs passed, and only those were skipped"): "aggregate of the jobs above",
@@ -108,14 +112,29 @@ class CoverageTest(unittest.TestCase):
                 self.assertRegex(ci_tests, rf"export .*\b{name}={value.strip(chr(39))}\b")
 
 
+# The one way to a self-hosted Mac (README Runners): a dispatch, which no fork can start; unset, it is xcode-27.
+GATED_MAC = ("${{ github.event_name == 'workflow_dispatch' && !inputs.hosted && vars.NOTCHCAST_MAC_RUNNER "
+             "|| 'xcode-27' }}")
+# Only jobs that hold no secret and launch no app; a workflow outside this map is hosted-only.
+GATED_JOBS = {"pr.yml": 1, "main-harnesses.yml": 1}
+# Every macOS job (README Runners): it runs xcodebuild, compiles harnesses, signs or launches the app. Anything else is Linux.
+MAC_JOBS = {"pr.yml": 1, "main-harnesses.yml": 1, "delete-check.yml": 1, "proof.yml": 1, "snapshot.yml": 1, "sync.yml": 2}
+
+
 class RunnerTest(unittest.TestCase):
     def test_every_job_runs_on_a_hosted_image(self):
-        allowed = {"ubuntu-latest", "xcode-27", "macos-15"}
+        allowed = {"ubuntu-latest", "xcode-27"}
+        gated, mac = {}, {}
         for workflow in sorted((ROOT / ".github/workflows").glob("*.y*ml")):
             lines = workflow.read_text().splitlines()
             for i, line in enumerate(lines):
                 match = re.match(r"(\s*)runs-on:(.*)", line)
                 if not match:
+                    continue
+                if match[2].strip() == GATED_MAC or match[2].strip() == "xcode-27":
+                    mac[workflow.name] = mac.get(workflow.name, 0) + 1
+                if match[2].strip() == GATED_MAC:
+                    gated[workflow.name] = gated.get(workflow.name, 0) + 1
                     continue
                 value = [match[2].split("#")[0]]
                 for more in lines[i + 1:]:
@@ -126,6 +145,21 @@ class RunnerTest(unittest.TestCase):
                 with self.subTest(f"{workflow.name}:{i + 1}"):
                     self.assertTrue(labels, "runs-on has no label")
                     self.assertEqual(set(labels) - allowed, set(), "runs-on names a runner README Runners does not")
+        self.assertEqual(gated, GATED_JOBS, "only these jobs may leave the hosted images, behind the fork gate")
+        self.assertEqual(mac, MAC_JOBS, "a new macOS job needs a reason a Linux job cannot meet")
+
+    def test_a_self_hosted_run_proves_no_tree_and_runs_no_script_test(self):
+        found = {(job, signature(text)): text for job, text in steps(WORKFLOW, 6)}
+        hosted = "needs.route.outputs.build == 'true' && needs.mac.outputs.hosted == 'true'"
+        for step in ("Record the tested tree", "actions/upload-artifact"):
+            self.assertEqual(field(found["build", step], "if"), hosted, step)
+        self.assertIn("      hosted: ${{ steps.runner.outputs.hosted }}\n", WORKFLOW.read_text())
+        self.assertEqual(env(found["mac", "Runner kind"]), {"HOSTED": "${{ runner.environment == 'github-hosted' }}"})
+        self.assertEqual(field(found["mac", "Script tests that need macOS"], "if"), "runner.environment == 'github-hosted'")
+        # Only Sync's hosted job sets the tested status; a job that may run self-hosted has no way to.
+        for name in GATED_JOBS:
+            self.assertNotIn("statuses: write", (ROOT / ".github/workflows" / name).read_text(), name)
+
 
 # Machine git config (init.defaultBranch, signing, url rewrites) never reaches the fixture repos.
 GIT_ISOLATED = {"GIT_CONFIG_NOSYSTEM": "1", "GIT_CONFIG_GLOBAL": os.devnull}

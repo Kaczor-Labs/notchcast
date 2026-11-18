@@ -4,6 +4,12 @@
 # shell in a clean tree at that commit.
 merge_tools=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 source "$merge_tools/drift-gates.sh"
+# Check runs on the commit, not the PR's statusCheckRollup: the rollup omits dispatched runs, and a PR
+# GitHub calls conflicting gets no pull_request run at all. Cancelled or skipped runs count only alone.
+check_run() {
+    gh api "repos/$FORK_REPO/commits/$1/check-runs?check_name=$2&filter=all" \
+        --jq '[.check_runs[] | select(.app.slug == "github-actions")] | (map(select(.conclusion != "cancelled" and .conclusion != "skipped")) | max_by([.started_at, .id])) // max_by([.started_at, .id]) | if . == null then "none" elif .status != "completed" then "pending" else .conclusion end'
+}
 check_defect_tests() {
     local onto=$1 candidate=$2 title=$3 body=$4 changed
     title=$(printf '%s' "$title" | tr '[:upper:]' '[:lower:]')
