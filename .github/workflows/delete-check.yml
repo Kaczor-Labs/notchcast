@@ -39,7 +39,6 @@ jobs:
   delete:
     needs: plan
     if: ${{ needs.plan.outputs.folders != '[]' }}
-    # Hosted only (route.py's hosted label), so a delete run never takes a maintainer Mac.
     runs-on: xcode-27
     # Two script steps of up to an hour each, plus setup.
     timeout-minutes: 150

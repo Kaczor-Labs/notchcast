@@ -18,12 +18,8 @@ concurrency:
 jobs:
   plan:
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      actions: read
     outputs:
       checks: ${{ steps.plan.outputs.checks }}
-      runners: ${{ steps.route.outputs.runners }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
@@ -43,18 +39,10 @@ jobs:
             checks=$CHECKS
           fi
           echo "checks=$checks" >> "$GITHUB_OUTPUT"
-      # A ready PR's build (pr.yml) starts with this run, so only it may spill onto the Macs.
-      - id: route
-        uses: ./notchcast/actions/route
-        with:
-          count: 1
-          idle: |
-            ${{ vars.NOTCHCAST_IDLE_MBA }}
-          eligible: ${{ github.event_name != 'pull_request' || github.event.pull_request.draft }}
   proof:
     needs: plan
     if: needs.plan.outputs.checks != ''
-    runs-on: ${{ fromJSON(needs.plan.outputs.runners)[0] }}
+    runs-on: xcode-27
     timeout-minutes: 120
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
