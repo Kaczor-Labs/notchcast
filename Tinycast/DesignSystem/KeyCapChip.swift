@@ -73,14 +73,15 @@ struct KeyCapChip: View {
         let shape = RoundedRectangle(cornerRadius: metrics.radius.keyCap, style: .continuous)
         Label(text: text, prefix: prefix, spacing: metrics.spacing.xxs)
             .font(scale.font(metrics))
-            .foregroundStyle(Theme.Colors.textSecondary)
+            .foregroundStyle(NotchTheme.Colors.keyCapInk)
             .offset(y: text == "↵" ? Self.returnGlyphDrop : 0)
             .padding(.horizontal, metrics.spacing.xs)
             .frame(minWidth: scale.side(metrics), minHeight: scale.side(metrics))
             .background {
                 switch style {
                 case .filled: shape.fill(Theme.Colors.controlSurface)
-                case .outline: shape.fill(NotchTheme.Colors.keyCapFill)
+                case .outline:
+                    shape.fill(NotchTheme.Colors.keyCapFill).strokeBorder(NotchTheme.Colors.controlEdge)
                 }
             }
     }
