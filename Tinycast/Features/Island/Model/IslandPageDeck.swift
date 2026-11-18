@@ -76,26 +76,6 @@ struct IslandPageDeck: Equatable, Sendable {
     }
 }
 
-/// A two-finger swipe turns one tab per gesture once it has travelled `distance` points sideways.
-struct IslandPageSwipe: Equatable, Sendable {
-    static let distance: CGFloat = 40
-    private var travel: CGFloat = 0
-    private var spent = false
-
-    /// +1 for the next tab (fingers moving left), -1 for the previous, at most once per gesture.
-    mutating func scroll(deltaX: CGFloat, deltaY: CGFloat, began: Bool) -> Int? {
-        if began {
-            travel = 0
-            spent = false
-        }
-        guard !spent, abs(deltaX) >= abs(deltaY) else { return nil }
-        travel += deltaX
-        guard abs(travel) >= Self.distance else { return nil }
-        spent = true
-        return travel < 0 ? 1 : -1
-    }
-}
-
 /// What a key does on a pinned page: arrows, 1–9 and Escape bare; R and P only with Command.
 enum IslandPageKey: Equatable, Sendable {
     case move(Int)

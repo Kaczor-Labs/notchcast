@@ -48,6 +48,19 @@ final class IslandController {
     var glance: String?
 }
 
+/// The page host with `open` standing in for "a page exists": hover then opens it, not the pill.
+@MainActor
+final class IslandPageHost {
+    var open = false
+    private(set) var isOpen = false
+    func set(_ page: IslandPage?, id: String, onAction: (@MainActor (String) -> Void)?) { open = page != nil }
+    @discardableResult
+    func hover(_ hovered: Bool, on resting: IslandController?) -> Bool {
+        isOpen = hovered && open && resting != nil
+        return isOpen
+    }
+}
+
 final class HUDPanel: NSPanel {
     func fadeIn(duration: TimeInterval, order: () -> Void) {}
     func fadeOut(duration: TimeInterval) {}
@@ -195,6 +208,18 @@ struct AddonNoticeQueueTest {
             presenter.restingChanged()
             return arrived
         }
+        await clock.advance(by: 10)
+        let hovered = core.island.resting!
+        presenter.setStatus(IslandStatus(id: "awake", symbol: "moon", label: "Keeping Awake"), for: "awake", onTap: nil)
+        presenter.setPage(IslandPage(id: "player", title: "Player", symbol: "music.note", order: 10,
+                                     line: IslandPageLine(text: "A song"), blocks: []), id: "player", onAction: nil)
+        presenter.hoverChanged(true)
+        check("a page takes the hover, so the pill keeps its short form", hovered.notice == nil && !hovered.expanded)
+        presenter.setPage(nil, id: "player", onAction: nil)
+        check("with no page, hover opens the pill's long form",
+              hovered.notice?.text == "Keeping Awake" && hovered.expanded)
+        presenter.hoverChanged(false)
+        check("and leaving closes it", hovered.notice == nil && !hovered.expanded)
         controller.stop()
         print(failures == 0 ? "PASS AddonNoticeQueueTest" : "FAILED \(failures)")
         exit(failures == 0 ? 0 : 1)

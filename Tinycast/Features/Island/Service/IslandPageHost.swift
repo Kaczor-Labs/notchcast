@@ -13,10 +13,10 @@ final class IslandPageHost {
 
     var isOpen: Bool { controller != nil }
 
+    /// The presenter re-opens the hover after this, which draws the change.
     func set(_ page: IslandPage?, id: String, onAction: (@MainActor (String) -> Void)?) {
         deck.set(page, id: id)
         actions[id] = page == nil ? nil : onAction
-        if isOpen { render() }
     }
 
     /// Opens Home, or the one page, on `resting`; false when there is no page to show.
@@ -91,16 +91,25 @@ final class IslandPageHost {
         case .close: AppCore.shared.island.hover.dismiss()
         case .pin: AppCore.shared.island.hover.togglePin()
         case .refresh:
-            for page in deck.current.map({ [$0] }) ?? deck.pages { act(page: page.id, action: IslandPage.refreshAction) }
+            let shown = deck.current.map { [$0] } ?? deck.pages
+            for page in shown { act(page: page.id, action: IslandPage.refreshAction) }
         }
         if isOpen { render() }
         return true
     }
 
     private func scrolled(_ event: NSEvent) {
-        guard !event.phase.isEmpty, let step = swipe.scroll(deltaX: event.scrollingDeltaX, deltaY: event.scrollingDeltaY,
-                                                            began: event.phase.contains(.began)) else { return }
-        deck.move(by: step)
+        guard event.modifierFlags.intersection([.command, .control, .option, .shift]).isEmpty else {
+            swipe = IslandPageSwipe()
+            return
+        }
+        let steps = swipe.steps(
+            deltaX: event.scrollingDeltaX, deltaY: event.scrollingDeltaY, timestamp: event.timestamp,
+            precise: event.hasPreciseScrollingDeltas, hasPhase: !event.phase.isEmpty,
+            began: event.phase.contains(.began), ended: !event.phase.intersection([.ended, .cancelled]).isEmpty,
+            momentum: !event.momentumPhase.isEmpty)
+        guard steps != 0 else { return }
+        deck.move(by: steps)
         render()
     }
 
