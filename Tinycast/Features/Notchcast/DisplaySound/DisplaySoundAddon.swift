@@ -1,3 +1,4 @@
+// notchcast-new-switch-ids: extraDimming
 import SwiftUI
 
 enum DisplaySoundAddon: NotchcastAddon {
