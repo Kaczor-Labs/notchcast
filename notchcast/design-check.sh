@@ -13,7 +13,8 @@ DIRS=(Tinycast)
 TARGET=HEAD
 [ "${2:-}" = --staged ] && TARGET="$(git write-tree)"
 command -v npx >/dev/null || { echo "design-check: npx (Node 20+) is needed" >&2; exit 1; }
-CHECK=(npx -y "$DESIGN_CHECK_SPEC")
+# npm 12+ refuses tarball URL specs unless allowed; older npm ignores the flag.
+CHECK=(npx -y --allow-remote=all "$DESIGN_CHECK_SPEC")
 WORK="$(mktemp -d)"
 trap 'rm -rf "$WORK"' EXIT
 mkdir "$WORK/base" "$WORK/ours"

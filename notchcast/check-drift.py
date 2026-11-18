@@ -107,9 +107,11 @@ def clone_counts(root, files):
             target = tree / path
             target.parent.mkdir(parents=True, exist_ok=True)
             target.write_text(unwaived(text))
-        result = subprocess.run([str(binary), '--min-tokens', '70', '--min-lines', '6',
+        # npx --no runs only the installed jscpd, never fetching; main's fixture breaks npx to prove fail-closed.
+        result = subprocess.run(['npx', '--no', '--', 'jscpd', '--min-tokens', '70', '--min-lines', '6',
                                  '--format', 'swift', '--reporters', 'json', '--silent',
-                                 '--output', str(output), str(tree)], capture_output=True, text=True, timeout=120)
+                                 '--output', str(output), str(tree)], cwd=binary.parents[2],
+                                capture_output=True, text=True, timeout=120)
         if result.returncode:
             raise ValueError(f'gate 4 jscpd failed ({result.returncode}): {result.stderr.strip()}')
         if not (output / 'jscpd-report.json').exists():
