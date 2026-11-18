@@ -88,6 +88,9 @@
     "Off hides every Notchcast window: the island, launcher, questions, reports and this Settings window." : {
 
     },
+    "Open on hover" : {
+
+    },
     "Outline when open" : {
 
     },
@@ -101,6 +104,9 @@
 
     },
     "Regenerate the token?" : {
+
+    },
+    "Resting the pointer on the island opens what it shows." : {
 
     },
     "Share the dictation model with other apps" : {
