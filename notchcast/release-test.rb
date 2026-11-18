@@ -6,28 +6,35 @@ require 'fileutils'
 
 ROOT = File.expand_path('..', __dir__)
 ACTION = YAML.load_file(File.join(__dir__, 'actions/release/action.yml'))
+SIGN = YAML.load_file(File.join(__dir__, 'actions/sign/action.yml'))
 
 
 def assert(value, message)
   raise message unless value
 end
 
-ACTION.fetch('runs').fetch('steps').each do |step|
-  assert(step['shell'] == 'bash -e {0}', "#{step['name']} must preserve the workflow's implicit bash shell")
-  output, status = Open3.capture2e('bash', '-n', stdin_data: step.fetch('run'))
-  assert(status.success?, "#{step['name']} shell syntax failed: #{output}")
+[ACTION, SIGN].each do |action|
+  action.fetch('runs').fetch('steps').each do |step|
+    assert(step['shell'] == 'bash -e {0}', "#{step['name']} must preserve the workflow's implicit bash shell")
+    output, status = Open3.capture2e('bash', '-n', stdin_data: step.fetch('run'))
+    assert(status.success?, "#{step['name']} shell syntax failed: #{output}")
+  end
 end
+assert(SIGN.fetch('runs').fetch('steps').none? { |step| step['run'].match?(/xcodebuild|src\/|Scripts\//) },
+       'the sign action must run none of the tree\'s code')
 
-%w[snapshot sync].each do |name|
-  job = name == 'snapshot' ? 'snapshot' : 'release'
-  workflow = YAML.load_file(File.join(ROOT, ".github/workflows/#{name}.yml"))
-  callers = workflow.fetch('jobs').fetch(job).fetch('steps').select { |step| step['uses'] == './tools/notchcast/actions/release' }
-  assert(callers.size == 1, "#{name} must use the shared release action once")
+WORKFLOWS = Dir.glob(File.join(ROOT, '.github/workflows/*.yml')).to_h { |path| [File.basename(path, '.yml'), YAML.load_file(path)] }
+uses = ->(job, action) { job.fetch('steps', []).count { |step| step['uses'] == "./tools/notchcast/actions/#{action}" } }
+[%w[snapshot build snapshot], %w[sync-release build sign]].each do |name, build, sign|
+  jobs = WORKFLOWS.fetch(name).fetch('jobs')
+  assert(uses.(jobs.fetch(build), 'release') == 1, "#{name} #{build} must use the shared release action once")
+  assert(uses.(jobs.fetch(sign), 'sign') == 1, "#{name} #{sign} must use the shared sign action once")
+  assert(Array(jobs.fetch(sign)['needs']).include?(build), "#{name} #{sign} must sign what #{build} built")
   if name == 'snapshot'
-    publish = workflow.fetch('jobs').fetch('publish')
+    publish = jobs.fetch('publish')
     assert(%w[checks snapshot].all? { |need| publish['needs'].include?(need) } && !publish.key?('if'),
            'snapshot publish must remain gated on lint, tests and the signed build')
-    checks = workflow.fetch('jobs').fetch('checks')
+    checks = jobs.fetch('checks')
     steps = checks.fetch('steps')
     tests = steps.find { |step| step['uses'] == './tools/notchcast/actions/tests' }
     lint = steps.find { |step| step['name'] == 'Lint' }
@@ -39,7 +46,25 @@ end
     assert(final['if'] == "steps.checks.outputs.green != 'true'" && final['run'].include?('exit 1') &&
            !final.key?('continue-on-error'), 'snapshot checks must end in the step that fails when not green')
   end
-  puts "PASS #{name} calls the shared release action once"
+  puts "PASS #{name} builds with the release action and signs with the sign action"
+end
+
+# A job that can read a secret or uses environment sync runs none of the tree's code (#873): no build, test, replay,
+# xcodegen or script from the checked-out tree.
+TREE_CODE = %r{xcodebuild|Scripts/|ci\.py replay|XCODEGEN|run-tests|\.\./tools/}
+TREE_ACTIONS = %w[release tests xcode xcodegen].map { |action| "./tools/notchcast/actions/#{action}" }
+WORKFLOWS.each do |name, workflow|
+  workflow.fetch('jobs').each do |id, job|
+    next unless job.to_s.include?('secrets.') || job['environment']
+    next if job.key?('uses')
+    job.fetch('steps').each do |step|
+      assert(!TREE_ACTIONS.include?(step['uses']), "#{name} #{id} holds secrets and runs #{step['uses']}")
+      assert(!step['run'].to_s.match?(TREE_CODE), "#{name} #{id} holds secrets and runs tree code in #{step['name'] || step['run'][0, 40]}")
+      assert(step['working-directory'] != 'src' || !step.key?('run') || step['run'].match?(/\Anotchcast\//),
+             "#{name} #{id} holds secrets and runs a command in the tree")
+    end
+  end
+  puts "PASS #{name}: no job with secrets runs the tree's code"
 end
 
 launch = ACTION.fetch('runs').fetch('steps').find { |step| step['name'] == 'Launch and stay alive' }
@@ -70,13 +95,13 @@ Dir.mktmpdir('release-launch-') do |directory|
     puts "PASS launch check #{expected ? 'accepts a live process' : 'rejects a crashed process'}"
   end
 end
-package = ACTION.fetch('runs').fetch('steps').find { |step| step['name'] == 'Package zip and dmg' }
+package = SIGN.fetch('runs').fetch('steps').find { |step| step['name'] == 'Package zip and dmg' }
 assert(package && !package['run'].match?(/^\s*hdiutil|-quiet/), 'packaging must not hide why it failed (#902)')
 
 Dir.mktmpdir('release-package-') do |directory|
   FileUtils.mkdir_p(File.join(directory, 'tools/notchcast'))
   File.write(File.join(directory, 'tools/notchcast/config.env'), "APP_NAME=Fixture\n")
-  FileUtils.mkdir_p(File.join(directory, 'DerivedData/Build/Products/Release/Fixture.app/Contents'))
+  FileUtils.mkdir_p(File.join(directory, 'signed/Fixture.app/Contents'))
   FileUtils.mkdir_p(File.join(directory, 'bin'))
   File.write(File.join(directory, 'bin/ditto'), "#!/bin/bash\ntouch \"${@: -1}\"\n")
   script = File.join(directory, 'package.sh')

@@ -180,7 +180,7 @@ jobs:
         run: |
           echo "key=$(python3 notchcast/ci.py tested-key HEAD)" >> "$GITHUB_OUTPUT"
           git rev-parse HEAD > "$RUNNER_TEMP/tested-commit"
-      - uses: actions/upload-artifact@v7
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         if: needs.route.outputs.build == 'true'
         with:
           name: tested-tree-${{ steps.tree.outputs.key }}

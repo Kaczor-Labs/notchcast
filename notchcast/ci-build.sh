@@ -55,7 +55,7 @@ bash "$TOOLS/notchcast/check-identity.sh" app "$RUNNER_TEMP/DerivedData/Build/Pr
 step name-override
 python3 notchcast/name-override.py --verify "$RUNNER_TEMP/DerivedData/Build/Products/Debug/$APP_NAME Dev.app"
 step lint
-command -v swiftlint >/dev/null || brew install --quiet swiftlint
+source "$TOOLS/notchcast/ci-swiftlint.sh"
 ./Scripts/lint.sh
 if [ -z "${NOTCHCAST_HARNESSES_SHARDED:-}" ]; then
     step harnesses

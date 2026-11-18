@@ -3,9 +3,11 @@
 import argparse
 from collections import Counter, defaultdict
 import contextlib
+import hashlib
 import importlib.util
 import io
 import json
+import os
 from pathlib import Path
 import re
 import shutil
@@ -69,12 +71,34 @@ def sources(root, prefix):
     return {p.relative_to(root).as_posix(): p.read_text() for p in sorted((root / prefix).rglob('*.swift'))}
 
 
+def jscpd():
+    """jscpd from notchcast/jscpd's lockfile (every package's integrity hash), installed once per lockfile."""
+    lock = TOOLS / 'jscpd/package-lock.json'
+    cache = Path(os.environ.get('XDG_CACHE_HOME') or Path.home() / '.cache') / 'notchcast'
+    home = cache / f'jscpd-{hashlib.sha256(lock.read_bytes()).hexdigest()[:16]}'
+    binary = home / 'node_modules/.bin/jscpd'
+    if binary.exists():
+        return binary
+    if not shutil.which('npm'):
+        raise ValueError('gate 4 requires npm (Node 20+); duplicates were not checked')
+    cache.mkdir(parents=True, exist_ok=True)
+    work = tempfile.mkdtemp(prefix='jscpd.', dir=cache)
+    try:
+        for name in ('package.json', 'package-lock.json'):
+            shutil.copy(TOOLS / 'jscpd' / name, work)
+        result = subprocess.run(['npm', 'ci', '--ignore-scripts', '--no-audit', '--no-fund'], cwd=work,
+                                capture_output=True, text=True, timeout=300)
+        if result.returncode:
+            raise ValueError(f'gate 4 jscpd install failed ({result.returncode}): {result.stderr.strip()}')
+        with contextlib.suppress(OSError):  # a concurrent run installed the same lockfile first
+            os.rename(work, home)
+    finally:
+        shutil.rmtree(work, ignore_errors=True)
+    return binary
+
+
 def clone_counts(root, files):
-    version = config(root)['JSCPD_VERSION']
-    if not re.fullmatch(r'4\.\d+\.\d+', version):
-        raise ValueError('JSCPD_VERSION must pin jscpd 4 to an exact version')
-    if not shutil.which('npx'):
-        raise ValueError('gate 4 requires npx (Node 20+); duplicates were not checked')
+    binary = jscpd()
     with tempfile.TemporaryDirectory(prefix='drift-clones.') as work:
         work = Path(work)
         tree, output = work / 'sources', work / 'report'
@@ -83,7 +107,7 @@ def clone_counts(root, files):
             target = tree / path
             target.parent.mkdir(parents=True, exist_ok=True)
             target.write_text(unwaived(text))
-        result = subprocess.run(['npx', '-y', f'jscpd@{version}', '--min-tokens', '70', '--min-lines', '6',
+        result = subprocess.run([str(binary), '--min-tokens', '70', '--min-lines', '6',
                                  '--format', 'swift', '--reporters', 'json', '--silent',
                                  '--output', str(output), str(tree)], capture_output=True, text=True, timeout=120)
         if result.returncode:

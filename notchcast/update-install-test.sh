@@ -27,13 +27,15 @@ gh() {
         'release download') printf '%s\n' "$3" > "$HOME/downloaded" ;;
     esac
 }
-codesign() { return 0; }
-shasum() { echo '95280FD4EC25303CCC1FE2AA2A5E8B0A1A757DCC certificate'; }
+# Signed by SIGNER: only the one-call check with the requirement that names its leaf passes.
+SIGNER=95280FD4EC25303CCC1FE2AA2A5E8B0A1A757DCC
+codesign() { [ "$*" = "--verify --deep --strict -R=certificate leaf = H\"$SIGNER\" ${*: -1}" ]; }
 ditto() { cp -R "$FIXTURE" "$4/New.app"; }
 xattr() { return 0; }
 ioreg() { touch "$HOME/idle-read"; echo '"HIDIdleTime" = 0'; }
 sleep() { touch "$HOME/slept"; }
-export -f gh codesign shasum ditto xattr ioreg sleep
+export SIGNER
+export -f gh codesign ditto xattr ioreg sleep
 run_case() {
     local name=$1 installed=$2 expected=$3
     shift 3
@@ -88,6 +90,7 @@ refused_case() {
     echo "PASS: $name"
 }
 PIN=0000000000000000000000000000000000000000 refused_case pin-differs 'not signed by'
+SIGNER=1111111111111111111111111111111111111111 refused_case other-signer 'not signed by'
 # The pin comes only from private.env: one in the tooling's config.env, as a pushed main could add, is ignored.
 echo 'SIGN_SHA1=95280FD4EC25303CCC1FE2AA2A5E8B0A1A757DCC' >> "$WORK/config.env"
 PIN=none refused_case no-private-env 'no SIGN_SHA1'
