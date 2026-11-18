@@ -11,6 +11,7 @@
 // notchcast-sources: Tinycast/Features/Notchcast/Downloads/Model/DownloadsActivity.swift
 // notchcast-sources: Tinycast/Features/Notchcast/Downloads/Model/DownloadsIslandPolicy.swift
 // notchcast-sources: Tinycast/Features/Notchcast/Downloads/Service/DownloadsQueueController.swift
+// notchcast-sources: Tinycast/Features/Notchcast/Downloads/Model/BondingPolicy.swift
 // notchcast-sources: Tinycast/Features/Notchcast/Downloads/Service/DownloadsIslandBridge.swift
 // notchcast-sources: Tinycast/Features/Island/Model/IslandPresentation.swift
 // notchcast-sources: Tinycast/Features/Island/Service/IslandPresenting.swift

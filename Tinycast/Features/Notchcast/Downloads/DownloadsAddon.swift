@@ -17,6 +17,13 @@ enum DownloadsAddon: NotchcastAddon {
                 localized: "Use aria2c for faster media downloads when it is installed.", table: "NotchcastDownloads"),
             category: .filesDownloads, dependencies: ["downloads"]),
         NotchcastSwitch(
+            id: "downloadsUseIPhone",
+            title: String(localized: "Use Wi-Fi and a plugged-in iPhone together", table: "NotchcastDownloads"),
+            subtitle: String(
+                localized: "Downloads over 200 MB use both while the iPhone shares Personal Hotspot over USB.",
+                table: "NotchcastDownloads"),
+            category: .filesDownloads, dependencies: ["downloadsAria2"]),
+        NotchcastSwitch(
             id: "distill",
             title: String(localized: "Distill", table: "NotchcastDownloads"),
             subtitle: String(
@@ -40,6 +47,13 @@ enum DownloadsAddon: NotchcastAddon {
             title: String(localized: "Keep sharing until ratio 1.0", table: "NotchcastDownloads"),
             subtitle: String(
                 localized: "Upload as much as you downloaded before stopping. Off stops sharing once complete.",
+                table: "NotchcastDownloads"),
+            category: .filesDownloads, dependencies: ["torrents"]),
+        NotchcastSwitch(
+            id: "torrentsUseIPhone",
+            title: String(localized: "Use Wi-Fi and a plugged-in iPhone together", table: "NotchcastDownloads"),
+            subtitle: String(
+                localized: "Every torrent uses both while the iPhone shares Personal Hotspot over USB.",
                 table: "NotchcastDownloads"),
             category: .filesDownloads, dependencies: ["torrents"]),
     ]

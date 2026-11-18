@@ -88,10 +88,10 @@ enum RegistryCheck {
     static let frozenIDs: Set<String> = [
         "screenshot", "displayBrightness", "volumeLevels", "hideCommandM", "middleClick", "quitProtection",
         "showDesktop", "launcherNumberKeys", "smallCommands", "downloads", "downloadsAria2", "distill",
-        "distillTimestamps", "musicBlockAppleMusic", "iPhoneBackupTweaks", "torrents", "torrentsKeepSharing",
+        "distillTimestamps", "musicBlockAppleMusic", "iPhoneBackupTweaks", "torrents", "torrentsKeepSharing", "torrentsUseIPhone",
     ]
     // Switch ids v1 never shipped; an id in neither list is a typo or a rename of a shipped one.
-    static let newIDs: Set<String> = []
+    static let newIDs: Set<String> = ["downloadsUseIPhone"]
     static let frozenSlugs: Set<String> = ["screenshot-area", "screenshot-display"]
 
     /// Problems fail the harness; notes only report (an absent dependency counts as off).
