@@ -2,12 +2,13 @@ import Foundation
 import ImageIO
 import UniformTypeIdentifiers
 
-/// Runs one capture session at a time; a trigger while one is active is ignored.
+/// Runs one capture or edit at a time; a trigger while one is active, the editor included, is ignored.
 @MainActor
 final class ScreenshotsModule: NotchcastModule {
     enum Scope { case area, display }
 
     static let switchID = ScreenshotsAddon.switches[0].id
+    static let editAfterCaptureKey = "notchcast.screenshot.editAfterCapture"
     private let context: NotchcastContext
     private let system: ScreenshotSystem
     private let exclusion: ScreenshotExclusion
@@ -15,6 +16,10 @@ final class ScreenshotsModule: NotchcastModule {
     private var session: Task<Void, Never>?
     private var operation: UUID?
     private var closeSurface: (@MainActor () -> Void)?
+    /// The last capture as PNG, so Edit Last Screenshot never holds a full bitmap between edits.
+    private var lastCapture: Data?
+    private var closeEditor: (@MainActor () -> Void)?
+    private var export: Task<Void, Never>?
 
     init(context: NotchcastContext, system: ScreenshotSystem,
          exclusion: ScreenshotExclusion = ScreenshotExclusion(
@@ -32,22 +37,46 @@ final class ScreenshotsModule: NotchcastModule {
         session?.cancel()
         session = nil
         closeSurface?()
+        export?.cancel()
+        export = nil
+        endEditing()
+        lastCapture = nil
     }
 
     func captureArea() { begin(.area) }
 
     func captureDisplay() { begin(.display) }
 
+    func editLastCapture() {
+        guard isIdle else { return }
+        guard let lastCapture else { return report(ScreenshotRequest.Failure.nothingToEdit) }
+        run { [self] in
+            guard let image = await Self.decode(lastCapture) else { throw ScreenshotRequest.Failure.encodingFailed }
+            try Task.checkCancellation()
+            edit(image)
+        }
+    }
+
+    private var isIdle: Bool { running && session == nil && closeEditor == nil }
+
     private func begin(_ scope: Scope) {
-        guard running, session == nil else { return }
+        guard isIdle else { return }
         guard system.grantAccess() else { return report(ScreenshotRequest.Failure.permissionDenied) }
+        run { [self] in
+            guard let image = try await image(for: scope) else { return }
+            let data = try await Self.png(image)
+            try Task.checkCancellation()
+            lastCapture = data
+            if context.defaults.bool(forKey: Self.editAfterCaptureKey) { edit(image) } else { try await output(data) }
+        }
+    }
+
+    private func run(_ work: @escaping @MainActor @Sendable () async throws -> Void) {
         let id = UUID()
         operation = id
         session = Task {
             do {
-                if let image = try await image(for: scope) {
-                    try await output(Self.png(image))
-                }
+                try await work()
             } catch {
                 if operation == id, !(error is CancellationError) { report(error) }
             }
@@ -106,16 +135,54 @@ final class ScreenshotsModule: NotchcastModule {
         }
     }
 
+    private func edit(_ image: CGImage) {
+        closeEditor = system.edit(image) { [weak self] outcome in self?.finishEditing(outcome, base: image) }
+    }
+
+    /// The editor stays open until its result is written, so a failed write loses no annotation.
+    private func finishEditing(_ outcome: CaptureEditorOutcome, base: CGImage) {
+        guard closeEditor != nil, export == nil else { return }
+        let document: AnnotationDocument
+        switch outcome {
+        case .discard: return endEditing()
+        case .copy(let edited), .save(let edited): document = edited
+        }
+        export = Task {
+            do {
+                let data = try await Self.render(document, over: base)
+                try Task.checkCancellation()
+                if case .save = outcome {
+                    _ = try await Self.save(data, in: folder(), date: context.now(), timeZone: .current)
+                } else if !system.writeClipboard(data) {
+                    throw ScreenshotRequest.Failure.clipboardFailed
+                }
+                try Task.checkCancellation()
+                endEditing()
+            } catch {
+                if !(error is CancellationError) { report(error) }
+            }
+            if !Task.isCancelled { export = nil }
+        }
+    }
+
+    private func endEditing() {
+        let close = closeEditor
+        closeEditor = nil
+        close?()
+    }
+
+    private func folder() throws -> URL {
+        try context.defaults.string(forKey: ScreenshotBackupKeys.folder)
+            .map { URL(filePath: $0, directoryHint: .isDirectory) } ?? system.desktop()
+    }
+
     /// v1's order: the file first, so a failed clipboard write still leaves the picture saved.
     private func output(_ data: Data) async throws {
-        let defaults = context.defaults
-        let destination = defaults.string(forKey: ScreenshotBackupKeys.destination)
+        let destination = context.defaults.string(forKey: ScreenshotBackupKeys.destination)
             .flatMap(ScreenshotDestination.init(rawValue:)) ?? .clipboard
         var saved: URL?
         if destination != .clipboard {
-            let folder = try defaults.string(forKey: ScreenshotBackupKeys.folder)
-                .map { URL(filePath: $0, directoryHint: .isDirectory) } ?? system.desktop()
-            saved = try await Self.save(data, in: folder, date: context.now(), timeZone: .current)
+            saved = try await Self.save(data, in: folder(), date: context.now(), timeZone: .current)
         }
         try Task.checkCancellation()
         if destination != .file, !system.writeClipboard(data), saved == nil {
@@ -138,6 +205,20 @@ final class ScreenshotsModule: NotchcastModule {
         CGImageDestinationAddImage(encoder, image, nil)
         guard CGImageDestinationFinalize(encoder) else { throw ScreenshotRequest.Failure.encodingFailed }
         return data as Data
+    }
+
+    @concurrent
+    private static func render(_ document: AnnotationDocument, over base: CGImage) async throws -> Data {
+        do {
+            return try AnnotationRenderer.png(document.finished(), over: base)
+        } catch {
+            throw ScreenshotRequest.Failure.encodingFailed
+        }
+    }
+
+    @concurrent
+    private static func decode(_ data: Data) async -> CGImage? {
+        CGImageSourceCreateWithData(data as CFData, nil).flatMap { CGImageSourceCreateImageAtIndex($0, 0, nil) }
     }
 
     @concurrent

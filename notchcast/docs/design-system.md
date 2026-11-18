@@ -174,7 +174,7 @@ Reference: mac-design, "Use the system first. Add custom design only where the s
 
 | Element | Rule | Token |
 | --- | --- | --- |
-| Anything an add-on shows | Only the island's values, posted through `context.presenter` (`IslandPresenting`: `showLevel`, `post(_:onTap:)`, `end(notice:)`, `setStatus`, `setMenuRows`) as `IslandLevel`, `IslandNotice`, `IslandStatus` (text cut to 4 characters) and `IslandMenuRow`; the engine draws them with §1–§10. A failure it posts (`isFailure`) follows the §10 failure rule. An add-on opens no window, panel or hosting view of its own. Exempt: the Screenshots selection overlay, a capture tool over the whole screen, not an island surface. | none; `IslandPresenting` |
+| Anything an add-on shows | Only the island's values, posted through `context.presenter` (`IslandPresenting`: `showLevel`, `post(_:onTap:)`, `end(notice:)`, `setStatus`, `setMenuRows`) as `IslandLevel`, `IslandNotice`, `IslandStatus` (text cut to 4 characters) and `IslandMenuRow`; the engine draws them with §1–§10. A failure it posts (`isFailure`) follows the §10 failure rule. An add-on opens no window, panel or hosting view of its own. Exempt: the Screenshots selection overlay, a capture tool over the whole screen, and its Capture Editor window, which takes the stock panel recipe of `docs/ui.md` (`notchcast/docs/features/screenshots.md`); neither is an island surface. | none; `IslandPresenting` |
 
 Hook A16.
 

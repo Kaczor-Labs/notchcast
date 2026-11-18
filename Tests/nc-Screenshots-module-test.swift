@@ -97,7 +97,8 @@ extension ScreenshotSystem {
                 fake.closes += 1
                 fake.pick(nil)
             }
-        }
+        },
+        edit: { _, _ in fatalError("editing is off by default; nc-Screenshots-editor-test covers it") }
     )
 }
 
@@ -142,6 +143,7 @@ final class Rig {
 
 let area = "command:nc-screenshot-area"
 let display = "command:nc-screenshot-display"
+let editLast = "command:nc-edit-last-screenshot"
 
 func drain() async { try? await Task.sleep(for: .milliseconds(120)) }
 
@@ -167,11 +169,11 @@ enum ScreenshotsModuleTests {
         let presenter = rig.presenter
 
         precondition(ScreenshotsAddon.switches.map(\.id) == ["screenshot"], "v1 switch id")
-        precondition(ScreenshotsAddon.commands.map(\.id) == [area, display], "frozen command ids")
-        precondition(ScreenshotsAddon.commands.map { "hotkey." + $0.id }
+        precondition(ScreenshotsAddon.commands.map(\.id) == [area, display, editLast], "frozen command ids")
+        precondition(ScreenshotsAddon.commands.prefix(2).map { "hotkey." + $0.id }
                      == ["hotkey.command:nc-screenshot-area", "hotkey.command:nc-screenshot-display"],
                      "both stored bindings name these commands")
-        precondition(rig.controller.enabledCommands.map(\.id) == [area, display], "on by default")
+        precondition(rig.controller.enabledCommands.map(\.id) == [area, display, editLast], "on by default")
 
         fake.holdFreeze = true
         precondition(rig.controller.run(entryID: area), "the area binding resolves")

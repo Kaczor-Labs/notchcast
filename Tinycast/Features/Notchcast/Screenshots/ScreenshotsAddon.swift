@@ -22,6 +22,11 @@ enum ScreenshotsAddon: NotchcastAddon {
             slug: "screenshot-display", name: String(localized: "Capture Screen", table: "NotchcastScreenshots"),
             symbol: "camera", switchID: ScreenshotsModule.switchID
         ) { $0.module(ScreenshotsModule.self)?.captureDisplay() },
+        NotchcastCommand(
+            slug: "edit-last-screenshot", name: String(localized: "Edit Last Screenshot", table: "NotchcastScreenshots"),
+            symbol: "pencil.tip.crop.circle", switchID: ScreenshotsModule.switchID,
+            keywords: ["annotate", "markup", "capture editor"]
+        ) { $0.module(ScreenshotsModule.self)?.editLastCapture() },
     ]
 
     static let settings = [

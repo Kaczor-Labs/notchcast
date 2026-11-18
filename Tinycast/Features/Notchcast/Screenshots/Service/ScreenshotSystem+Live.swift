@@ -26,7 +26,8 @@ extension ScreenshotSystem {
         select: { frozen, windows, completion in
             let surface = ScreenshotSelectionSurface(frozen: frozen, windows: windows, completion: completion)
             return { surface.finish(nil) }
-        }
+        },
+        edit: { image, finish in CaptureEditorPanel.open(image, finish: finish) }
     )
 
     private static var configuration: SCScreenshotConfiguration {
