@@ -28,9 +28,12 @@ The island has two looks, chosen per display (`IslandLook`, island-shell.md "Loo
 | --- | --- | --- |
 | The island shape, every form from rest to open (backdrop, launcher, palette screens) | Black: paint one opaque black surface. Frosted: one behind-window `NSVisualEffectView` (`.hudWindow`, `.behindWindow`, `.active`) in the backdrop window, masked to the engine outline every frame (`IslandFrost`), under the graphite tint the canvas fills the outline with. On a notch the glass hangs from the screen's top edge and the hardware is its black cutout. Under Reduce Transparency or Increase Contrast, Frosted drops the blur and paints solid. No second material on either look: no Liquid Glass (`frosted(in:)`, a non-`.identity` `.glassEffect`, `GlassEffectView`, a SwiftUI `Material`) and no `panelScrim` on the island. | Black `NotchTheme.Colors.islandSurface`; Frosted `islandGlassTint` (rgb 24 25 28 at 0.88), solid `islandGlassSolid` (#1c1d20) |
 | Island controls over the shape (`islandGlass`, `frosted(in:)`) | Black: the control paints `islandSurface`. Frosted: no fill of its own, so the glass shows (`@Environment(\.islandFrosted)`), and a 1 pt control edge (§2). | as above |
-| HUD and dialog panels | Black: one opaque black surface. Frosted: no fill (`islandPanelFill`), so the backdrop's glass, which grows over them, shows. | `NotchTheme.Colors.islandPanelFill` |
+| HUD and dialog panels, and the level band in the report slot | Black: one opaque black surface. Frosted: no fill (`islandPanelFill`), so the backdrop's glass, which grows over them, shows. | `NotchTheme.Colors.islandPanelFill` |
+| AppKit-drawn ink (engine art, the level band, `FormTextInput`, `FormTextArea`, the AI transcript's text view) | `NSColor(token)` resolves no SwiftUI environment, so it is always Black's value. A representable resolves its tokens with `token.nsColor(in: context.environment)`; engine art takes `frosted` from its canvas's look (`token.islandInk(frosted:)`), so Frosted's inks and red reach AppKit too. | the §6 tokens |
 | Menu panel (`PopoverMenu`) | Black: one opaque black surface. Frosted: `islandMenuBacking`, a behind-window `.hudWindow` blur masked to the menu shape under the denser menu tint, with the island's 1 pt edge; solid `islandGlassSolid` under Reduce Transparency or Increase Contrast. | Black `islandSurface`; Frosted `NotchTheme.Frosted.menuTint` (rgb 38 39 43 at 0.92), `islandEdge` |
 | Window shadow | No `hasShadow` on any island window. Frosted lifts the shape with its own shadow in a click-through child window under the backdrop (`IslandLiftWindow`), drawn only once the spring settles and cut out under the glass: rest and live forms `NotchTheme.Shadow.islandLive` (0 6 18 −6, black 0.55), open forms (palette, question, report) `islandOpen` (0 30 70 −26, black 0.75). The bare notch at rest casts none. Black casts none. A Frosted menu panel takes the window shadow (`MenuPanelController`), Black's none. | `NotchTheme.Shadow` |
+
+Every other island surface follows one of these rows on Frosted. Two never do and stay as they are: the extension panels (`ExtensionActionsPanel`, `ExtensionListPanel`: Liquid Glass, owned by `Features/Extensions/`, and Extensions are hidden) and upstream's volume box (`VolumeHUDView`, never constructed; the island's level replaces it).
 
 The palette root keeps `.identity` glass on the island (`RootPaletteView`) and sets `islandFrosted` from the look of the display it opened on; the compact bar drops its capsule glass, button glass and scrim (`CompactBar`, `onIsland`). Hooks A1, A17.
 
@@ -181,17 +184,18 @@ Reference: HIG Live Activities, "Focus on simple, direct actions."
 
 1. Name the surface in §0; if it is not on the island, follow `docs/ui.md` instead of this page.
 2. Paint nothing of your own behind content (§1, §2): the backdrop paints the look, no Liquid Glass on the island, and island controls go through `islandGlass` so they are `islandSurface` on Black and bare on Frosted.
-3. Read every size from `@Environment(\.metrics)`; every new number goes to §15 first.
-4. Radius concentric to the parent (§3); width from a §4 token; padding from §5.
-5. Type and ink from §6; glyphs through `SymbolImage`; colour only for status.
-6. Keycaps `.outline`; buttons bare at rest, `rowHover`, `keyCapFill` on press (§7).
-7. Menus through `PopoverMenu` (§8), with no glass on the menu, its search field or its rows; questions through `DialogController`; reports through `HUDPresenter` or an `IslandNotice` (§10).
-8. Every custom control has an accessibility label and traits; movement returns `nil` under Reduce Motion; `.tooltip`, never `.help()`, in the palette (a view shared with a stock surface calls `.paletteHelp`, which is `.tooltip` on the island and `.help` elsewhere).
-9. Copy: Title Case for commands, buttons, menu items and outcomes, as stock macOS does ("Grant Access…"); sentence case for settings rows and other text; English only (`fork-strings.md`). `notchcast/design-check.sh` enforces the same split; an editor title in Title Case, like upstream's "Add MCP Server", takes an `ai-design-check-ignore-next-line sentence-case` line.
-10. Dark only: the island is pinned Dark; check Dark, never Light.
-11. Every progress activity ends with a result notice, success or failure (§10).
-12. Beside the notch show a glyph and a short status only; text expands below the notch on notched displays, and stays centred in the pill elsewhere (§10).
-13. Run §16 before READY: every hook at or below its recorded count.
+3. Read the look of the display the surface opens on, in its host (`islandFrosted` from the palette, `MenuPanelController`, `IslandCoordinator.frosted(on:)`, or the canvas's `look`), and render it in Black and Frosted, in both forms (the Dynamic Island on a display without a notch, and the notch form), before READY. No `islandSurface` fill outside a look branch and no `NSColor(token)` ink: `nc-Notchcast-frosted-guard-test` fails on both.
+4. Read every size from `@Environment(\.metrics)`; every new number goes to §15 first.
+5. Radius concentric to the parent (§3); width from a §4 token; padding from §5.
+6. Type and ink from §6; glyphs through `SymbolImage`; colour only for status.
+7. Keycaps `.outline`; buttons bare at rest, `rowHover`, `keyCapFill` on press (§7).
+8. Menus through `PopoverMenu` (§8), with no glass on the menu, its search field or its rows; questions through `DialogController`; reports through `HUDPresenter` or an `IslandNotice` (§10).
+9. Every custom control has an accessibility label and traits; movement returns `nil` under Reduce Motion; `.tooltip`, never `.help()`, in the palette (a view shared with a stock surface calls `.paletteHelp`, which is `.tooltip` on the island and `.help` elsewhere).
+10. Copy: Title Case for commands, buttons, menu items and outcomes, as stock macOS does ("Grant Access…"); sentence case for settings rows and other text; English only (`fork-strings.md`). `notchcast/design-check.sh` enforces the same split; an editor title in Title Case, like upstream's "Add MCP Server", takes an `ai-design-check-ignore-next-line sentence-case` line.
+11. Dark only: the island is pinned Dark; check Dark, never Light.
+12. Every progress activity ends with a result notice, success or failure (§10).
+13. Beside the notch show a glyph and a short status only; text expands below the notch on notched displays, and stays centred in the pill elsewhere (§10).
+14. Run §16 before READY: every hook at or below its recorded count.
 
 ## 14. Breaks today
 
@@ -255,5 +259,6 @@ Run from the repo root with `bash`, after ``I=$(find Tinycast/Palette Tinycast/F
 | A16 | §12 add-ons | `grep -rnE ': NSPanel\|NSHostingView\(\|NSWindow\(' Tinycast/Features/Notchcast --include='*.swift' \| grep -v '/Screenshots/'` | 0 |
 | A17 | §1 shadow | `grep -rnE 'hasShadow = true' Tinycast/Palette/PalettePanel.swift Tinycast/Palette/MenuPanel.swift Tinycast/Windows/HUD/HUDPanel.swift Tinycast/Windows/Dialog/DialogPanel.swift Tinycast/Features/Island` (window shadows stay off; Frosted's lift is a layer shadow in `IslandFrost`) | 4 |
 | A18 | §6 glyph | `grep -rnE 'Image\(systemName' $I` | 39 |
+| A19 | §1 look on Frosted | `./Scripts/run-tests.sh nc-Notchcast-frosted-guard-test \| grep -c '^FAIL'` (an `islandSurface` fill outside a look branch, an `NSColor(token)` ink) | 0 |
 
 In the table `\|` is a Markdown escape: type a plain `|`.
