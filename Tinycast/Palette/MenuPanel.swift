@@ -53,6 +53,12 @@ final class MenuPanel: NSPanel, AnimatedPanel {
         }
     }
 
+    override func makeFirstResponder(_ responder: NSResponder?) -> Bool {
+        guard super.makeFirstResponder(responder) else { return false }
+        let frosted = AppCore.shared.island.frosted(on: parent?.screen)
+        (firstResponder as? NSTextView)?.applyIslandInks(frosted: frosted)
+        return true
+    }
 }
 
 /// Presents one menu at a time in a `MenuPanel` hung off a corner of the palette.
