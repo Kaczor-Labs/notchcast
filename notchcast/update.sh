@@ -23,7 +23,7 @@ for arg in "$@"; do
         *) echo "Usage: update.sh [--install] [--retry] [--dry-run] (any order)" >&2; exit 2 ;;
     esac
 done
-HERE="$(cd "$(dirname "$0")" && pwd)"
+HERE="$(cd "$(dirname "$0")" && pwd -P)"
 # shellcheck disable=SC1091
 source "$HERE/config.env"
 APP="${NOTCHCAST_APP:-/Applications/$APP_NAME.app}"

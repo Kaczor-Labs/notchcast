@@ -6,7 +6,7 @@
 #   kick    notchcast.kick runs kick.sh every 10 min: starts the sync when upstream moved (needs gh).
 #   prune   notchcast.prune prunes merged branches on Sundays at 04:00 (notchcast/docs/branch-cleanup.md).
 # Every mode first copies the committed notchcast/ of this checkout to the tooling copy the jobs run, and
-# pins SIGN_SHA1 in ~/.config/notchcast/private.env when absent. Rerun it to update the tooling (#872).
+# then pins SIGN_SHA1 from that commit in private.env when absent. Rerun it to update the tooling (#872).
 # No agent runs the app: it starts at login through its own "Launch at login" setting (SMAppService).
 # Builds and releases run on GitHub Actions (.github/workflows/sync.yml), not on a Mac.
 set -euo pipefail
@@ -53,6 +53,7 @@ main_checkout() {
 }
 
 TOOLS="$HOME/Library/Application Support/notchcast/tools"
+JOBS="$HOME/Library/Application Support/notchcast/jobs"
 TOOLS_NEEDS='update.sh install-app.sh config.env kick.sh ci.py prune-branches.py'
 
 # Jobs run only this copy, made here from the checkout's HEAD; nothing refreshes it from origin (#872).
@@ -76,6 +77,14 @@ install_tools() {
     old=$(readlink "$TOOLS" || true)
     ln -s "$stage/notchcast" "$stage/link"
     mv -fh "$stage/link" "$TOOLS"
+    TOOLS_DIR="$stage/notchcast"
+    for f in 'Notchcast update' 'Notchcast sync check'; do
+        f="$JOBS/$f"
+        [ "$(sed -n 2p "$f" 2>/dev/null | cut -c1-6)" = tools= ] || continue
+        { printf '#!/bin/bash\ntools=%q\n' "$TOOLS_DIR"; tail -n +3 "$f"; } > "$f.new"
+        chmod 755 "$f.new"
+        mv -f "$f.new" "$f"
+    done
     # Keep the previous copy for a job still running from it; older copies and the old kick copy go.
     for f in "$TOOLS".??????; do
         [ "$f" = "$stage" ] || [ "$f/notchcast" = "$old" ] || rm -rf "$f"
@@ -87,31 +96,36 @@ install_tools() {
         case "$old" in "$kick".??????/notchcast) rm -rf "${old%/notchcast}" ;; esac
     fi
     TOOLS_INSTALLED=1
+    TOOLS_REV=$rev
     echo "installed tooling from ${rev:0:12} at $TOOLS"
 }
 
 # update.sh trusts only this machine's pin, never one in the checkout or the tooling copy.
 install_pin() {
-    local env="$HOME/.config/notchcast/private.env"
+    local env="$HOME/.config/notchcast/private.env" sha
     if [ -f "$env" ] && grep -qE '^[[:space:]]*(export[[:space:]]+)?SIGN_SHA1=' "$env"; then return 0; fi
+    sha=$(git -C "$HERE" show "$TOOLS_REV:notchcast/config.env" | sed -n 's/^RELEASE_SIGN_SHA1=//p')
+    [[ "$sha" =~ ^[0-9A-F]{40}$ ]] \
+        || { echo "HEAD ${TOOLS_REV:0:12} has no valid RELEASE_SIGN_SHA1; SIGN_SHA1 not pinned" >&2; exit 1; }
     mkdir -p "$(dirname "$env")"
     if [ -s "$env" ] && [ -n "$(tail -c 1 "$env")" ]; then echo >> "$env"; fi
-    printf 'SIGN_SHA1=%s\n' "$RELEASE_SIGN_SHA1" >> "$env"
+    printf 'SIGN_SHA1=%s\n' "$sha" >> "$env"
     echo "pinned SIGN_SHA1 in $env"
 }
 
 # Login Items shows the executable, so a job runs through a named wrapper rather than /bin/bash.
 named_job() { # name program...
     local name=$1
-    local wrapper="$HOME/Library/Application Support/notchcast/jobs/$1"; shift
-    mkdir -p "$(dirname "$wrapper")"
+    local wrapper="$JOBS/$1"; shift
+    mkdir -p "$JOBS"
     printf '#!/bin/bash\n' > "$wrapper"
     case "$name" in
         'Notchcast update'|'Notchcast sync check')
             local script=${2##*/} args=''
             shift 2
             if [ "$#" -gt 0 ]; then args="$(printf '%q ' "$@")"; fi
-            printf 'tools=%q\n' "$TOOLS" >> "$wrapper"
+            # The copy's real folder, so a running job never reads a sibling through a swapped link.
+            printf 'tools=%q\n' "$TOOLS_DIR" >> "$wrapper"
             printf 'if [ -f "$tools/%s" ]; then exec /bin/bash "$tools/%s" %s; fi\n' \
                 "$script" "$script" "$args" >> "$wrapper"
             printf "echo 'no installed tooling; run notchcast/install-launchd.sh from a checkout'\nexit 1\n" >> "$wrapper"
@@ -173,7 +187,7 @@ first_install() {
 }
 
 case "${1:-}" in
-    all|update|kick|prune) install_pin; install_tools ;;
+    all|update|kick|prune) install_tools; install_pin ;;
 esac
 case "${1:-}" in
     all) first_install; install_update; install_kick ;;

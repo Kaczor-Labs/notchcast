@@ -11,7 +11,7 @@ export PATH="/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:$HOM
 
 DRY=0
 if [ "${1:-}" = "--dry-run" ]; then DRY=1; fi
-HERE="$(cd "$(dirname "$0")" && pwd)"
+HERE="$(cd "$(dirname "$0")" && pwd -P)"
 # shellcheck disable=SC1091
 source "$HERE/config.env"
 STATE_DIR="$HOME/Library/Application Support/notchcast"

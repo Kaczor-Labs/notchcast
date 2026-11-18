@@ -47,6 +47,15 @@ bash "$CHECKOUT" kick > /dev/null
 test "$(cat "$ENV")" = "export SIGN_SHA1=$(printf '%040d' 0)" || { echo 'FAIL: installer replaced a pin'; exit 1; }
 echo 'PASS: installer pins SIGN_SHA1 in private.env once and never replaces it'
 
+CONFIG="$WORK/checkout/notchcast/config.env"
+sed -i '' "s/^RELEASE_SIGN_SHA1=.*/RELEASE_SIGN_SHA1=$(printf '%040d' 1)/" "$CONFIG"
+: > "$ENV"
+bash "$CHECKOUT" kick > /dev/null 2>&1
+test "$(cat "$ENV")" = "SIGN_SHA1=$PIN" || { echo 'FAIL: pinned an uncommitted RELEASE_SIGN_SHA1'; cat "$ENV"; exit 1; }
+git -C "$WORK/checkout" checkout -q notchcast/config.env
+printf 'export SIGN_SHA1=%s\n' "$(printf '%040d' 0)" > "$ENV"
+echo "PASS: the pin comes from HEAD's config.env, never the working tree"
+
 bash "$CHECKOUT" update --auto-install
 WRAPPER="$HOME/Library/Application Support/notchcast/jobs/Notchcast update"
 KICK="$HOME/Library/Application Support/notchcast/jobs/Notchcast sync check"
@@ -57,7 +66,7 @@ for label in update kick; do
     test -x "$exe"
     test "$(/usr/libexec/PlistBuddy -c 'Print :ProgramArguments:1' "$plist" 2>/dev/null || true)" = ''
     bash -n "$exe"
-    ! grep -qE 'git|fetch|archive|origin' "$exe" || { echo "FAIL: the $label job reaches for git"; cat "$exe"; exit 1; }
+    ! grep -v '^tools=' "$exe" | grep -qE 'git|fetch|archive|origin' || { echo "FAIL: the $label job reaches for git"; cat "$exe"; exit 1; }
 done
 echo 'PASS: job wrappers never fetch or extract anything'
 
@@ -69,6 +78,12 @@ run "$WRAPPER" 'update-v1 Notchcast --install'
 run "$KICK" 'kick-v1 Notchcast '
 test "$(cut -d' ' -f1 "$TOOLS/.commit")" = "$(git -C "$WORK/checkout" rev-parse HEAD)"
 echo 'PASS: jobs run the installed copy with their arguments'
+
+for exe in "$WRAPPER" "$KICK"; do
+    test "$(sed -n 2p "$exe")" = "tools=$(printf '%q' "$(readlink "$TOOLS")")" \
+        || { echo 'FAIL: a wrapper runs the tools link, not the copy it points at'; cat "$exe"; exit 1; }
+done
+echo 'PASS: wrappers run the physical copy'
 
 stub update.sh update-v2
 stub kick.sh kick-v2
@@ -104,11 +119,26 @@ COPY="$(readlink "$TOOLS")"
 git -C "$WORK/origin" rm -q notchcast/ci.py
 commit 'no ci.py'
 git -C "$WORK/checkout" pull -q
+PINNED="$(cat "$ENV")"
+: > "$ENV"
 if bash "$CHECKOUT" kick > /dev/null 2>&1; then echo 'FAIL: installed tooling that lacks ci.py'; exit 1; fi
 test "$(readlink "$TOOLS")" = "$COPY" || { echo 'FAIL: an incomplete install replaced the copy'; exit 1; }
+test ! -s "$ENV" || { echo 'FAIL: a failed tools copy wrote the pin'; cat "$ENV"; exit 1; }
+printf '%s\n' "$PINNED" > "$ENV"
 git -C "$WORK/origin" revert --no-edit HEAD > /dev/null
 git -C "$WORK/checkout" pull -q
-echo 'PASS: an incomplete HEAD keeps the installed copy'
+echo 'PASS: an incomplete HEAD keeps the installed copy and writes no pin'
+
+sed -i '' 's/^RELEASE_SIGN_SHA1=.*/RELEASE_SIGN_SHA1=not-a-sha/' "$WORK/origin/notchcast/config.env"
+commit 'bad pin'
+git -C "$WORK/checkout" pull -q
+: > "$ENV"
+if bash "$CHECKOUT" kick > /dev/null 2>&1; then echo 'FAIL: pinned a malformed RELEASE_SIGN_SHA1'; exit 1; fi
+test ! -s "$ENV" || { echo 'FAIL: wrote a malformed pin'; cat "$ENV"; exit 1; }
+git -C "$WORK/origin" revert --no-edit HEAD > /dev/null
+git -C "$WORK/checkout" pull -q
+printf '%s\n' "$PINNED" > "$ENV"
+echo 'PASS: a malformed committed RELEASE_SIGN_SHA1 is never pinned'
 
 git -C "$WORK/checkout" worktree add -q --detach "$WORK/linked"
 cp "$HERE/install-launchd.sh" "$WORK/linked/notchcast/"
@@ -122,7 +152,7 @@ git -C "$WORK/checkout" worktree remove --force "$WORK/linked"
 run "$KICK" 'kick-v2 Notchcast '
 echo 'PASS: prune installs from a linked worktree into the main checkout; jobs outlive the worktree'
 
-rm "$TOOLS"
+rm -rf "$(readlink "$TOOLS")" "$TOOLS"
 printf '#!/bin/bash\necho checkout\n' > "$WORK/checkout/notchcast/update.sh"
 if bash "$WRAPPER" > "$WORK/log" 2>&1; then echo 'FAIL: update ran with no installed tooling'; exit 1; fi
 ! grep -qx checkout "$WORK/log" || { echo 'FAIL: update ran the checkout'; exit 1; }
