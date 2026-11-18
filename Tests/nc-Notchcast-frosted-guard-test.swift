@@ -81,6 +81,10 @@ struct NotchcastFrostedGuardTest {
             if frosted ? flipped != 0 : flipped != 255 {
                 failures.append("IslandLevelBand: corner alpha \(flipped) after a flip to \(frosted ? "Frosted" : "Black")")
             }
+            if bandPixels(frosted: frosted, restyled: true) != bandPixels(frosted: frosted, restyled: false) {
+                failures.append("IslandLevelBand: track or percent keeps the old ink after a flip to "
+                    + (frosted ? "Frosted" : "Black"))
+            }
         }
         failures += lookFlipFailures()
 
@@ -96,15 +100,25 @@ struct NotchcastFrostedGuardTest {
 
     /// The band's corner holds no art, so it shows only what the band paints under it.
     @MainActor static func bandCornerAlpha(frosted: Bool, restyled: Bool) -> UInt8 {
+        let rep = bandBitmap(frosted: frosted, restyled: restyled)
+        var pixel = [Int](repeating: 0, count: 4)
+        rep.getPixel(&pixel, atX: 1, y: 1)
+        return UInt8(pixel[3])
+    }
+
+    @MainActor static func bandPixels(frosted: Bool, restyled: Bool) -> Data {
+        let rep = bandBitmap(frosted: frosted, restyled: restyled)
+        return Data(bytes: rep.bitmapData!, count: rep.bytesPerRow * rep.pixelsHigh)
+    }
+
+    @MainActor static func bandBitmap(frosted: Bool, restyled: Bool) -> NSBitmapImageRep {
         let art = IslandLevelArt(level, notch: false, frosted: restyled ? !frosted : frosted)
         let band = IslandLevelBand(frame: CGRect(origin: .zero, size: art.bandSize))
         band.art = art
         if restyled { band.restyle(frosted: frosted) }
         let rep = band.bitmapImageRepForCachingDisplay(in: band.bounds)!
         band.cacheDisplay(in: band.bounds, to: rep)
-        var pixel = [Int](repeating: 0, count: 4)
-        rep.getPixel(&pixel, atX: 1, y: 1)
-        return UInt8(pixel[3])
+        return rep
     }
 
     /// A look flip while art is up repaints it as the new look would have drawn it from the start.

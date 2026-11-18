@@ -37,8 +37,7 @@ struct BrightnessDisplayRow: View {
     }
 
     private var readout: String {
-        state.value < 0 ? String(localized: "Dim", table: "NotchcastDisplaySound")
-            : state.value.formatted(.percent.precision(.fractionLength(0)))
+        BrightnessLevel(state.value).readout
     }
 
     private var controlTitle: String {

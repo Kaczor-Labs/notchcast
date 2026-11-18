@@ -316,7 +316,19 @@ struct NotchcastIslandAuditRenderTest {
             renderArt("14-level-\(form)", IslandLevelArt(
                 IslandLevel(source: "volume", symbol: "speaker.wave.2.fill", label: "Volume", value: 0.6),
                 notch: notch, frosted: frosted))
+            renderArt("14b-level-muted-\(form)", IslandLevelArt(
+                IslandLevel(source: "volume", symbol: "speaker.slash.fill", label: "Volume", value: 0),
+                notch: notch, frosted: frosted))
+            renderArt("14c-level-brightness-\(form)", IslandLevelArt(
+                IslandLevel(source: "brightness", symbol: "sun.max.fill", label: "Brightness", value: 1,
+                            range: -0.25...1), notch: notch, frosted: frosted))
+            renderArt("14d-level-extra-dimming-\(form)", IslandLevelArt(
+                IslandLevel(source: "brightness", symbol: "sun.min.fill", label: "Brightness", value: -0.125,
+                            range: -0.25...1), notch: notch, frosted: frosted))
         }
+        renderArt("14e-level-notch-low", IslandLevelArt(
+            IslandLevel(source: "volume", symbol: "speaker.wave.1.fill", label: "Volume", value: 0.31),
+            notch: true, frosted: frosted))
         renderHeadline("21-headline-failed-notch", IslandHeadlineArt(
             IslandNotice(id: "d", symbol: "exclamationmark.arrow.circlepath", text: "Update failed",
                          isFailure: true, seconds: 4), notch: 200, frosted: frosted))
