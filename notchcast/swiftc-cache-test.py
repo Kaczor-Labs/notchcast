@@ -57,6 +57,13 @@ class SwiftcCacheTest(unittest.TestCase):
         self.assertEqual(restored.read_text(), "a\n")
         self.assertTrue(os.access(restored, os.X_OK))
 
+    def test_module_and_package_names_are_cached(self):
+        args = ("-package-name", "IslandEngine", "-module-name", "IslandCore", "a.swift", "-o", "out")
+        self.swiftc(*args)
+        self.swiftc(*args)
+        self.swiftc("-package-name", "IslandEngine", "-module-name", "Other", "a.swift", "-o", "out")
+        self.assertEqual(self.calls(), 2)
+
     def test_any_changed_input_compiles_again(self):
         self.swiftc("-Onone", "a.swift", "-o", "out")
         (self.root / "work/a.swift").write_text("changed\n")
