@@ -1,0 +1,36 @@
+{
+  "sourceLanguage" : "en",
+  "strings" : {
+    "%@ free" : {},
+    "%@ of %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@ of %2$@"
+          }
+        }
+      }
+    },
+    "%@/s" : {},
+    "CPU" : {},
+    "CPU High" : {},
+    "CPU load has stayed very high." : {},
+    "CPU, memory, disk and network at a glance, and a warning when the Mac runs hot." : {},
+    "Disk" : {},
+    "Disk Almost Full" : {},
+    "Hot" : {},
+    "Memory" : {},
+    "Memory is critically low. Quit apps you don’t need." : {},
+    "Memory Pressure" : {},
+    "Network" : {},
+    "RAM" : {},
+    "Running Hot" : {},
+    "System" : {},
+    "System in the Island" : {},
+    "The Mac is slowing down to cool off." : {},
+    "The startup disk is almost out of space." : {},
+    "Top Processes" : {}
+  },
+  "version" : "1.0"
+}
