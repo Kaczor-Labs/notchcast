@@ -280,7 +280,7 @@ The open island (hover, or a click that pins it) shows pages: one per add-on wit
 | Motion | The outline grows to the page through the engine's spring (`surface.expand`, `contentKey` "page"), as the launcher does; no view animation of its own. | `IslandController.motionSpeed` |
 | Forms | Same page in both forms: it hangs from the island top, below the notch on a notched display, from the pill elsewhere. | §10 |
 | Look | No fill of its own: the backdrop paints Black or Frosted behind the clear page panel; ink resolves through `\.islandFrosted`. | §1, §6 |
-| Keys | A click pins; pinned, ←/→ and 1–9 pick tabs, Esc closes, ⌘R refreshes the page (on Home, every page), ⌘P toggles the pin. A horizontal two-finger swipe turns one tab. | `IslandPageKey`, `IslandPageSwipe` |
+| Keys | A click pins; pinned, ←/→ and 1–9 pick tabs, Esc closes, ⌘R refreshes the page (on Home, every page), ⌘P toggles the pin. A horizontal two-finger swipe turns one tab, and one more for every further 80 points of the same drag. | `IslandPageKey`, `IslandPageSwipe` |
 
 Deviations, numbered for review:
 

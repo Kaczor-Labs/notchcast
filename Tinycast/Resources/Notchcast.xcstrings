@@ -31,9 +31,6 @@
     "Frosted" : {
 
     },
-    "Home" : {
-
-    },
     "Island" : {
       "shouldTranslate" : false
     },
@@ -64,9 +61,6 @@
     "Needs Accessibility access" : {
       "shouldTranslate" : false
     },
-    "Next Track" : {
-
-    },
     "Notchcast" : {
       "shouldTranslate" : false
     },
@@ -92,9 +86,6 @@
 
     },
     "Position on displays without a notch" : {
-
-    },
-    "Previous Track" : {
 
     },
     "Resting the pointer on the island opens what it shows." : {
