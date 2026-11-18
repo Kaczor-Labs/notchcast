@@ -52,14 +52,14 @@ struct IslandCanvasTest {
             "The percent is rounded down, never early to 100%, and four characters at most")
         let long = IslandHeadlineArt(IslandNotice(id: "l", symbol: "arrow.down.circle",
             text: "2 of 3: Ultimate Guide to Swift Concurrency on Apple Platforms", progress: IslandProgress(fraction: 0.08)),
-            notch: notch)
+            notch: notch, frosted: false)
         let mode = (long.text.attribute(.paragraphStyle, at: 0, effectiveRange: nil) as? NSParagraphStyle)?.lineBreakMode
         print("long headline: width \(long.size.width), text \(long.textWidth) of \(ceil(long.text.size().width))")
         precondition(long.size.width <= 320, "A long headline caps the island at 320 pt, not \(long.size.width)")
         precondition(long.textWidth < ceil(long.text.size().width) && mode == .byTruncatingTail,
                      "A long headline truncates its line at the tail")
         let short = IslandHeadlineArt(IslandNotice(id: "s", symbol: "checkmark.circle",
-                                                   text: "Downloaded Swift Concurrency.pdf"), notch: notch)
+                                                   text: "Downloaded Swift Concurrency.pdf"), notch: notch, frosted: false)
         print("short headline: width \(short.size.width), text \(short.textWidth) of \(ceil(short.text.size().width))")
         precondition(short.textWidth == ceil(short.text.size().width) && short.size.width > notch + Theme.Radius.panel * 2,
                      "A headline under the cap keeps its natural width")
