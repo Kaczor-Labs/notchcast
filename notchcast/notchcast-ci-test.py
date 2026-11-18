@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """bin/notchcast-ci.py with a fake `gh` first on PATH and a local bare origin: it pushes HEAD plainly with an upstream,
-counts only its own outstanding dispatches against the cap in one call per poll and waits while full, dispatches once and polls the run id the dispatch
+refuses without --keeper, dispatches nothing while a Main harnesses run waits to start, dispatches once and polls the run id the dispatch
 response carries (never the latest run) until it completes, sleeps out an API rate limit, prints PASS/FAIL with the
 changed harnesses, and refuses --no-push when origin's branch is not HEAD."""
 import json
@@ -9,7 +9,6 @@ from pathlib import Path
 import subprocess
 import sys
 import tempfile
-import time
 import unittest
 
 CI = Path(__file__).resolve().parent / "notchcast-ci.py"
@@ -43,7 +42,7 @@ elif args[0] == "api":
         query = dict(p.split("=") for p in path.split("?")[1].split("&"))
         state = sc["polls"][min(count("poll"), len(sc["polls"]) - 1)]
         workflow = path.split("/workflows/")[1].split("/")[0]
-        runs = [{"id": r["id"], "status": r["status"]} for r in state
+        runs = [{"id": r["id"], "status": r["status"], "html_url": "https://example.test/runs/%d" % r["id"]} for r in state
                 if r["workflow"] == workflow and r["event"] == query["event"]][:int(query["per_page"])]
         print(json.dumps({"total_count": len(runs), "workflow_runs": runs}))
     elif "/dispatches" in path:
@@ -64,6 +63,20 @@ elif args[:2] == ["run", "view"]:
         print(sc["log"])
 else:
     sys.exit("unexpected " + " ".join(args))
+'''
+
+
+# Runs notchcast-ci.py with its --max-wait timeout kept on the hung call alone, so a slow machine cannot time out another.
+TIME_ONLY_THE_HUNG_CALL = '''
+import runpy, subprocess, sys
+hang, real_run = sys.argv.pop(1), subprocess.run
+def run(cmd, **kwargs):
+    if hang not in " ".join(cmd):
+        kwargs["timeout"] = None
+    return real_run(cmd, **kwargs)
+subprocess.run = run
+del sys.argv[0]
+runpy.run_path(sys.argv[0], run_name="__main__")
 '''
 
 
@@ -108,7 +121,7 @@ class CiTests(unittest.TestCase):
         self.git(self.repo, "push", "-q", "origin", "feat")
         self.env = {**os.environ, "PATH": f"{root / 'bin'}{os.pathsep}{os.environ['PATH']}",
                     "FAKE_GH_DIR": str(self.fake), "NOTCHCAST_CI_POLL": "0.01",
-                    "NOTCHCAST_CI_MAX_DISPATCHES": "3", "NOTCHCAST_CI_CLOCK": "virtual"}
+                    "NOTCHCAST_CI_CLOCK": "virtual"}
         self.head = self.rev(self.repo, "HEAD")
         self.scenario(polls=[[]], dispatch={"workflow_run_id": 777, "html_url": URL},
                       view=self.view("success"), log=SELECTED_LOG, log_failed="")
@@ -136,13 +149,13 @@ class CiTests(unittest.TestCase):
             del current["log"]
         path.write_text(json.dumps(current))
 
-    def ci(self, *args, **env):
-        return subprocess.run([sys.executable, str(CI), "--repo", str(self.repo), *args], text=True,
+    def ci(self, *args, keeper=("--keeper",), **env):
+        return subprocess.run([sys.executable, str(CI), "--repo", str(self.repo), *keeper, *args], text=True,
                               capture_output=True, env={**self.env, **env})
 
     def rerun(self):
         repo = self.repo.resolve()
-        return f"python3 {repo}/notchcast/notchcast-ci.py --repo {repo}"
+        return f"python3 {repo}/notchcast/notchcast-ci.py --repo {repo} --keeper"
 
     def calls(self):
         path = self.fake / "calls.log"
@@ -276,27 +289,45 @@ class CiTests(unittest.TestCase):
                 self.assertEqual(result.returncode, 0)
                 self.assertEqual(result.stdout.splitlines()[-1], f"PASS {URL} at {self.head[:12]} harnesses: unknown")
 
-    def test_waits_while_our_dispatches_reach_the_cap_and_ignores_other_workflows_and_push_events(self):
+    def test_without_keeper_it_refuses_before_pushing_or_calling_gh(self):
+        self.commit("two")
+        for args in ((), ("--no-push",), ("--run", "777")):
+            with self.subTest(args=args):
+                result = self.ci(*args, keeper=())
+                self.assertEqual(result.returncode, 2)
+                self.assertEqual(result.stdout, "")
+                self.assertEqual(result.stderr, "Main harnesses is Keeper-only: push your branch (git push) and ask "
+                                                "your Keeper for the harness proof\n")
+                self.assertEqual(self.calls(), [])
+                self.assertNotEqual(self.rev(self.origin, "refs/heads/feat"), self.rev(self.repo, "HEAD"))
+
+    def test_a_run_that_has_not_started_blocks_the_dispatch(self):
+        for status in ("queued", "pending", "waiting", "requested"):
+            with self.subTest(status=status):
+                (self.fake / "calls.log").unlink(missing_ok=True)
+                self.scenario(polls=[[run_state(1, "in_progress"), run_state(2, status), run_state(20, "completed")]])
+                result = self.ci()
+                self.assertEqual(result.returncode, 4, result.stderr)
+                self.assertEqual(result.stdout.splitlines()[-1], "QUEUED https://example.test/runs/2: one Main "
+                                 "harnesses run already waits; rerun when it starts")
+                self.assertFalse([c for c in self.calls() if "-X" in c or c[:2] == ["run", "view"]])
+
+    def test_runs_in_progress_other_workflows_and_push_events_do_not_block_the_dispatch(self):
         others = [run_state(10, "queued", workflow="pr.yml", event="pull_request"),
-                  run_state(11, "in_progress", workflow="sync.yml", event="workflow_dispatch"),
-                  run_state(12, "queued", event="push"), run_state(13, "in_progress", event="push")]
-        done = [run_state(20, "completed"), run_state(21, "completed")]
-        full = [run_state(1, "in_progress"), run_state(2, "queued"), run_state(3, "waiting"), *others, *done]
-        over = [*full, run_state(4, "pending")]
-        free = [run_state(1, "in_progress"), run_state(3, "waiting"), *others, *done]
-        self.scenario(polls=[full, full, over, free])
-        result = self.ci()
-        self.assertEqual(result.returncode, 0, result.stderr)
-        waits = [line for line in result.stdout.splitlines() if "waiting" in line]
-        self.assertEqual(waits, ["notchcast-ci: 3 harness dispatch(es) queued or running, cap 3; waiting",
-                                 "notchcast-ci: 4 harness dispatch(es) queued or running, cap 3; waiting"])
-        calls = self.calls()
-        self.assertFalse([c for c in calls if any("/jobs" in a for a in c)])
-        polls = [i for i, c in enumerate(calls) if any("/runs?" in a for a in c)]
-        self.assertEqual(len(polls), 4)
-        self.assertEqual(calls[polls[0]], ["api", "repos/kaczordodgers/notchcast/actions/workflows/main-harnesses.yml"
-                                                  "/runs?event=workflow_dispatch&per_page=50"])
-        self.assertLess(polls[-1], next(i for i, c in enumerate(calls) if "-X" in c))
+                  run_state(11, "queued", workflow="sync.yml", event="workflow_dispatch"),
+                  run_state(12, "queued", event="push")]
+        for runs in ([run_state(1, "in_progress"), *others, run_state(20, "completed")], []):
+            with self.subTest(runs=len(runs)):
+                (self.fake / "calls.log").unlink(missing_ok=True)
+                self.scenario(polls=[runs])
+                result = self.ci()
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertEqual(result.stdout.splitlines()[-1], self.passed())
+                calls = self.calls()
+                polls = [i for i, c in enumerate(calls) if any("/runs?" in a for a in c)]
+                self.assertEqual([calls[i] for i in polls], [["api", "repos/kaczordodgers/notchcast/actions/workflows/"
+                                                              "main-harnesses.yml/runs?event=workflow_dispatch&per_page=50"]])
+                self.assertEqual([i > polls[0] for i, c in enumerate(calls) if "-X" in c], [True])
 
     def test_a_dispatch_response_without_a_run_id_is_an_error(self):
         for response in ({"html_url": URL}, None):
@@ -376,13 +407,6 @@ class CiTests(unittest.TestCase):
         self.assertEqual(self.ci().returncode, 2)
         self.assertEqual(self.calls(), [])
 
-    def test_max_wait_before_dispatch_prints_waiting_and_dispatches_nothing(self):
-        self.scenario(polls=[[run_state(n, "queued") for n in range(3)]])
-        result = self.ci("--max-wait", "10", NOTCHCAST_CI_POLL="1")
-        self.assertEqual(result.returncode, 3, result.stderr)
-        self.assertEqual(result.stdout.splitlines()[-1], f"WAITING (not dispatched); rerun: {self.rerun()} --no-push")
-        self.assertFalse([c for c in self.calls() if "-X" in c])
-
     def test_max_wait_after_dispatch_prints_pending_with_the_run_to_resume(self):
         self.scenario(view=self.view(None, status="in_progress"))
         result = self.ci("--max-wait", "20", NOTCHCAST_CI_POLL="1")
@@ -396,9 +420,9 @@ class CiTests(unittest.TestCase):
         for hang, last in (("--json status", pending), ("--log", pending), ("event=workflow_dispatch", waiting)):
             with self.subTest(hang=hang):
                 self.scenario(hang=[hang])
-                started = time.time()
-                result = self.ci("--max-wait", "5")  # the hung call alone spends real time: 5 s
-                self.assertLess(time.time() - started, 30)
+                # real time: subprocess.run's own timeout cuts the hung call, 1 s per subtest; no other call is timed
+                result = subprocess.run([sys.executable, "-c", TIME_ONLY_THE_HUNG_CALL, hang, str(CI), "--repo",
+                                         str(self.repo), "--keeper", "--max-wait", "1"], text=True, capture_output=True, env=self.env)
                 self.assertEqual(result.returncode, 3, result.stderr)
                 self.assertEqual(result.stdout.splitlines()[-1], last)
 
@@ -424,7 +448,7 @@ class CiTests(unittest.TestCase):
     def test_help_works(self):
         result = subprocess.run([sys.executable, str(CI), "--help"], text=True, capture_output=True)
         self.assertEqual(result.returncode, 0)
-        self.assertIn("--no-push", result.stdout)
+        self.assertIn("--keeper", result.stdout)
 
 
 if __name__ == "__main__":

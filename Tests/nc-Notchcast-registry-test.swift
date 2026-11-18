@@ -88,7 +88,8 @@ enum RegistryCheck {
     static let frozenIDs: Set<String> = [
         "screenshot", "displayBrightness", "volumeLevels", "hideCommandM", "middleClick", "quitProtection",
         "showDesktop", "launcherNumberKeys", "smallCommands", "downloads", "downloadsAria2", "distill",
-        "distillTimestamps", "musicBlockAppleMusic", "iPhoneBackupTweaks", "copyPath", "urlCleaner",
+        "distillTimestamps", "musicBlockAppleMusic", "iPhoneBackupTweaks", "torrents", "torrentsKeepSharing",
+        "copyPath", "urlCleaner",
     ]
     // Switch ids v1 never shipped; an id in neither list is a typo or a rename of a shipped one.
     static let newIDs: Set<String> = []
