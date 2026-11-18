@@ -7,6 +7,12 @@
     "A notch always decides where the island sits." : {
 
     },
+    "Apps on this Mac can transcribe audio through a local OpenAI-compatible endpoint." : {
+
+    },
+    "Apps using the current token stop working until they get the new one." : {
+
+    },
     "Automatic uses %@." : {
 
     },
@@ -43,10 +49,19 @@
     "Copy Raw Transcript" : {
 
     },
+    "Copy Token" : {
+
+    },
+    "Could not listen on port %lld. Another app may be using it." : {
+
+    },
     "Delete dictation history?" : {
 
     },
     "Dictation History" : {
+
+    },
+    "Dictation needs Accessibility access to see the Globe key." : {
 
     },
     "Display & Sound" : {
@@ -54,6 +69,9 @@
     },
     "Downloads" : {
       "shouldTranslate" : false
+    },
+    "Escape cancels." : {
+
     },
     "Every saved dictation goes. This can't be undone." : {
 
@@ -67,6 +85,9 @@
     "Frosted" : {
 
     },
+    "Globe key" : {
+
+    },
     "Island" : {
       "shouldTranslate" : false
     },
@@ -78,6 +99,9 @@
     },
     "Launcher Extras" : {
       "shouldTranslate" : false
+    },
+    "Listening on this Mac only. Send the token as a Bearer authorization header." : {
+
     },
     "Look" : {
 
@@ -109,6 +133,12 @@
     "Notchcast" : {
       "shouldTranslate" : false
     },
+    "Notchcast could not read its token from the Keychain." : {
+
+    },
+    "Notchcast could not save a new token in the Keychain." : {
+
+    },
     "Notices" : {
       "shouldTranslate" : false
     },
@@ -124,7 +154,16 @@
     "Paste Again" : {
 
     },
+    "Port" : {
+
+    },
     "Position on displays without a notch" : {
+
+    },
+    "Regenerate Token" : {
+
+    },
+    "Regenerate the token?" : {
 
     },
     "Reset to Default" : {
@@ -136,16 +175,37 @@
     "Search past dictations…" : {
 
     },
+    "Set “Press 🌐 key to” to “Do Nothing” in Keyboard settings so macOS leaves the key to Dictation." : {
+
+    },
+    "Share the dictation model with other apps" : {
+
+    },
+    "Sharing" : {
+
+    },
     "Show %@ in the launcher" : {
 
     },
     "Show in screenshots and videos" : {
 
     },
+    "Tap or hold the Globe key" : {
+
+    },
+    "Tap to start and tap again to finish, or hold while you speak." : {
+
+    },
+    "The Globe key is also used by %@. Change that shortcut." : {
+
+    },
     "The last 50 dictations stay on this Mac. Turning this off deletes them." : {
 
     },
     "The transcript is sent only to the chosen model. Notchcast keeps no log of it." : {
+
+    },
+    "Token" : {
 
     },
     "Top edge" : {

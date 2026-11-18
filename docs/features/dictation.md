@@ -28,6 +28,7 @@ compilation of its 2-bit weights; Ultra's encoder and both variants' decoder/joi
   binding; hold-to-talk accepts a Carbon chord or a single physical modifier, including Globe.
   Modifier holds begin after 250 ms alone and reserve their key across single and double taps.
   Another modifier, key or click cancels the hold without inserting text. Double taps require toggle.
+- The Globe key mode needs no recorded shortcut; one that is recorded toggles in it. Released within 300 ms with no other input, a Globe press is a tap: it starts recording, and the next press finishes. Held past 300 ms it records until release. Another key, modifier or click during the press makes it a shortcut instead, and discards a held recording; Return and Escape keep their panel meaning. `DictationMode.GlobeDetector` decides on the events' monotonic timestamps; `NotchcastGlobeTrigger` feeds it from event monitors installed only while Dictation is enabled in this mode, and owns the 300 ms timer. A field's own mic session ignores the Globe key. macOS's own "Press 🌐 key to" action must be set to Do Nothing; the pane says so and opens Keyboard settings.
 - Carbon or the shared modifier monitor reports release to stop a held recording. Return finishes,
   Escape cancels. Opening a shortcut recorder cancels a held recording before pausing its shortcuts.
   A session token
@@ -109,6 +110,23 @@ compilation of its 2-bit weights; Ultra's encoder and both variants' decoder/joi
   does not accept a language hint. Neither adapter exposes user vocabulary. Qwen prepares its fixed
   prompts and supported language hints once, then retains only the tokenizer's decoding tables
   and prepared tokens, not the BPE encoding rules.
+- Sharing the model with other apps is off by default and serves only while it and Dictation are both
+  on: an OpenAI-compatible `POST /v1/audio/transcriptions` (multipart `file`, `model` ignored,
+  optional ISO-639-1 `language`, `response_format` json or text) and `GET /v1/models`, bound to
+  127.0.0.1 on a configurable port (8178 by default). `NotchcastCore` owns `DictationServer`, so quitting stops it.
+- The switch and port live in the fork's `.notchcast` defaults suite, which backups and `settings.json`
+  never carry, so an import cannot open a listener. The bearer token is 32 random bytes generated on first
+  use, kept only in the Keychain (`KeychainSecretStore.dictationServer`), compared in constant time, never
+  logged, and copied to the pasteboard as concealed so Clipboard History skips it.
+- Every request is decided from its head before any body is read: a Host other than 127.0.0.1 or
+  localhost is 403, a missing or wrong token 401, and a Content-Length over 25 MB (plus form overhead)
+  413. Chunked uploads are refused; each connection carries one request, at most eight at once, and
+  must arrive within 30 seconds.
+- The user's own dictation always wins. Shared requests take the model one at a time in arrival order
+  through the add-on transcription runner, and none starts while the user records or transcribes. A
+  request still running when the user starts is cancelled and answered 503 with `Retry-After`, and the
+  user's session waits only for its cleanup. A missing model is 503.
+- An upload is written to a private 0600 temporary file only for decoding and removed when its request ends.
 - The `Model/` folder imports Foundation only. Context-sensitive spaces and capitalization are a
   pure decision driven by text around the caret. Capitalization adapts by default and can be disabled
   without disabling contextual spaces; if an app does not expose that context through
@@ -120,6 +138,7 @@ compilation of its 2-bit weights; Ultra's encoder and both variants' decoder/joi
 `DictationFieldTests` checks composer switching and teardown, scoped cancellation, delayed insertion and
 the order of sound cues against ducking
 with synthetic capture and real AppKit editors, without recording audio or touching the shared clipboard.
+`nc-Dictation-globe-test` checks the Globe tap-or-hold decision on synthetic timestamps.
 `DictationTests` checks formatting and model options; `DictationInferenceTests` checks score selection,
 byte BPE, Fourier/mel features, listening bands and audio partitioning without downloading a model. `DictationWorkerTests`
 exercises framed IPC, worker reuse/switching, removal, cancellation and broken pipes with a fixture.
@@ -129,9 +148,12 @@ and competing downloads on shared or independent cache roots, without sockets or
 `DictationVolumeTests` uses private files and injected audio controls to verify crash recovery
 before and after fade steps, user volume changes, output switching, failed writes and rapid cancellation,
 without changing the system volume or downloading a model.
+`nc-DictationSharing-server-test` checks the endpoint's head parsing, host and token checks, size caps,
+multipart forms fed byte by byte, responses, and the dictation-wins queue through the add-on runner with
+fakes, without a socket, a timer or a model.
 
 Also exercise all four real models, short and long recordings, downloads/removal, initial microphone
-grant and denial, hold/toggle shortcuts, Return/Escape, output destinations, live insertion on and off, surrounding text with
+grant and denial, hold/toggle shortcuts, Globe tap and hold, Return/Escape, output destinations, live insertion on and off, surrounding text with
 capitalization adaptation on and off,
 model switching and idle release/reload. Check both processes in Activity Monitor, and validate
 Debug and Release helper names, signatures and architecture slices. Model conversions and their
