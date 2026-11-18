@@ -1,0 +1,90 @@
+# Temporary proof for #873: the release and sign actions on the real app with a throwaway identity. Removed before landing.
+name: Sign proof
+
+on:
+  push:
+    branches: [g-38ac95]
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: xcode-27
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          path: src
+          persist-credentials: false
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          path: tools
+          persist-credentials: false
+      - uses: ./tools/notchcast/actions/xcode
+      - uses: ./tools/notchcast/actions/xcodegen
+      - name: Regenerate project
+        working-directory: src
+        run: '"$XCODEGEN" generate --quiet'
+      - uses: ./tools/notchcast/actions/release
+        with:
+          version: 0.0.1
+          build: '1'
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        with:
+          name: proof-unsigned
+          path: ${{ runner.temp }}/unsigned
+          if-no-files-found: error
+          retention-days: 3
+  sign:
+    needs: build
+    runs-on: xcode-27
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          path: tools
+          sparse-checkout: notchcast
+          persist-credentials: false
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
+        with:
+          name: proof-unsigned
+          path: ${{ runner.temp }}/unsigned
+      - name: Throwaway identity
+        id: cert
+        run: |
+          W="$RUNNER_TEMP/proof-cert"; mkdir -p "$W"
+          printf '%s\n' '[req]' 'distinguished_name = dn' 'x509_extensions = v3' 'prompt = no' '[dn]' 'CN = Notchcast Proof Signer' \
+            '[v3]' 'basicConstraints = critical,CA:false' 'keyUsage = critical,digitalSignature' 'extendedKeyUsage = critical,codeSigning' > "$W/cnf"
+          /usr/bin/openssl req -x509 -newkey rsa:2048 -nodes -days 2 -config "$W/cnf" -keyout "$W/k" -out "$W/c" 2>/dev/null
+          /usr/bin/openssl pkcs12 -export -inkey "$W/k" -in "$W/c" -out "$W/p" -passout pass:proof
+          echo "sha1=$(/usr/bin/openssl x509 -in "$W/c" -noout -fingerprint -sha1 | sed 's/.*=//; s/://g')" >> "$GITHUB_OUTPUT"
+          echo "p12=$(base64 < "$W/p" | tr -d '\n')" >> "$GITHUB_OUTPUT"
+      - uses: ./tools/notchcast/actions/sign
+        with:
+          version: 0.0.1
+          p12-base64: ${{ steps.cert.outputs.p12 }}
+          p12-password: proof
+          identity: Notchcast Proof Signer
+          sha1: ${{ steps.cert.outputs.sha1 }}
+      - name: Inspect and launch the signed app
+        env:
+          SHA1: ${{ steps.cert.outputs.sha1 }}
+        run: |
+          ls -l dist
+          mkdir -p "$RUNNER_TEMP/x" && ditto -x -k dist/Notchcast-0.0.1.zip "$RUNNER_TEMP/x"
+          APP="$RUNNER_TEMP/x/Notchcast.app"
+          codesign --verify --deep --strict -R="certificate leaf = H\"$SHA1\"" "$APP" && echo "updater-style -R check: PASS"
+          if codesign --verify --deep --strict -R='certificate leaf = H"95280FD4EC25303CCC1FE2AA2A5E8B0A1A757DCC"' "$APP" 2>/dev/null; then
+            echo "::error::-R accepted the wrong leaf"; exit 1
+          fi
+          echo "updater-style -R check refuses another leaf: PASS"
+          for B in "$APP" "$APP/Contents/Helpers/ClipboardTextHelper" "$APP/Contents/Helpers/FileIndexHelper" "$APP/Contents/Helpers/Notchcast Dictation.app"; do
+            echo "== ${B##*/}"; codesign -dvv "$B" 2>&1 | grep -E '^(Identifier|Authority|CodeDirectory)'
+            codesign -d --entitlements - --xml "$B" 2>/dev/null | head -c 600; echo
+          done
+          bash tools/notchcast/verify-signature.sh "$APP" /dev/null 2>&1 | tail -3 || true
+          "$APP/Contents/MacOS/Notchcast" & PID=$!
+          sleep 30
+          kill -0 "$PID" && echo "signed app stayed alive 30 s: PASS"
+          kill "$PID"
