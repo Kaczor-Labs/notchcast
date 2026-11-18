@@ -166,6 +166,7 @@
 		272452259376D0FDFB25AC88 /* MathFont.swift in Sources */ = {isa = PBXBuildFile; fileRef = 51D65B24A72F4217FEA70A18 /* MathFont.swift */; };
 		2729240A319CF6E268D1903B /* NotchcastSmallCommands.xcstrings in Resources */ = {isa = PBXBuildFile; fileRef = AE84DFF9848A07B10E3296BB /* NotchcastSmallCommands.xcstrings */; };
 		279F586CC34205EBA8ACA892 /* CalloutPlacement.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5DFA4E0FDAC12379F2D38B5 /* CalloutPlacement.swift */; };
+		27C4BCA769C1B5499F85C1CE /* NumberKeysAppProof.swift in Sources */ = {isa = PBXBuildFile; fileRef = C30EC7299478BF365C01E1FA /* NumberKeysAppProof.swift */; };
 		27CD74BD34D4F67F466AD6FA /* ScreenshotSystem+Live.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF65A473A49866F415970880 /* ScreenshotSystem+Live.swift */; };
 		27FFDA33794AC93077A29FBA /* IPhoneBackupSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FCEDB19EF872D220FBBFA7CA /* IPhoneBackupSettingsView.swift */; };
 		28FA1F041C3E72ADEF022261 /* WebpageWebViewConfiguration.swift in Sources */ = {isa = PBXBuildFile; fileRef = 445ECBB7192A684A691B00BF /* WebpageWebViewConfiguration.swift */; };
@@ -2036,6 +2037,7 @@
 		C299812264148020EEC8904B /* IslandButtonFill.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IslandButtonFill.swift; sourceTree = "<group>"; };
 		C29AD5D3C6AA58E81732515C /* BrightnessSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BrightnessSettingsView.swift; sourceTree = "<group>"; };
 		C2EAA357A9F0317320CFAADF /* TerminalLogView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TerminalLogView.swift; sourceTree = "<group>"; };
+		C30EC7299478BF365C01E1FA /* NumberKeysAppProof.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NumberKeysAppProof.swift; sourceTree = "<group>"; };
 		C3C83D437500107168E12647 /* QuickActionSettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuickActionSettings.swift; sourceTree = "<group>"; };
 		C3CAC74EF89303B0B75D5466 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		C3E30EFA3197FC5EF1E85C21 /* BundleSignature.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BundleSignature.swift; sourceTree = "<group>"; };
@@ -2885,6 +2887,7 @@
 				2D242B9CB06430EF5E177E3E /* UI */,
 				73B415FB51846A745B94CD0E /* NotchcastNumberKeys.xcstrings */,
 				388C9FA150F28F522AB212F7 /* NumberKeysAddon.swift */,
+				C30EC7299478BF365C01E1FA /* NumberKeysAppProof.swift */,
 			);
 			path = NumberKeys;
 			sourceTree = "<group>";
@@ -5159,7 +5162,7 @@
 			isa = PBXProject;
 			attributes = {
 				BuildIndependentTargetsInParallel = YES;
-				LastUpgradeCheck = 1430;
+				LastUpgradeCheck = 1600;
 				TargetAttributes = {
 					0832DCD58DEA01602328CCE7 = {
 						DevelopmentTeam = "";
@@ -6057,6 +6060,7 @@
 				68F25E0E441706E9F591B302 /* NotesWindowController.swift in Sources */,
 				613827876C48EF88F2162C10 /* NotificationToken.swift in Sources */,
 				E2DC09F1254E8C3E669D5EED /* NumberKeysAddon.swift in Sources */,
+				27C4BCA769C1B5499F85C1CE /* NumberKeysAppProof.swift in Sources */,
 				E268D74F0DEFFA598E2D02AA /* OnboardingCard.swift in Sources */,
 				E6E8E3E2ECD0CD9A982115F3 /* OnboardingCoordinator.swift in Sources */,
 				19317D6C8A55E3F85BB7AE1F /* OnboardingState.swift in Sources */,
