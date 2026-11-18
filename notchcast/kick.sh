@@ -3,8 +3,8 @@
 # sync.yml when upstream changes, and at least hourly.
 # The sync decides everything else (ci.py plan); a start that finds nothing to do costs one Linux minute.
 # Where ~/.config/notchcast/private.env defines notchcast_notify (notchcast/README.md, "Private hooks"), it is told
-# once when this trigger fails, and once per upstream commit that is not in our main after LAG_ALERT_MIN while no
-# sync issue or rebase hold (open PRs, 12 h) explains it.
+# once when this trigger fails, once per upstream commit that waits for the keeper's review (an open REVIEW_LABEL PR),
+# and once per upstream commit not in our main after LAG_ALERT_MIN while no sync issue or rebase hold (12 h) explains it.
 # Usage: kick.sh [--dry-run]
 set -euo pipefail
 export PATH="/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:$HOME/.local/bin"
@@ -74,6 +74,12 @@ fi
 
 behind="$(gh api "repos/$FORK_REPO/compare/${UPSTREAM_REPO%%/*}:main...main" --jq .behind_by 2>&1)" || fail "compare: $behind"
 [ "$behind" = 0 ] && exit 0
+review="$(gh pr list -R "$FORK_REPO" --state open --label "$REVIEW_LABEL" --json url --jq '.[0].url // ""' 2>&1)" || fail "review PR: $review"
+if [ -n "$review" ]; then
+    log "main is $behind behind upstream ${upstream_main:0:8}: Sync waits for the keeper's upstream review, $review"
+    alert_once "review-$upstream_main" "upstream ${upstream_main:0:8} waits for the keeper's review before Sync moves main onto it: $review"
+    exit 0
+fi
 committed="$(gh api "repos/$UPSTREAM_REPO/commits/$upstream_main" --jq .commit.committer.date 2>&1)" || fail "commit date: $committed"
 age_min=$(( (now - $(date -j -u -f '%Y-%m-%dT%H:%M:%SZ' "$committed" +%s)) / 60 ))
 [ "$age_min" -lt "$LAG_ALERT_MIN" ] && exit 0

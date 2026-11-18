@@ -3,7 +3,7 @@
   ".github/ISSUE_TEMPLATE/notchcast-bug.yml": {"UPSTREAM_REPO": 1, "FORK_REPO": 1},
   ".github/SECURITY.md": {"UPSTREAM_REPO": 1, "FORK_REPO": 1},
   ".github/workflows/sync.yml": {"TESTED_CONTEXT": 2},
-  "notchcast/README.md": {"UPSTREAM_REPO": 3, "FORK_REPO": 4, "TESTED_CONTEXT": 1},
+  "notchcast/README.md": {"UPSTREAM_REPO": 3, "FORK_REPO": 4, "TESTED_CONTEXT": 1, "REVIEW_CONTEXT": 2},
   "notchcast/README.public.md": {"UPSTREAM_REPO": 2, "FORK_REPO": 8},
   "notchcast/check-identity-added-lines-test.sh": {"MAINTAINER_NAME": 1, "MAINTAINER_EMAIL": 1},
   "notchcast/docs/architecture.md": {"UPSTREAM_REPO": 1},
@@ -17,6 +17,7 @@
   "notchcast/land-tools-test.sh": {"MAINTAINER_NAME": 1, "MAINTAINER_EMAIL": 1},
   "notchcast/notchcast-ci-test.py": {"FORK_REPO": 8},
   "notchcast/prune-branches-test.sh": {"FORK_REPO": 1},
+  "notchcast/review/upstream-review.md": {"UPSTREAM_REPO": 1, "REVIEW_CONTEXT": 1},
   "notchcast/sync-island-engine-test.py": {"MAINTAINER_NAME": 2, "MAINTAINER_EMAIL": 2},
   "notchcast/vendor/IslandEngine/LICENSE": {"MAINTAINER_NAME": 1}
 }
