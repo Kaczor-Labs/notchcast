@@ -549,6 +549,7 @@ final class AppCore {
             deepLinkCoordinator.open(url)
             return
         }
+        if notchcast?.controller.open(url) == true { return }
         guard ExtensionDeepLink.claims(url) else { return }
         guard let route = ExtensionDeepLink.route(url: url) else {
             paletteCoordinator.showPalette(mode: .launcher, restoreAnyMode: true)
