@@ -242,8 +242,16 @@ admit() {
     fi
     printf '%s\n' "$metadata" > "$scratch/pr-$pr.json"
 }
+# True when trees $1 and $2 differ in nothing but generated files (ci.py GENERATED, read from main's tooling): landing
+# keeps main's copies of those (merge_onto), so a proof of one tree holds for the other. Paths, never commit messages.
+generated_only() {
+    local moved
+    moved=$(git diff --name-only "$1" "$2") || return 1
+    [ -z "$(grep -vxF -f <(cd "$top" && python3 -c 'from notchcast.ci import GENERATED; print("\n".join(GENERATED))') <<< "$moved" || true)" ]
+}
 uncovered() { echo "train: ${train_run:0:8} $1; each PR's own head checks decide" >&2; }
-# Sets covered when $train_run is a green train.sh merge of current main and each PR's current head.
+# Sets covered when $train_run is a green train.sh merge of each PR's current head onto current main, or onto a main
+# that differs from it only in generated files.
 covered=
 train_covers() {
     local commit i=${#train[@]} pr head parents name verdict required
@@ -260,7 +268,8 @@ train_covers() {
         echo "$head" > "$scratch/train-head-$pr"
         commit=${parents[1]}
     done
-    [ "$commit" = "$(git rev-parse origin/main)" ] || { uncovered "is built on ${commit:0:8}, not current main"; return 0; }
+    generated_only "$commit" origin/main || { uncovered "is built on ${commit:0:8}, not current main"; return 0; }
+    [ "$commit" = "$(git rev-parse origin/main)" ] || echo "train: main moved past ${commit:0:8} only in generated files; the run still proves it"
     for name in build design leaks; do
         verdict=$(check_run "$train_run" "$name")
         [ "$verdict" = success ] || { uncovered "has $name $verdict"; return 0; }
@@ -341,7 +350,7 @@ elif [ "$#" -ge 1 ] && [[ "$*" =~ ^[0-9]+(\ [0-9]+)*$ ]]; then
         [ "$status" -eq 0 ] || drop "$pr"
     done
     base=$(git rev-parse origin/main)
-    [ -z "$covered" ] || [ "$base" = "$train_base" ] || refuse "main moved past train ${train_run:0:8}'s base; run notchcast/train.sh again"
+    [ -z "$covered" ] || generated_only "$train_base" "$base" || refuse "main moved past train ${train_run:0:8}'s base; run notchcast/train.sh again"
 else
     refuse 'usage: land.sh [--train-run <sha>] <pr>... | --check <base-ref> <head-ref> | --guard'
 fi
@@ -421,7 +430,7 @@ harnesses() {
         || refuse "hosted-only harnesses are selected and no hosted run tested this tree: $unproven; this machine never runs them (HOSTED_ONLY_TESTS, notchcast/config.env): land on a train run that ran hosted (notchcast/train.sh ${train[*]})"
     # A covered train run tested this exact tree on GitHub; only the harnesses its hosted runner skips are left.
     if [ -n "$covered" ]; then
-        echo "harnesses: covered by train ${train_run:0:8} (tree identical); running only what its runner skips"
+        echo "harnesses: covered by train ${train_run:0:8} (same tree, generated files aside); running only what its runner skips"
         names=$(grep -xF -f <(tr ' ' '\n' <<< "$CI_SKIP_TESTS") "$scratch/selected" || true)
         tested=1
     elif [ -n "$proof" ]; then
@@ -474,7 +483,7 @@ rerun=1
 pushes=0
 while :; do
     build_chain
-    [ -z "$covered" ] || [ "$(git rev-parse 'HEAD^{tree}')" = "$(git rev-parse "$train_run^{tree}")" ] \
+    [ -z "$covered" ] || generated_only "$train_run" HEAD \
         || refuse "the merged tree is not the tree train ${train_run:0:8} tested"
     if [ "$rerun" -eq 1 ]; then
         harnesses
@@ -506,7 +515,6 @@ while :; do
     stamp
     # The chain's first parent is $base, so this plain (never forced) push lands only while main is still $base.
     if git push origin "$tip:refs/heads/main"; then break; fi
-    [ -z "$covered" ] || refuse "main moved past train ${train_run:0:8}'s base; run notchcast/train.sh again"
     pushes=$((pushes + 1))
     [ "$pushes" -lt 6 ] || refuse "main moved during each of 6 pushes; run land.sh ${train[*]} again"
     git fetch --quiet origin main '+refs/notchcast/synced/*:refs/notchcast/synced/*'
@@ -519,6 +527,7 @@ while :; do
     if [ -z "$(grep -vxF -f <(python3 -c 'from notchcast.ci import GENERATED; print("\n".join(GENERATED))') <<< "$moved" || true)" ]; then
         echo "main moved ${previous:0:8} -> ${base:0:8} only in generated files; merging again without rerunning harnesses"
     else
+        [ -z "$covered" ] || refuse "main moved past train ${train_run:0:8}'s base; run notchcast/train.sh again"
         echo "main moved ${previous:0:8} -> ${base:0:8}; merging again and rerunning harnesses"
         rerun=1
     fi

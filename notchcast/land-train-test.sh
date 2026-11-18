@@ -453,6 +453,36 @@ HEAD_CHECKS=failure land --train-run "$train_sha" 1 2
     || fail 'a train run on a stale base was not refused'
 echo 'PASS: a train run whose base is no longer main is refused as without a train'
 
+# Main moves after the train went green; Tinycast.xcodeproj/project.pbxproj is in ci.py GENERATED. The commit
+# subject is the same each time, so only the paths it touches can decide.
+for moved in Tinycast.xcodeproj/project.pbxproj src/moved.txt 'Tinycast.xcodeproj/project.pbxproj src/moved.txt'; do
+    fixture
+    open_pr 1 pr-b 'Add B' src/b.txt
+    open_pr 2 pr-c 'Add C' src/c.txt
+    train 1 2
+    echo "$train_sha" > "$FIXTURE/green"
+    for path in $moved; do
+        mkdir -p "$(dirname "$path")"
+        echo moved > "$path"
+        git add "$path"
+    done
+    git commit --quiet -m 'Notchcast: generated files'
+    git push --quiet origin main
+    base=$(git rev-parse HEAD)
+    HEAD_CHECKS=failure land --train-run "$train_sha" 1 2
+    if [ "$moved" = Tinycast.xcodeproj/project.pbxproj ]; then
+        [ "$status" -eq 0 ] && grep -q 'only in generated files; the run still proves it' "$FIXTURE/output" \
+            && [ "$(landed)" = 'Notchcast: Add B (#1)|Notchcast: Add C (#2)' ] || fail 'a train run did not land after main moved only in generated files'
+        [ "$(origin rev-parse main~2)" = "$base" ] && [ "$(origin show main:Tinycast.xcodeproj/project.pbxproj)" = moved ] \
+            && [ "$(origin diff --name-only "$train_sha" main)" = Tinycast.xcodeproj/project.pbxproj ] || fail 'the landing is not the tested tree on the moved main'
+        [ ! -s "$PASSES" ] && [ -z "$(origin for-each-ref refs/heads/train/)" ] || fail 'the proven train ran harnesses again or kept its branch'
+    else
+        [ "$status" -eq 1 ] && grep -q 'not current main' "$FIXTURE/output" && grep -q '^REFUSED: [a-z]* is failure on' "$FIXTURE/output" && untouched \
+            || fail "a train run was not refused after main moved in '$moved'"
+    fi
+done
+echo 'PASS: main moving only in generated files keeps a train run'"'"'s proof; a move that touches any other path, alone or with them, refuses'
+
 fixture
 open_pr 1 pr-b 'Add B' src/b.txt
 open_pr 2 pr-c 'Add C' src/c.txt
@@ -571,7 +601,7 @@ open_pr 2 pr-b 'Add B' src/b.txt src/clipboard-text.txt
 train 1 2
 echo "$train_sha" > "$FIXTURE/green"
 land --train-run "$train_sha" 1 2
-[ "$status" -eq 0 ] && grep -q "^harnesses: covered by train ${train_sha:0:8} (tree identical)" "$FIXTURE/output" \
+[ "$status" -eq 0 ] && grep -q "^harnesses: covered by train ${train_sha:0:8} (same tree, generated files aside)" "$FIXTURE/output" \
     || fail 'a covered train did not report its harnesses as covered'
 [ "$(paste -sd'|' "$PASSES")" = clipboard-text-test ] || fail "a covered train ran '$(paste -sd'|' "$PASSES")'"
 [ "$(landed)" = 'Notchcast: Add A (#1)|Notchcast: Add B (#2)' ] || fail "a covered train landed '$(landed)'"
