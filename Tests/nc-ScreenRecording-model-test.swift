@@ -5,6 +5,7 @@ import Foundation
 
 /// #937 acceptance 2: recording state and trim range logic, with no capture, clock or window.
 @main
+@MainActor
 enum ScreenRecordingModelTests {
     static var failures = 0
     static var checks = 0
@@ -19,6 +20,7 @@ enum ScreenRecordingModelTests {
         clock()
         trim()
         geometry()
+        encoding()
         options()
         print("\(checks) screen recording model checks; \(failures) failures")
         if failures > 0 { exit(1) }
@@ -69,13 +71,18 @@ enum ScreenRecordingModelTests {
     static func trim() {
         var trim = RecordingTrim(duration: 10)
         check("a new trim keeps the whole clip", trim.start == 0 && trim.end == 10 && trim.isWhole)
-        check("the whole clip is kept as recorded", RecordingExport.plan(trim, passthroughWorks: true) == .copy)
+        check("the whole MOV is kept as recorded",
+              RecordingExport.plan(trim, container: .mov, passthroughWorks: true) == .copy)
+        check("a whole MP4 is rewrapped from the MOV master",
+              RecordingExport.plan(trim, container: .mp4, passthroughWorks: true) == .passthrough)
         trim.setStart(2)
         trim.setEnd(8)
         check("2 s off each end of 10 s leaves 6 s", trim.start == 2 && trim.end == 8 && trim.length == 6)
         check("a cut clip is no longer whole", !trim.isWhole)
-        check("a cut passes through when it can", RecordingExport.plan(trim, passthroughWorks: true) == .passthrough)
-        check("a cut re-encodes when it cannot", RecordingExport.plan(trim, passthroughWorks: false) == .reencode)
+        check("a cut passes through when it can",
+              RecordingExport.plan(trim, container: .mov, passthroughWorks: true) == .passthrough)
+        check("a cut re-encodes when it cannot",
+              RecordingExport.plan(trim, container: .mov, passthroughWorks: false) == .reencode)
         trim.setStart(9)
         check("start stops short of the end", abs(trim.start - (8 - RecordingTrim.minimumLength)) < 1e-9)
         trim.setEnd(0)
@@ -91,6 +98,11 @@ enum ScreenRecordingModelTests {
         var short = RecordingTrim(duration: 0.05)
         short.setStart(1)
         check("a clip shorter than the minimum keeps its start at 0", short.start == 0 && short.end == 0.05)
+        check("the filmstrip samples the middle of each slot",
+              RecordingTrim.filmstripTimes(duration: 10, count: 5) == [1, 3, 5, 7, 9])
+        check("no filmstrip for an empty clip", RecordingTrim.filmstripTimes(duration: 0, count: 5).isEmpty
+              && RecordingTrim.filmstripTimes(duration: .nan, count: 5).isEmpty
+              && RecordingTrim.filmstripTimes(duration: 10, count: 0).isEmpty)
     }
 
     static func geometry() {
@@ -120,13 +132,39 @@ enum ScreenRecordingModelTests {
                 == CGRect(x: 100, y: 100, width: 200, height: 100))
         check("an area across two displays has no source rect",
               RecordingGeometry.sourceRect(CGRect(x: 1400, y: 100, width: 200, height: 100), onDisplay: second) == nil)
-        let pixels = RecordingGeometry.pixelSize(points: CGSize(width: 100.3, height: 51), scale: 2)
-        check("pixels round up to even sides", pixels?.width == 202 && pixels?.height == 102)
-        check("an empty capture has no size", RecordingGeometry.pixelSize(points: .zero, scale: 2) == nil)
+    }
+
+    static func encoding() {
+        let pixels = RecordingEncoding.pixelSize(points: CGSize(width: 100.3, height: 51.5), scale: 2)
+        check("pixels round down to even sides", pixels?.width == 200 && pixels?.height == 102)
+        let tiny = RecordingEncoding.pixelSize(points: CGSize(width: 5, height: 300), scale: 1)
+        check("a sliver is widened to the encoder's minimum", tiny?.width == 32 && tiny?.height == 300)
+        check("an empty capture has no size", RecordingEncoding.pixelSize(points: .zero, scale: 2) == nil)
         check("an oversize capture has no size",
-              RecordingGeometry.pixelSize(points: CGSize(width: 9000, height: 10), scale: 2) == nil)
+              RecordingEncoding.pixelSize(points: CGSize(width: 9000, height: 10), scale: 2) == nil)
         check("a broken scale has no size",
-              RecordingGeometry.pixelSize(points: CGSize(width: 10, height: 10), scale: .nan) == nil)
+              RecordingEncoding.pixelSize(points: CGSize(width: 10, height: 10), scale: .nan) == nil)
+        check("a tiny area still gets a usable bit rate",
+              RecordingEncoding.averageBitRate(width: 32, height: 32) == 800_000)
+        check("a full Retina display is capped",
+              RecordingEncoding.averageBitRate(width: 6016, height: 3384) == 60_000_000)
+        check("in between, bits follow pixels and frames",
+              RecordingEncoding.averageBitRate(width: 1920, height: 1080, fps: 30) == 5_598_720)
+
+        check("2 GB free starts a recording", RecordingDisk.canStart(freeBytes: 2_000_000_000)
+              && !RecordingDisk.canStart(freeBytes: 1_999_999_999))
+        check("under 500 MB stops one", RecordingDisk.shouldStop(freeBytes: 499_999_999)
+              && !RecordingDisk.shouldStop(freeBytes: 500_000_000))
+
+        var lifecycle = RecordingCaptureLifecycle()
+        check("an idle capture takes no samples", !lifecycle.acceptsSamples && !lifecycle.isRunning)
+        check("a start may not finish before it begins", !lifecycle.didStart())
+        check("starting takes samples", lifecycle.beginStart() && lifecycle.acceptsSamples && !lifecycle.isRunning)
+        check("a capture starts once", !lifecycle.beginStart())
+        check("started, it runs", lifecycle.didStart() && lifecycle.isRunning)
+        lifecycle.stop()
+        check("stopped, it rejects queued samples for good",
+              !lifecycle.acceptsSamples && !lifecycle.beginStart() && !lifecycle.didStart())
     }
 
     static func options() {

@@ -174,7 +174,7 @@ Reference: mac-design, "Use the system first. Add custom design only where the s
 
 | Element | Rule | Token |
 | --- | --- | --- |
-| Anything an add-on shows | Only the island's values, posted through `context.presenter` (`IslandPresenting`: `showLevel`, `post(_:onTap:)`, `end(notice:)`, `setStatus`, `setMenuRows`) as `IslandLevel`, `IslandNotice`, `IslandStatus` (text cut to 4 characters) and `IslandMenuRow`; the engine draws them with §1–§10. A failure it posts (`isFailure`) follows the §10 failure rule. An add-on opens no window, panel or hosting view of its own. Exempt: the Screenshots selection overlay, a capture tool over the whole screen, not an island surface. | none; `IslandPresenting` |
+| Anything an add-on shows | Only the island's values, posted through `context.presenter` (`IslandPresenting`: `showLevel`, `post(_:onTap:)`, `end(notice:)`, `setStatus`, `setMenuRows`) as `IslandLevel`, `IslandNotice`, `IslandStatus` (text cut to 4 characters) and `IslandMenuRow`; the engine draws them with §1–§10. A failure it posts (`isFailure`) follows the §10 failure rule. An add-on opens no window, panel or hosting view of its own. Exempt: the Screenshots selection overlay and Screen Recording's selection overlay and trimmer (#937), capture tools over the screen or a clip, not island surfaces. | none; `IslandPresenting` |
 
 Hook A16.
 
@@ -256,7 +256,7 @@ Run from the repo root with `bash`, after ``I=$(find Tinycast/Palette Tinycast/F
 | A13 | §10 HUD and dialog | `grep -rnE '\{ glow \}\|strokeBorder\|panelScrim' Tinycast/Windows/HUD Tinycast/Windows/Dialog` | 5 |
 | A14 | §10 update glyph | `grep -rn 'symbol: "arrow.down.circle", recovery' Tinycast/Features/Updates/UI/UpdateCoordinator.swift` | 1 |
 | A15 | §11 settings | `grep -rnE 'formStyle\(\|NotchTheme\.' $(grep -rlE 'struct [A-Za-z]+SettingsView' Tinycast/Features/Notchcast) \| grep -v 'formStyle(.grouped)'` | 0 |
-| A16 | §12 add-ons | `grep -rnE ': NSPanel\|NSHostingView\(\|NSWindow\(' Tinycast/Features/Notchcast --include='*.swift' \| grep -v '/Screenshots/'` | 0 |
+| A16 | §12 add-ons | `grep -rnE ': NSPanel\|NSHostingView\(\|NSWindow\(' Tinycast/Features/Notchcast --include='*.swift' \| grep -vE '/Screenshots/\|/ScreenRecording/'` | 0 |
 | A17 | §1 shadow | `grep -rnE 'hasShadow = true' Tinycast/Palette/PalettePanel.swift Tinycast/Palette/MenuPanel.swift Tinycast/Windows/HUD/HUDPanel.swift Tinycast/Windows/Dialog/DialogPanel.swift Tinycast/Features/Island` (window shadows stay off; Frosted's lift is a layer shadow in `IslandFrost`) | 4 |
 | A18 | §6 glyph | `grep -rnE 'Image\(systemName' $I` | 39 |
 | A19 | §1 look on Frosted | `./Scripts/run-tests.sh nc-Notchcast-frosted-guard-test \| grep -c '^FAIL'` (an `islandSurface` fill outside a look branch, an `NSColor(token)` ink) | 0 |

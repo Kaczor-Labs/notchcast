@@ -1,3 +1,7 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (C) 2026 Vorssaint
+// Adapted from Vorssaint 89d2626's editor view: the filmstrip, its dimmed ends and its two handles.
+
 import AVKit
 import SwiftUI
 
@@ -9,7 +13,7 @@ struct RecordingTrimmerView: View {
             VideoPlayer(player: trimmer.player)
                 .frame(width: Theme.Size.cameraStage.width, height: Theme.Size.cameraStage.height)
             RecordingTrimBar(trimmer: trimmer)
-                .frame(height: Theme.Size.barButtonHeight)
+                .frame(height: Theme.Size.keyCap * 2)
                 .padding([.horizontal, .top], Theme.Spacing.xl)
             footer
         }
@@ -47,7 +51,7 @@ struct RecordingTrimmerView: View {
     }
 }
 
-/// The clip as a bar: the kept part filled, a handle at each end, each draggable and adjustable.
+/// The clip as a strip of frames: the kept part bright, a handle at each end, draggable and adjustable.
 private struct RecordingTrimBar: View {
     let trimmer: RecordingTrimmer
 
@@ -57,17 +61,39 @@ private struct RecordingTrimBar: View {
             let trim = trimmer.trim
             let scale = trim.duration > 0 ? width / trim.duration : 0
             ZStack(alignment: .leading) {
+                thumbnails
+                Theme.Colors.dialogDimming
+                    .frame(width: max(0, trim.start * scale))
+                Theme.Colors.dialogDimming
+                    .frame(width: max(0, width - trim.end * scale))
+                    .offset(x: trim.end * scale)
                 RoundedRectangle(cornerRadius: Theme.Radius.barControl, style: .continuous)
-                    .fill(Theme.Colors.rowHover)
-                Rectangle()
-                    .fill(Theme.Colors.selection)
+                    .strokeBorder(Theme.Colors.dropTarget, lineWidth: Theme.Size.hairline * 2)
                     .frame(width: max(0, trim.length * scale))
                     .offset(x: trim.start * scale)
                 handle(.start, at: trim.start * scale, width: width, scale: scale)
                 handle(.end, at: trim.end * scale, width: width, scale: scale)
             }
+            .clipShape(RoundedRectangle(cornerRadius: Theme.Radius.barControl, style: .continuous))
             .coordinateSpace(.named(Self.space))
         }
+    }
+
+    private var thumbnails: some View {
+        HStack(spacing: 0) {
+            if trimmer.thumbnails.isEmpty {
+                Rectangle().fill(Theme.Colors.rowHover)
+            } else {
+                ForEach(Array(trimmer.thumbnails.enumerated()), id: \.offset) { _, image in
+                    Image(decorative: image, scale: 1)
+                        .resizable()
+                        .scaledToFill()
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        .clipped()
+                }
+            }
+        }
+        .accessibilityHidden(true)
     }
 
     private enum Edge { case start, end }

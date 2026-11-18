@@ -8,8 +8,8 @@ enum RecordingTarget: Equatable, Sendable {
     case display(UInt32)
 
     enum Failure: Error, Equatable {
-        case screenPermission, microphonePermission, targetUnavailable, captureFailed, emptyRecording
-        case exportFailed, clipboardFailed
+        case screenPermission, microphonePermission, microphoneUnavailable, targetUnavailable, captureFailed
+        case emptyRecording, diskFull, exportFailed, clipboardFailed
     }
 
     static func failureMessage(_ error: any Error) -> String {
@@ -22,6 +22,10 @@ enum RecordingTarget: Equatable, Sendable {
             String(localized: "Screen Recording access is required.", table: "NotchcastScreenRecording")
         case .microphonePermission:
             String(localized: "Microphone access is required.", table: "NotchcastScreenRecording")
+        case .microphoneUnavailable:
+            String(localized: "No microphone is available.", table: "NotchcastScreenRecording")
+        case .diskFull:
+            String(localized: "Not enough disk space to record.", table: "NotchcastScreenRecording")
         case .targetUnavailable:
             String(localized: "Nothing to record there.", table: "NotchcastScreenRecording")
         case .emptyRecording:
@@ -48,8 +52,6 @@ struct RecordingWindow: Equatable, Sendable {
 enum RecordingGeometry {
     static let minimumPickSize: CGFloat = 40
     static let clickThreshold: CGFloat = 4
-    /// Encoders reject frames past this on either side.
-    static let maximumPixels = 16_384
 
     /// Ordinary visible windows of other apps, big enough to aim at.
     static func pickable(_ windows: [RecordingWindow], ownPID: Int32) -> [RecordingWindow] {
@@ -71,15 +73,5 @@ enum RecordingGeometry {
     static func sourceRect(_ area: CGRect, onDisplay frame: CGRect) -> CGRect? {
         guard frame.contains(area) else { return nil }
         return area.offsetBy(dx: -frame.minX, dy: -frame.minY)
-    }
-
-    /// Whole pixels, rounded up to even sides as H.264 and HEVC need; nil when empty or too big.
-    static func pixelSize(points: CGSize, scale: CGFloat) -> (width: Int, height: Int)? {
-        guard points.width.isFinite, points.height.isFinite, scale.isFinite, scale > 0 else { return nil }
-        let width = Int((points.width * scale).rounded(.up))
-        let height = Int((points.height * scale).rounded(.up))
-        guard width > 0, height > 0 else { return nil }
-        let even = (width + width % 2, height + height % 2)
-        return even.0 <= maximumPixels && even.1 <= maximumPixels ? even : nil
     }
 }

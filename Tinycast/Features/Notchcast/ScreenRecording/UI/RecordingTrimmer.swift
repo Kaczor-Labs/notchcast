@@ -1,3 +1,7 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (C) 2026 Vorssaint
+// Adapted from Vorssaint 89d2626's editor controller: the filmstrip's thumbnails.
+
 import AVFoundation
 import AppKit
 import Carbon.HIToolbox
@@ -8,6 +12,8 @@ import SwiftUI
 @Observable
 final class RecordingTrimmer {
     private(set) var trim: RecordingTrim
+    private(set) var thumbnails: [CGImage] = []
+    @ObservationIgnored private var loading: Task<Void, Never>?
     @ObservationIgnored let player: AVPlayer
     @ObservationIgnored private var panel: RecordingTrimmerPanel?
     @ObservationIgnored private var answer: (@MainActor (RecordingTrimmerAnswer) -> Void)?
@@ -16,6 +22,10 @@ final class RecordingTrimmer {
         trim = RecordingTrim(duration: duration)
         player = AVPlayer(url: clip)
         self.answer = answer
+        loading = Task { [weak self] in
+            let images = await Self.thumbnails(of: clip, duration: duration)
+            if !Task.isCancelled { self?.thumbnails = images }
+        }
         present()
     }
 
@@ -37,6 +47,7 @@ final class RecordingTrimmer {
 
     func close() {
         answer = nil
+        loading?.cancel()
         player.pause()
         guard let closing = panel else { return }
         panel = nil
@@ -51,7 +62,25 @@ final class RecordingTrimmer {
         player.seek(to: Self.time(time), toleranceBefore: .zero, toleranceAfter: .zero)
     }
 
-    private static func time(_ seconds: TimeInterval) -> CMTime { CMTime(seconds: seconds, preferredTimescale: 600) }
+    /// A rough map of the clip, so a generous tolerance buys a much faster load.
+    @concurrent
+    private static func thumbnails(of clip: URL, duration: TimeInterval) async -> [CGImage] {
+        let generator = AVAssetImageGenerator(asset: AVURLAsset(url: clip))
+        generator.appliesPreferredTrackTransform = true
+        generator.maximumSize = CGSize(width: 240, height: 240)
+        generator.requestedTimeToleranceBefore = time(0.5)
+        generator.requestedTimeToleranceAfter = time(0.5)
+        var images: [CGImage] = []
+        for seconds in RecordingTrim.filmstripTimes(duration: duration, count: 14) {
+            if Task.isCancelled { return images }
+            if let image = try? await generator.image(at: time(seconds)).image { images.append(image) }
+        }
+        return images
+    }
+
+    private nonisolated static func time(_ seconds: TimeInterval) -> CMTime {
+        CMTime(seconds: seconds, preferredTimescale: 600)
+    }
 
     private func present() {
         let hosting = NSHostingView(rootView: RecordingTrimmerView(trimmer: self).motionScope())

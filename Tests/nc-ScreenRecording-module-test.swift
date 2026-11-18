@@ -34,6 +34,7 @@ func fileName(_ ext: String, collision: Int = 0) -> String {
 struct FileSide: Sendable {
     var passthrough = true
     var exportFails = false
+    var freeBytes = Int64.max
     var exports: [(source: URL, trim: RecordingTrim, plan: RecordingExport, to: URL)] = []
 }
 
@@ -74,6 +75,7 @@ final class RecordingFake {
     var clipboardWorks = true
     var clipboard: [URL] = []
     var revealed: [URL] = []
+    var awake = 0
 }
 
 @MainActor let fake = RecordingFake()
@@ -106,6 +108,11 @@ extension RecordingSystem {
         },
         workFolder: { work },
         desktop: { desktop },
+        keepAwake: {
+            fake.awake += 1
+            return { fake.awake -= 1 }
+        },
+        freeBytes: { files.withLock { $0.freeBytes } },
         duration: { url in
             Double(String(bytes: try Data(contentsOf: url), encoding: .utf8) ?? "") ?? 0
         },
@@ -271,12 +278,13 @@ enum ScreenRecordingModuleTests {
               rig.presenter.status?.symbol == "stop.circle" && rig.presenter.status?.text == "0:00"
                 && rig.presenter.status?.label == "Stop Recording")
         check("the pill menu offers Stop Recording", rig.presenter.rows.map(\.title) == ["Stop Recording"])
+        check("the Mac is kept awake while it records", fake.awake == 1)
         rig.clock.now = firstDate.addingTimeInterval(10)
         fake.tick?()
         check("the clock ticks to 0:10", rig.presenter.status?.text == "0:10")
         rig.presenter.statusTap?()
         check("the stop control leaves the island at once", rig.presenter.status == nil && rig.presenter.rows.isEmpty
-              && fake.tick == nil)
+              && fake.tick == nil && fake.awake == 0)
         await rig.settle()
         check("and stops the capture", fake.capture.stops == 1)
         let clip = fake.starts[0].file
@@ -308,8 +316,9 @@ enum ScreenRecordingModuleTests {
         rig.defaults.set(chosen.path(percentEncoded: false), forKey: RecordingOptions.Keys.folder)
         files.withLock { $0.passthrough = false }
         await record(rig, .area(CGRect(x: 10, y: 10, width: 200, height: 100)))
-        check("the area is recorded as an MP4", fake.starts.last?.target == .area(CGRect(x: 10, y: 10, width: 200, height: 100))
-              && fake.starts.last?.file.pathExtension == "mp4")
+        check("the area is recorded, its master a MOV whatever the format",
+              fake.starts.last?.target == .area(CGRect(x: 10, y: 10, width: 200, height: 100))
+                && fake.starts.last?.file.pathExtension == "mov")
         var trim = RecordingTrim(duration: 10)
         trim.setEnd(5)
         fake.answer?(.copy(trim))
@@ -332,7 +341,8 @@ enum ScreenRecordingModuleTests {
         fake.answer?(.save(RecordingTrim(duration: 10)))
         await rig.settle()
         let whole = files.withLock { $0.exports.last }
-        check("an untrimmed save keeps the file as recorded", whole?.plan == .copy)
+        check("an untrimmed MP4 is written whole from the MOV master, never renamed",
+              whole?.plan == .reencode && whole?.trim.isWhole == true)
         check("into the chosen folder", whole?.to == chosen.appending(path: fileName("mp4")))
 
         await record(rig, .window(7))
@@ -421,6 +431,14 @@ enum ScreenRecordingModuleTests {
         fake.answer?(.discard)
         await rig.settle()
         rig.defaults.removeObject(forKey: RecordingOptions.Keys.microphone)
+
+        files.withLock { $0.freeBytes = RecordingDisk.minimumFreeBytesToStart - 1 }
+        let before = fake.starts.count
+        rig.run("record-screen")
+        await rig.settle()
+        check("a nearly full disk records nothing", fake.starts.count == before
+              && rig.presenter.last?.text == "Not enough disk space to record.")
+        files.withLock { $0.freeBytes = .max }
     }
 
     static func endings(_ rig: Rig) async {
@@ -434,13 +452,26 @@ enum ScreenRecordingModuleTests {
         fake.answer?(.discard)
         await rig.settle()
 
+        rig.run("record-screen")
+        await rig.settle()
+        files.withLock { $0.freeBytes = RecordingDisk.minimumFreeBytesToContinue - 1 }
+        fake.tick?()
+        await rig.settle()
+        check("a disk filling up stops the recording and says so", fake.capture.stops == 1
+              && rig.presenter.status == nil
+              && rig.presenter.posts.contains { $0.text == "Recording stopped: the disk is almost full." })
+        check("and keeps what it recorded for the trimmer", fake.trimmers.count == trimmers + 2)
+        files.withLock { $0.freeBytes = .max }
+        fake.answer?(.discard)
+        await rig.settle()
+
         fake.recordedSeconds = 0
         rig.run("record-screen")
         await rig.settle()
         let empty = fake.starts.last!.file
         rig.run("record-screen")
         await rig.settle()
-        check("an empty recording opens no trimmer", fake.trimmers.count == trimmers + 1)
+        check("an empty recording opens no trimmer", fake.trimmers.count == trimmers + 2)
         check("and says so", rig.presenter.last?.text == "The recording is empty." && rig.presenter.last?.isFailure == true)
         check("and leaves no file", !exists(empty))
         fake.recordedSeconds = 10
@@ -450,7 +481,7 @@ enum ScreenRecordingModuleTests {
         fake.capture.stopFails = true
         rig.run("record-screen")
         await rig.settle()
-        check("a stop that throws still keeps a clip with frames", fake.trimmers.count == trimmers + 2)
+        check("a stop that throws still keeps a clip with frames", fake.trimmers.count == trimmers + 3)
         fake.answer?(.discard)
         await rig.settle()
     }

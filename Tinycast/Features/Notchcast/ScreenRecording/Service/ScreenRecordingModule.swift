@@ -22,6 +22,8 @@ final class ScreenRecordingModule: NotchcastModule {
     private var closeSurface: (@MainActor () -> Void)?
     private var closeTrimmer: (@MainActor () -> Void)?
     private var stopTicking: (@MainActor () -> Void)?
+    private var allowSleep: (@MainActor () -> Void)?
+    private var diskCheck: Task<Void, Never>?
 
     init(context: NotchcastContext, system: RecordingSystem, timeZone: TimeZone = .current) {
         self.context = context
@@ -84,6 +86,7 @@ final class ScreenRecordingModule: NotchcastModule {
 
     /// Waits out the capture and export in hand, so a harness never sleeps.
     func settled() async {
+        await diskCheck?.value
         await capturing?.value
         await saving?.value
     }
@@ -102,8 +105,11 @@ final class ScreenRecordingModule: NotchcastModule {
                 if options.microphone, !(await system.grantMicrophone()) {
                     throw RecordingTarget.Failure.microphonePermission
                 }
+                guard RecordingDisk.canStart(freeBytes: await system.freeBytes()) else {
+                    throw RecordingTarget.Failure.diskFull
+                }
                 guard operation == id else { return }
-                let url = try system.workFolder().appending(path: "\(id.uuidString).\(options.container.fileExtension)")
+                let url = try system.workFolder().appending(path: "\(id.uuidString).mov")
                 file = url
                 let capture = try await system.start(target, options, url) { [weak self] _ in self?.ended(id) }
                 guard operation == id, state.started(at: context.now()) else {
@@ -192,10 +198,14 @@ final class ScreenRecordingModule: NotchcastModule {
             ? options.folder.map { URL(filePath: $0, directoryHint: .isDirectory) } ?? system.desktop()
             : system.workFolder()
         var plan = RecordingExport.copy
-        if let trim { plan = .plan(trim, passthroughWorks: await system.passthroughWorks(clip, options.container)) }
+        let trim = trim ?? RecordingTrim(duration: 0)
+        if !trim.isWhole || options.container != .mov {
+            plan = .plan(trim, container: options.container,
+                         passthroughWorks: await system.passthroughWorks(clip, options.container))
+        }
         let destination = freeName(in: folder, date: date, fileExtension: options.container.fileExtension)
         do {
-            try await system.export(clip, trim ?? RecordingTrim(duration: 0), plan, destination)
+            try await system.export(clip, trim, plan, destination)
         } catch {
             throw RecordingTarget.Failure.exportFailed
         }
@@ -225,7 +235,11 @@ final class ScreenRecordingModule: NotchcastModule {
 
     private func showRecording() {
         refreshStatus()
-        stopTicking = system.everySecond { [weak self] in self?.refreshStatus() }
+        allowSleep = system.keepAwake()
+        stopTicking = system.everySecond { [weak self] in
+            self?.refreshStatus()
+            self?.checkDisk()
+        }
         let row = IslandMenuRow(id: "stop", title: Self.stopTitle)
         context.presenter.setMenuRows([row], owner: Self.islandID) { [weak self] _ in self?.stopRecording() }
     }
@@ -238,9 +252,26 @@ final class ScreenRecordingModule: NotchcastModule {
             for: Self.islandID, onTap: { [weak self] in self?.stopRecording() })
     }
 
+    /// Asking for free space is slow, so only the decision to stop comes back to the main actor.
+    private func checkDisk() {
+        guard diskCheck == nil, let id = operation else { return }
+        diskCheck = Task {
+            let free = await system.freeBytes()
+            diskCheck = nil
+            guard operation == id, RecordingDisk.shouldStop(freeBytes: free), state.stopRequested() else { return }
+            context.presenter.post(IslandNotice(
+                id: Self.islandID, symbol: "externaldrive.badge.exclamationmark",
+                text: String(localized: "Recording stopped: the disk is almost full.", table: "NotchcastScreenRecording"),
+                isFailure: true), onTap: nil)
+            finishRecording()
+        }
+    }
+
     private func hideRecording() {
         stopTicking?()
         stopTicking = nil
+        allowSleep?()
+        allowSleep = nil
         context.presenter.setStatus(nil, for: Self.islandID, onTap: nil)
         context.presenter.setMenuRows([], owner: Self.islandID) { _ in }
     }

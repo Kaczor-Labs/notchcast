@@ -1,3 +1,7 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (C) 2026 Vorssaint
+// Adapted from Vorssaint 89d2626's recorder service: the settle before capture, the sleep hold, free space.
+
 import AppKit
 import AVFoundation
 import ScreenCaptureKit
@@ -19,7 +23,9 @@ extension RecordingSystem {
             return { surface.finish(nil) }
         },
         start: { target, options, file, ended in
-            try await ScreenRecordingCapture.start(target, options, file, ended: ended)
+            // The selection panels have just left; the stream starts once the window server caught up.
+            if case .display = target {} else { try await Task.sleep(for: .milliseconds(120)) }
+            return try await ScreenRecordingCapture.start(target, options, file, ended: ended)
         },
         everySecond: { tick in
             let ticker = Task { @MainActor in
@@ -38,9 +44,17 @@ extension RecordingSystem {
         desktop: {
             try FileManager.default.url(for: .desktopDirectory, in: .userDomainMask, appropriateFor: nil, create: false)
         },
-        duration: { url in try await clipDuration(url) },
-        passthroughWorks: { url, container in await passthroughWorks(url, container) },
-        export: { source, trim, plan, destination in try await export(source, trim, plan, destination) },
+        keepAwake: {
+            let activity = ProcessInfo.processInfo.beginActivity(
+                options: .idleSystemSleepDisabled, reason: "Recording the screen")
+            return { ProcessInfo.processInfo.endActivity(activity) }
+        },
+        freeBytes: { await freeBytes() },
+        duration: { url in try await RecordingExporter.duration(url) },
+        passthroughWorks: { url, container in await RecordingExporter.passthroughWorks(url, container) },
+        export: { source, trim, plan, destination in
+            try await RecordingExporter.export(source, trim, plan, destination)
+        },
         trim: { clip, duration, answer in
             let trimmer = RecordingTrimmer(clip: clip, duration: duration, answer: answer)
             return { trimmer.close() }
@@ -52,38 +66,12 @@ extension RecordingSystem {
         reveal: { NSWorkspace.shared.activateFileViewerSelecting([$0]) }
     )
 
-    private static func fileType(_ url: URL) -> AVFileType { url.pathExtension == "mp4" ? .mp4 : .mov }
-
+    /// An unreadable volume never refuses a recording.
     @concurrent
-    private static func clipDuration(_ url: URL) async throws -> TimeInterval {
-        let seconds = try await AVURLAsset(url: url).load(.duration).seconds
-        return seconds.isFinite ? seconds : 0
-    }
-
-    @concurrent
-    private static func passthroughWorks(_ url: URL, _ container: RecordingOptions.Container) async -> Bool {
-        await AVAssetExportSession.compatibility(
-            ofExportPreset: AVAssetExportPresetPassthrough, with: AVURLAsset(url: url),
-            outputFileType: container == .mp4 ? .mp4 : .mov)
-    }
-
-    @concurrent
-    private static func export(_ source: URL, _ trim: RecordingTrim, _ plan: RecordingExport,
-                               _ destination: URL) async throws {
-        let preset: String
-        switch plan {
-        case .copy:
-            return try FileManager.default.moveItem(at: source, to: destination)
-        case .passthrough: preset = AVAssetExportPresetPassthrough
-        case .reencode: preset = AVAssetExportPresetHighestQuality
-        }
-        guard let session = AVAssetExportSession(asset: AVURLAsset(url: source), presetName: preset) else {
-            throw RecordingTarget.Failure.exportFailed
-        }
-        session.timeRange = CMTimeRange(
-            start: CMTime(seconds: trim.start, preferredTimescale: 600),
-            end: CMTime(seconds: trim.end, preferredTimescale: 600))
-        try await session.export(to: destination, as: fileType(destination))
+    private static func freeBytes() async -> Int64 {
+        let values = try? FileManager.default.temporaryDirectory.resourceValues(
+            forKeys: [.volumeAvailableCapacityForImportantUsageKey])
+        return values?.volumeAvailableCapacityForImportantUsage ?? .max
     }
 
     /// What ScreenCaptureKit itself offers, so a window that can be picked can also be recorded.

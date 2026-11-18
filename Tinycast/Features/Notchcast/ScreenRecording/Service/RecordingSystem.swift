@@ -25,6 +25,10 @@ struct RecordingSystem: Sendable {
     /// A folder of our own where unfinished clips live.
     let workFolder: @Sendable () throws -> URL
     let desktop: @Sendable () throws -> URL
+    /// Holds off idle sleep until the returned closure runs.
+    let keepAwake: @MainActor @Sendable () -> @MainActor () -> Void
+    /// Space left where clips are written.
+    let freeBytes: @Sendable () async -> Int64
     let duration: @Sendable (URL) async throws -> TimeInterval
     /// Whether the clip can be cut without re-encoding into the given container.
     let passthroughWorks: @Sendable (URL, RecordingOptions.Container) async -> Bool
