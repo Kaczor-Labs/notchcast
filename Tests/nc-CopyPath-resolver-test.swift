@@ -137,7 +137,10 @@ func cleaning() {
     for name in NotchcastLinkCleaner.trackingNames {
         check(clean("https://x.org/?\(name)=1&k=v"), "https://x.org/?k=v", "\(name) strips")
     }
-    precondition(NotchcastLinkCleaner.trackingNames.count == 19, "the issue's 19 names")
+    precondition(NotchcastLinkCleaner.trackingNames.count == 25, "the issue's 19 names and Vorssaint's 6 more")
+    check(clean("https://x.org/p?\u{301}a=1&gclid=2"), "https://x.org/p?\u{301}a=1", "a combining mark hides no ?")
+    check(clean("https://youtu.be/a?si=1&t=30"), "https://youtu.be/a?t=30", "a site's own tracker strips there")
+    check(clean("https://x.org/p?si=1"), "https://x.org/p?si=1", "and stays elsewhere")
     precondition(!NotchcastLinkCleaner.isTracking("ref") && !NotchcastLinkCleaner.isTracking("utm"), "near misses stay")
 }
 

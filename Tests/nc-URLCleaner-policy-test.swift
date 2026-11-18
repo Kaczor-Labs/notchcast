@@ -33,6 +33,7 @@ extension URLCleanerSystem {
     static let live = URLCleanerSystem(
         observe: { fake.observer = $0 },
         itemTypes: { fake.itemTypes },
+        isDeclared: { $0.hasPrefix("public.") },
         text: { fake.text },
         replace: {
             fake.text = $0
@@ -124,9 +125,24 @@ func policy() {
     expect(clean("https://notx.com/a?s=1&q=3", rules) == nil, "but not on a host that only ends the same")
     expect(clean("https://a.com/?s=1&si=2", rules) == nil, "site names stay elsewhere")
     let both = Rules(extra: "s", kept: "s", sites: "x.com=s")
-    expect(clean("https://x.com/?s=1", both) == nil, "kept beats extra and site rules")
+    expect(clean("https://x.com/?s=1", both) == nil, "kept beats extra, site and built-in site rules")
+    expect(clean("https://x.com/?utm_a=1&utm_b=2&gclid=3", Rules(kept: "utm_*")) == "https://x.com/?utm_a=1&utm_b=2",
+           "utm_* in the kept field protects the whole prefix")
 
-    let plain = URLCleanerPolicy.isPlainLink
+    expect(clean("https://www.youtube.com/watch?v=1&si=2&t=30") == "https://www.youtube.com/watch?v=1&t=30",
+           "a built-in site tracker goes; t is the playback position there")
+    expect(clean("https://x.com/a/status/1?s=20&t=abc") == "https://x.com/a/status/1", "while t tracks on X")
+    expect(clean("https://a.com/?si=1&t=2&s=3") == nil, "built-in site names stay on other hosts")
+    expect(clean("https://www.reddit.com/r/a?%24deep_link=1&q=2") == "https://www.reddit.com/r/a?q=2",
+           "an encoded site name still counts")
+
+    let plain: ([[String]]) -> Bool = {
+        URLCleanerPolicy.isPlainLink(itemTypes: $0) { $0.hasPrefix("public.") }
+    }
+    expect(plain([["public.utf8-plain-text", "org.chromium.source-url"]]), "an app's private note beside it is plain")
+    expect(plain([["public.url", "dyn.ah62d4rv4gu8zs3pcnzme2641rf4guzdmsv0gn64uqm10c6xenv61a3k"]]), "so is a dynamic type")
+    expect(!plain([["public.utf8-plain-text", "NSFilenamesPboardType"]]), "but a legacy file name list is not")
+    expect(!plain([["public.utf8-plain-text", "com.apple.is-sensitive"]]), "nor a sensitive copy")
     expect(plain([["public.utf8-plain-text"]]), "a string is plain")
     expect(plain([["public.url", "public.url-name", "public.utf8-plain-text"]]), "a link with its name is plain")
     expect(!plain([["public.utf8-plain-text", "public.rtf"]]), "rich text beside it is not")

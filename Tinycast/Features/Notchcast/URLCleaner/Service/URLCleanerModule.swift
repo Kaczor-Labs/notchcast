@@ -5,6 +5,8 @@ struct URLCleanerSystem: Sendable {
     /// Sets what runs when a foreign copy is about to enter clipboard history; nil removes it.
     let observe: @MainActor @Sendable ((@MainActor () -> Void)?) -> Void
     let itemTypes: @MainActor @Sendable () -> [[String]]
+    /// Whether the system knows a pasteboard type; one it does not is an app's private note.
+    let isDeclared: @MainActor @Sendable (String) -> Bool
     let text: @MainActor @Sendable () -> String?
     /// Writes the link as Notchcast's own copy, so the clipboard poll never sees it as new.
     let replace: @MainActor @Sendable (String) -> Void
@@ -38,7 +40,8 @@ final class URLCleanerModule: NotchcastModule {
     }
 
     private func copied() {
-        guard URLCleanerPolicy.isPlainLink(itemTypes: system.itemTypes()), let text = system.text(),
+        guard URLCleanerPolicy.isPlainLink(itemTypes: system.itemTypes(), isDeclared: system.isDeclared),
+            let text = system.text(),
             let cleaned = URLCleanerPolicy.clean(text, rules: rules)
         else { return }
         system.replace(cleaned)

@@ -20,13 +20,13 @@ struct URLCleanerSettingsView: View {
         row(
             LocalizedStringResource("Parameters to keep", table: "NotchcastURLCleaner"),
             LocalizedStringResource("Never removed, even when listed elsewhere.", table: "NotchcastURLCleaner"),
-            text: $kept, example: "utm_source")
+            text: $kept, example: "utm_source, utm_*")
         row(
             LocalizedStringResource("Per-site rules", table: "NotchcastURLCleaner"),
             LocalizedStringResource(
                 "One site and its parameters, as host=name,name; separate sites with semicolons.",
                 table: "NotchcastURLCleaner"),
-            text: $sites, example: "youtube.com=si,pp; x.com=s,t")
+            text: $sites, example: "example.com=ref,source")
     }
 
     private func row(

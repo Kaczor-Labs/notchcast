@@ -6,7 +6,7 @@ enum URLCleanerAddon: NotchcastAddon {
             id: "urlCleaner",
             title: String(localized: "Clean Copied Links", table: "NotchcastURLCleaner"),
             subtitle: String(
-                localized: "Remove tracking parameters such as utm_source and fbclid from every link you copy.",
+                localized: "Remove tracking parameters from links you copy while Clipboard History is on.",
                 table: "NotchcastURLCleaner"),
             category: .launcher,
             defaultEnabled: false
