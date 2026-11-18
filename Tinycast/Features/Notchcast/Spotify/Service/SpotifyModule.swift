@@ -27,7 +27,10 @@ final class SpotifyModule: NotchcastModule {
     var liked: Bool?
     @ObservationIgnored var web: SpotifyWeb?
     @ObservationIgnored private var volume: SpotifyVolumeMemory
-    @ObservationIgnored private var instance: SoloistInstance?
+    /// Set the moment Soloist is spawned or adopted, so stop and quit never leave it running.
+    @ObservationIgnored private var stopSoloist: (@MainActor () -> Void)?
+    @ObservationIgnored private var launchTask: Task<Void, Never>?
+    @ObservationIgnored var signInTask: Task<Void, any Error>?
     @ObservationIgnored private(set) var link: SoloistLink?
     @ObservationIgnored private var generation = 0
     @ObservationIgnored private var cancelRetry: (@MainActor () -> Void)?
@@ -68,6 +71,7 @@ final class SpotifyModule: NotchcastModule {
     func stop() {
         guard running else { return }
         running = false
+        cancelSignIn()
         halt()
         supervision.stop()
         cancelNotice?()
@@ -85,10 +89,12 @@ final class SpotifyModule: NotchcastModule {
         generation += 1
         cancelRetry?()
         cancelRetry = nil
+        launchTask?.cancel()
+        launchTask = nil
         link?.close()
         link = nil
-        if let instance { Task { await instance.stop() } }
-        instance = nil
+        stopSoloist?()
+        stopSoloist = nil
     }
 
     func supervise() {
@@ -107,14 +113,18 @@ final class SpotifyModule: NotchcastModule {
         generation += 1
         let token = generation
         let system = system
-        Task { [weak self] in
+        let spawned: @MainActor (@escaping @MainActor () -> Void) -> Void = { [weak self] stop in
+            guard let self, token == generation, running else { return stop() }
+            stopSoloist = stop
+        }
+        launchTask = Task { [weak self] in
             do {
-                let started = try await system.launch(key, { [weak self] in self?.exited($0, token) },
-                                                      { [weak self] in self?.rejected(token) })
-                guard let self, token == generation, running else { return await started.stop() }
-                instance = started
+                let url = try await system.launch(key, spawned, { [weak self] in self?.exited($0, token) },
+                                                  { [weak self] in self?.rejected(token) })
+                guard let self, token == generation, running else { return }
+                launchTask = nil
                 supervision.launched(at: now)
-                connect(started.url, token)
+                connect(url, token)
             } catch SoloistLaunchError.notInstalled {
                 guard let self, token == generation else { return }
                 build = nil

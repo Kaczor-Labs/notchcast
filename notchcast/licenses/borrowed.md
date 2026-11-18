@@ -32,6 +32,7 @@ Spotify: Model/SpotifyAuthorization.swift ← mihail-antonov/aural@bf4b2b2/Aural
 Spotify: Model/SpotifyWebWire.swift ← mihail-antonov/aural@bf4b2b2/AuralCore/Sources/AuralCore/Library/WebAPIWire.swift (MIT)
 Spotify: Model/SpotifyWebWire.swift ← mihail-antonov/aural@bf4b2b2/AuralCore/Sources/AuralCore/Library/LibraryModels.swift (MIT)
 Spotify: Service/SoloistProcess.swift ← mihail-antonov/aural@bf4b2b2/AuralCore/Sources/AuralCore/Sources/Soloist/SoloistProcess.swift (MIT)
+Spotify: Service/SoloistHost.swift ← mihail-antonov/aural@bf4b2b2/AuralCore/Sources/AuralCore/Sources/Soloist/SoloistProcess.swift (MIT)
 Spotify: Service/SoloistInstaller.swift ← mihail-antonov/aural@bf4b2b2/AuralCore/Sources/AuralCore/Sources/Soloist/SoloistInstaller.swift (MIT)
 Spotify: Service/SpotifyLoopback.swift ← mihail-antonov/aural@bf4b2b2/AuralCore/Sources/AuralCore/Library/LoopbackServer.swift (MIT)
 Spotify: Service/SpotifyWeb.swift ← mihail-antonov/aural@bf4b2b2/AuralCore/Sources/AuralCore/Library/WebAPIClient.swift (MIT)

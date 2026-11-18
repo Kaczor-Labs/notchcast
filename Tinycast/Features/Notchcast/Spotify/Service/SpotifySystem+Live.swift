@@ -28,8 +28,9 @@ extension SpotifySystem {
             },
             installedBuild: { await SoloistInstaller.installed(paths.executable) },
             install: { try await SoloistInstaller.install(to: paths.executable, now: Date()) },
-            launch: { key, exited, rejected in
-                try await SoloistProcess.launch(paths, key: key, exited: exited, rejected: rejected)
+            launch: { key, spawned, exited, rejected in
+                try await SoloistProcess.launch(paths, key: key, host: .live, spawned: spawned, exited: exited,
+                                                rejected: rejected)
             },
             connect: SoloistSocket.connect,
             wake: { date, fire in
@@ -46,6 +47,14 @@ extension SpotifySystem {
     }
 }
 
+extension SoloistPaths {
+    static var live: SoloistPaths {
+        let root = AppPaths.applicationSupport().appending(path: "Soloist", directoryHint: .isDirectory)
+        return SoloistPaths(executable: root.appending(path: "soloist", directoryHint: .notDirectory),
+                            data: root.appending(path: "data", directoryHint: .isDirectory))
+    }
+}
+
 extension SpotifyWebTransport {
     /// A private, cache-less session, so nothing from the Web API lands in a shared URL cache.
     static var live: SpotifyWebTransport {
@@ -59,6 +68,6 @@ extension SpotifyWebTransport {
                 return Response(status: http?.statusCode ?? 0, body: data,
                                 retryAfter: http?.value(forHTTPHeaderField: "Retry-After"))
             },
-            awaitRedirect: { port, path in try await SpotifyLoopback.awaitRedirect(port: port, path: path) })
+            listen: { port, path, state in try await SpotifyLoopback.listen(port: port, path: path, state: state) })
     }
 }

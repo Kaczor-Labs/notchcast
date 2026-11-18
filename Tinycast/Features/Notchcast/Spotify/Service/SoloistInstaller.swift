@@ -51,20 +51,27 @@ enum SoloistInstaller {
         let candidate = unpacked.appending(path: "soloist")
         let values = try? candidate.resourceValues(forKeys: [.isRegularFileKey, .isSymbolicLinkKey])
         guard values?.isRegularFile == true, values?.isSymbolicLink != true else { throw .unpack }
-        guard verify(candidate) else { throw .signature }
-        removexattr(candidate.path, "com.apple.quarantine", 0)
-        guard let build = try? await version(candidate) else { throw .version }
-        guard !build.isExpired(at: now) else { throw .stillExpired }
+        return try await place(candidate, at: executable, now: now, check: .live)
+    }
+
+    /// Moves the file next to its final place first, so the bytes verified are the bytes that run.
+    static func place(_ candidate: URL, at executable: URL, now: Date, check: SoloistCodeCheck)
+        async throws(SoloistInstallError) -> SoloistBuild {
+        let manager = FileManager.default
+        let staged = executable.deletingLastPathComponent().appending(path: ".soloist-\(UUID().uuidString)")
         do {
-            let manager = FileManager.default
             try manager.createDirectory(at: executable.deletingLastPathComponent(), withIntermediateDirectories: true)
-            try manager.setAttributes([.posixPermissions: 0o755], ofItemAtPath: candidate.path)
-            if manager.fileExists(atPath: executable.path) {
-                _ = try manager.replaceItemAt(executable, withItemAt: candidate)
-            } else {
-                try manager.moveItem(at: candidate, to: executable)
-            }
+            try manager.moveItem(at: candidate, to: staged)
+            try manager.setAttributes([.posixPermissions: 0o755], ofItemAtPath: staged.path)
         } catch { throw .install }
+        var installed = false
+        defer { if !installed { try? manager.removeItem(at: staged) } }
+        guard check.verify(staged) else { throw .signature }
+        removexattr(staged.path, "com.apple.quarantine", 0)
+        guard let build = try? await check.version(staged) else { throw .version }
+        guard !build.isExpired(at: now) else { throw .stillExpired }
+        guard rename(staged.path, executable.path) == 0 else { throw .install }
+        installed = true
         return build
     }
 
@@ -79,7 +86,7 @@ enum SoloistInstaller {
     }
 
     /// Runs `soloist --version`; only ever on a verified executable.
-    private static func version(_ executable: URL) async throws -> SoloistBuild {
+    static func version(_ executable: URL) async throws -> SoloistBuild {
         let result = try await run(executable, ["--version"])
         guard result.status == 0, let build = SoloistBuild(versionOutput: result.output) else {
             throw SoloistInstallError.version
@@ -103,4 +110,12 @@ enum SoloistInstaller {
             do { try process.run() } catch { continuation.resume(throwing: error) }
         }
     }
+}
+
+/// The signature check and `--version` run that `place` makes; the harness passes fakes.
+struct SoloistCodeCheck: Sendable {
+    var verify: @Sendable (URL) -> Bool
+    var version: @Sendable (URL) async throws -> SoloistBuild
+
+    static let live = SoloistCodeCheck(verify: SoloistInstaller.verify, version: SoloistInstaller.version)
 }
