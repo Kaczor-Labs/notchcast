@@ -1,5 +1,5 @@
 #!/bin/bash
-# script-tests: macos (Scripts/run-tests.sh's lockf and a real swiftc harness)
+# script-tests: macos (the two-PR fixtures compile the mac-only notchcast-hidden-features-test)
 set -euo pipefail
 root=$(git rev-parse --show-toplevel)
 sync_wait_tests() (
@@ -48,6 +48,92 @@ sync_wait_tests() (
     [[ "$output" == *'REFUSED: could not read Sync run 123'* ]]
     echo 'PASS: Sync unreadable run refuses'
 )
+# land.sh --guard against a bare origin: main is $base plus the commits each scenario lands; gh is a stub reading $GH.
+guard_tests() (
+    set -euo pipefail
+    export HOME="$scratch/home" NOTCHCAST_LAND_TOOLS=test
+    mkdir -p "$scratch/bin" "$HOME/.config/notchcast"
+    echo 'notchcast_notify() { cat >> "$GH/notified"; }' > "$HOME/.config/notchcast/private.env"
+    cat > "$scratch/bin/gh" <<'STUB'
+#!/bin/bash
+echo "$*" >> "$GH/calls"
+case "$*" in
+    api\ repos/*/commits/*/statuses*) sha=${2#*/commits/}; cat "$GH/followup-${sha%%/*}" 2>/dev/null || echo none ;;
+    api\ repos/*/statuses/*) for arg; do case "$arg" in state=*) echo "${arg#state=}" > "$GH/followup-${2##*/}" ;; esac; done ;;
+    run\ list*) while [ "$1" != --commit ]; do shift; done; cat "$GH/run-$2" 2>/dev/null || true ;;
+    run\ view*--log) echo 'FAILED  1 of 9 harness(es) failed in 3s: FavoritesTests' ;;
+    run\ view*) cat "$GH/verdict-$3" ;;
+    pr\ create*) echo https://example.com/pull/99 ;;
+    pr\ view*) echo fixture-branch ;;
+    pr\ close*|pr\ reopen*) ;;
+    *) exit 3 ;;
+esac
+STUB
+    chmod +x "$scratch/bin/gh"
+    export PATH="$scratch/bin:$PATH"
+    git init --quiet --bare "$scratch/guard.git"
+    git clone --quiet --no-hardlinks "$scratch/repo" "$scratch/guard"
+    cd "$scratch/guard"
+    git remote set-url origin "$scratch/guard.git"
+    git config user.name Fixture
+    git config user.email fixture@example.com
+    git fetch --quiet "$scratch/repo" refs/remotes/upstream/main:refs/remotes/upstream/main
+    # scenario <commits on $base, oldest first: linux|mac>: main is rebuilt, and gh starts with no verdict and no call.
+    scenario() {
+        local kind number=6
+        export GH=$(mktemp -d "$scratch/gh.XXXXXX")
+        : > "$GH/calls"
+        git switch --quiet --detach "$base"
+        for kind; do
+            number=$((number + 1))
+            echo "// guard fixture $number" >> Tinycast/Features/Launcher/Model/FavoriteSlots.swift
+            git commit --quiet -am "Notchcast: guard fixture (#$number)" -m "Landed-from: $kind"
+            git push --quiet --force origin "HEAD:refs/pull/$number/head"
+        done
+        git push --quiet --force origin HEAD:refs/heads/main
+        git push --quiet origin --delete fixture-branch 2>/dev/null || true
+        tip=$(git rev-parse HEAD)
+    }
+    red() { echo 55 > "$GH/run-$1"; echo 'red https://example.com/actions/runs/55' > "$GH/verdict-55"; }
+    main() { git ls-remote origin refs/heads/main | cut -f1; }
+    guard() { bash "$land" --guard > "$scratch/guard.log" 2>&1 || { cat "$scratch/guard.log"; exit 1; }; }
+    scenario linux
+    guard
+    [ "$(main)" = "$tip" ] && grep -q 'its macOS run has no verdict yet' "$scratch/guard.log" && [ ! -e "$GH/followup-$tip" ]
+    echo 'PASS: guard leaves a Linux landing whose macOS run has no verdict'
+    echo 55 > "$GH/run-$tip"; echo green > "$GH/verdict-55"
+    guard
+    [ "$(main)" = "$tip" ] && [ "$(< "$GH/followup-$tip")" = success ] && ! grep -q 'pr create' "$GH/calls"
+    echo 'PASS: guard records a green macOS run and reverts nothing'
+    scenario linux
+    red "$tip"
+    guard
+    git fetch --quiet origin main
+    reverted=$(git rev-parse FETCH_HEAD)
+    [ "$(git rev-parse "$reverted^")" = "$tip" ] || { cat "$scratch/guard.log"; echo 'FAIL: no revert landed on main'; exit 1; }
+    [ "$(git diff --name-only "$base" "$reverted")" = notchcast/config.env ]
+    git show "$reverted:notchcast/config.env" | grep -q '^LINUX_DENY_INPUTS=".*Tinycast/Features/Launcher/Model/FavoriteSlots.swift"$'
+    [ "$(git show -s --format='%(trailers:key=Landed-from,valueonly,separator=)' "$reverted")" = mac ]
+    grep -q '^pr create .*--head revert-7 ' "$GH/calls" && grep -q '^pr close 99 ' "$GH/calls" && grep -q '^pr reopen 7 .*actions/runs/55' "$GH/calls"
+    [ "$(git ls-remote origin refs/heads/fixture-branch | cut -f1)" = "$tip" ] && [ -z "$(git ls-remote origin refs/heads/revert-7)" ]
+    [ "$(< "$GH/followup-$tip")" = failure ] && grep -q '#7 landed from Linux and went red on macOS (FavoritesTests): reverted' "$GH/notified"
+    echo 'PASS: red after a sole Linux landing: reverted on main by a revert PR, the PR reopened with the log, its input denied'
+    : > "$GH/calls"
+    guard
+    [ "$(main)" = "$reverted" ] && ! grep -q 'pr \|run ' "$GH/calls"
+    echo 'PASS: a judged Linux landing is not judged twice'
+    scenario linux mac
+    red "$tip"
+    guard
+    [ "$(main)" = "$tip" ] && ! grep -q 'pr create' "$GH/calls" || { cat "$scratch/guard.log"; echo 'FAIL: reverted with another change on top'; exit 1; }
+    [ "$(< "$GH/followup-$(git rev-parse "$tip^")")" = failure ] && grep -q '#7 landed from Linux as .* main is red on macOS: .*actions/runs/55. Not reverted' "$GH/notified"
+    echo 'PASS: red with another change after the Linux landing: no revert, the keeper is told'
+    scenario linux linux
+    red "$tip"
+    guard
+    [ "$(main)" = "$tip" ] && ! grep -q 'pr create' "$GH/calls" && [ "$(grep -c 'Not reverted' "$GH/notified")" -eq 2 ]
+    echo 'PASS: red after two Linux landings: neither is the only change, no revert, the keeper is told of both'
+)
 pr=42
 sync_wait_tests
 if [ "${1:-}" = --sync ]; then exit 0; fi
@@ -72,6 +158,18 @@ rm "$status_fixture"
 unset -f gh
 (
     eval "$(sed -n '/^delete_head() {$/,/^}$/p' "$root/notchcast/land.sh")"
+    # A fake gh: PR 7 is based on stacked; its retarget logs whether origin/stacked still existed.
+    gh() {
+        case "$*" in
+            "pr list -R $FORK_REPO --base stacked --state open "*) echo 7 ;;
+            "pr list -R $FORK_REPO --base unlistable "*) return 1 ;;
+            "pr list -R $FORK_REPO --base "*) ;;
+            "pr edit 7 -R $FORK_REPO --base main")
+                echo "edit 7 $(git ls-remote origin refs/heads/stacked | wc -l | tr -d ' ')" >> "$scratch/gh.log"
+                [ -z "${edit_fails:-}" ] ;;
+            *) echo "unexpected gh $*" >&2; return 1 ;;
+        esac
+    }
     git init --quiet --bare "$scratch/remote.git"
     git clone --quiet "$scratch/remote.git" "$scratch/delete"
     cd "$scratch/delete"
@@ -95,6 +193,46 @@ unset -f gh
     delete_head remote-moved "$moved" true
     [ -n "$(git ls-remote origin refs/heads/remote-moved)" ]
     echo 'PASS: delete_head matching, moved remote, moved local and fork'
+    git push --quiet origin "$head:refs/heads/stacked"
+    edit_fails=1
+    output=$(delete_head stacked "$head" 2>&1)
+    [ "$(git ls-remote origin refs/heads/stacked | cut -f1)" = "$head" ]
+    [[ "$output" == *'WARN: kept origin/stacked: PR #7 still targets it'* ]]
+    echo 'PASS: delete_head keeps a branch whose stacked PR could not move to main'
+    edit_fails=
+    delete_head stacked "$head"
+    [ "$(tail -1 "$scratch/gh.log")" = 'edit 7 1' ]
+    [ -z "$(git ls-remote origin refs/heads/stacked)" ]
+    echo 'PASS: delete_head moves a stacked PR to main before deleting its base'
+    git push --quiet origin "$head:refs/heads/unlistable"
+    output=$(delete_head unlistable "$head" 2>&1)
+    [ -n "$(git ls-remote origin refs/heads/unlistable)" ]
+    [[ "$output" == *'WARN: kept origin/unlistable: cannot list PRs based on it'* ]]
+    echo 'PASS: delete_head keeps a branch when it cannot list the PRs based on it'
+)
+(
+    eval "$(sed -n -e '/^route() {$/,/^}$/p' -e '/^as_maintainer() {$/,/^}$/p' -e '/^stamp() {$/,/^}$/p' "$root/notchcast/land.sh")"
+    train=(41 42) check=0 status=0
+    notchcast_mac_route() { echo "handed over: $*"; }
+    output=$(route 'mac-only: CalcTests') || status=$?
+    [ "$status" -eq 4 ] && [[ "$output" == *'ROUTED: #41 42 goes to a Mac, not landed here: mac-only: CalcTests'*'handed over: 41 42'* ]]
+    unset -f notchcast_mac_route
+    output=$(route 'mac-only: CalcTests') || status=$?
+    [ "$status" -eq 4 ] && [[ "$output" == *'No Mac route here'*'notchcast/land.sh 41 42'* ]]
+    echo 'PASS: a routed landing exits 4 and goes through the notchcast_mac_route hook, or says how to land it on a Mac'
+    cd "$scratch/delete"
+    source "$root/notchcast/config.env"
+    base=$(git rev-parse HEAD) parent=$base
+    for pr in 41 42; do
+        printf 'Notchcast: fixture (#%s)\n' "$pr" > "$scratch/message-$pr"
+        parent=$(as_maintainer git commit-tree "$base^{tree}" -p "$parent" -F "$scratch/message-$pr")
+        echo "$parent" > "$scratch/commit-$pr"
+    done
+    landed_from=linux
+    stamp
+    [ "$tip" = "$(< "$scratch/commit-42")" ] && [ "$(git rev-parse "$tip^")" = "$(< "$scratch/commit-41")" ] && [ "$(git rev-parse "$tip^^")" = "$base" ]
+    [ "$(git log --format='%s|%(trailers:key=Landed-from,valueonly,separator=)' "$base..$tip" | tr '\n' ' ')" = 'Notchcast: fixture (#42)|linux Notchcast: fixture (#41)|linux ' ]
+    echo 'PASS: every commit of a landed chain says where its harness proof ran (Landed-from)'
 )
 if [ "${1:-}" = --statuses ]; then
     echo 'PASS: local build status fixtures'
@@ -120,7 +258,7 @@ land="$root/notchcast/land.sh"
 if [ "${1:-}" != --full ]; then
     cp -R "$root/notchcast" "$scratch/tools"
     mv "$scratch/tools/changed-harnesses.sh" "$scratch/tools/changed-harnesses-full.sh"
-    printf '#!/bin/bash\n"$(dirname "$0")/changed-harnesses-full.sh" "$@" | { grep -x notchcast-hidden-features-test || true; }\n' \
+    printf '#!/bin/bash\n"$(dirname "$0")/changed-harnesses-full.sh" "$@" | { grep -x -e notchcast-hidden-features-test -e FavoritesTests || true; }\n' \
         > "$scratch/tools/changed-harnesses.sh"
     chmod +x "$scratch/tools/changed-harnesses.sh"
     land="$scratch/tools/land.sh"
@@ -168,7 +306,37 @@ if grep -q 'merging from' "$scratch/fork.log"; then cat "$scratch/fork.log"; exi
 echo 'PASS: a PR from before the rewrite that merged the new main lands by a plain merge'
 git for-each-ref --format='delete %(refname)' refs/notchcast/synced/ | git update-ref --stdin
 if [ "${1:-}" = --fork ]; then exit 0; fi
-git switch --quiet -c fixture-a
+# The three ways a landing started on Linux ends; NOTCHCAST_PLATFORM plays Linux on a Mac too.
+favorites=Tinycast/Features/Launcher/Model/FavoriteSlots.swift
+git switch --quiet -c linux-ok "$base"
+echo '// landing fixture' >> "$favorites"
+git commit --quiet -am 'Fixture: an input of a linux-ok harness'
+linux_ok=$(git rev-parse HEAD)
+NOTCHCAST_PLATFORM=Linux "$land" --check "$base" "$linux_ok" > "$scratch/linux.log" 2>&1 || { cat "$scratch/linux.log"; exit 1; }
+grep -q 'every harness this diff reaches is linux-ok; proving it here on 1 of them' "$scratch/linux.log"
+grep -q 'ok .*FavoritesTests' "$scratch/linux.log" && grep -q 'PASS: merged-tree harnesses' "$scratch/linux.log"
+echo 'PASS: every reached harness linux-ok: Linux proves the merged tree itself'
+git switch --quiet -c linux-mac "$linux_ok"
+echo '// landing fixture' >> Tinycast/Features/Notchcast/Hidden/NotchcastHidden.swift
+git commit --quiet -am 'Fixture: an input of a mac-only harness too'
+status=0
+NOTCHCAST_PLATFORM=Linux "$land" --check "$base" HEAD > "$scratch/linux.log" 2>&1 || status=$?
+[ "$status" -eq 4 ] || { cat "$scratch/linux.log"; exit 1; }
+grep -q 'ROUTED: this diff lands from a Mac, not from Linux: mac-only: .*notchcast-hidden-features-test' "$scratch/linux.log"
+! grep -q 'FavoritesTests  ' "$scratch/linux.log"
+echo 'PASS: one mac-only harness reached: routed to a Mac, nothing run on Linux'
+git switch --quiet -c linux-red "$base"
+echo 'let landingFixture: Int = ""' >> "$favorites"
+git commit --quiet -am 'Fixture: break a linux-ok harness'
+status=0
+NOTCHCAST_PLATFORM=Linux "$land" --check "$base" HEAD > "$scratch/linux.log" 2>&1 || status=$?
+[ "$status" -eq 1 ] && grep -q 'REFUSED: FavoritesTests failed' "$scratch/linux.log" || { cat "$scratch/linux.log"; exit 1; }
+echo 'PASS: the Linux run red: refused'
+guard_tests
+if [ "$(uname -s)" != Darwin ]; then
+    echo 'SKIPPED off a Mac: the two-PR merged-tree fixtures, which compile the mac-only notchcast-hidden-features-test'
+else
+git switch --quiet -c fixture-a "$base"
 python3 - <<'PY'
 import re
 from pathlib import Path
@@ -206,6 +374,7 @@ status=0
 "$land" --check "$b" "$a" > "$scratch/combined.log" 2>&1 || status=$?
 [ "$status" -eq 1 ]
 grep 'REFUSED: notchcast-hidden-features-test failed' "$scratch/combined.log"
+fi
 edit_config() {
     echo "$1" >> notchcast/config.env
     git add notchcast/config.env
