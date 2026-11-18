@@ -43,7 +43,9 @@ final class NotchcastController {
             NotchcastContext(
                 defaults: defaults, preferences: preferences, presenter: presenter, hub: hub,
                 transcription: transcription, now: now,
-                onTapsChanged: { [weak self] in self?.applyTaps() }, recovery: recovery)
+                onTapsChanged: { [weak self] in self?.applyTaps() },
+                onCommandsChanged: { [weak self] in if self?.isRunning == true { self?.publishCommands() } },
+                recovery: recovery)
         }
         slots = addons.map { addon in
             let recovery = makeContext()
@@ -140,9 +142,10 @@ final class NotchcastController {
         onCommandsChanged?(commands)
     }
 
-    /// The enabled commands the launcher lists; a hidden one keeps its hotkey.
+    /// The enabled commands the launcher lists; a hidden or unavailable one keeps its hotkey.
     func launcherCommands(_ commands: [NotchcastCommand]) -> [NotchcastCommand] {
-        commands.filter { preferences.showsInLauncher($0.id) }
+        let unavailable = slots.reduce(into: Set<String>()) { $0.formUnion($1.context.unavailableCommands) }
+        return commands.filter { preferences.showsInLauncher($0.id) && !unavailable.contains($0.id) }
     }
 
     /// Hands the hub the full list, so a tap enabled late still runs where it was subscribed.
