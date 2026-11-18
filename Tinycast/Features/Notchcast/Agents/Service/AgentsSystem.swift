@@ -17,10 +17,12 @@ struct AgentsSystem {
 /// Reads one feed file and nothing it points at: a link could name another app's file (946-5).
 enum AgentsFeedReader {
     static func file(at url: URL) -> AgentsFeedFile {
-        let values = try? url.resourceValues(forKeys: [.isRegularFileKey, .isSymbolicLinkKey])
-        guard let values, values.isRegularFile == true, values.isSymbolicLink != true,
-              let handle = try? FileHandle(forReadingFrom: url) else { return .missing }
+        let descriptor = open(url.path, O_RDONLY | O_NOFOLLOW | O_NONBLOCK)
+        guard descriptor >= 0 else { return .missing }
+        let handle = FileHandle(fileDescriptor: descriptor, closeOnDealloc: true)
         defer { try? handle.close() }
+        var status = stat()
+        guard fstat(descriptor, &status) == 0, status.st_mode & S_IFMT == S_IFREG else { return .missing }
         let data = (try? handle.read(upToCount: AgentsFeedFile.maxBytes + 1)) ?? Data()
         return data.count > AgentsFeedFile.maxBytes ? .tooLarge : .data(data)
     }

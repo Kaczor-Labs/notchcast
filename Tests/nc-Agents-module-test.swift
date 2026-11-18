@@ -231,6 +231,7 @@ struct AgentsModuleTest {
             try Data(count: AgentsFeedFile.maxBytes + 1).write(to: url("big.json"))
             try FileManager.default.createSymbolicLink(at: url("link.json"), withDestinationURL: url("small.json"))
             try FileManager.default.createDirectory(at: url("folder.json"), withIntermediateDirectories: true)
+            guard mkfifo(url("pipe.json").path, 0o600) == 0 else { return check(false, "scratch pipe") }
         } catch {
             return check(false, "scratch files: \(error)")
         }
@@ -240,5 +241,6 @@ struct AgentsModuleTest {
         check(AgentsFeedReader.file(at: url("absent.json")) == .missing, "no file")
         check(AgentsFeedReader.file(at: url("link.json")) == .missing, "a link is never followed to another file")
         check(AgentsFeedReader.file(at: url("folder.json")) == .missing, "a folder is no feed")
+        check(AgentsFeedReader.file(at: url("pipe.json")) == .missing, "a pipe is no feed and never waits for a writer")
     }
 }

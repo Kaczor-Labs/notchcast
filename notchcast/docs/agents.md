@@ -4,10 +4,10 @@ The Agents add-on (`Tinycast/Features/Notchcast/Agents/`, switch `agentsPage`, "
 
 ## Invariants
 
-- **Notchcast only reads the two feed files.** `agents.json` and `usage.json` in `Feeds/` inside Notchcast's own Application Support folder (`~/Library/Application Support/app.notchcast/Feeds/`, Debug `app.notchcast.dev`; Settings shows the path). It makes that folder and writes nothing else there. It never reads another app's files or databases: a symlink in place of a feed file is not followed (`AgentsFeedReader`).
-- **A stale feed is never shown as live.** Past `updatedAt + staleAfter` its last values stay on the page under a "Stale" row with their time, and it gives no badge, no ask line and no closed-island status.
+- **Notchcast only reads the two feed files.** `agents.json` and `usage.json` in `Feeds/` inside Notchcast's own Application Support folder (`~/Library/Application Support/app.notchcast/Feeds/`, Debug `app.notchcast.dev`; Settings shows the path). It makes that folder and writes nothing else there. It never reads another app's files or databases: a symlink in place of a feed file is not followed, and a pipe or folder is not read (`AgentsFeedReader`).
+- **A stale feed is never shown as live.** Past `updatedAt + staleAfter`, or dated `staleAfter` or more ahead of the Mac's clock, its last values stay on the page under a "Stale" row with their time, and it gives no badge, no ask line and no closed-island status.
 - **Percent is always percent left.** `percentLeft` is shown as it comes, rounded down; nothing is derived from "used".
-- **Only https and app URL schemes open.** `openURL` values with `http`, `file`, `javascript`, `data`, a share or a shell scheme are dropped at parse time (`AgentsFeedFields.refusedSchemes`).
+- **Only https and app URL schemes open.** `openURL` values with `http`, `file`, `javascript`, `data`, a share, shell, call (`facetime`, `tel`) or message (`sms`, `mailto`) scheme are dropped at parse time (`AgentsFeedFields.refusedSchemes`).
 - **The add-on describes, the island draws.** Everything goes through `context.presenter`: `setPage`, `setStatus` and `post`. It opens no window and adds no view to the island.
 
 ## The feed files (for the producer)
@@ -66,6 +66,6 @@ Closed-island priority (946-3) is `IslandRestRank` in `Features/Island/Model/Isl
 
 ## Proof
 
-`nc-Agents-model-test` covers parsing, limits, links, staleness, the page, the badge, the closed-island rank and the ask log with injected files and clock. `nc-Agents-module-test` drives the shipped module through `AgentsAddon.makeModule` with a fake folder, watcher, clock and wake-up, and runs the shipped file reader against scratch files (size cap, symlink refused). `nc-Agents-render-test` renders the page, Home, the badged tab, the stale and no-data states and the closed island's badge, ask line and low-plan status from the sample feeds, in both forms on Black and Frosted (`976-*.png`, uploaded by CI as `island-renders-<shard>`).
+`nc-Agents-model-test` covers parsing, limits, links, staleness, the page, the badge, the closed-island rank and the ask log with injected files and clock. `nc-Agents-module-test` drives the shipped module through `AgentsAddon.makeModule` with a fake folder, watcher, clock and wake-up, and runs the shipped file reader against scratch files (size cap, symlink and pipe refused). `nc-Agents-render-test` renders the page, Home, the badged tab, the stale and no-data states and the closed island's badge, ask line and low-plan status from the sample feeds, in both forms on Black and Frosted (`976-*.png`, uploaded by CI as `island-renders-<shard>`).
 
 Not verified: anything live (the folder watcher on a real rename, hover and the click on "Open", the notice on a real notch, the status taking the pill from a real meeting glance), VoiceOver, and a producer other than the sample files.

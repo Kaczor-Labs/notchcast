@@ -136,10 +136,10 @@ struct AgentsFeedFields {
     static let urlLength = 2048
     static let defaultStaleAfter: TimeInterval = 300
     static let staleAfterRange: ClosedRange<TimeInterval> = 5...86_400
-    /// Web, file, share and shell schemes are no app's own; only https passes among them.
+    /// Web, file, share, shell, call and message schemes are no app's own; only https passes among them.
     static let refusedSchemes: Set<String> = [
         "http", "file", "ftp", "sftp", "smb", "afp", "nfs", "vnc", "ssh", "telnet", "javascript", "data", "blob",
-        "about", "vbscript", "applescript",
+        "about", "vbscript", "applescript", "facetime", "facetime-audio", "tel", "sms", "mailto",
     ]
 
     private let raw: [String: Any]
@@ -193,5 +193,6 @@ struct AgentsFeedFields {
             ?? Self.defaultStaleAfter
     }
 
-    func isStale(_ updatedAt: Date, now: Date) -> Bool { now.timeIntervalSince(updatedAt) >= staleAfter }
+    /// A feed dated ahead of our clock by as much is no more trustworthy than an old one.
+    func isStale(_ updatedAt: Date, now: Date) -> Bool { abs(now.timeIntervalSince(updatedAt)) >= staleAfter }
 }

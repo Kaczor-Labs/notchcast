@@ -130,8 +130,8 @@ struct AgentsModelTest {
         check(board(at: "2026-11-18T10:01:30Z").nextRefresh == 30, "counted from now")
         check(stale.nextRefresh == 60, "then once a minute, for the times on the page")
         check(board(agents: .missing, usage: .missing, at: "2026-11-18T10:01:00Z").nextRefresh == nil, "nothing to wait for")
-        let future = board(at: "2026-11-18T09:00:00Z")
-        check(future.agents.live != nil, "a helper clock ahead of ours is still live")
+        check(board(at: "2026-11-18T09:58:01Z").agents.live != nil, "a helper clock a little ahead of ours is still live")
+        check(board(at: "2026-11-18T09:58:00Z").agents.live == nil, "a feed dated staleAfter ahead is stale")
     }
 
     static func unreadable() {
@@ -188,7 +188,8 @@ struct AgentsModelTest {
         }
         check(link("https://agents.example/a") != nil && link("exampleagents://thread/1") != nil, "https and app schemes")
         for refused in ["http://agents.example", "file:///etc/hosts", "javascript:alert(1)", "FILE:///etc/hosts",
-                        "data:text/html,x", "ssh://host", "smb://host/share", "https:///nohost", "no scheme", ""] {
+                        "data:text/html,x", "ssh://host", "smb://host/share", "https:///nohost", "no scheme", "",
+                        "facetime:a@b.example", "facetime-audio:a@b.example", "tel:112", "sms:112", "mailto:a@b.example"] {
             check(link(refused) == nil, "refused: \(refused)")
         }
         check(link("https://agents.example/" + String(repeating: "a", count: 2100)) == nil, "an overlong link is refused")

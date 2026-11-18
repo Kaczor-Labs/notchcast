@@ -14,7 +14,7 @@ extension AgentsSystem {
             },
             wake: { seconds, action in
                 let task = Task {
-                    guard (try? await Task.sleep(for: .seconds(seconds))) != nil else { return }
+                    guard (try? await Task.sleep(for: .seconds(seconds))) != nil, !Task.isCancelled else { return }
                     action()
                 }
                 return { task.cancel() }
