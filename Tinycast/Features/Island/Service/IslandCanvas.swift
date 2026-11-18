@@ -18,7 +18,9 @@ final class IslandCanvas: NSView {
     var glanceWidth: CGFloat = 0
     var keylineEnabled = true
     var scale: CGFloat = 2
-    var look = IslandLook.black { didSet { if look != oldValue { onAppearanceChange?() } } }
+    var look = IslandLook.black { didSet { if look != oldValue { replay?(self); onAppearanceChange?() } } }
+    /// Each art resolves its inks once, so a look flip replays the last `show` to rebuild it.
+    private var replay: ((IslandCanvas) -> Void)?
     /// Frosted under Reduce Transparency or Increase Contrast paints its glass solid.
     var solidGlass = false
     var restingKeyline = 0.0
@@ -141,21 +143,24 @@ final class IslandCanvas: NSView {
     /// The presenter's order: level, notice, meeting glance, then status; a notch grows a headline.
     func show(glance: IslandGlance?, level: IslandLevel?, notice: IslandNotice?, statuses: [IslandStatus],
               expanded: Bool, notch: CGFloat?) {
+        replay = { $0.show(glance: glance, level: level, notice: notice, statuses: statuses, expanded: expanded,
+                           notch: notch) }
+        let frosted = look == .frosted
         headline = if let notch, level == nil, let notice, notice.isHeadline {
-            IslandHeadlineArt(notice, notch: notch)
+            IslandHeadlineArt(notice, notch: notch, frosted: frosted)
         } else { nil }
         let notched = notch != nil
         let art: (any PillArt)? = if let level {
-            IslandLevelArt(level, notch: notched)
+            IslandLevelArt(level, notch: notched, frosted: frosted)
         } else if let notice {
-            headline == nil ? IslandNoticeArt(notice, notch: notched) : nil
+            headline == nil ? IslandNoticeArt(notice, notch: notched, frosted: frosted) : nil
         } else if let glance {
-            GlanceArt(glance, notch: notched)
+            GlanceArt(glance, notch: notched, frosted: frosted)
         } else if !statuses.isEmpty {
-            IslandStatusArt(statuses, notch: notched)
+            IslandStatusArt(statuses, notch: notched, frosted: frosted)
         } else { nil }
         self.glance = art
-        expansion = level == nil && notice == nil && expanded ? glance.map(IslandExpansionArt.init) : nil
+        expansion = level == nil && notice == nil && expanded ? glance.map { IslandExpansionArt($0, frosted: frosted) } : nil
         if expansion != nil { leaving = nil }
     }
 }
@@ -178,12 +183,14 @@ struct GlanceArt: PillArt {
     private let countdown: NSAttributedString
     private let gap = Theme.Spacing.sm
 
-    init(_ glance: IslandGlance, notch: Bool) {
+    init(_ glance: IslandGlance, notch: Bool, frosted: Bool) {
         self.notch = notch
         let font = NotchTheme.Typography.islandGlanceNSFont
-        let primary: [NSAttributedString.Key: Any] = [.font: font, .foregroundColor: NSColor(Theme.Colors.textPrimary)]
-        let secondary: [NSAttributedString.Key: Any] = [.font: font, .foregroundColor: NSColor(Theme.Colors.textSecondary)]
-        glyph = Self.glyph(glance.symbol)
+        let primary: [NSAttributedString.Key: Any] = [.font: font,
+            .foregroundColor: Theme.Colors.textPrimary.islandInk(frosted: frosted)]
+        let secondary: [NSAttributedString.Key: Any] = [.font: font,
+            .foregroundColor: Theme.Colors.textSecondary.islandInk(frosted: frosted)]
+        glyph = Self.glyph(glance.symbol, tone: Theme.Colors.textPrimary.islandInk(frosted: frosted))
         title = NSAttributedString(string: glance.title, attributes: primary)
         separator = NSAttributedString(string: " · ", attributes: secondary)
         countdown = NSAttributedString(string: glance.countdown, attributes: primary)
@@ -192,7 +199,7 @@ struct GlanceArt: PillArt {
             countdown: countdown.size().width, wing: NotchTheme.Size.islandGlanceWing)
     }
 
-    static func glyph(_ name: String, tone: NSColor = NSColor(Theme.Colors.textPrimary)) -> NSImage? {
+    static func glyph(_ name: String, tone: NSColor) -> NSImage? {
         let symbol = NSImage.SymbolConfiguration(pointSize: NotchTheme.Typography.islandGlanceNSFont.pointSize, weight: .medium)
             .applying(.init(paletteColors: [tone]))
         return NSImage(systemSymbolName: name, accessibilityDescription: nil)?.withSymbolConfiguration(symbol)
