@@ -344,15 +344,25 @@ struct NotchcastCoreTest {
                   && controller.run(entryID: "command:nc-probe-run"))
         controller.preferences.setShowsInLauncher("command:nc-probe-run", true)
         check("Show in launcher on lists it again", published.count == 3 && controller.launcherCommands(probe).count == 1)
+        let probeContext = controller.context(forSwitch: "probeMain")
+        probeContext?.setUnavailable(["command:nc-probe-run"])
+        check("a command its module marks unavailable leaves the launcher, keeping its hotkey",
+              published.count == 4 && controller.launcherCommands(probe).isEmpty && controller.enabledCommands.count == 1)
+        probeContext?.setUnavailable(["command:nc-probe-run"])
+        check("marking it unavailable again publishes nothing", published.count == 4)
+        probeContext?.setUnavailable([])
+        check("available again lists it again", published.count == 5 && controller.launcherCommands(probe).count == 1)
 
         controller.preferences.set("probeChild", on: true)
         drain()
         check("a declared tap follows its switch", hub.subscriberCount == 2)
         check("a second switch does not restart the module", ProbeLog.events == ["start"])
 
+        probeContext?.setUnavailable(["command:nc-probe-run"])
         controller.preferences.set("probeMain", on: false)
         drain()
         check("toggling off stops the module", ProbeLog.events == ["start", "stop"])
+        check("a stopped module's unavailable commands are cleared", probeContext?.unavailableCommands.isEmpty == true)
         check("its taps and dependents' taps go", hub.subscriberCount == 0 && !hub.isRunning)
         check("a stopped module's digit handler is gone",
               controller.launcherRow(digit: 1, query: "sa", entryRows: [2, 5]) == nil)
