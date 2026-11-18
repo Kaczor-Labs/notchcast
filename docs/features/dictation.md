@@ -28,6 +28,7 @@ compilation of its 2-bit weights; Ultra's encoder and both variants' decoder/joi
   binding; hold-to-talk accepts a Carbon chord or a single physical modifier, including Globe.
   Modifier holds begin after 250 ms alone and reserve their key across single and double taps.
   Another modifier, key or click cancels the hold without inserting text. Double taps require toggle.
+- The Globe key mode needs no recorded shortcut; one that is recorded toggles in it. Released within 300 ms with no other input, a Globe press is a tap: it starts recording, and the next press finishes. Held past 300 ms it records until release. Another key, modifier or click during the press makes it a shortcut instead, and discards a held recording; Return and Escape keep their panel meaning. `DictationMode.GlobeDetector` decides on the events' monotonic timestamps; `NotchcastGlobeTrigger` feeds it from event monitors installed only while Dictation is enabled in this mode, and owns the 300 ms timer. A field's own mic session ignores the Globe key. macOS's own "Press 🌐 key to" action must be set to Do Nothing; the pane says so and opens Keyboard settings.
 - Carbon or the shared modifier monitor reports release to stop a held recording. Return finishes,
   Escape cancels. Opening a shortcut recorder cancels a held recording before pausing its shortcuts.
   A session token
@@ -137,6 +138,7 @@ compilation of its 2-bit weights; Ultra's encoder and both variants' decoder/joi
 `DictationFieldTests` checks composer switching and teardown, scoped cancellation, delayed insertion and
 the order of sound cues against ducking
 with synthetic capture and real AppKit editors, without recording audio or touching the shared clipboard.
+`nc-Dictation-globe-test` checks the Globe tap-or-hold decision on synthetic timestamps.
 `DictationTests` checks formatting and model options; `DictationInferenceTests` checks score selection,
 byte BPE, Fourier/mel features, listening bands and audio partitioning without downloading a model. `DictationWorkerTests`
 exercises framed IPC, worker reuse/switching, removal, cancellation and broken pipes with a fixture.
@@ -151,7 +153,7 @@ multipart forms fed byte by byte, responses, and the dictation-wins queue throug
 fakes, without a socket, a timer or a model.
 
 Also exercise all four real models, short and long recordings, downloads/removal, initial microphone
-grant and denial, hold/toggle shortcuts, Return/Escape, output destinations, live insertion on and off, surrounding text with
+grant and denial, hold/toggle shortcuts, Globe tap and hold, Return/Escape, output destinations, live insertion on and off, surrounding text with
 capitalization adaptation on and off,
 model switching and idle release/reload. Check both processes in Activity Monitor, and validate
 Debug and Release helper names, signatures and architecture slices. Model conversions and their
