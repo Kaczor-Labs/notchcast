@@ -122,10 +122,16 @@ final class PseudoTerminal: @unchecked Sendable {
 
     /// Blocks until the command exits. A signalled death reports the signal, the way a shell does.
     func wait() -> Int32 {
+        var info = siginfo_t()
+        // Left a zombie until `deinit`, so a late `signalSession` never reaches a reused number.
+        while waitid(P_PID, id_t(processID), &info, WEXITED | WNOWAIT) < 0 && errno == EINTR {}
+        if info.si_code == CLD_EXITED { return info.si_status & 0xFF }
+        return 128 + info.si_status
+    }
+
+    deinit {
         var status: Int32 = 0
-        while waitpid(processID, &status, 0) < 0 && errno == EINTR {}
-        if status & 0x7F != 0 { return 128 + (status & 0x7F) }
-        return (status >> 8) & 0xFF
+        while waitpid(processID, &status, WNOHANG) < 0 && errno == EINTR {}
     }
 
     func close() {
