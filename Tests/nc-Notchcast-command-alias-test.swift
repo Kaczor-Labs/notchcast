@@ -19,7 +19,7 @@ import AppKit
 import Carbon.HIToolbox
 import Observation
 
-/// Two shipped add-on commands take an alias and sit in the Commands pane, as a stock command does.
+/// Two shipped add-on commands take an alias and a hotkey, and run with stock Commands switched off.
 @main
 @MainActor
 enum NotchcastCommandAliasTests {
@@ -44,12 +44,12 @@ enum NotchcastCommandAliasTests {
             ("command:nc-screenshot-area", "Capture Area", "xj", []),
         ]
         index.extraCommandEntries = commands.map {
-            AppEntry(notchcastCommand: $0.0, name: $0.1, symbol: "key", keywords: $0.3)
+            AppEntry(notchcastCommand: $0.0, name: $0.1, symbol: "key", keywords: $0.3, owner: .addonTab)
         }
         for (id, name, alias, _) in commands {
             let entry = index.apps.first { $0.id == id }
-            check("\(name) is a Commands row the Commands pane lists",
-                  entry?.kind == .command && entry?.settingsOwner == nil)
+            check("\(name) is owned by its add-on tab, which draws its alias and hotkey fields",
+                  entry?.kind == .command && entry?.settingsOwner == .addonTab)
             check("\(name) keys its alias by its entry id", entry?.preferenceKey == id)
             check("\(name) is not found by its alias before one is set", index.matches(alias).first?.id != id)
             aliases.setAlias(alias, for: id)
@@ -57,9 +57,22 @@ enum NotchcastCommandAliasTests {
             check("\(name)'s alias survives a relaunch", AliasStore(defaults: defaults).alias(for: id) == alias)
         }
         hotKeys(index.apps.filter { $0.id.hasPrefix("command:nc-") }, defaults: defaults)
+        stockCommandsOff(index.apps.filter { $0.id.hasPrefix("command:nc-") }, defaults: defaults)
         print("\(checks) add-on command alias checks; \(failures) failures")
         if failures > 0 { exit(1) }
         print("PASSED")
+    }
+
+    /// The stock Commands switch gates stock commands only; Capture Area must survive it being off.
+    static func stockCommandsOff(_ entries: [AppEntry], defaults: UserDefaults) {
+        let visibility = VisibilityStore(defaults: defaults)
+        visibility.setKindEnabled(false, for: .command)
+        check("both shipped commands are checked with Commands off", entries.count == 2)
+        for entry in entries {
+            check("\(entry.name) stays in the launcher with Commands off", visibility.isVisible(entry))
+            check("\(entry.name)'s hotkey still fires with Commands off",
+                  entry.hotKeyAction.map { visibility.allowsHotKey($0) } == true)
+        }
     }
 
     /// The shortcut recorder binds whatever `AppEntry.hotKeyAction` returns, so that action must fire.
@@ -89,7 +102,7 @@ enum NotchcastCommandAliasTests {
 }
 
 // Empty feature catalogs keep this harness on the launcher index; AppInstallationTests stubs the same.
-enum SettingsTab: Sendable { case ai }
+enum SettingsTab: Sendable { case ai, addonTab }
 enum ExtensionRefreshState: Hashable, Sendable { case idle }
 enum EntryIcon: Hashable, Sendable { case file(stamp: Int), symbol(String) }
 enum IconCache {

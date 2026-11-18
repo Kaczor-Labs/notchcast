@@ -31,7 +31,7 @@ struct NotchcastSettingsView: View {
     }
 }
 
-/// A switch, then its extra rows while it is on; its commands' hotkeys live in Settings › Commands.
+/// A switch, then its commands' alias and hotkey fields and its extra rows while it is on.
 private struct NotchcastSwitchRows: View {
     let controller: NotchcastController
     let item: NotchcastSwitch
@@ -53,7 +53,7 @@ private struct NotchcastSwitchRows: View {
         .settingsEnabled(dependenciesMet)
         if preferences.isEnabled(item.id), needsAccessibility {
             LabeledContent {
-                Button(String(localized: "Grant access…", table: "Notchcast")) { Permissions.openAccessibilitySettings() }
+                Button("Grant Access…") { Permissions.openAccessibilitySettings() }
             } label: {
                 Label(
                     String(localized: "Needs Accessibility access", table: "Notchcast"),
@@ -61,9 +61,17 @@ private struct NotchcastSwitchRows: View {
                     .foregroundStyle(Theme.Colors.warning)
             }
         }
-        if preferences.isEnabled(item.id), let context = controller.context(forSwitch: item.id) {
-            ForEach(controller.slots.flatMap(\.settings).filter { $0.row.switchID == item.id }) { entry in
-                entry.row.view(context)
+        if preferences.isEnabled(item.id) {
+            ForEach(controller.slots.flatMap { $0.addon.commands }.filter { $0.switchID == item.id }) { command in
+                SettingsRow(title: command.name) {
+                    AliasField(key: command.id, name: command.name)
+                    ShortcutRecorder(action: .notchcastCommand(entryID: command.id))
+                }
+            }
+            if let context = controller.context(forSwitch: item.id) {
+                ForEach(controller.slots.flatMap(\.settings).filter { $0.row.switchID == item.id }) { entry in
+                    entry.row.view(context)
+                }
             }
         }
     }

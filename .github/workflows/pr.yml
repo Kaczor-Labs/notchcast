@@ -14,12 +14,14 @@ on:
 permissions:
   contents: read
 
+# One group per workflow and PR head: a dispatch and a pull_request run on one head never both run.
 concurrency:
-  group: pr-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: true
+  group: ${{ github.workflow }}-${{ github.ref_name == github.event.repository.default_branch && github.run_id || github.event.pull_request.head.label || format('{0}:{1}', github.repository_owner, github.ref_name) }}
+  cancel-in-progress: ${{ github.ref_name != github.event.repository.default_branch }}
 
 jobs:
   # On Linux: a runner for checks (slot 0), each shard and the script tests (slot 4), hosted first, then the maintainer Mac pool (notchcast/runner/route.py).
+  # It also names the lanes the diff needs (notchcast/lanes.py): a skipped one still reports, and build accepts it.
   route:
     if: github.event_name == 'workflow_dispatch' || !github.event.pull_request.draft
     runs-on: ubuntu-latest
@@ -29,11 +31,24 @@ jobs:
       actions: read
     outputs:
       runners: ${{ steps.route.outputs.runners }}
+      build: ${{ steps.lanes.outputs.build }}
+      scripts: ${{ steps.lanes.outputs.scripts }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           sparse-checkout: notchcast
+          fetch-depth: 0
           persist-credentials: false
+      - name: Lanes the diff needs
+        id: lanes
+        env:
+          BASE: ${{ github.event.pull_request.base.sha || inputs.base }}
+        shell: bash
+        run: |
+          case "$GITHUB_HEAD_REF" in
+            v2/addons-*) printf 'build=true\nscripts=true\n' | tee -a "$GITHUB_OUTPUT" ;;
+            *) python3 notchcast/lanes.py "${BASE:-$(git merge-base origin/main HEAD)}" HEAD | tee -a "$GITHUB_OUTPUT" ;;
+          esac
       - id: route
         uses: ./notchcast/actions/route
         with:
@@ -42,7 +57,7 @@ jobs:
             ${{ vars.NOTCHCAST_IDLE_MBA }}
   checks:
     needs: route
-    if: github.event_name == 'workflow_dispatch' || !github.event.pull_request.draft
+    if: needs.route.outputs.build == 'true'
     runs-on: ${{ fromJSON(needs.route.outputs.runners)[0] }}
     timeout-minutes: 20
     steps:
@@ -65,7 +80,7 @@ jobs:
   # The whole suite, split by harness name (notchcast/test-harnesses.sh), beside the checks job.
   harnesses:
     needs: route
-    if: github.event_name == 'workflow_dispatch' || !github.event.pull_request.draft
+    if: needs.route.outputs.build == 'true'
     runs-on: ${{ fromJSON(needs.route.outputs.runners)[matrix.slot] }}
     timeout-minutes: 60
     strategy:
@@ -93,8 +108,8 @@ jobs:
   # On macOS like the tools they test (BSD sed and date, swift, xcrun), in parallel (notchcast/script-tests.py).
   script-tests:
     needs: route
-    if: github.event_name == 'workflow_dispatch' || !github.event.pull_request.draft
-    runs-on: ${{ fromJSON(needs.route.outputs.runners)[4] }}
+    if: needs.route.outputs.scripts == 'true'
+    runs-on: ${{ fromJSON(needs.route.outputs.runners)[needs.route.outputs.build == 'true' && 4 || 0] }}
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
@@ -107,9 +122,9 @@ jobs:
         run: bash notchcast/fetch-upstream.sh --no-tags
       - name: Script tests
         run: python3 notchcast/script-tests.py --all
-  # land.sh reads the check named build: green only when checks, every shard and every script test are.
+  # land.sh reads the check named build: green only when every lane the diff needs is.
   build:
-    needs: [checks, harnesses, script-tests]
+    needs: [route, checks, harnesses, script-tests]
     if: ${{ !cancelled() && (github.event_name == 'workflow_dispatch' || !github.event.pull_request.draft) }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -119,22 +134,38 @@ jobs:
         run: |
           echo "::error::train branches are dispatched by notchcast/train.sh with -f base=<main sha>"
           exit 1
-      - name: Checks, every harness shard and the script tests passed
-        if: >-
-          needs.checks.result != 'success' || needs.harnesses.result != 'success' || needs.script-tests.result != 'success'
+      - name: Every lane the diff needs passed, and only those were skipped
+        env:
+          ROUTE: ${{ needs.route.result }}
+          BUILD: ${{ needs.route.outputs.build }}
+          SCRIPTS: ${{ needs.route.outputs.scripts }}
+          CHECKS: ${{ needs.checks.result }}
+          HARNESSES: ${{ needs.harnesses.result }}
+          SCRIPT_TESTS: ${{ needs.script-tests.result }}
         run: |
-          echo "::error::checks: ${{ needs.checks.result }}, harnesses: ${{ needs.harnesses.result }}, script tests: ${{ needs.script-tests.result }}"
-          exit 1
+          case "$BUILD:$SCRIPTS" in true:true|false:true|false:false) ;; *) echo "::error::lanes said '$BUILD' '$SCRIPTS'"; exit 1;; esac
+          want() { if [ "$1" = true ]; then echo success; else echo skipped; fi; }
+          if [ "$ROUTE" != success ] || [ "$CHECKS" != "$(want "$BUILD")" ] || [ "$HARNESSES" != "$(want "$BUILD")" ] \
+              || [ "$SCRIPT_TESTS" != "$(want "$SCRIPTS")" ]; then
+            echo "::error::route: $ROUTE (build $BUILD, scripts $SCRIPTS), checks: $CHECKS, harnesses: $HARNESSES, script tests: $SCRIPT_TESTS"
+            exit 1
+          fi
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           persist-credentials: false
+      # check-config reads every notchcast/ file, docs too; the checks job runs it when the build lane does.
+      - name: Config literals
+        if: needs.route.outputs.build != 'true'
+        run: python3 notchcast/check-config.py
       # Only after a green build: Sync's plan skips testing a tree (GENERATED aside) a PR build already proved.
       - name: Record the tested tree
+        if: needs.route.outputs.build == 'true'
         id: tree
         run: |
           echo "key=$(python3 notchcast/ci.py tested-key HEAD)" >> "$GITHUB_OUTPUT"
           git rev-parse HEAD > "$RUNNER_TEMP/tested-commit"
       - uses: actions/upload-artifact@v7
+        if: needs.route.outputs.build == 'true'
         with:
           name: tested-tree-${{ steps.tree.outputs.key }}
           path: ${{ runner.temp }}/tested-commit

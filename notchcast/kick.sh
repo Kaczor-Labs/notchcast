@@ -40,6 +40,14 @@ fail() {
     exit 1
 }
 
+# Sync switched off on purpose (gh workflow disable, e.g. #871's stopgap): nothing to start and lag is expected.
+sync_state="$(gh api "repos/$FORK_REPO/actions/workflows/sync.yml" --jq .state 2>&1)" || fail "reading Sync state: $sync_state"
+if [ "$sync_state" != active ]; then
+    log "Sync is $sync_state; no trigger, no lag alert until it is enabled again"
+    [ "$DRY" = 1 ] || sed -i '' '/^kick-failed$/d' "$ALERTED"
+    exit 0
+fi
+
 upstream_main="$(gh api "repos/$UPSTREAM_REPO/commits/main" --jq .sha 2>&1)" || fail "reading upstream main: $upstream_main"
 upstream_release="$(gh release list -R "$UPSTREAM_REPO" -L 1 --json tagName --jq '.[0].tagName // ""' 2>&1)" \
     || fail "reading upstream releases: $upstream_release"
