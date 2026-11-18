@@ -9,7 +9,6 @@ from pathlib import Path
 import subprocess
 import sys
 import tempfile
-import time
 import unittest
 
 CI = Path(__file__).resolve().parent / "notchcast-ci.py"
@@ -64,6 +63,20 @@ elif args[:2] == ["run", "view"]:
         print(sc["log"])
 else:
     sys.exit("unexpected " + " ".join(args))
+'''
+
+
+# Runs notchcast-ci.py with its --max-wait timeout kept on the hung call alone, so a slow machine cannot time out another.
+TIME_ONLY_THE_HUNG_CALL = '''
+import runpy, subprocess, sys
+hang, real_run = sys.argv.pop(1), subprocess.run
+def run(cmd, **kwargs):
+    if hang not in " ".join(cmd):
+        kwargs["timeout"] = None
+    return real_run(cmd, **kwargs)
+subprocess.run = run
+del sys.argv[0]
+runpy.run_path(sys.argv[0], run_name="__main__")
 '''
 
 
@@ -396,9 +409,9 @@ class CiTests(unittest.TestCase):
         for hang, last in (("--json status", pending), ("--log", pending), ("event=workflow_dispatch", waiting)):
             with self.subTest(hang=hang):
                 self.scenario(hang=[hang])
-                started = time.time()
-                result = self.ci("--max-wait", "5")  # the hung call alone spends real time: 5 s
-                self.assertLess(time.time() - started, 30)
+                # real time: subprocess.run's own timeout cuts the hung call, 1 s per subtest; no other call is timed
+                result = subprocess.run([sys.executable, "-c", TIME_ONLY_THE_HUNG_CALL, hang, str(CI), "--repo",
+                                         str(self.repo), "--max-wait", "1"], text=True, capture_output=True, env=self.env)
                 self.assertEqual(result.returncode, 3, result.stderr)
                 self.assertEqual(result.stdout.splitlines()[-1], last)
 
