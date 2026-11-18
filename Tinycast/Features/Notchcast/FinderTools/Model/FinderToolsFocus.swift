@@ -3,6 +3,8 @@ import Foundation
 /// What holds keyboard focus in Finder, read from the focused element up to its window.
 enum FinderToolsFocus: Sendable, Equatable {
     case fileList
+    /// The file list with nothing selected: ⌘X has nothing to cut, so it never arms a move.
+    case emptyFileList
     /// A rename or search field: ⌘X and ⌘V stay text cut and paste.
     case text
     /// A menu, dialog or sheet: the original keys go through and the pending cut is dropped.
@@ -11,6 +13,7 @@ enum FinderToolsFocus: Sendable, Equatable {
     struct Element: Sendable, Equatable {
         let role: String
         var subrole: String?
+        var hasSelection = false
     }
 
     static let textRoles: Set<String> = ["AXTextField", "AXTextArea", "AXComboBox"]
@@ -27,7 +30,7 @@ enum FinderToolsFocus: Sendable, Equatable {
         }) {
             self = .blocked
         } else {
-            self = .fileList
+            self = chain.contains(where: \.hasSelection) ? .fileList : .emptyFileList
         }
     }
 }

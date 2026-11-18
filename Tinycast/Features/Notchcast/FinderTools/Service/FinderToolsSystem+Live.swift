@@ -12,6 +12,7 @@ extension FinderToolsSystem {
             else { return nil }
             return app.processIdentifier
         },
+        frontmostPID: { NSWorkspace.shared.frontmostApplication?.processIdentifier },
         changeCount: { NSPasteboard.general.changeCount },
         commandCharacter: { ASCIIKeyboardLayout.character(for: $0, modifiers: UInt32(cmdKey >> 8)) },
         focus: { await focusChain(pid: $0) },
@@ -40,12 +41,21 @@ extension FinderToolsSystem {
         var chain: [FinderToolsFocus.Element] = []
         for _ in 0..<16 {
             guard let role = attribute(element, kAXRoleAttribute) as? String else { break }
-            chain.append(.init(role: role, subrole: attribute(element, kAXSubroleAttribute) as? String))
+            chain.append(.init(
+                role: role, subrole: attribute(element, kAXSubroleAttribute) as? String,
+                hasSelection: hasSelection(element)))
             guard role != kAXWindowRole, role != "AXSheet", let parent = self.element(element, kAXParentAttribute)
             else { break }
             element = parent
         }
         return chain
+    }
+
+    /// List view answers with selected rows, icon, column and gallery views with selected children.
+    private static func hasSelection(_ element: AXUIElement) -> Bool {
+        [kAXSelectedRowsAttribute, kAXSelectedChildrenAttribute].contains {
+            (attribute(element, $0) as? [AnyObject])?.isEmpty == false
+        }
     }
 
     private static func element(_ element: AXUIElement, _ name: String) -> AXUIElement? {

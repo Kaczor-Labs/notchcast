@@ -7,7 +7,8 @@ import Foundation
 typealias Policy = FinderToolsPolicy
 let finder: Int32 = 77
 let x: UInt16 = 7, c: UInt16 = 8, v: UInt16 = 9, r: UInt16 = 15
-let fileList = [FinderToolsFocus.Element(role: "AXOutline"), .init(role: "AXWindow", subrole: "AXStandardWindow")]
+let window = FinderToolsFocus.Element(role: "AXWindow", subrole: "AXStandardWindow")
+let fileList = [FinderToolsFocus.Element(role: "AXOutline", hasSelection: true), window]
 
 nonisolated(unsafe) var failures = 0
 func check(_ label: String, _ condition: Bool) {
@@ -113,12 +114,32 @@ do {
     check("and drops the cut", !p.hasPendingCut)
 }
 
-// Finder no longer frontmost when the focus check returns: nothing is sent.
+// ⌘X with nothing selected copies nothing, so a later ordinary copy is never taken for the cut.
+do {
+    var p = policy()
+    check("⌘X with nothing selected is still swallowed", p.down(x) == .swallow)
+    check("and goes back to Finder as ⌘X", p.settle(.emptyFileList, changeCount: 10) == [.replay])
+    check("nothing is armed", !p.hasPendingCut)
+    _ = p.keyUp(x, tap: .cutPaste)
+    check("⌘V after a later copy is a plain paste", p.down(v) == .pass)
+    check("the cut command with nothing selected queues", p.command(.cut))
+    check("and sends ⌘X on unarmed", p.settle(.emptyFileList, changeCount: 11) == [.replay] && !p.hasPendingCut)
+    _ = p.down(x)
+    _ = p.settle(.fileList, changeCount: 20)
+    _ = p.keyUp(x, tap: .cutPaste)
+    _ = p.down(v)
+    check("a real cut still moves into a window with nothing selected",
+          p.settle(.emptyFileList, changeCount: 21) == [.move])
+}
+
+// Finder no longer frontmost when the focus check returns: the key belongs to the app now in front.
 do {
     var p = policy()
     _ = p.down(x)
-    check("a stale request drops", p.settle(nil, changeCount: 10) == [.drop])
+    check("a stale key press is forwarded", p.settle(nil, changeCount: 10) == [.forward])
     check("and leaves no cut", !p.hasPendingCut)
+    check("a stale command drops", p.command(.cut) && p.settle(nil, changeCount: 10) == [.drop])
+    check("and leaves no cut either", !p.hasPendingCut)
 }
 
 // Other apps, repeats and synthetic events pass untouched.
@@ -183,7 +204,11 @@ do {
 // Focus classification from the focused element outward.
 do {
     typealias E = FinderToolsFocus.Element
-    check("a list is the file list", FinderToolsFocus(chain: fileList) == .fileList)
+    check("a list with a selection is the file list", FinderToolsFocus(chain: fileList) == .fileList)
+    check("a list with nothing selected is the empty file list",
+          FinderToolsFocus(chain: [E(role: "AXOutline"), window]) == .emptyFileList)
+    check("a selection on an enclosing element counts",
+          FinderToolsFocus(chain: [E(role: "AXImage"), E(role: "AXList", hasSelection: true), window]) == .fileList)
     check("the rename field is text", FinderToolsFocus(chain: [E(role: "AXTextField")] + fileList) == .text)
     check("a search field is text",
           FinderToolsFocus(chain: [E(role: "AXTextField", subrole: "AXSearchField")]) == .text)

@@ -23,6 +23,8 @@ struct FinderToolsPolicy: Sendable {
         let epoch: Int
         let keyCode: UInt16?
         let modifiers: Modifiers
+        /// A swallowed key press is owed to whichever app is in front; a command is owed to nobody.
+        var isKeyPress = false
     }
 
     enum Verdict: Sendable, Equatable { case pass, swallow }
@@ -35,6 +37,8 @@ struct FinderToolsPolicy: Sendable {
         case pressReturn
         /// The original key, sent back to Finder unchanged.
         case replay
+        /// The original key, sent to the app that took the front from Finder.
+        case forward
         case drop
     }
 
@@ -75,7 +79,7 @@ struct FinderToolsPolicy: Sendable {
               action != .paste || hasPendingCut
         else { return .pass }
         swallowed.insert(SwallowedKey(tap: tap, code: code))
-        enqueue(action, pid: pid, keyCode: code, modifiers: modifiers)
+        enqueue(action, pid: pid, keyCode: code, modifiers: modifiers, isKeyPress: true)
         return .swallow
     }
 
@@ -112,21 +116,22 @@ struct FinderToolsPolicy: Sendable {
         swallowed = []
     }
 
-    /// `focus` nil: Finder is no longer frontmost, so nothing reaches it.
+    /// `focus` nil: Finder is no longer frontmost, so a key press goes to the app now in front.
     mutating func resolve(
         _ request: Request, focus: FinderToolsFocus?, changeCount: Int
     ) -> Outcome {
         if request.action == .cut { cutsInFlight = max(0, cutsInFlight - 1) }
-        guard let focus else { return .drop }
+        guard let focus else { return request.isKeyPress ? .forward : .drop }
         switch focus {
         case .text:
             return request.keyCode == nil ? .drop : .replay
         case .blocked:
             if request.action != .rename { forget() }
             return request.keyCode == nil ? .drop : .replay
-        case .fileList:
+        case .fileList, .emptyFileList:
             switch request.action {
             case .cut:
+                guard focus == .fileList else { return request.keyCode == nil ? .drop : .replay }
                 // Finder's ⌘C bumps the clipboard once; any other change is someone else's copy.
                 if request.epoch == epoch { cutChangeCount = changeCount + 1 }
                 return .copy
@@ -161,8 +166,11 @@ struct FinderToolsPolicy: Sendable {
         }
     }
 
-    private mutating func enqueue(_ action: Action, pid: Int32, keyCode: UInt16?, modifiers: Modifiers) {
+    private mutating func enqueue(
+        _ action: Action, pid: Int32, keyCode: UInt16?, modifiers: Modifiers, isKeyPress: Bool = false
+    ) {
         if action == .cut { cutsInFlight += 1 }
-        requests.append(Request(action: action, pid: pid, epoch: epoch, keyCode: keyCode, modifiers: modifiers))
+        requests.append(Request(
+            action: action, pid: pid, epoch: epoch, keyCode: keyCode, modifiers: modifiers, isKeyPress: isKeyPress))
     }
 }

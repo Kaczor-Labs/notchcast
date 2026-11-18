@@ -15,7 +15,7 @@ final class FinderToolsModule: NotchcastModule {
     private var observers: [NotificationToken] = []
     private var generation = UUID()
     private var queue: [FinderToolsPolicy.Request] = []
-    /// A launcher command run while the palette still had focus, sent once Finder is frontmost again.
+    /// A launcher command run while Notchcast itself was frontmost, sent if Finder is activated next.
     private var awaitingFinder: FinderToolsPolicy.Action?
     private(set) var worker: Task<Void, Never>?
 
@@ -78,7 +78,7 @@ final class FinderToolsModule: NotchcastModule {
         refreshFrontmost()
         if policy.value.withLock({ $0.command(action) }) {
             pump()
-        } else {
+        } else if system.frontmostPID() == ProcessInfo.processInfo.processIdentifier {
             awaitingFinder = action
         }
     }
@@ -114,6 +114,10 @@ final class FinderToolsModule: NotchcastModule {
         case .move: system.post(request.pid, keys.v, [.command, .option])
         case .pressReturn: system.post(request.pid, FinderToolsPolicy.returnKeyCode, [])
         case .replay: if let keyCode = request.keyCode { system.post(request.pid, keyCode, request.modifiers) }
+        case .forward:
+            if let keyCode = request.keyCode, let pid = system.frontmostPID() {
+                system.post(pid, keyCode, request.modifiers)
+            }
         case .drop: break
         }
     }
