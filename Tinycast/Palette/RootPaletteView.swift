@@ -1089,7 +1089,7 @@ struct RootPaletteView: View {
             }
         }
         .padding(metrics.spacing.xs)
-        .frosted(in: Capsule())
+        .floatingFrosted(in: Capsule())
     }
 
     /// The one path opening the Actions menu, sampling the state its rows depend on.
@@ -1664,7 +1664,7 @@ private struct MenuCircleButton: View {
         }
         .buttonStyle(MenuCircleStyle(hovered: hovered, onIsland: onIsland))
         .onHover { hovered = $0 }
-        .frosted(in: Circle())
+        .floatingFrosted(in: Circle())
         .accessibilityLabel(Bundle.main.appDisplayName)
     }
 
