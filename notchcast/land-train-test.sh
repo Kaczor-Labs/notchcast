@@ -486,7 +486,7 @@ train 2
 [ -z "$(origin for-each-ref refs/heads/train/)" ] && [ ! -e "$FIXTURE/dispatched" ] && untouched || fail 'a train with no PR left pushed or dispatched'
 echo 'PASS: a train whose every merge is refused pushes no branch and dispatches nothing'
 
-# #2 merged #1's branch into its own, so its head holds #1's commit; #3 shares nothing with either.
+# #2 merged #1's branch into its own and went on in #1's file, so its head holds #1's commit; #3 shares nothing.
 tangled() {
     fixture
     open_pr 1 pr-b 'Add B' src/b.txt
@@ -494,21 +494,58 @@ tangled() {
     open_pr 3 pr-one 'Add one' src/one.txt
     git switch --quiet pr-c
     git merge --quiet --no-edit pr-b
-    git push --quiet origin pr-c pr-c:refs/pull/2/head
-    jq --arg head "$(git rev-parse HEAD)" '.headRefOid = $head' "$FIXTURE/pr-2.json" > "$FIXTURE/pr.json" && mv "$FIXTURE/pr.json" "$FIXTURE/pr-2.json"
+    echo 'C on B' > src/b.txt
+    git commit --quiet -am 'C on B'
+    repush 2 pr-c
+}
+# repush <number> <branch>: the PR's head becomes the checked-out commit.
+repush() {
+    git push --quiet origin "$2" "$2:refs/pull/$1/head"
+    jq --arg head "$(git rev-parse HEAD)" '.headRefOid = $head' "$FIXTURE/pr-$1.json" > "$FIXTURE/pr.json" && mv "$FIXTURE/pr.json" "$FIXTURE/pr-$1.json"
     git switch --quiet main
 }
-tangled
-for args in '1 2' '2 1 3'; do
-    train $args
-    [ "$status" -eq 1 ] && grep -q '^REFUSED: #2 contains commits of #1, .* Land #1 first, then merge main into #2\.$' "$FIXTURE/train-output" \
-        || { cat "$FIXTURE/train-output"; echo "FAIL: train.sh $args, where #2 holds #1's commits, was not refused naming both"; exit 1; }
+# train.sh $1 is refused, saying #2 holds #1, before anything is pushed, dispatched or commented.
+refused_holder() {
+    train $1
+    [ "$status" -eq 1 ] && grep -q '^REFUSED: #2 contains commits of #1, .* so #2 can conflict with main once #1 lands\. Land #1 first, then merge main into #2\.$' "$FIXTURE/train-output" \
+        || { cat "$FIXTURE/train-output"; echo "FAIL: train.sh $1, where #2 holds #1's commits$2, was not refused naming #2 as the holder"; exit 1; }
     [ -z "$(origin for-each-ref refs/heads/train/)" ] && [ ! -e "$FIXTURE/dispatched" ] && [ ! -e "$FIXTURE/comments" ] && untouched \
-        || { echo "FAIL: the refused train.sh $args pushed, dispatched or commented"; exit 1; }
+        || { echo "FAIL: the refused train.sh $1 pushed, dispatched or commented"; exit 1; }
+}
+tangled
+for args in '1 2' '2 1' '2 1 3'; do
+    refused_holder "$args" ''
 done
 train 1 3
 [ "$status" -eq 0 ] && grep -q '^GREEN train/1-3 ' "$FIXTURE/train-output" || { cat "$FIXTURE/train-output"; echo 'FAIL: an unrelated pair beside the tangled PR did not run'; exit 1; }
 echo "PASS: a train in which one PR holds another's commits is refused before any dispatch, naming both; an unrelated pair runs"
+
+tangled
+git switch --quiet pr-b
+echo 'B again' > src/b.txt
+git commit --quiet -am 'B again'
+repush 1 pr-b
+for args in '1 2' '2 1'; do
+    refused_holder "$args" ', and #1 moved on since'
+done
+echo 'PASS: the PR that merged the other is named the holder in either order, also after the other moved on'
+
+fixture
+open_pr 1 pr-b 'Add B' src/b.txt
+open_pr 2 pr-c 'Add C' src/c.txt
+open_pr 3 pr-one 'Add one' src/one.txt
+for number in 1 2; do
+    git switch --quiet "$(jq -r .headRefName "$FIXTURE/pr-$number.json")"
+    git merge --quiet --no-edit pr-one
+    repush "$number" "$(git branch --show-current)"
+done
+train 1 2
+[ "$status" -eq 0 ] && grep -q '^GREEN train/1-2 ' "$FIXTURE/train-output" \
+    || { cat "$FIXTURE/train-output"; echo 'FAIL: two PRs that merged the same unlanded branch were not run together'; exit 1; }
+train 3 1
+[ "$status" -eq 1 ] && grep -q '^REFUSED: #1 contains commits of #3, ' "$FIXTURE/train-output" \
+    || { cat "$FIXTURE/train-output"; echo 'FAIL: a PR in a train with the branch it merged was not refused'; exit 1; }
+echo 'PASS: two PRs that merged the same unlanded branch hold nothing of each other and run; either with that branch is refused'
 
 # --queue: picks the batch itself and lands what is green; LAND_BATCH_SIZE is appended to the checkout's config.env.
 queue() {
@@ -568,13 +605,20 @@ queue
 echo 'PASS: a PR that conflicts with an earlier one in the batch is dropped with a comment naming it, and the rest lands'
 
 tangled
+DISPATCH_FAILS=train/1-3 queue
+[ "$status" -ne 0 ] && [ "$(landed)" = '' ] || queue_fail 'a batch whose dispatch failed landed or passed'
 queue
 [ "$status" -eq 1 ] && grep -q '^DROPPED #2: #2 contains commits of #1, ' "$FIXTURE/train-output" && grep -q '^LANDED #1 3$' "$FIXTURE/train-output" \
     || queue_fail "the PR that holds another's commits was not left out of the batch"
 [ "$(landed)" = 'Notchcast: Add B (#1)|Notchcast: Add one (#3)' ] && ! grep -q -- '--ref train/1-2' "$FIXTURE/dispatched" && ! grep -q '^2 ' "$FIXTURE/closed" \
-    && grep -q '^2 Left out of the landing batch: #2 contains commits of #1, .* Land #1 first, then merge main into #2\.$' "$FIXTURE/comments" \
     || queue_fail "the tangled batch landed '$(landed)'"
-echo "PASS: --queue leaves out the PR that holds another's commits, tells it what to do, and lands the rest"
+[ "$(cat "$FIXTURE/comments")" = "2 Left out of the landing batch at its head $(jq -r .headRefOid "$FIXTURE/pr-2.json"): #2 contains commits of #1, and landing squashes each PR, so #2 can conflict with main once #1 lands. Land #1 first, then merge main into #2." ] \
+    || queue_fail "two runs on one head of the holder commented '$(cat "$FIXTURE/comments")'"
+base=$(origin rev-parse main)
+train 2
+[ "$status" -eq 1 ] && grep -q '^DROPPED #2: conflicts with main; rebase on main$' "$FIXTURE/train-output" \
+    || queue_fail 'the holder did not conflict with main once the other landed, so the fixture is not #1067'
+echo "PASS: --queue leaves out the PR that holds another's commits, tells it once per head what to do, and lands the rest"
 
 fixture
 open_pr 1 pr-b 'Add B' src/b.txt
