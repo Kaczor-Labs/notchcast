@@ -6,14 +6,14 @@ nonisolated struct CopyPathApp: Equatable, Sendable {
     let pid: Int32
 }
 
-/// The live apps behind one seam, so a harness fakes every read; a timeout reads as nil or empty.
+/// The live apps behind one seam, so a harness fakes every read; a timeout throws, per `CopyPathStatus`.
 nonisolated struct CopyPathReader: Sendable {
     /// File URLs or POSIX paths, in Finder's order.
     let finderSelection: @Sendable () async throws -> [String]
     let finderFolder: @Sendable () async throws -> String?
     let browserAddress: @Sendable (_ bundleID: String, _ kind: CopyPathResolver.Browser) async throws -> String?
-    /// The focused window's `AXDocument`, else the main window's.
-    let document: @Sendable (_ pid: Int32) async throws -> String?
+    /// One window's `AXDocument`; nil when that window or its document is not there.
+    let document: @Sendable (_ pid: Int32, _ window: CopyPathResolver.Window) async throws -> String?
 }
 
 /// A permission the user refused; the notice names it and the matching Settings pane opens.
@@ -26,6 +26,7 @@ nonisolated enum CopyPathFailure: Error, Equatable, Sendable {
 /// What Copy Path puts on the clipboard; nil when there is nothing to copy.
 nonisolated enum CopyPathResolver {
     enum Browser: Sendable { case safari, chromium }
+    enum Window: Sendable, CaseIterable { case focused, main }
 
     static let finder = "com.apple.finder"
     static let browsers: [String: Browser] = [
@@ -53,8 +54,11 @@ nonisolated enum CopyPathResolver {
             let link = try await reader.browserAddress(bundleID, kind).flatMap(webLink) {
             return link
         }
-        try Task.checkCancellation()
-        return try await reader.document(app.pid).flatMap { document($0, home: home) }
+        for window in Window.allCases {
+            try Task.checkCancellation()
+            if let raw = try await reader.document(app.pid, window), !raw.isEmpty { return document(raw, home: home) }
+        }
+        return nil
     }
 
     /// A local path folded to the home folder, else a cleaned web link, else nothing.

@@ -13,26 +13,37 @@ final class Reads: @unchecked Sendable {
     var names: [String] = []
 }
 
+/// A raw status a live read would see, mapped exactly as `+Live` maps it; nil is a clean answer.
+func passes(_ status: Int?, ax: Bool = false, denied: CopyPathFailure) throws -> Bool {
+    guard let status else { return true }
+    return ax ? try CopyPathStatus.accessibility(Int32(status)) : try CopyPathStatus.appleEvent(status, denied: denied)
+}
+
+/// `statuses` is keyed by source: selection, folder, browser, focused, main.
 func reader(
     selection: [String] = [], folder: String? = nil, browser: String? = nil, document: String? = nil,
-    failure: CopyPathFailure? = nil, reads: Reads = Reads()
+    main: String? = nil, failure: CopyPathFailure? = nil, statuses: [String: Int] = [:], reads: Reads = Reads()
 ) -> CopyPathReader {
     CopyPathReader(
         finderSelection: {
             reads.names.append("selection")
             if let failure { throw failure }
-            return selection
+            return try passes(statuses["selection"], denied: .finderAutomation) ? selection : []
         },
-        finderFolder: { reads.names.append("folder"); return folder },
+        finderFolder: {
+            reads.names.append("folder")
+            return try passes(statuses["folder"], denied: .finderAutomation) ? folder : nil
+        },
         browserAddress: { bundleID, kind in
             reads.names.append("browser \(bundleID) \(kind)")
             if let failure { throw failure }
-            return browser
+            return try passes(statuses["browser"], denied: .browserAutomation) ? browser : nil
         },
-        document: { pid in
-            reads.names.append("document \(pid)")
+        document: { pid, window in
+            reads.names.append("document \(pid) \(window)")
             if let failure { throw failure }
-            return document
+            let key = window == .focused ? "focused" : "main"
+            return try passes(statuses[key], ax: true, denied: .accessibility) ? (window == .focused ? document : main) : nil
         })
 }
 
@@ -102,12 +113,95 @@ func documentCases() async throws {
     check(try await resolve(textEdit, reader(document: "Untitled")), nil, "a bare name copies nothing")
     let reads = Reads()
     _ = try await resolve(textEdit, reader(reads: reads))
-    precondition(reads.names == ["document 13"], "other apps read only AX, by pid: \(reads.names)")
+    precondition(reads.names == ["document 13 focused", "document 13 main"], "AX only, by pid: \(reads.names)")
+    let both = Reads()
+    check(try await resolve(textEdit, reader(main: "/home/tester/m", reads: both)), "~/m",
+          "no focused document falls to the main window's")
+    precondition(both.names.count == 2, "focused first, then main: \(both.names)")
+    let first = Reads()
+    check(try await resolve(textEdit, reader(document: "Untitled", main: "/home/tester/m", reads: first)), nil,
+          "the focused window's document wins even when it copies nothing")
+    precondition(first.names == ["document 13 focused"], "main is not read after a focused answer")
     check(try await resolve(nil, reader(document: "/a")), nil, "no front app (Notchcast itself) copies nothing")
     do {
         _ = try await resolve(textEdit, reader(failure: .accessibility))
         preconditionFailure("missing Accessibility must surface")
     } catch CopyPathFailure.accessibility {}
+}
+
+/// Behaviour 9: a timeout or failed read is Unavailable and never falls through to the next source.
+func stopCases() async throws {
+    let cases: [(CopyPathApp, [String: Int], [String], String)] = [
+        (finder, ["selection": -1712], ["selection"], "a Finder selection timeout never copies the folder"),
+        (finder, ["selection": -1728, "folder": -1712], ["selection", "folder"], "a Finder folder timeout"),
+        (finder, ["selection": -600], ["selection"], "Finder gone mid-read"),
+        (chrome, ["browser": -1712], ["browser com.google.Chrome chromium"], "a tab timeout never reads AX"),
+        (safari, ["browser": -10000], ["browser com.apple.Safari safari"], "a failed tab read never reads AX"),
+        (textEdit, ["focused": -25204], ["document 13 focused"], "a focused window timeout never tries main"),
+        (textEdit, ["focused": -25200], ["document 13 focused"], "a failed focused read never tries main"),
+        (textEdit, ["focused": -25212, "main": -25204], ["document 13 focused", "document 13 main"],
+         "a main window timeout"),
+    ]
+    for (app, statuses, expected, label) in cases {
+        let reads = Reads()
+        let source = reader(selection: ["/a"], folder: "/f", browser: "https://x.org", document: "/d", main: "/m",
+                            statuses: statuses, reads: reads)
+        do {
+            _ = try await resolve(app, source)
+            preconditionFailure("\(label): must report Unavailable")
+        } catch is CopyPathUnavailable {}
+        precondition(reads.names == expected, "\(label): read \(reads.names)")
+    }
+    let empty: [(CopyPathApp, [String: Int], String?, String)] = [
+        (finder, ["selection": -1728], "/f", "no selection object falls to the folder"),
+        (finder, ["selection": -1728, "folder": -1719], nil, "no Finder window copies nothing"),
+        (chrome, ["browser": -1719], "/d", "no browser window falls to the document"),
+        (safari, ["browser": -1708], "/d", "a browser without the verb falls to the document"),
+        (textEdit, ["focused": -25212], "/m", "no focused window falls to main"),
+        (textEdit, ["focused": -25205], "/m", "an unsupported focused window falls to main"),
+    ]
+    for (app, statuses, expected, label) in empty {
+        let source = reader(selection: ["/a"], folder: "/f", browser: "https://x.org", document: "/d", main: "/m",
+                            statuses: statuses)
+        check(try await resolve(app, source), expected, label)
+    }
+    for (app, statuses, denied) in [(finder, ["selection": -1743], CopyPathFailure.finderAutomation),
+                                    (chrome, ["browser": -1744], .browserAutomation),
+                                    (textEdit, ["focused": -25211], .accessibility)] {
+        do {
+            _ = try await resolve(app, reader(statuses: statuses))
+            preconditionFailure("\(statuses): a refused grant must surface")
+        } catch let failure as CopyPathFailure {
+            precondition(failure == denied, "\(statuses): \(failure)")
+        }
+    }
+}
+
+func statusMapping() throws {
+    let answered = try CopyPathStatus.appleEvent(0, denied: .finderAutomation)
+    precondition(answered, "0 answers")
+    for status in [-1728, -1719, -1708] {
+        let read = try CopyPathStatus.appleEvent(status, denied: .finderAutomation)
+        precondition(!read, "\(status) is nothing there")
+    }
+    let axAnswered = try CopyPathStatus.accessibility(0)
+    precondition(axAnswered, "AX success answers")
+    for status: Int32 in [-25212, -25205] {
+        let read = try CopyPathStatus.accessibility(status)
+        precondition(!read, "AX \(status) is nothing there")
+    }
+    for status in [-1712, -600, -609, -10000] {
+        do {
+            _ = try CopyPathStatus.appleEvent(status, denied: .browserAutomation)
+            preconditionFailure("\(status) must stop the run")
+        } catch is CopyPathUnavailable {}
+    }
+    for status: Int32 in [-25204, -25200, -25202] {
+        do {
+            _ = try CopyPathStatus.accessibility(status)
+            preconditionFailure("AX \(status) must stop the run")
+        } catch is CopyPathUnavailable {}
+    }
 }
 
 func folding() {
@@ -146,8 +240,10 @@ enum CopyPathResolverTests {
         try await finderCases()
         try await browserCases()
         try await documentCases()
+        try await stopCases()
+        try statusMapping()
         folding()
         cleaning()
-        print("PASS: copy path resolves Finder, browsers and documents, folds home and cleans links")
+        print("PASS: copy path resolves Finder, browsers and documents, stops on timeouts, folds home and cleans links")
     }
 }

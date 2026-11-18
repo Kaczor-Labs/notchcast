@@ -14,7 +14,7 @@ extension CopyPathSystem {
             finderSelection: { try await CopyPathAppleEvents.finderSelection() },
             finderFolder: { try await CopyPathAppleEvents.finderFolder() },
             browserAddress: { try await CopyPathAppleEvents.browserAddress($0, kind: $1) },
-            document: { try await CopyPathAccessibility.document(pid: $0) }),
+            document: { try await CopyPathAccessibility.document(pid: $0, window: $1) }),
         copy: { Paster.copyPlainText($0) },
         openSettings: { failure in
             guard failure != .accessibility else { return Permissions.openAccessibilitySettings() }
@@ -64,7 +64,7 @@ private nonisolated enum CopyPathAppleEvents {
         return try values(bundleID, path, denied: .browserAutomation).first?.stringValue
     }
 
-    /// The reply's items; a missing object, a quit app or a timeout read as none.
+    /// The reply's items; `CopyPathStatus` decides which errors read as none and which stop the run.
     private static func values(
         _ bundleID: String, _ path: [Hop], from root: NSAppleEventDescriptor = .null(), denied: CopyPathFailure
     ) throws -> [NSAppleEventDescriptor] {
@@ -86,20 +86,15 @@ private nonisolated enum CopyPathAppleEvents {
         do {
             reply = try event.sendEvent(options: [.waitForReply, .canInteract], timeout: 5)
         } catch {
-            return try refused((error as NSError).code, denied)
+            _ = try CopyPathStatus.appleEvent((error as NSError).code, denied: denied)
+            return []
         }
         try Task.checkCancellation()
         let status = Int(reply.paramDescriptor(forKeyword: code("errn"))?.int32Value ?? 0)
-        guard status == 0 else { return try refused(status, denied) }
+        guard try CopyPathStatus.appleEvent(status, denied: denied) else { return [] }
         guard let answer = reply.paramDescriptor(forKeyword: code("----")) else { return [] }
         guard answer.descriptorType == code("list") else { return [answer] }
         return (0..<answer.numberOfItems).compactMap { answer.atIndex($0 + 1) }
-    }
-
-    /// -1743 is a refused Automation grant; every other error reads as nothing to copy.
-    private static func refused(_ status: Int, _ denied: CopyPathFailure) throws -> [NSAppleEventDescriptor] {
-        if status == -1743 { throw denied }
-        return []
     }
 
     private static func code(_ text: String) -> UInt32 {
@@ -107,25 +102,24 @@ private nonisolated enum CopyPathAppleEvents {
     }
 }
 
-/// Reads a window's `AXDocument`, 1 s per call.
+/// Reads one window's `AXDocument`; the 1 s timeout is per element, never inherited, so each gets it.
 private nonisolated enum CopyPathAccessibility {
+    static let timeout: Float = 1
+
     @concurrent
-    static func document(pid: Int32) async throws -> String? {
+    static func document(pid: Int32, window: CopyPathResolver.Window) async throws -> String? {
         guard AXIsProcessTrusted() else { throw CopyPathFailure.accessibility }
-        let app = AXUIElementCreateApplication(pid)
-        AXUIElementSetMessagingTimeout(app, 1)
-        for attribute in [kAXFocusedWindowAttribute, kAXMainWindowAttribute] {
-            try Task.checkCancellation()
-            var window: CFTypeRef?
-            let read = AXUIElementCopyAttributeValue(app, attribute as CFString, &window)
-            if read == .apiDisabled { throw CopyPathFailure.accessibility }
-            guard read == .success, let window, CFGetTypeID(window) == AXUIElementGetTypeID() else { continue }
-            var document: CFTypeRef?
-            let element = unsafeDowncast(window, to: AXUIElement.self)
-            guard AXUIElementCopyAttributeValue(element, kAXDocumentAttribute as CFString, &document) == .success,
-                let text = document as? String, !text.isEmpty else { continue }
-            return text
-        }
-        return nil
+        let attribute = window == .focused ? kAXFocusedWindowAttribute : kAXMainWindowAttribute
+        guard let value = try read(AXUIElementCreateApplication(pid), attribute),
+            CFGetTypeID(value) == AXUIElementGetTypeID() else { return nil }
+        return try read(unsafeDowncast(value, to: AXUIElement.self), kAXDocumentAttribute) as? String
+    }
+
+    private static func read(_ element: AXUIElement, _ attribute: String) throws -> CFTypeRef? {
+        try Task.checkCancellation()
+        AXUIElementSetMessagingTimeout(element, timeout)
+        var value: CFTypeRef?
+        let status = AXUIElementCopyAttributeValue(element, attribute as CFString, &value)
+        return try CopyPathStatus.accessibility(status.rawValue) ? value : nil
     }
 }
