@@ -18,4 +18,5 @@ struct LowDiskSettingsView: View {
 }
 extension LowDiskModule {
     static func readStartupDisk() async throws -> Int64 { fatalError("the harness never makes a module") }
+    static func isMainDisplayAsleep() -> Bool { fatalError("the harness never makes a module") }
 }

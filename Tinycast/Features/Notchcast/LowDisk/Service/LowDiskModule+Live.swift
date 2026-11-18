@@ -1,3 +1,4 @@
+import CoreGraphics
 import Foundation
 
 extension LowDiskModule {
@@ -8,4 +9,6 @@ extension LowDiskModule {
         guard let free = values.volumeAvailableCapacityForImportantUsage else { throw CocoaError(.fileReadUnknown) }
         return free
     }
+
+    static func isMainDisplayAsleep() -> Bool { CGDisplayIsAsleep(CGMainDisplayID()) != 0 }
 }

@@ -1,6 +1,6 @@
 import Foundation
 
-/// Warns once when free space falls below the threshold; rising back to it re-arms the warning.
+/// Warns once when free space falls below the threshold; rising a margin above it re-arms the warning.
 struct LowDiskPolicy: Equatable, Sendable {
     static let defaultThresholdGB = 10
     static let thresholdRange = 1...500
@@ -19,11 +19,17 @@ struct LowDiskPolicy: Equatable, Sendable {
     /// Decimal gigabytes, as Finder and `ByteCountFormatter` count them.
     static func bytes(gigabytes: Int) -> Int64 { Int64(gigabytes) * 1_000_000_000 }
 
-    /// True for the one reading that should warn; a negative reading is no reading.
-    mutating func shouldWarn(free: Int64, thresholdGB: Int) -> Bool {
-        guard free >= 0 else { return false }
+    /// Purgeable space swings by gigabytes, so re-arming sits a tenth of the threshold (at least 1 GB) above it.
+    static func rearmBytes(thresholdGB: Int) -> Int64 {
+        let threshold = bytes(gigabytes: thresholdGB)
+        return threshold + max(bytes(gigabytes: 1), threshold / 10)
+    }
+
+    /// True for the one reading that should warn; a negative reading or a sleeping display changes nothing.
+    mutating func shouldWarn(free: Int64, thresholdGB: Int, displayAsleep: Bool) -> Bool {
+        guard free >= 0, !displayAsleep else { return false }
         guard free < Self.bytes(gigabytes: thresholdGB) else {
-            hasWarned = false
+            if free >= Self.rearmBytes(thresholdGB: thresholdGB) { hasWarned = false }
             return false
         }
         defer { hasWarned = true }

@@ -24,6 +24,7 @@ struct ReadFailed: Error {}
 final class FakeDisk {
     var free: Int64 = gb(50)
     var fails = false
+    var displayAsleep = false
 }
 
 @MainActor let disk = FakeDisk()
@@ -35,6 +36,8 @@ extension LowDiskModule {
         if disk.fails { throw ReadFailed() }
         return disk.free
     }
+
+    static func isMainDisplayAsleep() -> Bool { disk.displayAsleep }
 }
 
 final class FakeSession: NotchcastTapSession {
@@ -98,6 +101,7 @@ enum LowDiskModuleTests {
         descriptor()
         policy()
         await warnsOnceAndRearms()
+        await waitsForTheDisplay()
         await command()
         print("PASS nc-LowDisk-module-test")
     }
@@ -120,20 +124,31 @@ enum LowDiskModuleTests {
         precondition(LowDiskPolicy.bytes(gigabytes: 10) == 10_000_000_000, "decimal gigabytes")
 
         var policy = LowDiskPolicy()
-        let readings: [(Int, Bool)] = [(50, false), (9, true), (8, false), (5, false), (10, false), (9, true),
-                                       (12, false), (11, false), (3, true)]
+        let readings: [(Int, Bool)] = [(50, false), (9, true), (8, false), (5, false), (10, false), (9, false),
+                                       (11, false), (9, true), (12, false), (10, false), (3, true)]
         for (index, (free, warns)) in readings.enumerated() {
-            precondition(policy.shouldWarn(free: gb(free), thresholdGB: 10) == warns, "reading \(index): \(free) GB")
+            precondition(policy.shouldWarn(free: gb(free), thresholdGB: 10, displayAsleep: false) == warns, "reading \(index): \(free) GB")
         }
         precondition(policy.hasWarned, "a warning stays spent while below")
-        precondition(!policy.shouldWarn(free: -1, thresholdGB: 10) && policy.hasWarned, "no reading changes nothing")
+        precondition(!policy.shouldWarn(free: -1, thresholdGB: 10, displayAsleep: false) && policy.hasWarned,
+                     "no reading changes nothing")
+        precondition(LowDiskPolicy.rearmBytes(thresholdGB: 10) == gb(11), "a small threshold re-arms 1 GB above")
+        precondition(LowDiskPolicy.rearmBytes(thresholdGB: 100) == gb(110), "a large one a tenth above")
+
+        var asleep = LowDiskPolicy()
+        precondition(!asleep.shouldWarn(free: gb(3), thresholdGB: 10, displayAsleep: true) && !asleep.hasWarned,
+                     "a sleeping display keeps the warning unspent")
+        precondition(asleep.shouldWarn(free: gb(3), thresholdGB: 10, displayAsleep: false), "so it warns once awake")
 
         var raised = LowDiskPolicy()
-        precondition(!raised.shouldWarn(free: gb(50), thresholdGB: 10), "above the default")
-        precondition(raised.shouldWarn(free: gb(50), thresholdGB: 60), "raising the threshold over free space warns")
-        precondition(!raised.shouldWarn(free: gb(50), thresholdGB: 60), "and only once")
-        precondition(!raised.shouldWarn(free: gb(50), thresholdGB: 40), "lowering it under free space re-arms")
-        precondition(raised.shouldWarn(free: gb(50), thresholdGB: 60), "so raising it again warns again")
+        func warns(_ thresholdGB: Int) -> Bool {
+            raised.shouldWarn(free: gb(50), thresholdGB: thresholdGB, displayAsleep: false)
+        }
+        precondition(!warns(10), "above the default")
+        precondition(warns(60), "raising the threshold over free space warns")
+        precondition(!warns(60), "and only once")
+        precondition(!warns(40), "lowering it under free space re-arms")
+        precondition(warns(60), "so raising it again warns again")
     }
 
     static func warnsOnceAndRearms() async {
@@ -176,7 +191,10 @@ enum LowDiskModuleTests {
 
         disk.free = gb(60)
         await rig.check()
-        precondition(rig.presenter.posts.isEmpty, "back to the threshold: re-armed, no warning")
+        precondition(rig.defaults.bool(forKey: LowDiskPolicy.warnedKey), "back at the threshold is not yet re-armed")
+        disk.free = gb(66)
+        await rig.check()
+        precondition(rig.presenter.posts.isEmpty, "a tenth above the threshold: re-armed, no warning")
         precondition(!rig.defaults.bool(forKey: LowDiskPolicy.warnedKey), "the re-arm is stored")
         disk.free = gb(59)
         await rig.check()
@@ -185,6 +203,31 @@ enum LowDiskModuleTests {
         precondition(rig.warnings[0].text == LowDiskPolicy.warning(free: gb(59)), "with the new reading")
         rig.controller.stop()
         precondition(rig.module == nil, "stopped")
+    }
+
+    static func waitsForTheDisplay() async {
+        let suite = "nc-LowDisk-module-test.\(UUID())"
+        defer { UserDefaults().removePersistentDomain(forName: suite) }
+        disk.free = gb(5)
+        disk.fails = false
+        disk.displayAsleep = true
+        defer { disk.displayAsleep = false }
+
+        var rig = Rig(suite: suite, on: true)
+        await rig.settle()
+        await rig.check()
+        precondition(rig.presenter.posts.isEmpty, "display asleep: nobody would see the warning")
+        precondition(!rig.defaults.bool(forKey: LowDiskPolicy.warnedKey), "so it is not spent")
+        rig.controller.stop()
+
+        rig = Rig(suite: suite, on: true)
+        await rig.settle()
+        precondition(rig.presenter.posts.isEmpty, "a relaunch with the display still asleep stays quiet")
+        disk.displayAsleep = false
+        await rig.check()
+        await rig.check()
+        precondition(rig.warnings.count == 1, "display awake: the warning shows, once")
+        rig.controller.stop()
     }
 
     static func command() async {

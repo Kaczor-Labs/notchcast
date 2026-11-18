@@ -1,6 +1,6 @@
 import AppKit
 
-/// Reads the startup disk at start, on wake and every half hour, and warns once on the island.
+/// Reads the startup disk at start, when the screens wake and every half hour, and warns once on the island.
 @MainActor
 final class LowDiskModule: NotchcastModule {
     typealias Reader = @Sendable () async throws -> Int64
@@ -10,6 +10,7 @@ final class LowDiskModule: NotchcastModule {
 
     private let context: NotchcastContext
     private let read: Reader
+    private let isDisplayAsleep: @MainActor () -> Bool
     private var policy = LowDiskPolicy()
     private var wakeObserver: NotificationCenter.ObservationToken?
     private var timer: Task<Void, Never>?
@@ -17,9 +18,13 @@ final class LowDiskModule: NotchcastModule {
     private var operation = UUID()
     private(set) var isRunning = false
 
-    init(context: NotchcastContext, read: @escaping Reader = LowDiskModule.readStartupDisk) {
+    init(
+        context: NotchcastContext, read: @escaping Reader = LowDiskModule.readStartupDisk,
+        isDisplayAsleep: @escaping @MainActor () -> Bool = LowDiskModule.isMainDisplayAsleep
+    ) {
         self.context = context
         self.read = read
+        self.isDisplayAsleep = isDisplayAsleep
     }
 
     func start() {
@@ -27,8 +32,8 @@ final class LowDiskModule: NotchcastModule {
         isRunning = true
         policy = LowDiskPolicy(hasWarned: context.defaults.bool(forKey: LowDiskPolicy.warnedKey))
         let workspace = NSWorkspace.shared
-        wakeObserver = workspace.notificationCenter.addObserver(of: workspace, for: .didWake) { [weak self] _ in
-            self?.check()
+        wakeObserver = workspace.notificationCenter.addObserver(of: workspace, for: .screensDidWake) { [weak self] _ in
+            await self?.check()
         }
         timer = Task { [weak self] in
             while (try? await Task.sleep(for: LowDiskPolicy.checkInterval, tolerance: .seconds(60))) != nil {
@@ -88,7 +93,8 @@ final class LowDiskModule: NotchcastModule {
 
     private func apply(_ free: Int64) {
         let stored = context.defaults.object(forKey: LowDiskPolicy.thresholdKey) as? Int
-        let warns = policy.shouldWarn(free: free, thresholdGB: LowDiskPolicy.thresholdGB(stored: stored))
+        let warns = policy.shouldWarn(
+            free: free, thresholdGB: LowDiskPolicy.thresholdGB(stored: stored), displayAsleep: isDisplayAsleep())
         context.defaults.set(policy.hasWarned, forKey: LowDiskPolicy.warnedKey)
         guard warns else { return }
         context.presenter.post(
