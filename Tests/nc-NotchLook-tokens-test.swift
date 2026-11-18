@@ -73,10 +73,10 @@ struct NotchLookTokensTests {
         return (pair[0] + 0.05) / (pair[1] + 0.05)
     }
 
-    static func legible(_ label: String, _ ink: Color.Resolved, on ground: [Double], atLeast minimum: Double = 4.5) {
+    static func legible(_ label: String, _ ink: Color.Resolved, on ground: [Double]) {
         let ratio = contrast(ink, on: ground)
         print(String(format: "  %.2f:1  %@", ratio, label))
-        check(label, ratio >= minimum, String(format: "%.2f:1", ratio))
+        check(label, ratio >= 4.5, String(format: "%.2f:1", ratio))
     }
 
     static func equal(_ label: String, _ actual: CGFloat, _ expected: CGFloat) {
@@ -191,13 +191,24 @@ struct NotchLookTokensTests {
         let pressed = over(resolved(IslandButtonFill.primary(0.36), frosted: true), body)
         legible("accent ink on pressed primary", resolved(NotchTheme.Colors.accentInk, frosted: true), on: pressed)
 
-        print("# A command tile's white glyph keeps 3:1 on the tile on the cursor row")
+        print("# A command tile's white glyph keeps 4.5:1 on the tile on the cursor row")
+        let glass = ObsidianTokens.Glass.self
+        let obsidianGrounds = [
+            ("bar", over(resolved(glass.glassBar, frosted: true), white)),
+            ("pane", over(resolved(glass.glassPane, frosted: true), white)),
+            ("sheet", over(resolved(glass.glassSheet, frosted: true), white)),
+            ("bar solid", over(resolved(glass.glassBarSolid, frosted: true), white)),
+            ("pane solid", over(resolved(glass.glassPaneSolid, frosted: true), white)),
+            ("sheet solid", over(resolved(glass.glassSheetSolid, frosted: true), white)),
+        ]
+        let obsidianCursor = resolved(glass.glassCursor, frosted: true)
         let cursorRows = [("black", over(resolved(c.selection, frosted: false), [0, 0, 0])),
                           ("frosted", over(resolved(c.selection, frosted: true), body)),
                           ("frosted solid", over(resolved(c.selection, frosted: true), solid))]
+            + obsidianGrounds.map { ("OBSIDIAN \($0.0)", over(obsidianCursor, $0.1)) }
         let tile = resolved(NotchTheme.Colors.iconTileFill, frosted: true)
         for (name, row) in cursorRows {
-            legible("tile glyph on the \(name) cursor row", resolved(.white, frosted: true), on: over(tile, row), atLeast: 3)
+            legible("tile glyph on the \(name) cursor row", resolved(.white, frosted: true), on: over(tile, row))
         }
 
         print("\n\(passes) passed, \(failures) failed")
