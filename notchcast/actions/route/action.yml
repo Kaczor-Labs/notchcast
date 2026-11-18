@@ -27,7 +27,6 @@ runs:
         OWNER: ${{ github.repository_owner }}
         REPO: ${{ github.repository }}
         EVENT: ${{ github.event_name }}
-        ACTION: ${{ github.event.action }}
         HEAD_REPO: ${{ github.event.pull_request.head.repo.full_name }}
         GITHUB_TOKEN: ${{ github.token }}
       run: |
