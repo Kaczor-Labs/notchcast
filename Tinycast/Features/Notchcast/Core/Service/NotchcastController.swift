@@ -92,6 +92,11 @@ final class NotchcastController {
         slots.lazy.compactMap { $0.context.launcherDigit?(digit, query, entryRows) }.first
     }
 
+    /// False when no add-on claims the URL; a running module goes before any recovery.
+    func open(_ url: URL) -> Bool {
+        slots.contains { $0.context.openURL?(url) == true } || slots.contains { $0.recovery.openURL?(url) == true }
+    }
+
     func context(forSwitch id: String) -> NotchcastContext? {
         slots.first { $0.addon.switches.contains { $0.id == id } }?.context
     }
