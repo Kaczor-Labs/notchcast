@@ -1,68 +1,71 @@
-import CoreText
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (C) 2026 Vorssaint
+// Adapted from Vorssaint 89d2626's editor canvas: one renderer pass, the drag gesture, selection and crop chrome.
+
 import SwiftUI
 
-/// The capture drawn by the same renderer the result uses, scaled to fit; drags become document edits.
+/// The capture drawn by the same renderer the result uses, fitted to `area`; drags become document edits.
 struct CaptureEditorCanvas: View {
     let session: CaptureEditorSession
-    let size: CGSize
+    let area: CGSize
     @State private var dragging = false
-
-    /// View points per image pixel.
-    private var factor: CGFloat { size.width / CGFloat(max(session.image.width, 1)) }
 
     var body: some View {
         let document = session.document
-        let image = session.image
-        let factor = factor
-        let hidden = document.textEdit?.id
+        let image = document.imageSize
+        // Never past its natural size, so a small crop stays sharp instead of filling the window.
+        let zoom = min(1 / document.scale, area.width / max(image.width, 1), area.height / max(image.height, 1))
         Canvas { context, _ in
-            context.scaleBy(x: factor, y: factor)
             context.withCGContext { cg in
-                AnnotationRenderer.draw(
-                    document.marks.filter { $0.id != hidden }, over: image, scale: document.scale, in: cg)
+                cg.scaleBy(x: zoom, y: zoom)
+                AnnotationRenderer.draw(document, in: cg)
             }
         }
-        .overlay { CaptureEditorCanvasMarks(document: document, factor: factor) }
+        .overlay { CaptureEditorChrome(document: document, zoom: zoom) }
         .overlay(alignment: .topLeading) {
-            if let edit = document.textEdit { textField(edit, in: document) }
+            if let mark = document.marks.first(where: { $0.id == document.editingTextID }) {
+                textField(mark, scale: document.scale, zoom: zoom)
+            }
         }
-        .frame(width: size.width, height: size.height)
+        .frame(width: image.width * zoom, height: image.height * zoom)
         .contentShape(Rectangle())
         .gesture(DragGesture(minimumDistance: 0)
             .onChanged { value in
                 if !dragging {
                     dragging = true
-                    session.document.press(at: pixel(value.startLocation))
+                    session.document.beginDrag(at: pixel(value.startLocation, zoom))
+                    guard value.location != value.startLocation else { return }
                 }
-                session.document.drag(to: pixel(value.location))
+                session.document.continueDrag(to: pixel(value.location, zoom))
             }
-            .onEnded { _ in
+            .onEnded { value in
                 dragging = false
-                session.document.release()
+                session.document.endDrag(
+                    at: pixel(value.location, zoom),
+                    isTap: AnnotationGeometry.isTap(from: value.startLocation, to: value.location))
             })
-        .pointerStyle(.rectSelection)
         .accessibilityElement()
         .accessibilityLabel(Text("Screenshot being edited", tableName: "NotchcastScreenshots"))
         .accessibilityHint(Text("Drag to draw with the selected tool.", tableName: "NotchcastScreenshots"))
         .accessibilityAddTraits(.allowsDirectInteraction)
+        .frame(width: area.width, height: area.height)
     }
 
-    private func pixel(_ point: CGPoint) -> CGPoint { CGPoint(x: point.x / factor, y: point.y / factor) }
+    private func pixel(_ point: CGPoint, _ zoom: CGFloat) -> CGPoint {
+        CGPoint(x: point.x / zoom, y: point.y / zoom)
+    }
 
-    /// Typed in place, at the size and colour the renderer will draw it.
-    private func textField(_ edit: AnnotationDocument.TextEdit, in document: AnnotationDocument) -> some View {
-        let mark = document.marks.first { $0.id == edit.id }
-        let fontSize = (mark?.stroke ?? document.stroke).fontSize * document.scale * factor
-        let color = (mark?.color ?? document.color).cgColor()
-        return CaptureEditorTextField(
+    /// Typed in place, in the font, size and colour the renderer will draw it.
+    private func textField(_ mark: AnnotationMark, scale: CGFloat, zoom: CGFloat) -> some View {
+        CaptureEditorTextField(
             text: Binding(
-                get: { session.document.textEdit?.string ?? "" },
+                get: { session.document.editingText },
                 set: { session.document.editText($0) }),
-            font: Font(CTFontCreateUIFontForLanguage(.system, fontSize, nil)
-                ?? CTFontCreateWithName("Helvetica" as CFString, fontSize, nil)),
-            color: Color(cgColor: color)
+            font: Font(AnnotationText.font(size: AnnotationText.fontSize(mark.textSize, scale: scale) * zoom)),
+            color: Color(cgColor: mark.color.cgColor())
         ) { session.perform(.endText) }
-        .offset(x: edit.origin.x * factor, y: edit.origin.y * factor)
+        .id(mark.id)
+        .offset(x: (mark.rect.minX + AnnotationText.inset) * zoom, y: mark.rect.minY * zoom)
     }
 }
 
@@ -85,29 +88,46 @@ private struct CaptureEditorTextField: View {
     }
 }
 
-/// What is not part of the result: the shade outside the crop and the selected mark's outline.
-private struct CaptureEditorCanvasMarks: View {
+/// What is not part of the result: the shade outside the crop, and the selected mark's outline and grips.
+private struct CaptureEditorChrome: View {
     let document: AnnotationDocument
-    let factor: CGFloat
+    let zoom: CGFloat
 
     var body: some View {
-        let scale = CGAffineTransform(scaleX: factor, y: factor)
+        let scale = CGAffineTransform(scaleX: zoom, y: zoom)
         ZStack {
-            if let crop = document.crop {
+            if document.tool == .crop, let crop = document.cropDraft?.applying(scale) {
                 Path { path in
                     path.addRect(document.bounds.applying(scale))
-                    path.addRect(crop.applying(scale))
+                    path.addRect(crop)
                 }
                 .fill(Theme.Colors.dialogDimming, style: FillStyle(eoFill: true))
-                Path(crop.applying(scale)).stroke(Theme.Colors.dropTarget, lineWidth: Theme.Size.hairline)
-            }
-            if let mark = document.marks.first(where: { $0.id == document.selection }), document.textEdit == nil {
-                Path(mark.bounds(scale: document.scale).applying(scale))
-                    .stroke(Theme.Colors.dropTarget, style: StrokeStyle(
-                        lineWidth: Theme.Size.hairline, dash: [Theme.Size.dropHintDash]))
+                Path(crop).stroke(Theme.Colors.textPrimary, lineWidth: Theme.Size.hairline)
+                grips(AnnotationHandle.allCases.map { $0.position(in: crop) })
+            } else if let mark = document.selected, document.editingTextID == nil {
+                if mark.points.count >= 2 {
+                    grips(mark.points.prefix(2).map { $0.applying(scale) })
+                } else {
+                    let box = mark.rect.applying(scale)
+                    Path(box.insetBy(dx: -Theme.Spacing.xs, dy: -Theme.Spacing.xs))
+                        .stroke(Theme.Colors.dropTarget, style: StrokeStyle(
+                            lineWidth: Theme.Size.hairline, dash: [Theme.Size.dropHintDash]))
+                    if mark.tool.dragsRect { grips(AnnotationHandle.allCases.map { $0.position(in: box) }) }
+                }
             }
         }
         .allowsHitTesting(false)
         .accessibilityHidden(true)
+    }
+
+    private func grips(_ points: [CGPoint]) -> some View {
+        let side = Theme.Spacing.md
+        let dots = Path { path in
+            for point in points {
+                path.addEllipse(in: CGRect(x: point.x - side / 2, y: point.y - side / 2, width: side, height: side))
+            }
+        }
+        return dots.fill(Theme.Colors.textPrimary)
+            .overlay { dots.stroke(Theme.Colors.dropTarget, lineWidth: Theme.Size.hairline) }
     }
 }

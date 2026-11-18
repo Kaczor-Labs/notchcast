@@ -1,17 +1,15 @@
 import CoreGraphics
 import Observation
 
-/// The open editor's state: the untouched capture and the document drawn over it.
+/// The open editor's state: the document being annotated and the way out its owner listens on.
 @MainActor
 @Observable
 final class CaptureEditorSession {
-    let image: CGImage
     var document: AnnotationDocument
     private let finish: @MainActor (CaptureEditorOutcome) -> Void
 
     init(image: CGImage, scale: CGFloat, finish: @escaping @MainActor (CaptureEditorOutcome) -> Void) {
-        self.image = image
-        document = AnnotationDocument(size: CGSize(width: image.width, height: image.height), scale: scale)
+        document = AnnotationDocument(image: image, scale: scale, seed: .random(in: .min ... .max))
         self.finish = finish
     }
 

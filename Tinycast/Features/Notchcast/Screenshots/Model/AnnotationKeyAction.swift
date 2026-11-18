@@ -1,12 +1,16 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (C) 2026 Vorssaint
+// Adapted from Vorssaint 89d2626's editor key handling: number keys for tools, Return and the Escape ladder.
+
 import Foundation
 
 /// What a key does in the editor; the panel translates its key events into `Key` first.
 enum AnnotationKeyAction: Equatable, Sendable {
     case tool(AnnotationTool)
-    case undo, redo, delete, copy, save, discard, endText
+    case undo, redo, delete, copy, save, discard, endText, applyCrop, leaveCrop, deselect
 
     enum Key: Equatable, Sendable {
-        case escape, delete
+        case escape, delete, enter
         case character(Character)
     }
 
@@ -18,20 +22,24 @@ enum AnnotationKeyAction: Equatable, Sendable {
         static let control = Self(rawValue: 8)
     }
 
-    /// While text is typed every key but Escape, ⌘C and ⌘S belongs to the text field.
-    static func action(for key: Key, modifiers: Modifiers, typingText: Bool) -> Self? {
+    /// While text is typed every key but Escape and ⌘S belongs to the text field.
+    static func action(for key: Key, modifiers: Modifiers, in document: AnnotationDocument) -> Self? {
         var letter: Character?
         if case .character(let character) = key { letter = character.lowercased().first }
-        switch (key, modifiers) {
-        case (.escape, []): return typingText ? .endText : .discard
-        case (.character, .command) where letter == "c": return typingText ? nil : .copy
-        case (.character, .command) where letter == "s": return .save
-        case _ where typingText: return nil
-        case (.delete, []): return .delete
-        case (.character, .command) where letter == "z": return .undo
-        case (.character, [.command, .shift]) where letter == "z": return .redo
-        case (.character, []): return AnnotationTool.allCases.first { $0.key == letter }.map(Self.tool)
-        default: return nil
+        if modifiers == .command, letter == "s" { return .save }
+        if document.editingTextID != nil { return key == .escape && modifiers.isEmpty ? .endText : nil }
+        if modifiers == .command, letter == "c" { return .copy }
+        if modifiers == .command, letter == "z" { return .undo }
+        if modifiers == [.command, .shift], letter == "z" { return .redo }
+        guard modifiers.isEmpty else { return nil }
+        switch key {
+        case .escape:
+            if document.isCropping { return .leaveCrop }
+            return document.selectedID == nil ? .discard : .deselect
+        case .enter: return document.isCropping ? .applyCrop : .copy
+        case .delete: return .delete
+        case .character(let character):
+            return character.wholeNumberValue.flatMap(AnnotationTool.numbered).map(Self.tool)
         }
     }
 }
@@ -43,8 +51,11 @@ extension AnnotationDocument {
         case .tool(let tool): pick(tool)
         case .undo: undo()
         case .redo: redo()
-        case .delete: deleteSelection()
+        case .delete: deleteSelected()
         case .endText: commitText()
+        case .applyCrop: applyCrop()
+        case .leaveCrop: pick(.select)
+        case .deselect: deselect()
         case .copy, .save, .discard: break
         }
     }

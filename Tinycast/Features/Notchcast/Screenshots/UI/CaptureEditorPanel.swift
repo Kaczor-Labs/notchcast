@@ -4,8 +4,8 @@ import SwiftUI
 
 /// The editor's window, on the stock glass panel recipe; every key goes through the annotation key map.
 final class CaptureEditorPanel: NSPanel, AnimatedPanel {
-    /// How much of the screen the editor may take before the capture is shown smaller.
-    private static let screenFraction: CGFloat = 0.85
+    /// How much of the screen the capture may take before it is shown smaller; the rest is for the bars.
+    private static let screenFraction: CGFloat = 0.8
     private static let centerLift: CGFloat = 0.04
     private let session: CaptureEditorSession
 
@@ -55,7 +55,7 @@ final class CaptureEditorPanel: NSPanel, AnimatedPanel {
     override func sendEvent(_ event: NSEvent) {
         guard event.type == .keyDown, let key = Self.key(event),
             let action = AnnotationKeyAction.action(
-                for: key, modifiers: Self.modifiers(event), typingText: session.document.textEdit != nil)
+                for: key, modifiers: Self.modifiers(event), in: session.document)
         else { return super.sendEvent(event) }
         session.perform(action)
     }
@@ -64,6 +64,7 @@ final class CaptureEditorPanel: NSPanel, AnimatedPanel {
         switch Int(event.keyCode) {
         case kVK_Escape: .escape
         case kVK_Delete, kVK_ForwardDelete: .delete
+        case kVK_Return, kVK_ANSI_KeypadEnter: .enter
         default: event.charactersIgnoringModifiers?.first.map(AnnotationKeyAction.Key.character)
         }
     }

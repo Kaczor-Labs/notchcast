@@ -151,13 +151,14 @@ func pngWidth(_ data: Data?) -> Int? {
 
 /// What a user does in the editor: an arrow across the middle and a word at the top left.
 func annotated(_ image: CGImage) -> AnnotationDocument {
-    var document = AnnotationDocument(size: CGSize(width: image.width, height: image.height))
+    var document = AnnotationDocument(image: image)
     document.pick(.arrow)
-    document.press(at: CGPoint(x: 5, y: 45))
-    document.drag(to: CGPoint(x: 100, y: 45))
-    document.release()
+    document.beginDrag(at: CGPoint(x: 5, y: 45))
+    document.continueDrag(to: CGPoint(x: 100, y: 45))
+    document.endDrag(at: CGPoint(x: 100, y: 45), isTap: false)
     document.pick(.text)
-    document.press(at: CGPoint(x: 5, y: 2))
+    document.beginDrag(at: CGPoint(x: 5, y: 2))
+    document.endDrag(at: CGPoint(x: 5, y: 2), isTap: true)
     document.editText("Hi")
     return document
 }
