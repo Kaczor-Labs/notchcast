@@ -61,7 +61,7 @@ jobs:
           bash notchcast/fetch-upstream.sh
           python3 notchcast/ci.py regenerate . "$(git merge-base HEAD refs/remotes/upstream/main)"
           git status --porcelain
-          (cd Scripts/raycast-runtime && npm ci --no-audit --no-fund && node build.mjs)
+          (cd Scripts/raycast-runtime && npx --yes pnpm@10 install --frozen-lockfile && node build.mjs)
           git status --porcelain
           git diff --stat
           test -z "$(git status --porcelain)"
