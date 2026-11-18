@@ -11,6 +11,8 @@ BIN="${TMPDIR:-/tmp}/tinycast-harness"
 # Fork: one harness dir per checkout, so worktrees never share a suite lock; CI keeps the plain path.
 [ -n "${CI:-}" ] || BIN="$BIN-$(pwd -P | shasum | cut -c1-8)"
 mkdir -p "$BIN"
+# Fork: Linux has flock, not lockf; the stand-in keeps the suite lock below unchanged.
+command -v lockf > /dev/null || PATH="$PWD/notchcast/linux:$PATH"
 
 # `--exec` is the worker half: xargs re-enters here once per queued harness.
 if [ "${1:-}" = "--exec" ]; then

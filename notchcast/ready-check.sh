@@ -26,7 +26,7 @@ root="$HOME/Library/Caches/notchcast/ready-check"
 mkdir -p "$root"
 log="$root/${HEAD_SHA:0:12}.log"
 # Debug builds embed absolute source paths that no flag remaps, so build outside the home (as local-ci.sh does).
-scratch=$(mktemp -d "$(getconf DARWIN_USER_TEMP_DIR)notchcast-ready.XXXXXX")
+scratch=$(mktemp -d "$(getconf DARWIN_USER_TEMP_DIR 2> /dev/null || echo "${TMPDIR:-/tmp}/")notchcast-ready.XXXXXX")
 tree="$scratch/tree"
 trap 'cd /; rm -rf "$scratch"' EXIT
 # A shared clone with the fork's tags only, as Actions' checkout sees it (lint's check-migrations reads tags).
