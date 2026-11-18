@@ -55,6 +55,16 @@ enum IslandCaptureScenes {
         await IslandVerification.pause(0.5)
         IslandVerification.require(NSApp.windows.contains { $0 is PalettePanel && $0.isVisible }, "launcher shown")
         requireSharing(.none, menu: nil, "launcher and a report shown while off")
+        let titled = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 240, height: 120), styleMask: [.titled],
+                              backing: .buffered, defer: false)
+        titled.isReleasedWhenClosed = false
+        titled.orderFrontRegardless()
+        await IslandVerification.pause(0.3)
+        await turn(core, true)
+        await turn(core, false)
+        IslandVerification.require(titled.isVisible, "a titled window is shown while off")
+        requireSharing(.none, menu: nil, "a titled window shown while off")
+        titled.close()
         await turn(core, true)
         requireSharing(.readOnly, menu: nil, "turned on at the end")
         UserDefaults.standard.removeObject(forKey: key)

@@ -105,15 +105,10 @@ final class IslandCoordinator: NSObject {
 
     var captureSharing: NSWindow.SharingType { core.settings.islandShowsInCaptures ? .readOnly : .none }
 
-    /// Titled windows such as Settings always show in captures, like any app's.
-    static func sharing(for window: NSWindow, captures: NSWindow.SharingType) -> NSWindow.SharingType {
-        window.styleMask.contains(.titled) ? .readOnly : captures
-    }
-
     /// Catches a window created after the last sweep the moment it first shows.
     @objc private func windowShown(_ notification: Notification) {
         guard let window = notification.object as? NSWindow, window.occlusionState.contains(.visible) else { return }
-        window.sharingType = Self.sharing(for: window, captures: captureSharing)
+        window.sharingType = IslandCaptureSharing.sharing(for: window, captures: captureSharing)
     }
 
     /// Every untitled Notchcast window follows "Show in screenshots and videos" live.
@@ -136,7 +131,7 @@ final class IslandCoordinator: NSObject {
             controller.sharingType = sharing
         }
         for window in NSApp.windows where !(window is IslandBackdrop) {
-            window.sharingType = Self.sharing(for: window, captures: sharing)
+            window.sharingType = IslandCaptureSharing.sharing(for: window, captures: sharing)
         }
         guard sharing == .none else { return [] }
         return backdrops.filter { reshown.contains(ObjectIdentifier($0.value)) }.map(\.key)
