@@ -226,7 +226,8 @@ struct SpotifyModuleTests {
         await settle()
         guard case .media(let media)? = presenter.page?.blocks.first else { return check(false, "a Player page") }
         check(media.title == "Paper Lanterns" && media.subtitle == "Juno Vale", "the song and its artist")
-        check(media.time == IslandMediaTime(elapsed: 30, duration: 200, rate: 0, sampledAt: Date(timeIntervalSince1970: 1)),
+        let sampled = Date(timeIntervalSince1970: 1)
+        check(media.time == IslandMediaTime(elapsed: 30, duration: 200, rate: 0, sampledAt: sampled),
               "the time runs from Soloist's position, paused")
         check(media.buttons.map(\.symbol) == ["backward.fill", "play.fill", "forward.fill"], "paused shows Play")
         check(fake.requests == ["GET /a.jpg"] && media.artwork == Data("JPEG".utf8), "the cover, fetched once")

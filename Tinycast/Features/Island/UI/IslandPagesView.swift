@@ -32,7 +32,7 @@ struct IslandPagesView: View {
 
     private func tab(_ tab: IslandPageDeck.Tab) -> some View {
         let page: IslandPage? = if case .page(let id) = tab { deck.page(id) } else { nil }
-        let title = page?.title ?? String(localized: "Home", table: "Notchcast")
+        let title = page?.title ?? String(localized: "Home")
         let badge = page?.badge ?? 0
         let selected = tab == deck.selection
         return BarButton(isSelected: selected, action: { select(tab) }) {

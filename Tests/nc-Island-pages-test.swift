@@ -1,5 +1,6 @@
 // notchcast-sources: Tinycast/Features/Island/Model/IslandPresentation.swift
 // notchcast-sources: Tinycast/Features/Island/Model/IslandPageDeck.swift
+// notchcast-sources: Tinycast/Features/Island/Model/IslandPageSwipe.swift
 // notchcast-sources: Tinycast/Features/Island/Model/IslandPlayer.swift
 import CoreGraphics
 import Foundation
@@ -116,15 +117,35 @@ struct IslandPagesTest {
     }
 
     static func swipe() {
+        /// One trackpad event `at` seconds in; a phase of nil is a device that sends none.
+        func drag(_ swipe: inout IslandPageSwipe, _ deltaX: Double, deltaY: Double = 0, at: TimeInterval,
+                  began: Bool = false, ended: Bool = false, momentum: Bool = false, hasPhase: Bool = true) -> Int {
+            swipe.steps(deltaX: deltaX, deltaY: deltaY, timestamp: at, precise: true, hasPhase: hasPhase,
+                        began: began, ended: ended, momentum: momentum)
+        }
+        let first = IslandPageSwipe.firstStep, tab = IslandPageSwipe.tabStep
         var swipe = IslandPageSwipe()
-        let step = IslandPageSwipe.distance / 2
-        precondition(swipe.scroll(deltaX: -step, deltaY: 0, began: true) == nil, "a short swipe turns nothing")
-        precondition(swipe.scroll(deltaX: -step, deltaY: 0, began: false) == 1, "fingers moving left: next tab")
-        precondition(swipe.scroll(deltaX: -step * 4, deltaY: 0, began: false) == nil, "one tab per gesture")
-        precondition(swipe.scroll(deltaX: step * 2, deltaY: 0, began: true) == -1, "a new gesture right: previous")
+        precondition(drag(&swipe, -first / 2, at: 0, began: true) == 0, "a short swipe turns nothing")
+        precondition(drag(&swipe, -first / 2, at: 0.01) == 1, "fingers moving left: next tab")
+        precondition(drag(&swipe, -tab / 2, at: 0.02) == 0, "the same drag needs a tab's width for the next")
+        precondition(drag(&swipe, -tab / 2, at: 0.03) == 1, "and then turns one more")
+        precondition(drag(&swipe, first, at: 0.04) == -1, "turning back answers after the short first step")
+        precondition(drag(&swipe, 0, at: 0.05, ended: true) == 0, "lifting the fingers ends the gesture")
+        precondition(drag(&swipe, -tab * 3, at: 0.06, momentum: true) == 0, "momentum after the lift turns nothing")
+        precondition(drag(&swipe, first, at: 1, began: true) == -1, "a new gesture right: previous")
         var vertical = IslandPageSwipe()
-        precondition(vertical.scroll(deltaX: -step * 3, deltaY: -step * 4, began: true) == nil,
+        precondition(drag(&vertical, -first * 3, deltaY: -first * 4, at: 0, began: true) == 0,
                      "a mostly vertical scroll is not a swipe")
+        var loose = IslandPageSwipe()
+        precondition(drag(&loose, -first / 2, at: 0, hasPhase: false) == 0, "without phases, half a step")
+        precondition(drag(&loose, -first / 2, at: 1, hasPhase: false) == 0, "does not add up across a pause")
+        var wheel = IslandPageSwipe()
+        precondition(wheel.steps(deltaX: -1, deltaY: 0, timestamp: 0, precise: false, hasPhase: false, began: false,
+                                 ended: false, momentum: false) == 1, "a sideways wheel notch turns one tab")
+        precondition(wheel.steps(deltaX: 0, deltaY: -3, timestamp: 0, precise: false, hasPhase: false, began: false,
+                                 ended: false, momentum: false) == 0, "an ordinary wheel notch turns nothing")
+        precondition(wheel.steps(deltaX: .nan, deltaY: 0, timestamp: 0, precise: true, hasPhase: true, began: true,
+                                 ended: false, momentum: false) == 0, "a broken delta is ignored")
     }
 
     static func keys() {
@@ -158,7 +179,8 @@ struct IslandPagesTest {
         precondition(media.title == "Paper Lanterns" && media.subtitle == "Juno Vale" && media.time == time,
                      "artwork, title, artist and time")
         precondition(media.buttons.map(\.symbol) == ["backward.fill", "pause.fill", "forward.fill"], "transport")
-        precondition(page.line.text == "Paper Lanterns" && page.line.buttons.map(\.symbol) == ["pause.fill", "forward.fill"],
+        precondition(page.line.text == "Paper Lanterns"
+                     && page.line.buttons.map(\.symbol) == ["pause.fill", "forward.fill"],
                      "Home shows the song with its buttons")
         var paused = playing
         paused.isPlaying = false
@@ -168,7 +190,8 @@ struct IslandPagesTest {
         let ids = media.buttons.map(\.id)
         precondition(ids.compactMap(IslandPlayerControl.init(rawValue:)) == [.previous, .playPause, .next],
                      "each button maps to a control")
-        precondition(IslandPlayerControl(rawValue: IslandPage.refreshAction) == .refresh, "Command-R reaches the player")
+        precondition(IslandPlayerControl(rawValue: IslandPage.refreshAction) == .refresh,
+                     "Command-R reaches the player")
         var two = IslandPageDeck()
         two.set(page, id: IslandPlayerPage.id)
         two.set(IslandPage(id: "agents", title: "Agents", symbol: "person.2", order: 0, badge: 1,

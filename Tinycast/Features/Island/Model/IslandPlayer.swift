@@ -30,9 +30,9 @@ enum IslandPlayerPage {
             : IslandPageButton(id: IslandPlayerControl.playPause.rawValue, symbol: "play.fill",
                                label: String(localized: "Play", table: "Notchcast"))
         let back = IslandPageButton(id: IslandPlayerControl.previous.rawValue, symbol: "backward.fill",
-                                    label: String(localized: "Previous Track", table: "Notchcast"))
+                                    label: String(localized: "Previous Track"))
         let skip = IslandPageButton(id: IslandPlayerControl.next.rawValue, symbol: "forward.fill",
-                                    label: String(localized: "Next Track", table: "Notchcast"))
+                                    label: String(localized: "Next Track"))
         return IslandPage(
             id: id, title: String(localized: "Player", table: "Notchcast"), symbol: "music.note", order: order,
             line: IslandPageLine(symbol: "music.note", artwork: playing.artwork, text: playing.title,
