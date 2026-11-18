@@ -13,10 +13,11 @@ if [[ " $* " == *" Tinycast/Features/Settings/SettingsSearchCatalog.swift "* && 
     [[ " $* " == *" Tinycast/Features/Notchcast/Core/Model/NotchcastSwitch.swift "* ]] || set -- "$@" Tinycast/Features/Notchcast/Core/Model/NotchcastSwitch.swift
     [[ " $* " == *" Tinycast/Features/Notchcast/Core/Model/NotchcastCategory.swift "* ]] || set -- "$@" Tinycast/Features/Notchcast/Core/Model/NotchcastCategory.swift
 fi
-# `frosted(in:)` paints the island's black through the island glass, so Theme brings both along.
+# `frosted(in:)` paints the island's black through the island glass, and Theme reads OBSIDIAN tokens.
 if [[ " $* " == *" Tinycast/DesignSystem/Theme.swift "* || " $* " == *" Tinycast/Features/Island/Service/IslandPaletteSurface.swift "* ]]; then
     [[ " $* " == *" Tinycast/Features/Island/Service/IslandPaletteSurface.swift "* ]] || set -- "$@" Tinycast/Features/Island/Service/IslandPaletteSurface.swift
     [[ " $* " == *" Tinycast/Features/Notchcast/NotchTheme.swift "* ]] || set -- "$@" Tinycast/Features/Notchcast/NotchTheme.swift
+    [[ " $* " == *" Tinycast/DesignSystem/ObsidianTokens.swift "* ]] || set -- "$@" Tinycast/DesignSystem/ObsidianTokens.swift
 fi
 # Upstream's icon pack tints Theme and SettingsTab with IconTint, so either brings it along.
 if [[ " $* " == *" Tinycast/DesignSystem/Theme.swift "* || " $* " == *" Tinycast/Features/Settings/SettingsTab.swift "* ]]; then
