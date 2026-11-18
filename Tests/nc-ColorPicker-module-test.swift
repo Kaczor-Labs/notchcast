@@ -66,10 +66,16 @@ func srgb(_ red: Int, _ green: Int, _ blue: Int) -> NSColor {
     NSColor(srgbRed: CGFloat(red) / 255, green: CGFloat(green) / 255, blue: CGFloat(blue) / 255, alpha: 1)
 }
 
+/// The controller reconciles a switch in a follow-up main-actor task, so this yields until it has.
+@MainActor
+func settle(_ done: () -> Bool) async {
+    for _ in 0..<10_000 where !done() { await Task.yield() }
+}
+
 @main
 enum ColorPickerModuleTests {
     @MainActor
-    static func main() {
+    static func main() async {
         precondition(ColorPickerAddon.switches.map(\.id) == ["colorPicker"], "v1 switch id")
         precondition(ColorPickerAddon.switches[0].defaultEnabled == false, "off by default, as v1 shipped it")
         precondition(ColorPickerAddon.switches[0].category == .capture, "capture category")
@@ -99,6 +105,7 @@ enum ColorPickerModuleTests {
 
         precondition(!controller.run(entryID: command) && fake.samplers.isEmpty, "switch off: no command, no sampler")
         controller.preferences.set("colorPicker", on: true)
+        await settle { !controller.enabledCommands.isEmpty }
         precondition(controller.run(entryID: command) && fake.samplers.count == 1, "the command opens the sampler")
         precondition(controller.run(entryID: command) && fake.samplers.count == 1, "a second pick while one is open waits")
 
@@ -138,12 +145,14 @@ enum ColorPickerModuleTests {
         precondition(controller.run(entryID: command))
         let copies = fake.copies.count
         controller.preferences.set("colorPicker", on: false)
+        await settle { controller.enabledCommands.isEmpty }
         precondition(presenter.ends.contains("colorPicker.copied"), "switch off ends the notice")
         fake.answer(srgb(1, 2, 3))
         precondition(fake.copies.count == copies, "a pick answered after switch off is dropped")
         precondition(!controller.run(entryID: command), "and the command goes with the switch")
 
         controller.preferences.set("colorPicker", on: true)
+        await settle { !controller.enabledCommands.isEmpty }
         precondition(controller.run(entryID: command) && fake.samplers.count == 1, "a fresh module opens a fresh sampler")
         fake.answer(srgb(0, 0, 0))
         precondition(fake.copies.last == "hsl(0deg, 0%, 0%)", "and copies")
