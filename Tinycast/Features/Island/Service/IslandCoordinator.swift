@@ -97,6 +97,7 @@ final class IslandCoordinator: NSObject {
         presenter?.restingChanged()
         if restingGlance != nil { syncExpansion() }
         spaceChanged()
+        hover.refresh()
     }
 
     private func dropBackdrop(_ id: CGDirectDisplayID) {
@@ -149,6 +150,7 @@ final class IslandCoordinator: NSObject {
             guard !Task.isCancelled, let self else { return }
             for (id, backdrop) in backdrops { backdrop.onFullScreenSpace = full.contains(id) }
             for screen in screens { backdrops[screen.islandDisplayID]?.refreshMenuBar(screen) }
+            hover.refresh()
         }
     }
 
@@ -284,6 +286,7 @@ final class IslandCoordinator: NSObject {
             panel.level = paletteLevel
         }
         for controller in backdrops.values { controller.frameChanged() }
+        hover.refresh()
     }
 
     private func observeCaptureSharing() {

@@ -1,15 +1,20 @@
 // notchcast-sources: Tinycast/Features/Island/Model/IslandHover.swift
 // notchcast-sources: Tinycast/Features/Island/Model/IslandPresentation.swift
+// notchcast-sources: Tinycast/Features/Island/Service/IslandHoverTracker.swift
+// notchcast-reads: Tinycast/Features/Island/Service/IslandCoordinator.swift
+// notchcast-reads: Tinycast/Features/Island/Service/IslandPillMenu.swift
+// notchcast-reads: Tinycast/Features/Island/Service/IslandHoverTracker+Core.swift
 import CoreGraphics
 import Foundation
 
 @main
+@MainActor
 struct IslandHoverTest {
     typealias Input = IslandHover.Input
     static let open = IslandHover.openDelay
     static let close = IslandHover.closeDelay
 
-    static func main() {
+    static func main() throws {
         delays()
         passThrough()
         leaving()
@@ -19,6 +24,10 @@ struct IslandHoverTest {
         pin()
         zone()
         content()
+        menuEscape()
+        monitors()
+        pinnedClick()
+        try refreshHooks()
         print("IslandHoverTest passed")
     }
 
@@ -166,11 +175,139 @@ struct IslandHoverTest {
         precondition(shown(nil) == nil, "a bare island shows nothing on hover (H1 with no player)")
     }
 
+    /// Hover open, click to the menu, onto a row, Escape: closing the menu alone must start the close.
+    static func menuEscape() {
+        let world = FakeWorld()
+        let tracker = world.tracker()
+        world.move(Input(inside: true))
+        world.advance(to: open)
+        precondition(tracker.isOpen && world.opens == [true], "resting on the island opens it")
+        world.move(Input(inside: true, menuOpen: true), click: true)
+        world.move(Input(inside: false, menuOpen: true))
+        precondition(tracker.isOpen && world.wakeAt == nil, "on a menu row the open view stays put")
+        world.input = Input(inside: false)
+        tracker.refresh()
+        precondition(world.wakeAt == open + close, "the menu closing alone starts the close clock")
+        world.advance(to: open + close)
+        precondition(!tracker.isOpen && world.opens == [true, false], "then the island closes with no pointer move")
+    }
+
+    static func monitors() {
+        let world = FakeWorld()
+        let tracker = world.tracker()
+        precondition(tracker.isWatching && world.live == 2, "with hover on, both pointer monitors run")
+        world.input = Input(enabled: false)
+        tracker.refresh()
+        precondition(!tracker.isWatching && world.live == 0, "turning Open on hover off removes both monitors")
+        tracker.refresh()
+        precondition(world.live == 0 && world.installs == 1, "and none come back while it stays off")
+        tracker.togglePin()
+        precondition(tracker.isOpen && world.live == 2, "a pin with hover off watches for its outside click")
+        tracker.togglePin()
+        precondition(!tracker.isOpen && world.live == 0, "unpinned with hover off, nothing is watched again")
+        world.input = Input()
+        tracker.refresh()
+        precondition(tracker.isWatching && world.live == 2, "turning it back on starts the monitors again")
+    }
+
+    static func pinnedClick() {
+        let world = FakeWorld()
+        let tracker = world.tracker()
+        tracker.togglePin()
+        world.move(Input(inside: true), click: true)
+        precondition(tracker.isOpen, "a click on the island keeps the pin")
+        world.move(Input(inside: false), click: false)
+        precondition(tracker.isOpen, "a move outside keeps the pin")
+        world.move(Input(inside: false), click: true)
+        precondition(!tracker.isOpen && world.opens == [true, false], "a click outside dismisses the pin and says so")
+    }
+
+    /// Each of these changes an input without a pointer event, so each must ask the tracker again.
+    static func refreshHooks() throws {
+        let coordinator = try source("IslandCoordinator.swift")
+        let menu = try source("IslandPillMenu.swift")
+        for (text, header) in [(menu, "func hide()"), (coordinator, "@objc private func rebuild()"),
+                               (coordinator, "@objc private func modalEnded()")] {
+            precondition(body(text, header).contains("hover.refresh()\n"), "\(header) refreshes the hover")
+        }
+        let space = body(coordinator, "@objc func spaceChanged()")
+        guard let written = space.range(of: "onFullScreenSpace = full"),
+              let refreshed = space.range(of: "hover.refresh()\n") else {
+            preconditionFailure("spaceChanged refreshes the hover")
+        }
+        precondition(written.upperBound < refreshed.lowerBound, "spaceChanged refreshes after the full-screen write")
+        let core = try source("IslandHoverTracker+Core.swift")
+        precondition(core.contains("addLocalMonitorForEvents") && core.contains("&& !(event.window is MenuPanel)"),
+                     "a click in an own window counts, except on the island's menu")
+    }
+
+    static func source(_ name: String) throws -> String {
+        try String(contentsOfFile: "Tinycast/Features/Island/Service/" + name, encoding: .utf8)
+    }
+
+    /// From `header` to the first line that closes a member at four-space indent.
+    static func body(_ text: String, _ header: String) -> String {
+        guard let start = text.range(of: header) else { preconditionFailure("\(header) is gone") }
+        let rest = text[start.lowerBound...]
+        return String(rest[..<(rest.range(of: "\n    }\n")?.upperBound ?? rest.endIndex)])
+    }
+
     static func opened() -> IslandHover {
         var hover = IslandHover()
         hover.update(Input(inside: true), at: 10)
         hover.tick(at: 10 + open)
         precondition(hover.isOpen)
         return hover
+    }
+}
+
+/// The pointer, clock and monitors as the tracker sees them, advanced by hand.
+@MainActor
+final class FakeWorld {
+    var input = IslandHover.Input()
+    var now: TimeInterval = 0
+    var opens: [Bool] = []
+    var installs = 0
+    var live = 0
+    var wakeAt: TimeInterval?
+    private var fire: (@MainActor () -> Void)?
+    private var moved: (@MainActor (Bool) -> Void)?
+
+    func tracker() -> IslandHoverTracker {
+        let tracker = IslandHoverTracker(world: .init(
+            input: { [unowned self] in input },
+            now: { [unowned self] in now },
+            watch: { [unowned self] handler in
+                installs += 1
+                live += 2
+                moved = handler
+                return ["global", "local"]
+            },
+            unwatch: { [unowned self] _ in
+                live -= 1
+                if live == 0 { moved = nil }
+            },
+            wake: { [unowned self] deadline, fire in
+                wakeAt = deadline
+                self.fire = fire
+                return { [unowned self] in wakeAt = nil; self.fire = nil }
+            },
+            openChanged: { [unowned self] in opens.append($0) }))
+        tracker.start()
+        return tracker
+    }
+
+    func move(_ next: IslandHover.Input, click: Bool = false) {
+        input = next
+        guard let moved else { preconditionFailure("the pointer is not being watched") }
+        moved(click)
+    }
+
+    func advance(to time: TimeInterval) {
+        now = time
+        guard let wakeAt, wakeAt <= time, let fire else { return }
+        self.wakeAt = nil
+        self.fire = nil
+        fire()
     }
 }
