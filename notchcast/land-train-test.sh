@@ -64,6 +64,7 @@ case "$*" in
     'run download 8 '*)
         echo "${ISOLATED%%|*}" > "${*: -1}/toolchain"
         echo "${ISOLATED#*|}" > "${*: -1}/excused" ;;
+    *actions/runners*) [ -n "${OFFLINE:-}" ] || echo "${MAC_RUNNER:-}" ;;
     'variable get NOTCHCAST_MAC_RUNNER'*) [ -n "${MAC_RUNNER:-}" ] && echo "$MAC_RUNNER" || { echo 'variable NOTCHCAST_MAC_RUNNER was not found' >&2; exit 1; } ;;
     *actions/artifacts*) if [ -n "${TESTED:-}" ]; then echo '{"artifacts":[{"workflow_run":{"id":7}}]}'; else echo '{"artifacts":[]}'; fi ;;
     *actions/runs/7*) printf '{"name":"PR","path":".github/workflows/pr.yml","conclusion":"success","head_repository":{"full_name":"%s"},"html_url":"https://fixture.invalid/runs/7"}\n' "$FORK_REPO" ;;
@@ -448,6 +449,13 @@ open_pr 1 pr-h 'Add H' src/hosted.txt
 MAC_RUNNER=fixture-mac NOTCHCAST_TRAIN_MAC=hosted train 1
 [ "$status" -eq 0 ] && grep -q '^workflow run pr.yml .*hosted=true' "$FIXTURE/dispatched" \
     && grep -q '^train: train/1 has its Mac job on the hosted runner$' "$FIXTURE/train-output" || fail 'NOTCHCAST_TRAIN_MAC=hosted did not keep the train hosted'
+origin push --quiet . --delete train/1 2>/dev/null || origin update-ref -d refs/heads/train/1
+rm "$FIXTURE/dispatched"
+OFFLINE=1 MAC_RUNNER=fixture-mac train 1
+[ "$status" -eq 0 ] && grep -q '^workflow run pr.yml .*hosted=true' "$FIXTURE/dispatched" \
+    && grep -q '^train: no runner labelled fixture-mac is online, so the Mac job is hosted$' "$FIXTURE/train-output" \
+    || fail 'a train went to a named runner that is offline'
+echo 'PASS: a train stays hosted while no runner with the named label is online'
 origin push --quiet . --delete train/1 2>/dev/null || origin update-ref -d refs/heads/train/1
 rm "$FIXTURE/dispatched"
 MAC_RUNNER=fixture-mac train 1
