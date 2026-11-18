@@ -143,6 +143,8 @@ enum DisplaySoundSpeakerTests {
     static func main() async {
         await extraDimming()
         await sleepReset()
+        await staleCurves()
+        await quitDuringSpeakerCommand()
         await speakers()
         await silentMonitors()
         await reconnection()
@@ -213,6 +215,45 @@ enum DisplaySoundSpeakerTests {
         controller.stop()
     }
 
+    static func staleCurves() async {
+        install([
+            1: Monitor(uuid: "uuid-1", name: "Built-in", builtIn: true, system: 0.5),
+            2: Monitor(uuid: "uuid-2", name: "Plain", ddc: false),
+        ])
+        let service = BrightnessDisplayService(displays: system.displays)
+        _ = await service.perform(.refresh(names: [:]))
+        _ = await service.perform(.set(-0.25, id(1)))
+        _ = await service.perform(.set(0.4, id(2)))
+        hw { $0.monitors[1]?.gamma = baseline }
+        _ = await service.perform(.sleep)
+        _ = await service.perform(.step(up: false, fine: false, id(1)))
+        check(hw { $0.monitors[1]?.gamma != baseline }, "a sleep step after macOS reset the curve: the keys still dim")
+
+        hw { $0.monitors[2]?.online = false }
+        _ = await service.perform(.refresh(names: [:]))
+        hw { $0.monitors[2]?.online = true; $0.monitors[2]?.gamma = baseline }
+        let back = await service.perform(.refresh(names: [:]))!
+        check(back.displays[1].level.value == 0.4 && hw { $0.monitors[2]?.gamma != baseline },
+              "a display back with a fresh curve dims again")
+        check(await service.restoreAll(), "restored")
+    }
+
+    static func quitDuringSpeakerCommand() async {
+        install([
+            1: Monitor(uuid: "uuid-1", name: "Built-in", builtIn: true, system: 0.5),
+            2: Monitor(uuid: "uuid-2", name: "Desk"),
+        ])
+        let service = BrightnessDisplayService(displays: system.displays)
+        _ = await service.perform(.refresh(names: [:]))
+        _ = await service.perform(.set(-0.25, id(1)))
+        let ran = await service.withLink("UUID-2") { _ in
+            service.restoreBeforeExit(within: .zero)
+            return true
+        }
+        check(ran == true && hw { $0.monitors[1]?.gamma == baseline },
+              "a speaker command that outlasts quit's wait gives the curve back")
+    }
+
     @MainActor
     static func speakers() async {
         install([
@@ -269,6 +310,15 @@ enum DisplaySoundSpeakerTests {
         for handler in watchers.displays { handler(false) }
         _ = await speakers.apply(.step(increasing: true, fine: false))
         check(hw { $0.requested.count } == 3, "a display change asks again")
+
+        hw { $0.monitors[5]?.values[0x62] = (50, 100) }
+        for handler in watchers.displays { handler(false) }
+        check(await speakers.apply(.step(increasing: true, fine: false)) != nil, "the monitor answers")
+        hw { $0.monitors[5]?.values[0x62] = nil }
+        check(await speakers.apply(.step(increasing: true, fine: false)) == nil, "one missed reply: macOS")
+        hw { $0.monitors[5]?.values[0x62] = (56, 100) }
+        check(await speakers.apply(.step(increasing: true, fine: false)) != nil,
+              "a monitor that answered before is asked again after a missed reply")
         speakers.stop()
     }
 
@@ -304,6 +354,19 @@ enum DisplaySoundSpeakerTests {
         check(value(6, 0x62) == 44 && value(6, 0x8D) == 1, "the remembered level and mute come back on reconnect")
         check(hw { $0.sent.allSatisfy { $0 != DisplayDDC.write(.volume, 50) } } && value(7, 0x62) == 50,
               "a display with no remembered level is left alone")
+
+        hw { $0.monitors[6]?.online = false }
+        for handler in watchers.displays { handler(false) }
+        hw { rack in
+            rack.monitors[6]?.online = true
+            rack.monitors[6]?.values[0x62] = (90, 100)
+            rack.monitors[6]?.values[0x8D] = nil
+            rack.sent = []
+        }
+        for handler in watchers.displays { handler(false) }
+        await speakers.restoring?.value
+        check(value(6, 0x62) == 44 && hw { !$0.sent.contains { $0[0] != 0x82 && $0[2] == 0x8D } },
+              "a monitor that never answers for mute is sent no mute value")
         speakers.stop()
     }
 }
