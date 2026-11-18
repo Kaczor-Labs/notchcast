@@ -56,7 +56,7 @@ struct DictationExtrasSettingsSections: View {
         } header: {
             SettingsSectionHeader(.dictationCleanup)
         } footer: {
-            Text("The transcript goes only to the chosen model, and is never logged.", tableName: "Notchcast")
+            Text("The transcript is sent only to the chosen model. Notchcast keeps no log of it.", tableName: "Notchcast")
         }
     }
 

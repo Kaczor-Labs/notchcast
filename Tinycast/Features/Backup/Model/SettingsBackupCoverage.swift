@@ -104,9 +104,9 @@ enum SettingsBackupCoverage {
         AppSettingsKey.dictationIdleRelease.rawValue:
             "Dictation memory use stays a device-local preference.",
         AppSettingsKey.dictationCleansUp.rawValue:
-            "Dictation preferences stay local until backup supports them.",
+            "An import must not switch on sending dictated text to a model.",
         AppSettingsKey.dictationCleanupPrompt.rawValue:
-            "Dictation preferences stay local until backup supports them.",
+            "An import must not change what the cleanup model is told to paste.",
         AppSettingsKey.dictationCleanupModel.rawValue:
             "An import must not change which model receives dictated text.",
         AppSettingsKey.dictationKeepsHistory.rawValue:

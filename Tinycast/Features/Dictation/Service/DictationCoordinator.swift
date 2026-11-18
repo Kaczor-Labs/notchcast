@@ -32,7 +32,7 @@ final class DictationCoordinator {
     @ObservationIgnored private var target: InjectionTarget?
     @ObservationIgnored var willStart: @MainActor () async -> Void = {}
     /// Rewrites a finished transcript before it is pasted; nil pastes it as heard.
-    @ObservationIgnored var cleanUp: @MainActor (String) async -> String? = { _ in nil }
+    @ObservationIgnored var cleanUp: @MainActor (String, Bool, Bool, Bool) async -> String? = { _, _, _, _ in nil }
     @ObservationIgnored var didDictate: @MainActor (String, String?, InjectionTarget?) -> Void = { _, _, _ in }
     /// The field a mic button is dictating into; nil for a shortcut's session.
     private(set) var field: DictationField?
@@ -246,8 +246,7 @@ final class DictationCoordinator {
                     tail, model: model,
                     language: language)
                 guard token == current else { return }
-                var cleaned: String?
-                if cleansUp, field == nil, liveText.isEmpty { cleaned = await cleanUp(transcript) }
+                let cleaned = await cleanUp(transcript, cleansUp, field != nil, liveText.isEmpty)
                 guard token == current else { return }
                 // A mic belongs to its field: the text goes in there, never to the clipboard.
                 let context = destination.pastes ? insertionContext() : nil

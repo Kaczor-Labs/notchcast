@@ -19,7 +19,9 @@ final class DictationExtrasCoordinator {
 
     func start(core: AppCore) {
         self.core = core
-        core.dictationCoordinator.cleanUp = { [weak self] in await self?.clean($0) }
+        core.dictationCoordinator.cleanUp = { [weak self] transcript, cleansUp, hasField, liveTextEmpty in
+            await self?.clean(transcript, cleansUp: cleansUp, hasField: hasField, liveTextEmpty: liveTextEmpty)
+        }
         core.dictationCoordinator.didDictate = { [weak self] raw, cleaned, target in
             self?.record(raw: raw, cleaned: cleaned, target: target)
         }
@@ -63,8 +65,14 @@ final class DictationExtrasCoordinator {
     // MARK: - Cleanup
 
     /// Nil pastes the raw transcript; a cleanup the reader wanted and did not get says so.
-    private func clean(_ transcript: String) async -> String? {
-        guard let core, core.settings.dictationCleansUp else { return nil }
+    private func clean(
+        _ transcript: String, cleansUp: Bool, hasField: Bool, liveTextEmpty: Bool
+    ) async -> String? {
+        guard let core,
+            DictationCleanupPolicy.sends(
+                switchOn: core.settings.dictationCleansUp, cleansUp: cleansUp, hasField: hasField,
+                liveTextEmpty: liveTextEmpty)
+        else { return nil }
         let outcome = await DictationCleanupRunner.run(
             transcript, generate: generator(for: transcript, core: core),
             deadline: { try await Task.sleep(for: DictationCleanupRunner.timeout) })

@@ -864,9 +864,7 @@ final class AppSettings {
         dictationLanguage =
             defaults.string(forKey: Key.dictationLanguage.rawValue)
             .flatMap(DictationLanguage.init(rawValue:))?.rawValue
-        dictationCleansUp =
-            defaults.object(forKey: Key.dictationCleansUp.rawValue) == nil
-            || defaults.bool(forKey: Key.dictationCleansUp.rawValue)
+        dictationCleansUp = defaults.bool(forKey: Key.dictationCleansUp.rawValue)
         dictationCleanupPrompt = defaults.string(forKey: Key.dictationCleanupPrompt.rawValue)
         dictationKeepsHistory =
             defaults.object(forKey: Key.dictationKeepsHistory.rawValue) == nil

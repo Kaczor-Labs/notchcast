@@ -1,4 +1,5 @@
 // notchcast-sources: Tinycast/Features/DictationExtras/Model/*.swift
+// notchcast-sources: Tinycast/Features/Settings/Model/SettingsFileKey.swift
 
 import Foundation
 
@@ -81,6 +82,22 @@ enum DictationExtrasCleanupTests {
         check(automatic([api, codex]) == codex, "Codex's first model when none is light")
         check(automatic([api]) == nil, "an API key is never picked on its own")
         check(automatic([]) == nil, "nothing installed picks nothing")
+
+        // Gate: the transcript leaves only on a shortcut finish, with the switch on, outside a field.
+        func sends(_ switchOn: Bool, _ cleansUp: Bool, _ hasField: Bool, _ liveTextEmpty: Bool) -> Bool {
+            DictationCleanupPolicy.sends(
+                switchOn: switchOn, cleansUp: cleansUp, hasField: hasField, liveTextEmpty: liveTextEmpty)
+        }
+        check(sends(true, true, false, true), "a shortcut finish with the switch on cleans up")
+        check(!sends(false, true, false, true), "the switch off sends nothing")
+        check(!sends(true, false, false, true), "Return sends nothing")
+        check(!sends(true, true, true, true), "a composer mic sends nothing")
+        check(!sends(true, true, false, false), "live insertion sends nothing")
+
+        // A settings.json key would let a file send transcripts, delete history or rewrite the prompt.
+        for path in ["dictation.cleansUp", "dictation.keepsHistory", "dictation.cleanupPrompt"] {
+            check(SettingsFileKey(rawValue: path) == nil, "\(path) has no settings.json key")
+        }
 
         print("nc-DictationExtras-cleanup-test: all passed")
     }

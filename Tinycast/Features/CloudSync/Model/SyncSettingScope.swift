@@ -21,7 +21,6 @@ enum SyncSettingScope {
             .systemActionsEnabled, .builtInCommandsEnabled, .customCommandsEnabled,
             .quicklinksEnabled, .appleShortcutsEnabled, .aiEnabled, .dictationModel,
             .dictationMicrophone, .fileSearchEnabled, .fileSearchScopes, .notesEnabled,
-            .dictationKeepsHistory,
             .notesFolder, .snippetsFolder, .navigationEnabled, .windowManagementEnabled,
             .clipboardEnabled:
             nil
@@ -35,7 +34,7 @@ enum SyncSettingScope {
         case .aiRetention: .aiChats
         case .dictationMode, .dictationPlaysSounds, .dictationDestination,
             .dictationAdaptsCapitalization, .dictationLiveInsertion, .dictationIdleRelease,
-            .dictationLanguage, .dictationCleansUp, .dictationCleanupPrompt:
+            .dictationLanguage:
             .dictation
         case .customWindowSizes, .windowLayouts, .windowRooms: .windowLayouts
         case .launcherShortcut, .hyperKey, .hyperKeyIncludesShift, .hyperKeyQuickPress,

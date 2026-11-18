@@ -145,7 +145,7 @@
     "The last 50 dictations stay on this Mac. Turning this off deletes them." : {
 
     },
-    "The transcript goes only to the chosen model, and is never logged." : {
+    "The transcript is sent only to the chosen model. Notchcast keeps no log of it." : {
 
     },
     "Top edge" : {
