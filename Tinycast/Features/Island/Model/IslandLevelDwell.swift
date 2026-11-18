@@ -48,7 +48,7 @@ extension IslandLevel {
     }
 }
 
-/// Extents along a track `width` wide: 0...1 is the track, the rest of `range` outlined zones.
+/// Extents along a bar `width` wide: 0...1 the track, the rest outlined zones; fill from the left edge.
 struct IslandLevelTrack: Equatable, Sendable {
     let below: ClosedRange<Double>?
     let track: ClosedRange<Double>
@@ -63,6 +63,6 @@ struct IslandLevelTrack: Equatable, Sendable {
         below = low < 0 ? x(low)...x(0) : nil
         track = x(0)...x(1)
         above = high > 1 ? x(1)...x(high) : nil
-        fill = x(min(value, 0))...x(max(value, 0))
+        fill = x(low)...x(value)
     }
 }
