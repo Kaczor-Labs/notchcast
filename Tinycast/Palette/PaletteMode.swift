@@ -42,7 +42,7 @@ enum PaletteMode: String, CaseIterable, Identifiable {
         case .ai: return "sparkles"
         case .aiHistory: return "clock.arrow.circlepath"
         case .calculatorHistory: return "plus.forwardslash.minus"
-        case .dictationHistory: return CommandID.dictationHistory.sfSymbol
+        case .dictationHistory: return "waveform"
         case .emoji: return "face.smiling"
         case .fileSearch: return "doc.text.magnifyingglass"
         case .menuSearch: return "menubar.rectangle"
