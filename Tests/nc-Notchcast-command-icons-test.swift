@@ -53,6 +53,11 @@
 // notchcast-sources: Tinycast/Features/Notchcast/Downloads/Service/DownloadToolLookup.swift
 // notchcast-sources: Tinycast/Features/Notchcast/Downloads/Service/DownloadsIslandBridge.swift
 // notchcast-sources: Tinycast/Features/Notchcast/Downloads/Service/DownloadsModule.swift
+// notchcast-sources: Tinycast/Features/Notchcast/Downloads/Service/DownloadsModule+Torrents.swift
+// notchcast-sources: Tinycast/Features/Notchcast/Downloads/Service/TorrentIslandBridge.swift
+// notchcast-sources: Tinycast/Features/Notchcast/Downloads/Service/TorrentManager.swift
+// notchcast-sources: Tinycast/Features/Notchcast/Downloads/Service/TorrentSession.swift
+// notchcast-sources: Tinycast/Features/Notchcast/Downloads/Service/TorrentOpenFallback.swift
 // notchcast-sources: Tinycast/Features/Notchcast/Downloads/Service/DownloadsQueueController.swift
 // notchcast-sources: Tinycast/Features/Notchcast/Downloads/Service/JobOutput.swift
 // notchcast-sources: Tinycast/Features/Notchcast/Downloads/Service/MediaDownloadRunner.swift
