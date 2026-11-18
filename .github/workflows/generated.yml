@@ -17,7 +17,7 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  # The generators (xcodegen, npm for the extension runtime) run with a read-only token and no stored credentials.
+  # The generators run with a read-only token and no stored credentials.
   regenerate:
     runs-on: macos-15
     # Up to 40 min of it waiting out a Sync replay.
@@ -35,9 +35,6 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
       - uses: ./notchcast/actions/xcodegen
-      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
-        with:
-          node-version: 22
       - name: Regenerate
         id: generate
         shell: bash

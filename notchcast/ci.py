@@ -597,8 +597,8 @@ def pruned(tree):
 
 
 def regenerate(tree, onto):
-    """Write GENERATED in tree: notchcast/README.public.md as README.md, the Xcode project from project.yml ($XCODEGEN), and the
-    extension runtime bundle when our commits change its sources. Also stage the removal of every path in
+    """Write GENERATED in tree: notchcast/README.public.md as README.md and the Xcode project from project.yml ($XCODEGEN); the
+    extension runtime bundle stays upstream's, since Extensions are hidden. Also stage the removal of every path in
     notchcast/prune-paths.txt (upstream files the app does not need), so the removal rides in the generated-files
     commit, which a replay never picks and so never conflicts."""
     tree = Path(tree)
@@ -610,10 +610,6 @@ def regenerate(tree, onto):
         run(os.environ["XCODEGEN"], "generate", "--quiet", cwd=tree)
     elif subprocess.run(["git", "diff", "--quiet", onto, "HEAD", "--", "project.yml"], cwd=tree).returncode:
         sys.exit("our commits change project.yml; set XCODEGEN to regenerate the project")
-    runtime = tree / "Scripts/raycast-runtime"
-    if subprocess.run(["git", "diff", "--quiet", onto, "HEAD", "--", str(runtime)], cwd=tree).returncode:
-        run("npm", "ci", "--no-audit", "--no-fund", cwd=runtime)
-        run("node", "build.mjs", cwd=runtime)
 
 
 def issue_open(kind, title, cause, details=None):
