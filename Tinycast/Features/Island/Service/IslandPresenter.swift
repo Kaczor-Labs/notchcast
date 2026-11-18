@@ -188,7 +188,7 @@ final class IslandPresenter: IslandPresenting {
         if placement != .pill { pill?.level = nil }
         switch (placement, dwell.level) {
         case (.band?, let level?):
-            stack(IslandLevelArt(level, notch: false))
+            stack(IslandLevelArt(level, notch: false, frosted: core.island.frosted(on: nil)))
         case (.pill?, let level?):
             pill = core.island.resting
             pill?.level = level

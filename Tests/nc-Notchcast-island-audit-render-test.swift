@@ -18,6 +18,7 @@
 // notchcast-sources: Tinycast/Features/Notchcast/NotchMenuInk.swift
 // notchcast-sources: Tinycast/Features/Island/Model/IslandLiveState.swift
 // notchcast-sources: Tinycast/Features/Island/Service/IslandPaletteSurface.swift
+// notchcast-sources: Tinycast/DesignSystem/FormTextInput.swift
 // notchcast-sources: Tinycast/Features/Updates/UI/UpdatePill.swift Tinycast/Features/Updates/Model/AppVersion.swift
 // notchcast-sources: Tinycast/Features/Updates/Model/ReleaseFeed.swift Tinycast/Features/Updates/Model/ReleaseChannel.swift
 // notchcast-sources: Tinycast/Features/Updates/Model/ReleaseArchitecture.swift
@@ -116,11 +117,8 @@ struct NotchcastIslandAuditRenderTest {
         let width = art.layout.leading + art.layout.trailing + 2 * Theme.Spacing.lg
         let size = CGSize(width: max(width, NotchTheme.Size.islandRest.width), height: 36)
         let image = NSImage(size: CGSize(width: size.width + 32, height: size.height + 32), flipped: false) { rect in
-            NSColor(white: 0.18, alpha: 1).setFill()
-            rect.fill()
             let pill = CGRect(x: 16, y: 16, width: size.width, height: size.height)
-            NSColor(NotchTheme.Colors.islandSurface).setFill()
-            NSBezierPath(roundedRect: pill, xRadius: size.height / 2, yRadius: size.height / 2).fill()
+            paintPill(rect, pill: NSBezierPath(roundedRect: pill, xRadius: size.height / 2, yRadius: size.height / 2))
             art.draw(in: pill)
             return true
         }
@@ -129,6 +127,47 @@ struct NotchcastIslandAuditRenderTest {
         scaled.addRepresentations(image.representations)
         write(name, image.cgImage(forProposedRect: &proposed, context: nil,
                                   hints: [.ctm: AffineTransform(scale: 2)]))
+    }
+
+    /// Black's pill on a grey desk; Frosted's glass tint over a white wallpaper, as the canvas fills it.
+    static func paintPill(_ rect: CGRect, pill: NSBezierPath) {
+        (frosted ? NSColor.white : NSColor(white: 0.18, alpha: 1)).setFill()
+        rect.fill()
+        NSColor(frosted ? NotchTheme.Colors.islandGlassTint : NotchTheme.Colors.islandSurface).setFill()
+        pill.fill()
+    }
+
+    static func writeArt(_ name: String, size: CGSize, _ draw: @escaping (CGRect) -> Void) {
+        let image = NSImage(size: size, flipped: false) { rect in
+            draw(rect)
+            return true
+        }
+        var proposed = CGRect(origin: .zero, size: size)
+        write(name, image.cgImage(forProposedRect: &proposed, context: nil, hints: [.ctm: AffineTransform(scale: 2)]))
+    }
+
+    /// The notch headline below the hardware, drawn at the bottom of the grown island.
+    static func renderHeadline(_ name: String, _ art: IslandHeadlineArt) {
+        let box = CGRect(x: 16, y: 16, width: art.size.width, height: art.size.height)
+        writeArt(name, size: CGSize(width: box.width + 32, height: box.height + 32)) { rect in
+            paintPill(rect, pill: NSBezierPath(roundedRect: box, xRadius: 16, yRadius: 16))
+            art.draw(in: box)
+        }
+    }
+
+    /// The level band in the report slot: on Frosted it must leave the glass under it unpainted.
+    static func renderBand(_ name: String, _ art: IslandLevelArt) {
+        let band = IslandLevelBand(frame: CGRect(origin: .zero, size: art.bandSize))
+        band.art = art
+        let box = CGRect(x: 16, y: 16, width: art.bandSize.width, height: art.bandSize.height)
+        writeArt(name, size: CGSize(width: box.width + 32, height: box.height + 32)) { rect in
+            paintPill(rect, pill: NSBezierPath(rect: box))
+            let image = NSImage(size: box.size, flipped: false) { _ in
+                band.draw(band.bounds)
+                return true
+            }
+            image.draw(in: box)
+        }
     }
 
     static func main() {
@@ -256,23 +295,34 @@ struct NotchcastIslandAuditRenderTest {
             .frame(width: 480)
         }
 
-        guard !frosted else {
-            print("PASS rendered island audit surfaces (frosted) to \(folder.path)")
-            return
+        renderHosted("23-form-field", size: CGSize(width: 360, height: 80)) {
+            FormTextInput(text: .constant(""), focused: .constant(false), placeholder: "Snippet Name", label: "Name",
+                          moveFocus: { _ in })
+                .environment(\.metrics, .standard)
         }
-        let notch = false
-        renderArt("10-notice-glyph", IslandNoticeArt(
-            IslandNotice(id: "a", symbol: "doc.on.clipboard", text: "Copied"), notch: notch))
-        renderArt("11-notice-installing", IslandNoticeArt(
-            IslandNotice(id: "b", symbol: "arrow.down.circle", text: "Installing",
-                         progress: IslandProgress(fraction: 0.4, headline: false)), notch: notch))
-        renderArt("12-notice-failed", IslandNoticeArt(
-            IslandNotice(id: "c", symbol: "exclamationmark.arrow.circlepath", text: "Update failed",
-                         isFailure: true, seconds: 4), notch: notch))
-        renderArt("13-status", IslandStatusArt(
-            [IslandStatus(id: "u", symbol: "arrow.clockwise.circle", text: nil, label: "Update ready")], notch: notch))
-        renderArt("14-level", IslandLevelArt(
-            IslandLevel(source: "volume", symbol: "speaker.wave.2.fill", label: "Volume", value: 0.6), notch: notch))
+        for notch in [false, true] {
+            let form = notch ? "notch" : "island"
+            renderArt("10-notice-glyph-\(form)", IslandNoticeArt(
+                IslandNotice(id: "a", symbol: "doc.on.clipboard", text: "Copied"), notch: notch, frosted: frosted))
+            renderArt("11-notice-installing-\(form)", IslandNoticeArt(
+                IslandNotice(id: "b", symbol: "arrow.down.circle", text: "Installing",
+                             progress: IslandProgress(fraction: 0.4, headline: false)), notch: notch, frosted: frosted))
+            renderArt("12-notice-failed-\(form)", IslandNoticeArt(
+                IslandNotice(id: "c", symbol: "exclamationmark.arrow.circlepath", text: "Update failed",
+                             isFailure: true, seconds: 4), notch: notch, frosted: frosted))
+            renderArt("13-status-\(form)", IslandStatusArt(
+                [IslandStatus(id: "u", symbol: "arrow.clockwise.circle", text: nil, label: "Update ready")],
+                notch: notch, frosted: frosted))
+            renderArt("14-level-\(form)", IslandLevelArt(
+                IslandLevel(source: "volume", symbol: "speaker.wave.2.fill", label: "Volume", value: 0.6),
+                notch: notch, frosted: frosted))
+        }
+        renderHeadline("21-headline-failed-notch", IslandHeadlineArt(
+            IslandNotice(id: "d", symbol: "exclamationmark.arrow.circlepath", text: "Update failed",
+                         isFailure: true, seconds: 4), notch: 200, frosted: frosted))
+        renderBand("22-level-band", IslandLevelArt(
+            IslandLevel(source: "volume", symbol: "speaker.wave.2.fill", label: "Volume", value: 0.6),
+            notch: false, frosted: frosted))
         print("PASS rendered island audit surfaces to \(folder.path)")
     }
 }

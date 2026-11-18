@@ -17,6 +17,21 @@ extension Color {
     }
 }
 
+extension Color {
+    /// `NSColor(_:)` resolves no environment, so AppKit ink would always take Black's value.
+    func nsColor(in environment: EnvironmentValues) -> NSColor {
+        NSColor(Color(resolve(in: environment)))
+    }
+
+    /// Engine art has no SwiftUI environment, so it names the look of the island it draws on.
+    func islandInk(frosted: Bool) -> NSColor {
+        var environment = EnvironmentValues()
+        environment.colorScheme = .dark
+        environment.islandFrosted = frosted
+        return nsColor(in: environment)
+    }
+}
+
 /// Black resolves the token it always was, so nothing outside a Frosted island changes.
 private struct IslandLookStyle: ShapeStyle, Hashable {
     let black: Color

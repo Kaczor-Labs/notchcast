@@ -5,6 +5,7 @@ import AppKit
 struct IslandLevelArt: PillArt {
     let layout: IslandGlanceLayout
     let level: IslandLevel
+    let frosted: Bool
     private let glyph: NSImage?
     /// Fixed, so a glyph swap on repeat never resizes the slots and restarts the pill's spring.
     private let cell = NotchTheme.Size.islandLevelCell
@@ -12,9 +13,10 @@ struct IslandLevelArt: PillArt {
     private let gap = Theme.Spacing.sm
     private let edge = Theme.Spacing.lg
 
-    init(_ level: IslandLevel, notch: Bool) {
+    init(_ level: IslandLevel, notch: Bool, frosted: Bool) {
         self.level = level
-        glyph = GlanceArt.glyph(level.symbol)
+        self.frosted = frosted
+        glyph = GlanceArt.glyph(level.symbol, tone: Theme.Colors.textPrimary.islandInk(frosted: frosted))
         layout = IslandGlanceLayout(notch: notch, glyph: cell, gap: gap, title: 0, separator: 0,
                                     countdown: track, wing: NotchTheme.Size.islandGlanceWing)
     }
@@ -35,15 +37,15 @@ struct IslandLevelArt: PillArt {
                               height: height)
             return NSBezierPath(roundedRect: rect, xRadius: height / 2, yRadius: height / 2)
         }
-        NSColor(Theme.Colors.border).setFill()
+        Theme.Colors.border.islandInk(frosted: frosted).setFill()
         bar(extents.track).fill()
-        NSColor(Theme.Colors.textSecondary).setStroke()
+        Theme.Colors.textSecondary.islandInk(frosted: frosted).setStroke()
         for zone in [extents.below, extents.above].compactMap(\.self) {
             let outline = bar(zone)
             outline.lineWidth = Theme.Size.hairline
             outline.stroke()
         }
-        NSColor(Theme.Colors.textPrimary).setFill()
+        Theme.Colors.textPrimary.islandInk(frosted: frosted).setFill()
         if extents.fill.upperBound > extents.fill.lowerBound { bar(extents.fill).fill() }
     }
 }
@@ -62,8 +64,8 @@ final class IslandLevelBand: NSView {
     override func accessibilityRole() -> NSAccessibility.Role? { .levelIndicator }
 
     override func draw(_ dirtyRect: NSRect) {
-        NSColor(NotchTheme.Colors.islandSurface).setFill()
-        bounds.fill()
+        NotchTheme.Colors.islandPanelFill.islandInk(frosted: art?.frosted == true).setFill()
+        bounds.fill(using: .copy)
         art?.draw(in: bounds)
     }
 }

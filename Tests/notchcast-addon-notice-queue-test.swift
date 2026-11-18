@@ -30,6 +30,7 @@ final class StubIsland {
     var resting: IslandController? = IslandController()
     let overlays = StubOverlays()
     let pillMenu = StubPillMenu()
+    func frosted(on screen: NSScreen?) -> Bool { false }
 }
 
 @MainActor final class StubOverlays { func placeReport(_ panel: NSPanel, screen: NSScreen?) {} }
@@ -55,7 +56,7 @@ final class HUDPanel: NSPanel {
 final class IslandLevelBand: NSView { var art: IslandLevelArt? }
 
 struct IslandLevelArt {
-    init(_ level: IslandLevel, notch: Bool) {}
+    init(_ level: IslandLevel, notch: Bool, frosted: Bool) {}
     var bandSize: CGSize { .zero }
 }
 
