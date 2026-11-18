@@ -23,9 +23,7 @@ struct BrightnessLevel: Equatable, Sendable {
 
     var hardware: Double { max(value, 0) }
     /// Rounds as the island's level readout does, so Settings and the HUD never disagree.
-    var readout: String {
-        value < 0 ? String(localized: "Dim", table: "NotchcastDisplaySound") : IslandLevel.readout(value)
-    }
+    var readout: String { IslandLevel.readout(value, in: range) }
     var isDimmed: Bool { picture < 1 }
 
     var picture: Double {
