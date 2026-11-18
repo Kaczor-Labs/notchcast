@@ -4,5 +4,15 @@
     "Tinycast/Features/Settings/AppSettings.swift",
     "Tinycast/Features/Settings/AppSettingsKey.swift",
     "Tinycast/Features/Notchcast/Hidden/*"
+  ],
+  "addon-launcher": [
+    "Tinycast/Features/Notchcast/Hidden/NotchcastAppProof.swift",
+    "Tinycast/Features/Notchcast/NotchcastCore.swift",
+    "Tinycast/Features/Notchcast/NotchcastRegistry.swift",
+    "Tinycast/Features/Notchcast/NotchcastLauncherHides.swift",
+    "Tinycast/Features/Notchcast/Core/Service/NotchcastController.swift",
+    "Tinycast/Features/Notchcast/Core/Service/NotchcastPreferences.swift",
+    "Tinycast/Features/Launcher/Service/AppIndex.swift",
+    "Tinycast/Features/Launcher/Service/VisibilityStore.swift"
   ]
 }
