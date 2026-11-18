@@ -60,7 +60,7 @@ git commit -qm 'hand-resolved merge'
 [ -z "$(git cherry main merge-only | grep '^+' || true)" ]
 git switch -q main
 unset GIT_AUTHOR_DATE GIT_COMMITTER_DATE
-export GIT_AUTHOR_DATE=$(date -u -v-36H '+%Y-%m-%dT%H:%M:%SZ')
+export GIT_AUTHOR_DATE="@$(($(date +%s) - 36 * 3600)) +0000"
 export GIT_COMMITTER_DATE=$GIT_AUTHOR_DATE
 git commit -q --allow-empty -m age-36-hours
 git branch age-36-hours
@@ -114,8 +114,8 @@ grep -q 'Candidate local: squash' "$scratch/dry-output"
 grep -q 'Candidate local: age-36-hours' "$scratch/dry-output"
 ! grep -q 'Candidate .*: recent' "$scratch/dry-output"
 git merge-base --is-ancestor recent-ancestor origin/main
-[ "$(git show -s --format=%ct refs/heads/squash)" -gt "$(date -v-24H +%s)" ]
-[ "$(git show -s --format=%ct recent-ancestor)" -gt "$(date -v-24H +%s)" ]
+[ "$(git show -s --format=%ct refs/heads/squash)" -gt "$(($(date +%s) - 86400))" ]
+[ "$(git show -s --format=%ct recent-ancestor)" -gt "$(($(date +%s) - 86400))" ]
 [ ! -e "$scratch/dry.tsv" ]
 python3 "$script" --remote --local --log "$scratch/log.tsv" --worktree-root "$scratch/allowed" > "$scratch/output"
 cat "$scratch/output"

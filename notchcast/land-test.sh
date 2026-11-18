@@ -1,4 +1,5 @@
 #!/bin/bash
+# script-tests: macos (Scripts/run-tests.sh's lockf and a real swiftc harness)
 set -euo pipefail
 root=$(git rev-parse --show-toplevel)
 sync_wait_tests() (
