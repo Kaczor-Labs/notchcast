@@ -75,8 +75,15 @@ enum ScreenshotsRequestTests {
         let finder = ScreenshotWindow(id: 5, ownerPID: 900, bundleID: "com.apple.finder",
                                       frame: CGRect(x: 100, y: 100, width: 600, height: 400))
         let all = [surface, island, hud, helper, finder]
-        precondition(all.filter(exclusion.excludes).map(\.id) == [3, 1, 2, 4],
-                     "island, HUD, surface and our bundle are excluded")
+        precondition(all.filter(exclusion.excludes).isEmpty, "shown windows of ours are not excluded")
+        let hidden = all.map {
+            var window = $0
+            window.isShared = $0.id == 5
+            window.isCaptureUI = $0.id == 3
+            return window
+        }
+        precondition(hidden.filter(exclusion.excludes).map(\.id) == [3, 1, 2, 4],
+                     "surface, hidden island, HUD and our bundle are excluded")
         precondition(!ScreenshotExclusion(pid: own, bundleID: nil).excludes(
             ScreenshotWindow(id: 9, ownerPID: 2, frame: .zero)), "a nil bundle never matches a nil bundle")
 
@@ -86,7 +93,7 @@ enum ScreenshotsRequestTests {
         let menu = ScreenshotWindow(id: 8, ownerPID: 900, frame: CGRect(x: 0, y: 0, width: 300, height: 300),
                                     layer: 24)
         let back = ScreenshotWindow(id: 10, ownerPID: 901, frame: CGRect(x: 0, y: 0, width: 800, height: 600))
-        let pickable = exclusion.pickable(all + [tiny, clear, menu, back])
+        let pickable = exclusion.pickable(hidden + [tiny, clear, menu, back])
         precondition(pickable.map(\.id) == [5, 10], "only ordinary, visible, foreign windows, order kept")
         precondition(ScreenshotExclusion.window(at: CGPoint(x: 150, y: 150), in: pickable)?.id == 5, "front first")
         precondition(ScreenshotExclusion.window(at: CGPoint(x: 50, y: 50), in: pickable)?.id == 10, "then behind")
