@@ -11,6 +11,7 @@ enum NotchcastRegistry {
         SmallCommandsAddon.self,
         DownloadsAddon.self,
         ScreenshotsAddon.self,
+        ScreenRecordingAddon.self,
         IPhoneBackupAddon.self,
         DisplaySoundAddon.self,
     ]
