@@ -25,6 +25,8 @@
 // notchcast-sources: Tinycast/Features/Notchcast/Downloads/Service/DownloadRunner.swift
 // notchcast-sources: Tinycast/Features/Notchcast/Downloads/Service/DownloadToolLookup+Host.swift
 // notchcast-sources: Tinycast/Features/Notchcast/Downloads/Service/DownloadToolLookup.swift
+// notchcast-sources: Tinycast/Features/Notchcast/Downloads/Model/BondingPolicy.swift
+// notchcast-sources: Tinycast/Features/Notchcast/Downloads/Service/BondingState.swift
 // notchcast-sources: Tinycast/Features/Notchcast/Downloads/Service/DownloadsIslandBridge.swift
 // notchcast-sources: Tinycast/Features/Notchcast/Downloads/Service/DownloadsModule.swift
 // notchcast-sources: Tinycast/Features/Notchcast/Downloads/Service/DownloadsModule+Torrents.swift
@@ -78,6 +80,7 @@ struct DownloadsModuleTest {
         shape()
         try await lifecycle(root)
         try await torrents(root)
+        try await bonding(root)
         openWithEverySwitchOff()
         print("Downloads module: v1 switches, nine commands, queues follow their switch, stop keeps accepted links,"
               + " torrents open magnet links, even with every switch off")
@@ -86,12 +89,14 @@ struct DownloadsModuleTest {
     private static func shape() {
         let switches = DownloadsAddon.switches
         expect(switches.map(\.id) == [
-            "downloads", "downloadsAria2", "distill", "distillTimestamps", "torrents", "torrentsKeepSharing",
+            "downloads", "downloadsAria2", "downloadsUseIPhone", "distill", "distillTimestamps", "torrents",
+            "torrentsKeepSharing", "torrentsUseIPhone",
         ], "v1 raw ids stay")
         expect(switches.allSatisfy { !$0.defaultEnabled && $0.category == .filesDownloads && $0.requiredGrants.isEmpty },
                "every switch starts off in Files & Downloads")
-        expect(switches.map(\.dependencies) == [[], ["downloads"], [], ["distill"], [], ["torrents"]],
-               "aria2 needs Downloads, Timestamps needs Distill, keep-sharing needs Torrents")
+        expect(switches.map(\.dependencies) == [
+            [], ["downloads"], ["downloadsAria2"], [], ["distill"], [], ["torrents"], ["torrents"],
+        ], "aria2 needs Downloads, Timestamps needs Distill, keep-sharing needs Torrents, bonding its own engine")
         expect(DownloadsAddon.commands.map(\.slug) == [
             "download-video", "download-audio", "download-youtube-transcript", "save-webpage-as-markdown",
             "add-links-to-distill", "run-distill", "download-torrent-from-clipboard", "open-torrent-file",
@@ -228,6 +233,66 @@ struct DownloadsModuleTest {
         expect(context.openURL == nil, "the hook goes with the module")
     }
 
+    /// #925: the option hands aria2c both interfaces, and the iPhone mark lasts only while both stay up.
+    private static func bonding(_ root: URL) async throws {
+        let suite = "nc-downloads-bonding-test.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suite)!
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let fakes = Fakes()
+        let downloads = root.appending(path: "bonding/Downloads", directoryHint: .isDirectory)
+        var engine = TorrentManager.Environment(downloads: downloads)
+        engine.startSession = { extra in
+            fakes.sessions.append(extra)
+            return BondedEngine()
+        }
+        engine.sleep = { _ in throw CancellationError() }
+        let environment = DownloadsModule.Environment(
+            downloads: downloads, queues: root.appending(path: "bonding/queues", directoryHint: .isDirectory),
+            tools: DownloadToolLookup(directories: [root.appending(path: "bin")], home: root),
+            clipboard: { fakes.clipboard }, torrents: engine, interfaces: { fakes.interfaces })
+        let hub = NotchcastTapHub(syntheticTag: 0, isTrusted: { false }) { _ in
+            preconditionFailure("the harness never installs a tap")
+        }
+        let preferences = NotchcastPreferences(defaults: defaults, switches: DownloadsAddon.switches)
+        let presenter = RecordingPresenter()
+        let context = NotchcastContext(defaults: defaults, preferences: preferences, presenter: presenter, hub: hub,
+                                       transcription: NotchcastTranscriptionRunner(dictation: FakeDictation()),
+                                       now: { fakes.now }, onTapsChanged: {})
+        let module = DownloadsModule(context: context, environment: environment)
+        context.attach(module)
+        let magnet = URL(string: "magnet:?xt=urn:btih:c12fe1c06bba254a9dc9f519b335aa7c1367a88a&dn=Big")!
+        fakes.interfaces = [
+            BondingInterface(bsdName: "en0", isWiFi: true, port: "Wi-Fi", ipv4: ["192.168.1.5"]),
+            BondingInterface(bsdName: "en7", isWiFi: false, port: "iPhone USB", ipv4: ["172.20.10.2"]),
+        ]
+        module.start()
+        preferences.set("torrents", on: true)
+        try await eventually { module.torrents.isRunning }
+
+        expect(context.openURL?(magnet) == true, "a magnet starts a torrent")
+        try await eventually { module.torrents.jobs.first?.gid != nil }
+        expect(fakes.sessions == [[]], "option off: aria2c starts as it always did")
+        try await eventually { presenter.log.last == "post torrents.progress Big · Finding peers" }
+        module.torrents.cancelAll()
+        await module.torrents.stopping?.value
+
+        preferences.set("torrentsUseIPhone", on: true)
+        expect(context.openURL?(magnet) == true, "a second torrent, with the option on")
+        try await eventually { fakes.sessions.count == 2 && module.torrents.jobs.last?.state.isActive == true }
+        try await eventually { module.torrents.jobs.last?.gid != nil }
+        expect(fakes.sessions.last == ["--multiple-interface=en0,en7"], "aria2c starts on Wi-Fi and the iPhone")
+        try await eventually { presenter.log.last == "post torrents.progress iPhone · Big · Finding peers" }
+
+        fakes.interfaces.removeLast()
+        fakes.now += 2
+        await module.torrents.poll()
+        try await eventually { presenter.log.last == "post torrents.progress Big · 10%" }
+        expect(module.torrents.jobs.last?.state == .downloading, "unplugged: the mark goes, the download carries on")
+
+        module.stop()
+        context.detach()
+    }
+
     /// #924: the default, every switch off, still answers a magnet opened with the app, through the controller.
     private static func openWithEverySwitchOff() {
         let suite = "nc-downloads-open-off-test.\(UUID().uuidString)"
@@ -271,7 +336,21 @@ struct DownloadsModuleTest {
 
     @MainActor private final class Fakes {
         var clipboard = ""
+        var interfaces: [BondingInterface] = []
+        var sessions: [[String]] = []
+        var now = Date(timeIntervalSince1970: 1_000)
     }
+}
+
+/// An aria2c stand-in that accepts every torrent and reports it a tenth done.
+private final class BondedEngine: TorrentSession {
+    var isAlive: Bool { true }
+    func add(_ source: TorrentSource, options: [String: String]) async throws -> String { "gid" }
+    func status(_ gid: String) async throws -> TorrentStatus {
+        TorrentStatus(status: "active", completed: 1, total: 10, connections: 1)
+    }
+    func remove(_ gid: String) async {}
+    func stop() async {}
 }
 
 extension DownloadsModule.Environment {
