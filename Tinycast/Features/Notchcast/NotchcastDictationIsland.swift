@@ -13,7 +13,8 @@ final class NotchcastDictationIsland {
         self.core = core
         presenter = core.islandPresenter
         core.dictationCoordinator.didFinish = { [weak self] pasted in
-            self?.finished(pasted.map { $0 ? .pasted : .copied } ?? .noSpeech)
+            guard let pasted else { self?.finished(.noSpeech); return }
+            self?.finished(pasted ? .pasted : .copied)
         }
         core.dictationCoordinator.didReset = { [weak self] in self?.ended(completed: $0) }
     }
