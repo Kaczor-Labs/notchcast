@@ -87,7 +87,7 @@ project.yml                   XcodeGen input; Tinycast.xcodeproj is generated fr
 The dev loop:
 
 - Test locally with `./Scripts/run-tests.sh` (all harnesses, ours included) or `./Scripts/run-tests.sh <harness>`, and `./Scripts/lint.sh`. See [testing.md](/docs/testing.md).
-- Maintainers push a branch with `python3 notchcast/notchcast-ci.py --repo .`, which waits for GitHub's harness verdict on it.
+- The maintainer proves a pushed branch with `python3 notchcast/notchcast-ci.py --repo . --keeper`, which waits for GitHub's harness verdict on it.
 - PRs open as drafts. Maintainers land them only with `notchcast/land.sh <pr>`, which tests the merge onto `main` and squash-merges it.
 - Sync replays our commits onto each new upstream `main` once the maintainer's review of the upstream diff passed, and Snapshot publishes every green `main`. Generated files (`README.md`, the Xcode project) are rebuilt by CI; edit `notchcast/README.public.md` and `project.yml` instead.
 
