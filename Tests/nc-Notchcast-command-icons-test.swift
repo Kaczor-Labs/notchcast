@@ -64,6 +64,10 @@
 // notchcast-sources: Tinycast/Features/Notchcast/Downloads/Service/WebpageSaver.swift
 // notchcast-sources: Tinycast/Features/Notchcast/Downloads/Service/WebpageWebViewConfiguration.swift
 // notchcast-sources: Tinycast/Features/Notchcast/Downloads/Service/XPost.swift
+// notchcast-sources: Tinycast/Features/Notchcast/FinderTools/FinderToolsAddon.swift
+// notchcast-sources: Tinycast/Features/Notchcast/FinderTools/Model/*.swift
+// notchcast-sources: Tinycast/Features/Notchcast/FinderTools/Service/FinderToolsModule.swift
+// notchcast-sources: Tinycast/Features/Notchcast/FinderTools/Service/FinderToolsSystem.swift
 // notchcast-reads: Tinycast/Features/Notchcast/*/*Addon.swift Tinycast/Features/Notchcast/NotchcastCore.swift
 import AppKit
 import SwiftUI
@@ -72,7 +76,9 @@ import SwiftUI
 @main
 @MainActor
 enum NotchcastCommandIconTests {
-    static let addons: [any NotchcastAddon.Type] = [SmallCommandsAddon.self, DownloadsAddon.self, ScreenshotsAddon.self]
+    static let addons: [any NotchcastAddon.Type] = [
+        SmallCommandsAddon.self, DownloadsAddon.self, ScreenshotsAddon.self, FinderToolsAddon.self,
+    ]
 
     static var failures = 0
     static var checks = 0
@@ -148,6 +154,9 @@ extension SmallCommandsSystem {
     static var live: Self { fatalError("the harness never makes a module") }
 }
 extension ScreenshotSystem {
+    static var live: Self { fatalError("the harness never makes a module") }
+}
+extension FinderToolsSystem {
     static var live: Self { fatalError("the harness never makes a module") }
 }
 extension DownloadsModule.Environment {
