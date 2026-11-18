@@ -307,8 +307,10 @@ handler through `AppLauncher.open`.
 
 The shape a query has to have is `QuicklinkDestination.detect` returning `.web`, reused rather than
 re-written so `github.com` and `https://…` mean the same thing here as they do in a quicklink. The
-entry is an ordinary `.command`, so `VisibilityStore` still gates it (Commands off hides the row),
-and its `url` carries the destination instead of the catalog's `tinycast://` placeholder. Nothing
+entry is an ordinary `.command`, but `VisibilityStore` gates it by its own item key alone: Commands
+off still offers the row, a stored hide of `command:open-in-browser` does not, and Run Shell Command
+keeps following the category. Its `url` carries the destination instead of the catalog's
+`tinycast://` placeholder. Nothing
 learns from it and nothing pins it: `LauncherCoordinator.launch` records no visit for a contextual
 row, since a pasted URL is not a term any row should rank under; and ⇧⌘F and ⇧⌘H are both refused,
 because a favorite (or a hidden-item key) the empty query can never resolve is dead state a backup
