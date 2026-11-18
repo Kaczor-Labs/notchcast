@@ -184,7 +184,7 @@ final class Rig {
     var calls: [[String]] { tools.state.withLock { $0.calls } }
 
     func journal() -> [ArchiveJob] {
-        ArchiveJob.decode((try? Data(contentsOf: harnessEnvironment.journal)) ?? Data())
+        ArchiveJob.decode((try? Data(contentsOf: harnessEnvironment!.journal)) ?? Data())
     }
 
     func finish() {
