@@ -58,6 +58,13 @@ case "$*" in
         done
         echo "$verdict" ;;
     *statuses*) ;;
+    # ISOLATED is "<toolchain>|<excused harnesses>": the isolated runner's record of the tree, run 8.
+    *'artifacts?name=tested-tree-isolated-'*) if [ -n "${ISOLATED:-}" ]; then echo '{"artifacts":[{"workflow_run":{"id":8}}]}'; else echo '{"artifacts":[]}'; fi ;;
+    *actions/runs/8*) printf '{"id":8,"name":"PR","path":".github/workflows/pr.yml","conclusion":"success","head_repository":{"full_name":"%s"},"html_url":"https://fixture.invalid/runs/8"}\n' "$FORK_REPO" ;;
+    'run download 8 '*)
+        echo "${ISOLATED%%|*}" > "${*: -1}/toolchain"
+        echo "${ISOLATED#*|}" > "${*: -1}/excused" ;;
+    'variable get NOTCHCAST_MAC_RUNNER'*) [ -n "${MAC_RUNNER:-}" ] && echo "$MAC_RUNNER" || { echo 'variable NOTCHCAST_MAC_RUNNER was not found' >&2; exit 1; } ;;
     *actions/artifacts*) if [ -n "${TESTED:-}" ]; then echo '{"artifacts":[{"workflow_run":{"id":7}}]}'; else echo '{"artifacts":[]}'; fi ;;
     *actions/runs/7*) printf '{"name":"PR","path":".github/workflows/pr.yml","conclusion":"success","head_repository":{"full_name":"%s"},"html_url":"https://fixture.invalid/runs/7"}\n' "$FORK_REPO" ;;
     'variable get LANDING_HOLD'*) [ -s "$FIXTURE/hold" ] && cat "$FIXTURE/hold" || { echo 'variable LANDING_HOLD was not found' >&2; exit 1; } ;;
@@ -77,6 +84,7 @@ done
 echo 'CI_SKIP_TESTS="clipboard-text-test"' >> "$seed/notchcast/config.env"
 echo 'HOSTED_ONLY_TESTS="hosted-test"' >> "$seed/notchcast/config.env"
 echo 'LINUX_OK_TESTS="notchcast-core-test hosted-test"' >> "$seed/notchcast/config.env"
+echo 'ISOLATED_TOOLCHAIN="fixture toolchain"' >> "$seed/notchcast/config.env"
 unset RUNNER_ENVIRONMENT NOTCHCAST_ISOLATED_RUNNER
 printf '#!/bin/sh\n' > "$seed/notchcast/check-identity.sh"
 printf '#!/bin/sh\n' > "$seed/notchcast/check-bundle-readme.sh"
@@ -361,6 +369,25 @@ NOTCHCAST_PLATFORM=Linux TESTED=1 land 1
     || fail "on Linux with a hosted run of the tree the hosted-only PR ran '$(paste -sd'|' "$PASSES")' and landed '$(landed)'"
 echo 'PASS: on Linux a hosted run of the tree lands it, and the hosted-only harness never runs there'
 
+# The isolated runner skips nothing, so its record proves the hosted-only harness and the hosted runner's skip too.
+fixture
+open_pr 1 pr-h 'Add H' src/hosted.txt src/b.txt src/clipboard-text.txt
+ISOLATED='other toolchain|' land 1
+[ "$status" -eq 1 ] && [ "$(origin rev-parse main)" = "$base" ] && [ ! -s "$PASSES" ] \
+    && grep -q "^REFUSED: the isolated run https://fixture.invalid/runs/8 tested this tree with 'other toolchain', and landing expects 'fixture toolchain'" "$FIXTURE/output" \
+    || fail 'an isolated run with another toolchain was not refused'
+echo 'PASS: an isolated run of the tree with a toolchain landing does not expect is refused'
+ISOLATED='fixture toolchain|hosted-test' land 1
+[ "$status" -eq 1 ] && [ "$(origin rev-parse main)" = "$base" ] && [ ! -s "$PASSES" ] \
+    && grep -q '^REFUSED: the isolated run https://fixture.invalid/runs/8 did not prove hosted-test ' "$FIXTURE/output" \
+    || fail 'an isolated run that excused a selected hosted-only harness was not refused by name'
+echo 'PASS: an isolated run that excused a selected hosted-only harness is refused by name'
+ISOLATED='fixture toolchain|b-test other-test' land 1
+[ "$status" -eq 0 ] && grep -q 'the isolated run https://fixture.invalid/runs/8 proved all of them but b-test$' "$FIXTURE/output" \
+    && [ "$(paste -sd'|' "$PASSES")" = b-test ] && [ "$(landed)" = 'Notchcast: Add H (#1)' ] \
+    || fail "with an isolated run that excused b-test the passes were '$(paste -sd'|' "$PASSES")' and '$(landed)' landed"
+echo 'PASS: an isolated run of the tree lands it, and only a selected harness it excused runs here'
+
 fixture
 open_pr 1 pr-b 'Add B' src/b.txt
 open_pr 2 pr-c 'Add C' src/c.txt
@@ -410,6 +437,25 @@ HEAD_CHECKS=failure land --train-run "$train_sha" 1 2
     || fail "the train run landed '$(landed)'"
 [ -z "$(origin for-each-ref refs/heads/train/)" ] || fail 'the landed train branch was not deleted'
 echo 'PASS: a green train run lands its labelled draft PRs, red on their own heads, as the exact tree it tested, and deletes its branch'
+
+# While the repository variable names a runner the train's Mac job goes there, and land.sh judges that run's record.
+fixture
+open_pr 1 pr-h 'Add H' src/hosted.txt
+MAC_RUNNER=fixture-mac NOTCHCAST_TRAIN_MAC=hosted train 1
+[ "$status" -eq 0 ] && grep -q '^workflow run pr.yml .*hosted=true' "$FIXTURE/dispatched" \
+    && grep -q '^train: train/1 has its Mac job on the hosted runner$' "$FIXTURE/train-output" || fail 'NOTCHCAST_TRAIN_MAC=hosted did not keep the train hosted'
+origin push --quiet . --delete train/1 2>/dev/null || origin update-ref -d refs/heads/train/1
+rm "$FIXTURE/dispatched"
+MAC_RUNNER=fixture-mac train 1
+[ "$status" -eq 0 ] && [ -n "$train_sha" ] && grep -q '^workflow run pr.yml ' "$FIXTURE/dispatched" && ! grep -q 'hosted=true' "$FIXTURE/dispatched" \
+    && grep -q '^train: train/1 has its Mac job on the isolated runner$' "$FIXTURE/train-output" || fail "with a runner named the train dispatched '$(paste -sd'|' "$FIXTURE/dispatched")'"
+echo "$train_sha" > "$FIXTURE/green"
+ISOLATED='other toolchain|' land --train-run "$train_sha" 1
+[ "$status" -eq 1 ] && grep -q "^REFUSED: the isolated run .* tested this tree with 'other toolchain'" "$FIXTURE/output" && untouched \
+    || fail 'a train whose isolated run has another toolchain landed'
+ISOLATED='fixture toolchain|' land --train-run "$train_sha" 1
+[ "$status" -eq 0 ] && [ ! -s "$PASSES" ] && [ "$(landed)" = 'Notchcast: Add H (#1)' ] || fail "a train proven by the isolated runner landed '$(landed)'"
+echo 'PASS: a train goes to the named Mac runner unless told hosted, and lands on its isolated run only with the expected toolchain'
 
 fixture
 open_pr 1 pr-b 'Add B' src/b.txt
