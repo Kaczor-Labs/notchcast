@@ -10,6 +10,7 @@ struct ChatMarkdownSource: Equatable {
     let failedFrom: Int?
     let metrics: InterfaceMetrics
     let onIsland: Bool
+    var frosted = false
 }
 
 struct ChatRenderedText {
@@ -89,9 +90,11 @@ struct ChatMarkdownRenderer {
 
     private var bodyFont: NSFont { typography.textNSFont(.body) }
 
+    private func ink(_ token: Color) -> NSColor { token.islandInk(frosted: source.frosted) }
+
     private func textColor(_ context: Context) -> NSColor {
-        if context.failed { return NSColor(Theme.Colors.destructive) }
-        return context.secondary ? NSColor(Theme.Colors.textSecondary) : .labelColor
+        if context.failed { return ink(Theme.Colors.destructive) }
+        return context.secondary ? ink(Theme.Colors.textSecondary) : .labelColor
     }
 
     /// `first` numbers the blocks when a list item renders its later blocks one at a time.
@@ -122,7 +125,7 @@ struct ChatMarkdownRenderer {
             case .quote(let inner):
                 let bar = Self.fullWidthBlock()
                 bar.setWidth(Theme.Size.markdownQuoteBar, type: .absoluteValueType, for: .border, edge: .minX)
-                bar.setBorderColor(NSColor(Theme.Colors.border), for: .minX)
+                bar.setBorderColor(ink(Theme.Colors.border), for: .minX)
                 bar.setWidth(spacing.lg, type: .absoluteValueType, for: .padding, edge: .minX)
                 bar.setWidth(context.indent, type: .absoluteValueType, for: .margin, edge: .minX)
                 bar.setWidth(after, type: .absoluteValueType, for: .margin, edge: .maxY)
@@ -142,12 +145,12 @@ struct ChatMarkdownRenderer {
                 // Held where the equation will land, so finishing it swaps in place, not across.
                 let dots = NSMutableAttributedString(
                     string: "…",
-                    attributes: [.font: bodyFont, .foregroundColor: NSColor(Theme.Colors.textTertiary)])
+                    attributes: [.font: bodyFont, .foregroundColor: ink(Theme.Colors.textTertiary)])
                 centred(dots, in: context, into: output, after: after)
             case .rule:
                 let line = Self.fullWidthBlock()
                 line.setWidth(Theme.Size.hairline, type: .absoluteValueType, for: .border, edge: .maxY)
-                line.setBorderColor(NSColor(Theme.Colors.separator), for: .maxY)
+                line.setBorderColor(ink(Theme.Colors.separator), for: .maxY)
                 line.setWidth(context.indent, type: .absoluteValueType, for: .margin, edge: .minX)
                 line.setWidth(after, type: .absoluteValueType, for: .margin, edge: .maxY)
                 output.string.append(
@@ -213,7 +216,7 @@ struct ChatMarkdownRenderer {
             line.append(
                 NSAttributedString(
                     string: marker,
-                    attributes: [.font: bodyFont, .foregroundColor: NSColor(Theme.Colors.textSecondary)]))
+                    attributes: [.font: bodyFont, .foregroundColor: ink(Theme.Colors.textSecondary)]))
         }
         line.append(drawn)
         line.append(NSAttributedString(string: "\n", attributes: [.font: font]))
@@ -237,7 +240,7 @@ struct ChatMarkdownRenderer {
                 }
                 if intent.contains(.code) {
                     runFont = typography.textNSFont(.body, monospaced: true)
-                    attributes[.backgroundColor] = NSColor(Theme.Colors.controlSurface)
+                    attributes[.backgroundColor] = ink(Theme.Colors.controlSurface)
                 }
                 if intent.contains(.strikethrough) {
                     attributes[.strikethroughStyle] = NSUnderlineStyle.single.rawValue
@@ -296,7 +299,7 @@ struct ChatMarkdownRenderer {
             let tint = isCurrent ? Theme.Colors.findCurrent : Theme.Colors.findMatch
             text.addAttribute(.backgroundColor, value: NSColor(tint), range: span)
             guard isCurrent else { continue }
-            text.addAttribute(.foregroundColor, value: NSColor(Theme.Colors.findCurrentInk), range: span)
+            text.addAttribute(.foregroundColor, value: ink(Theme.Colors.findCurrentInk), range: span)
             text.addAttribute(Self.currentMatch, value: true, range: span)
         }
     }
@@ -447,11 +450,10 @@ struct ChatMarkdownRenderer {
                 if row > 0 {
                     cell.setWidth(Theme.Size.hairline, type: .absoluteValueType, for: .border, edge: .minY)
                     cell.setBorderColor(
-                        NSColor(IslandCardStyle.islandSeparator.color(onIsland: source.onIsland)), for: .minY)
+                        ink(IslandCardStyle.islandSeparator.color(onIsland: source.onIsland)), for: .minY)
                 }
                 if row == 0 {
-                    cell.backgroundColor = NSColor(
-                        IslandCardStyle.islandCardFill.color(onIsland: source.onIsland))
+                    cell.backgroundColor = ink(IslandCardStyle.islandCardFill.color(onIsland: source.onIsland))
                 }
                 var inside = context
                 inside.secondary = context.secondary || row == 0

@@ -19,7 +19,7 @@ struct IslandLevelReadoutTest {
 
     @MainActor static func art(_ value: Double, notch: Bool = false) -> IslandLevelArt {
         IslandLevelArt(IslandLevel(source: "volume", symbol: "speaker.wave.2.fill", label: "Volume", value: value),
-                       notch: notch)
+                       notch: notch, frosted: false)
     }
 
     /// A notched pill: both wings around a MacBook-sized sensor, each inset by the art's edge.
@@ -82,7 +82,7 @@ struct IslandLevelReadoutTest {
                      "nothing draws behind the sensor")
         let band = IslandLevelBand()
         band.art = IslandLevelArt(IslandLevel(source: "brightness", symbol: "sun.min.fill", label: "Brightness",
-                                              value: 0.0625), notch: false)
+                                              value: 0.0625), notch: false, frosted: false)
         let spoken = band.accessibilityValue() as? String
         precondition(spoken == "6%", "the band announces the painted percent, got \(String(describing: spoken))")
         print("nc-Island-level-readout-test: ok")

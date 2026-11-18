@@ -5,6 +5,7 @@ import SwiftUI
 struct ChatMarkdownText: View {
     @Environment(\.metrics) private var metrics
     @Environment(\.paletteOnIsland) private var onIsland
+    @Environment(\.islandFrosted) private var frosted
     @Environment(\.chatTextHighlight) private var highlight
     @Environment(\.chatCitations) private var citations
     @Environment(\.chatFindPath) private var path
@@ -23,7 +24,7 @@ struct ChatMarkdownText: View {
         ChatTextRepresentable(
             source: ChatMarkdownSource(
                 blocks: blocks, highlight: highlight, citations: citations, prefix: path,
-                failedFrom: failedFrom, metrics: metrics, onIsland: onIsland)
+                failedFrom: failedFrom, metrics: metrics, onIsland: onIsland, frosted: frosted)
         ) { rect in
             if rect != currentMatch { currentMatch = rect }
         }
@@ -204,7 +205,7 @@ final class ChatSelectableTextView: NSTextView {
             let path = RoundedRectangle(cornerRadius: radius, style: .continuous)
                 .path(in: box.insetBy(dx: line / 2, dy: line / 2)).cgPath
             context.addPath(path)
-            context.setFillColor(NSColor(IslandCardStyle.islandCardFill.color(onIsland: onIsland)).cgColor)
+            context.setFillColor(IslandCardStyle.islandCardFill.color(onIsland: onIsland).islandInk(frosted: source.frosted).cgColor)
             context.fillPath()
             if onIsland { continue }
             context.addPath(path)
@@ -259,7 +260,7 @@ final class ChatSelectableTextView: NSTextView {
         }
         guard let metrics = source?.metrics else { return }
         for (header, (block, box)) in zip(headers, zip(blocks, codeBoxes)) {
-            header.show(code: block.code, language: block.language, metrics: metrics)
+            header.show(code: block.code, language: block.language, metrics: metrics, frosted: source?.frosted == true)
             let inset = metrics.spacing.xl
             header.frame = CGRect(
                 x: box.minX + inset, y: box.minY + metrics.spacing.md,
@@ -278,11 +279,9 @@ private final class ChatCodeHeader: NSView {
 
     init() {
         super.init(frame: .zero)
-        label.textColor = NSColor(Theme.Colors.textTertiary)
         label.lineBreakMode = .byTruncatingTail
         button.isBordered = false
         button.imagePosition = .imageOnly
-        button.contentTintColor = NSColor(Theme.Colors.textSecondary)
         button.target = self
         button.action = #selector(copyCode)
         addSubview(label)
@@ -299,8 +298,10 @@ private final class ChatCodeHeader: NSView {
         addCursorRect(visibleRect, cursor: .arrow)
     }
 
-    func show(code: String, language: String?, metrics: InterfaceMetrics) {
+    func show(code: String, language: String?, metrics: InterfaceMetrics, frosted: Bool) {
         self.code = code
+        label.textColor = Theme.Colors.textTertiary.islandInk(frosted: frosted)
+        button.contentTintColor = Theme.Colors.textSecondary.islandInk(frosted: frosted)
         label.stringValue = language ?? ""
         label.font = metrics.typography.textNSFont(.caption1)
     }
