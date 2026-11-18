@@ -60,12 +60,11 @@ echo 'PASS: the app and its nested code verify against the leaf pin'
 for PAIR in Helpers/Tool=app.fixture.tool=disable-library-validation Helpers/Inner.app=app.fixture.inner=audio-input \
     .=app.fixture=apple-events; do
     IFS='=' read -r ITEM ID ENTITLEMENT <<< "$PAIR"
-    INFO=$(codesign -dvv "$APP/Contents/$ITEM" 2>&1)
-    [ "$ITEM" != . ] || INFO=$(codesign -dvv "$APP" 2>&1)
-    grep -qx "Identifier=$ID" <<< "$INFO" || { echo "FAIL: $ITEM lost its identifier"; exit 1; }
     TARGET="$APP/Contents/$ITEM"; [ "$ITEM" != . ] || TARGET="$APP"
-    codesign -d --entitlements - --xml "$TARGET" 2>/dev/null | grep -q "$ENTITLEMENT" \
-        || { echo "FAIL: $ITEM lost its entitlements"; exit 1; }
+    INFO=$(codesign -dvv "$TARGET" 2>&1)
+    grep -qx "Identifier=$ID" <<< "$INFO" || { echo "FAIL: $ITEM lost its identifier"; exit 1; }
+    ENTITLEMENTS=$(codesign -d --entitlements - --xml "$TARGET" 2>/dev/null)
+    grep -q "$ENTITLEMENT" <<< "$ENTITLEMENTS" || { echo "FAIL: $ITEM lost its entitlements"; exit 1; }
 done
 echo 'PASS: identifiers and entitlements survive, item by item'
 if bash "$TOOLS/sign-app.sh" "$APP" "Nobody $$" "$KEYCHAIN" 2>/dev/null; then
