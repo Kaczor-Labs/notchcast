@@ -21,20 +21,23 @@ final class Fake {
     var copies: [String] = []
     var copyWorks = true
     var settings: [CopyPathFailure] = []
+    /// Each held read's answer once released, and whether its run had been cancelled by then.
+    var released: [String: Bool] = [:]
 
     func reset() {
         app = CopyPathApp(bundleID: "com.apple.finder", pid: 1)
         selection = ["file:///home/tester/a"]
-        failure = nil; hold = false; copies = []; copyWorks = true; settings = []
+        failure = nil; hold = false; copies = []; copyWorks = true; settings = []; released = [:]
     }
 
+    /// A held read answers when released, cancelled or not, so only the module's own cancel drops it.
     func read() async throws -> [String] {
         if let failure { throw failure }
-        if hold {
-            while !Task.isCancelled { await Task.yield() }
-            throw CancellationError()
-        }
-        return selection
+        let answer = selection
+        guard hold else { return answer }
+        while hold { await Task.yield() }
+        released[answer.joined()] = Task.isCancelled
+        return answer
     }
 }
 
@@ -48,7 +51,7 @@ extension CopyPathSystem {
             finderSelection: { try await fake.read() },
             finderFolder: { nil },
             browserAddress: { _, _ in nil },
-            document: { _ in nil }),
+            document: { _, _ in nil }),
         copy: { text in
             guard fake.copyWorks else { return false }
             fake.copies.append(text)
@@ -173,20 +176,30 @@ enum CopyPathModuleTests {
         let posted = rig.presenter.posts.count
         await rig.run(waits: false)
         for _ in 0..<100 { await Task.yield() }
-        fake.hold = false
         fake.selection = ["/home/tester/b"]
-        await rig.run()
+        await rig.run(waits: false)
+        for _ in 0..<100 { await Task.yield() }
+        fake.hold = false
+        for _ in 0..<1_000 where fake.released.count < 2 { await Task.yield() }
         for _ in 0..<1_000 { await Task.yield() }
-        precondition(rig.presenter.posts.count == posted + 1, "a new run cancels the held one, one notice")
+        let cancelled = ["file:///home/tester/a": true, "/home/tester/b": false]
+        precondition(fake.released == cancelled, "a new run cancels the held one: \(fake.released)")
+        precondition(rig.presenter.posts.count == posted + 1, "both reads answered, one notice")
         precondition(fake.copies == ["~/b"], "only the newer run copies: \(fake.copies)")
 
         fake.reset()
         fake.hold = true
         let before = rig.presenter.posts.count
         await rig.run(waits: false)
+        for _ in 0..<100 { await Task.yield() }
         rig.controller.preferences.set("copyPath", on: false)
-        for _ in 0..<1_000 { await Task.yield() }
+        for _ in 0..<1_000 where rig.module != nil { await Task.yield() }
         precondition(rig.module == nil, "switch off stops the module")
+        fake.hold = false
+        for _ in 0..<1_000 where fake.released.isEmpty { await Task.yield() }
+        for _ in 0..<1_000 { await Task.yield() }
+        let offCancels = fake.released == ["file:///home/tester/a": true]
+        precondition(offCancels, "switch off cancels the read in flight: \(fake.released)")
         precondition(rig.presenter.posts.count == before && fake.copies.isEmpty, "a run in flight is dropped")
         precondition(rig.presenter.ends.contains(CopyPathModule.noticeID), "switch off ends the notice")
         rig.finish()
