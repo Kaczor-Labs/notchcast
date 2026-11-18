@@ -63,7 +63,8 @@ final class FakeWorld: Sendable {
         }
         guard hangs else { return reply }
         // A tool that never ends: the parked stream yields nothing and stops only on cancellation.
-        for await _ in AsyncStream<Void>({ parked in self.state.withLock { $0.parked.append(parked) } }) {}
+        let stream = AsyncStream<Void> { parked in self.state.withLock { $0.parked.append(parked) } }
+        for await _ in stream {}
         throw CancellationError()
     }
 
