@@ -8,30 +8,13 @@ step() {
 }
 step xcode
 source "$TOOLS/notchcast/ci-xcode.sh"
-# The fork-strings check compares against upstream's catalog, so fetch upstream first.
-step upstream
-bash "$TOOLS/notchcast/fetch-upstream.sh" --no-tags
-export UPSTREAM=$(git merge-base HEAD refs/remotes/upstream/main)
-step xcstrings
-if [ -n "${BASE_SHA:-}" ]; then
-    python3 notchcast/test-xcstrings.py
-    python3 notchcast/check-xcstrings-order.py --base-ref "$BASE_SHA" --head "$HEAD_SHA"
+# pr.yml runs these checks in their own Linux job; local-ci.sh runs them here.
+if [ -z "${NOTCHCAST_HARNESSES_SHARDED:-}" ]; then
+    source "$TOOLS/notchcast/ci-checks.sh"
 fi
 step xcodegen
 source "$TOOLS/notchcast/ci-xcodegen.sh"
 "$XCODEGEN" generate --quiet
-step bundle-readme
-bash notchcast/check-bundle-readme.sh
-if [ -n "${BASE_SHA:-}" ]; then
-    step module-harness
-    python3 notchcast/check-module-harness.py "$BASE_SHA" "$HEAD_SHA"
-fi
-step config
-python3 notchcast/check-config.py
-if [ -n "${BASE_SHA:-}" ]; then
-    python3 notchcast/check-addons.py --branch "${NOTCHCAST_READY_BRANCH:-${GITHUB_HEAD_REF:-}}" \
-        --base "$BASE_SHA" --head "$HEAD_SHA" --upstream "$UPSTREAM"
-fi
 # pr.yml runs the script tests and the harnesses in their own jobs; local-ci.sh runs them here.
 if [ -z "${NOTCHCAST_HARNESSES_SHARDED:-}" ]; then
     step script-tests

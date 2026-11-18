@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# script-tests: macos (ready-check.sh's getconf DARWIN_USER_TEMP_DIR)
 """Verify ready-check.sh covers every pr.yml step and reports PASS or the first failing gate."""
 import os
 from pathlib import Path
@@ -24,10 +25,15 @@ COVERED = {
     ("pr.yml:harnesses", "./tools/notchcast/actions/xcode"): "ci-build.sh's xcode step",
     ("pr.yml:harnesses", "./tools/notchcast/actions/tests"): "ci-build.sh's harnesses step",
     ("pr.yml:harnesses", "Failures outside the harness selection"): "shadow selection; reports, gates nothing",
+    ("pr.yml:checks", "Script tests that need macOS"): "ci-build.sh's script-tests step",
+    ("pr.yml:linux-checks", "actions/checkout"): "the shared clone at HEAD",
+    ("pr.yml:linux-checks", "Checks that need no Mac"): "ci-build.sh sources ci-checks.sh",
     ("pr.yml:script-tests", "actions/checkout"): "the shared clone at HEAD",
-    ("pr.yml:script-tests", "./notchcast/actions/xcode"): "ci-build.sh's xcode step",
-    ("pr.yml:script-tests", "Fetch upstream"): "ci-build.sh's upstream step",
     ("pr.yml:script-tests", "Script tests"): "ci-build.sh's script-tests step",
+    ("pr.yml:script-tests-macos", "actions/checkout"): "the shared clone at HEAD",
+    ("pr.yml:script-tests-macos", "./notchcast/actions/xcode"): "ci-build.sh's xcode step",
+    ("pr.yml:script-tests-macos", "Fetch upstream"): "ci-checks.sh's upstream step",
+    ("pr.yml:script-tests-macos", "Script tests that need macOS"): "ci-build.sh's script-tests step",
     ("pr.yml:build", "A train run names its base"): "train branches only",
     ("pr.yml:build", "Every lane the diff needs passed, and only those were skipped"): "aggregate of the jobs above",
     ("pr.yml:build", "Config literals"): "ci-build.sh's config step",

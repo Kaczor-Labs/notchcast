@@ -85,6 +85,28 @@ jobs:
           HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
           NOTCHCAST_HARNESSES_SHARDED: '1'
         run: bash ../tools/notchcast/ci-build.sh
+      # Here rather than in a macOS job of their own: GitHub runs at most 5 macOS jobs at once.
+      - name: Script tests that need macOS
+        working-directory: src
+        run: |
+          bash notchcast/fetch-upstream.sh --no-tags
+          python3 notchcast/script-tests.py --all --runner macos
+  # ci-build.sh's checks that need no Mac (notchcast/ci-checks.sh), beside checks.
+  linux-checks:
+    needs: route
+    if: needs.route.outputs.build == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Checks that need no Mac
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha || inputs.base }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: bash notchcast/ci-checks.sh
   # The whole suite, split by harness name (notchcast/test-harnesses.sh), beside the checks job.
   harnesses:
     needs: route
@@ -121,10 +143,23 @@ jobs:
           HARNESS_TESTS: ${{ steps.tests.outcome }}
           SHARD: ${{ matrix.shard }}
         run: python3 tools/notchcast/harness-select.py misses "$RUNNER_TEMP/harness-failures" "$SHARD"
-  # On macOS like the tools they test (BSD sed and date, swift, xcrun), in parallel (notchcast/script-tests.py).
+  # On Linux, in parallel (notchcast/script-tests.py); a test marked as needing macOS runs in checks instead.
   script-tests:
     needs: route
     if: needs.route.outputs.scripts == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Script tests
+        run: python3 notchcast/script-tests.py --all --runner linux
+  # The macOS-marked script tests when checks does not run: a diff only the script tests need.
+  script-tests-macos:
+    needs: route
+    if: needs.route.outputs.build != 'true' && needs.route.outputs.scripts == 'true'
     runs-on: xcode-27
     timeout-minutes: 10
     steps:
@@ -136,11 +171,11 @@ jobs:
       # land-test.sh serves this checkout's upstream main to its fixture remote.
       - name: Fetch upstream
         run: bash notchcast/fetch-upstream.sh --no-tags
-      - name: Script tests
-        run: python3 notchcast/script-tests.py --all
+      - name: Script tests that need macOS
+        run: python3 notchcast/script-tests.py --all --runner macos
   # land.sh reads the check named build: green only when every lane the diff needs is.
   build:
-    needs: [route, checks, harnesses, script-tests]
+    needs: [route, checks, linux-checks, harnesses, script-tests, script-tests-macos]
     if: ${{ !cancelled() && (github.event_name == 'workflow_dispatch' || !github.event.pull_request.draft) }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -156,20 +191,24 @@ jobs:
           BUILD: ${{ needs.route.outputs.build }}
           SCRIPTS: ${{ needs.route.outputs.scripts }}
           CHECKS: ${{ needs.checks.result }}
+          LINUX_CHECKS: ${{ needs.linux-checks.result }}
           HARNESSES: ${{ needs.harnesses.result }}
           SCRIPT_TESTS: ${{ needs.script-tests.result }}
+          SCRIPT_TESTS_MACOS: ${{ needs.script-tests-macos.result }}
         run: |
           case "$BUILD:$SCRIPTS" in true:true|false:true|false:false) ;; *) echo "::error::lanes said '$BUILD' '$SCRIPTS'"; exit 1;; esac
           want() { if [ "$1" = true ]; then echo success; else echo skipped; fi; }
-          if [ "$ROUTE" != success ] || [ "$CHECKS" != "$(want "$BUILD")" ] || [ "$HARNESSES" != "$(want "$BUILD")" ] \
-              || [ "$SCRIPT_TESTS" != "$(want "$SCRIPTS")" ]; then
-            echo "::error::route: $ROUTE (build $BUILD, scripts $SCRIPTS), checks: $CHECKS, harnesses: $HARNESSES, script tests: $SCRIPT_TESTS"
+          scripts_only=$([ "$BUILD:$SCRIPTS" = false:true ] && echo true || echo false)
+          if [ "$ROUTE" != success ] || [ "$CHECKS" != "$(want "$BUILD")" ] || [ "$LINUX_CHECKS" != "$(want "$BUILD")" ] \
+              || [ "$HARNESSES" != "$(want "$BUILD")" ] || [ "$SCRIPT_TESTS" != "$(want "$SCRIPTS")" ] \
+              || [ "$SCRIPT_TESTS_MACOS" != "$(want "$scripts_only")" ]; then
+            echo "::error::route: $ROUTE (build $BUILD, scripts $SCRIPTS), checks: $CHECKS, linux checks: $LINUX_CHECKS, harnesses: $HARNESSES, script tests: $SCRIPT_TESTS, macOS script tests: $SCRIPT_TESTS_MACOS"
             exit 1
           fi
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           persist-credentials: false
-      # check-config reads every notchcast/ file, docs too; the checks job runs it when the build lane does.
+      # check-config reads every notchcast/ file, docs too; linux-checks runs it when the build lane does.
       - name: Config literals
         if: needs.route.outputs.build != 'true'
         run: python3 notchcast/check-config.py
