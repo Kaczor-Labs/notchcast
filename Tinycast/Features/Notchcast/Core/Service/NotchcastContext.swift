@@ -20,11 +20,14 @@ final class NotchcastContext {
     private let hub: NotchcastTapHub
     private let transcription: NotchcastTranscriptionRunner
     private let onTapsChanged: @MainActor () -> Void
+    private let onCommandsChanged: @MainActor () -> Void
     private let clipboard: NotchcastClipboardMutation
     /// Strong is safe: a recovery context links to nothing, and the controller's slot owns both.
     private let recoveryContext: NotchcastContext?
     private(set) var wantedTaps: [(token: UUID, tap: NotchcastTap)] = []
     private(set) var module: (any NotchcastModule)?
+    /// Entry ids the module cannot run right now: the launcher drops them, their hotkeys still run.
+    private(set) var unavailableCommands: Set<String> = []
     /// Returns true to consume a digit typed in the launcher (Number Keys, hook H9).
     private(set) var launcherDigit: (@MainActor (_ digit: Int, _ query: String, _ entryRows: [Int]) -> Int?)?
     /// Returns true to claim a URL or file opened with the app (a link clicked, a document opened).
@@ -33,8 +36,9 @@ final class NotchcastContext {
     init(
         defaults: UserDefaults, preferences: NotchcastPreferences, presenter: any IslandPresenting,
         hub: NotchcastTapHub, transcription: NotchcastTranscriptionRunner,
-        now: @escaping @MainActor () -> Date, clipboard: NotchcastClipboardMutation = .none,
-        onTapsChanged: @escaping @MainActor () -> Void, recovery: NotchcastContext? = nil
+        now: @escaping @MainActor () -> Date,
+        onTapsChanged: @escaping @MainActor () -> Void, onCommandsChanged: @escaping @MainActor () -> Void = {},
+        recovery: NotchcastContext? = nil, clipboard: NotchcastClipboardMutation = .none
     ) {
         self.defaults = defaults
         self.preferences = preferences
@@ -43,6 +47,7 @@ final class NotchcastContext {
         self.transcription = transcription
         self.now = now
         self.onTapsChanged = onTapsChanged
+        self.onCommandsChanged = onCommandsChanged
         self.clipboard = clipboard
         recoveryContext = recovery
     }
@@ -74,6 +79,12 @@ final class NotchcastContext {
         onTapsChanged()
     }
 
+    func setUnavailable(_ entryIDs: Set<String>) {
+        guard entryIDs != unavailableCommands else { return }
+        unavailableCommands = entryIDs
+        onCommandsChanged()
+    }
+
     /// ⌘1–⌘0 ask this first; a returned row index opens that row instead of the favourite.
     func handleLauncherDigit(_ handler: (@MainActor (_ digit: Int, _ query: String, _ entryRows: [Int]) -> Int?)?) {
         launcherDigit = handler
@@ -102,6 +113,7 @@ final class NotchcastContext {
         module = nil
         wantedTaps.removeAll()
         launcherDigit = nil
+        unavailableCommands = []
         openURL = nil
     }
 }

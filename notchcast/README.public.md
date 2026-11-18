@@ -39,7 +39,7 @@ The in-app updater stays off in Notchcast. To keep a Mac current, clone this rep
 - **Settings › Notchcast.** One tab per area, each add-on with its own switch; an add-on's tab shows only while that add-on is in the build.
   - **Island**: look, outline when open, open on hover, position on displays without a notch, show in screenshots and videos.
   - **Keyboard & Mouse**: hide with ⌘M, Show Desktop with F3, Quit Protection, trackpad middle click, Paste Plain Text.
-  - **Display & Sound**: brightness keys for every display, volume in the island, stop Apple Music opening on media keys.
+  - **Display & Sound**: brightness keys for every display, volume in the island, stop Apple Music opening on media keys, AirPods and Beats noise control from the launcher.
   - **Capture**: screenshots of an area, window or display.
   - **Launcher Extras**: ⌘1–⌘9 open the first nine results; small commands for passwords, short links and AirDrop.
   - **Downloads**: video, audio, transcripts and webpages from clipboard links, with optional aria2c and transcription into a local folder.
