@@ -77,6 +77,34 @@ if grep -qx -e CalcTests -e nc-QuitProtection-module-test "$scratch/selected"; t
     echo 'FAIL: an add-on change selected an unrelated harness'; exit 1
 fi
 echo 'PASS: an add-on change selects its own harness and the core registry harness, and is sure'
+# A repo file a harness opens by a literal path, outside its sources and reads: a change to it must not be a sure
+# selection, which would leave that harness out. A literal folder none of its inputs reach into is probed with a
+# file name no harness can name.
+(cd "$root" && python3 - > "$scratch/undeclared" <<'PY'
+import fnmatch, re, sys
+from pathlib import Path
+sys.path.insert(0, 'notchcast')
+from harness_inputs import harnesses
+declared = {path: inputs.patterns + inputs.reads for path, inputs in harnesses()}
+for path in sorted({*Path('Tests').glob('*-test.swift'), *Path('Tests').glob('*Tests.swift')}):
+    for literal in sorted(set(re.findall(r'"([A-Za-z.][\w.+-]*/[^"\\\s]*)"', path.read_text(encoding='utf-8')))):
+        if Path(literal).is_dir():
+            literal = literal.rstrip('/') + '/no-harness-names-this'
+            if any(pattern.startswith(literal.rsplit('/', 1)[0] + '/') for pattern in declared.get(path, [])):
+                continue
+        elif not Path(literal).is_file():
+            continue
+        if not any(fnmatch.fnmatchcase(literal, pattern) for pattern in declared.get(path, [])):
+            print(path.stem, literal)
+PY
+)
+grep -q . "$scratch/undeclared" || { echo 'FAIL: the scan for repo paths harnesses open found none'; exit 1; }
+while read -r name path; do
+    pick "$scratch/unsure" "$path" > "$scratch/selected"
+    # harness-select.py also runs the whole suite when nothing beyond the always-run harness is selected.
+    [ -s "$scratch/unsure" ] || [ "$(cat "$scratch/selected")" = notchcast-hidden-features-test ] || { echo "FAIL: $name opens $path, which is in none of its // notchcast-sources: or // notchcast-reads: lines, and a change to it selects only: $(tr '\n' ' ' < "$scratch/selected")"; exit 1; }
+done < "$scratch/undeclared"
+echo 'PASS: a repo file a harness opens is among its inputs, or a change to it runs the whole suite'
 # verdict <changed paths...>: why the diff cannot land from Linux, one reason per line; nothing when it can.
 verdict() { CHANGED="$*" bash "$root/notchcast/changed-harnesses.sh" --linux "$scratch/linux" base head > /dev/null; cat "$scratch/linux"; }
 [ -z "$(verdict Tinycast/Features/Launcher/Model/FavoriteSlots.swift)" ] || { echo "FAIL: a linux-ok harness's input was kept off Linux: $(verdict Tinycast/Features/Launcher/Model/FavoriteSlots.swift)"; exit 1; }
