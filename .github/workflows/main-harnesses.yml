@@ -1,8 +1,7 @@
 name: Main harnesses
 
+# Dispatch only: a ready PR gets its harnesses from the PR workflow, never twice.
 on:
-  push:
-    branches-ignore: [main, 'train/**']
   workflow_dispatch:
     inputs:
       all:
@@ -17,10 +16,10 @@ on:
 permissions:
   contents: read
 
-# Per event, so a push never cancels a dispatched run: only a newer push replaces a push run.
+# One run per branch: a newer dispatch replaces the older run, which notchcast-ci.py reports as NOPROOF.
 concurrency:
-  group: main-harnesses-${{ github.event_name }}-${{ github.ref }}
-  cancel-in-progress: ${{ github.event_name == 'push' }}
+  group: main-harnesses-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   # On Linux, so a macOS runner is spent only on shards that have harnesses to run.
