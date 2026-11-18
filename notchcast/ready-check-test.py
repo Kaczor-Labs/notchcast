@@ -15,8 +15,7 @@ WORKFLOW = ROOT / ".github/workflows/pr.yml"
 SCRIPT = ROOT / "notchcast/ready-check.sh"
 # Every step of pr.yml and of the local actions it uses, and how ready-check.sh covers it.
 COVERED = {
-    ("pr.yml:route", "actions/checkout"): "runner routing; no gate",
-    ("pr.yml:route", "./notchcast/actions/route"): "runner routing; no gate",
+    ("pr.yml:route", "actions/checkout"): "lane planning; no gate",
     ("pr.yml:route", "Lanes the diff needs"): "picks the jobs below; ready-check.sh runs them all",
     ("pr.yml:route", "Harnesses the diff needs"): "shadow selection; reports, gates nothing",
     ("pr.yml:checks", "actions/checkout"): "the shared clone at HEAD",
@@ -36,7 +35,6 @@ COVERED = {
     ("pr.yml:build", "Record the tested tree"): "records the tree; no gate",
     ("pr.yml:build", "actions/upload-artifact"): "records the tree; no gate",
     ("xcode", 'source "$GITHUB_ACTION_PATH/../../ci-xcode.sh"'): "ci-build.sh sources ci-xcode.sh",
-    ("tests", "cache"): "harness binary cache; no gate",
     ("tests", "actions/cache/restore"): "harness binary cache; no gate",
     ("tests", 'bash "$GITHUB_ACTION_PATH/../../ci-tests.sh"'): "ci-build.sh runs ci-tests.sh",
     ("tests", "Failed harness logs"): "logs only; ready-check keeps the whole log",
