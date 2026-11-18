@@ -278,6 +278,7 @@ struct DownloadsModuleTest {
 
         preferences.set("torrentsUseIPhone", on: true)
         expect(context.openURL?(magnet) == true, "a second torrent, with the option on")
+        try await eventually { fakes.sessions.count == 2 && module.torrents.jobs.last?.state.isActive == true }
         try await eventually { module.torrents.jobs.last?.gid != nil }
         expect(fakes.sessions.last == ["--multiple-interface=en0,en7"], "aria2c starts on Wi-Fi and the iPhone")
         try await eventually { presenter.log.last == "post torrents.progress iPhone · Big · Finding peers" }

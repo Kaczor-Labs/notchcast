@@ -1,7 +1,7 @@
 import Foundation
 
 /// Asks the server how large a direct link is, for the links yt-dlp cannot size.
-enum DownloadSizeProbe {
+nonisolated enum DownloadSizeProbe {
     @concurrent
     static func bytes(of source: String) async -> Int64? {
         guard let url = URL(string: source) else { return nil }
