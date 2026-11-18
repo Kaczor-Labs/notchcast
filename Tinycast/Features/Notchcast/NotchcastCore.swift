@@ -14,15 +14,15 @@ final class NotchcastCore {
         let hub = NotchcastTapHub(
             syntheticTag: Paster.tinycastEventTag, isTrusted: { AXIsProcessTrusted() },
             makeSession: NotchcastTapThread.start)
+        let surfaces = NotchcastSurfaces(
+            confirm: { [weak core] title, message, confirmTitle in
+                await core?.confirm(title: title, message: message, symbol: nil, confirmTitle: confirmTitle) ?? false
+            },
+            interfaceScale: { [weak core] in core.map { Double($0.settings.interfaceSize.metrics.scale) } ?? 1 },
+            isFrosted: { [weak core] in core?.island.frosted(on: nil) ?? false })
         controller = NotchcastController(
             addons: addons, defaults: defaults, hub: hub, dictation: NotchcastDictationBridge(core: core),
-            presenter: core.islandPresenter,
-            surfaces: NotchcastSurfaces(
-                confirm: { [weak core] title, message, confirmTitle in
-                    await core?.confirm(title: title, message: message, symbol: nil, confirmTitle: confirmTitle) ?? false
-                },
-                interfaceScale: { [weak core] in core.map { Double($0.settings.interfaceSize.metrics.scale) } ?? 1 },
-                isFrosted: { [weak core] in core?.island.frosted(on: nil) ?? false }))
+            surfaces: surfaces, presenter: core.islandPresenter)
         NotchcastPane.install(Set(controller.switches.map(\.category)))
         let commands = addons.flatMap { $0.commands }
         NotchcastSettingsSearch.install(

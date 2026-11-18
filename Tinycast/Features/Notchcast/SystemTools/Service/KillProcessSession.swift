@@ -37,7 +37,8 @@ final class KillProcessSession {
         let now = system.uptimeNanoseconds()
         let elapsed = samples.isEmpty || now <= sampledAt ? 0 : now - sampledAt
         listed = ProcessListPolicy.rows(
-            previous: samples, current: current, elapsedNanoseconds: elapsed, ownPID: system.ownPID)
+            previous: samples, current: current, elapsedNanoseconds: elapsed, ownPID: system.ownPID,
+            processorCount: system.processorCount)
         samples = current
         sampledAt = now
         arrange()

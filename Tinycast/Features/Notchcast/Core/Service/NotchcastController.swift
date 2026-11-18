@@ -31,8 +31,8 @@ final class NotchcastController {
 
     init(
         addons: [any NotchcastAddon.Type], defaults: UserDefaults, hub: NotchcastTapHub,
-        dictation: any NotchcastTranscribing, presenter: any IslandPresenting,
-        now: @escaping @MainActor () -> Date = { Date() }, surfaces: NotchcastSurfaces = NotchcastSurfaces()
+        dictation: any NotchcastTranscribing, surfaces: NotchcastSurfaces = NotchcastSurfaces(),
+        presenter: any IslandPresenting, now: @escaping @MainActor () -> Date = { Date() }
     ) {
         preferences = NotchcastPreferences(defaults: defaults, switches: addons.flatMap { $0.switches })
         self.hub = hub

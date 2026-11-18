@@ -22,3 +22,8 @@ DisplaySound: Model/BrightnessFunctionKeys.swift ← vorssaint/vorssaint-utils@8
 DisplaySound: Service/BrightnessDisplayService.swift ← vorssaint/vorssaint-utils@89d2626/Sources/Vorssaint/Services/Display/BrightnessService.swift (GPL-3.0-or-later)
 DisplaySound: Service/BrightnessController.swift ← vorssaint/vorssaint-utils@89d2626/Sources/Vorssaint/Services/Display/BrightnessService.swift (GPL-3.0-or-later)
 DisplaySound: UI/BrightnessDisplayRowState.swift ← vorssaint/vorssaint-utils@89d2626/Sources/Vorssaint/Services/Display/BrightnessService.swift (GPL-3.0-or-later)
+SystemTools: Model/ProcessListPolicy.swift ← vorssaint/vorssaint-utils@89d2626/Sources/Vorssaint/Services/KillProcess/KillProcessSupport.swift (GPL-3.0-or-later)
+SystemTools: Model/ProcessListPolicy.swift ← vorssaint/vorssaint-utils@89d2626/Sources/Vorssaint/Services/KillProcess/KillProcessService.swift (GPL-3.0-or-later)
+SystemTools: Model/ProcessListPolicy.swift ← vorssaint/vorssaint-utils@89d2626/Sources/Vorssaint/Services/Metrics/MetricFormat.swift (GPL-3.0-or-later)
+SystemTools: Service/LiveProcesses.swift ← vorssaint/vorssaint-utils@89d2626/Sources/Vorssaint/Services/KillProcess/KillProcessService.swift (GPL-3.0-or-later)
+SystemTools: Service/LiveProcesses.swift ← vorssaint/vorssaint-utils@89d2626/Sources/Vorssaint/Services/SystemMonitor/ProcessUsageService.swift (GPL-3.0-or-later)

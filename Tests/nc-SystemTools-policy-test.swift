@@ -74,53 +74,64 @@ enum SystemToolsPolicyTests {
     }
 
     static func sample(
-        _ pid: Int32, _ name: String, cpu: UInt64 = 0, memory: UInt64 = 0, start: UInt64 = 1, app: Bool = false
+        _ pid: Int32, _ name: String, cpu: UInt64 = 0, memory: UInt64 = 0, start: UInt64 = 1, path: String = ""
     ) -> ProcessSample {
-        ProcessSample(pid: pid, start: start, name: name, isApp: app, cpuNanoseconds: cpu, memoryBytes: memory)
+        ProcessSample(pid: pid, start: start, name: name, path: path, isApp: false, cpuNanoseconds: cpu, memoryBytes: memory)
     }
 
     static func processList() {
         let second: UInt64 = 1_000_000_000
         let before = [sample(10, "Safari", cpu: second), sample(11, "worker", cpu: 4 * second), sample(12, "old", start: 1)]
         let after = [
-            sample(10, "Safari", cpu: second + second / 2, memory: 900), sample(11, "worker", cpu: 6 * second, memory: 5),
+            sample(10, "Safari", cpu: second + second / 2, memory: 900), sample(11, "worker", cpu: 9 * second, memory: 5),
             sample(12, "old", cpu: 9 * second, start: 2), sample(13, "new", cpu: 3 * second),
-            sample(99, "Notchcast"), sample(1, "launchd"), sample(20, "loginwindow"),
+            sample(99, "Notchcast Dev"), sample(1, "launchd"), sample(20, "LoginWindow"),
+            sample(21, "ws", path: "/System/Library/PrivateFrameworks/SkyLight.framework/Resources/WindowServer"),
+            sample(4242, "Notchcast"),
         ]
-        let rows = ProcessListPolicy.rows(previous: before, current: after, elapsedNanoseconds: second, ownPID: 99)
+        let rows = ProcessListPolicy.rows(
+            previous: before, current: after, elapsedNanoseconds: second, ownPID: 99, processorCount: 2)
         let cpu = Dictionary(uniqueKeysWithValues: rows.map { ($0.sample.pid, $0.cpuPercent) })
-        check("CPU is the time used over the interval", cpu[10] == 50)
-        check("a busy process can pass 100 % on several cores", cpu[11] == 200)
+        check("CPU is the time used over the interval, shared by every core", cpu[10] == 25)
+        check("CPU never passes 100 %", cpu[11] == 100)
         check("a reused pid starts again at 0 %", cpu[12] == 0)
         check("a process new since the last reading reads 0 %", cpu[13] == 0)
         check("Notchcast itself is never offered", cpu[99] == nil)
+        check("another Notchcast copy is never offered", cpu[4242] == nil)
         check("pid 1 is never offered", cpu[1] == nil)
-        check("loginwindow is never offered", cpu[20] == nil)
+        check("loginwindow is never offered, whatever its case", cpu[20] == nil)
+        check("WindowServer is never offered by its path", cpu[21] == nil)
         check("the first reading has no CPU yet",
-              ProcessListPolicy.rows(previous: [], current: after, elapsedNanoseconds: 0, ownPID: 99)
+              ProcessListPolicy.rows(previous: [], current: after, elapsedNanoseconds: 0, ownPID: 99, processorCount: 2)
                   .allSatisfy { $0.cpuPercent == 0 })
+
+        check("mach ticks convert to nanoseconds",
+              ProcessListPolicy.nanoseconds(ticks: 3_000, numerator: 125, denominator: 3) == 125_000)
+        check("a zero timebase reads nothing", ProcessListPolicy.nanoseconds(ticks: 1, numerator: 1, denominator: 0) == nil)
+        check("an overflowing conversion reads nothing",
+              ProcessListPolicy.nanoseconds(ticks: .max, numerator: 125, denominator: 3) == nil)
 
         func names(_ query: String, _ list: [ProcessRow]) -> [String] {
             ProcessListPolicy.arrange(list, query: query).map(\.sample.name)
         }
-        func row(_ name: String, cpu: Double, memory: UInt64 = 0, pid: Int32 = 5) -> ProcessRow {
-            ProcessRow(sample: sample(pid, name, memory: memory), cpuPercent: cpu)
+        func row(_ name: String, cpu: Double, pid: Int32) -> ProcessRow {
+            ProcessRow(sample: sample(pid, name), cpuPercent: cpu)
         }
         let list = [
-            row("MobileSafari", cpu: 90, pid: 1), row("Safari", cpu: 10, pid: 2), row("Café Helper", cpu: 1, pid: 3),
-            row("zsh", cpu: 0, memory: 10, pid: 4), row("bash", cpu: 0, memory: 10, pid: 5),
-            row("node", cpu: 0, memory: 99, pid: 6),
+            row("Safari", cpu: 10, pid: 2), row("MobileSafari", cpu: 90, pid: 1), row("Helper", cpu: 1, pid: 30),
+            row("zsh", cpu: 0, pid: 5), row("bash", cpu: 0, pid: 4),
         ]
-        check("no query lists by CPU, then memory, then name",
-              names("", list) == ["MobileSafari", "Safari", "Café Helper", "node", "bash", "zsh"])
+        check("no query lists busiest first, ties by pid",
+              names("", list) == ["MobileSafari", "Safari", "Helper", "bash", "zsh"])
         check("a blank query is no query", names("  ", list) == names("", list))
-        check("a name that starts with the query beats a busier one that only contains it",
-              names("saf", list) == ["Safari", "MobileSafari"])
-        check("matching ignores case and accents", names("CAFE", list) == ["Café Helper"])
+        check("a query keeps names containing it, busiest first", names("saf", list) == ["MobileSafari", "Safari"])
+        check("matching ignores case", names("SAFARI", list) == ["MobileSafari", "Safari"])
+        check("a query can be the pid", names("30", list) == ["Helper"])
         check("no match lists nothing", names("xyz", list).isEmpty)
 
         let detail = ProcessListPolicy.detail(ProcessRow(sample: sample(1, "x", memory: 640 * 1_048_576), cpuPercent: 12.4))
-        check("the row detail states CPU and memory (\(detail))", detail.hasPrefix("12%") && detail.contains("MB"))
+        let percent = 12.4.formatted(.number.precision(.fractionLength(1)))
+        check("the row detail states CPU and memory (\(detail))", detail.hasPrefix("\(percent)%") && detail.contains("MB"))
     }
 
     static func networkQuality() {

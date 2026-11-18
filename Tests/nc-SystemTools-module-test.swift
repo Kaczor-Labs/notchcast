@@ -81,6 +81,7 @@ func sample(_ pid: Int32, _ name: String, cpu: UInt64, app: Bool = false) -> Pro
 
 let system = SystemToolsSystem(
     ownPID: 4242,
+    processorCount: 1,
     uptimeNanoseconds: { ticks.add(second, ordering: .relaxed).newValue },
     readProcesses: { fake.readings.isEmpty ? [] : fake.readings.removeFirst() },
     signal: { sample, force in
@@ -122,11 +123,11 @@ final class Rig {
         let hub = NotchcastTapHub(syntheticTag: 0x54494E59, isTrusted: { true }, makeSession: { FakeTapSession($0) })
         controller = NotchcastController(
             addons: [SystemToolsAddon.self], defaults: defaults, hub: hub, dictation: FakeDictation(),
-            presenter: presenter,
             surfaces: NotchcastSurfaces(confirm: { title, _, _ in
                 fake.questions.append(title)
                 return fake.answer
-            }))
+            }),
+            presenter: presenter)
         controller.start()
     }
 

@@ -3,6 +3,7 @@ import Foundation
 /// The system side, injected so a harness touches nothing real; `.live` is in `+Live`.
 struct SystemToolsSystem: Sendable {
     let ownPID: Int32
+    let processorCount: Int
     /// Monotonic, for the CPU interval between two readings.
     let uptimeNanoseconds: @Sendable () -> UInt64
     let readProcesses: @MainActor @Sendable () async -> [ProcessSample]

@@ -1,3 +1,7 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (C) 2026 Vorssaint
+// Adapted from Vorssaint 89d2626's kill process support and CPU share: protection, order, filter.
+
 import Foundation
 
 /// One reading of a process the user owns; `pid` with `start` is its identity across pid reuse.
@@ -6,6 +10,9 @@ struct ProcessSample: Sendable, Equatable {
     /// Microseconds since 1970 at launch.
     let start: UInt64
     let name: String
+    /// The executable, empty when the kernel would not say.
+    var path = ""
+    /// A regular app, which quits through AppKit rather than a signal.
     let isApp: Bool
     /// The app bundle, so the picker can draw its icon; nil for a plain process.
     var bundlePath: String?
@@ -19,55 +26,65 @@ struct ProcessSample: Sendable, Equatable {
 
 struct ProcessRow: Sendable, Equatable {
     let sample: ProcessSample
-    /// Per core, like Activity Monitor: a busy process on two cores reads 200.
+    /// Share of the whole Mac, 0 to 100.
     let cpuPercent: Double
 }
 
 /// Which processes the picker offers, their CPU between two readings, and the order a query gives.
 enum ProcessListPolicy {
     /// Ending these logs the user out or breaks the session rather than freeing anything.
-    static let protectedNames: Set<String> = ["loginwindow", "WindowServer", "launchd", "kernel_task"]
+    static let protectedNames: Set<String> = [
+        "kernel_task", "launchd", "windowserver", "loginwindow", "notchcast", "notchcast dev",
+    ]
 
-    static func canStop(_ sample: ProcessSample, ownPID: Int32) -> Bool {
-        sample.pid > 1 && sample.pid != ownPID && !protectedNames.contains(sample.name)
+    static func isProtected(_ sample: ProcessSample, ownPID: Int32) -> Bool {
+        if sample.pid <= 1 || sample.pid == ownPID { return true }
+        let path = sample.path.trimmingCharacters(in: .whitespaces).lowercased()
+        return protectedNames.contains(sample.name.trimmingCharacters(in: .whitespaces).lowercased())
+            || ["/windowserver", "/loginwindow", "/launchd"].contains { path.hasSuffix($0) }
+    }
+
+    /// Mach ticks to nanoseconds without overflowing; nil when the timebase or total cannot fit.
+    static func nanoseconds(ticks: UInt64, numerator: UInt32, denominator: UInt32) -> UInt64? {
+        guard denominator > 0 else { return nil }
+        let divisor = UInt64(denominator)
+        let whole = (ticks / divisor).multipliedReportingOverflow(by: UInt64(numerator))
+        let remainder = (ticks % divisor).multipliedReportingOverflow(by: UInt64(numerator))
+        guard !whole.overflow, !remainder.overflow else { return nil }
+        let total = whole.partialValue.addingReportingOverflow(remainder.partialValue / divisor)
+        return total.overflow ? nil : total.partialValue
     }
 
     /// A process absent from `previous` reads 0 % until the next reading.
     static func rows(
-        previous: [ProcessSample], current: [ProcessSample], elapsedNanoseconds: UInt64, ownPID: Int32
+        previous: [ProcessSample], current: [ProcessSample], elapsedNanoseconds: UInt64, ownPID: Int32,
+        processorCount: Int
     ) -> [ProcessRow] {
         let before = Dictionary(previous.map { ($0.pid, $0) }, uniquingKeysWith: { first, _ in first })
-        return current.filter { canStop($0, ownPID: ownPID) }.map { sample in
-            guard elapsedNanoseconds > 0, let old = before[sample.pid], old.isSameProcess(as: sample),
+        let capacity = Double(elapsedNanoseconds) * Double(max(1, processorCount))
+        return current.filter { !isProtected($0, ownPID: ownPID) }.map { sample in
+            guard capacity > 0, let old = before[sample.pid], old.isSameProcess(as: sample),
                   sample.cpuNanoseconds >= old.cpuNanoseconds else { return ProcessRow(sample: sample, cpuPercent: 0) }
-            let used = Double(sample.cpuNanoseconds - old.cpuNanoseconds)
-            return ProcessRow(sample: sample, cpuPercent: used / Double(elapsedNanoseconds) * 100)
+            let share = Double(sample.cpuNanoseconds - old.cpuNanoseconds) / capacity * 100
+            return ProcessRow(sample: sample, cpuPercent: min(max(share, 0), 100))
         }
     }
 
-    /// Names starting with the query first, then names containing it; busiest first within each.
+    /// Names containing the query, or the pid it spells; busiest first, ties by pid.
     static func arrange(_ rows: [ProcessRow], query: String) -> [ProcessRow] {
-        let needle = query.trimmingCharacters(in: .whitespacesAndNewlines)
-        let ranked: [(rank: Int, row: ProcessRow)] = rows.compactMap { row in
-            guard !needle.isEmpty else { return (0, row) }
-            let options: String.CompareOptions = [.caseInsensitive, .diacriticInsensitive]
-            guard let range = row.sample.name.range(of: needle, options: options) else { return nil }
-            return (range.lowerBound == row.sample.name.startIndex ? 0 : 1, row)
+        let needle = query.trimmingCharacters(in: .whitespaces).lowercased()
+        let matching = needle.isEmpty ? rows : rows.filter {
+            $0.sample.name.lowercased().contains(needle) || String($0.sample.pid) == needle
         }
-        return ranked.sorted { lhs, rhs in
-            if lhs.rank != rhs.rank { return lhs.rank < rhs.rank }
-            if lhs.row.cpuPercent != rhs.row.cpuPercent { return lhs.row.cpuPercent > rhs.row.cpuPercent }
-            if lhs.row.sample.memoryBytes != rhs.row.sample.memoryBytes {
-                return lhs.row.sample.memoryBytes > rhs.row.sample.memoryBytes
-            }
-            let order = lhs.row.sample.name.localizedStandardCompare(rhs.row.sample.name)
-            return order == .orderedSame ? lhs.row.sample.pid < rhs.row.sample.pid : order == .orderedAscending
-        }.map(\.row)
+        return matching.sorted { lhs, rhs in
+            guard lhs.cpuPercent != rhs.cpuPercent else { return lhs.sample.pid < rhs.sample.pid }
+            return lhs.cpuPercent > rhs.cpuPercent
+        }
     }
 
-    /// "12% · 640 MB"; under 1 % reads "0%".
+    /// "12.4% · 640 MB".
     static func detail(_ row: ProcessRow) -> String {
-        let cpu = row.cpuPercent.formatted(.number.precision(.fractionLength(0)))
+        let cpu = row.cpuPercent.formatted(.number.precision(.fractionLength(1)))
         let memory = Int64(clamping: row.sample.memoryBytes).formatted(.byteCount(style: .memory))
         return String(localized: "\(cpu)% · \(memory)", table: "NotchcastSystemTools")
     }
