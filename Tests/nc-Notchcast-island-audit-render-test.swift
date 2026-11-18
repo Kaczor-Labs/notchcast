@@ -27,7 +27,7 @@
 // notchcast-sources: Tinycast/Features/Updates/Service/UpdateFailure.swift
 // notchcast-sources: Tinycast/DesignSystem/Scrolling/SelectionFollowing.swift
 // notchcast-sources: Tinycast/DesignSystem/Scrolling/ScrollIntent.swift Tinycast/DesignSystem/Scrolling/SelectionReveal.swift
-// notchcast-sources: Tinycast/Features/Updates/Service/Quarantine.swift
+// notchcast-sources: Tinycast/Features/Updates/Service/Quarantine.swift Tinycast/DesignSystem/Scrolling/EdgeDissolve.swift
 // notchcast-sources: Tinycast/Features/Updates/Service/BundleSignature.swift
 // notchcast-sources: Tinycast/Features/Updates/Service/ToolRunner.swift
 // notchcast-sources: Tinycast/Features/Updates/Service/UpdateDownloader.swift
@@ -434,6 +434,11 @@ struct NotchcastIslandAuditRenderTest {
         renderBand("22-level-band", IslandLevelArt(
             IslandLevel(source: "volume", symbol: "speaker.wave.2.fill", label: "Volume", value: 0.6),
             notch: false, frosted: frosted))
+        for notch in [false, true] {
+            renderHosted("26-launcher-footer-\(notch ? "notch" : "island")", size: CGSize(width: 600, height: 300)) {
+                auditLauncherBottom(notch: notch)
+            }
+        }
         print("PASS rendered island audit surfaces to \(folder.path)")
     }
 }
@@ -452,6 +457,50 @@ func auditRow(_ title: String, subtitle: String?, trailing: String, fill: Color)
     .padding(.horizontal, 8)
     .padding(.vertical, 6)
     .background(fill, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+}
+
+/// The launcher's last rows scrolling under the footer, laid out as `RootPaletteView.bottomBar` (#898).
+@MainActor
+func auditLauncherBottom(notch: Bool) -> some View {
+    ScrollView {
+        VStack(spacing: 0) {
+            ForEach(["Terminal", "Toggle Mute", "System Settings", "Generate Password", "TextEdit", "Notes", "Music", "Mail"],
+                    id: \.self) { title in
+                auditRow(title, subtitle: nil, trailing: "Application", fill: .clear)
+            }
+        }
+        .padding(.horizontal, 8)
+    }
+    .edgeDissolve()
+    .safeAreaInset(edge: .bottom, spacing: 0) {
+        HStack(spacing: 0) {
+            Color.clear.frame(width: 36, height: 36).floatingFrosted(in: Circle())
+            Spacer()
+            HStack(spacing: 2) {
+                BarButton(action: {}) {
+                    HStack(spacing: 6) {
+                        Text("Open Application").font(.system(size: 13))
+                        KeyCapChip(text: "↵", style: .outline)
+                    }
+                }
+                BarButton(action: {}) {
+                    HStack(spacing: 6) {
+                        Text("Actions").foregroundStyle(Theme.Colors.textSecondary)
+                        KeyCapChip(text: "⌘", style: .outline)
+                        KeyCapChip(text: "K", style: .outline)
+                    }
+                }
+            }
+            .padding(4)
+            .floatingFrosted(in: Capsule())
+        }
+        .padding(.horizontal, 12)
+        .frame(height: 44)
+    }
+    .overlay(alignment: .top) {
+        if notch { UnevenRoundedRectangle(bottomLeadingRadius: 10, bottomTrailingRadius: 10).fill(.black)
+            .frame(width: 180, height: 16).offset(y: -16) }
+    }
 }
 
 /// Stand-in for the coordinator `UpdatePill` reads, so the pill renders without `AppCore`.

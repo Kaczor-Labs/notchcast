@@ -1,3 +1,4 @@
+// notchcast-new-switch-ids: noiseControl
 import Foundation
 
 enum NoiseControlAddon: NotchcastAddon {
