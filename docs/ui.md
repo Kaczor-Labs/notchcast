@@ -234,8 +234,8 @@ shipped. Light is the same stop with the ink inverted, and is the only column op
 | `controlSurface`  | white 0.10     | black 0.08     | filled keycaps, glyph tiles                       |
 | `border`          | white 0.20     | black 0.18     | outlined keycap borders                           |
 | `textPrimary`     | white 1.00     | black 1.00     | search text and caret, volume fill and knob       |
-| `textSecondary`   | white 0.60     | black 0.60     | secondary labels                                  |
-| `textTertiary`    | white 0.40     | black 0.42     | placeholders, trailing kind labels                |
+| `textSecondary`   | white 0.72     | black 0.60     | secondary labels                                  |
+| `textTertiary`    | white 0.60     | black 0.42     | placeholders, trailing kind labels                |
 | `menuSymbol`      | white 0.70     | black 0.70     | native popover-menu symbols                       |
 | `iconPlaceholder` | white 0.06     | black 0.06     | the empty tile a row paints while an icon decodes |
 | `sheen`           | white 0.04     | black 0.04     | the wash behind the Onboarding header             |

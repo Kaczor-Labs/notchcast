@@ -63,3 +63,13 @@ RUNNER_TEMP="$scratch/runner" UPSTREAM=0000000000000000000000000000000000000000 
 [ "$(cat "$scratch/runner/harness-failures")" = nc-New-test ] \
     || { cat "$scratch/out"; echo 'FAIL: a failing upstream comparison wrote no harness down'; exit 1; }
 echo 'PASS: a harness that fails for good is written down before the upstream comparison'
+# Red on upstream too: ignored for the verdict, and written down as proven nowhere by this run.
+mkdir Tests "$scratch/excusing"
+: > Tests/nc-New-test.swift
+git add Tests
+git commit -q -m 'Fixture upstream with the harness'
+RUNNER_TEMP="$scratch/excusing" UPSTREAM=$(git rev-parse HEAD) bash notchcast/ci-tests.sh > "$scratch/out" 2>&1 \
+    || { cat "$scratch/out"; echo 'FAIL: a harness red on upstream too failed the run'; exit 1; }
+[ "$(cat "$scratch/excusing/harness-excused")" = nc-New-test ] && [ ! -s "$scratch/excusing/harness-failures" ] \
+    || { cat "$scratch/out"; echo 'FAIL: a harness red on upstream too was not written to harness-excused'; exit 1; }
+echo 'PASS: a harness red on upstream too passes the run and is written to harness-excused'
