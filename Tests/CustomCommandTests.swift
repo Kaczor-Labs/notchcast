@@ -496,13 +496,12 @@ struct CustomCommandTests {
             "stop asks a command waiting at a prompt to terminate, and the prompt still showed",
             heldResult?.termination == .stopped && heldLog == "Continue? terminated\r\n")
 
-        // The kernel drops a closed pty's unread output after about 0.6 s, so a late reader lost it.
+        // A last close waits up to 0.6 s for a reader, then drops the output before the exit is seen.
         if let late = PseudoTerminal.spawn(
             executable: "/bin/zsh", arguments: ["-fc", "echo kept"], environment: [:],
             workingDirectory: "/")
         {
             _ = late.wait()
-            try? await Task.sleep(for: .seconds(1))
             var bytes = [UInt8](repeating: 0, count: 64)
             let count = read(late.parentEnd, &bytes, bytes.count)
             late.close()
@@ -512,6 +511,30 @@ struct CustomCommandTests {
         } else {
             check("a fast command's output waits for a reader that comes late", false)
         }
+
+        func unreaped(_ processID: pid_t) -> Bool {
+            var info = siginfo_t()
+            return waitid(P_PID, id_t(processID), &info, WEXITED | WNOHANG | WNOWAIT) == 0
+                && info.si_pid == processID
+        }
+        // Stop's SIGKILL lands seconds later; a reaped number could by then lead a stranger's group.
+        var signallable = PseudoTerminal.spawn(
+            executable: "/bin/zsh", arguments: ["-fc", "exit 3"], environment: [:],
+            workingDirectory: "/")
+        let signallableID = signallable?.processID ?? -1
+        let signallableStatus = signallable?.wait()
+        signallable?.close()
+        let reservedWhileSignallable = unreaped(signallableID)
+        signallable = nil
+        check(
+            "a command's number stays reserved while its session can still be signalled",
+            signallableStatus == 3 && reservedWhileSignallable && !unreaped(signallableID))
+
+        let killed = PseudoTerminal.spawn(
+            executable: "/bin/zsh", arguments: ["-fc", "kill -TERM $$"], environment: [:],
+            workingDirectory: "/")
+        check("a signalled command reports the signal the way a shell does", killed?.wait() == 143)
+        killed?.close()
 
         // A command spawned meanwhile must not hold the first one's pty open past its exit.
         let firstGo = reply("first-go")
