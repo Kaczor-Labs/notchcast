@@ -1,0 +1,33 @@
+{
+  "sourceLanguage" : "en",
+  "strings" : {
+    "%lld more" : {},
+    "All day" : {},
+    "City" : {},
+    "Clear" : {},
+    "Cloudy" : {},
+    "Day" : {},
+    "Day in the Island" : {},
+    "Drizzle" : {},
+    "Fog" : {},
+    "Freezing Rain" : {},
+    "Markets" : {},
+    "Mostly Clear" : {},
+    "No such city was found. Check the spelling and your connection." : {},
+    "Now" : {},
+    "Offline" : {},
+    "Partly Cloudy" : {},
+    "Press Return to apply. Weather comes from Open-Meteo. Quotes use Yahoo Finance symbols, up to 8." : {},
+    "Rain" : {},
+    "Showers" : {},
+    "Snow" : {},
+    "Symbols" : {},
+    "Thunderstorm" : {},
+    "Today" : {},
+    "Updated %@" : {},
+    "Weather" : {},
+    "Weather, your market quotes and today’s events on a page in the island." : {},
+    "in %lld min" : {}
+  },
+  "version" : "1.0"
+}

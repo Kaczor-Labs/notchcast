@@ -1,5 +1,20 @@
 import Foundation
 
+/// One calendar occurrence, as stock Calendar holds it.
+struct NotchcastEvent: Equatable, Sendable {
+    var id: String
+    var title: String
+    var start: Date
+    var end: Date
+    var isAllDay: Bool
+}
+
+/// Stock Calendar behind the core's door: the events it holds and its My Schedule screen.
+struct NotchcastCalendar {
+    var events: @MainActor () -> [NotchcastEvent] = { [] }
+    var showSchedule: @MainActor () -> Void = {}
+}
+
 /// The only door from an add-on to the app: one per add-on, owned by the controller.
 @MainActor
 final class NotchcastContext {
@@ -7,6 +22,7 @@ final class NotchcastContext {
     let preferences: NotchcastPreferences
     let presenter: any IslandPresenting
     let now: @MainActor () -> Date
+    let calendar: NotchcastCalendar
     private let hub: NotchcastTapHub
     private let transcription: NotchcastTranscriptionRunner
     private let onTapsChanged: @MainActor () -> Void
@@ -21,7 +37,8 @@ final class NotchcastContext {
         defaults: UserDefaults, preferences: NotchcastPreferences, presenter: any IslandPresenting,
         hub: NotchcastTapHub, transcription: NotchcastTranscriptionRunner,
         now: @escaping @MainActor () -> Date,
-        onTapsChanged: @escaping @MainActor () -> Void, recovery: NotchcastContext? = nil
+        onTapsChanged: @escaping @MainActor () -> Void, recovery: NotchcastContext? = nil,
+        calendar: NotchcastCalendar = NotchcastCalendar()
     ) {
         self.defaults = defaults
         self.preferences = preferences
@@ -31,6 +48,7 @@ final class NotchcastContext {
         self.now = now
         self.onTapsChanged = onTapsChanged
         recoveryContext = recovery
+        self.calendar = calendar
     }
 
     var isAccessibilityTrusted: Bool { hub.isTrusted }

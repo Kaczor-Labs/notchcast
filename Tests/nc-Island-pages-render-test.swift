@@ -14,6 +14,13 @@
 import AppKit
 import SwiftUI
 
+// Stand-ins for the menu icon types in PopoverMenu.swift, which drags in the whole palette.
+enum PopoverMenuIcon: Equatable {
+    case blank, symbol(String), asset(String), file(String), thumbnail(id: String, data: Data)
+}
+struct MenuFileIcon: View { let path: String; var body: some View { EmptyView() } }
+struct MenuThumbnail: View { let id: String; let data: Data; var body: some View { EmptyView() } }
+
 /// #975's acceptance set: the open island's pages in both forms, Black and Frosted, to PNGs at 2x.
 /// `NC_AUDIT_RENDERS` names the folder, else the audit harness's own, which CI uploads.
 @MainActor
