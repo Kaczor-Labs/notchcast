@@ -70,6 +70,7 @@ final class IslandPillMenu: NSObject {
         core.palette.menuQuery = ""
         renewHiddenPanel()
         core.island.applyCaptureSharing()
+        core.island.hover.refresh()
     }
 
     private func renewHiddenPanel() {

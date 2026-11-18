@@ -35,6 +35,7 @@ struct SettingsBackup: Codable {
         var automaticallyCheckForUpdates: Bool?
         var islandShowsInCaptures: Bool?
         var islandOutlineWhenOpen: Bool?
+        var islandOpensOnHover: Bool?
         var islandPosition: String?
         var popToRootSeconds: Int?
         var escapeKeyBehavior: String?
@@ -158,6 +159,7 @@ extension SettingsBackup {
             automaticallyCheckForUpdates: s.automaticallyCheckForUpdates,
             islandShowsInCaptures: s.islandShowsInCaptures,
             islandOutlineWhenOpen: s.islandOutlineWhenOpen,
+            islandOpensOnHover: s.islandOpensOnHover,
             islandPosition: s.islandPosition.rawValue,
             popToRootSeconds: s.popToRootTimeout.rawValue,
             escapeKeyBehavior: s.escapeKeyBehavior.rawValue,
@@ -383,6 +385,10 @@ extension SettingsBackup {
         }
         if let outline = s.islandOutlineWhenOpen {
             settings.islandOutlineWhenOpen = outline
+            count += 1
+        }
+        if let hover = s.islandOpensOnHover {
+            settings.islandOpensOnHover = hover
             count += 1
         }
         if let raw = s.islandPosition, let position = IslandPosition(rawValue: raw) {

@@ -35,6 +35,7 @@ enum SettingsFileSchema {
         case .automaticallyCheckForUpdates: return bind(settings, \.automaticallyCheckForUpdates)
         case .islandShowsInCaptures: return bind(settings, \.islandShowsInCaptures)
         case .islandOutlineWhenOpen: return bind(settings, \.islandOutlineWhenOpen)
+        case .islandOpensOnHover: return bind(settings, \.islandOpensOnHover)
         case .islandPosition: return bind(settings, \.islandPosition)
         case .popToRootTimeout: return bind(settings, \.popToRootTimeout)
         case .escapeKeyBehavior: return bind(settings, \.escapeKeyBehavior)
