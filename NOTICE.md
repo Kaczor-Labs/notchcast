@@ -2,7 +2,7 @@
 
 Tinycast is licensed under the GNU Affero General Public License v3 (see [LICENSE](LICENSE)). It
 also redistributes the third-party material recorded below, under the terms stated for each.
-Some Notchcast add-ons derive from GPL-3.0-or-later sources; each such file keeps its notice, and notchcast/licenses/borrowed.md lists them.
+Some Notchcast add-ons derive from GPL-3.0-or-later or MIT sources; each such file keeps its notice, notchcast/licenses/borrowed.md lists them, and notchcast/licenses/ holds each MIT licence text.
 
 ## Dictation model resources
 
