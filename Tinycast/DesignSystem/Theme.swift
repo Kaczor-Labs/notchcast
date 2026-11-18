@@ -468,10 +468,12 @@ enum Theme {
         static let textPrimary = ramp(dark: 1.0, light: 1.0).frosted(NotchTheme.Frosted.textPrimary)
         static let textSecondary = adaptive(
             dark: NSColor(ObsidianTokens.Glass.glassMutedForegroundSecondary), light: .srgbInk(0, alpha: 0.60)
-        ).frosted(NotchTheme.Frosted.textSecondary, lifted: NotchTheme.Frosted.textPrimary)
+        ).frosted(
+            NotchTheme.Frosted.textSecondary, lifted: NotchTheme.Frosted.textPrimary, blackLifted: textPrimary)
         static let textTertiary = adaptive(
             dark: NSColor(ObsidianTokens.Glass.glassMutedForegroundTertiary), light: .srgbInk(0, alpha: 0.42)
-        ).frosted(NotchTheme.Frosted.textTertiary, lifted: NotchTheme.Frosted.textPrimary)
+        ).frosted(
+            NotchTheme.Frosted.textTertiary, lifted: NotchTheme.Frosted.textPrimary, blackLifted: textPrimary)
         static let menuSymbol = ramp(dark: 0.70, light: 0.70).frosted(NotchTheme.Frosted.menuSymbol)
         static let noteText = ramp(dark: 0.90, light: 0.85)
         static let iconPlaceholder = ramp(dark: 0.06, light: 0.06)

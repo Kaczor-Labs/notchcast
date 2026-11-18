@@ -145,8 +145,12 @@ struct NotchLookTokensTests {
             ("secondaryLabel", NotchTheme.Colors.secondaryLabel, .secondary),
         ]
         for (name, token, value) in black { sameResolved("black \(name)", token, value, frosted: false) }
-        sameResolved("black lifted secondary stays", c.textSecondary, Color.white.opacity(0.72), frosted: false, lifted: true)
-        sameResolved("black lifted tertiary stays", c.textTertiary, Color.white.opacity(0.6), frosted: false, lifted: true)
+        sameResolved("black lifted secondary is primary", c.textSecondary, .white, frosted: false, lifted: true)
+        sameResolved("black lifted tertiary is primary", c.textTertiary, .white, frosted: false, lifted: true)
+        let blackSlab = over(resolved(c.selection, frosted: false), [0, 0, 0])
+        for (name, ink) in [("primary", c.textPrimary), ("secondary", c.textSecondary), ("tertiary", c.textTertiary)] {
+            legible("black lifted \(name) on selection", resolved(ink, frosted: false, lifted: true), on: blackSlab)
+        }
         sameResolved("black lifted destructive stays", c.destructive, .red, frosted: false, lifted: true)
         sameResolved("black lifted secondaryLabel stays", NotchTheme.Colors.secondaryLabel, .secondary,
                      frosted: false, lifted: true)

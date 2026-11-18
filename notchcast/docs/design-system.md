@@ -122,7 +122,7 @@ Reference: mac-design, "Hover and press never lower contrast"; apple-design, "Hi
 | --- | --- | --- |
 | Every menu on the island (pill menu, ⌘K actions, header filters) | One `PopoverMenu` in its own `MenuPanel` on the island surface, at a §4 width token, list inset `metrics.spacing.md`, rows `metrics.size.menuRowHeight` at `metrics.radius.menuRow`, highlighted row `Theme.Colors.menuHover`, shortcuts as outline keycaps, empty state "No Results" in `textTertiary`. The pill menu is the same component: header `Bundle.main.appDisplayName`, `Theme.Size.pillMenuVisibleRows` (13) rows, search at the top, anchored below the pill. Never `.contextMenu`, `NSMenu`, `NSAlert` or a system popover. | `NotchTheme.Colors.islandSurface` (Frosted: §1 menu panel), `Theme.Colors.menuHover` (Frosted white 0.10), `metrics.size.actionMenuWidth` |
 
-A launcher result row follows the same grammar: selected `Theme.Colors.selection`, hover `Theme.Colors.rowHover`, else clear. On Frosted selection is white 0.12 and hover 0.06, so the slab never costs its row's text its contrast. Hook A10.
+A launcher result row follows the same grammar: selected `Theme.Colors.selection`, hover `Theme.Colors.rowHover`, else clear. On the selected (cursor) row, in both looks, secondary and tertiary text turn `textPrimary` (`\.islandInkLifted`, set by `selectionFrame`), so muted text never sits on the slab. On Frosted selection is white 0.12 and hover 0.06, so the slab never costs its row's text its contrast. Hook A10.
 
 Reference: HIG Live Activities, "When separating a block of content, place it in an inset container shape… Don't draw content all the way to the edge."
 

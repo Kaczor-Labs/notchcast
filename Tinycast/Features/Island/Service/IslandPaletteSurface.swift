@@ -6,14 +6,16 @@ extension EnvironmentValues {
     @Entry var paletteOnIsland = false
     /// The palette's display has the Frosted look, so island fills let its glass show.
     @Entry var islandFrosted = false
-    /// Text on a selection slab or a wash, which costs Frosted inks their 4.5:1.
+    /// Text on a selection slab or a wash: muted ink turns primary there, on both looks.
     @Entry var islandInkLifted = false
 }
 
 extension Color {
-    /// This token on the Frosted look; `lifted` is its ink where `islandInkLifted` is set.
-    func frosted(_ value: Color, lifted: Color? = nil) -> Color {
-        Color(IslandLookStyle(black: self, frosted: value, lifted: lifted ?? value))
+    /// This token on the Frosted look; each `lifted` is its look's ink where `islandInkLifted` is set.
+    func frosted(_ value: Color, lifted: Color? = nil, blackLifted: Color? = nil) -> Color {
+        Color(
+            IslandLookStyle(
+                black: self, blackLifted: blackLifted ?? self, frosted: value, lifted: lifted ?? value))
     }
 }
 
@@ -32,14 +34,17 @@ extension Color {
     }
 }
 
-/// Black resolves the token it always was, so nothing outside a Frosted island changes.
+/// Off a slab Black resolves the token it always was, so nothing outside an island row changes.
 private struct IslandLookStyle: ShapeStyle, Hashable {
     let black: Color
+    let blackLifted: Color
     let frosted: Color
     let lifted: Color
 
     func resolve(in environment: EnvironmentValues) -> Color.Resolved {
-        guard environment.islandFrosted else { return black.resolve(in: environment) }
+        guard environment.islandFrosted else {
+            return (environment.islandInkLifted ? blackLifted : black).resolve(in: environment)
+        }
         return (environment.islandInkLifted ? lifted : frosted).resolve(in: environment)
     }
 }
