@@ -1,0 +1,204 @@
+// notchcast-sources: Tinycast/Features/Notchcast/Archives/Model/*.swift
+
+import Foundation
+
+func check(_ condition: Bool, _ message: @autoclosure () -> String) {
+    if !condition { fatalError(message()) }
+}
+
+func routing() {
+    let cases: [(String, ArchiveEngine, String)] = [
+        ("Game.zip", .hatchzip, "Game"), ("set.7z", .hatchzip, "set"), ("Movie.rar", .hatchzip, "Movie"),
+        ("Movie.part1.rar", .hatchzip, "Movie"), ("Movie.part12.rar", .hatchzip, "Movie"), ("Movie.r00", .hatchzip, "Movie"),
+        ("big.7z.001", .hatchzip, "big"), ("big.7z.002", .hatchzip, "big"), ("logs.tar.gz.001", .hatchzip, "logs"),
+        ("src.tar", .hatchzip, "src"), ("src.tar.gz", .hatchzip, "src"), ("src.TGZ", .hatchzip, "src"),
+        ("src.tar.bz2", .hatchzip, "src"), ("src.tbz2", .hatchzip, "src"), ("src.tar.xz", .hatchzip, "src"),
+        ("src.tar.zst", .bsdtar, "src"), ("src.tzst", .bsdtar, "src"), ("disk.iso", .bsdtar, "disk"),
+        ("setup.cab", .bsdtar, "setup"), ("Installer.pkg", .bsdtar, "Installer"), ("a.xar", .bsdtar, "a"),
+        ("a.cpio", .bsdtar, "a"), ("notes.txt.gz", .gzip, "notes.txt"), ("dump.bz2", .bzip2, "dump"),
+        ("dump.xz", .xz, "dump"), ("dump.zst", .zstd, "dump"), ("Old.sit", .unar, "Old"), ("Old.sitx", .unar, "Old"),
+        ("a.lzh", .unar, "a"), ("a.lha", .unar, "a"), ("a.arj", .unar, "a"), ("a.Z", .unar, "a"),
+        ("a.arc", .unar, "a"), ("a.zoo", .unar, "a"), ("Mixed.Case.Name.ZIP", .hatchzip, "Mixed.Case.Name"),
+    ]
+    for (name, engine, stem) in cases {
+        let route = ArchiveRoute(fileName: name)
+        check(route == ArchiveRoute(engine: engine, stem: stem),
+              "\(name) routes to \(engine) as \(stem): \(String(describing: route))")
+    }
+    for name in ["notes.txt", "photo.jpg", ".zip", "zip", "a.dmg", "a.docx", ".001", "r00", "part1.rar.txt"] {
+        check(ArchiveRoute(fileName: name) == nil, "\(name) is no archive")
+    }
+    check(!ArchiveRoute.defaultExtensions.contains("pkg") && !ArchiveRoute.defaultExtensions.contains("iso"),
+          "installers and disk images keep their own default apps")
+    for ext in ArchiveRoute.defaultExtensions {
+        check(ArchiveRoute(fileName: "x.\(ext)") != nil || ext == "001", "default extension \(ext) has a route")
+    }
+    check(ArchiveRoute(fileName: "x.7z.001") != nil, "a first volume has a route")
+}
+
+func arguments() {
+    let archive = URL(filePath: "/Volumes/Data/Inbox/My Game.zip")
+    let staging = URL(filePath: "/Volumes/Data/Inbox/.notchcast-extract-1")
+    let tool = URL(filePath: "/opt/homebrew/bin/hatchzip")
+    let extract = { (engine: ArchiveEngine, inPlace: Bool) in
+        ArchiveCommandLine.extract(engine, tool: tool, archive: archive, staging: staging, stem: "My Game", inPlace: inPlace)
+    }
+    check(extract(.hatchzip, false) == ["extract", archive.path, "-o", staging.path, "-q", "--keep-archive"],
+          "keeping is the default and never needs a confirmation")
+    check(extract(.hatchzip, true) == ["extract", archive.path, "-o", staging.path, "-q", "-y"],
+          "in place answers HatchZip's prompt, since no terminal is attached")
+    check(extract(.bsdtar, false) == ["-xf", archive.path, "-C", staging.path], "bsdtar extracts into staging")
+    check(extract(.unar, false) == ["-o", staging.path, "-D", "-q", archive.path], "unar adds no folder of its own")
+    check(extract(.gzip, false) == ["-c", #"exec "$0" -dc "$1" > "$2""#, tool.path, archive.path,
+                                    staging.appending(path: "My Game").path],
+          "a stream goes through sh as positional arguments, never spliced into the script")
+    check(ArchiveCommandLine.list(.hatchzip, archive: archive) == ["list", archive.path], "hatchzip lists")
+    check(ArchiveCommandLine.list(.bsdtar, archive: archive) == ["-tvf", archive.path], "bsdtar lists verbosely")
+    check(ArchiveCommandLine.list(.unar, archive: archive) == ["-j", archive.path], "lsar lists as JSON")
+    check(ArchiveCommandLine.list(.zstd, archive: archive) == nil, "a single stream has nothing to list")
+    check(ArchiveCommandLine.tools(.unar) == (.lsar, .unar), "unar lists with lsar")
+    check(ArchiveCommandLine.check(archive: archive, staging: staging) == ["check", archive.path, "-o", staging.path],
+          "check plans in place")
+    check(ArchiveCommandLine.restore(archive: archive, staging: staging) == ["restore", archive.path, "-o", staging.path],
+          "restore names the same output folder")
+}
+
+func listings() throws {
+    // Real `hatchzip list` output, 0.1.10, piped (no colour).
+    let hatchzip = """
+              Size  Name
+               6 B  one/a.txt
+               2 B  one/sub/b c.txt
+                    one/sub/
+                    one/link (symlink)
+                    one/hard (link to one/a.txt)
+           12.5 KB  top.txt
+        5 entries, 9 B uncompressed, 321 B zip archive
+        """
+    let listing = ArchiveListing.hatchzip(hatchzip)
+    check(listing.entries.map(\.path) == ["one/a.txt", "one/sub/b c.txt", "one/sub", "one/link", "one/hard", "top.txt"],
+          "hatchzip paths: \(listing.entries.map(\.path))")
+    check(listing.entries[2].isDirectory && listing.entries[3].isLink && !listing.entries[4].isLink, "kinds read")
+    check(listing.entries[5].size == 12_500, "sizes are powers of 1000")
+    check(listing.expandedSize == 9 && listing.archiveSize == 321, "the footer gives both totals")
+    check(ArchiveListing.size("1.5 GB") == 1_500_000_000 && ArchiveListing.size("7 B") == 7, "size units")
+
+    let bsdtar = """
+        drwxr-xr-x  0 me     staff       0 Jan  1 12:00 one/
+        -rw-r--r--  0 me     staff    1234 Jan  1  2024 one/a b.txt
+        lrwxr-xr-x  0 me     staff       0 Jan  1 12:00 one/link -> /etc
+        hrw-r--r--  0 me     staff       0 Jan  1 12:00 one/hard link to one/a b.txt
+        """
+    let tar = ArchiveListing.bsdtar(bsdtar)
+    check(tar.entries.map(\.path) == ["one", "one/a b.txt", "one/link", "one/hard"], "bsdtar paths: \(tar.entries.map(\.path))")
+    check(tar.entries[0].isDirectory && tar.entries[2].isLink && tar.expandedSize == 1234, "bsdtar kinds and sizes")
+
+    let lsar = Data("""
+        {"lsarFormatVersion":2,"lsarContents":[{"XADFileName":"Old/Read Me","XADFileSize":42,"XADIsDirectory":0},
+        {"XADFileName":"Old","XADIsDirectory":1},{"XADFileName":"Old/alias","XADIsLink":true}]}
+        """.utf8)
+    let unar = try ArchiveListing.lsar(lsar)
+    check(unar.entries.map(\.path) == ["Old/Read Me", "Old", "Old/alias"] && unar.expandedSize == 42, "lsar entries")
+    check(unar.entries[1].isDirectory && unar.entries[2].isLink, "lsar flags as numbers or booleans")
+}
+
+func safety() {
+    func refusal(_ paths: [String], links: [String] = [], expanded: Int64? = nil, archive: Int64 = 1000) -> ArchiveRefusal? {
+        let entries = paths.map { ArchiveEntry(path: $0) } + links.map { ArchiveEntry(path: $0, isLink: true) }
+        return ArchiveSafety.refusal(for: ArchiveListing(entries: entries, expandedSize: expanded), archiveSize: archive)
+    }
+    check(refusal(["a/b.txt", "a/c.txt", "d"]) == nil, "a plain archive passes")
+    check(refusal(["../evil"]) == .parentPath("../evil"), "../evil is refused")
+    check(refusal(["a/../../evil"]) == .parentPath("a/../../evil"), "a nested escape is refused")
+    check(refusal(["a\\..\\evil"]) == .parentPath("a\\..\\evil"), "a Windows-separated escape is refused")
+    check(refusal(["/etc/passwd"]) == .absolutePath("/etc/passwd"), "an absolute path is refused")
+    check(refusal(["C:\\Windows\\x"]) == .driveLetter("C:\\Windows\\x"), "a drive letter is refused")
+    check(refusal(["Read.me", "read.ME"]) == .caseCollision("Read.me", "read.ME"), "case-folded twins are refused")
+    check(refusal(["Docs/a", "docs/b"]) == .caseCollision("Docs", "docs"), "folders that fold together are refused")
+    check(refusal(["a", "a/"]) == nil, "a folder listed twice is fine")
+    check(refusal(["x/payload"], links: ["x"]) == .underLink("x/payload"), "nothing is written through a link")
+    check(refusal(["./x/payload"], links: ["x"]) == .underLink("./x/payload"), "a dot does not hide the link")
+    check(refusal(["x"], links: ["y"]) == nil, "a link beside files is fine")
+    check(refusal(["bomb"], expanded: 6_000_000_000, archive: 1_000_000) == .expansion(6_000_000_000),
+          "over 5 GB and over 1000x is a bomb")
+    check(refusal(["big"], expanded: 6_000_000_000, archive: 100_000_000) == nil, "a large archive that is 60x is fine")
+    check(refusal(["small"], expanded: 4_000_000_000, archive: 1) == nil, "under 5 GB is fine at any ratio")
+    let split = ArchiveListing(entries: [ArchiveEntry(path: "v")], expandedSize: 6_000_000_000, archiveSize: 100_000_000)
+    check(ArchiveSafety.refusal(for: split, archiveSize: 1_000) == nil, "a split set counts every volume")
+    check(ArchiveFailure.unsafe(.parentPath("../evil")).message.contains("../evil"), "the refusal names the path")
+}
+
+func placement() {
+    let existing: Set<String> = ["Game", "Game 2", "notes.txt", "notes 2.txt", "Game.zip", ".env"]
+    let taken = { existing.contains($0) }
+    check(ArchivePlacement.plan(items: ["a", "b"], stem: "Game", taken: taken) == .folder(name: "Game 3"),
+          "several items get a fresh folder named after the archive")
+    check(ArchivePlacement.plan(items: ["a", "b"], stem: "Other", taken: taken) == .folder(name: "Other"), "free name kept")
+    check(ArchivePlacement.plan(items: ["notes.txt"], stem: "Game", taken: taken) == .item("notes.txt", name: "notes 3.txt"),
+          "one item goes beside the archive, never over a file")
+    check(ArchivePlacement.plan(items: ["Photos"], stem: "Game", taken: taken) == .item("Photos", name: "Photos"),
+          "one folder keeps its own name")
+    check(ArchivePlacement.plan(items: [".env"], stem: "x", taken: taken) == .item(".env", name: ".env 2"),
+          "a dot file has no extension to keep")
+    check(ArchivePlacement.plan(items: [], stem: "x", taken: taken) == .empty, "an empty archive places nothing")
+    check(ArchivePlacement.freeName("Game", keepsExtension: false, taken: taken) == "Game 3", "folders count on")
+}
+
+func failures() {
+    let missing = ArchiveFailure.missingTool(.hatchzip).message
+    check(missing == "hatchzip is not installed. Install it with: brew install xevrion/tap/hatchzip", missing)
+    let result = { (status: Int32) in ArchiveProcessResult(status: status, errors: "error: it broke\n") }
+    check(ArchiveFailure.hatchzip(result(0)) == nil, "0 is success")
+    check(ArchiveFailure.hatchzip(result(3)) == .noSpace("it broke"), "3 is no space")
+    check(ArchiveFailure.hatchzip(result(4)) == .damaged("it broke"), "4 is damage")
+    check(ArchiveFailure.hatchzip(result(5)) == .password, "5 is a password")
+    check(ArchiveFailure.hatchzip(result(1)) == .failed("it broke"), "anything else is a failure with its words")
+    check(ArchiveFailure.tool(result(2)) == .failed("it broke"), "fallback tools fail with their words")
+}
+
+func journal() {
+    let job = ArchiveJob(id: UUID(), archive: URL(filePath: "/tmp/In Box/Game.zip"), inPlace: true)
+    check(job.staging.deletingLastPathComponent().path == "/tmp/In Box", "staging sits beside the archive")
+    check(job.staging.lastPathComponent.hasPrefix(".notchcast-extract-"), "staging is hidden")
+    check(ArchiveJob.decode(ArchiveJob.encode([job])) == [job], "the journal round-trips")
+    check(ArchiveJob.decode(Data("garbage".utf8)).isEmpty, "a damaged journal resumes nothing")
+}
+
+func zipNames() {
+    func entry(_ name: [UInt8], utf8Flag: Bool) -> [UInt8] {
+        var header = [UInt8](repeating: 0, count: 46)
+        header[0...3] = [0x50, 0x4B, 0x01, 0x02]
+        header[9] = utf8Flag ? 0x08 : 0x00
+        header[28] = UInt8(name.count)
+        return header + name
+    }
+    let cp437 = entry([0x82, 0x61], utf8Flag: false)
+    let flagged = entry(Array("é".utf8), utf8Flag: true)
+    let unflaggedUTF8 = entry(Array("é".utf8), utf8Flag: false)
+    check(ZIPNameEncoding.hasLegacyNames(directory: Data(cp437)), "a code-page name is legacy")
+    check(!ZIPNameEncoding.hasLegacyNames(directory: Data(flagged + unflaggedUTF8)), "UTF-8 names are not")
+    check(ZIPNameEncoding.hasLegacyNames(directory: Data(flagged + cp437)), "one legacy name is enough")
+    var end = [UInt8](repeating: 0, count: 22)
+    end[0...3] = [0x50, 0x4B, 0x05, 0x06]
+    end[12] = 48
+    end[16] = 7
+    let found = ZIPNameEncoding.directory(tail: Data([1, 2, 3] + end))
+    check(found?.offset == 7 && found?.size == 48, "the end record gives the directory")
+    end[16...19] = [0xFF, 0xFF, 0xFF, 0xFF]
+    check(ZIPNameEncoding.directory(tail: Data(end)) == nil, "ZIP64 is left to HatchZip")
+}
+
+@main
+enum ArchivesModelTest {
+    static func main() throws {
+        routing()
+        arguments()
+        try listings()
+        safety()
+        placement()
+        failures()
+        journal()
+        zipNames()
+        print("nc-Archives-model-test: ok")
+    }
+}

@@ -16,6 +16,8 @@ final class NotchcastContext {
     private(set) var module: (any NotchcastModule)?
     /// Returns true to consume a digit typed in the launcher (Number Keys, hook H9).
     private(set) var launcherDigit: (@MainActor (_ digit: Int, _ query: String, _ entryRows: [Int]) -> Int?)?
+    /// Notchcast's own yes/no dialog, never `NSAlert`; nil where no app runs, as in harnesses.
+    var confirm: (@MainActor @Sendable (_ title: String, _ message: String?, _ confirmTitle: String) async -> Bool)?
 
     init(
         defaults: UserDefaults, preferences: NotchcastPreferences, presenter: any IslandPresenting,
