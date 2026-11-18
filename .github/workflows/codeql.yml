@@ -35,6 +35,12 @@ jobs:
         with:
           languages: ${{ matrix.language }}
           build-mode: none
+          # The Raycast runtime is most of the repo's JS and only hidden Extensions load it (notchcast/docs/hidden.md).
+          config: |
+            paths-ignore:
+              - Scripts/raycast-runtime
+              - Tinycast/Resources/RaycastRuntime.generated.js
+              - Tests/ext-fixtures
       - uses: github/codeql-action/analyze@v4
         with:
           category: /language:${{ matrix.language }}
