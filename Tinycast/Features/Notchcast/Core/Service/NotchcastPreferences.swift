@@ -9,6 +9,8 @@ final class NotchcastPreferences {
     @ObservationIgnored private let switches: [String: NotchcastSwitch]
     private var stored: [String: Bool]
     private var launcherHidden: Set<String>
+    /// Called on the same turn, so the launcher list never lags its checkbox.
+    @ObservationIgnored var onLauncherChange: (() -> Void)?
 
     nonisolated static let launcherHiddenKey = "launcherHiddenCommands"
 
@@ -30,6 +32,7 @@ final class NotchcastPreferences {
         guard showsInLauncher(commandID) != shown else { return }
         if shown { launcherHidden.remove(commandID) } else { launcherHidden.insert(commandID) }
         defaults.set(launcherHidden.sorted(), forKey: Self.launcherHiddenKey)
+        onLauncherChange?()
     }
 
     func isDeclared(_ id: String) -> Bool { switches[id] != nil }

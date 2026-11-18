@@ -49,6 +49,10 @@ final class NotchcastController {
                 addon: addon, context: makeContext(recovery: recovery), recovery: recovery,
                 declaredTaps: addon.taps.map { (UUID(), $0) }, settings: addon.settings.map { SettingsEntry(row: $0) })
         }
+        preferences.onLauncherChange = { [weak self] in
+            guard let self, isRunning else { return }
+            publishCommands()
+        }
     }
 
     var switches: [NotchcastSwitch] { slots.flatMap { $0.addon.switches } }
@@ -95,10 +99,8 @@ final class NotchcastController {
     private func reconcile() {
         guard isRunning else { return }
         let ids = switches.map(\.id)
-        let commandIDs = slots.flatMap { $0.addon.commands.map(\.id) }
         let now = withObservationTracking {
-            _ = commandIDs.map(preferences.showsInLauncher)
-            return Set(ids.filter(preferences.isEnabled))
+            Set(ids.filter(preferences.isEnabled))
         } onChange: { [weak self] in
             Task { @MainActor in self?.reconcile() }
         }
@@ -119,7 +121,11 @@ final class NotchcastController {
             }
         }
         applyTaps()
-        let commands = slots.flatMap { $0.addon.commands }.filter { now.contains($0.switchID) }
+        publishCommands()
+    }
+
+    private func publishCommands() {
+        let commands = slots.flatMap { $0.addon.commands }.filter { enabled.contains($0.switchID) }
         let shown = launcherCommands(commands).map(\.id)
         guard commands.map(\.id) != enabledCommands.map(\.id) || shown != launcherIDs else { return }
         enabledCommands = commands

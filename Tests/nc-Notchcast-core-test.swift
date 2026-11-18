@@ -339,12 +339,10 @@ struct NotchcastCoreTest {
         check("the context finds its module", controller.context(forSwitch: "probeMain")?.module(ProbeModule.self) != nil)
         let probe = controller.enabledCommands
         controller.preferences.setShowsInLauncher("command:nc-probe-run", false)
-        drain()
         check("Show in launcher off leaves the launcher list, keeping the command",
               published.count == 2 && controller.launcherCommands(probe).isEmpty
                   && controller.run(entryID: "command:nc-probe-run"))
         controller.preferences.setShowsInLauncher("command:nc-probe-run", true)
-        drain()
         check("Show in launcher on lists it again", published.count == 3 && controller.launcherCommands(probe).count == 1)
 
         controller.preferences.set("probeChild", on: true)

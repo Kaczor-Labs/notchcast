@@ -8,6 +8,7 @@
   "addon-launcher": [
     "Tinycast/Features/Notchcast/Hidden/NotchcastAppProof.swift",
     "Tinycast/Features/Notchcast/NotchcastCore.swift",
+    "Tinycast/Features/Notchcast/NotchcastRegistry.swift",
     "Tinycast/Features/Notchcast/NotchcastLauncherHides.swift",
     "Tinycast/Features/Notchcast/Core/Service/NotchcastController.swift",
     "Tinycast/Features/Notchcast/Core/Service/NotchcastPreferences.swift",

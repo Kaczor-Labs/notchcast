@@ -35,7 +35,7 @@ enum NotchcastCommandAliasTests {
         if !value { failures += 1; print("FAIL \(name)") }
     }
 
-    static func main() {
+    static func main() async {
         let domain = "tinycast.notchcast-command-alias-test.\(UUID())"
         let defaults = UserDefaults(suiteName: domain)!
         defer { defaults.removePersistentDomain(forName: domain) }
@@ -62,14 +62,14 @@ enum NotchcastCommandAliasTests {
         }
         hotKeys(index.apps.filter { $0.id.hasPrefix("command:nc-") }, defaults: defaults)
         stockCommandsOff(index.apps.filter { $0.id.hasPrefix("command:nc-") }, defaults: defaults)
-        launcherToggle(commands.map { ($0.0, $0.1, $0.2) })
+        await launcherToggle(commands.map { ($0.0, $0.1, $0.2) })
         print("\(checks) add-on command alias checks; \(failures) failures")
         if failures > 0 { exit(1) }
         print("PASSED")
     }
 
     /// #868: a command's own "Show in launcher" alone decides whether the launcher finds it.
-    static func launcherToggle(_ commands: [(id: String, name: String, alias: String)]) {
+    static func launcherToggle(_ commands: [(id: String, name: String, alias: String)]) async {
         let domain = "tinycast.notchcast-launcher-toggle-test.\(UUID())"
         let defaults = UserDefaults(suiteName: domain)!
         defer { defaults.removePersistentDomain(forName: domain) }
@@ -113,10 +113,9 @@ enum NotchcastCommandAliasTests {
         }
         let first = index.apps.first { $0.id == commands[0].id }!
         visibility.setItemVisible(false, for: first)
-        RunLoop.main.run(until: Date())
+        await hides.adoption?.value
         check("the launcher's Hide turns the command's own switch off", !preferences.showsInLauncher(first.id))
         check("the launcher's Hide leaves no stock hide behind", visibility.isItemVisible(first))
-        withExtendedLifetime(hides) {}
     }
 
     /// The stock Commands switch gates stock commands only; Capture Area must survive it being off.

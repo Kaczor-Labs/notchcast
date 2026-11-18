@@ -55,7 +55,7 @@ enum NotchcastAppProof {
         check(settings.palettePosition(on: "proof") == nil, "stored palette position is ignored")
     }
 
-    /// #868: the shipped wiring lists Capture Area by name and alias over an earlier version's hides.
+    /// #868: the shipped wiring lists an add-on command by name and alias over an earlier hide.
     private static func addonLauncher() {
         let defaults = UserDefaults.standard
         let suite = NotchcastPreferences.suiteName(bundleID: bundleID)
@@ -64,26 +64,26 @@ enum NotchcastAppProof {
             defaults.removePersistentDomain(forName: bundleID)
             addons.removePersistentDomain(forName: suite)
         }
-        let ids = ["command:nc-screenshot-area", "command:nc-screenshot-display"]
-        defaults.set(ids, forKey: "hiddenLauncherItems")
+        let switches = NotchcastRegistry.addons.flatMap { $0.switches }
+        let plain = Set(switches.filter { $0.dependencies.isEmpty && $0.requiredGrants.isEmpty }.map(\.id))
+        guard let command = NotchcastRegistry.addons.flatMap({ $0.commands }).first(where: { plain.contains($0.switchID) })
+        else { fail("no add-on command without dependencies or grants") }
+        defaults.set([command.id], forKey: "hiddenLauncherItems")
         defaults.set(["command", "systemSettings"], forKey: "hiddenLauncherKinds")
-        for addon in NotchcastRegistry.addons {
-            for item in addon.switches { addons.set(item.id == "screenshot", forKey: item.id) }
-        }
+        for item in switches { addons.set(item.id == command.switchID, forKey: item.id) }
         let core = AppCore.shared
         let notchcast = NotchcastCore(core: core)
         defer { notchcast.stop() }
-        core.aliases.setAlias("xj", for: ids[0])
+        core.aliases.setAlias("xj", for: command.id)
         func found(_ query: String) -> Bool {
             core.appIndex.orderedResults(
                 query: query, visibility: core.visibility, favorites: core.favorites, hotKeys: core.hotKeys
-            ).entries.first?.id == ids[0]
+            ).entries.first?.id == command.id
         }
-        check(found("Capture Area"), "Capture Area is found by name")
-        check(found("xj"), "Capture Area is found by its alias")
-        notchcast.controller.preferences.setShowsInLauncher(ids[0], false)
-        RunLoop.main.run(until: Date())
-        check(!found("Capture Area") && !found("xj"), "Capture Area with Show in launcher off is hidden")
+        check(found(command.name), "\(command.name) is found by name")
+        check(found("xj"), "\(command.name) is found by its alias")
+        notchcast.controller.preferences.setShowsInLauncher(command.id, false)
+        check(!found(command.name) && !found("xj"), "\(command.name) with Show in launcher off is hidden")
     }
 
     private static func check(_ condition: Bool, _ message: String) {
