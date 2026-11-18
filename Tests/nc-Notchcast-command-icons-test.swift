@@ -1,9 +1,19 @@
-// notchcast-sources: Tinycast/Features/Launcher/Model/SearchRelevance.swift Tinycast/Features/Launcher/Model/ScriptRomanization.swift Tinycast/Features/Launcher/Model/LauncherMatch.swift
-// notchcast-sources: Tinycast/Features/Launcher/Model/EntryNaming.swift Tinycast/Features/Launcher/Model/LauncherOrder.swift Tinycast/Features/Launcher/Model/LauncherRankingStore.swift
-// notchcast-sources: Tinycast/Features/Launcher/Model/LauncherSuggestions.swift Tinycast/Features/Launcher/Model/SearchScopes.swift Tinycast/Features/Launcher/Service/AppIndex.swift
-// notchcast-sources: Tinycast/Features/Launcher/Service/AppLauncher.swift Tinycast/Features/Launcher/Service/RunningAppsMonitor.swift Tinycast/Features/Launcher/Service/FavoritesStore.swift
-// notchcast-sources: Tinycast/Features/FileSearch/Model/FileSearchResult.swift Tinycast/Features/Launcher/Service/AliasStore.swift
-// notchcast-sources: Tinycast/Features/Launcher/Service/VisibilityStore.swift Tinycast/Features/Launcher/Service/BundleNameCache.swift
+// notchcast-sources: Tinycast/Features/Launcher/Model/SearchRelevance.swift
+// notchcast-sources: Tinycast/Features/Launcher/Model/ScriptRomanization.swift
+// notchcast-sources: Tinycast/Features/Launcher/Model/LauncherMatch.swift
+// notchcast-sources: Tinycast/Features/Launcher/Model/EntryNaming.swift
+// notchcast-sources: Tinycast/Features/Launcher/Model/LauncherOrder.swift
+// notchcast-sources: Tinycast/Features/Launcher/Model/LauncherRankingStore.swift
+// notchcast-sources: Tinycast/Features/Launcher/Model/LauncherSuggestions.swift
+// notchcast-sources: Tinycast/Features/Launcher/Model/SearchScopes.swift
+// notchcast-sources: Tinycast/Features/Launcher/Service/AppIndex.swift
+// notchcast-sources: Tinycast/Features/Launcher/Service/AppLauncher.swift
+// notchcast-sources: Tinycast/Features/Launcher/Service/RunningAppsMonitor.swift
+// notchcast-sources: Tinycast/Features/Launcher/Service/FavoritesStore.swift
+// notchcast-sources: Tinycast/Features/FileSearch/Model/FileSearchResult.swift
+// notchcast-sources: Tinycast/Features/Launcher/Service/AliasStore.swift
+// notchcast-sources: Tinycast/Features/Launcher/Service/VisibilityStore.swift
+// notchcast-sources: Tinycast/Features/Launcher/Service/BundleNameCache.swift
 // notchcast-sources: Tinycast/Platform/AppDisplayName.swift Tinycast/Platform/BundleLocalization.swift
 // notchcast-sources: Tinycast/Platform/SystemLanguages.swift Tinycast/Platform/Images/FileIconStamp.swift
 // notchcast-sources: Tinycast/Platform/Memo.swift Tinycast/Platform/Signposts.swift
@@ -18,7 +28,8 @@
 // notchcast-sources: Tinycast/Features/HotKeys/Model/HIDKeyMapping.swift Tinycast/Features/HotKeys/Service/KeyShortcut.swift
 // notchcast-sources: Tinycast/Features/HotKeys/Service/HotKeyManager.swift Tinycast/Platform/ASCIIKeyboardLayout.swift
 // notchcast-sources: Tinycast/Features/Notchcast/Core/Model/*.swift Tinycast/Features/Notchcast/Core/Service/*.swift
-// notchcast-sources: Tinycast/Features/Island/Model/IslandPresentation.swift Tinycast/Features/Island/Service/IslandPresenting.swift
+// notchcast-sources: Tinycast/Features/Island/Model/IslandPresentation.swift
+// notchcast-sources: Tinycast/Features/Island/Service/IslandPresenting.swift
 // notchcast-sources: Tests/NotchcastDictationFixture.swift
 // notchcast-sources: Tinycast/Features/Notchcast/SmallCommands/SmallCommandsAddon.swift
 // notchcast-sources: Tinycast/Features/Notchcast/SmallCommands/Model/*.swift
