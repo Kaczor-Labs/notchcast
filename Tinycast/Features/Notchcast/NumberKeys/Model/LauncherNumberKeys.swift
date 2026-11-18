@@ -9,6 +9,16 @@ enum LauncherNumberKeys {
         return entryRows[digit - 1]
     }
 
+    /// Every result row counts, whatever its kind; a nil key is a lead card, which never does.
+    static func numberedRows(_ keys: [String?]) -> [Int] { keys.indices.filter { keys[$0] != nil } }
+
+    /// The ⌘-digit keycap of each row a digit opens, keyed by the row's list key.
+    static func slots(keys: [String?], rowFor: (Int) -> Int?) -> [String: Character] {
+        keycaps(rowFor: rowFor).reduce(into: [:]) { slots, cap in
+            if keys.indices.contains(cap.key), let key = keys[cap.key] { slots[key] = cap.value }
+        }
+    }
+
     /// The digit each row shows while ⌘ is held; the lowest digit wins a row two digits open.
     static func keycaps(rowFor: (Int) -> Int?) -> [Int: Character] {
         var caps: [Int: Character] = [:]

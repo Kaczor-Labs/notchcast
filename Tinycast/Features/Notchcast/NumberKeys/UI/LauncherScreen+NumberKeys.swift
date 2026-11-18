@@ -1,15 +1,26 @@
 import Foundation
 
 extension LauncherScreen {
-    /// The ⌘-digit keycap of each result an add-on maps a digit to, keyed by entry id.
+    /// The rows ⌘1–⌘9 count while a query is typed: every result, whatever its kind.
+    var numberKeyRows: [Int] { LauncherNumberKeys.numberedRows(numberKeyRowKeys) }
+
+    /// The ⌘-digit keycap of each result an add-on maps a digit to, keyed by its list row id.
     var numberKeySlots: [String: Character] {
         guard let digitRow = Self.digitRow else { return [:] }
-        let entryRows = rows.indices.filter { if case .entry = rows[$0] { true } else { false } }
-        let caps = LauncherNumberKeys.keycaps { digitRow($0, vm.query, entryRows) }
-        var slots: [String: Character] = [:]
-        for (row, cap) in caps {
-            if rows.indices.contains(row), case .entry(let app) = rows[row] { slots[app.id] = cap }
+        let keys = numberKeyRowKeys
+        let rows = LauncherNumberKeys.numberedRows(keys)
+        return LauncherNumberKeys.slots(keys: keys) { digitRow($0, vm.query, rows) }
+    }
+
+    /// `LauncherList`'s own row ids, which name a fallback by its entry rather than the fallback.
+    private var numberKeyRowKeys: [String?] {
+        rows.map { row in
+            switch row {
+            case .entry(let app): app.id
+            case .file(let result): "file-" + result.id
+            case .fallback(_, let entry): "fallback-" + entry.id
+            case .calc, .meeting, .color: nil
+            }
         }
-        return slots
     }
 }
