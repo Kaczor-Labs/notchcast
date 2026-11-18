@@ -1,5 +1,7 @@
 // notchcast-sources: Tinycast/Features/Notchcast/Core/Model/NotchcastMediaKey.swift
 // notchcast-sources: Tinycast/Features/Notchcast/DisplaySound/Model/*.swift
+// notchcast-sources: Tinycast/Features/Island/Model/IslandPresentation.swift
+// notchcast-sources: Tinycast/Features/Island/Model/IslandLevelDwell.swift
 // notchcast-sources: Tinycast/Features/Notchcast/DisplaySound/Service/DisplaySoundSystem.swift
 // notchcast-sources: Tinycast/Features/Notchcast/DisplaySound/Service/BrightnessDDCChannel.swift
 // notchcast-sources: Tinycast/Features/Notchcast/DisplaySound/Service/BrightnessDisplayService.swift
