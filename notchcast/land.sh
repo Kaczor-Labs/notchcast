@@ -196,7 +196,7 @@ drop() {
 green() { [ "$(check_run "$1" build)" = success ] || local_build_green "$1"; }
 # The gates PR $1 passes before it is merged: open, ready, and its checks green on its exact head.
 admit() {
-    local pr=$1 metadata head name verdict required branch generated proven sha
+    local pr=$1 metadata head name verdict required branch generated proven sha moved rest
     metadata=$(gh pr view "$pr" -R "$FORK_REPO" --json state,isDraft,labels,headRefOid,headRefName,baseRefName,isCrossRepository,title,body)
     [ "$(jq -r .baseRefName <<< "$metadata")" = main ] || refuse 'PR base must be main'
     [ "$(jq -r .state <<< "$metadata")" = OPEN ] || refuse 'PR must be open and ready'
@@ -235,15 +235,27 @@ admit() {
         for sha in $(git rev-list --max-count=30 "$head") $(gh run list -R "$FORK_REPO" -w PR -b "$branch" -L 30 --json headSha,conclusion \
                 --jq '.[] | select(.conclusion == "success") | .headSha' | awk '!seen[$0]++'); do
             git fetch -q origin "$sha" 2>/dev/null && green "$sha" || continue
-            [ -n "$(git diff --name-only "$sha" "$head" | grep -vxF "$generated")" ] || { proven=$sha; break; }
+            moved=$(git diff --no-renames --name-only "$sha" "$head") || continue
+            rest=$(grep -vxF "$generated" <<< "$moved") || [ "$?" -eq 1 ] || refuse 'cannot compare a green head with this one'
+            [ -n "$rest" ] || { proven=$sha; break; }
         done
         [ -n "$proven" ] || refuse "build is not green on ${head:0:8}; if it has none, run: gh workflow run PR --ref $branch -R $FORK_REPO -f hosted=true"
         echo "build: ${head:0:8} differs from green ${proven:0:8} only in generated files"
     fi
     printf '%s\n' "$metadata" > "$scratch/pr-$pr.json"
 }
+# True when commits $1 and $2 have the same tested tree (ci.py tested-key, main's tooling): they differ at most in the
+# project, scheme and README, which CI regenerates or never tests and landing takes from main (merge_onto). The
+# Raycast runtime counts as tested: harnesses load it. Trees, never commit messages; an unreadable side is a difference.
+generated_only() {
+    local one two
+    one=$(git rev-parse --verify -q "$1^{commit}") && two=$(git rev-parse --verify -q "$2^{commit}") || return 1
+    one=$(cd "$top" && python3 notchcast/ci.py tested-key "$one") && two=$(cd "$top" && python3 notchcast/ci.py tested-key "$two") || return 1
+    [ -n "$one" ] && [ "$one" = "$two" ]
+}
 uncovered() { echo "train: ${train_run:0:8} $1; each PR's own head checks decide" >&2; }
-# Sets covered when $train_run is a green train.sh merge of current main and each PR's current head.
+# Sets covered when $train_run is a green train.sh merge of each PR's current head onto current main, or onto a main
+# that differs from it only in generated files.
 covered=
 train_covers() {
     local commit i=${#train[@]} pr head parents name verdict required
@@ -260,7 +272,8 @@ train_covers() {
         echo "$head" > "$scratch/train-head-$pr"
         commit=${parents[1]}
     done
-    [ "$commit" = "$(git rev-parse origin/main)" ] || { uncovered "is built on ${commit:0:8}, not current main"; return 0; }
+    generated_only "$commit" origin/main || { uncovered "is built on ${commit:0:8}, not current main"; return 0; }
+    [ "$commit" = "$(git rev-parse origin/main)" ] || echo "train: main moved past ${commit:0:8} only in generated files; the run still proves it"
     for name in build design leaks; do
         verdict=$(check_run "$train_run" "$name")
         [ "$verdict" = success ] || { uncovered "has $name $verdict"; return 0; }
@@ -341,7 +354,7 @@ elif [ "$#" -ge 1 ] && [[ "$*" =~ ^[0-9]+(\ [0-9]+)*$ ]]; then
         [ "$status" -eq 0 ] || drop "$pr"
     done
     base=$(git rev-parse origin/main)
-    [ -z "$covered" ] || [ "$base" = "$train_base" ] || refuse "main moved past train ${train_run:0:8}'s base; run notchcast/train.sh again"
+    [ -z "$covered" ] || generated_only "$train_base" "$base" || refuse "main moved past train ${train_run:0:8}'s base; run notchcast/train.sh again"
 else
     refuse 'usage: land.sh [--train-run <sha>] <pr>... | --check <base-ref> <head-ref> | --guard'
 fi
@@ -395,11 +408,27 @@ run_harnesses() {
     done
     [ "$status" -eq 0 ] || [ -n "$failed" ] || refuse 'the harness run failed without naming a harness'
 }
+# Sets proof, and left to the selected harnesses it excused, from the isolated runner's build of this tree if there
+# is one. Refuses a toolchain other than ISOLATED_TOOLCHAIN, and an excused harness that only a hosted run proves.
+isolated_proof() {
+    local found url stamp excused need
+    found=$(python3 "$(dirname "$selector")/ci.py" isolated-proof HEAD) || found=
+    [ -n "$found" ] || return 0
+    { read -r url; read -r stamp; read -r excused || true; } <<< "$found"
+    [ "$stamp" = "$ISOLATED_TOOLCHAIN" ] \
+        || refuse "the isolated run $url tested this tree with '$stamp', and landing expects '$ISOLATED_TOOLCHAIN' (ISOLATED_TOOLCHAIN, notchcast/config.env): land on a hosted train (NOTCHCAST_TRAIN_MAC=hosted notchcast/train.sh ${train[*]})"
+    left=$(grep -xF -f <(tr ' ' '\n' <<< "$excused") "$scratch/selected" || true)
+    need=$(grep -xF -f <(tr ' ' '\n' <<< "$HOSTED_ONLY_TESTS") <<< "$left" | grep -vxF -f <(tr ' ' '\n' <<< "$CI_SKIP_TESTS") | paste -sd' ' - || true)
+    [ -z "$need" ] \
+        || refuse "the isolated run $url did not prove $need (red there and on upstream), and only a hosted run can: NOTCHCAST_TRAIN_MAC=hosted notchcast/train.sh ${train[*]}"
+    proof=$url
+    isolated=1
+}
 # One pass on the tree at HEAD over the union of what each squash in $base..HEAD selects. Sets failed.
 # Not covered without an Xcode build of this tree: code no selected harness compiles (UI, AppCore wiring,
 # resources); the PR build covered each head alone, and Sync and Snapshot follow on main.
 harnesses() {
-    local commit proof= names why tested= unproven= skipped
+    local commit proof= names why tested= unproven= skipped isolated= left=
     : > "$scratch/linux"
     for commit in $(git rev-list --reverse "$base..HEAD"); do
         if [ "$platform" = linux ]; then
@@ -417,17 +446,23 @@ harnesses() {
     { [ "$platform" = mac ] && { [ "${RUNNER_ENVIRONMENT:-}" = github-hosted ] || [ "${NOTCHCAST_ISOLATED_RUNNER:-}" = 1 ]; }; } \
         || unproven=$(grep -xF -f <(tr ' ' '\n' <<< "$HOSTED_ONLY_TESTS") "$scratch/selected" | paste -sd' ' - || true)
     [ "$check" -eq 1 ] || proof=$(python3 "$(dirname "$selector")/ci.py" tested-run HEAD) || proof=
+    [ "$check" -eq 1 ] || [ -n "$proof" ] || isolated_proof
     [ -z "$unproven" ] || [ "$check" -eq 1 ] || [ -n "$proof" ] \
         || refuse "hosted-only harnesses are selected and no hosted run tested this tree: $unproven; this machine never runs them (HOSTED_ONLY_TESTS, notchcast/config.env): land on a train run that ran hosted (notchcast/train.sh ${train[*]})"
     # A covered train run tested this exact tree on GitHub; only the harnesses its hosted runner skips are left.
     if [ -n "$covered" ]; then
-        echo "harnesses: covered by train ${train_run:0:8} (tree identical); running only what its runner skips"
+        echo "harnesses: covered by train ${train_run:0:8} (same tree, generated files aside); running only what its runner skips"
         names=$(grep -xF -f <(tr ' ' '\n' <<< "$CI_SKIP_TESTS") "$scratch/selected" || true)
         tested=1
     elif [ -n "$proof" ]; then
         echo "harnesses: $proof built and tested this tree; running only what its runner skips"
         names=$(grep -xF -f <(tr ' ' '\n' <<< "$CI_SKIP_TESTS") "$scratch/selected" || true)
         tested=1
+    fi
+    # The isolated runner skips nothing: only what it excused is left, to run here or stay unproven as below.
+    if [ -n "$isolated" ]; then
+        echo "harnesses: the isolated run $proof proved all of them but ${left:-none}"
+        names=$left
     fi
     if [ "$platform" = linux ] && [ -n "$tested" ]; then
         # A macOS runner tested this tree; only what it skips is left, and that needs a Mac.
@@ -474,7 +509,7 @@ rerun=1
 pushes=0
 while :; do
     build_chain
-    [ -z "$covered" ] || [ "$(git rev-parse 'HEAD^{tree}')" = "$(git rev-parse "$train_run^{tree}")" ] \
+    [ -z "$covered" ] || generated_only "$train_run" HEAD \
         || refuse "the merged tree is not the tree train ${train_run:0:8} tested"
     if [ "$rerun" -eq 1 ]; then
         harnesses
@@ -506,7 +541,6 @@ while :; do
     stamp
     # The chain's first parent is $base, so this plain (never forced) push lands only while main is still $base.
     if git push origin "$tip:refs/heads/main"; then break; fi
-    [ -z "$covered" ] || refuse "main moved past train ${train_run:0:8}'s base; run notchcast/train.sh again"
     pushes=$((pushes + 1))
     [ "$pushes" -lt 6 ] || refuse "main moved during each of 6 pushes; run land.sh ${train[*]} again"
     git fetch --quiet origin main '+refs/notchcast/synced/*:refs/notchcast/synced/*'
@@ -515,10 +549,10 @@ while :; do
     previous=$base
     base=$moved_to
     # Trees, not the commit range: a Sync rewrite of main changes real files and still reruns.
-    moved=$(git diff --name-only "$previous" "$base") || refuse 'cannot read how main moved'
-    if [ -z "$(grep -vxF -f <(python3 -c 'from notchcast.ci import GENERATED; print("\n".join(GENERATED))') <<< "$moved" || true)" ]; then
+    if generated_only "$previous" "$base"; then
         echo "main moved ${previous:0:8} -> ${base:0:8} only in generated files; merging again without rerunning harnesses"
     else
+        [ -z "$covered" ] || refuse "main moved past train ${train_run:0:8}'s base; run notchcast/train.sh again"
         echo "main moved ${previous:0:8} -> ${base:0:8}; merging again and rerunning harnesses"
         rerun=1
     fi
