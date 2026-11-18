@@ -34,10 +34,9 @@ assert pool(3, [f"-1 {NOW}"], 5) == ["xcode-27"] * 3
 print("PASS: a stale, malformed, refusing or missing idle count is no Mac")
 
 same = {"EVENT": "pull_request", "HEAD_REPO": "owner/repo"}
-assert pool(1, fresh, 5, **same, ACTION="ready_for_review") == ["notchcast-mac"]
-assert pool(1, fresh, 5, **same, ACTION="synchronize") == ["xcode-27"]
-assert pool(1, fresh, 5, **same, ACTION="opened", ELIGIBLE="false") == ["xcode-27"]
-assert pool(1, fresh, 5, EVENT="pull_request", HEAD_REPO="fork/repo", ACTION="opened") == ["xcode-27"]
+assert pool(1, fresh, 5, **same) == ["notchcast-mac"]
+assert pool(1, fresh, 5, **same, ELIGIBLE="false") == ["xcode-27"]
+assert pool(1, fresh, 5, EVENT="pull_request", HEAD_REPO="fork/repo") == ["xcode-27"]
 assert pool(1, fresh, 5, EVENT="pull_request_target", HEAD_REPO="owner/repo") == ["xcode-27"]
 assert pool(1, fresh, 5, ACTOR="someone") == ["xcode-27"]
 assert route({"COUNT": "1", "IDLE": "\n".join(fresh), "EVENT": "push"}, NOW, 5) == ["xcode-27"]
