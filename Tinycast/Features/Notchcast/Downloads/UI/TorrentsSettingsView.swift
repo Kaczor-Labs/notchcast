@@ -25,8 +25,9 @@ struct TorrentsSettingsView: View {
                 aria2c = module.environment.tools.find(.aria2c)
                 looked = true
             }
+            let bonded = module.bonding.torrentsBonded
             ForEach(module.torrents.jobs.reversed()) { job in
-                TorrentJobRow(job: job, module: module)
+                TorrentJobRow(job: job, module: module, bonded: bonded)
             }
         }
     }
@@ -35,6 +36,7 @@ struct TorrentsSettingsView: View {
 private struct TorrentJobRow: View {
     let job: TorrentJob
     let module: DownloadsModule
+    let bonded: Bool
 
     var body: some View {
         LabeledContent {
@@ -60,6 +62,13 @@ private struct TorrentJobRow: View {
         } label: {
             Text(job.name)
             Text(detail)
+            if bonded, job.state.isActive {
+                Label {
+                    Text("Wi-Fi + iPhone", tableName: "NotchcastDownloads")
+                } icon: {
+                    Image(systemName: BondingPolicy.markSymbol)
+                }
+            }
         }
     }
 
