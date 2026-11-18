@@ -127,7 +127,7 @@ Reference: HIG Live Activities, "When separating a block of content, place it in
 | Element | Rule | Token |
 | --- | --- | --- |
 | Footer capsule (the action group: primary action, ⌘↵, Actions ⌘K) | `BarButton`s in a `Capsule()` padded `metrics.spacing.xs`, drawn on the island surface with no glass and no fill; each button follows §7. Bar height `metrics.size.bottomBarHeight` (44). | `NotchTheme.Colors.islandSurface`, `NotchTheme.Colors.keyCapFill` |
-| Menu circle | A `Circle()` of `metrics.size.menuButton` (36), no glass and no fill at rest, hover `Theme.Colors.rowHover`, pressed `NotchTheme.Colors.keyCapFill`; its glyph is an SF Symbol (§6). | `metrics.size.menuButton` |
+| Menu circle (hidden, #882: the footer shows no left button; rules kept for upstream sync) | A `Circle()` of `metrics.size.menuButton` (36), no glass and no fill at rest, hover `Theme.Colors.rowHover`, pressed `NotchTheme.Colors.keyCapFill`; its glyph is an SF Symbol (§6). | `metrics.size.menuButton` |
 | Update pill in the footer | Same shape as the footer capsule (`metrics.size.menuButton` tall), no glass; the stage tint (`Theme.Colors.progress`, `success`, `destructive`) colours only its glyph, ring and label. | `Theme.Colors.progress`, `Theme.Colors.success`, `Theme.Colors.destructive` |
 
 Hook A11 (plus A1 for the update pill).
