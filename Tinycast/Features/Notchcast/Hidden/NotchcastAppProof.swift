@@ -14,6 +14,7 @@ enum NotchcastAppProof {
         case "hidden-settings": hiddenSettings()
         case "number-keys": numberKeys()
         case "addon-launcher": addonLauncher()
+        case "icloud-sync-off": iCloudSyncOff()
         default: fail("unknown proof \(name)")
         }
         print("PROOF PASS \(name)")
@@ -54,6 +55,19 @@ enum NotchcastAppProof {
         check(!settings.paletteDraggable, "paletteDraggable reads off")
         check(settings.openOnCursorScreen, "openOnCursorScreen reads on")
         check(settings.palettePosition(on: "proof") == nil, "stored palette position is ignored")
+    }
+
+    /// #910: a stored iCloud Sync switch reads off and the sync engine never starts.
+    private static func iCloudSyncOff() {
+        let defaults = UserDefaults.standard
+        defer { defaults.removePersistentDomain(forName: bundleID) }
+        defaults.set(true, forKey: AppSettingsKey.iCloudSyncEnabled.rawValue)
+        let core = AppCore.shared
+        core.settings.iCloudSyncEnabled = true
+        check(!core.settings.iCloudSyncEnabled, "iCloudSyncEnabled reads off")
+        core.cloudSyncCoordinator.appIndexDidScan()
+        check(core.cloudSyncCoordinator.status == .off, "the sync engine never starts")
+        check(!SettingsSection.allCases.flatMap(\.tabs).contains(.iCloudSync), "iCloud Sync is not in Settings")
     }
 
     /// #868: the shipped wiring lists an add-on command by name and alias over an earlier hide.
