@@ -634,6 +634,7 @@
 		8F001DE9D2EF3429B351EFF5 /* HIDKeyMapping.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAB5B3B85E8B34DB3CF9EA70 /* HIDKeyMapping.swift */; };
 		8F5A6E0EFDBC4E4C54D8AA62 /* NoteSearch.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6D594CB90475093D58A2AB1E /* NoteSearch.swift */; };
 		8F66949F8518CF6F1878AEEF /* QuicklinkDestination.swift in Sources */ = {isa = PBXBuildFile; fileRef = 61FFFE3901140714D3A7BB4C /* QuicklinkDestination.swift */; };
+		90097F940E854ABE4B3D893D /* NumberKeysAppProof.swift in Sources */ = {isa = PBXBuildFile; fileRef = 52B20B26B481C92B95F24527 /* NumberKeysAppProof.swift */; };
 		901315BA689C48923301469F /* ExtensionMenuBarImage.swift in Sources */ = {isa = PBXBuildFile; fileRef = C809E7E8DBD838AE0DEA6A0A /* ExtensionMenuBarImage.swift */; };
 		90167E291A8F08419B0D5517 /* ExtensionCaret.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2D76186A7F36C4EEDCCC8A54 /* ExtensionCaret.swift */; };
 		902E16DA6E408318597CD000 /* WindowZOrder.swift in Sources */ = {isa = PBXBuildFile; fileRef = EBD2273796C5CEA4E63E9E5E /* WindowZOrder.swift */; };
@@ -1543,6 +1544,7 @@
 		524404EF88622426B0AA4E33 /* PaletteEnvironment.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PaletteEnvironment.swift; sourceTree = "<group>"; };
 		525AE0062E8E8F00E21BAEF9 /* NotesWindowController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotesWindowController.swift; sourceTree = "<group>"; };
 		52998BAB1D8287CF14E46EF0 /* SettingsBackup.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsBackup.swift; sourceTree = "<group>"; };
+		52B20B26B481C92B95F24527 /* NumberKeysAppProof.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NumberKeysAppProof.swift; sourceTree = "<group>"; };
 		52BD814D567DFEFD303B1750 /* PaletteRowIndex.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PaletteRowIndex.swift; sourceTree = "<group>"; };
 		5311551EDC3AE497384CDE89 /* NoteSwitcherWindowController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NoteSwitcherWindowController.swift; sourceTree = "<group>"; };
 		5392500F86E23C099D33561D /* Tinycast.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Tinycast.app; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -2839,6 +2841,7 @@
 			isa = PBXGroup;
 			children = (
 				E97D90BF13A42E8D7C186801 /* LauncherScreen+NumberKeys.swift */,
+				52B20B26B481C92B95F24527 /* NumberKeysAppProof.swift */,
 			);
 			path = UI;
 			sourceTree = "<group>";
@@ -6065,6 +6068,7 @@
 				68F25E0E441706E9F591B302 /* NotesWindowController.swift in Sources */,
 				613827876C48EF88F2162C10 /* NotificationToken.swift in Sources */,
 				E2DC09F1254E8C3E669D5EED /* NumberKeysAddon.swift in Sources */,
+				90097F940E854ABE4B3D893D /* NumberKeysAppProof.swift in Sources */,
 				E268D74F0DEFFA598E2D02AA /* OnboardingCard.swift in Sources */,
 				E6E8E3E2ECD0CD9A982115F3 /* OnboardingCoordinator.swift in Sources */,
 				19317D6C8A55E3F85BB7AE1F /* OnboardingState.swift in Sources */,
