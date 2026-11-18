@@ -19,6 +19,7 @@ extension QuitProtectionSystem {
                 event.setIntegerValueField(.eventSourceUserData, value: Paster.tinycastEventTag)
                 event.postToPid(pid)
             }
-        }
+        },
+        sleep: { try await Task.sleep(for: $0) }
     )
 }

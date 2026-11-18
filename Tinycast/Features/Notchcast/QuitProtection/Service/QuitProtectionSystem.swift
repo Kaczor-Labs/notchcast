@@ -7,4 +7,5 @@ struct QuitProtectionSystem: Sendable {
     let commandCharacter: @MainActor @Sendable (Int) -> String?
     let terminate: @MainActor @Sendable (Int32) -> Bool
     let post: @MainActor @Sendable (_ pid: Int32, _ keyCode: UInt16) -> Void
+    let sleep: @MainActor @Sendable (Duration) async throws -> Void
 }
