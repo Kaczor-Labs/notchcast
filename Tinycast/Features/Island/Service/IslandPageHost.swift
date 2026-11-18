@@ -50,6 +50,8 @@ final class IslandPageHost {
             controller = resting
         }
         render()
+        // A click on the bare island lands on the island's window, so the page keys need the panel key.
+        if AppCore.shared.island.hover.isPinned { panel?.makeKey() }
         return true
     }
 
@@ -74,8 +76,9 @@ final class IslandPageHost {
             .environment(\.colorScheme, .dark))
         host.layoutSubtreeIfNeeded()
         let panel = panel ?? makePanel()
-        let size = IslandPageDeck.outline(content: host.fittingSize, rest: NotchTheme.Size.islandRest,
-            notch: controller.notchWidth, radius: Theme.Radius.panel, maxHeight: NotchTheme.Size.islandHost.height - (screen.frame.maxY - top))
+        let size = IslandPageDeck.outline(
+            content: host.fittingSize, rest: NotchTheme.Size.islandRest, notch: controller.notchWidth,
+            radius: Theme.Radius.panel, maxHeight: NotchTheme.Size.islandHost.height - (screen.frame.maxY - top))
         let frame = CGRect(x: controller.openingX(width: size.width) ?? screen.frame.midX - size.width / 2,
                            y: top - size.height, width: size.width, height: size.height)
         panel.setFrame(frame, display: true)
@@ -97,10 +100,7 @@ final class IslandPageHost {
     }
 
     /// A click pins the island, so the keys work until Escape or a click outside (946 rules).
-    private func clicked() {
-        let hover = AppCore.shared.island.hover
-        if !hover.isPinned { hover.togglePin() }
-    }
+    private func clicked() { AppCore.shared.island.hover.pin() }
 
     private func key(_ event: NSEvent) -> Bool {
         guard let key = IslandPageKey(keyCode: event.keyCode, characters: event.charactersIgnoringModifiers ?? "",

@@ -53,7 +53,9 @@ final class IslandController {
 final class IslandPageHost {
     var open = false
     private(set) var isOpen = false
+    private(set) var watched: [String: Bool] = [:]
     func set(_ page: IslandPage?, id: String, onAction: (@MainActor (String) -> Void)?) { open = page != nil }
+    func watch(id: String, onChange: (@MainActor (Bool) -> Void)?) { watched[id] = onChange != nil }
     @discardableResult
     func hover(_ hovered: Bool, on resting: IslandController?) -> Bool {
         isOpen = hovered && open && resting != nil
@@ -229,6 +231,8 @@ struct AddonNoticeQueueTest {
         check("a meeting glance arriving on a hovered island replaces the status name (#1001)",
               core.island.resting?.notice == nil && core.island.resting?.expanded == true)
         presenter.hoverChanged(false)
+        presenter.watchPages(id: "player") { _ in }
+        check("an owner's watcher reaches the page host", presenter.pages.watched == ["player": true])
         controller.stop()
         print(failures == 0 ? "PASS AddonNoticeQueueTest" : "FAILED \(failures)")
         exit(failures == 0 ? 0 : 1)
