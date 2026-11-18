@@ -119,14 +119,14 @@ final class IslandPageHost {
     }
 
     private func scrolled(_ event: NSEvent) {
-        guard event.modifierFlags.intersection([.command, .control, .option, .shift]).isEmpty else {
+        guard event.modifierFlags.isDisjoint(with: [.command, .control, .option, .shift]) else {
             swipe = IslandPageSwipe()
             return
         }
         let steps = swipe.steps(
             deltaX: event.scrollingDeltaX, deltaY: event.scrollingDeltaY, timestamp: event.timestamp,
             precise: event.hasPreciseScrollingDeltas, hasPhase: !event.phase.isEmpty,
-            began: event.phase.contains(.began), ended: !event.phase.intersection([.ended, .cancelled]).isEmpty,
+            began: event.phase.contains(.began), ended: !event.phase.isDisjoint(with: [.ended, .cancelled]),
             momentum: !event.momentumPhase.isEmpty)
         guard steps != 0 else { return }
         deck.move(by: steps)
