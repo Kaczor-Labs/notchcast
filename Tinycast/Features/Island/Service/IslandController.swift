@@ -4,11 +4,11 @@ import IslandUI
 
 @MainActor
 final class IslandController: NSObject {
-    private let source = IslandFrameSource()
-    private let backdrop = IslandBackdrop()
+    let source = IslandFrameSource()
+    let backdrop = IslandBackdrop()
     let canvas = IslandCanvas()
     lazy var frost = IslandFrost(canvas: canvas, backdrop: backdrop)
-    private var surface: IslandSurface<CGSize>?
+    private(set) var surface: IslandSurface<CGSize>?
     private var layout: IslandLayout?
     private var configuration: IslandSurfaceConfiguration?
     private var pending = IslandHold<NSScreen>()
@@ -16,7 +16,7 @@ final class IslandController: NSObject {
     private var observer: PanelObserver?
     private let clip = CAShapeLayer()
     let keyline = CAShapeLayer()
-    private var overlays: [CGRect] = []
+    private(set) var overlays: [CGRect] = []
     #if DEBUG
     private(set) var samples: [String] = []
     let frames = IslandFrameTrace()
@@ -273,7 +273,7 @@ final class IslandController: NSObject {
 
     private var surfaceMetrics: IslandMetrics?
 
-    private func glanceWidth(_ glance: IslandGlanceLayout) -> Double {
+    func glanceWidth(_ glance: IslandGlanceLayout) -> Double {
         guard let full = surfaceMetrics else { return 0 }
         let metrics = full.compact
         let sides = compactSides(SlotPair(leading: glance.leading, trailing: glance.trailing), metrics: full)
@@ -282,7 +282,7 @@ final class IslandController: NSObject {
     }
 
     /// The pill's visible part, measured from the island window's top-left corner.
-    private var pillRect: CGRect? {
+    var pillRect: CGRect? {
         guard let bounds = canvas.outline?.boundingBoxOfPath else { return nil }
         let height = canvas.bounds.height
         let top = max(height - bounds.maxY, 0)
@@ -363,38 +363,6 @@ final class IslandController: NSObject {
         }
         #endif
     }
-
-    #if DEBUG
-    /// A notch for screens that have none, so the notch profile runs on the test display.
-    static var simulatedNotch: CGSize?
-    var shownStatuses: [String] { (canvas.glance as? IslandStatusArt)?.shown ?? [] }
-    var noticeTone: NSColor? { (canvas.glance as? IslandNoticeArt)?.tone ?? canvas.headline?.tone }
-    var showsHeadline: Bool { canvas.headline != nil }
-    var reduced: Bool { surface?.reduced == true }
-    var backdropVisible: Bool { backdrop.isVisible }
-    var frameIntervals: [Double] { source.intervals }
-    var frameCPU: [Double] { source.cpuMilliseconds }
-
-    var backdropWindow: NSWindow { backdrop }
-    var outlineBounds: CGRect { canvas.outline?.boundingBoxOfPath ?? .zero }
-    var surfaceIdentity: ObjectIdentifier? { surface.map(ObjectIdentifier.init) }
-    var contentKey: String? { surface?.contentKey }
-    var overlayCount: Int { overlays.count }
-    var acceptsClicks: Bool { canvas.canOpen?() == true }
-    func pressBackdrop() -> Bool { canvas.accessibilityPerformPress() }
-    /// Routes a synthetic click through the island window, so hit testing runs as for a real one.
-    func clickBackdrop(_ type: NSEvent.EventType, modifiers: NSEvent.ModifierFlags = []) {
-        let bounds = outlineBounds
-        let point = CGPoint(x: bounds.midX, y: (bounds.minY + min(bounds.maxY, canvas.bounds.height)) / 2)
-        guard let event = NSEvent.mouseEvent(with: type, location: point, modifierFlags: modifiers,
-            timestamp: ProcessInfo.processInfo.systemUptime, windowNumber: backdrop.windowNumber, context: nil,
-            eventNumber: 0, clickCount: 1, pressure: 1) else { return }
-        backdrop.sendEvent(event)
-    }
-    var pillFrame: CGRect? { pillRect }
-    var glanceWidthTarget: Double { canvas.glance.map { glanceWidth($0.layout) } ?? 0 }
-    var showsGlanceTitle: Bool { canvas.glance?.layout.showsTitle == true }
-    #endif
 
     isolated deinit {
         NSWorkspace.shared.notificationCenter.removeObserver(self)
