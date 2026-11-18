@@ -20,10 +20,10 @@ on:
 permissions:
   contents: read
 
-# One run per branch: a newer dispatch replaces the older run, which notchcast-ci.py reports as NOPROOF.
+# One hosted Mac lane for every branch: GitHub keeps one run going and one pending, so only the Keeper dispatches.
 concurrency:
-  group: main-harnesses-${{ github.ref }}
-  cancel-in-progress: true
+  group: main-harnesses
+  cancel-in-progress: false
 
 jobs:
   # On Linux, so a macOS runner is spent only on shards that have harnesses to run.
