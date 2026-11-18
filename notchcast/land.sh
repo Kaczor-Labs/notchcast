@@ -77,10 +77,10 @@ drop() {
     rerun=1
 }
 # Check runs on the commit, not the PR's statusCheckRollup: the rollup omits dispatched runs, and a PR
-# GitHub calls conflicting gets no pull_request run at all. The newest run wins over a cancelled one.
+# GitHub calls conflicting gets no pull_request run at all. Cancelled or skipped runs count only alone.
 check_run() {
     gh api "repos/$FORK_REPO/commits/$1/check-runs?check_name=$2&filter=all" \
-        --jq '[.check_runs[] | select(.app.slug == "github-actions")] | max_by(.started_at) | if . == null then "none" elif .status != "completed" then "pending" else .conclusion end'
+        --jq '[.check_runs[] | select(.app.slug == "github-actions")] | (map(select(.conclusion != "cancelled" and .conclusion != "skipped")) | max_by([.started_at, .id])) // max_by([.started_at, .id]) | if . == null then "none" elif .status != "completed" then "pending" else .conclusion end'
 }
 green() { [ "$(check_run "$1" build)" = success ] || local_build_green "$1"; }
 # The gates PR $1 passes before it is merged: open, ready, and its checks green on its exact head.
