@@ -19,7 +19,7 @@ concurrency:
 
 jobs:
   regenerate:
-    runs-on: macos-15
+    runs-on: ubuntu-latest
     # Up to 40 min of it waiting out a Sync replay.
     timeout-minutes: 60
     steps:
@@ -28,9 +28,6 @@ jobs:
           ref: main
           fetch-depth: 0
       - uses: ./notchcast/actions/xcodegen
-      - uses: actions/setup-node@v7
-        with:
-          node-version: 22
       - name: Regenerate and push, retrying if main moved
         shell: bash
         env:
