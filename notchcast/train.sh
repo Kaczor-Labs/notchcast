@@ -228,6 +228,16 @@ while [ ${#queue[@]} -gt 0 ]; do
     git fetch -q origin main '+refs/notchcast/synced/*:refs/notchcast/synced/*'
     git fetch -q upstream main || refuse 'cannot refresh upstream main'
     base=$(git rev-parse origin/main)
+    where=main
+    if [ -n "${NOTCHCAST_TRAIN_ONTO:-}" ]; then
+        # Built on a running train's tip, this one is proven by the time that one lands: land.sh compares trees.
+        [ -z "$auto" ] || refuse 'a train built on another train never lands by itself; run it without --queue'
+        git fetch -q origin '+refs/heads/train/*:refs/remotes/origin/train/*'
+        base=$(git rev-parse --verify -q "$NOTCHCAST_TRAIN_ONTO^{commit}") || refuse "NOTCHCAST_TRAIN_ONTO $NOTCHCAST_TRAIN_ONTO is not a commit here"
+        [ -n "$(git for-each-ref --points-at "$base" 'refs/remotes/origin/train/')" ] \
+            || refuse "NOTCHCAST_TRAIN_ONTO ${base:0:8} is the tip of no train branch of origin"
+        where='train tip'
+    fi
     echo "open PRs: $(gh pr list -R "$FORK_REPO" --state open -L 200 --json number -q length || echo '?')/25"
     built=()
     for train in "${queue[@]}"; do
@@ -256,7 +266,7 @@ while [ ${#queue[@]} -gt 0 ]; do
                 continue
             fi
             settle "$branch"
-            echo "GREEN $branch ${sha:0:8} on main ${base:0:8}: notchcast/land.sh --train-run $sha $train"
+            echo "GREEN $branch ${sha:0:8} on $where ${base:0:8}: notchcast/land.sh --train-run $sha $train"
             [ -n "$auto" ] || continue
             if land_batch "$sha" $train; then
                 landed=$train

@@ -442,6 +442,31 @@ HEAD_CHECKS=failure land --train-run "$train_sha" 1 2
 [ -z "$(origin for-each-ref refs/heads/train/)" ] || fail 'the landed train branch was not deleted'
 echo 'PASS: a green train run lands its labelled draft PRs, red on their own heads, as the exact tree it tested, and deletes its branch'
 
+# A train built on a running train's tip (NOTCHCAST_TRAIN_ONTO) is covered once that train has landed, not before.
+fixture
+open_pr 1 pr-b 'Add B' src/b.txt
+open_pr 2 pr-c 'Add C' src/c.txt
+train 1
+first=$train_sha
+NOTCHCAST_TRAIN_ONTO=$base train 2
+[ "$status" -eq 1 ] && grep -q "^REFUSED: NOTCHCAST_TRAIN_ONTO ${base:0:8} is the tip of no train branch of origin" "$FIXTURE/train-output" \
+    || fail 'a train was built on a commit that is no train tip'
+NOTCHCAST_TRAIN_ONTO=$first train 2
+[ "$status" -eq 0 ] && [ -n "$train_sha" ] && [ "$(origin rev-parse "$train_sha^1")" = "$first" ] \
+    && grep -q -- "--ref train/2 .*base=$first" "$FIXTURE/dispatched" && grep -q "^GREEN train/2 .* on train tip ${first:0:8}:" "$FIXTURE/train-output" \
+    || { cat "$FIXTURE/train-output"; fail 'the second train was not built on the first train tip'; }
+second=$train_sha
+printf '%s\n' "$first" "$second" > "$FIXTURE/green"
+HEAD_CHECKS=failure land --train-run "$second" 2
+[ "$status" -eq 1 ] && grep -q "is built on ${first:0:8}, not current main" "$FIXTURE/output" && untouched \
+    || fail 'a train built on another landed before that one'
+HEAD_CHECKS=failure land --train-run "$first" 1
+[ "$status" -eq 0 ] || fail 'the first train did not land'
+HEAD_CHECKS=failure land --train-run "$second" 2
+[ "$status" -eq 0 ] && [ "$(landed)" = 'Notchcast: Add B (#1)|Notchcast: Add C (#2)' ] \
+    && [ "$(origin rev-parse 'main^{tree}')" = "$(origin rev-parse "$second^{tree}")" ] || fail "the train built on a train landed '$(landed)'"
+echo 'PASS: a train built on a running train tip lands after that train, as the tree it tested, and never before'
+
 # While the repository variable names a runner the train's Mac job goes there, and land.sh judges that run's record.
 fixture
 open_pr 1 pr-h 'Add H' src/hosted.txt
