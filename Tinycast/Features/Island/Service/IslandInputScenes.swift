@@ -206,11 +206,11 @@ enum IslandInputScenes {
         let before = helperClicks()
         await click(centre(controller))
         await IslandVerification.pause(0.3)
-        check(paletteVisible && core.palette.mode == .launcher, "WS rest-pill click opens the launcher")
-        check(menuPanel == nil, "WS rest-pill click opens no menu")
+        check(!paletteVisible, "WS rest-pill click never opens the launcher (#884)")
+        check(menuPanel != nil, "WS rest-pill click opens the island's menu")
         check(helperClicks() == before, "WS rest-pill click does not pass through")
         check(received.contains { $0.hasPrefix("1@") && $0.contains("IslandBackdrop") }, "WS click lands on the island window")
-        core.paletteCoordinator.hidePalette(restoreFocus: false)
+        core.island.pillMenu.hide()
     }
 
     private static func menu(controller: IslandController) async {
