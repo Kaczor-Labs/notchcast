@@ -28,16 +28,25 @@
     "Could not listen on port %lld. Another app may be using it." : {
 
     },
+    "Dictation needs Accessibility access to see the Globe key." : {
+
+    },
     "Display & Sound" : {
       "shouldTranslate" : false
     },
     "Downloads" : {
       "shouldTranslate" : false
     },
+    "Escape cancels." : {
+
+    },
     "Files & Downloads" : {
       "shouldTranslate" : false
     },
     "Frosted" : {
+
+    },
+    "Globe key" : {
 
     },
     "Island" : {
@@ -109,6 +118,9 @@
     "Resting the pointer on the island opens what it shows." : {
 
     },
+    "Set “Press 🌐 key to” to “Do Nothing” in Keyboard settings so macOS leaves the key to Dictation." : {
+
+    },
     "Share the dictation model with other apps" : {
 
     },
@@ -119,6 +131,15 @@
 
     },
     "Show in screenshots and videos" : {
+
+    },
+    "Tap or hold the Globe key" : {
+
+    },
+    "Tap to start and tap again to finish, or hold while you speak." : {
+
+    },
+    "The Globe key is also used by %@. Change that shortcut." : {
 
     },
     "Token" : {
