@@ -282,7 +282,7 @@ class ReplayTests(unittest.TestCase):
     def test_resolution_does_not_mask_later_failure(self):
         self.scenario(later_conflict=True)
 
-    def adaptation(self, patch):
+    def adaptation(self, patch, adapted=False):
         """Our commit adds a key and picks cleanly; upstream adds a list of every key that lacks it, which no
         conflict reveals. The stored adaptation for our commit adds it there."""
         with tempfile.TemporaryDirectory() as directory:
@@ -301,12 +301,12 @@ class ReplayTests(unittest.TestCase):
             git("config", "user.email", "test@example.com")
             git("config", "core.hooksPath", "/dev/null")
             base = commit("base", {"keys": "a\n"})
-            commit("Ours: add a key", {"keys": "a\nours\n"})
+            commit("Ours: add a key", {"keys": "a\nours\n", **({"scope": "a\nours\n"} if adapted else {})})
             if patch:
                 commit("stored adaptation", {f"{CI.ADAPTATIONS}/{name}": text for name, text in patch.items()})
             ours = git("rev-parse", "HEAD")
             git("checkout", "-q", "--detach", base)
-            upstream = commit("upstream", {"scope": "a\n"})
+            upstream = commit("upstream", {"scope": "a\n"} if not adapted else {"other": "x\n"})
             git("update-ref", "refs/remotes/upstream/main", upstream)
             git("checkout", "-q", "--detach", ours)
             CI.replay(root, upstream, check=True)
@@ -327,6 +327,10 @@ class ReplayTests(unittest.TestCase):
         with self.assertRaises(CI.Conflict) as caught:
             self.adaptation({"ours-add-a-key.patch": self.ADAPT.replace(" a\n", " b\n")})
         self.assertEqual((caught.exception.subject, caught.exception.files), ("Ours: add a key", ["scope"]))
+
+    def test_adaptation_already_in_the_commit_counts_as_applied(self):
+        """After Sync rewrote main, our commit carries the adapted lines; a stale adaptation must not block."""
+        self.assertEqual(self.adaptation({"ours-add-a-key.patch": self.ADAPT}, adapted=True)[0], "a\nours\n")
 
     def test_no_adaptation_leaves_the_clean_pick_alone(self):
         scope, _, status = self.adaptation(None)

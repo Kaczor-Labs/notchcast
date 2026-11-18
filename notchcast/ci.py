@@ -21,7 +21,7 @@ new ones never land, and "Notchcast: generated files", always last, which rewrit
 Catalog conflicts merge by key; other conflicts use per-file diffs from the replay tip in main's
 replay-fixes/<lowercase subject, non-alphanumerics hyphenated>[.<base label>].patch (the first that applies) or fail.
 A commit with patches of the same name in replay-adaptations/ gets the first that applies after its pick, however
-the pick went; when none applies the replay fails on that commit.
+the pick went (one already in the commit counts); when none applies the replay fails on that commit.
 Failures are remembered as refs/notchcast-failed/<main|release-<tag>>-<upstream or tag>-<our main>, so the same
 input is retried only when upstream or our main changes, and reported as one open issue per kind (label
 notchcast-<kind>: sync = replay onto new upstream, main = main tested as it is, release), which a newer failure with
@@ -505,8 +505,10 @@ def replay(tree, onto, check=False):
             for adaptation in adaptations:
                 patch = subprocess.run(["git", "show", f"{main}:{adaptation}"], cwd=tree, text=True,
                                        capture_output=True, check=True).stdout
-                if subprocess.run(["git", "apply", "--index", "-"], input=patch, cwd=tree, text=True,
-                                  capture_output=True).returncode == 0:
+                # Already in the commit (Sync rewrote main with it) counts as applied.
+                if any(subprocess.run(["git", "apply", *flags, "-"], input=patch, cwd=tree, text=True,
+                                      capture_output=True).returncode == 0
+                       for flags in (["--index"], ["--reverse", "--check"])):
                     break
             else:
                 if adaptations:
