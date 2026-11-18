@@ -8,22 +8,25 @@ final class DownloadsIslandBridge {
     private let presenter: any IslandPresenting
     private let noticeID: String
     private let symbol: String
+    private let bonded: @MainActor ([DownloadJob]) -> Bool
     private var queue: ObjectIdentifier?
     private var policy: DownloadsIslandPolicy?
     private var showing = false
 
     private init(controller: DownloadsQueueController, presenter: any IslandPresenting, noticeID: String,
-                 symbol: String) {
+                 symbol: String, bonded: @escaping @MainActor ([DownloadJob]) -> Bool) {
         self.controller = controller
         self.presenter = presenter
         self.noticeID = noticeID
         self.symbol = symbol
+        self.bonded = bonded
     }
 
     static func track(_ controller: DownloadsQueueController, presenter: any IslandPresenting,
-                      noticeID: String, symbol: String) {
-        DownloadsIslandBridge(controller: controller, presenter: presenter, noticeID: noticeID, symbol: symbol)
-            .observe()
+                      noticeID: String, symbol: String,
+                      bonded: @escaping @MainActor ([DownloadJob]) -> Bool = { _ in false }) {
+        DownloadsIslandBridge(controller: controller, presenter: presenter, noticeID: noticeID, symbol: symbol,
+                              bonded: bonded).observe()
     }
 
     /// The onChange closure owns the bridge, so it lives while there is something to observe.
@@ -71,7 +74,9 @@ final class DownloadsIslandBridge {
             ? String(localized: "\(shown.done + 1) of \(shown.total): \(title)", table: "NotchcastDownloads")
             : title
         showing = true
-        presenter.post(IslandNotice(id: noticeID, symbol: symbol, text: text,
+        let marked = bonded(jobs)
+        presenter.post(IslandNotice(id: noticeID, symbol: marked ? BondingPolicy.markSymbol : symbol,
+                                    text: marked ? BondingPolicy.marked(text) : text,
                                     progress: IslandProgress(fraction: shown.progress)), onTap: nil)
     }
 

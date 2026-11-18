@@ -10,7 +10,7 @@ nonisolated enum MediaArguments {
     static let rateLimitPause: Duration = .seconds(5)
 
     static func download(source: String, destination: URL, format: Format,
-                         aria2Path: String? = nil, restart: Bool = false) -> [String] {
+                         aria2Path: String? = nil, restart: Bool = false, bonding: [String] = []) -> [String] {
         var arguments = common(destination: destination)
         if restart { arguments += ["--no-continue"] }
         arguments += ["--no-quiet", "--progress", "--progress-template",
@@ -20,9 +20,19 @@ nonisolated enum MediaArguments {
         arguments += selection(format)
         if let aria2Path {
             arguments += ["--downloader", aria2Path, "--downloader-args",
-                          "aria2c:-x 16 -s 16 -k 1M --file-allocation=none"]
+                          (["aria2c:-x 16 -s 16 -k 1M --file-allocation=none"] + bonding).joined(separator: " ")]
         }
         return arguments + ["--", source]
+    }
+
+    /// Asks only for the size of what `download` would fetch; nothing is downloaded.
+    static func size(source: String, format: Format) -> [String] {
+        base + ["--print", "%(filesize,filesize_approx)s"] + selection(format) + ["--", source]
+    }
+
+    /// The byte count `size` printed, nil when yt-dlp could not tell ("NA").
+    static func bytes(_ output: String) -> Int64? {
+        output.split(whereSeparator: \.isNewline).last.flatMap { Int64($0) }.flatMap { $0 > 0 ? $0 : nil }
     }
 
     private static func selection(_ format: Format) -> [String] {
