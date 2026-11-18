@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""pr.yml's harness selection: a sure selection is all a PR run's harness job runs, anything else runs the whole suite.
+"""pr.yml's harness selection: a sure selection is all a PR run's mac job runs, anything else runs the whole suite.
 
     harness-select.py plan <base> <head>         GITHUB_OUTPUT planned, selected, unsure, only (changed-harnesses.sh)
     harness-select.py misses <failures> <shard>  a failed harness a sure selection left out is a miss

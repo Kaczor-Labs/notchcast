@@ -69,11 +69,29 @@ echo 'PASS: shared code (DesignSystem, Platform, the add-on core, kits, project.
 addon=Tinycast/Features/Notchcast/ShowDesktop
 pick "$scratch/unsure" "$addon/ShowDesktopAddon.swift" "$addon/Service/ShowDesktopModule.swift" \
     Tinycast/Features/Notchcast/NotchcastRegistry.swift Tests/nc-ShowDesktop-module-test.swift > "$scratch/selected"
-for name in nc-ShowDesktop-module-test nc-Notchcast-registry-test nc-Notchcast-command-icons-test; do
+for name in nc-ShowDesktop-module-test nc-Notchcast-registry-test; do
     grep -qx "$name" "$scratch/selected" || { echo "FAIL: an add-on change omitted $name"; exit 1; }
 done
 [ ! -s "$scratch/unsure" ] || { echo "FAIL: an add-on change was unsure: $(cat "$scratch/unsure")"; exit 1; }
 if grep -qx -e CalcTests -e nc-QuitProtection-module-test "$scratch/selected"; then
     echo 'FAIL: an add-on change selected an unrelated harness'; exit 1
 fi
-echo 'PASS: an add-on change selects its own harnesses and the core registry and icon harnesses, and is sure'
+echo 'PASS: an add-on change selects its own harness and the core registry harness, and is sure'
+# verdict <changed paths...>: why the diff cannot land from Linux, one reason per line; nothing when it can.
+verdict() { CHANGED="$*" bash "$root/notchcast/changed-harnesses.sh" --linux "$scratch/linux" base head > /dev/null; cat "$scratch/linux"; }
+[ -z "$(verdict Tinycast/Features/Launcher/Model/FavoriteSlots.swift)" ] || { echo "FAIL: a linux-ok harness's input was kept off Linux: $(verdict Tinycast/Features/Launcher/Model/FavoriteSlots.swift)"; exit 1; }
+[ -z "$(verdict docs/standards.md Tinycast/Features/NoSuchFeature/Unmapped.swift)" ] || { echo 'FAIL: docs or a path no harness names was kept off Linux'; exit 1; }
+echo 'PASS: a diff reaching only linux-ok harnesses, or none, may land from Linux; the always-run harness does not count untouched'
+[ "$(verdict Tinycast/Features/Launcher/Model/FavoriteSlots.swift Tinycast/Features/Calculator/Model/CalcEngine.swift)" = 'mac-only: CalcTests' ] \
+    || { echo 'FAIL: one mac-only harness beside a linux-ok one did not route the diff to a Mac'; exit 1; }
+verdict Tinycast/Features/Notchcast/Hidden/NotchcastHidden.swift | grep -qx 'mac-only: notchcast-hidden-features-test' \
+    || { echo 'FAIL: the always-run harness did not count when the diff reached its inputs'; exit 1; }
+echo 'PASS: one mac-only harness the diff reaches sends it to a Mac'
+denied=$(sed -n 's/^LINUX_DENY_INPUTS="\([^ "]*\).*/\1/p' "$root/notchcast/config.env")
+[ -n "$denied" ] && verdict "$denied" | grep -qx "denied: $denied" || { echo "FAIL: denied input '$denied' may land from Linux"; exit 1; }
+verdict notchcast/config.env | grep -qx 'runner: notchcast/config.env' || { echo 'FAIL: a runner change may land from Linux'; exit 1; }
+echo 'PASS: a LINUX_DENY_INPUTS path and a runner change never land from Linux'
+for name in $(sed -n 's/^LINUX_OK_TESTS="\(.*\)"$/\1/p' "$root/notchcast/config.env"); do
+    [ -f "$root/Tests/$name.swift" ] || { echo "FAIL: LINUX_OK_TESTS names $name, which is no harness"; exit 1; }
+done
+echo 'PASS: every LINUX_OK_TESTS name is a harness'
