@@ -55,21 +55,24 @@ final class PasteImageModule: NotchcastModule {
             },
             reset: { [weak self] in self?.dropHeldKey() }
         ))
-        let workspace = NSWorkspace.shared.notificationCenter
-        let inputSources = DistributedNotificationCenter.default()
         observers = [
-            NotificationToken(workspace.addObserver(
-                forName: NSWorkspace.didActivateApplicationNotification, object: nil, queue: .main
-            ) { [weak self] _ in
-                Task { @MainActor [weak self] in self?.refreshFinder() }
-            }, center: workspace),
-            NotificationToken(inputSources.addObserver(
-                forName: Notification.Name(kTISNotifySelectedKeyboardInputSourceChanged as String),
-                object: nil, queue: .main
-            ) { [weak self] _ in
-                Task { @MainActor [weak self] in self?.relayout() }
-            }, center: inputSources),
+            observe(NSWorkspace.didActivateApplicationNotification, on: NSWorkspace.shared.notificationCenter) {
+                $0.refreshFinder()
+            },
+            observe(
+                Notification.Name(kTISNotifySelectedKeyboardInputSourceChanged as String),
+                on: DistributedNotificationCenter.default()
+            ) { $0.relayout() },
         ]
+    }
+
+    private func observe(
+        _ name: Notification.Name, on center: NotificationCenter,
+        _ action: @escaping @MainActor @Sendable (PasteImageModule) -> Void
+    ) -> NotificationToken {
+        NotificationToken(center.addObserver(forName: name, object: nil, queue: .main) { [weak self] _ in
+            Task { @MainActor [weak self] in if let self { action(self) } }
+        }, center: center)
     }
 
     func stop() {
