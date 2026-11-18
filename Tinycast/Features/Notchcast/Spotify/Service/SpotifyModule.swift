@@ -35,6 +35,7 @@ final class SpotifyModule: NotchcastModule {
     @ObservationIgnored private(set) var running = false
     /// Called after every playback change, before Now Playing; the island player hooks in here.
     @ObservationIgnored var onPlayback: (@MainActor (_ old: SpotifyPlayback, _ new: SpotifyPlayback) -> Void)?
+    @ObservationIgnored private(set) lazy var island = SpotifyIsland(module: self)
 
     init(context: NotchcastContext, system: SpotifySystem) {
         self.context = context
@@ -54,6 +55,7 @@ final class SpotifyModule: NotchcastModule {
         let token = generation
         hasKey = system.soloistKey() != nil
         rebuildWeb()
+        island.start()
         system.nowPlaying.commands { [weak self] in self?.remote($0) }
         Task {
             let build = await system.installedBuild()
@@ -75,6 +77,7 @@ final class SpotifyModule: NotchcastModule {
         context.presenter.end(notice: Self.expiryNoticeID)
         context.presenter.end(notice: Self.failureNoticeID)
         apply(SpotifyPlayback())
+        island.stop()
     }
 
     /// Stops the current Soloist without touching the supervision phase; later callbacks are ignored.
@@ -160,6 +163,7 @@ final class SpotifyModule: NotchcastModule {
         guard next != old else { return }
         playback = next
         onPlayback?(old, next)
+        if running { island.update(next) }
         let elapsed = Double(next.position.current(at: now, durationMs: next.track?.durationMs)) / 1000
         system.nowPlaying.update(next.track == nil ? nil : next, elapsed)
     }

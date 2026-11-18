@@ -36,6 +36,8 @@ struct NotchcastCommand: Identifiable, Sendable {
     let symbol: String
     let switchID: String
     var keywords: [String] = []
+    /// A Carbon key code bound with the Hyper chord the first time the command is enabled.
+    var hyperDefault: Int?
     let run: @MainActor @Sendable (NotchcastContext) -> Void
 
     var id: String { Self.idPrefix + slug }

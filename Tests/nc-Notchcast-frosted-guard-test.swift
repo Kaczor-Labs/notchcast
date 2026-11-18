@@ -8,6 +8,9 @@
 // notchcast-sources: Tinycast/Features/Island/Model/IslandKeyline.swift Tinycast/Features/Island/Model/IslandLook.swift
 // notchcast-sources: Tinycast/Features/Island/Service/IslandCanvas.swift
 // notchcast-sources: Tinycast/Features/Island/Service/IslandExpansionArt.swift
+// notchcast-sources: Tinycast/Features/Island/Service/IslandMediaArt.swift
+// notchcast-sources: Tinycast/Features/Island/Model/IslandMedia.swift
+// notchcast-sources: Tinycast/DesignSystem/Interaction/Motion.swift
 // notchcast-reads: Tinycast/Palette/*.swift Tinycast/Features/Island/**/*.swift Tinycast/Features/*/UI/*.swift
 // notchcast-reads: Tinycast/Windows/HUD/*.swift Tinycast/Windows/Dialog/*.swift Tinycast/DesignSystem/*.swift
 import AppKit

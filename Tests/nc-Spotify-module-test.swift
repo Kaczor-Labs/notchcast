@@ -5,6 +5,7 @@
 // notchcast-sources: Tinycast/Features/Notchcast/Spotify/Service/SpotifyModule+Web.swift
 // notchcast-sources: Tinycast/Features/Notchcast/Spotify/Service/SpotifySystem.swift
 // notchcast-sources: Tinycast/Features/Notchcast/Spotify/Service/SpotifyWeb.swift
+// notchcast-sources: Tinycast/Features/Notchcast/Spotify/Service/SpotifyIsland.swift
 // notchcast-sources: Tinycast/Features/Notchcast/Core/Model/*.swift
 // notchcast-sources: Tinycast/Features/Notchcast/Core/Service/NotchcastAddon.swift
 // notchcast-sources: Tinycast/Features/Notchcast/Core/Service/NotchcastContext.swift
@@ -16,15 +17,35 @@
 // notchcast-sources: Tinycast/Features/Notchcast/Core/Service/NotchcastTapThread.swift
 // notchcast-sources: Tinycast/Features/Island/Model/IslandPresentation.swift
 // notchcast-sources: Tinycast/Features/Island/Service/IslandPresenting.swift
+// notchcast-sources: Tinycast/Features/Island/Model/IslandMedia.swift
+// notchcast-sources: Tinycast/Features/Island/Service/IslandMediaPresenting.swift
 // notchcast-sources: Tests/NotchcastTapFixtures.swift
 // notchcast-sources: Tests/NotchcastDictationFixture.swift
 
 import SwiftUI
 
-// The shipped `live` system and settings view are left out: these stand in, so `makeModule` runs as shipped.
+// The shipped `live` system and views are left out: these stand in, so `makeModule` runs as shipped.
 struct SpotifySettingsView: View {
     init(context: NotchcastContext) {}
     var body: some View { EmptyView() }
+}
+
+struct SpotifyIslandSettingsRow: View {
+    init(context: NotchcastContext) {}
+    var body: some View { EmptyView() }
+}
+
+struct SpotifyPlayerView: View {
+    static let pageSize = CGSize(width: 718, height: 144)
+    static let volumeStep = 5
+    init(module: SpotifyModule) {}
+    var body: some View { EmptyView() }
+}
+
+@MainActor
+@Observable
+final class SpotifyCovers {
+    init(send: @escaping @Sendable (URLRequest) async throws -> SpotifyWebTransport.Response) {}
 }
 
 extension SpotifySystem {

@@ -47,7 +47,7 @@ extension IslandHoverTracker {
             menuBarBottom: screen.visibleFrame.maxY, below: below, side: side)
         return IslandHover.Input(inside: inside, buttonHeld: NSEvent.pressedMouseButtons != 0,
             covered: core.palette.isVisible || core.isShowingDialog || NSApp.modalWindow != nil
-                || resting.onFullScreenSpace || resting.hasOverlays,
+                || resting.onFullScreenSpace || resting.hasOverlays && !island.overlays.onlyPage,
             menuOpen: island.pillMenu.isOpen, moving: resting.isMoving, enabled: enabled)
     }
 }

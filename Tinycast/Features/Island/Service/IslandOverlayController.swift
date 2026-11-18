@@ -4,6 +4,8 @@ import AppKit
 final class IslandOverlayController: NSObject {
     private unowned let island: IslandCoordinator
     private var question: Entry?
+    /// An add-on's page takes the question's place at the top while no question shows.
+    private var page: Entry?
     private var reports: [Entry] = []
     private var entries: [CGDirectDisplayID: IslandController] = [:]
 
@@ -23,6 +25,17 @@ final class IslandOverlayController: NSObject {
         reposition()
     }
 
+    func placePage(_ panel: NSPanel) {
+        page = entry(panel, screen: nil)
+        panel.level = IslandController.reportLevel
+        panel.sharingType = island.captureSharing
+        panel.hasShadow = false
+        reposition()
+    }
+
+    /// The page alone grows the island, so hover keeps treating it as its own open state.
+    var onlyPage: Bool { page?.panel != nil && question == nil && reports.isEmpty }
+
     func placeReport(_ panel: NSPanel, screen: NSScreen?) {
         reports.removeAll { $0.panel === panel }
         reports.append(entry(panel, screen: screen))
@@ -37,17 +50,21 @@ final class IslandOverlayController: NSObject {
     }
 
     func dismissed(_ panel: NSPanel) {
-        guard question?.panel === panel || reports.contains(where: { $0.panel === panel }) else { return }
+        guard question?.panel === panel || page?.panel === panel || reports.contains(where: { $0.panel === panel })
+        else { return }
         if question?.panel === panel { question = nil }
+        if page?.panel === panel { page = nil }
         reports.removeAll { $0.panel === panel || $0.panel == nil }
         reposition()
     }
 
     @objc private func changed(_ notification: Notification) {
         guard let window = notification.object as? NSWindow,
-              window === question?.panel || reports.contains(where: { $0.panel === window }) else { return }
+              window === question?.panel || window === page?.panel || reports.contains(where: { $0.panel === window })
+        else { return }
         if notification.name == NSWindow.willCloseNotification {
             if window === question?.panel { question = nil }
+            if window === page?.panel { page = nil }
             reports.removeAll { $0.panel === window }
         }
         reposition()
@@ -56,7 +73,9 @@ final class IslandOverlayController: NSObject {
     func reposition() {
         reports.removeAll { $0.panel == nil }
         var framesByDisplay: [CGDirectDisplayID: [CGRect]] = [:]
-        let overlays = (question.map { [$0] } ?? []) + reports
+        if page?.panel == nil { page = nil }
+        let head = question ?? page
+        let overlays = (head.map { [$0] } ?? []) + reports
         for entry in overlays {
             if let (screen, _, _) = island.overlayContext(screen: entry.screen) { entry.screen = screen }
         }
@@ -68,7 +87,7 @@ final class IslandOverlayController: NSObject {
             entries[id] = controller
             let layout = IslandOverlayLayout(screen: screen.frame, contentTop: top, palette: palette,
                 inset: NotchTheme.Spacing.islandInset, gap: Theme.Spacing.xl)
-            let questionPanel = question.flatMap { $0.screen?.islandDisplayID == id ? $0.panel : nil }
+            let questionPanel = head.flatMap { $0.screen?.islandDisplayID == id ? $0.panel : nil }
             let questionFrame = questionPanel.map { layout.question($0.frame.size) }
             if let questionPanel, let questionFrame { questionPanel.setFrameOrigin(questionFrame.origin) }
             let panels = reports.filter { $0.screen?.islandDisplayID == id }.compactMap(\.panel)

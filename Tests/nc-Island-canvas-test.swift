@@ -8,6 +8,9 @@
 // notchcast-sources: Tinycast/Features/Island/Model/IslandKeyline.swift Tinycast/Features/Island/Model/IslandLook.swift
 // notchcast-sources: Tinycast/Features/Island/Service/IslandCanvas.swift
 // notchcast-sources: Tinycast/Features/Island/Service/IslandExpansionArt.swift
+// notchcast-sources: Tinycast/Features/Island/Service/IslandMediaArt.swift
+// notchcast-sources: Tinycast/Features/Island/Model/IslandMedia.swift
+// notchcast-sources: Tinycast/DesignSystem/Interaction/Motion.swift
 import AppKit
 
 @main

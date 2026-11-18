@@ -32,6 +32,9 @@
 // notchcast-sources: Tinycast/Features/Updates/Service/ToolRunner.swift
 // notchcast-sources: Tinycast/Features/Updates/Service/UpdateDownloader.swift
 // notchcast-sources: Tinycast/Features/Updates/Service/UpdateSignature.swift
+// notchcast-sources: Tinycast/Features/Island/Service/IslandMediaArt.swift
+// notchcast-sources: Tinycast/Features/Island/Model/IslandMedia.swift
+// notchcast-sources: Tinycast/DesignSystem/Interaction/Motion.swift
 import AppKit
 import SwiftUI
 

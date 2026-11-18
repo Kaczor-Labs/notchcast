@@ -72,10 +72,17 @@ final class IslandController: NSObject {
     var statuses: [IslandStatus] = [] {
         didSet { if statuses != oldValue { redraw() } }
     }
+    var media: IslandMedia? {
+        didSet { if media != oldValue { redraw() } }
+    }
+    var songChange = false {
+        didSet { if songChange != oldValue { redraw() } }
+    }
+    var hasNotch: Bool { layout?.hasNotch ?? false }
 
     private func redraw() {
         canvas.show(glance: glance, level: level, notice: notice, statuses: statuses, expanded: expanded,
-                    notch: layout?.notchWidth)
+                    notch: layout?.notchWidth, media: media, songChange: songChange)
         canvas.setAccessibilityValue(accessibilityValue)
         frameChanged()
     }
@@ -178,7 +185,8 @@ final class IslandController: NSObject {
         metrics.compact.edgePadding = Theme.Spacing.lg
         let inner = next.hasNotch ? Theme.Spacing.md : 0
         metrics.compact.innerPadding = .init(leading: inner, trailing: inner)
-        metrics.compact.maxSlotWidth = NotchTheme.Size.islandGlanceWing
+        // Each art caps its own wings; a media line that fits its content may reach the headline's width.
+        metrics.compact.maxSlotWidth = NotchTheme.Size.islandHeadlineMaxWidth
         metrics.compact.maxWidth = next.canvas.width
         metrics.compact.balance = 0
         let clock = FrameClock(frameSource: source)
@@ -366,6 +374,7 @@ final class IslandController: NSObject {
 
     isolated deinit {
         NSWorkspace.shared.notificationCenter.removeObserver(self)
+        canvas.animate(false)
         backdrop.orderOut(nil)
     }
 

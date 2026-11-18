@@ -33,6 +33,13 @@ final class NotchcastCore {
                          owner: .notchcast(tabs[$0.switchID] ?? .island))
             }
             core?.hotKeys.extraActions = commands.map { .notchcastCommand(entryID: $0.id) }
+            if let hotKeys = core?.hotKeys, let settings = core?.settings {
+                NotchcastHotKeyDefaults.seed(commands.compactMap { command in command.hyperDefault.map { (command.id, $0) } },
+                    includesShift: settings.hyperKeyIncludesShift, defaults: defaults,
+                    bound: { hotKeys.binding(for: $0) != nil },
+                    free: { hotKeys.conflictOwner(of: $0, excluding: $1) == nil },
+                    bind: { hotKeys.setBinding($0, for: $1) })
+            }
         }
         core.hotKeys.onRunNotchcastCommand = { [weak controller] entryID in
             _ = controller?.run(entryID: entryID)

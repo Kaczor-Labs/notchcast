@@ -38,6 +38,19 @@ final class IslandHoverTracker {
         apply(was != hover.isOpen)
     }
 
+    /// A click on an add-on's page holds the island open as a pin does, until Escape or a click outside.
+    func pin() {
+        guard !hover.isPinned else { return }
+        togglePin()
+    }
+
+    /// Escape on a page: closes whether the pointer is there or not.
+    func dismiss() {
+        let was = hover.isOpen
+        hover.dismiss()
+        apply(was != hover.isOpen)
+    }
+
     private func pointerMoved(click: Bool) {
         let next = world.input()
         let was = hover.isOpen

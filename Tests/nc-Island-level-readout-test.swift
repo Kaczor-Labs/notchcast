@@ -8,6 +8,9 @@
 // notchcast-sources: Tinycast/Features/Island/Service/IslandLevelArt.swift
 // notchcast-sources: Tinycast/Features/Island/Service/IslandCanvas.swift
 // notchcast-sources: Tinycast/Features/Island/Service/IslandExpansionArt.swift
+// notchcast-sources: Tinycast/Features/Island/Service/IslandMediaArt.swift
+// notchcast-sources: Tinycast/Features/Island/Model/IslandMedia.swift
+// notchcast-sources: Tinycast/DesignSystem/Interaction/Motion.swift
 import AppKit
 
 // #867: a level HUD prints its value with % at the right end, past its bar.

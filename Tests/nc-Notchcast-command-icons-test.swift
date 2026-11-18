@@ -64,15 +64,55 @@
 // notchcast-sources: Tinycast/Features/Notchcast/Downloads/Service/WebpageSaver.swift
 // notchcast-sources: Tinycast/Features/Notchcast/Downloads/Service/WebpageWebViewConfiguration.swift
 // notchcast-sources: Tinycast/Features/Notchcast/Downloads/Service/XPost.swift
+// notchcast-sources: Tinycast/Features/Notchcast/Spotify/SpotifyAddon.swift
+// notchcast-sources: Tinycast/Features/Notchcast/Spotify/Model/*.swift
+// notchcast-sources: Tinycast/Features/Notchcast/Spotify/Service/SpotifyModule.swift
+// notchcast-sources: Tinycast/Features/Notchcast/Spotify/Service/SpotifyModule+Commands.swift
+// notchcast-sources: Tinycast/Features/Notchcast/Spotify/Service/SpotifyModule+Web.swift
+// notchcast-sources: Tinycast/Features/Notchcast/Spotify/Service/SpotifySystem.swift
+// notchcast-sources: Tinycast/Features/Notchcast/Spotify/Service/SpotifyWeb.swift
+// notchcast-sources: Tinycast/Features/Notchcast/Spotify/Service/SpotifyIsland.swift
+// notchcast-sources: Tinycast/Features/Island/Model/IslandMedia.swift
+// notchcast-sources: Tinycast/Features/Island/Service/IslandMediaPresenting.swift
 // notchcast-reads: Tinycast/Features/Notchcast/*/*Addon.swift Tinycast/Features/Notchcast/NotchcastCore.swift
 import AppKit
 import SwiftUI
+
+// Spotify's views and live system stand in; this harness reads only its descriptor's commands.
+struct SpotifySettingsView: View {
+    init(context: NotchcastContext) {}
+    var body: some View { EmptyView() }
+}
+
+struct SpotifyIslandSettingsRow: View {
+    init(context: NotchcastContext) {}
+    var body: some View { EmptyView() }
+}
+
+struct SpotifyPlayerView: View {
+    static let pageSize = CGSize(width: 718, height: 144)
+    static let volumeStep = 5
+    init(module: SpotifyModule) {}
+    var body: some View { EmptyView() }
+}
+
+@MainActor
+@Observable
+final class SpotifyCovers {
+    init(send: @escaping @Sendable (URLRequest) async throws -> SpotifyWebTransport.Response) {}
+}
+
+extension SpotifySystem {
+    static var live: SpotifySystem { preconditionFailure("no module starts here") }
+}
 
 /// #909: every add-on command draws its own symbol in the launcher, never upstream's question mark.
 @main
 @MainActor
 enum NotchcastCommandIconTests {
-    static let addons: [any NotchcastAddon.Type] = [SmallCommandsAddon.self, DownloadsAddon.self, ScreenshotsAddon.self]
+    static let addons: [any NotchcastAddon.Type] = [
+        SmallCommandsAddon.self, DownloadsAddon.self, ScreenshotsAddon.self, SpotifyAddon.self,
+    ]
 
     static var failures = 0
     static var checks = 0

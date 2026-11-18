@@ -1,4 +1,5 @@
 // notchcast-sources: Tinycast/Features/Island/Model/IslandPresentation.swift
+// notchcast-sources: Tinycast/Features/Island/Model/IslandMedia.swift
 // notchcast-sources: Tinycast/Features/Island/Model/IslandLevelDwell.swift
 // notchcast-sources: Tinycast/Features/Island/Model/PillMenuRows.swift Tinycast/Features/Calendar/Model/*.swift
 // notchcast-sources: Tinycast/Features/Island/Service/IslandController+Accessibility.swift
@@ -12,6 +13,7 @@ final class IslandController {
     var level: IslandLevel?
     var notice: IslandNotice?
     var glance: IslandGlance?
+    var media: IslandMedia?
     var statuses: [IslandStatus] = []
 }
 

@@ -7,6 +7,7 @@ extension IslandController {
         if panel?.isVisible == true { return "" }
         if let notice { return notice.text }
         if let glance { return "\(glance.title), \(glance.countdown)" }
+        if let media { return media.accessibilityValue }
         return statuses.map(\.label).joined(separator: ", ")
     }
 }

@@ -5,6 +5,7 @@
 // notchcast-sources: Tinycast/Features/Island/Model/IslandMeetingExpansion.swift
 // notchcast-sources: Tinycast/Features/Island/Model/IslandNoticeQueue.swift
 // notchcast-sources: Tinycast/Features/Island/Model/IslandHover.swift
+// notchcast-sources: Tinycast/Features/Island/Model/IslandMedia.swift
 // notchcast-sources: Tinycast/Features/Island/Service/IslandPresenting.swift
 // notchcast-sources: Tinycast/Features/Island/Service/IslandPresenter.swift
 // notchcast-sources: Tinycast/Features/Settings/SettingsTab.swift Tinycast/Features/Notchcast/Hidden/NotchcastHidden.swift
@@ -46,6 +47,14 @@ final class IslandController {
     var level: IslandLevel?
     var expanded = false
     var glance: String?
+    var media: IslandMedia?
+}
+
+// No media plays here; the presenter's media extension and page panel are left out.
+@MainActor final class IslandPageController {}
+extension IslandPresenter {
+    func mediaHoverChanged(_ open: Bool) {}
+    func cutSongChange() {}
 }
 
 final class HUDPanel: NSPanel {

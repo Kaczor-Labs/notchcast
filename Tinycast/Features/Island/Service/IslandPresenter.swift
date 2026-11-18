@@ -21,8 +21,12 @@ final class IslandPresenter: IslandPresenting {
     private var noticeTaps: [String: @MainActor () -> Void] = [:]
     private var statusTaps: [String: @MainActor () -> Void] = [:]
     private(set) var menus: [Menu] = []
-    private let now: @MainActor () -> TimeInterval
-    private let sleep: @MainActor (TimeInterval) async throws -> Void
+    var media: (owner: String, value: IslandMedia, onTap: (@MainActor () -> Void)?)?
+    var songChange = IslandSongChange()
+    var songTask: Task<Void, Never>?
+    let pages = IslandPageController()
+    let now: @MainActor () -> TimeInterval
+    let sleep: @MainActor (TimeInterval) async throws -> Void
 
     /// A harness injects its own clock, so a dwell is checked exactly rather than against the wall.
     init(now: @escaping @MainActor () -> TimeInterval = { ProcessInfo.processInfo.systemUptime },
@@ -79,6 +83,7 @@ final class IslandPresenter: IslandPresenting {
     var tap: (@MainActor () -> Void)? {
         if let notice = notices.notice { return noticeTaps[notice.id] }
         if AppCore.shared.island.resting?.glance != nil { return nil }
+        if let media { return media.onTap }
         return statuses.last.flatMap { statusTaps[$0.id] }
     }
 
@@ -86,10 +91,11 @@ final class IslandPresenter: IslandPresenting {
     func hoverChanged(_ open: Bool) {
         hovered = open
         noticesChanged()
+        mediaHoverChanged(open)
     }
 
     private var shownNotice: IslandNotice? {
-        IslandHover.notice(top: notices.notice, statuses: statuses, glance: AppCore.shared.island.resting?.glance != nil,
+        IslandHover.notice(top: notices.notice, statuses: statuses, glance: AppCore.shared.island.resting?.glance != nil || media != nil,
                            level: dwell.level != nil, hovered: hovered)
     }
 
@@ -97,6 +103,7 @@ final class IslandPresenter: IslandPresenting {
     func restore(_ controller: IslandController, resting: Bool) {
         controller.notice = resting ? notices.notice : nil
         controller.statuses = resting ? statuses : []
+        controller.media = resting ? media?.value : nil
     }
 
     /// A look change repaints a band already up, which would otherwise keep the old look to its fade.
@@ -145,6 +152,7 @@ final class IslandPresenter: IslandPresenting {
         updateExpansion()
         noticeTask?.cancel()
         noticeTask = notices.remaining(at: time).map(expireWhenDwelled)
+        if held || notices.notice != nil { cutSongChange() }
     }
 
     private func expireWhenDwelled(_ left: TimeInterval) -> Task<Void, Never> {
@@ -266,5 +274,6 @@ final class IslandPresenter: IslandPresenting {
         dwellTask?.cancel()
         expansionTask?.cancel()
         noticeTask?.cancel()
+        songTask?.cancel()
     }
 }
