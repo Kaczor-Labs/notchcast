@@ -116,10 +116,20 @@ final class DictationCoordinator {
             return
         }
         if phase != .idle {
-            if settings.dictationMode == .toggle { finish() }
+            if settings.dictationMode != .pushToTalk { finish() }
             return
         }
         begin(target: InjectionTarget.current())
+    }
+
+    /// Globe mode's funnel; a field's own mic is left alone.
+    func globe(_ action: DictationMode.GlobeDetector.Action) {
+        guard settings.dictationEnabled, settings.dictationMode == .globe, field == nil else { return }
+        switch action {
+        case .start: if phase == .idle { begin(target: InjectionTarget.current()) }
+        case .finish: finish()
+        case .cancel: cancel()
+        }
     }
 
     var isEnabled: Bool { settings.dictationEnabled }
