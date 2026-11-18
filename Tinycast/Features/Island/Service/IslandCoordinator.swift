@@ -321,6 +321,11 @@ final class IslandCoordinator: NSObject {
         looks.look(uuid: screen.islandDisplayUUID, hasNotch: IslandLayout.notch(on: screen) != .zero)
     }
 
+    /// Whether a question or report on `screen` sits on Frosted glass; nil is the question's.
+    func frosted(on screen: NSScreen?) -> Bool {
+        (screen ?? questionScreen).map { look(for: $0) == .frosted } ?? false
+    }
+
     /// Repaints each island in place, follows the palette's display and lists displays for Settings.
     private func applyLooks() {
         let available = screens
