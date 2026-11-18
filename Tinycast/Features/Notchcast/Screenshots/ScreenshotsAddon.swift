@@ -1,12 +1,12 @@
 import SwiftUI
 
-/// Area, window and display screenshots from one frozen selection surface.
+/// Area, window and display screenshots, and their text, from one frozen selection surface.
 enum ScreenshotsAddon: NotchcastAddon {
     static let switches = [
         NotchcastSwitch(
             id: "screenshot",
             title: String(localized: "Screenshots", table: "NotchcastScreenshots"),
-            subtitle: String(localized: "Capture an area, window or display.", table: "NotchcastScreenshots"),
+            subtitle: String(localized: "Capture an area, window or display, or copy its text.", table: "NotchcastScreenshots"),
             category: .capture,
             defaultEnabled: true,
             requiredGrants: [.screenRecording]
@@ -22,6 +22,11 @@ enum ScreenshotsAddon: NotchcastAddon {
             slug: "screenshot-display", name: String(localized: "Capture Screen", table: "NotchcastScreenshots"),
             symbol: "camera", switchID: ScreenshotsModule.switchID
         ) { $0.module(ScreenshotsModule.self)?.captureDisplay() },
+        NotchcastCommand(
+            slug: "capture-text", name: String(localized: "Capture Text", table: "NotchcastScreenshots"),
+            symbol: ScreenshotsModule.textSymbol, switchID: ScreenshotsModule.switchID,
+            keywords: ["ocr", "copy text", "recognize"]
+        ) { $0.module(ScreenshotsModule.self)?.captureText() },
     ]
 
     static let settings = [
