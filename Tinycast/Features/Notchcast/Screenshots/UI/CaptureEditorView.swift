@@ -37,7 +37,7 @@ private struct CaptureEditorFooter: View {
             ) { session.perform(.redo) }
             .disabled(!document.canRedo)
             Spacer(minLength: Theme.Spacing.md)
-            CaptureEditorDragChip(export: CaptureEditorExport(image: session.image, document: document))
+            CaptureEditorDragChip(session: session)
             Button { session.perform(.discard) } label: { Text("Discard", tableName: "NotchcastScreenshots") }
                 .buttonStyle(.modalAction(.cancel, fillsWidth: false))
                 .tooltip(keyCaps: ["esc"])
@@ -53,7 +53,7 @@ private struct CaptureEditorFooter: View {
 
 /// Shaped like the buttons beside it, but a drag source: a click does nothing, a drag carries the image.
 private struct CaptureEditorDragChip: View {
-    let export: CaptureEditorExport
+    let session: CaptureEditorSession
     @Environment(\.metrics) private var metrics
 
     var body: some View {
@@ -66,7 +66,7 @@ private struct CaptureEditorDragChip: View {
         .frame(height: metrics.size.dialogButtonHeight)
         .background(Capsule().fill(Theme.Colors.controlSurface))
         .contentShape(Capsule())
-        .draggable(export)
+        .onDrag { CaptureEditorExport.provider(image: session.image, document: session.document) }
         .tooltip(String(localized: "Drag the image into another app.", table: "NotchcastScreenshots"))
         .accessibilityElement(children: .combine)
         .accessibilityLabel(Text("Drag image", tableName: "NotchcastScreenshots"))

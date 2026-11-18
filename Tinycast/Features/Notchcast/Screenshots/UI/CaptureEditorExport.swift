@@ -1,20 +1,27 @@
 import CoreGraphics
-import CoreTransferable
 import Foundation
 import UniformTypeIdentifiers
 
-/// The annotated result as a PNG file, rendered when a drag out of the editor drops.
-struct CaptureEditorExport: Transferable {
-    let image: CGImage
-    let document: AnnotationDocument
-
-    static var transferRepresentation: some TransferRepresentation {
-        FileRepresentation(exportedContentType: .png) { export in
-            let folder = FileManager.default.temporaryDirectory.appending(path: "Capture Editor \(UUID().uuidString)")
-            try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
-            let url = folder.appending(path: ScreenshotFileName.name(date: Date(), timeZone: .current))
-            try AnnotationRenderer.png(export.document.finished(), over: export.image).write(to: url)
-            return SentTransferredFile(url)
+/// The annotated result as a PNG file, rendered only when a drag out of the editor drops.
+enum CaptureEditorExport {
+    static func provider(image: CGImage, document: AnnotationDocument) -> NSItemProvider {
+        let name = ScreenshotFileName.name(date: Date(), timeZone: .current)
+        let provider = NSItemProvider()
+        provider.suggestedName = (name as NSString).deletingPathExtension
+        provider.registerFileRepresentation(
+            forTypeIdentifier: UTType.png.identifier, fileOptions: [], visibility: .all
+        ) { completion in
+            do {
+                let folder = FileManager.default.temporaryDirectory.appending(path: "Capture Editor \(UUID().uuidString)")
+                try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+                let url = folder.appending(path: name)
+                try AnnotationRenderer.png(document.finished(), over: image).write(to: url)
+                completion(url, false, nil)
+            } catch {
+                completion(nil, false, error)
+            }
+            return nil
         }
+        return provider
     }
 }
