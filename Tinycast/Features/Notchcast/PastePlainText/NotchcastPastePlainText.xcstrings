@@ -2,6 +2,7 @@
   "sourceLanguage" : "en",
   "strings" : {
     "Allow Accessibility access to paste." : {},
+    "Couldn't read the clipboard, so nothing was pasted." : {},
     "Paste Plain Text" : {},
     "Paste the clipboard's text without formatting; the clipboard stays as it was." : {}
   },

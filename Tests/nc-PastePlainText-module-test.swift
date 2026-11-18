@@ -20,6 +20,13 @@ final class FakeBoard: PlainPasteBoard {
     var changeCount = 0
     var ownWrites = 0
     var rtfReads = 0
+    /// Its data reads nil, as a lazy provider that fails does.
+    var nilType: String?
+    /// Another app copies while the snapshot is being read.
+    var bumpsDuringRead = false
+    /// Writes that clear the board and then fail.
+    var writeFailures = 0
+    let ownMarker = "com.tinycast.internal"
 
     var hasFileURLs: Bool { entry("public.file-url") != nil }
     var string: String? { entry("public.utf8-plain-text").map { utf8($0) } }
@@ -28,16 +35,23 @@ final class FakeBoard: PlainPasteBoard {
         return entry("public.rtf").map { "rtf:" + utf8($0) }
     }
     func rtfdText() -> String? { entry("com.apple.flat-rtfd").map { "rtfd:" + utf8($0) } }
-    func snapshot() -> [[PlainPasteEntry]] { items }
 
-    func writeOwn(_ text: String) -> Int {
-        ownWrites += 1
-        return replace([[.init(type: "public.utf8-plain-text", data: Data(text.utf8))]])
+    var itemTypes: [[String]] { items.map { $0.map(\.type) } }
+
+    func data(item: Int, type: String) -> Data? {
+        if bumpsDuringRead { changeCount += 1 }
+        guard type != nilType else { return nil }
+        return items[item].first { $0.type == type }?.data
     }
 
-    func restoreOwn(_ items: [[PlainPasteEntry]]) -> Int {
+    func write(_ items: [[PlainPasteEntry]], ifChangeCount expected: Int) -> PlainPasteWrite {
+        guard changeCount == expected else { return .superseded }
+        guard writeFailures == 0 else {
+            writeFailures -= 1
+            return .failed(changeCount: replace([]))
+        }
         ownWrites += 1
-        return replace(items)
+        return .written(changeCount: replace(items))
     }
 
     /// Someone else copying: history would record this one.
@@ -57,16 +71,48 @@ final class FakeBoard: PlainPasteBoard {
     private func entry(_ type: String) -> Data? { items.lazy.flatMap { $0 }.first { $0.type == type }?.data }
 }
 
+final class FakeTimer: PlainPasteTimer {
+    let delay: Duration
+    let due: ContinuousClock.Instant
+    let work: @MainActor () -> Void
+    var isCancelled = false
+
+    init(delay: Duration, due: ContinuousClock.Instant, work: @escaping @MainActor () -> Void) {
+        self.delay = delay
+        self.due = due
+        self.work = work
+    }
+
+    func cancel() { isCancelled = true }
+}
+
+/// Time moves only when a timer fires or a test sleeps the Mac.
 @MainActor
 final class FakeSystem {
     let board = FakeBoard()
     var pastes: [String?] = []
-    var timers: [(delay: Duration, work: @MainActor () -> Void)] = []
+    var timers: [FakeTimer] = []
+    var history: [String] = []
+    var now = ContinuousClock.now
 
+    var live: [FakeTimer] { timers.filter { !$0.isCancelled } }
+
+    func schedule(_ delay: Duration, _ work: @escaping @MainActor () -> Void) -> FakeTimer {
+        let timer = FakeTimer(delay: delay, due: now + delay, work: work)
+        timers.append(timer)
+        return timer
+    }
+
+    /// Runs the earliest live timer at its due time.
     func fire() {
-        let due = timers
-        timers = []
-        for timer in due { timer.work() }
+        guard let next = live.min(by: { $0.due < $1.due }) else { preconditionFailure("no timer to fire") }
+        timers.removeAll { $0 === next }
+        now = max(now, next.due)
+        next.work()
+    }
+
+    func fireAll() {
+        while !live.isEmpty { fire() }
     }
 }
 
@@ -75,8 +121,9 @@ final class FakeSystem {
 extension PastePlainTextSystem {
     static let live = PastePlainTextSystem(
         makeBoard: { fake.board },
-        sendPaste: { fake.pastes.append(fake.board.string ?? fake.board.items.first?.first?.type) },
-        after: { fake.timers.append(($0, $1)) }
+        postCommandV: { fake.pastes.append(fake.board.string ?? fake.board.items.first?.first?.type) },
+        now: { fake.now },
+        after: { fake.schedule($0, $1) }
     )
 }
 
@@ -119,8 +166,11 @@ final class Rig {
         if on { defaults.set(true, forKey: "pastePlain") }
         let hub = NotchcastTapHub(syntheticTag: 0x54494E59, isTrusted: { trusted }, makeSession: { FakeSession($0) })
         controller = NotchcastController(
-            addons: [PastePlainTextAddon.self], defaults: defaults, hub: hub,
-            dictation: FakeDictation(), presenter: presenter)
+            addons: [PastePlainTextAddon.self], defaults: defaults, hub: hub, dictation: FakeDictation(),
+            clipboard: NotchcastClipboardMutation(
+                prepare: { fake.history.append("prepare \(fake.board.changeCount)") },
+                synchronize: { fake.history.append("sync \($0)") }),
+            presenter: presenter)
         controller.start()
     }
 
@@ -135,23 +185,35 @@ final class Rig {
 
 @MainActor
 func reset() {
-    fake.board.items = []
-    fake.board.ownWrites = 0
-    fake.board.rtfReads = 0
+    let board = fake.board
+    board.items = []
+    board.ownWrites = 0
+    board.rtfReads = 0
+    board.nilType = nil
+    board.bumpsDuringRead = false
+    board.writeFailures = 0
     fake.pastes = []
     fake.timers = []
+    fake.history = []
     trusted = true
 }
 
 let styled: [(String, String)] = [("public.html", "<b>Hi</b>"), ("public.rtf", "Hi"), ("public.utf8-plain-text", "Hi")]
+let plainHi: [[PlainPasteEntry]] = [[
+    .init(type: "public.utf8-plain-text", data: Data("Hi".utf8)), .init(type: "com.tinycast.internal", data: Data()),
+]]
 
 @main
 enum PastePlainTextModuleTests {
     @MainActor
     static func main() {
         selection()
-        restoreGuard()
+        engine()
+        snapshotRefusal()
+        writeFailure()
         wiring()
+        keystrokeGuard()
+        secondPress()
         print("nc-PastePlainText-module-test: OK")
     }
 
@@ -173,44 +235,92 @@ enum PastePlainTextModuleTests {
                      "RTF is never converted when a string is there")
     }
 
+
     @MainActor
-    static func restoreGuard() {
+    static func makeEngine() -> PlainPasteEngine {
+        PlainPasteEngine(
+            board: fake.board, prepareWrite: { fake.history.append("prepare \(fake.board.changeCount)") },
+            didWrite: { fake.history.append("sync \($0)") })
+    }
+
+    @MainActor
+    static func engine() {
         reset()
         let board = fake.board
-        let engine = PlainPasteEngine(board: board, sendPaste: { fake.pastes.append(board.string) })
-        board.copy(styled)
+        let engine = makeEngine()
+        let copied = board.copy(styled)
         let original = board.items
-        guard case .plain(let first) = engine.paste() else { preconditionFailure("styled text pastes plain") }
-        precondition(board.items == [[.init(type: "public.utf8-plain-text", data: Data("Hi".utf8))]],
-                     "only the plain text is on the clipboard while ⌘V lands")
-        precondition(fake.pastes == ["Hi"], "⌘V goes out once, after the write")
-        engine.restore(token: first)
-        precondition(board.items == original, "every item and type comes back")
+        guard case .plain(let written) = engine.paste() else { preconditionFailure("styled text pastes plain") }
+        precondition(board.items == plainHi, "only the plain text is on the clipboard, marked as our own")
+        precondition(fake.history == ["prepare \(copied)", "sync \(written)"],
+                     "history reads the user's copy before the write and is baselined on the write")
+        engine.restorePending()
+        precondition(board.items == original, "every item and type comes back, with no marker added")
+        precondition(fake.history.last == "sync \(board.changeCount)", "and history is baselined on the restore")
         precondition(!engine.isRestorePending, "the restore is done")
-        engine.restore(token: first)
-        precondition(board.ownWrites == 2, "a repeated timer restores nothing twice")
+        engine.restorePending()
+        precondition(board.ownWrites == 2, "a repeated restore writes nothing twice")
 
-        guard case .plain(let second) = engine.paste() else { preconditionFailure("pastes again") }
+        guard case .plain = engine.paste() else { preconditionFailure("pastes again") }
         board.copy([("public.utf8-plain-text", "New")])
-        engine.restore(token: second)
-        precondition(board.string == "New", "a copy made before the restore is never overwritten")
+        let entries = fake.history.count
+        engine.restorePending()
+        precondition(board.string == "New" && !engine.isRestorePending, "a copy made before the restore is kept")
+        precondition(fake.history.count == entries, "and history is left to record it")
 
         board.copy([("public.rtf", "R")])
-        guard case .plain(let third) = engine.paste() else { preconditionFailure("RTF pastes plain") }
+        guard case .plain = engine.paste() else { preconditionFailure("RTF pastes plain") }
         precondition(board.string == "rtf:R", "the RTF's text is written")
-        guard case .plain(let fourth) = engine.paste() else { preconditionFailure("second press pastes") }
-        precondition(fake.pastes.last == "rtf:R", "the second press read the restored original, not its own write")
-        engine.restore(token: third)
-        precondition(engine.isRestorePending, "the first press's timer leaves the second press's restore alone")
-        engine.restore(token: fourth)
+        engine.restorePending()
         precondition(board.items == [[.init(type: "public.rtf", data: Data("R".utf8))]], "the original is back")
 
         board.copy([("public.file-url", "file:///a"), ("public.utf8-plain-text", "a")])
         let writes = board.ownWrites
-        precondition(engine.paste() == .passThrough, "file URLs send a normal ⌘V")
+        precondition(engine.paste() == .passThrough(changeCount: board.changeCount), "file URLs send a normal ⌘V")
         precondition(board.ownWrites == writes && !engine.isRestorePending, "and leave the clipboard alone")
-        board.copy([("public.png", "png")])
-        precondition(engine.paste() == .passThrough, "no text sends a normal ⌘V")
+    }
+
+    @MainActor
+    static func snapshotRefusal() {
+        reset()
+        let board = fake.board
+        let engine = makeEngine()
+        board.copy(styled)
+        let original = board.items
+        board.nilType = "public.html"
+        precondition(engine.paste() == .refused, "a type with no data refuses the paste")
+        precondition(board.items == original && board.ownWrites == 0, "and the board is untouched")
+        board.nilType = nil
+        board.bumpsDuringRead = true
+        precondition(engine.paste() == .refused, "a copy made during the read refuses the paste")
+        precondition(board.ownWrites == 0 && !engine.isRestorePending, "and nothing is written")
+    }
+
+    @MainActor
+    static func writeFailure() {
+        reset()
+        let board = fake.board
+        let engine = makeEngine()
+        board.copy(styled)
+        let original = board.items
+        guard case .plain = engine.paste() else { preconditionFailure("pastes plain") }
+        board.writeFailures = 1
+        engine.restorePending()
+        precondition(engine.isRestorePending, "a failed restore keeps the original for one retry")
+        engine.restorePending()
+        precondition(board.items == original && !engine.isRestorePending, "and the retry puts it back")
+
+        guard case .plain = engine.paste() else { preconditionFailure("pastes plain again") }
+        board.writeFailures = 2
+        engine.restorePending()
+        engine.restorePending()
+        precondition(!engine.isRestorePending, "a second failure gives up")
+
+        board.copy(styled)
+        board.writeFailures = 1
+        precondition(engine.paste() == .refused, "a failed temporary write refuses the paste")
+        precondition(board.items == original && !engine.isRestorePending, "and puts the original back")
+        precondition(fake.history.last == "sync \(board.changeCount)", "baselining history on it")
     }
 
     @MainActor
@@ -222,19 +332,42 @@ enum PastePlainTextModuleTests {
         rig.finish()
 
         rig = Rig(on: true)
-        fake.board.copy(styled)
+        let copied = fake.board.copy(styled)
         let original = fake.board.items
         precondition(rig.run(), "on: the command runs")
+        precondition(fake.pastes.isEmpty && fake.board.items == plainHi, "⌘V waits for focus; the plain text is on")
+        precondition(fake.live.map(\.delay) == [.milliseconds(80)], "for 80 ms")
+        fake.fire()
         precondition(fake.pastes == ["Hi"], "plain text pasted")
-        precondition(fake.timers.map(\.delay) == [.milliseconds(500)], "the restore waits 0.5 s")
+        precondition(fake.live.map(\.delay) == [.milliseconds(500)], "the restore waits 0.5 s after ⌘V")
         fake.fire()
         precondition(fake.board.items == original, "the timer restores the original")
+        precondition(fake.history == ["prepare \(copied)", "sync \(copied + 1)", "sync \(copied + 2)"],
+                     "history drains first, then is baselined on both writes")
 
         rig.run()
+        fake.fire()
         rig.controller.stop()
         precondition(fake.board.items == original, "stopping the module finishes a pending restore")
+        precondition(fake.live.isEmpty, "and calls off its timers")
+        rig.finish()
+
+        reset()
+        rig = Rig(on: true)
+        fake.board.copy([("public.png", "png")])
+        rig.run()
         fake.fire()
-        precondition(fake.board.items == original, "and the orphaned timer changes nothing")
+        precondition(fake.pastes == ["public.png"] && fake.board.ownWrites == 0, "no text sends a normal ⌘V alone")
+        precondition(fake.live.isEmpty, "with nothing to restore")
+        rig.finish()
+
+        reset()
+        rig = Rig(on: true)
+        fake.board.copy(styled)
+        fake.board.nilType = "public.rtf"
+        rig.run()
+        precondition(fake.live.isEmpty && fake.board.ownWrites == 0, "an unreadable clipboard pastes nothing")
+        precondition(rig.presenter.posts.last?.isFailure == true, "and a failure notice says so")
         rig.finish()
 
         reset()
@@ -242,8 +375,64 @@ enum PastePlainTextModuleTests {
         trusted = false
         fake.board.copy(styled)
         rig.run()
-        precondition(fake.pastes.isEmpty && fake.board.ownWrites == 0, "without Accessibility nothing is touched")
+        precondition(fake.timers.isEmpty && fake.board.ownWrites == 0, "without Accessibility nothing is touched")
         precondition(rig.presenter.posts.last?.isFailure == true, "and a failure notice says why")
+        rig.finish()
+    }
+
+    /// ⌘V goes out only into the board and the moment it was meant for.
+    @MainActor
+    static func keystrokeGuard() {
+        reset()
+        let rig = Rig(on: true)
+        fake.board.copy(styled)
+        rig.run()
+        fake.board.copy([("public.utf8-plain-text", "Secret")])
+        fake.fire()
+        precondition(fake.pastes.isEmpty, "a copy made during the focus delay is never pasted")
+        precondition(fake.board.string == "Secret" && fake.live.isEmpty, "and is left on the clipboard")
+
+        fake.board.copy(styled)
+        let original = fake.board.items
+        rig.run()
+        fake.now += .seconds(30)
+        fake.fire()
+        precondition(fake.pastes.isEmpty, "a delay a sleep stretched sends no ⌘V into whatever is in front")
+        precondition(fake.board.items == original, "and the original comes straight back")
+
+        rig.run()
+        rig.controller.stop()
+        precondition(fake.board.items == original && fake.live.isEmpty, "stop calls off a ⌘V not yet sent")
+        fake.board.copy([("public.utf8-plain-text", "Newer")])
+        for timer in fake.timers { timer.work() }
+        precondition(fake.pastes.isEmpty && fake.board.string == "Newer", "and an orphaned timer touches nothing")
+        rig.finish()
+    }
+
+    /// A second press never restores under a ⌘V the target may still be reading.
+    @MainActor
+    static func secondPress() {
+        reset()
+        let rig = Rig(on: true)
+        fake.board.copy(styled)
+        let original = fake.board.items
+        rig.run()
+        fake.fire()
+        fake.now += .milliseconds(100)
+        rig.run()
+        precondition(fake.board.items == plainHi && fake.pastes == ["Hi"], "the first ⌘V's plain text stays put")
+        precondition(fake.live.map(\.delay) == [.milliseconds(400)], "until the rest of its settle")
+        fake.fire()
+        precondition(fake.board.items == plainHi && fake.live.map(\.delay) == [.milliseconds(80)],
+                     "then the original is restored and pasted plain again")
+        fake.fireAll()
+        precondition(fake.pastes == ["Hi", "Hi"] && fake.board.items == original, "two pastes, original back")
+
+        rig.run()
+        rig.run()
+        precondition(fake.live.count == 1, "a press before ⌘V went out replaces it")
+        fake.fireAll()
+        precondition(fake.pastes == ["Hi", "Hi", "Hi"] && fake.board.items == original, "one more paste, original back")
         rig.finish()
     }
 }

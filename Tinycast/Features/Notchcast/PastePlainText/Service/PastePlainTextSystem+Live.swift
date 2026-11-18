@@ -1,20 +1,16 @@
 import AppKit
 
-extension PastePlainTextSystem {
-    /// Covers the palette handing focus back when the command runs from the launcher.
-    private static let focusDelay: Duration = .milliseconds(80)
+extension Task: PlainPasteTimer where Success == Void, Failure == Never {}
 
+extension PastePlainTextSystem {
     static let live = PastePlainTextSystem(
         makeBoard: { GeneralPlainPasteBoard() },
-        sendPaste: {
-            Task { @MainActor in
-                try? await Task.sleep(for: focusDelay)
-                Paster.postCommandV()
-            }
-        },
+        postCommandV: { Paster.postCommandV() },
+        now: { .now },
         after: { delay, work in
             Task { @MainActor in
                 try? await Task.sleep(for: delay)
+                guard !Task.isCancelled else { return }
                 work()
             }
         }
@@ -28,6 +24,7 @@ private final class GeneralPlainPasteBoard: PlainPasteBoard {
     var changeCount: Int { board.changeCount }
     var hasFileURLs: Bool { board.types?.contains(.fileURL) == true }
     var string: String? { board.string(forType: .string) }
+    var ownMarker: String { ClipboardManager.internalType.rawValue }
 
     func rtfText() -> String? {
         board.data(forType: .rtf).flatMap { NSAttributedString(rtf: $0, documentAttributes: nil)?.string }
@@ -37,26 +34,27 @@ private final class GeneralPlainPasteBoard: PlainPasteBoard {
         board.data(forType: .rtfd).flatMap { NSAttributedString(rtfd: $0, documentAttributes: nil)?.string }
     }
 
-    func snapshot() -> [[PlainPasteEntry]] {
-        (board.pasteboardItems ?? []).map { item in
-            item.types.compactMap { type in item.data(forType: type).map { PlainPasteEntry(type: type.rawValue, data: $0) } }
-        }
+    var itemTypes: [[String]] { (board.pasteboardItems ?? []).map { $0.types.map(\.rawValue) } }
+
+    func data(item: Int, type: String) -> Data? {
+        guard let items = board.pasteboardItems, items.indices.contains(item) else { return nil }
+        return items[item].data(forType: .init(type))
     }
 
-    func writeOwn(_ text: String) -> Int {
-        Paster.copyString(text)
-        return board.changeCount
-    }
-
-    func restoreOwn(_ items: [[PlainPasteEntry]]) -> Int {
-        let copies = items.map { entries in
-            let item = NSPasteboardItem()
-            for entry in entries { item.setData(entry.data, forType: .init(entry.type)) }
-            return item
+    func write(_ items: [[PlainPasteEntry]], ifChangeCount changeCount: Int) -> PlainPasteWrite {
+        var copies: [NSPasteboardItem] = []
+        for entries in items {
+            let copy = NSPasteboardItem()
+            for entry in entries {
+                guard copy.setData(entry.data, forType: .init(entry.type)) else {
+                    return .failed(changeCount: board.changeCount)
+                }
+            }
+            copies.append(copy)
         }
-        copies.first?.setData(Data(), forType: ClipboardManager.internalType)
+        guard board.changeCount == changeCount else { return .superseded }
         board.clearContents()
-        board.writeObjects(copies)
-        return board.changeCount
+        guard copies.isEmpty || board.writeObjects(copies) else { return .failed(changeCount: board.changeCount) }
+        return .written(changeCount: board.changeCount)
     }
 }
