@@ -1,4 +1,5 @@
 #!/bin/bash
+# script-tests: macos (install-launchd.sh's BSD mv -h)
 set -euo pipefail
 HERE="$(cd "$(dirname "$0")" && pwd)"
 WORK="$(mktemp -d)"
