@@ -129,6 +129,10 @@ for runs in 'success failure' 'success failure cancelled' 'success pending' 'can
     grep -q 'REFUSED: build is' "$scratch/output" || { cat "$scratch/output"; echo "FAIL: build runs '$runs' accepted"; exit 1; }
     echo "PASS: build runs '$runs' refused"
 done
+export BUILD_RUNS='{"check_runs":[{"id":200,"app":{"slug":"github-actions"},"started_at":"2026-11-18T10:00:00Z","status":"completed","conclusion":"failure"},{"id":100,"app":{"slug":"github-actions"},"started_at":"2026-11-18T10:00:00Z","status":"completed","conclusion":"success"}]}'
+run
+grep -q 'REFUSED: build is failure' "$scratch/output" || { cat "$scratch/output"; echo 'FAIL: same-second older green run hid a newer failure'; exit 1; }
+echo 'PASS: a same-second tie goes to the newer run id'
 unset BUILD_RUNS
 export CHANGED_PATH=Tinycast/Fixture/Proved.swift
 for verdict in none pending failure cancelled; do
