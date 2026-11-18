@@ -71,7 +71,7 @@ final class IslandPresenter: IslandPresenting {
     func setStatus(_ status: IslandStatus?, for id: String, onTap: (@MainActor () -> Void)?) {
         statuses.removeAll { $0.id == id }
         statusTaps[id] = status == nil ? nil : onTap
-        if let status { statuses.append(status) }
+        if let status { statuses = IslandRestRank.ordered(statuses + [status]) }
         AppCore.shared.island.resting?.statuses = statuses
         if hoverOpensPill { AppCore.shared.island.resting?.notice = shownNotice }
     }
@@ -79,7 +79,7 @@ final class IslandPresenter: IslandPresenting {
     /// A click on the resting pill acts on what it shows; the meeting glance hides status.
     var tap: (@MainActor () -> Void)? {
         if let notice = notices.notice { return noticeTaps[notice.id] }
-        if AppCore.shared.island.resting?.glance != nil { return nil }
+        if glanceShows { return nil }
         return statuses.last.flatMap { statusTaps[$0.id] }
     }
 
@@ -99,8 +99,13 @@ final class IslandPresenter: IslandPresenting {
     }
 
     private var shownNotice: IslandNotice? {
-        IslandHover.notice(top: notices.notice, statuses: statuses, glance: AppCore.shared.island.resting?.glance != nil,
+        IslandHover.notice(top: notices.notice, statuses: statuses, glance: glanceShows,
                            level: dwell.level != nil, hovered: hoverOpensPill)
+    }
+
+    /// A status above the meeting, a waiting agent, takes the pill from the glance (946-3).
+    private var glanceShows: Bool {
+        AppCore.shared.island.resting?.glance != nil && !IslandRestRank.hidesGlance(statuses)
     }
 
     /// Hands notices and status to the resting pill without posting, so none re-announces.

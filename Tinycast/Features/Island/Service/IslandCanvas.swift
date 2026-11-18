@@ -140,7 +140,7 @@ final class IslandCanvas: NSView {
         return true
     }
 
-    /// The presenter's order: level, notice, meeting glance, then status; a notch grows a headline.
+    /// The presenter's order: level, notice, a status above the meeting, its glance, then status.
     func show(glance: IslandGlance?, level: IslandLevel?, notice: IslandNotice?, statuses: [IslandStatus],
               expanded: Bool, notch: CGFloat?) {
         replay = { $0.show(glance: glance, level: level, notice: notice, statuses: statuses, expanded: expanded,
@@ -154,7 +154,7 @@ final class IslandCanvas: NSView {
             IslandLevelArt(level, notch: notched, frosted: frosted)
         } else if let notice {
             headline == nil ? IslandNoticeArt(notice, notch: notched, frosted: frosted) : nil
-        } else if let glance {
+        } else if let glance, !IslandRestRank.hidesGlance(statuses) {
             GlanceArt(glance, notch: notched, frosted: frosted)
         } else if !statuses.isEmpty {
             IslandStatusArt(statuses, notch: notched, frosted: frosted)

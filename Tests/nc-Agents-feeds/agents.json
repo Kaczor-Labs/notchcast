@@ -1,0 +1,71 @@
+{
+  "schema": "notchcast.agents/1",
+  "updatedAt": "2026-11-18T10:00:00Z",
+  "staleAfter": 120,
+  "openURL": "https://agents.example/board",
+  "agents": [
+    {
+      "id": "atlas",
+      "title": "Release notes",
+      "role": "coordinator",
+      "group": "Lighthouse",
+      "status": "working",
+      "statusText": "Collecting merged changes",
+      "needsInput": false,
+      "since": "2026-11-18T09:12:00Z",
+      "openURL": "https://agents.example/atlas"
+    },
+    {
+      "id": "birch",
+      "title": "Changelog draft",
+      "role": "worker",
+      "parent": "atlas",
+      "status": "waiting",
+      "statusText": "Waiting for an answer",
+      "needsInput": true,
+      "ask": "Ship as 2.4 or 3.0?",
+      "since": "2026-11-18T09:58:00Z",
+      "openURL": "https://agents.example/birch"
+    },
+    {
+      "id": "cedar",
+      "title": "Screenshot refresh",
+      "role": "worker",
+      "parent": "atlas",
+      "status": "working",
+      "statusText": "Rendering 14 of 22",
+      "needsInput": false,
+      "since": "2026-11-18T09:46:00Z"
+    },
+    {
+      "id": "dune",
+      "title": "Import pipeline",
+      "role": "coordinator",
+      "group": "Harbor",
+      "status": "waiting",
+      "statusText": "Waiting for an answer",
+      "needsInput": true,
+      "ask": "The sample file has two date formats. Which one wins?",
+      "since": "2026-11-18T09:31:00Z",
+      "openURL": "exampleagents://thread/dune"
+    },
+    {
+      "id": "ember",
+      "title": "Parser tests",
+      "role": "worker",
+      "parent": "dune",
+      "status": "failed",
+      "statusText": "3 tests red",
+      "needsInput": false,
+      "since": "2026-11-18T08:40:00Z"
+    },
+    {
+      "id": "fern",
+      "title": "Docs sweep",
+      "role": "agent",
+      "status": "done",
+      "statusText": "Finished",
+      "needsInput": false
+    }
+  ]
+}

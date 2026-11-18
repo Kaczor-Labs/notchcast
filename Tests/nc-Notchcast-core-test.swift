@@ -536,7 +536,7 @@ struct NotchcastCoreTest {
     static func settingsTabs() {
         check("each tab holds its categories",
               NotchcastPane.allCases.map(\.categories)
-                == [[], [.keyboardMouse], [.displaySound, .music], [.capture], [.launcher], [.filesDownloads],
+                == [[.notices], [.keyboardMouse], [.displaySound, .music], [.capture], [.launcher], [.filesDownloads],
                    [.macTweaks]])
         check("no category sits in two tabs", NotchcastCategory.allCases.allSatisfy { category in
             NotchcastPane.allCases.filter { $0.categories.contains(category) }.count <= 1
@@ -545,7 +545,7 @@ struct NotchcastCoreTest {
         check("a placed category resolves to the tab that holds it",
               placed.allSatisfy { NotchcastPane.holding($0).categories.contains($0) })
         check("a category with no tab yet shows nowhere",
-              NotchcastPane.shown(registered: [.notices, .betweenMacs]) == [.island])
+              NotchcastPane.shown(registered: [.power, .betweenMacs]) == [.island])
         check("iPhone backup lands in its own tab; Power has none",
               NotchcastPane.shown(registered: [.macTweaks, .power]) == [.island, .macTweaks])
         check("with no add-on only Island shows", NotchcastPane.shown(registered: []) == [.island])

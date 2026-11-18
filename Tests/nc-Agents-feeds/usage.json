@@ -1,0 +1,27 @@
+{
+  "schema": "notchcast.usage/1",
+  "updatedAt": "2026-11-18T10:00:00Z",
+  "staleAfter": 900,
+  "meters": [
+    {
+      "id": "north-session",
+      "label": "North · session",
+      "percentLeft": 62,
+      "resetsAt": "2026-11-18T13:20:00Z"
+    },
+    {
+      "id": "north-week",
+      "label": "North · week",
+      "percentLeft": 41.5,
+      "resetsAt": "2026-11-21T07:00:00Z",
+      "warnBelow": 15
+    },
+    {
+      "id": "quartz-month",
+      "label": "Quartz · second account",
+      "percentLeft": 9,
+      "resetsAt": "2026-12-01T00:00:00Z",
+      "warnBelow": 10
+    }
+  ]
+}

@@ -6,7 +6,7 @@ extension IslandController {
         if let level { return "\(level.label), \(level.readout)" }
         if panel?.isVisible == true { return "" }
         if let notice { return notice.text }
-        if let glance { return "\(glance.title), \(glance.countdown)" }
+        if let glance, !IslandRestRank.hidesGlance(statuses) { return "\(glance.title), \(glance.countdown)" }
         return statuses.map(\.label).joined(separator: ", ")
     }
 }

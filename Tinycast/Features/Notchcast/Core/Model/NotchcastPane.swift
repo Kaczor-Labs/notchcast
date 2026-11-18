@@ -26,7 +26,7 @@ enum NotchcastPane: CaseIterable, Sendable {
 
     var categories: [NotchcastCategory] {
         switch self {
-        case .island: []
+        case .island: [.notices]
         case .keyboardMouse: [.keyboardMouse]
         case .displaySound: [.displaySound, .music]
         case .capture: [.capture]

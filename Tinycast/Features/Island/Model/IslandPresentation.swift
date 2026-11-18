@@ -40,6 +40,21 @@ struct IslandStatus: Equatable, Sendable {
     var symbol: String
     var text: String?
     var label: String
+    var rank = IslandRestRank.plain
+}
+
+/// Where a source stands on the closed island (946-3); a status above `meeting` takes the pill from its glance.
+enum IslandRestRank: Int, Comparable, Sendable {
+    case plain, lowPlan, systemHot, music, meeting, agentWaiting
+
+    static func < (lhs: Self, rhs: Self) -> Bool { lhs.rawValue < rhs.rawValue }
+
+    /// Lowest first, posting order within a rank: the status row drops from its front and taps its last.
+    static func ordered(_ statuses: [IslandStatus]) -> [IslandStatus] {
+        statuses.enumerated().sorted { ($0.element.rank, $0.offset) < ($1.element.rank, $1.offset) }.map(\.element)
+    }
+
+    static func hidesGlance(_ statuses: [IslandStatus]) -> Bool { statuses.contains { $0.rank > .meeting } }
 }
 
 /// An add-on's pill-menu row; an unchecked row keeps its check column empty, so rows line up.

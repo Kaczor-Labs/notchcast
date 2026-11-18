@@ -37,7 +37,7 @@ The in-app updater stays off in Notchcast. To keep a Mac current, clone this rep
 - **The launcher.** Everything Tinycast does: app and command search, clipboard history, snippets, quicklinks, calculator with units and currencies, emoji, file and menu-bar search, window management, layouts and rooms, notes, calendar, dictionary, Quick AI and AI chat, custom commands and deeplinks. Feature docs: [docs/features](/docs/features).
 - **Look per display.** Each display's island is Black or Frosted (glass). A display you never set is Black when it has a notch and Frosted when it has none. Change it in Settings › Notchcast › Island.
 - **Settings › Notchcast.** One tab per area, each add-on with its own switch; an add-on's tab shows only while that add-on is in the build.
-  - **Island**: look, outline when open, open on hover, position on displays without a notch, show in screenshots and videos.
+  - **Island**: look, outline when open, open on hover, position on displays without a notch, show in screenshots and videos. Agents in the Island: a page with who waits for you, who works, and how much of each AI plan is left, read from two feed files a helper of yours writes ([agents.md](/notchcast/docs/agents.md)).
   - **Keyboard & Mouse**: hide with ⌘M, Show Desktop with F3, Quit Protection, trackpad middle click.
   - **Display & Sound**: brightness keys for every display, volume in the island, stop Apple Music opening on media keys.
   - **Capture**: screenshots of an area, window or display.

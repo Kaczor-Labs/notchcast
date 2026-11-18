@@ -1,0 +1,38 @@
+{
+  "sourceLanguage" : "en",
+  "strings" : {
+    "%@ could not be read" : {},
+    "%@ left" : {},
+    "%@ left · resets in %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@ left · resets in %2$@"
+          }
+        }
+      }
+    },
+    "%lld agents need you" : {},
+    "%lld agents waiting" : {},
+    "%lld agents working" : {},
+    "%lld more" : {},
+    "1 agent waiting" : {},
+    "1 agent working" : {},
+    "AI plan %@ left" : {},
+    "AI plan updated %@" : {},
+    "Agent needs you: %@" : {},
+    "Agents" : {},
+    "Agents in the Island" : {},
+    "Agents updated %@" : {},
+    "Feed folder" : {},
+    "No agents working" : {},
+    "No data" : {},
+    "Open" : {},
+    "Show in Finder" : {},
+    "Stale" : {},
+    "Waiting for you" : {},
+    "Who waits for you, who works, and how much of each AI plan is left." : {}
+  },
+  "version" : "1.0"
+}
