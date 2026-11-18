@@ -119,7 +119,7 @@ GATED_JOBS = {"pr.yml": 1, "main-harnesses.yml": 1}
 
 class RunnerTest(unittest.TestCase):
     def test_every_job_runs_on_a_hosted_image(self):
-        allowed = {"ubuntu-latest", "xcode-27", "macos-15"}
+        allowed = {"ubuntu-latest", "xcode-27"}
         gated = {}
         for workflow in sorted((ROOT / ".github/workflows").glob("*.y*ml")):
             lines = workflow.read_text().splitlines()

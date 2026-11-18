@@ -46,7 +46,7 @@ jobs:
           persist-credentials: false
       - uses: actions/checkout@v7
         with:
-          ref: c0d518039
+          ref: c0d5180393aa750c84e9e0ea173e82e0fd15370e
           path: src
           fetch-depth: 0
           persist-credentials: false
