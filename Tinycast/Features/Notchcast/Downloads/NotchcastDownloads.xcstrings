@@ -67,6 +67,9 @@
     "%@ · Finding peers" : {
 
     },
+    "%@ · Sharing" : {
+
+    },
     "aria2c could not start." : {
 
     },

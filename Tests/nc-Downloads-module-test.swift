@@ -31,6 +31,7 @@
 // notchcast-sources: Tinycast/Features/Notchcast/Downloads/Service/TorrentIslandBridge.swift
 // notchcast-sources: Tinycast/Features/Notchcast/Downloads/Service/TorrentManager.swift
 // notchcast-sources: Tinycast/Features/Notchcast/Downloads/Service/TorrentSession.swift
+// notchcast-sources: Tinycast/Features/Notchcast/Downloads/Service/TorrentOpenFallback.swift
 // notchcast-sources: Tinycast/Features/Notchcast/Downloads/Model/TorrentBencode.swift
 // notchcast-sources: Tinycast/Features/Notchcast/Downloads/Model/TorrentMetainfo.swift
 // notchcast-sources: Tinycast/Features/Notchcast/Downloads/Model/TorrentInput.swift
@@ -53,6 +54,7 @@
 // notchcast-sources: Tinycast/Features/Notchcast/Core/Model/*.swift
 // notchcast-sources: Tinycast/Features/Notchcast/Core/Service/NotchcastAddon.swift
 // notchcast-sources: Tinycast/Features/Notchcast/Core/Service/NotchcastContext.swift
+// notchcast-sources: Tinycast/Features/Notchcast/Core/Service/NotchcastController.swift
 // notchcast-sources: Tinycast/Features/Notchcast/Core/Service/NotchcastTranscription.swift
 // notchcast-sources: Tinycast/Features/Notchcast/Core/Service/NotchcastPreferences.swift
 // notchcast-sources: Tinycast/Features/Notchcast/Core/Service/NotchcastTap.swift
@@ -76,8 +78,9 @@ struct DownloadsModuleTest {
         shape()
         try await lifecycle(root)
         try await torrents(root)
+        openWithEverySwitchOff()
         print("Downloads module: v1 switches, nine commands, queues follow their switch, stop keeps accepted links,"
-              + " torrents open magnet links")
+              + " torrents open magnet links, even with every switch off")
     }
 
     private static func shape() {
@@ -223,6 +226,32 @@ struct DownloadsModuleTest {
         module.stop()
         context.detach()
         expect(context.openURL == nil, "the hook goes with the module")
+    }
+
+    /// #924: the default, every switch off, still answers a magnet opened with the app, through the controller.
+    private static func openWithEverySwitchOff() {
+        let suite = "nc-downloads-open-off-test.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suite)!
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let hub = NotchcastTapHub(syntheticTag: 0, isTrusted: { false }) { _ in
+            preconditionFailure("the harness never installs a tap")
+        }
+        let presenter = RecordingPresenter()
+        let controller = NotchcastController(addons: [DownloadsAddon.self], defaults: defaults, hub: hub,
+                                             dictation: FakeDictation(), presenter: presenter)
+        let magnet = URL(string: "magnet:?xt=urn:btih:c12fe1c06bba254a9dc9f519b335aa7c1367a88a&dn=Big")!
+        let file = URL(filePath: "/tmp/Big.torrent")
+        controller.start()
+        expect(controller.slots.allSatisfy { $0.context.module == nil }, "every switch off: no module runs")
+        expect(controller.open(magnet), "a magnet is claimed with every switch off")
+        expect(presenter.log.last == "post torrents.refused The torrent engine is not running.",
+               "and refused out loud")
+        expect(controller.open(file), "a .torrent file is claimed too")
+        let posted = presenter.log.count
+        expect(!controller.open(URL(string: "https://example.com/page")!) && presenter.log.count == posted,
+               "other links fall through untouched")
+        controller.stop()
+        expect(!controller.open(magnet), "nothing claims after core stop")
     }
 
     private static func expect(_ value: @autoclosure () throws -> Bool, _ message: String) rethrows {

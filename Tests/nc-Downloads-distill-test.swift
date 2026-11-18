@@ -31,6 +31,7 @@
 // notchcast-sources: Tinycast/Features/Notchcast/Downloads/Service/TorrentIslandBridge.swift
 // notchcast-sources: Tinycast/Features/Notchcast/Downloads/Service/TorrentManager.swift
 // notchcast-sources: Tinycast/Features/Notchcast/Downloads/Service/TorrentSession.swift
+// notchcast-sources: Tinycast/Features/Notchcast/Downloads/Service/TorrentOpenFallback.swift
 // notchcast-sources: Tinycast/Features/Notchcast/Downloads/Model/TorrentBencode.swift
 // notchcast-sources: Tinycast/Features/Notchcast/Downloads/Model/TorrentMetainfo.swift
 // notchcast-sources: Tinycast/Features/Notchcast/Downloads/Model/TorrentInput.swift

@@ -143,6 +143,16 @@ struct TorrentModelTest {
         let progress = policy.update([job]).progress
         expect(progress?.fraction == 0.42 && progress?.text.hasPrefix("Big Buck · 42% · ") == true
                && progress?.text.hasSuffix(" left") == true, "name, percent, speed and time left")
+        var shared = TorrentJob(input: .magnet("s"), infoHash: "s", name: "Big Buck", started: start)
+        shared.state = .sharing
+        shared.completed = 100
+        shared.total = 100
+        let sharing = policy.update([shared])
+        expect(sharing.progress?.text == "Big Buck · Sharing" && sharing.progress?.fraction == 1,
+               "a sharing job keeps a live line")
+        expect(sharing.finished == [shared], "its finish is reported when the download reaches 100%")
+        shared.state = .finished
+        expect(policy.update([shared]) == .init(), "reaching ratio 1.0 reports nothing again")
         job.state = .finished
         let done = policy.update([job])
         expect(done.progress == nil && done.finished == [job], "a finish is reported once")

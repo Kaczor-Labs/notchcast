@@ -62,6 +62,10 @@ enum DownloadsAddon: NotchcastAddon {
     static func makeModule(_ context: NotchcastContext) -> (any NotchcastModule)? {
         DownloadsModule(context: context, environment: .live())
     }
+
+    static func makeRecovery(_ context: NotchcastContext) -> (any NotchcastModule)? {
+        TorrentOpenFallback(context: context)
+    }
 }
 
 extension DownloadsModule.TorrentCommand {

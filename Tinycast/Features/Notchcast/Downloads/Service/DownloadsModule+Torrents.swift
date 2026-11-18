@@ -33,13 +33,17 @@ extension DownloadsModule {
     }
 
     private func report(_ outcome: TorrentManager.Outcome) {
+        Self.post(outcome, to: context.presenter)
+    }
+
+    static func post(_ outcome: TorrentManager.Outcome, to presenter: any IslandPresenting) {
         let text: String
         switch outcome {
         case .queued: return
         case .nothingUsable: text = String(localized: "No usable torrent link or file was found.", table: "NotchcastDownloads")
         case .notRunning: text = String(localized: "The torrent engine is not running.", table: "NotchcastDownloads")
         }
-        context.presenter.post(IslandNotice(id: "torrents.refused", symbol: "exclamationmark.triangle", text: text,
-                                            isFailure: true), onTap: nil)
+        presenter.post(IslandNotice(id: "torrents.refused", symbol: "exclamationmark.triangle", text: text,
+                                    isFailure: true), onTap: nil)
     }
 }

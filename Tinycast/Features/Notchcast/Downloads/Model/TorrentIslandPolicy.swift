@@ -19,7 +19,7 @@ nonisolated struct TorrentIslandPolicy: Sendable {
         var update = Update()
         for job in jobs where !reported.contains(job.id) {
             switch job.state {
-            case .finished: update.finished.append(job)
+            case .sharing, .finished: update.finished.append(job)
             case .failed: update.failed.append(job)
             case .cancelled: break
             default: continue
@@ -27,7 +27,7 @@ nonisolated struct TorrentIslandPolicy: Sendable {
             reported.insert(job.id)
         }
         reported.formIntersection(jobs.map(\.id))
-        let running = jobs.filter { [.findingPeers, .downloading].contains($0.state) }
+        let running = jobs.filter(\.state.isActive)
         guard let first = running.first else { return update }
         let total = running.reduce(Int64(0)) { $0 + $1.total }
         let fraction = total > 0 ? Double(running.reduce(Int64(0)) { $0 + $1.completed }) / Double(total) : nil
@@ -35,15 +35,18 @@ nonisolated struct TorrentIslandPolicy: Sendable {
             ? String(localized: "\(running.count) torrents", table: "NotchcastDownloads") : Self.short(first.name)
         update.progress = Progress(text: Self.line(title: title, fraction: fraction, speed: running.reduce(0) { $0 + $1.speed },
                                      secondsLeft: running.compactMap(\.secondsLeft).max(),
-                                     findingPeers: running.allSatisfy { $0.state == .findingPeers }), fraction: fraction)
+                                     findingPeers: running.allSatisfy { $0.state == .findingPeers },
+                                     sharing: running.allSatisfy { $0.state == .sharing }), fraction: fraction)
         return update
     }
 
     /// "ubuntu.iso · 42% · 3.1 MB/s · 2 min left", dropping each part aria2c cannot know yet.
-    static func line(title: String, fraction: Double?, speed: Int64, secondsLeft: Int64?, findingPeers: Bool) -> String {
+    static func line(title: String, fraction: Double?, speed: Int64, secondsLeft: Int64?, findingPeers: Bool,
+                     sharing: Bool = false) -> String {
         guard !findingPeers else {
             return String(localized: "\(title) · Finding peers", table: "NotchcastDownloads")
         }
+        guard !sharing else { return String(localized: "\(title) · Sharing", table: "NotchcastDownloads") }
         var parts = [title]
         if let fraction { parts.append("\(Int(fraction * 100))%") }
         if speed > 0 { parts.append(speed.formatted(.byteCount(style: .file)) + "/s") }
