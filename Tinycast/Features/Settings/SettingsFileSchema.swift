@@ -119,6 +119,10 @@ enum SettingsFileSchema {
                 guard let language else { return .some(nil) }
                 return DictationLanguage(rawValue: language) == nil ? nil : .some(language)
             }
+        case .dictationCleansUp: return bind(settings, \.dictationCleansUp)
+        case .dictationCleanupPrompt: return bind(settings, \.dictationCleanupPrompt)
+        case .dictationKeepsHistory: return bind(settings, \.dictationKeepsHistory)
+        case .dictationCommands: return launcher.commandsBinding(for: key, owner: .dictation)
         case .snippetsShowInLauncher: return bind(settings, \.snippetsShowInLauncher)
         case .snippetsFolder: return bind(settings, \.snippetsFolder, accept: folder)
         case .snippetDefaultAction: return bind(settings, \.snippetDefaultAction)

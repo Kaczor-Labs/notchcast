@@ -7,6 +7,9 @@
     "A notch always decides where the island sits." : {
 
     },
+    "Automatic uses %@." : {
+
+    },
     "Between Macs" : {
       "shouldTranslate" : false
     },
@@ -16,20 +19,59 @@
     "Capture" : {
       "shouldTranslate" : false
     },
+    "Clean up text" : {
+
+    },
+    "Cleanup" : {
+
+    },
+    "Cleanup model" : {
+
+    },
+    "Cleanup prompt" : {
+
+    },
+    "Cleanup took too long, so the raw text was pasted" : {
+
+    },
+    "Cleanup was skipped, so the raw text was pasted" : {
+
+    },
+    "Clear dictation history?" : {
+
+    },
+    "Copy Raw Transcript" : {
+
+    },
+    "Delete dictation history?" : {
+
+    },
+    "Dictation History" : {
+
+    },
     "Display & Sound" : {
       "shouldTranslate" : false
     },
     "Downloads" : {
       "shouldTranslate" : false
     },
+    "Every saved dictation goes. This can't be undone." : {
+
+    },
     "Files & Downloads" : {
       "shouldTranslate" : false
+    },
+    "Fix punctuation, numbers and filler words before pasting. Return pastes it as spoken." : {
+
     },
     "Frosted" : {
 
     },
     "Island" : {
       "shouldTranslate" : false
+    },
+    "Keep dictation history" : {
+
     },
     "Keyboard & Mouse" : {
       "shouldTranslate" : false
@@ -58,6 +100,12 @@
     "Needs Accessibility access" : {
       "shouldTranslate" : false
     },
+    "No dictations yet" : {
+
+    },
+    "No matching dictations" : {
+
+    },
     "Notchcast" : {
       "shouldTranslate" : false
     },
@@ -70,7 +118,16 @@
     "Outline when open" : {
 
     },
+    "Paste Again" : {
+
+    },
     "Position on displays without a notch" : {
+
+    },
+    "Reset to Default" : {
+
+    },
+    "Search past dictations…" : {
 
     },
     "Show %@ in the launcher" : {
@@ -79,10 +136,25 @@
     "Show in screenshots and videos" : {
 
     },
+    "The last 50 dictations stay on this Mac. Turning this off deletes them." : {
+
+    },
+    "The transcript goes only to the chosen model, and is never logged." : {
+
+    },
     "Top edge" : {
 
     },
+    "Turn Off and Delete" : {
+
+    },
+    "Turn on Claude or Codex in AI settings, or choose a model." : {
+
+    },
     "Updated to %@" : {
+
+    },
+    "Used for every cleanup." : {
 
     }
   },

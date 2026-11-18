@@ -21,6 +21,7 @@ enum SyncSettingScope {
             .systemActionsEnabled, .builtInCommandsEnabled, .customCommandsEnabled,
             .quicklinksEnabled, .appleShortcutsEnabled, .aiEnabled, .dictationModel,
             .dictationMicrophone, .fileSearchEnabled, .fileSearchScopes, .notesEnabled,
+            .dictationKeepsHistory,
             .notesFolder, .snippetsFolder, .navigationEnabled, .windowManagementEnabled,
             .clipboardEnabled:
             nil
@@ -34,13 +35,14 @@ enum SyncSettingScope {
         case .aiRetention: .aiChats
         case .dictationMode, .dictationPlaysSounds, .dictationDestination,
             .dictationAdaptsCapitalization, .dictationLiveInsertion, .dictationIdleRelease,
-            .dictationLanguage:
+            .dictationLanguage, .dictationCleansUp, .dictationCleanupPrompt:
             .dictation
         case .customWindowSizes, .windowLayouts, .windowRooms: .windowLayouts
         case .launcherShortcut, .hyperKey, .hyperKeyIncludesShift, .hyperKeyQuickPress,
             .hyperKeySecureInputCompatibility, .applications, .systemSettings, .systemActions,
             .builtInCommands, .quicklinkCommands, .aiCommands, .quickActionCommands,
             .dictationShortcut, .fileSearchCommands, .notesCommands, .snippetsCommands,
+            .dictationCommands,
             .navigationCommands, .windowShortcuts, .windowAliases, .windowManagementCommands,
             .clipboardCommands, .emojiCommands, .calendarCommands:
             .hotkeysAndAliases

@@ -192,6 +192,7 @@ struct DictationSettingsView: View {
                         "Press Return to finish dictating or Escape to cancel. Protected fields may refuse insertion."
                     )
                 }
+                DictationExtrasSettingsSections()
 
             }
         }

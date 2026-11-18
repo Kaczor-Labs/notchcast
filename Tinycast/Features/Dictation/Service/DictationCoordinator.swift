@@ -31,6 +31,9 @@ final class DictationCoordinator {
     @ObservationIgnored private var finishWhenStarted = false
     @ObservationIgnored private var target: InjectionTarget?
     @ObservationIgnored var willStart: @MainActor () async -> Void = {}
+    /// Rewrites a finished transcript before it is pasted; nil pastes it as heard.
+    @ObservationIgnored var cleanUp: @MainActor (String) async -> String? = { _ in nil }
+    @ObservationIgnored var didDictate: @MainActor (String, String?, InjectionTarget?) -> Void = { _, _, _ in }
     /// The field a mic button is dictating into; nil for a shortcut's session.
     private(set) var field: DictationField?
 
@@ -47,7 +50,7 @@ final class DictationCoordinator {
         self.audioDucker = audioDucker
         self.confirmEnable = confirmEnable
         self.showMessage = showMessage
-        panel.onAccept = { [weak self] in self?.accept() }
+        panel.onAccept = { [weak self] in self?.accept(cleansUp: false) }
         panel.onCancel = { [weak self] in self?.cancel() }
         capture.onLevels = { [weak self] in
             guard let self else { return }
@@ -202,7 +205,7 @@ final class DictationCoordinator {
         if phase == .listening { accept() }
     }
 
-    func accept() {
+    func accept(cleansUp: Bool = true) {
         guard phase == .listening else { return }
         phase = .transcribing
         panel.state.phase = .transcribing
@@ -243,14 +246,18 @@ final class DictationCoordinator {
                     tail, model: model,
                     language: language)
                 guard token == current else { return }
+                var cleaned: String?
+                if cleansUp, field == nil, liveText.isEmpty { cleaned = await cleanUp(transcript) }
+                guard token == current else { return }
                 // A mic belongs to its field: the text goes in there, never to the clipboard.
                 let context = destination.pastes ? insertionContext() : nil
                 let text = DictationTextFormatter.format(
-                    transcript, context: context,
+                    cleaned ?? transcript, context: context,
                     adaptCapitalization: settings.dictationAdaptsCapitalization)
                 let target = self.target
                 let assembled = liveText + text
                 guard !text.isEmpty else { finishWithoutRemainder(destination); return }
+                didDictate(liveText.isEmpty ? transcript : assembled, cleaned, target)
                 panel.close()
                 if destination.pastes {
                     injector.deliver(
@@ -289,6 +296,7 @@ final class DictationCoordinator {
     private func finishWithoutRemainder(_ destination: DictationDestination) {
         let text = liveText
         let lost = liveDeliveryFailed
+        didDictate(text, nil, target)
         reset(cancelTranscription: false)
         if !text.isEmpty, destination.copies { Paster.copyPlainText(text) }
         if lost, destination.pastes {

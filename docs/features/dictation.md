@@ -153,3 +153,18 @@ Use the same audio, build configuration and otherwise idle machine for compariso
 Optional arguments select a helper `.app`, model directory and one model's raw identifier instead of
 all four. This tool is outside the deterministic suite and app targets; it neither downloads models
 nor adds bundled resources.
+
+## Cleanup and history
+
+Cleanup and history are Notchcast's, in `Tinycast/Features/DictationExtras/`. Dictation calls in through two hooks on `DictationCoordinator`, `cleanUp` before formatting and `didDictate` after a finished session, which `DictationExtrasCoordinator` sets in `start(core:)`.
+
+- Cleanup is on by default while Dictation is on. A shortcut finish (toggle, released hold or the length limit) cleans up: Return pastes the raw transcript, and live insertion and AI Chat's composer mic never clean up, because their text is already in place or the composer is its own editor.
+- The transcript goes through the AI provider layer ([ai.md](ai.md)) with `permissiveContentTransformations` guardrails, never through a second provider path. The cleanup model is its own stored `AIModelSelection` (`dictationCleanupModel`, local, like Quick Actions' model); Automatic picks the installed Claude CLI, else Codex, each one's lightest model, so the user's subscription cleans up without an API key. The installed CLIs are probed while cleanup is on, even with AI and Quick Actions off.
+- The transcript leaves the Mac only to the chosen model, as text; it is never logged. The audio itself still never leaves the Mac.
+- `DictationCleanupRunner` races the model against a 10-second deadline. A timeout, an error or an empty answer pastes the raw transcript and says so in a HUD; no model available pastes raw silently. Escape during cleanup cancels the session and pastes nothing, as before.
+- The prompt is editable in Settings; the default (`DictationCleanupPrompt.standard`) fixes punctuation, numbers, filler words and spoken corrections, keeps the speaker's language and never adds content. A blank or unchanged prompt stores nothing, so the default can improve later.
+- History keeps the last 50 dictations, newest first, each with its raw transcript, the cleaned text when it differs, the time and the target app. It lives only in `dictation-history.json` in this build's bundle-ID Application Support folder: no backup, `settings.json` or sync carries it. The Keep dictation history switch is local and on by default; turning it off asks first, then deletes the file.
+- The Dictation History command opens a palette screen: Return pastes the text again into the app behind the palette, Command-Return copies it, Command-K offers the raw transcript, and deleting asks first only for the whole history.
+- Cleanup's switch and prompt travel in `settings.json` and sync with Dictation; like every Dictation preference they are excluded from backups.
+
+`nc-DictationExtras-cleanup-test` checks the prompt fallback, every runner outcome (cleaned, empty, error, timeout, skipped, cancelled) with fake models and no clock, and the Automatic model order. `nc-DictationExtras-history-test` checks recording, the cap, search and removal, and that the store persists to and deletes its own file in a temporary folder. A live cleanup with a real Claude or Codex CLI is checked by hand on a Mac.
