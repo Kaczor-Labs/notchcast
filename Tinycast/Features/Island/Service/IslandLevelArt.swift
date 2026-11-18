@@ -5,6 +5,7 @@ import AppKit
 struct IslandLevelArt: PillArt {
     let layout: IslandGlanceLayout
     let level: IslandLevel
+    let frosted: Bool
     private let glyph: NSImage?
     private let readout: NSAttributedString
     /// Fixed, so a glyph swap on repeat never resizes the slots and restarts the pill's spring.
@@ -14,11 +15,13 @@ struct IslandLevelArt: PillArt {
     private let gap = Theme.Spacing.sm
     private let edge = Theme.Spacing.lg
 
-    init(_ level: IslandLevel, notch: Bool) {
+    init(_ level: IslandLevel, notch: Bool, frosted: Bool) {
         self.level = level
-        glyph = GlanceArt.glyph(level.symbol)
+        self.frosted = frosted
+        glyph = GlanceArt.glyph(level.symbol, tone: Theme.Colors.textPrimary.islandInk(frosted: frosted))
         readout = NSAttributedString(string: level.readout, attributes: [
-            .font: NotchTheme.Typography.islandGlanceNSFont, .foregroundColor: NSColor(Theme.Colors.textSecondary)])
+            .font: NotchTheme.Typography.islandGlanceNSFont,
+            .foregroundColor: Theme.Colors.textSecondary.islandInk(frosted: frosted)])
         layout = IslandGlanceLayout(notch: notch, glyph: cell, gap: gap, title: 0, separator: 0,
                                     countdown: track + gap + readoutWidth, wing: NotchTheme.Size.islandGlanceWing)
     }
@@ -39,15 +42,15 @@ struct IslandLevelArt: PillArt {
                               height: height)
             return NSBezierPath(roundedRect: rect, xRadius: height / 2, yRadius: height / 2)
         }
-        NSColor(Theme.Colors.border).setFill()
+        Theme.Colors.border.islandInk(frosted: frosted).setFill()
         bar(extents.track).fill()
-        NSColor(Theme.Colors.textSecondary).setStroke()
+        Theme.Colors.textSecondary.islandInk(frosted: frosted).setStroke()
         for zone in [extents.below, extents.above].compactMap(\.self) {
             let outline = bar(zone)
             outline.lineWidth = Theme.Size.hairline
             outline.stroke()
         }
-        NSColor(Theme.Colors.textPrimary).setFill()
+        Theme.Colors.textPrimary.islandInk(frosted: frosted).setFill()
         if extents.fill.upperBound > extents.fill.lowerBound { bar(extents.fill).fill() }
         let text = readout.size()
         readout.draw(at: CGPoint(x: pill.maxX - edge - text.width, y: pill.midY - text.height / 2))
@@ -64,12 +67,18 @@ final class IslandLevelBand: NSView {
         }
     }
 
+    /// The art resolves its inks once, so a look change rebuilds it rather than leaving the old ink.
+    func restyle(frosted: Bool) {
+        guard let art, art.frosted != frosted else { return }
+        self.art = IslandLevelArt(art.level, notch: false, frosted: frosted)
+    }
+
     override func isAccessibilityElement() -> Bool { true }
     override func accessibilityRole() -> NSAccessibility.Role? { .levelIndicator }
 
     override func draw(_ dirtyRect: NSRect) {
-        NSColor(NotchTheme.Colors.islandSurface).setFill()
-        bounds.fill()
+        NotchTheme.Colors.islandPanelFill.islandInk(frosted: art?.frosted == true).setFill()
+        bounds.fill(using: .copy)
         art?.draw(in: bounds)
     }
 }
