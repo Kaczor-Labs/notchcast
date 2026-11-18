@@ -358,9 +358,11 @@ struct NotchcastCoreTest {
         check("a declared tap follows its switch", hub.subscriberCount == 2)
         check("a second switch does not restart the module", ProbeLog.events == ["start"])
 
+        probeContext?.setUnavailable(["command:nc-probe-run"])
         controller.preferences.set("probeMain", on: false)
         drain()
         check("toggling off stops the module", ProbeLog.events == ["start", "stop"])
+        check("a stopped module's unavailable commands are cleared", probeContext?.unavailableCommands.isEmpty == true)
         check("its taps and dependents' taps go", hub.subscriberCount == 0 && !hub.isRunning)
         check("a stopped module's digit handler is gone",
               controller.launcherRow(digit: 1, query: "sa", entryRows: [2, 5]) == nil)

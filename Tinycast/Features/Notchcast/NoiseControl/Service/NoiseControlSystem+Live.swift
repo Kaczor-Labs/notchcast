@@ -60,14 +60,28 @@ private final class NoiseControlOutputListener {
     deinit { AudioObjectRemovePropertyListenerBlock(Self.system, &address, .main, block) }
 }
 
-/// Control Center's Sound menu via the public Accessibility API, each call under a short timeout.
+/// Control Center's Sound menu via the public Accessibility API, each element under a short timeout.
 private enum NoiseControlMenu {
     static let controlCenter = "com.apple.controlcenter"
     static let soundExtra = "com.apple.menuextra.sound"
     static let callTimeout: Float = 0.2
-    static let walkLimit = 600
 
     static var uptime: Duration { .seconds(ProcessInfo.processInfo.systemUptime) }
+
+    /// A timeout set on one element covers only that element, so the tree prepares each one it reads.
+    static var tree: NoiseControlMenuTree<AXUIElement> {
+        NoiseControlMenuTree(
+            prepare: { AXUIElementSetMessagingTimeout($0, callTimeout) },
+            children: { elements($0, kAXChildrenAttribute) },
+            identifier: { value($0, kAXIdentifierAttribute) as? String },
+            labels: { element in [kAXTitleAttribute, kAXDescriptionAttribute].compactMap { value(element, $0) as? String } },
+            canPress: canPress,
+            selected: { element in
+                let flag = value(element, kAXValueAttribute) as? NSNumber ?? value(element, kAXSelectedAttribute) as? NSNumber
+                return flag?.boolValue
+            },
+            now: { uptime })
+    }
 
     @concurrent
     static func perform(_ step: NoiseControlSwitcher.Step, deadline: Duration) async throws -> [NoiseControlButton] {
@@ -76,51 +90,34 @@ private enum NoiseControlMenu {
         }
         guard let pid else { throw NoiseControlFailure.menuUnavailable }
         let app = AXUIElementCreateApplication(pid)
-        AXUIElementSetMessagingTimeout(app, callTimeout)
+        tree.prepare(app)
         switch step {
         case .open:
-            guard let extra = soundExtra(in: app), press(extra) else { throw NoiseControlFailure.menuUnavailable }
-        case .close:
-            if !elements(app, kAXWindowsAttribute).isEmpty, let extra = soundExtra(in: app) { _ = press(extra) }
+            guard let extra = soundExtra(in: app, deadline: deadline), press(extra) else {
+                throw NoiseControlFailure.menuUnavailable
+            }
+        case .close(let sawModes):
+            guard let extra = soundExtra(in: app, deadline: deadline),
+                  tree.soundMenuOpen(windows: elements(app, kAXWindowsAttribute), sawModes: sawModes, deadline: deadline)
+            else { break }
+            _ = press(extra)
         case .read:
-            return items(in: app, deadline: deadline).map(\.button)
+            return tree.items(in: elements(app, kAXWindowsAttribute), deadline: deadline).map(\.button)
         case .press(let mode):
-            guard let item = items(in: app, deadline: deadline).first(where: { $0.button.mode == mode }),
-                  press(item.element) else { throw NoiseControlFailure.timedOut }
+            let items = tree.items(in: elements(app, kAXWindowsAttribute), deadline: deadline)
+            guard let item = items.first(where: { $0.button.mode == mode }), press(item.element) else {
+                throw NoiseControlFailure.timedOut
+            }
         }
         return []
     }
 
-    private struct Item {
-        let element: AXUIElement
-        let button: NoiseControlButton
-    }
-
-    /// The open menu's pressable mode items, first match per mode, bounded by count and deadline.
-    private static func items(in app: AXUIElement, deadline: Duration) -> [Item] {
-        var found: [Item] = []
-        var pending = elements(app, kAXWindowsAttribute)
-        var visited = 0
-        while let element = pending.popLast(), visited < walkLimit, uptime < deadline {
-            visited += 1
-            AXUIElementSetMessagingTimeout(element, callTimeout)
-            let labels = [kAXTitleAttribute, kAXDescriptionAttribute].compactMap { value(element, $0) as? String }
-            if let mode = NoiseControlMode.allCases.first(where: { labels.contains($0.menuTitle) }),
-               !found.contains(where: { $0.button.mode == mode }), canPress(element) {
-                let flag = value(element, kAXValueAttribute) as? NSNumber ?? value(element, kAXSelectedAttribute) as? NSNumber
-                let state = flag?.boolValue
-                found.append(Item(element: element, button: NoiseControlButton(mode: mode, selected: state)))
-            }
-            pending += elements(element, kAXChildrenAttribute)
-        }
-        return found
-    }
-
-    private static func soundExtra(in app: AXUIElement) -> AXUIElement? {
-        guard let bar = value(app, "AXExtrasMenuBar"), CFGetTypeID(bar) == AXUIElementGetTypeID() else { return nil }
-        return elements(unsafeDowncast(bar, to: AXUIElement.self), kAXChildrenAttribute).first {
-            value($0, kAXIdentifierAttribute) as? String == soundExtra
-        }
+    private static func soundExtra(in app: AXUIElement, deadline: Duration) -> AXUIElement? {
+        guard uptime < deadline, let bar = value(app, "AXExtrasMenuBar"), CFGetTypeID(bar) == AXUIElementGetTypeID()
+        else { return nil }
+        let menuBar = unsafeDowncast(bar, to: AXUIElement.self)
+        tree.prepare(menuBar)
+        return tree.first(identifier: soundExtra, in: elements(menuBar, kAXChildrenAttribute), deadline: deadline)
     }
 
     private static func press(_ element: AXUIElement) -> Bool {

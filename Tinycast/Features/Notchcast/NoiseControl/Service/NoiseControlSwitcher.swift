@@ -6,7 +6,14 @@ nonisolated enum NoiseControlFailure: LocalizedError, Equatable, Sendable {
     case modeUnavailable
     case menuUnavailable
     case notInMenu
+    case needsEnglish
     case timedOut
+
+    /// The menu is matched by its English labels, so on another language nothing matching says why.
+    static func nothingListed(language: String?) -> Self {
+        guard let language, !language.hasPrefix("en") else { return .notInMenu }
+        return .needsEnglish
+    }
 
     var errorDescription: String? {
         switch self {
@@ -20,6 +27,8 @@ nonisolated enum NoiseControlFailure: LocalizedError, Equatable, Sendable {
             String(localized: "Show Sound in the menu bar to switch noise control.", table: "NotchcastNoiseControl")
         case .notInMenu:
             String(localized: "The Sound menu shows no noise control.", table: "NotchcastNoiseControl")
+        case .needsEnglish:
+            String(localized: "Noise control switching needs macOS set to English.", table: "NotchcastNoiseControl")
         case .timedOut:
             String(localized: "The Sound menu did not respond in time.", table: "NotchcastNoiseControl")
         }
@@ -29,7 +38,9 @@ nonisolated enum NoiseControlFailure: LocalizedError, Equatable, Sendable {
 /// Drives the Sound menu in injected steps under one deadline, so a broken route ends, never hangs.
 nonisolated struct NoiseControlSwitcher: Sendable {
     enum Step: Equatable, Sendable {
-        case open, read, press(NoiseControlMode), close
+        case open, read, press(NoiseControlMode)
+        /// `sawModes`: the menu listed its modes, so close only while it still shows them.
+        case close(sawModes: Bool)
     }
 
     static let timeout: Duration = .seconds(3)
@@ -41,19 +52,25 @@ nonisolated struct NoiseControlSwitcher: Sendable {
 
     func run(_ request: NoiseControlRequest) async throws -> NoiseControlMode {
         let deadline = now() + Self.timeout
-        _ = try await perform(.open, deadline)
+        var sawModes = false
         do {
-            let mode = try await pressAndConfirm(request, deadline: deadline)
-            _ = try? await perform(.close, now() + .seconds(1))
+            _ = try await perform(.open, deadline)
+            guard now() < deadline else { throw NoiseControlFailure.timedOut }
+            let missing = NoiseControlFailure.nothingListed(language: Locale.preferredLanguages.first)
+            let buttons = try await poll(deadline, failing: missing) { !$0.isEmpty }
+            sawModes = true
+            let mode = try await press(request, in: buttons, deadline: deadline)
+            _ = try? await perform(.close(sawModes: sawModes), now() + .seconds(1))
             return mode
         } catch {
-            _ = try? await perform(.close, now() + .seconds(1))
+            _ = try? await perform(.close(sawModes: sawModes), now() + .seconds(1))
             throw error
         }
     }
 
-    private func pressAndConfirm(_ request: NoiseControlRequest, deadline: Duration) async throws -> NoiseControlMode {
-        let buttons = try await poll(deadline, failing: .notInMenu) { !$0.isEmpty }
+    private func press(
+        _ request: NoiseControlRequest, in buttons: [NoiseControlButton], deadline: Duration
+    ) async throws -> NoiseControlMode {
         guard let target = NoiseControlPolicy.target(for: request, in: buttons) else {
             throw NoiseControlFailure.modeUnavailable
         }

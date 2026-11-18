@@ -4,6 +4,8 @@ import Foundation
 @MainActor
 final class NoiseControlModule: NotchcastModule {
     static let noticeID = "noiseControl"
+    /// Outlives a stopped module: a walk ignores cancellation, so a restarted one must wait it out.
+    private(set) static var isWalking = false
 
     private let context: NotchcastContext
     private let system: NoiseControlSystem
@@ -45,7 +47,7 @@ final class NoiseControlModule: NotchcastModule {
 
     /// A press while a switch runs is dropped: two walks of one menu would toggle it shut mid-read.
     func run(_ request: NoiseControlRequest) {
-        guard isRunning, switchTask == nil else { return }
+        guard isRunning, switchTask == nil, !Self.isWalking else { return }
         refresh()
         if offered.isEmpty { return show(.failure(NoiseControlFailure.noHeadset), for: request) }
         guard offered.contains(request) else { return show(.failure(NoiseControlFailure.modeUnavailable), for: request) }
@@ -55,9 +57,11 @@ final class NoiseControlModule: NotchcastModule {
         }
         let operation = operation
         let switcher = system.switcher
+        Self.isWalking = true
         switchTask = Task { [weak self] in
             let result: Result<NoiseControlMode, any Error>
             do { result = .success(try await switcher.run(request)) } catch { result = .failure(error) }
+            Self.isWalking = false
             guard let self, !Task.isCancelled, self.isRunning, self.operation == operation else { return }
             self.switchTask = nil
             self.show(result, for: request)

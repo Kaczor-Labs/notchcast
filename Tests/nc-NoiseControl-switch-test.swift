@@ -7,6 +7,7 @@
 // notchcast-sources: Tinycast/Features/Notchcast/NoiseControl/Service/NoiseControlModule.swift
 // notchcast-sources: Tinycast/Features/Notchcast/NoiseControl/Service/NoiseControlSystem.swift
 // notchcast-sources: Tinycast/Features/Notchcast/NoiseControl/Service/NoiseControlSwitcher.swift
+// notchcast-sources: Tinycast/Features/Notchcast/NoiseControl/Service/NoiseControlMenuTree.swift
 // notchcast-sources: Tests/NotchcastDictationFixture.swift
 
 import CoreGraphics
@@ -21,6 +22,7 @@ final class FakeMenu: Sendable {
         var hiddenReads = 0
         var pressSelects = true
         var openFailure: NoiseControlFailure?
+        var openTakes: Duration = .zero
         var steps: [NoiseControlSwitcher.Step] = []
     }
 
@@ -34,6 +36,7 @@ final class FakeMenu: Sendable {
             state.steps.append(step)
             switch step {
             case .open:
+                state.clock += state.openTakes
                 if let failure = state.openFailure { throw failure }
             case .read:
                 guard state.hiddenReads == 0 else {
@@ -196,11 +199,11 @@ enum NoiseControlSwitchTests {
         var result = await outcome(.set(.transparency))
         check("a set switches once the menu shows", (try? result.get()) == .transparency)
         check("it waits for the menu, presses, confirms and closes",
-              fakeMenu.steps == [.open, .read, .read, .read, .press(.transparency), .read, .close])
+              fakeMenu.steps == [.open, .read, .read, .read, .press(.transparency), .read, .close(sawModes: true)])
 
         fakeMenu.reset(menu(full, selected: .adaptive))
         result = await outcome(.set(.adaptive))
-        check("the current mode needs no press", (try? result.get()) == .adaptive && fakeMenu.steps == [.open, .read, .close])
+        check("the current mode needs no press", (try? result.get()) == .adaptive && fakeMenu.steps == [.open, .read, .close(sawModes: true)])
 
         fakeMenu.reset(menu(full, selected: .transparency))
         result = await outcome(.cycle)
@@ -209,35 +212,47 @@ enum NoiseControlSwitchTests {
         fakeMenu.reset(full.map { NoiseControlButton(mode: $0, selected: nil) })
         result = await outcome(.set(.off))
         check("a menu reporting no state is trusted after the press",
-              (try? result.get()) == .off && fakeMenu.steps == [.open, .read, .press(.off), .close])
+              (try? result.get()) == .off && fakeMenu.steps == [.open, .read, .press(.off), .close(sawModes: true)])
 
         fakeMenu.reset([])
         result = await outcome(.set(.transparency))
-        check("a menu without noise control fails, never hangs", failure(result) == .notInMenu)
+        check("a menu without noise control fails, never hangs",
+              failure(result) == NoiseControlFailure.nothingListed(language: Locale.preferredLanguages.first))
         check("it gives up at the deadline and still closes",
-              fakeMenu.steps.count(where: { $0 == .read }) == 60 && fakeMenu.steps.last == .close)
+              fakeMenu.steps.count(where: { $0 == .read }) == 60 && fakeMenu.steps.last == .close(sawModes: false))
+        check("an empty menu on another language asks for English",
+              NoiseControlFailure.nothingListed(language: "pl-PL") == .needsEnglish)
+        check("an empty menu in English says so", NoiseControlFailure.nothingListed(language: "en-GB") == .notInMenu
+              && NoiseControlFailure.nothingListed(language: nil) == .notInMenu)
 
         fakeMenu.reset(menu(full, selected: .noiseCancellation))
         fakeMenu.state.withLock { $0.pressSelects = false }
         result = await outcome(.set(.transparency))
-        check("a press that never takes times out", failure(result) == .timedOut && fakeMenu.steps.last == .close)
+        check("a press that never takes times out", failure(result) == .timedOut && fakeMenu.steps.last == .close(sawModes: true))
 
         fakeMenu.reset(menu([.off, .transparency, .noiseCancellation], selected: .off))
         result = await outcome(.set(.adaptive))
         check("a mode the menu lacks fails and closes",
-              failure(result) == .modeUnavailable && fakeMenu.steps == [.open, .read, .close])
+              failure(result) == .modeUnavailable && fakeMenu.steps == [.open, .read, .close(sawModes: true)])
 
         fakeMenu.reset(menu(full, selected: .off))
         fakeMenu.state.withLock { $0.openFailure = .menuUnavailable }
         result = await outcome(.set(.transparency))
-        check("no Sound menu fails without a close", failure(result) == .menuUnavailable && fakeMenu.steps == [.open])
+        check("an open that throws still closes, as its press may have landed",
+              failure(result) == .menuUnavailable && fakeMenu.steps == [.open, .close(sawModes: false)])
+
+        fakeMenu.reset(menu(full, selected: .off))
+        fakeMenu.state.withLock { $0.openTakes = .seconds(4) }
+        result = await outcome(.set(.transparency))
+        check("a slow open ends at the deadline and closes",
+              failure(result) == .timedOut && fakeMenu.steps == [.open, .close(sawModes: false)])
 
         fakeMenu.reset(menu(full, selected: .off))
         let cancelled = Task { await outcome(.set(.transparency)) }
         cancelled.cancel()
         result = await cancelled.value
         check("a cancelled switch stops before pressing and closes",
-              !fakeMenu.steps.contains(.press(.transparency)) && fakeMenu.steps.last == .close)
+              !fakeMenu.steps.contains(.press(.transparency)) && fakeMenu.steps.last == .close(sawModes: false))
         if case .failure(let error) = result { check("cancellation stays cancellation", error is CancellationError) }
     }
 
@@ -307,5 +322,19 @@ enum NoiseControlSwitchTests {
         await stopped?.value
         check("switching off mid-run posts nothing and ends the notice",
               presenter.posts.count == posts && presenter.ends.last == NoiseControlModule.noticeID)
+
+        controller.start()
+        fakeMenu.reset(menu([.off, .transparency, .noiseCancellation], selected: .transparency))
+        _ = controller.run(entryID: "command:nc-noise-cancellation")
+        let walking = controller.context(forSwitch: NoiseControlAddon.switchID)?.module(NoiseControlModule.self)?.switchTask
+        controller.stop()
+        controller.start()
+        _ = controller.run(entryID: "command:nc-transparency")
+        await walking?.value
+        check("a module restarted mid-walk starts no second walk", fakeMenu.steps.count(where: { $0 == .open }) == 1)
+        _ = controller.run(entryID: "command:nc-transparency")
+        await controller.context(forSwitch: NoiseControlAddon.switchID)?.module(NoiseControlModule.self)?.switchTask?.value
+        check("once the old walk ends, a press runs again", fakeMenu.steps.count(where: { $0 == .open }) == 2)
+        controller.stop()
     }
 }
