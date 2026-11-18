@@ -820,7 +820,7 @@ fixture
 list_pr 1 timers
 list_pr 2 scripts
 train 1 2
-[ "$status" -eq 0 ] && [ -n "$train_sha" ] || { cat "$FIXTURE/train-output"; fail 'two PRs that each add a name to the same lines did not fit one train'; }
+[ "$status" -eq 0 ] && [ -n "$train_sha" ] || { cat "$FIXTURE/train-output"; echo 'FAIL: two PRs that each add a name to the same lines did not fit one train'; exit 1; }
 echo "$train_sha" > "$FIXTURE/green"
 land --train-run "$train_sha" 1 2
 [ "$status" -eq 0 ] && [ "$(landed)" = 'Notchcast: Add timers (#1)|Notchcast: Add scripts (#2)' ] || fail "the word-merged train landed '$(landed)'"
