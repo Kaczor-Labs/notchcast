@@ -28,7 +28,7 @@ done
 echo 'PASS: CI wrapper keeps the hosted skips on GitHub-hosted runners and the self-hosted skips on self-hosted ones'
 # A self-hosted runner is a working Mac: a harness naming one of these APIs runs there only once it is listed as skipped.
 source "$root/notchcast/config.env"
-risky='NSWindow\(|NSPanel\(|PalettePanel\(|orderFront|becomeKey|makeKey|NSApplication\.shared|NSApp\.|/usr/bin/open|NSWorkspace|NSRunningApplication|AudioObjectSetPropertyData|CGEvent\(|CGEvent\.tapCreate|\.post\(tap|NSAppleScript|osascript|CFPreferencesSetValue|NSSound|NSPasteboard|AXUIElement|AVCaptureDevice|AVAudioEngine|SCStream|SecItem|NSOpenPanel|NSSavePanel|NSAlert|UNUserNotification'
+risky='NSWindow\(|NSPanel\(|PalettePanel\(|orderFront|becomeKey|makeKey|NSApplication\.shared|NSApp\.|/usr/bin/open|NSWorkspace|NSRunningApplication|AudioObjectSetPropertyData|CGEvent\(|CGEvent\.tapCreate|\.post\(tap|NSAppleScript|osascript|CFPreferencesSetValue|NSSound|NSPasteboard|AXUIElement|AVCaptureDevice|AVAudioEngine|SCStream|SecItem|KeychainSecretStore\(|NSOpenPanel|NSSavePanel|NSAlert|UNUserNotification'
 unlisted=$(cd "$root/Tests" && grep -lE "$risky" *.swift | sed 's/\.swift$//' \
     | grep -vxF -e NotchcastTapFixtures -e 'ExtensionTests+MenuBar' \
     | grep -vxF -f <(tr ' ' '\n' <<< "$SELF_HOSTED_SKIP_TESTS $HIDDEN_TESTS") || true)
