@@ -44,7 +44,7 @@ struct NotchIslandMenuTests {
         let primary = dark(NotchMenuInk.primary(onIsland: true))
         check("island primary is textPrimary", primary == [255, 255, 255, 255])
         let secondary = dark(NotchMenuInk.secondary(onIsland: true))
-        check("island secondary is textSecondary", secondary == dark(Color.white.opacity(0.60)))
+        check("island secondary is textSecondary", secondary == dark(Color.white.opacity(0.72)))
         check("stock primary stays system", NotchMenuInk.primary(onIsland: false) == .primary)
         check("stock secondary stays system", NotchMenuInk.secondary(onIsland: false) == .secondary)
         check("destructive is the one red", dark(Theme.Colors.destructive) == dark(Color.red))

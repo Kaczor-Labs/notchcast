@@ -104,6 +104,8 @@ def main() -> int:
     if len(sys.argv) != 3 or sys.argv[1] not in ("begin", "end") or not sys.argv[2].isdigit():
         sys.exit(__doc__)
     command, pid = sys.argv[1], int(sys.argv[2])
+    if not os.path.isdir(PREFS):  # Linux has no preference folder to sweep
+        return 0
     active, baseline, prefixes = STATE / "active", STATE / "baseline", STATE / "prefixes"
     active.mkdir(parents=True, exist_ok=True)
     with open(STATE / "lock", "w") as lock:

@@ -32,6 +32,8 @@ final class DownloadsModule: NotchcastModule {
         var queues: URL
         var tools: DownloadToolLookup
         var clipboard: @MainActor () -> String
+        /// Nil gives an engine that never starts, so a harness that ignores torrents needs nothing.
+        var torrents: TorrentManager.Environment?
         /// Scratch audio for Distill; each run removes its own folder when it ends.
         var work = FileManager.default.temporaryDirectory.appending(path: "Notchcast Distill", directoryHint: .isDirectory)
 
@@ -40,13 +42,16 @@ final class DownloadsModule: NotchcastModule {
 
     nonisolated static let switchID = "downloads"
     nonisolated static let distillSwitchID = "distill"
+    nonisolated static let torrentsSwitchID = "torrents"
+    nonisolated static let keepSharingSwitchID = "torrentsKeepSharing"
     let downloads: DownloadsQueueController
     let distill: DownloadsQueueController
+    let torrents: TorrentManager
     private let drops: DistillDropWatcher
-    private let context: NotchcastContext
-    private let environment: Environment
-    private var running = false
-    private var active = (downloads: false, distill: false)
+    let context: NotchcastContext
+    let environment: Environment
+    private(set) var running = false
+    private var active = (downloads: false, distill: false, torrents: false)
 
     init(context: NotchcastContext, environment: Environment) {
         self.context = context
@@ -66,11 +71,16 @@ final class DownloadsModule: NotchcastModule {
                                     symbol: "arrow.down.circle")
         DownloadsIslandBridge.track(distill, presenter: context.presenter, noticeID: "distill.progress",
                                     symbol: "text.badge.plus")
+        torrents = TorrentManager(
+            environment: environment.torrents ?? .init(downloads: environment.downloads), now: context.now,
+            keepSharing: { [preferences = context.preferences] in preferences.isEnabled(Self.keepSharingSwitchID) })
+        TorrentIslandBridge.track(torrents, presenter: context.presenter, reveal: torrents.reveal)
     }
 
     func start() {
         guard !running else { return }
         running = true
+        context.handleOpenURL { [weak self] in self?.open($0) ?? false }
         follow()
     }
 
@@ -79,7 +89,8 @@ final class DownloadsModule: NotchcastModule {
         running = false
         if active.downloads { downloads.stop() }
         if active.distill { stopDistill() }
-        active = (false, false)
+        torrents.stop()
+        active = (false, false, false)
     }
 
     func perform(_ action: Action) {
@@ -139,7 +150,8 @@ final class DownloadsModule: NotchcastModule {
     private func follow() {
         guard running else { return }
         let enabled = withObservationTracking {
-            (downloads: context.isEnabled(Self.switchID), distill: context.isEnabled(Self.distillSwitchID))
+            (downloads: context.isEnabled(Self.switchID), distill: context.isEnabled(Self.distillSwitchID),
+             torrents: context.isEnabled(Self.torrentsSwitchID))
         } onChange: { [weak self] in
             Task { @MainActor [weak self] in self?.follow() }
         }
@@ -148,6 +160,9 @@ final class DownloadsModule: NotchcastModule {
         }
         if enabled.distill != active.distill {
             if enabled.distill { distill.start(configure: configureDistill) } else { stopDistill() }
+        }
+        if enabled.torrents != active.torrents {
+            if enabled.torrents { torrents.start() } else { torrents.stop() }
         }
         active = enabled
     }

@@ -1,0 +1,14 @@
+{
+  "sourceLanguage" : "en",
+  "strings" : {
+    "Allow Accessibility access to copy the document's path." : {},
+    "Allow Automation access to Finder to copy its path." : {},
+    "Allow Automation access to the browser to copy its link." : {},
+    "Copied path" : {},
+    "Copy Path" : {},
+    "Copy the Finder selection, the browser link or the front document's path." : {},
+    "Could not copy to clipboard." : {},
+    "Unavailable" : {}
+  },
+  "version" : "1.0"
+}
