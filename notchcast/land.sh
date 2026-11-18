@@ -126,7 +126,7 @@ admit() {
             git fetch -q origin "$sha" 2>/dev/null && green "$sha" || continue
             [ -n "$(git diff --name-only "$sha" "$head" | grep -vxF "$generated")" ] || { proven=$sha; break; }
         done
-        [ -n "$proven" ] || refuse "build is not green on ${head:0:8}; if it has none, run: gh workflow run PR --ref $branch -R $FORK_REPO"
+        [ -n "$proven" ] || refuse "build is not green on ${head:0:8}; if it has none, run: gh workflow run PR --ref $branch -R $FORK_REPO -f hosted=true"
         echo "build: ${head:0:8} differs from green ${proven:0:8} only in generated files"
     fi
     printf '%s\n' "$metadata" > "$scratch/pr-$pr.json"

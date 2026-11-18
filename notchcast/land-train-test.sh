@@ -334,6 +334,7 @@ train 1 2
 [ "$(origin rev-parse refs/heads/train/1-2)" = "$train_sha" ] && [ "$(origin rev-parse "$train_sha~2")" = "$base" ] \
     && [ "$(origin rev-parse "$train_sha^2")" = "$(jq -r .headRefOid "$FIXTURE/pr-2.json")" ] || fail 'train/1-2 is not main plus each head'
 [ "$(grep -c -- '--ref train/1-2' "$FIXTURE/dispatched")" -eq 4 ] && [ "$(grep -c "base=$base" "$FIXTURE/dispatched")" -eq 3 ] \
+    && [ "$(grep -c 'hosted=true' "$FIXTURE/dispatched")" -eq 1 ] && grep -q '^workflow run pr.yml .*hosted=true' "$FIXTURE/dispatched" \
     || fail "dispatched '$(paste -sd'|' "$FIXTURE/dispatched")'"
 echo "$train_sha" > "$FIXTURE/green"
 draft 1
