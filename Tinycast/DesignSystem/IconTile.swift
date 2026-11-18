@@ -19,7 +19,7 @@ struct IconTile: View {
                 .foregroundStyle(.white)
                 .frame(width: side * Theme.IconTile.glyphRatio, height: side * Theme.IconTile.glyphRatio)
                 .frame(width: side, height: side)
-                .background(Theme.IconTile.fill(tint), in: shape)
+                .background(NotchTheme.Colors.iconTileFill, in: shape)
                 .overlay {
                     shape.strokeBorder(
                         Theme.IconTile.edgeLight, lineWidth: side * Theme.IconTile.edgeLightRatio)
