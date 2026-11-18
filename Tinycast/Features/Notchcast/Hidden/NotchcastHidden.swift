@@ -1,6 +1,6 @@
 // Hidden rather than removed, so upstream code still compiles and rebases; notchcast/docs/hidden.md.
 enum NotchcastHidden {
-    static let tabs: Set<SettingsTab> = [.extensions, .appleShortcuts]
+    static let tabs: Set<SettingsTab> = [.extensions, .appleShortcuts, .iCloudSync]
     /// The app speaks English only; `AppSettings.pinLanguage()` writes this at every launch.
     static let language = "en"
     /// English keys of the General rows the island or the English-only build makes meaningless;
