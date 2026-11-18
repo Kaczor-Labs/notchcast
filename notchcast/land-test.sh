@@ -1,5 +1,5 @@
 #!/bin/bash
-# script-tests: macos (Scripts/run-tests.sh's lockf and a real swiftc harness)
+# script-tests: macos (the two-PR fixtures compile the mac-only notchcast-hidden-features-test)
 set -euo pipefail
 root=$(git rev-parse --show-toplevel)
 sync_wait_tests() (

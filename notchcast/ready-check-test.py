@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# script-tests: macos (ready-check.sh's getconf DARWIN_USER_TEMP_DIR)
 """Verify ready-check.sh covers every pr.yml step and reports PASS or the first failing gate."""
 import os
 from pathlib import Path
