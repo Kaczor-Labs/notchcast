@@ -3,6 +3,7 @@
   "strings" : {
     "%@ could not start: %@" : {},
     "%@ could not start: no folder at %@" : {},
+    "%@ did not start" : {},
     "%@ failed (exit %lld)" : {},
     "%@ failed (exit %lld): %@" : {},
     "%@ finished" : {},

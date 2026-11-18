@@ -69,6 +69,12 @@ enum ScriptRun {
             process.terminate()
         }
         let outcome: ScriptOutcome = timedOut ? .timedOut : .exited(exit.status)
-        return Result(outcome: outcome, output: exit.output)
+        return Result(outcome: outcome, output: plainText(exit.output))
+    }
+
+    /// A terminal's output as text: CRLF line ends, escape sequences dropped.
+    static func plainText(_ raw: String) -> String {
+        raw.replacing("\r\n", with: "\n")
+            .replacing(#/\x1B\[[0-?]*[ -\/]*[@-~]|\x1B\][^\x07\x1B]*(?:\x07|\x1B\\)|\x1B[ -\/]+[0-~]|\x1B[@-Z\\-_]/#, with: "")
     }
 }

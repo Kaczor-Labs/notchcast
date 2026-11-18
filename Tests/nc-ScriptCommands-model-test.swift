@@ -92,6 +92,12 @@ enum ScriptCommandsModelTests {
         let long = ScriptReport.lastLine(of: String(repeating: "x", count: 500))
         precondition(long?.count == ScriptReport.lastLineLimit && long?.hasSuffix("…") == true, "a long line is cut")
 
+        // A pty's output: CRLF and escape codes never reach the island or the viewer.
+        precondition(ScriptRun.plainText("\u{1B}[1;31mError\u{1B}[0m: boom\r\nnext\r\n") == "Error: boom\nnext\n",
+                     "colour codes and CRLF go")
+        precondition(ScriptRun.plainText("\u{1B}]0;title\u{07}ok \u{1B}(Bdone") == "ok done", "titles and charset switches go")
+        precondition(ScriptRun.plainText("50% done") == "50% done", "plain text stays")
+
         print("PASS: script commands model covers building, timeouts, stored rows and result wording")
     }
 }
