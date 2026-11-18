@@ -528,6 +528,8 @@ struct NotchcastCoreTest {
                 && view.contains("ShortcutRecorder(action: .notchcastCommand(entryID: command.id))"))
         check("each add-on command draws its own Show in launcher checkbox",
               view.contains("preferences.setShowsInLauncher(command.id, $0)"))
+        check("that checkbox says what it does on screen, not only to VoiceOver",
+              view.contains("Toggle(\"Show in launcher\", isOn:") && !view.contains(".labelsHidden()"))
     }
 
     /// The Notchcast sidebar section: which tab holds which category, which tabs show, and their links.
