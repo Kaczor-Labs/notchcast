@@ -17,6 +17,7 @@ final class IslandPresenter: IslandPresenting {
     private var notices = IslandNoticeQueue()
     private var noticeTask: Task<Void, Never>?
     private var statuses: [IslandStatus] = []
+    private var hovered = false
     private var noticeTaps: [String: @MainActor () -> Void] = [:]
     private var statusTaps: [String: @MainActor () -> Void] = [:]
     private(set) var menus: [Menu] = []
@@ -71,6 +72,7 @@ final class IslandPresenter: IslandPresenting {
         statusTaps[id] = status == nil ? nil : onTap
         if let status { statuses.append(status) }
         AppCore.shared.island.resting?.statuses = statuses
+        if hovered { AppCore.shared.island.resting?.notice = shownNotice }
     }
 
     /// A click on the resting pill acts on what it shows; the meeting glance hides status.
@@ -78,6 +80,17 @@ final class IslandPresenter: IslandPresenting {
         if let notice = notices.notice { return noticeTaps[notice.id] }
         if AppCore.shared.island.resting?.glance != nil { return nil }
         return statuses.last.flatMap { statusTaps[$0.id] }
+    }
+
+    /// The pointer resting on the island opens the long form of what it shows (#884 H2 to H7).
+    func hoverChanged(_ open: Bool) {
+        hovered = open
+        noticesChanged()
+    }
+
+    private var shownNotice: IslandNotice? {
+        IslandHover.notice(top: notices.notice, statuses: statuses, glance: AppCore.shared.island.resting?.glance != nil,
+                           level: dwell.level != nil, hovered: hovered)
     }
 
     /// Hands notices and status to the resting pill without posting, so none re-announces.
@@ -119,8 +132,9 @@ final class IslandPresenter: IslandPresenting {
         let time = now()
         let core = AppCore.shared
         let unseen = dwell.level != nil || core.palette.isVisible || core.isShowingDialog || core.island.resting == nil
-        if notices.paused != unseen { notices.pause(unseen, at: time) }
-        core.island.resting?.notice = notices.notice
+        let held = unseen || hovered && notices.notice != nil
+        if notices.paused != held { notices.pause(held, at: time) }
+        core.island.resting?.notice = shownNotice
         if let text = notices.announcement() {
             NSAccessibility.post(element: NSApp as Any, notification: .announcementRequested,
                 userInfo: [.announcement: text, .priority: NSAccessibilityPriorityLevel.high.rawValue])
@@ -181,7 +195,7 @@ final class IslandPresenter: IslandPresenting {
             expansionTask?.cancel()
             expansionTask = nil
         }
-        let pill = expansion.showing == nil ? nil : core.island.resting
+        let pill = expansion.showing == nil && !hovered ? nil : core.island.resting
         if expandedPill !== pill { expandedPill?.expanded = false }
         expandedPill = pill
         pill?.expanded = true
