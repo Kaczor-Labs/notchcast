@@ -35,7 +35,7 @@ struct ArgumentFieldEdgeStyle: ShapeStyle {
     let isOwed: Bool
 
     func resolve(in environment: EnvironmentValues) -> Color.Resolved {
-        if isFocused { return Color.accentColor.resolve(in: environment) }
+        if isFocused { return Theme.Colors.primaryAction.resolve(in: environment) }
         if isOwed { return Theme.Colors.destructive.opacity(0.55).resolve(in: environment) }
         return IslandCardStyle(stock: Theme.Colors.cardStroke, island: .clear).resolve(in: environment)
     }

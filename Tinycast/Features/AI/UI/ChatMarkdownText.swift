@@ -107,6 +107,7 @@ final class ChatSelectableTextView: NSTextView {
     func show(_ next: ChatMarkdownSource) {
         guard next != source else { return }
         source = next
+        applyIslandInks(frosted: next.frosted)
         let output = ChatMarkdownRenderer(next).render()
         rendered = output
         measured = nil

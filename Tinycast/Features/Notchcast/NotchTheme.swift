@@ -59,6 +59,11 @@ enum NotchTheme {
         static let accentInk = ObsidianTokens.Theme.primaryForeground
         /// A rule inside a `keyCapFill` card: the `selection` step, which reads on card and black.
         static let cardRule = Theme.Colors.selection
+        /// Selected text in an AppKit view, in place of the system highlight, which is the system accent.
+        static let textSelection = ObsidianTokens.Theme.selection
+
+        /// Frosted lifts a syntax ink toward white; stock ones drop under 4.5:1 on a card over its glass.
+        static func codeInk(_ ink: Color) -> Color { ink.frosted(ink.mix(with: .white, by: 0.35, in: .device)) }
     }
 }
 
@@ -106,5 +111,17 @@ extension NotchTheme {
     /// One dim for a disabled control; stock and island read it, so the value stays upstream's 0.45.
     enum Opacity {
         static let disabled = 0.45
+    }
+}
+
+extension NSTextView {
+    /// AppKit's highlight and link blue are the system accent; the look has one accent, white.
+    func applyIslandInks(frosted: Bool) {
+        let primary = Theme.Colors.textPrimary.islandInk(frosted: frosted)
+        guard !primary.isEqual(selectedTextAttributes[.foregroundColor]) else { return }
+        selectedTextAttributes = [
+            .backgroundColor: NotchTheme.Colors.textSelection.islandInk(frosted: frosted), .foregroundColor: primary]
+        linkTextAttributes = [.foregroundColor: primary, .underlineStyle: NSUnderlineStyle.single.rawValue,
+                              .cursor: NSCursor.pointingHand]
     }
 }

@@ -395,7 +395,7 @@ struct ChatMarkdownRenderer {
     private func colorSyntax(of body: NSMutableAttributedString, language: String?) {
         var inks: [SyntaxKind: NSColor] = [:]
         for token in SyntaxHighlighter.tokens(in: body.string, language: language) {
-            let ink = inks[token.kind] ?? NSColor(Self.syntaxColor(token.kind))
+            let ink = inks[token.kind] ?? self.ink(NotchTheme.Colors.codeInk(Self.syntaxColor(token.kind)))
             inks[token.kind] = ink
             body.addAttribute(.foregroundColor, value: ink, range: token.range)
         }

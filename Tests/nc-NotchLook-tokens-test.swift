@@ -79,6 +79,19 @@ struct NotchLookTokensTests {
         check(label, ratio >= 4.5, String(format: "%.2f:1", ratio))
     }
 
+    /// A mark that is not text (an edge, an outline) needs 3:1.
+    static func visible(_ label: String, _ ink: Color.Resolved, on ground: [Double]) {
+        let ratio = contrast(ink, on: ground)
+        print(String(format: "  %.2f:1  %@", ratio, label))
+        check(label, ratio >= 3, String(format: "%.2f:1", ratio))
+    }
+
+    static func sameInk(_ label: String, _ ink: Any?, _ token: Color, frosted: Bool) {
+        let actual = (ink as? NSColor).map { components(Color(nsColor: $0), .darkAqua) }
+        let wanted = rgba(resolved(token, frosted: frosted))
+        check(label, actual == wanted, "\(String(describing: actual)) != \(wanted)")
+    }
+
     static func equal(_ label: String, _ actual: CGFloat, _ expected: CGFloat) {
         check(label, actual == expected, "\(actual) != \(expected)")
     }
@@ -190,6 +203,52 @@ struct NotchLookTokensTests {
         }
         let pressed = over(resolved(IslandButtonFill.primary(0.36), frosted: true), body)
         legible("accent ink on pressed primary", resolved(NotchTheme.Colors.accentInk, frosted: true), on: pressed)
+
+        print("# Black text keeps 4.5:1 on the island black")
+        let black0 = [0.0, 0.0, 0.0]
+        for (name, ink) in inks { legible("black \(name)", resolved(ink, frosted: false), on: black0) }
+
+        print("# AppKit inks: selected text, a form placeholder, the chat's body, the accent as a mark")
+        same("text selection", NotchTheme.Colors.textSelection, Color.white.opacity(0.22), .darkAqua)
+        let chatBody = Color(nsColor: .labelColor)
+        let s = Theme.Colors.Syntax.self
+        let syntax: [(String, Color)] = [
+            ("keyword", s.keyword), ("string", s.string), ("number", s.number), ("comment", s.comment),
+            ("type", s.type), ("function", s.function), ("constant", s.constant), ("attribute", s.attribute),
+            ("property", s.property), ("inserted", s.inserted), ("deleted", s.deleted),
+        ]
+        let grounds = [("black", false, black0), ("frosted", true, body), ("frosted solid", true, solid)]
+        for (look, frosted, ground) in grounds {
+            let selection = resolved(NotchTheme.Colors.textSelection, frosted: frosted)
+            let primary = resolved(c.textPrimary, frosted: frosted)
+            legible("selected text on \(look)", primary, on: over(selection, ground))
+            let card = over(resolved(NotchTheme.Colors.keyCapFill, frosted: frosted), ground)
+            legible("selected code in a card on \(look)", primary, on: over(selection, card))
+            let field = over(resolved(c.cardFill, frosted: frosted), ground)
+            legible("placeholder in a form field on \(look)", resolved(c.textTertiary, frosted: frosted), on: field)
+            legible("chat body on \(look)", resolved(chatBody, frosted: frosted), on: ground)
+            visible("focused field edge on \(look)", resolved(c.primaryAction, frosted: frosted), on: ground)
+            visible("level outline on \(look)", resolved(c.textSecondary, frosted: frosted), on: ground)
+            for (name, ink) in syntax {
+                legible("\(name) code on \(look)", resolved(NotchTheme.Colors.codeInk(ink), frosted: frosted), on: card)
+            }
+        }
+        let badge = over(resolved(c.roomCardStroke, frosted: false), black0)
+        legible("room badge number on the accent", resolved(NotchTheme.Colors.accentInk, frosted: false), on: badge)
+
+        print("# AppKit text takes the look's selection and link inks, never the system accent")
+        let text = NSTextView()
+        for frosted in [false, true, false] {
+            text.applyIslandInks(frosted: frosted)
+            let look = frosted ? "frosted" : "black"
+            sameInk("\(look) selection ground", text.selectedTextAttributes[.backgroundColor],
+                    NotchTheme.Colors.textSelection, frosted: frosted)
+            sameInk("\(look) selected ink", text.selectedTextAttributes[.foregroundColor], c.textPrimary,
+                    frosted: frosted)
+            sameInk("\(look) link ink", text.linkTextAttributes?[.foregroundColor], c.textPrimary, frosted: frosted)
+            check("\(look) link is underlined",
+                  text.linkTextAttributes?[.underlineStyle] as? Int == NSUnderlineStyle.single.rawValue)
+        }
 
         print("\n\(passes) passed, \(failures) failed")
         print(failures == 0 ? "PASS nc-NotchLook-tokens" : "FAIL nc-NotchLook-tokens")

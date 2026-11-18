@@ -494,7 +494,7 @@ enum Theme {
         /// A room card is a solid window in both appearances, so the desk never shows through.
         static let roomCardFill = adaptive(
             dark: .srgbInk(0.16, alpha: 0.94), light: .srgbInk(0.98, alpha: 0.94))
-        static let roomCardStroke = Color.accentColor
+        static let roomCardStroke = primaryAction
         static let roomCardShadow = adaptive(
             dark: .srgbInk(0, alpha: 0.25), light: .srgbInk(0, alpha: 0.25))
         static let roomCardDot = ramp(dark: 0.25, light: 0.25)
