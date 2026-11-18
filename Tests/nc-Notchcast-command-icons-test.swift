@@ -37,6 +37,10 @@
 // notchcast-sources: Tinycast/Features/Notchcast/SmallCommands/Service/SmallCommandsSystem.swift
 // notchcast-sources: Tinycast/Features/Notchcast/SmallCommands/Service/AirDropService.swift
 // notchcast-sources: Tinycast/Features/Notchcast/SmallCommands/Service/ShortenLinkSession.swift
+// notchcast-sources: Tinycast/Features/Notchcast/PastePlainText/PastePlainTextAddon.swift
+// notchcast-sources: Tinycast/Features/Notchcast/PastePlainText/Model/*.swift
+// notchcast-sources: Tinycast/Features/Notchcast/PastePlainText/Service/PastePlainTextModule.swift
+// notchcast-sources: Tinycast/Features/Notchcast/PastePlainText/Service/PastePlainTextSystem.swift
 // notchcast-sources: Tinycast/Features/Notchcast/Screenshots/ScreenshotsAddon.swift
 // notchcast-sources: Tinycast/Features/Notchcast/Screenshots/Model/*.swift
 // notchcast-sources: Tinycast/Features/Notchcast/Screenshots/Service/ScreenshotSystem.swift
@@ -72,7 +76,9 @@ import SwiftUI
 @main
 @MainActor
 enum NotchcastCommandIconTests {
-    static let addons: [any NotchcastAddon.Type] = [SmallCommandsAddon.self, DownloadsAddon.self, ScreenshotsAddon.self]
+    static let addons: [any NotchcastAddon.Type] = [
+        SmallCommandsAddon.self, DownloadsAddon.self, ScreenshotsAddon.self, PastePlainTextAddon.self,
+    ]
 
     static var failures = 0
     static var checks = 0
@@ -145,6 +151,9 @@ struct ScreenshotsSettingsView: View {
     var body: some View { EmptyView() }
 }
 extension SmallCommandsSystem {
+    static var live: Self { fatalError("the harness never makes a module") }
+}
+extension PastePlainTextSystem {
     static var live: Self { fatalError("the harness never makes a module") }
 }
 extension ScreenshotSystem {

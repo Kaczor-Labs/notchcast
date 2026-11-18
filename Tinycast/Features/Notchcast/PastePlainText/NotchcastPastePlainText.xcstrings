@@ -1,0 +1,9 @@
+{
+  "sourceLanguage" : "en",
+  "strings" : {
+    "Allow Accessibility access to paste." : {},
+    "Paste Plain Text" : {},
+    "Paste the clipboard's text without formatting; the clipboard stays as it was." : {}
+  },
+  "version" : "1.0"
+}

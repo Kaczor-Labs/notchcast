@@ -67,7 +67,7 @@ Settings search finds every switch with no line in the add-on: core installs one
 | - | - | - | - |
 | Capture | Capture | F1 Screenshots | F39 editor, F40 text/OCR, F41 colour picker, F45 trimmer, F46 recording, F47 scrolling |
 | Display & Sound | Display & Sound | F2 Brightness (+extra dimming), F100 Volume in Island | DDC volume/mute, XDR, per-display, F102 Audio priority |
-| Keyboard & Mouse | Keyboard & Mouse | F3 Hide with ⌘M, F4 Middle Click, F5 Quit Protection, F6 Show Desktop with F3 | F12 Green button maximizes, F33 Paste plain text |
+| Keyboard & Mouse | Keyboard & Mouse | F3 Hide with ⌘M, F4 Middle Click, F5 Quit Protection, F6 Show Desktop with F3, F33 Paste Plain Text | F12 Green button maximizes |
 | Launcher | Launcher Extras | F10 Number Keys, F11 Small Commands | F27 Copy path, F29 GitHub search, F30 Quick Look on Space, F99 URL cleaner |
 | Files & Downloads | Downloads | F64 Downloads, F65 aria2, F62 Distill, F63 Distill Timestamps | F59 Distill folder, F60 Convert files, F68 Media tools, F32 Paste image in Finder, F128–F130 Torrents |
 | Power | (its add-on adds one) | (none; F108 Keep Awake and F109 Lid Closed were removed in #836; their switch names `keepAwake` and `lidClosedAwake` are retired, never reuse them, since old settings may still hold them on) | F101 Accessory batteries, F86 Low disk |
