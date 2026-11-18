@@ -518,7 +518,7 @@ enum Theme {
         static let composerSendInk = adaptive(dark: .srgbInk(0, alpha: 0.85), light: .srgbInk(1, alpha: 1))
         /// The window's own page, for a card that must hide the transcript it floats over.
         static let windowSurface = Color(nsColor: .windowBackgroundColor)
-        static let dropTarget = Color.accentColor
+        static let dropTarget = primaryAction
         /// Progress tint: the message pill's spinner while the work behind it is still running.
         static let progress = primaryAction
         /// The command output window's page: a flat surface the log sits directly on.

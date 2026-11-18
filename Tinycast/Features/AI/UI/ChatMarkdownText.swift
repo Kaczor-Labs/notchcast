@@ -93,7 +93,7 @@ final class ChatSelectableTextView: NSTextView {
         isVerticallyResizable = false
         isHorizontallyResizable = false
         allowsUndo = false
-        linkTextAttributes = [.foregroundColor: NSColor.linkColor, .cursor: NSCursor.pointingHand]
+        applyIslandInks(frosted: false)
     }
 
     override init(frame frameRect: NSRect, textContainer container: NSTextContainer?) {
