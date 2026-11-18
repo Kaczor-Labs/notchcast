@@ -1,4 +1,5 @@
 #!/bin/bash
+# script-tests: macos (update.sh's PlistBuddy and ditto)
 set -euo pipefail
 HERE="$(cd "$(dirname "$0")" && pwd)"
 WORK="$(mktemp -d)"

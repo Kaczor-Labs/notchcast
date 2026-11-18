@@ -8,8 +8,9 @@ set -a
 # shellcheck disable=SC1091
 source "$TOOLS/notchcast/config.env"
 set +a
-if [ "${RUNNER_ENVIRONMENT:-}" != github-hosted ]; then unset CI_SKIP_TESTS; fi
-# The queue filter in notchcast/test-harnesses.sh reads NOTCHCAST_ONLY_TESTS, NOTCHCAST_SHARD and CI_SKIP_TESTS.
+[ "${RUNNER_ENVIRONMENT:-}" = github-hosted ] || unset CI_SKIP_TESTS
+# The queue filter in notchcast/test-harnesses.sh reads NOTCHCAST_ONLY_TESTS, NOTCHCAST_SHARD and CI_SKIP_TESTS,
+# and skips HOSTED_ONLY_TESTS itself on a runner that is neither GitHub-hosted nor isolated.
 if [ -n "${NOTCHCAST_SWIFTC_CACHE:-}" ]; then
   # The swiftc already on PATH, not the toolchain's binary: xcrun's shim is what supplies the SDK.
   NOTCHCAST_SWIFTC_REAL=$(command -v swiftc)
@@ -23,6 +24,9 @@ fi
 failures=${RUNNER_TEMP:+$RUNNER_TEMP/harness-failures}
 record() { if [ -n "$failures" ]; then echo "$1" >> "$failures"; fi; }
 if [ -n "$failures" ]; then : > "$failures"; fi
+# Harnesses red here and on upstream too: ignored for the verdict, but this run proved none of them (pr.yml).
+excused=${RUNNER_TEMP:+$RUNNER_TEMP/harness-excused}
+if [ -n "$excused" ]; then : > "$excused"; fi
 status=0
 ./Scripts/run-tests.sh || status=$?
 BIN="${TMPDIR:-/tmp}/tinycast-harness"
@@ -55,6 +59,7 @@ if [ "$status" -ne 0 ] && ls "$BIN"/*.failed >/dev/null 2>&1; then
         echo "::error::$name fails with our commits and passes on upstream ${UPSTREAM:0:7}"; status=1; record "$name"
       else
         echo "::warning::$name fails on upstream ${UPSTREAM:0:7} too; not ours, ignored"
+        if [ -n "$excused" ]; then echo "$name" >> "$excused"; fi
       fi
     done
     git worktree remove --force "$RUNNER_TEMP/pristine"

@@ -57,6 +57,8 @@ enum NotchTheme {
         static let islandPanelFill = islandSurface.frosted(.clear)
         /// Black keeps SwiftUI's `.secondary` grey, so a row that used it renders the same pixels.
         static let secondaryLabel = Color.secondary.frosted(Frosted.textSecondary, lifted: Frosted.textPrimary)
+        /// The near-black label on the solid white accent, in both looks.
+        static let accentInk = ObsidianTokens.Theme.primaryForeground
         /// A rule inside a `keyCapFill` card: the `selection` step, which reads on card and black.
         static let cardRule = Theme.Colors.selection
     }
@@ -77,8 +79,7 @@ extension NotchTheme {
         static let controlFill = Color(.sRGB, white: 1, opacity: 0.07)
         static let controlEdge = Color(.sRGB, white: 1, opacity: 0.14)
         /// The one accent: the dialog's primary, progress, switches and the focus edge.
-        static let accent = textPrimary
-        static let accentInk = ink(0x111214)
+        static let accent = ObsidianTokens.Theme.accent
         static let destructive = ink(0xFF827A)
         static let destructiveLifted = ink(0xFFB3AE)
         static let success = ink(0x86D39B)
