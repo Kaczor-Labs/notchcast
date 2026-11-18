@@ -16,7 +16,7 @@ final class NotchcastCore {
             makeSession: NotchcastTapThread.start)
         controller = NotchcastController(
             addons: addons, defaults: defaults, hub: hub, dictation: NotchcastDictationBridge(core: core),
-            presenter: core.islandPresenter, settingsBackup: NotchcastSettingsBackupBridge(core: core))
+            settingsBackup: NotchcastSettingsBackupBridge(core: core), presenter: core.islandPresenter)
         NotchcastPane.install(Set(controller.switches.map(\.category)))
         let commands = addons.flatMap { $0.commands }
         NotchcastSettingsSearch.install(

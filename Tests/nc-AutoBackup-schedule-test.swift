@@ -81,7 +81,7 @@ final class Rig {
         let clock = clock
         controller = NotchcastController(
             addons: [AutoBackupAddon.self], defaults: defaults, hub: hub, dictation: FakeDictation(),
-            presenter: presenter, now: { clock.now }, settingsBackup: backup)
+            settingsBackup: backup, presenter: presenter, now: { clock.now })
         AutoBackupPreferences(defaults: defaults).chosenFolder = folder.path(percentEncoded: false)
         controller.start()
     }
@@ -111,6 +111,7 @@ final class Rig {
 }
 
 /// Main-actor turns only: every timer here is already due, so nothing waits on the clock.
+@MainActor
 func settle() async {
     for _ in 0..<50 { await Task.yield() }
 }
