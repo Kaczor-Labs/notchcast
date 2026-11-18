@@ -43,7 +43,7 @@ The in-app updater stays off in Notchcast. To keep a Mac current, clone this rep
   - **Capture**: screenshots of an area, window or display.
   - **Launcher Extras**: ⌘1–⌘9 open the first nine results; small commands for passwords, short links and AirDrop.
   - **Downloads**: video, audio, transcripts and webpages from clipboard links, with optional aria2c and transcription into a local folder.
-  - **Mac Tweaks**: turn off iPhone auto backups.
+  - **Mac Tweaks**: turn off iPhone auto backups; System in the Island, a page with CPU, memory, disk, network and the busiest processes, and a warning when the Mac runs hot.
 - **Add-on commands** are ordinary launcher commands: search them, and give them an alias, a hotkey or Show in launcher on the command's row in its Notchcast tab.
 
 Notchcast is English only and Dark only.
