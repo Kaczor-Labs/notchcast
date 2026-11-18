@@ -15,6 +15,7 @@ enum SettingsBackupCoverage {
         "automaticallyCheckForUpdates": .automaticallyCheckForUpdates,
         "islandShowsInCaptures": .islandShowsInCaptures,
         "islandOutlineWhenOpen": .islandOutlineWhenOpen,
+        "islandOpensOnHover": .islandOpensOnHover,
         "islandPosition": .islandPosition,
         "emojiSkinTone": .emojiSkinTone,
         "emojiGridColumns": .emojiGridColumns,

@@ -109,9 +109,10 @@ enum IslandWindowScenes {
         settings.orderOut(nil)
         await controller.capture("rest-deactivated")
         await IslandVerification.pause(0.2)
-        IslandVerification.require(controller.pressBackdrop(), "rest pill opens launcher")
+        IslandVerification.require(controller.pressBackdrop(), "rest pill takes the press")
         await IslandVerification.pause(0.2)
-        IslandVerification.require(panel.isVisible && core.palette.mode == .launcher, "rest press shows launcher")
+        IslandVerification.require(!panel.isVisible && core.island.pillMenu.isOpen,
+                                   "rest press opens the island's menu, never the launcher (#884)")
         print("PASS island window modal, deterministic level restore, screen retention and rest-only clicks")
         _exit(0)
     }

@@ -35,6 +35,7 @@ struct SettingsBackup: Codable {
         var automaticallyCheckForUpdates: Bool?
         var islandShowsInCaptures: Bool?
         var islandOutlineWhenOpen: Bool?
+        var islandOpensOnHover: Bool?
         var islandPosition: String?
         var popToRootSeconds: Int?
         var escapeKeyBehavior: String?
