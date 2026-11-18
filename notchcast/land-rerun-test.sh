@@ -5,6 +5,7 @@ scratch=$(mktemp -d)
 trap 'rm -rf "$scratch"' EXIT
 mkdir "$scratch/bin"
 sed -n '/^while :; do$/,/^done$/p' "$root/notchcast/land.sh" > "$scratch/retry"
+sed -n '/^generated_only() {$/,/^}$/p' "$root/notchcast/land.sh" > "$scratch/generated-only"
 cat > "$scratch/bin/git" <<'STUB'
 #!/bin/bash
 if [ "$1" = push ]; then
@@ -16,7 +17,7 @@ if [ "$1" = push ]; then
     exit 0
 fi
 if [ "$1" = fetch ]; then exit 0; fi
-if [ "$1" = diff ] && [ -n "${DIFF_FAILS:-}" ]; then echo 'fatal: bad object' >&2; exit 128; fi
+if [ "$1" = read-tree ] && [ -n "${READ_FAILS:-}" ]; then echo 'fatal: bad object' >&2; exit 128; fi
 exec "$REAL_GIT" "$@"
 STUB
 chmod +x "$scratch/bin/git"
@@ -27,7 +28,7 @@ git config user.name Damian
 git config user.email 336236323+kaczordodgers@users.noreply.github.com
 echo base > base.txt
 mkdir notchcast
-printf 'RUNTIME_JS = "runtime.js"\nGENERATED = ["generated.txt", RUNTIME_JS]\n' > notchcast/ci.py
+cp "$root"/notchcast/{ci.py,config.env} notchcast/
 git add .
 git commit -qm 'Fixture base'
 base=$(git rev-parse HEAD)
@@ -43,7 +44,8 @@ head=$(git rev-parse HEAD)
 git update-ref refs/remotes/origin/main "$base"
 export PATH="$scratch/bin:$PATH"
 # The loop starts after a green first pass: the train is one PR whose chain build and harnesses are stubbed.
-train=(1) check=0 rerun=0 pushes=0 hold_owner=1 covered=
+train=(1) check=0 rerun=0 pushes=0 hold_owner=1 covered= top=$scratch
+source "$scratch/generated-only"
 refuse() { echo "REFUSED: $*"; exit 1; }
 build_chain() { echo rebuilt >> "$scratch/rebuilt"; tip=$head; }
 harnesses() { refuse 'selected harness detects removed API in disjoint file'; }
@@ -80,8 +82,9 @@ echo 'PASS: a hold set during the check refuses before the push'
 # Main moving only in a generated file (the Generated workflow's push) merges again but skips the harnesses.
 HOLD=
 git switch -q --detach "$base"
-echo regenerated > generated.txt
-git add generated.txt
+mkdir Tinycast.xcodeproj
+echo regenerated > Tinycast.xcodeproj/project.pbxproj
+git add Tinycast.xcodeproj
 git commit -qm 'Fixture generated'
 export MOVED=$(git rev-parse HEAD)
 git switch -q --detach "$head"
@@ -104,18 +107,19 @@ echo 'PASS: a generated-only move merges again, skips the harnesses and pushes'
 rm -f "$scratch/rebuilt" "$scratch/harnessed"
 git update-ref refs/remotes/origin/main "$base"
 status=0
-(DIFF_FAILS=1 source "$scratch/retry") > "$scratch/output" 2>&1 || status=$?
-if [ "$status" -ne 1 ] || [ -e "$scratch/harnessed" ] || ! grep -q 'cannot read how main moved' "$scratch/output"; then
+(READ_FAILS=1 source "$scratch/retry") > "$scratch/output" 2>&1 || status=$?
+if [ "$status" -ne 0 ] || [ ! -e "$scratch/harnessed" ] || ! grep -q 'merging again and rerunning harnesses' "$scratch/output"; then
     cat "$scratch/output"
     echo 'FAIL: an unreadable move skipped the harnesses'
     exit 1
 fi
-[ "$(wc -l < "$PUSHES")" -eq 1 ]
-echo 'PASS: an unreadable move refuses before the second push'
-# The runtime JS is generated and only hidden harnesses load it, so a move touching it skips the harnesses too.
+[ "$(wc -l < "$PUSHES")" -eq 2 ]
+echo 'PASS: an unreadable move reruns the harnesses'
+# Harnesses load the runtime JS and CI never rebuilds it (ci.py tested-key), so a move touching it reruns them.
 git switch -q --detach "$base"
-echo rebuilt > runtime.js
-git add runtime.js
+mkdir -p Tinycast/Resources
+echo rebuilt > Tinycast/Resources/RaycastRuntime.generated.js
+git add Tinycast
 git commit -qm 'Fixture runtime'
 export MOVED=$(git rev-parse HEAD)
 git switch -q --detach "$head"
@@ -124,10 +128,10 @@ rm -f "$scratch/rebuilt" "$scratch/harnessed"
 git update-ref refs/remotes/origin/main "$base"
 status=0
 (source "$scratch/retry") > "$scratch/output" 2>&1 || status=$?
-if [ "$status" -ne 0 ] || [ -e "$scratch/harnessed" ] || ! grep -q 'only in generated files' "$scratch/output"; then
+if [ "$status" -ne 0 ] || [ ! -e "$scratch/harnessed" ] || ! grep -q 'merging again and rerunning harnesses' "$scratch/output"; then
     cat "$scratch/output"
-    echo 'FAIL: a runtime JS move reran the harnesses'
+    echo 'FAIL: a runtime JS move skipped the harnesses'
     exit 1
 fi
 [ "$(wc -l < "$PUSHES")" -eq 2 ]
-echo 'PASS: a runtime JS move merges again and skips the harnesses'
+echo 'PASS: a runtime JS move merges again and reruns the harnesses'

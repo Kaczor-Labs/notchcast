@@ -64,7 +64,7 @@ struct ModalActionButtonStyle: ButtonStyle {
         private var labelColor: Color {
             switch role {
             case .standard: .primary
-            case .primary: Theme.Colors.primaryAction.frosted(NotchTheme.Frosted.accentInk)
+            case .primary: NotchTheme.Colors.accentInk
             case .cancel: Theme.Colors.textSecondary
             case .destructive: Theme.Colors.destructive
             }

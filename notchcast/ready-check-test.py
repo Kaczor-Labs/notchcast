@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# script-tests: macos (ready-check.sh's getconf DARWIN_USER_TEMP_DIR)
 """Verify ready-check.sh covers every pr.yml step and reports PASS or the first failing gate."""
 import os
 from pathlib import Path
@@ -26,11 +25,18 @@ COVERED = {
     ("pr.yml:mac", "Shared PR build lane"): "ci-build.sh, unsharded",
     ("pr.yml:mac", "./tools/notchcast/actions/tests"): "ci-build.sh's harnesses step",
     ("pr.yml:mac", "Failures outside the harness selection"): "shadow selection; reports, gates nothing",
+    ("pr.yml:mac", "Runner load at start"): "off a hosted runner: the job's own temp folder and load figures; no gate",
+    ("pr.yml:mac", "Runner load at end"): "off a hosted runner: load figures; no gate",
+    ("pr.yml:mac", "What the isolated runner proved"): "the isolated runner's stamp for its tested-tree record; no gate",
     ("pr.yml:linux-checks", "actions/checkout"): "the shared clone at HEAD",
     ("pr.yml:linux-checks", "Checks that need no Mac"): "ci-build.sh sources ci-checks.sh",
+    ("pr.yml:linux-harnesses", "Tools the Swift image lacks"): "the Swift image's setup; no gate",
+    ("pr.yml:linux-harnesses", "actions/checkout"): "the shared clone at HEAD",
+    ("pr.yml:linux-harnesses", "Linux-ok harnesses the diff needs"): "ci-build.sh's harnesses step runs them all on the Mac",
     ("pr.yml:script-tests", "actions/checkout"): "the shared clone at HEAD",
     ("pr.yml:script-tests", "Script tests"): "ci-build.sh's script-tests step",
     ("pr.yml:build", "A train run names its base"): "train branches only",
+    ("pr.yml:build", "A train's Mac job proves its tree"): "train branches only",
     ("pr.yml:build", "Every lane the diff needs passed, and only those were skipped"): "aggregate of the jobs above",
     ("pr.yml:build", "Config literals"): "ci-build.sh's config step",
     ("pr.yml:build", "actions/checkout"): "records the tree; no gate",
@@ -115,18 +121,22 @@ GATED_MAC = ("${{ github.event_name == 'workflow_dispatch' && !inputs.hosted && 
              "|| 'xcode-27' }}")
 # Only jobs that hold no secret and launch no app; a workflow outside this map is hosted-only.
 GATED_JOBS = {"pr.yml": 1, "main-harnesses.yml": 1}
+# Every macOS job (README Runners): it runs xcodebuild, compiles harnesses, signs or launches the app. Anything else is Linux.
+MAC_JOBS = {"pr.yml": 1, "main-harnesses.yml": 1, "delete-check.yml": 1, "proof.yml": 1, "snapshot.yml": 1, "sync.yml": 2}
 
 
 class RunnerTest(unittest.TestCase):
     def test_every_job_runs_on_a_hosted_image(self):
-        allowed = {"ubuntu-latest", "xcode-27", "macos-15"}
-        gated = {}
+        allowed = {"ubuntu-latest", "xcode-27"}
+        gated, mac = {}, {}
         for workflow in sorted((ROOT / ".github/workflows").glob("*.y*ml")):
             lines = workflow.read_text().splitlines()
             for i, line in enumerate(lines):
                 match = re.match(r"(\s*)runs-on:(.*)", line)
                 if not match:
                     continue
+                if match[2].strip() == GATED_MAC or match[2].strip() == "xcode-27":
+                    mac[workflow.name] = mac.get(workflow.name, 0) + 1
                 if match[2].strip() == GATED_MAC:
                     gated[workflow.name] = gated.get(workflow.name, 0) + 1
                     continue
@@ -140,15 +150,22 @@ class RunnerTest(unittest.TestCase):
                     self.assertTrue(labels, "runs-on has no label")
                     self.assertEqual(set(labels) - allowed, set(), "runs-on names a runner README Runners does not")
         self.assertEqual(gated, GATED_JOBS, "only these jobs may leave the hosted images, behind the fork gate")
+        self.assertEqual(mac, MAC_JOBS, "a new macOS job needs a reason a Linux job cannot meet")
 
-    def test_a_self_hosted_run_proves_no_tree_and_runs_no_script_test(self):
+    def test_a_working_mac_proves_no_tree_and_an_isolated_one_records_under_its_own_name(self):
         found = {(job, signature(text)): text for job, text in steps(WORKFLOW, 6)}
-        hosted = "needs.route.outputs.build == 'true' && needs.mac.outputs.hosted == 'true'"
+        proves = "needs.route.outputs.build == 'true' && needs.mac.outputs.kind != 'working'"
         for step in ("Record the tested tree", "actions/upload-artifact"):
-            self.assertEqual(field(found["build", step], "if"), hosted, step)
-        self.assertIn("      hosted: ${{ steps.runner.outputs.hosted }}\n", WORKFLOW.read_text())
+            self.assertEqual(field(found["build", step], "if"), proves, step)
+        text = WORKFLOW.read_text()
+        self.assertIn("      kind: ${{ steps.runner.outputs.kind }}\n", text)
+        self.assertIn("name: tested-tree-${{ needs.mac.outputs.kind == 'isolated' && 'isolated-' || '' }}${{ steps.tree.outputs.key }}\n", text)
         self.assertEqual(env(found["mac", "Runner kind"]), {"HOSTED": "${{ runner.environment == 'github-hosted' }}"})
-        self.assertEqual(field(found["mac", "Script tests that need macOS"], "if"), "runner.environment == 'github-hosted'")
+        self.assertIn('if [ "$HOSTED" = true ]; then kind=hosted; elif [ "${NOTCHCAST_ISOLATED_RUNNER:-}" = 1 ]; then kind=isolated; fi',
+                      found["mac", "Runner kind"])
+        self.assertEqual(field(found["mac", "Script tests that need macOS"], "if"), "steps.runner.outputs.kind != 'working'")
+        self.assertEqual(field(found["build", "A train's Mac job proves its tree"], "if"),
+                         "startsWith(github.ref, 'refs/heads/train/') && needs.mac.outputs.kind == 'working'")
         # Only Sync's hosted job sets the tested status; a job that may run self-hosted has no way to.
         for name in GATED_JOBS:
             self.assertNotIn("statuses: write", (ROOT / ".github/workflows" / name).read_text(), name)
