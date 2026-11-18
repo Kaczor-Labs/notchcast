@@ -8,7 +8,7 @@
 [![License: AGPL-3.0](https://img.shields.io/badge/license-AGPL--3.0-blue)](/LICENSE)
 ![macOS 26+](https://img.shields.io/badge/macOS-26%2B-lightgrey)
 
-Notchcast is a macOS launcher that lives in an island at the top of your screen, around the notch or where a notch would be. It is [Tinycast](https://github.com/abue-ammar/tinycast) by Abue Ammar, the native launcher with clipboard history, hotkeys, snippets, window management and system tools, plus our own commits on top: the island that replaces Tinycast's floating palette and menu-bar icons, and a set of add-ons for keyboard, display, sound, capture and downloads. Every upstream change is replayed under our commits automatically, so Notchcast stays current with Tinycast.
+Notchcast is a macOS launcher that lives in an island at the top of your screen, around the notch or where a notch would be. It is [Tinycast](https://github.com/abue-ammar/tinycast) by Abue Ammar, the native launcher with clipboard history, hotkeys, snippets, window management and system tools, plus our own commits on top: the island that replaces Tinycast's floating palette and menu-bar icons, and a set of add-ons for keyboard, display, sound, capture and downloads. Every upstream change is replayed under our commits once its review passed, so Notchcast stays current with Tinycast.
 
 **Status:** in use; a snapshot is published from every green `main`.
 
@@ -89,7 +89,7 @@ The dev loop:
 - Test locally with `./Scripts/run-tests.sh` (all harnesses, ours included) or `./Scripts/run-tests.sh <harness>`, and `./Scripts/lint.sh`. See [testing.md](/docs/testing.md).
 - Maintainers push a branch with `python3 notchcast/notchcast-ci.py --repo .`, which waits for GitHub's harness verdict on it.
 - PRs open as drafts. Maintainers land them only with `notchcast/land.sh <pr>`, which tests the merge onto `main` and squash-merges it.
-- Sync replays our commits onto each new upstream `main`, and Snapshot publishes every green `main`. Generated files (`README.md`, the Xcode project) are rebuilt by CI; edit `notchcast/README.public.md` and `project.yml` instead.
+- Sync replays our commits onto each new upstream `main` once the maintainer's review of the upstream diff passed, and Snapshot publishes every green `main`. Generated files (`README.md`, the Xcode project) are rebuilt by CI; edit `notchcast/README.public.md` and `project.yml` instead.
 
 Read before you change things:
 
