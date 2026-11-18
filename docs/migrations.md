@@ -31,3 +31,4 @@ When the check fails, delete everything the row lists, then the row.
 
 | Migration | Repairs | Delete with it |
 | --------- | ------- | -------------- |
+| `ICloudSyncOffMigration` | `iCloudSyncEnabled` an earlier Notchcast build stored on (#910) | the file, its call in `TinycastLaunch.main`, `Tests/notchcast-icloud-sync-off-migration-test.swift` |
