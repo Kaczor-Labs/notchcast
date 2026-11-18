@@ -66,171 +66,211 @@ struct Pixels {
     }
 }
 
-func draw(_ document: inout AnnotationDocument, _ tool: AnnotationTool, from start: CGPoint, to end: CGPoint) {
-    document.pick(tool)
-    document.press(at: start)
-    document.drag(to: CGPoint(x: (start.x + end.x) / 2, y: (start.y + end.y) / 2))
-    document.drag(to: end)
-    document.release()
+/// SplitMix64, so the mosaic's noise is the same on every run.
+struct Seeded: RandomNumberGenerator {
+    var state: UInt64 = 936
+    mutating func next() -> UInt64 {
+        state &+= 0x9E37_79B9_7F4A_7C15
+        var z = state
+        z = (z ^ (z >> 30)) &* 0xBF58_476D_1CE4_E5B9
+        z = (z ^ (z >> 27)) &* 0x94D0_49BB_1331_11EB
+        return z ^ (z >> 31)
+    }
 }
+
+func document(width: Int = 200, height: Int = 100, scale: CGFloat = 1) -> AnnotationDocument {
+    AnnotationDocument(image: base(width: width, height: height), scale: scale)
+}
+
+/// A press, a drag through the middle and a release, judged a tap as the view would at zoom 1.
+func drag(_ document: inout AnnotationDocument, _ tool: AnnotationTool? = nil, from start: CGPoint, to end: CGPoint) {
+    if let tool { document.pick(tool) }
+    var judged = AnnotationDrag()
+    judged.begin(at: start)
+    document.beginDrag(at: start)
+    // SwiftUI reports a change only when the pointer moves, so a still click never drags.
+    for point in [CGPoint(x: (start.x + end.x) / 2, y: (start.y + end.y) / 2), end] where point != start {
+        document.continueDrag(to: point)
+        judged.update(to: point)
+    }
+    document.endDrag(at: end, isTap: judged.isTap)
+}
+
+func tap(_ document: inout AnnotationDocument, at point: CGPoint) { drag(&document, from: point, to: point) }
 
 func typeText(_ document: inout AnnotationDocument, _ string: String, at point: CGPoint) {
     document.pick(.text)
-    document.press(at: point)
-    document.release()
-    document.editText(string)
+    tap(&document, at: point)
+    document.typedText = string
     document.commitText()
+}
+
+func flatten(_ document: AnnotationDocument) -> Pixels {
+    var random = Seeded()
+    return Pixels(AnnotationRenderer.flattened(document, using: &random)!)
 }
 
 func shapes() {
-    var document = AnnotationDocument(size: CGSize(width: 200, height: 100))
-    draw(&document, .arrow, from: p(10, 10), to: p(60, 10))
-    draw(&document, .rectangle, from: p(80, 60), to: p(20, 30))
-    draw(&document, .ellipse, from: p(100, 10), to: p(140, 50))
-    draw(&document, .highlighter, from: p(10, 90), to: p(190, 90))
-    draw(&document, .pixelate, from: p(150, 10), to: p(190, 40))
-    typeText(&document, "Note", at: p(100, 60))
-    let shapes = document.marks.map(\.shape)
-    check(shapes.count == 6, "one mark per tool, got \(shapes)")
-    check(shapes[0] == .arrow(from: p(10, 10), to: p(60, 10)), "an arrow runs from press to release")
-    check(shapes[1] == .rectangle(CGRect(x: 20, y: 30, width: 60, height: 30)), "a box drawn backwards is normalised")
-    check(shapes[2] == .ellipse(CGRect(x: 100, y: 10, width: 40, height: 40)), "an ellipse fills its drag box")
-    check(shapes[3] == .highlighter([p(10, 90), p(100, 90), p(190, 90)]), "a highlighter keeps every point")
-    check(shapes[4] == .pixelate(CGRect(x: 150, y: 10, width: 40, height: 30)), "pixelate covers its box")
-    check(shapes[5] == .text(origin: p(100, 60), string: "Note"), "text sits where it was clicked")
-    check(document.marks.allSatisfy { $0.color == .red && $0.stroke == .medium }, "red, medium by default")
-    check(document.selection == document.marks.last?.id, "the newest mark is selected")
+    var doc = document()
+    check(doc.tool == .arrow && doc.color == .red && doc.stroke == .medium && doc.textSize == 19,
+          "the editor opens on Arrow, red, medium, 19 pt")
+    drag(&doc, .arrow, from: p(10, 10), to: p(60, 10))
+    drag(&doc, .rect, from: p(80, 60), to: p(20, 30))
+    drag(&doc, .ellipse, from: p(100, 10), to: p(140, 50))
+    drag(&doc, .highlight, from: p(10, 80), to: p(190, 95))
+    drag(&doc, .pixelate, from: p(150, 10), to: p(190, 40))
+    typeText(&doc, "Note", at: p(100, 60))
+    let marks = doc.marks
+    check(marks.map(\.tool) == [.arrow, .rect, .ellipse, .highlight, .pixelate, .text], "one mark per tool")
+    check(marks[0].points == [p(10, 10), p(60, 10)], "an arrow runs from press to release")
+    check(marks[1].rect == CGRect(x: 20, y: 30, width: 60, height: 30), "a box drawn backwards is normalised")
+    check(marks[2].rect == CGRect(x: 100, y: 10, width: 40, height: 40), "an ellipse fills its drag box")
+    check(marks[3].rect == CGRect(x: 10, y: 80, width: 180, height: 15), "a highlight covers its drag box")
+    check(marks[4].rect == CGRect(x: 150, y: 10, width: 40, height: 30), "pixelate covers its box")
+    check(marks[5].text == "Note" && marks[5].rect.origin == p(100, 60), "text sits where it was clicked")
+    check(marks[5].rect.width > 30 && marks[5].rect.height > 15, "text has a measured box, got \(marks[5].rect)")
+    check(marks.allSatisfy { $0.color == .red && $0.stroke == .medium }, "red, medium by default")
 
-    var clicks = AnnotationDocument(size: CGSize(width: 200, height: 100))
-    for tool in [AnnotationTool.arrow, .rectangle, .ellipse, .pixelate] {
-        draw(&clicks, tool, from: p(5, 5), to: p(7, 7))
+    var clicks = document()
+    for tool in [AnnotationTool.arrow, .rect, .ellipse, .highlight, .pixelate] {
+        drag(&clicks, tool, from: p(5, 5), to: p(8, 8))
     }
     typeText(&clicks, "   ", at: p(50, 50))
     check(clicks.marks.isEmpty && !clicks.canUndo, "a click or blank text leaves nothing and no undo step")
+    clicks.pick(.text)
+    tap(&clicks, at: p(250, 50))
+    check(clicks.editingTextID == nil, "a text click off the capture places nothing")
 
-    draw(&clicks, .crop, from: p(250, 120), to: p(20.4, 10.6))
-    check(clicks.crop == CGRect(x: 20, y: 10, width: 180, height: 90), "a crop stays inside the image, whole pixels")
-    check(clicks.outputRect == clicks.crop && clicks.marks.isEmpty, "crop is no mark, it is the output frame")
+    check(AnnotationTool.allCases.map(\.shortcutNumber) == Array(1...8), "the rail numbers its tools 1 to 8")
+    check(AnnotationTool.shortcut(number: 2) == .arrow && AnnotationTool.shortcut(number: 9) == nil, "digits pick tools")
+    check(AnnotationTextSize.stepped(from: 19, up: true) == 24 && AnnotationTextSize.stepped(from: 10, up: false) == nil,
+          "text sizes step through the presets")
 }
 
 func hitTesting() {
-    let arrow = AnnotationMark(id: 1, shape: .arrow(from: p(0, 0), to: p(100, 0)), color: .red, stroke: .medium)
-    check(arrow.hits(p(50, 4), slack: 2, scale: 1), "an arrow hits along its line")
-    check(!arrow.hits(p(50, 10), slack: 2, scale: 1), "an arrow misses away from its line")
-    check(!arrow.hits(p(120, 0), slack: 2, scale: 1), "an arrow misses past its tip")
-    check(arrow.hits(p(50, 10), slack: 2, scale: 4), "a Retina stroke is wider, so it hits farther")
+    var doc = document()
+    drag(&doc, .arrow, from: p(10, 10), to: p(110, 10))
+    let arrow = doc.marks[0].id
+    check(doc.hitTest(p(60, 21)) == arrow && doc.hitTest(p(60, 30)) == nil, "an arrow hits within 10 pt of its line")
+    check(doc.hitTest(p(130, 10)) == nil, "an arrow misses past its tip")
+    var retina = document(scale: 2)
+    drag(&retina, .arrow, from: p(10, 10), to: p(110, 10))
+    check(retina.hitTest(p(60, 30)) != nil, "a Retina capture's reach is in points, so twice the pixels")
 
-    let box = AnnotationMark(id: 2, shape: .rectangle(CGRect(x: 0, y: 0, width: 100, height: 50)), color: .red,
-                             stroke: .thin)
-    check(box.hits(p(0, 25), slack: 2, scale: 1) && box.hits(p(50, 51), slack: 2, scale: 1), "a box hits on its edge")
-    check(!box.hits(p(50, 25), slack: 2, scale: 1), "a box misses inside, so a shape can start there")
-    check(!box.hits(p(50, 70), slack: 2, scale: 1), "a box misses outside")
+    drag(&doc, .rect, from: p(20, 40), to: p(120, 90))
+    let box = doc.marks[1].id
+    check(doc.hitTest(p(70, 65)) == box && doc.hitTest(p(70, 65), includeShapeInteriors: false) == nil,
+          "a box is picked inside by Select, but a creating tool only takes its edge")
+    check(doc.hitTest(p(20, 65), includeShapeInteriors: false) == box, "its edge always picks it")
 
-    let ring = AnnotationMark(id: 3, shape: .ellipse(CGRect(x: 0, y: 0, width: 100, height: 100)), color: .red,
-                              stroke: .thin)
-    check(ring.hits(p(100, 50), slack: 2, scale: 1) && ring.hits(p(50, 1), slack: 2, scale: 1), "an ellipse hits on it")
-    check(!ring.hits(p(50, 50), slack: 2, scale: 1) && !ring.hits(p(2, 2), slack: 2, scale: 1),
-          "an ellipse misses its centre and its bounding box corner")
+    check(doc.selectedID == box, "the shape just drawn stays selected")
+    drag(&doc, from: p(70, 65), to: p(80, 70))
+    check(doc.marks[1].rect == CGRect(x: 30, y: 45, width: 100, height: 50) && doc.marks.count == 2,
+          "a press on the selection moves it, even under a creating tool")
+    doc.undo()
+    check(doc.marks[1].rect == CGRect(x: 20, y: 40, width: 100, height: 50), "a move is one undo step")
+    tap(&doc, at: p(20, 65))
+    check(doc.selectedID == box, "a click on a mark's edge picks it")
+    drag(&doc, from: p(120, 90), to: p(150, 95))
+    check(doc.marks[1].rect == CGRect(x: 20, y: 40, width: 130, height: 55), "its corner grip resizes it")
+    check(doc.tool == .select, "picking a mark with a creating tool switches to Select, as Vorssaint does")
 
-    let marker = AnnotationMark(id: 4, shape: .highlighter([p(0, 0), p(50, 50), p(100, 0)]), color: .yellow,
-                                stroke: .thin)
-    check(marker.hits(p(25, 27), slack: 2, scale: 1) && marker.hits(p(75, 22), slack: 2, scale: 1),
-          "a highlighter hits along each segment, its wide stroke included")
-    check(!marker.hits(p(50, 10), slack: 2, scale: 1), "a highlighter misses inside its bend")
+    _ = doc.escape()
+    drag(&doc, .arrow, from: p(50, 60), to: p(90, 60))
+    check(doc.marks.count == 3, "with nothing selected, a press inside a box starts a new shape")
+    drag(&doc, .select, from: p(90, 60), to: p(95, 70))
+    check(doc.marks[2].points == [p(50, 60), p(95, 70)], "an arrow's end grip moves only that end")
 
-    let blur = AnnotationMark(id: 5, shape: .pixelate(CGRect(x: 10, y: 10, width: 20, height: 20)), color: .red,
-                              stroke: .thin)
-    check(blur.hits(p(20, 20), slack: 0, scale: 1) && !blur.hits(p(40, 40), slack: 0, scale: 1), "pixelate hits inside")
-
-    let label = AnnotationMark(id: 6, shape: .text(origin: p(10, 10), string: "Hello"), color: .red, stroke: .medium)
-    let size = AnnotationText.size("Hello", fontSize: AnnotationStroke.medium.fontSize)
-    check(size.width > 20 && size.height > 10, "text has a measured size, got \(size)")
-    check(label.hits(p(10 + size.width / 2, 10 + size.height / 2), slack: 0, scale: 1), "text hits in its box")
-    check(!label.hits(p(10 + size.width + 10, 10), slack: 0, scale: 1), "text misses past its end")
-    check(label.bounds(scale: 2).width > size.width * 1.5, "text grows with the scale")
-
-    var document = AnnotationDocument(size: CGSize(width: 200, height: 100))
-    draw(&document, .rectangle, from: p(20, 20), to: p(80, 60))
-    draw(&document, .arrow, from: p(30, 40), to: p(70, 40))
-    check(document.marks.count == 2, "a press inside a box starts a new shape")
-    document.pick(.ellipse)
-    document.press(at: p(20, 50))
-    document.drag(to: p(30, 55))
-    document.release()
-    check(document.marks.count == 2 && document.selection == 1, "a press on a mark's edge picks it rather than drawing")
-    check(document.marks[0].shape == .rectangle(CGRect(x: 30, y: 25, width: 60, height: 40)), "and drags move it")
-    document.undo()
-    check(document.marks[0].shape == .rectangle(CGRect(x: 20, y: 20, width: 60, height: 40)), "a move is one undo step")
-    document.redo()
-    document.pick(.text)
-    document.press(at: p(50, 5))
-    document.release()
-    check(document.textEdit?.string == "", "the text tool on bare image starts a new text")
-    document.editText("Hi")
-    document.commitText()
-    let hiID = document.marks.last!.id
-    document.press(at: p(52, 8))
-    check(document.textEdit?.id == hiID && document.textEdit?.string == "Hi", "the text tool on text edits it")
-    document.editText("")
-    document.commitText()
-    check(!document.marks.contains { $0.id == hiID }, "clearing a text removes it")
+    typeText(&doc, "Hi", at: p(150, 5))
+    let hi = doc.marks.last!.id
+    tap(&doc, at: p(155, 10))
+    check(doc.editingTextID == hi && doc.typedText == "Hi", "clicking text opens it for editing")
+    doc.typedText = ""
+    doc.commitText()
+    check(!doc.marks.contains { $0.id == hi }, "clearing a text removes it")
+    doc.undo()
+    check(doc.marks.last?.text == "Hi", "and undo brings it back")
 }
 
-/// Every tool's edit undoes and redoes, as do recolouring, restroking, deleting and the crop.
-func undoRedo() {
-    var document = AnnotationDocument(size: CGSize(width: 400, height: 300))
-    check(!document.canUndo && !document.canRedo, "a new document has no history")
-    var states: [AnnotationDocument.Snapshot] = [document.current]
-    for (index, tool) in [AnnotationTool.arrow, .rectangle, .ellipse, .highlighter, .pixelate, .crop].enumerated() {
-        let y = CGFloat(10 + index * 40)
-        draw(&document, tool, from: p(10, y), to: p(120, y + 10))
-        states.append(document.current)
+struct State: Equatable {
+    let marks: [AnnotationMark]
+    let image: ObjectIdentifier
+    init(_ document: AnnotationDocument) {
+        marks = document.marks
+        image = ObjectIdentifier(document.image)
     }
-    typeText(&document, "Text", at: p(200, 260))
-    states.append(document.current)
-    document.pick(.arrow)
-    document.press(at: p(65, 10))
-    document.release()
-    check(document.selection == 1, "a click on the arrow selects it")
-    document.pick(.blue)
-    states.append(document.current)
-    document.pick(.thick)
-    states.append(document.current)
-    document.deleteSelection()
-    states.append(document.current)
-    check(document.marks.count == 5 && document.crop != nil, "five marks and a crop after deleting the arrow")
-    check(states.count == 11 && Set(states.map { "\($0)" }).count == 11, "each edit is its own state")
+}
+
+/// Every tool's edit undoes and redoes, as do restyling, moving, deleting and the crop.
+func undoRedo() {
+    var doc = document(width: 400, height: 300)
+    check(!doc.canUndo && !doc.canRedo, "a new document has no history")
+    var states = [State(doc)]
+    func record() { states.append(State(doc)) }
+    for (index, tool) in [AnnotationTool.arrow, .rect, .ellipse, .highlight, .pixelate].enumerated() {
+        let y = CGFloat(20 + index * 40)
+        drag(&doc, tool, from: p(10, y), to: p(120, y + 20))
+        record()
+    }
+    typeText(&doc, "Text", at: p(200, 250))
+    record()
+    tap(&doc, at: p(65, 30))
+    check(doc.selected?.tool == .arrow, "a click on the arrow selects it")
+    doc.pick(.blue)
+    record()
+    doc.pick(.large)
+    record()
+    drag(&doc, from: p(65, 30), to: p(75, 35))
+    record()
+    tap(&doc, at: p(205, 255))
+    doc.pick(textSize: 36)
+    record()
+    check(doc.marks.last?.textSize == 36 && doc.marks.last!.rect.height > 36, "a new size refits the text")
+    doc.pick(.crop)
+    check(doc.cropDraft == doc.bounds, "Crop starts on the whole capture")
+    drag(&doc, from: p(30.4, 30.6), to: p(380.2, 290.4))
+    check(doc.cropDraft == CGRect(x: 30, y: 31, width: 350, height: 259), "a crop snaps to whole pixels")
+    check(doc.apply(.confirm) == nil && doc.imageSize == CGSize(width: 350, height: 259), "Return applies the crop")
+    check(doc.marks[0].points[0] == p(-10, -6) && doc.tool == .select, "marks move with the crop")
+    record()
+    tap(&doc, at: p(35, 79))
+    check(doc.selected?.tool == .ellipse, "a click on the ellipse selects it")
+    doc.deleteSelected()
+    record()
+    check(states.count == 13 && Set(states.map { "\($0)" }).count == 13, "each edit is its own state")
 
     for state in states.reversed().dropFirst() {
-        document.undo()
-        check(document.current == state, "undo walks back one edit")
+        doc.undo()
+        check(State(doc) == state, "undo walks back one edit")
     }
-    check(!document.canUndo && document.canRedo, "back at the start")
+    check(!doc.canUndo && doc.canRedo, "back at the start")
     for state in states.dropFirst() {
-        document.redo()
-        check(document.current == state, "redo walks forward one edit")
+        doc.redo()
+        check(State(doc) == state, "redo walks forward one edit")
     }
-    check(!document.canRedo, "redo stops at the newest edit")
+    check(!doc.canRedo, "redo stops at the newest edit")
+    doc.undo()
+    drag(&doc, .rect, from: p(300, 20), to: p(350, 60))
+    check(!doc.canRedo, "a new edit after undo drops the redo history")
+    doc.undo()
+    check(State(doc) == states[11], "and undoes back to before it")
 
-    document.undo()
-    document.undo()
-    draw(&document, .rectangle, from: p(150, 5), to: p(190, 30))
-    check(!document.canRedo, "a new edit after undo drops the redo history")
-    document.undo()
-    check(document.current == states[8], "and undoes back to before it")
-
-    var typing = AnnotationDocument(size: CGSize(width: 200, height: 100))
+    var typing = document()
+    typeText(&typing, "Old", at: p(10, 10))
     typing.pick(.text)
-    typing.press(at: p(10, 10))
-    typing.editText("Unsaved")
+    tap(&typing, at: p(50, 50))
+    typing.typedText = "Unsaved"
     typing.undo()
-    check(typing.marks.isEmpty && typing.canRedo, "undo while typing commits the text first, then undoes it")
+    check(typing.marks.map(\.text) == ["Old"] && typing.canRedo, "undo while typing commits the text, then undoes it")
     typing.pick(.text)
-    typing.press(at: p(10, 10))
-    typing.editText("Kept")
+    tap(&typing, at: p(50, 50))
+    typing.typedText = "Kept"
     let finished = typing.finished()
-    check(finished.textEdit == nil && finished.marks.last?.shape == .text(origin: p(10, 10), string: "Kept"),
-          "the result keeps text still being typed")
+    check(finished.editingTextID == nil && finished.marks.last?.text == "Kept", "the result keeps text being typed")
+}
+
+func isDiscard(_ outcome: CaptureEditorOutcome?) -> Bool {
+    if case .discard = outcome { true } else { false }
 }
 
 func keys() {
@@ -238,101 +278,108 @@ func keys() {
     func action(_ key: Action.Key, _ modifiers: Action.Modifiers = [], typing: Bool = false) -> Action? {
         Action.action(for: key, modifiers: modifiers, typingText: typing)
     }
-    check(action(.escape) == .discard && action(.escape, typing: true) == .endText, "Esc discards, or ends typing")
-    check(action(.character("c"), .command) == .copy && action(.character("c"), .command, typing: true) == nil,
-          "⌘C copies the image, but copies typed text while typing")
-    check(action(.character("s"), .command) == .save && action(.character("s"), .command, typing: true) == .save,
-          "⌘S saves, even while typing")
+    check(action(.character("c"), .command) == .copy && action(.character("s"), .command) == .save, "⌘C copies, ⌘S saves")
     check(action(.character("z"), .command) == .undo && action(.character("Z"), [.command, .shift]) == .redo,
           "⌘Z undoes, ⇧⌘Z redoes")
-    check(action(.character("z"), .command, typing: true) == nil, "⌘Z while typing belongs to the text field")
-    check(action(.delete) == .delete && action(.delete, typing: true) == nil, "Delete removes the selected mark")
+    check(action(.delete, .command) == .discard && action(.delete) == .delete, "⌘⌫ discards, ⌫ deletes the selection")
+    check(action(.escape) == .escape && action(.confirm) == .confirm, "Esc backs out, Return confirms")
     for tool in AnnotationTool.allCases {
-        check(action(.character(tool.key)) == .tool(tool), "\(tool.key) picks \(tool)")
-        check(action(.character(tool.key), typing: true) == nil, "\(tool.key) types while typing")
+        check(action(.character(Character(String(tool.shortcutNumber)))) == .tool(tool), "its digit picks \(tool)")
     }
-    check(Set(AnnotationTool.allCases.map(\.key)).count == AnnotationTool.allCases.count, "tool keys are unique")
-    check(action(.character("x")) == nil && action(.character("a"), .option) == nil, "other keys pass through")
+    check(action(.character("9")) == nil && action(.character("a")) == nil && action(.character("1"), .option) == nil,
+          "other keys pass through")
+    for key in [Action.Key.escape, .delete, .confirm, .character("c"), .character("1")] {
+        check(action(key, .command, typing: true) == nil && action(key, typing: true) == nil,
+              "while text is typed every key belongs to the field")
+    }
 
-    var document = AnnotationDocument(size: CGSize(width: 100, height: 100))
-    document.apply(.tool(.ellipse))
-    check(document.tool == .ellipse, "a tool key picks the tool")
-    draw(&document, .rectangle, from: p(10, 10), to: p(50, 50))
-    document.apply(.delete)
-    check(document.marks.isEmpty, "Delete removes the selection")
-    document.apply(.undo)
-    check(document.marks.count == 1, "⌘Z brings it back")
-    document.apply(.redo)
-    check(document.marks.isEmpty, "⇧⌘Z removes it again")
+    var doc = document()
+    check(doc.apply(.tool(.ellipse)) == nil && doc.tool == .ellipse, "a tool key picks the tool")
+    drag(&doc, from: p(10, 10), to: p(50, 50))
+    _ = doc.apply(.delete)
+    check(doc.marks.isEmpty, "Delete removes the selection")
+    _ = doc.apply(.undo)
+    check(doc.marks.count == 1, "⌘Z brings it back")
+    tap(&doc, at: p(10, 30))
+    check(doc.selectedID != nil && doc.apply(.escape) == nil && doc.selectedID == nil, "Esc first drops the selection")
+    doc.pick(.crop)
+    check(doc.apply(.escape) == nil && doc.tool == .select && doc.cropDraft == nil, "Esc leaves Crop before closing")
+    doc.pick(.text)
+    tap(&doc, at: p(100, 60))
+    doc.typedText = "Hi"
+    check(doc.apply(.escape) == nil && doc.marks.last?.text == "Hi", "Esc in a text field keeps the text")
+    check(doc.apply(.escape) == nil && doc.selectedID == nil, "then drops its selection")
+    check(isDiscard(doc.apply(.escape)) && isDiscard(doc.apply(.discard)), "and then discards")
+    guard case .copy(let copied) = doc.apply(.confirm) else { return check(false, "Return copies with no crop") }
+    check(copied.marks.count == 2, "the copy carries every mark")
+    guard case .save = doc.apply(.save) else { return check(false, "⌘S answers save") }
 }
 
-func rendering() throws {
-    let white = base(width: 200, height: 100)
-    var document = AnnotationDocument(size: CGSize(width: 200, height: 100))
-    draw(&document, .arrow, from: p(10, 20), to: p(150, 20))
-    draw(&document, .rectangle, from: p(10, 40), to: p(60, 90))
-    document.pick(.text)
-    document.pick(.black)
-    document.pick(.thick)
-    typeText(&document, "Wg", at: p(100, 50))
-    let image = try AnnotationRenderer.image(document, over: white)
-    check(image.width == 200 && image.height == 100, "no crop keeps the whole capture")
-    let pixels = Pixels(image)
+func rendering() {
+    var doc = document()
+    drag(&doc, .arrow, from: p(10, 20), to: p(150, 20))
+    drag(&doc, .rect, from: p(10, 40), to: p(60, 90))
+    doc.pick(.text)
+    doc.pick(.black)
+    doc.pick(textSize: 36)
+    typeText(&doc, "Wg", at: p(100, 40))
+    let pixels = flatten(doc)
+    check(pixels.width == 200 && pixels.height == 100, "the result is the whole capture")
     check(pixels.isRed(80, 20) && pixels.isWhite(80, 30), "the arrow is drawn red on its line, top-left origin")
-    check(pixels.count(in: CGRect(x: 130, y: 5, width: 25, height: 30)) { pixels.isRed($0, $1) } > 40,
+    check(pixels.count(in: CGRect(x: 135, y: 8, width: 16, height: 24)) { pixels.isRed($0, $1) } > 50,
           "the arrow ends in a filled head")
     check(pixels.isRed(10, 65) && pixels.isRed(35, 40) && pixels.isWhite(35, 65), "the box is an outline")
-    let textBox = CGRect(origin: p(100, 50), size: AnnotationText.size("Wg", fontSize: 32))
-    let ink = pixels.count(in: textBox.intersection(CGRect(x: 0, y: 0, width: 200, height: 100))) {
-        pixels[$0, $1].r < 80
-    }
-    check(ink > 30, "the text is drawn in black where it was typed, got \(ink) dark pixels")
-    let baseline = 50 + AnnotationText.metrics(AnnotationText.line("Wg", fontSize: 32)).ascent
-    let above = pixels.count(in: CGRect(x: 100, y: 50, width: 100, height: baseline - 50)) { pixels[$0, $1].r < 80 }
-    let below = pixels.count(in: CGRect(x: 100, y: baseline, width: 100, height: 100 - baseline)) {
-        pixels[$0, $1].r < 80
-    }
+    let box = doc.marks[2].rect
+    func ink(_ rect: CGRect) -> Int { pixels.count(in: rect.intersection(doc.bounds)) { pixels[$0, $1].r < 80 } }
+    check(ink(box) > 60, "the text is drawn in black where it was typed, got \(ink(box)) dark pixels")
+    let baseline = box.minY + box.height * 0.78
+    let above = ink(CGRect(x: box.minX, y: box.minY, width: box.width, height: baseline - box.minY))
+    let below = ink(CGRect(x: box.minX, y: baseline, width: box.width, height: box.maxY - baseline))
     check(above > below * 2, "W stands on the baseline and only g hangs below: upright, \(above) over \(below)")
 
-    var marker = AnnotationDocument(size: CGSize(width: 200, height: 100))
+    var marker = document()
     marker.pick(.yellow)
-    draw(&marker, .highlighter, from: p(10, 50), to: p(190, 50))
-    let marked = Pixels(try AnnotationRenderer.image(marker, over: white))
-    let yellow = marked[100, 50]
-    check(yellow.r > 200 && yellow.g > 200 && yellow.b < 220 && yellow.b > 60,
-          "the highlighter tints yellow and stays see-through, got \(yellow)")
+    drag(&marker, .highlight, from: p(10, 40), to: p(190, 60))
+    let yellow = flatten(marker)[100, 50]
+    check(yellow.r > 240 && yellow.g > 200 && yellow.b < 200 && yellow.b > 100,
+          "the highlight tints yellow and stays see-through, got \(yellow)")
 
-    let checker = base(width: 64, height: 64, checker: 1)
-    var blur = AnnotationDocument(size: CGSize(width: 64, height: 64))
-    draw(&blur, .pixelate, from: p(0, 0), to: p(32, 32))
-    let mosaic = Pixels(try AnnotationRenderer.image(blur, over: checker))
+    let checker = AnnotationDocument(image: base(width: 64, height: 64, checker: 1), scale: 1)
+    var blur = checker
+    drag(&blur, .pixelate, from: p(0, 0), to: p(32, 32))
+    let mosaic = flatten(blur)
     let block = (0..<8).flatMap { y in (0..<8).map { mosaic[$0, y].r } }
-    check(Set(block).count == 1 && (60...200).contains(block[0]), "a pixelated block is one averaged grey")
+    check(Set(block).count == 1 && (100...160).contains(block[0]), "a pixelated block is one averaged grey, \(block[0])")
     check(mosaic[40, 40].r == 0 || mosaic[40, 40].r == 255, "outside the area stays sharp")
+    var unpixelated = Seeded()
+    let untouched = Pixels(AnnotationRenderer.flattened(checker, using: &unpixelated)!)[3, 3].r
+    check(untouched == 0 || untouched == 255, "no area, no mosaic")
 
-    draw(&document, .crop, from: p(50, 10), to: p(170, 70))
-    let cropped = try AnnotationRenderer.image(document, over: white)
-    check(cropped.width == 120 && cropped.height == 60, "the crop sets the output size")
-    check(Pixels(cropped).isRed(30, 10), "marks move with the crop")
+    drag(&doc, .crop, from: p(50.2, 10.4), to: p(170, 70))
+    _ = doc.apply(.confirm)
+    let cropped = flatten(doc)
+    check(cropped.width == 120 && cropped.height == 60 && cropped.isRed(30, 10), "a crop cuts the result, marks move")
 
-    let png = try AnnotationRenderer.png(document, over: white)
-    let decoded = CGImageSourceCreateWithData(png as CFData, nil).flatMap { CGImageSourceCreateImageAtIndex($0, 0, nil) }
-    check(png.prefix(4) == Data([0x89, 0x50, 0x4E, 0x47]) && decoded?.width == 120, "the PNG decodes at the crop size")
+    let png = AnnotationRenderer.pngData(from: base(width: 20, height: 10), scale: 2)!
+    let source = CGImageSourceCreateWithData(png as CFData, nil)!
+    let properties = CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [CFString: Any]
+    check(png.prefix(4) == Data([0x89, 0x50, 0x4E, 0x47]) && (properties?[kCGImagePropertyDPIWidth] as? Double) == 144,
+          "the PNG carries the capture's 2x as 144 DPI")
 
-    var retina = AnnotationDocument(size: CGSize(width: 200, height: 100), scale: 2)
-    draw(&retina, .arrow, from: p(10, 50), to: p(150, 50))
-    let wide = Pixels(try AnnotationRenderer.image(retina, over: white))
-    check(wide.isRed(80, 46) && !wide.isRed(80, 42), "a Retina capture strokes twice the pixels, 8 for a 4 pt line")
+    var retina = document(scale: 2)
+    drag(&retina, .arrow, from: p(10, 50), to: p(150, 50))
+    let wide = flatten(retina)
+    check(wide.isRed(80, 47) && !wide.isRed(80, 43), "a Retina capture draws a 4 pt line 8 pixels wide")
 }
 
 @main
 enum ScreenshotsAnnotationTests {
-    static func main() throws {
+    static func main() {
         shapes()
         hitTesting()
         undoRedo()
         keys()
-        try rendering()
+        rendering()
         print("nc-Screenshots-annotation-test: ok")
     }
 }

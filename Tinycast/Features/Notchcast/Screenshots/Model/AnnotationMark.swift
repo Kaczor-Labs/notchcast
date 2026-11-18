@@ -1,39 +1,44 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (C) 2026 Vorssaint
+// Adapted from Vorssaint 89d2626's screenshot support: the annotation model, its styles and geometry.
+
 import CoreGraphics
-import CoreText
 import Foundation
 
-/// The editor's tools; crop changes the document's frame rather than adding a mark.
+/// The editor's tools; crop changes the document's image rather than adding a mark.
 enum AnnotationTool: String, CaseIterable, Sendable {
-    case arrow, rectangle, ellipse, highlighter, text, pixelate, crop
+    // Case order is the rail order and the digit, 1 to 8, each tool answers to.
+    case select, arrow, pixelate, crop, text, rect, highlight, ellipse
 
-    /// The bare letter that picks the tool while no text is being typed.
-    var key: Character {
+    /// Tools that create a mark by dragging a rectangle.
+    var dragsRect: Bool {
         switch self {
-        case .arrow: "a"
-        case .rectangle: "r"
-        case .ellipse: "o"
-        case .highlighter: "h"
-        case .text: "t"
-        case .pixelate: "p"
-        case .crop: "c"
+        case .rect, .ellipse, .highlight, .pixelate: true
+        case .select, .arrow, .text, .crop: false
         }
+    }
+
+    var shortcutNumber: Int { (Self.allCases.firstIndex(of: self) ?? 0) + 1 }
+
+    static func shortcut(number: Int) -> AnnotationTool? {
+        allCases.indices.contains(number - 1) ? allCases[number - 1] : nil
     }
 }
 
-/// A fixed palette as sRGB components, so the model renders without AppKit.
+/// A fixed palette as sRGB components, shared by the canvas and the export.
 enum AnnotationColor: String, CaseIterable, Sendable {
-    case red, orange, yellow, green, blue, purple, white, black
+    case red, orange, yellow, green, blue, purple, black, white
 
     var components: (red: CGFloat, green: CGFloat, blue: CGFloat) {
         switch self {
-        case .red: (1, 0.23, 0.19)
-        case .orange: (1, 0.58, 0)
-        case .yellow: (1, 0.84, 0.04)
-        case .green: (0.2, 0.78, 0.35)
-        case .blue: (0.04, 0.52, 1)
-        case .purple: (0.75, 0.35, 0.95)
-        case .white: (1, 1, 1)
-        case .black: (0, 0, 0)
+        case .red: (0.93, 0.26, 0.21)
+        case .orange: (1.00, 0.58, 0.00)
+        case .yellow: (1.00, 0.80, 0.00)
+        case .green: (0.20, 0.78, 0.35)
+        case .blue: (0.04, 0.52, 1.00)
+        case .purple: (0.69, 0.32, 0.87)
+        case .black: (0.09, 0.09, 0.11)
+        case .white: (1.00, 1.00, 1.00)
         }
     }
 
@@ -42,150 +47,170 @@ enum AnnotationColor: String, CaseIterable, Sendable {
     }
 }
 
-/// Stroke widths and text sizes in points; the document's scale turns them into pixels.
+/// Line width in points at 1x; drawing multiplies by the capture's scale.
 enum AnnotationStroke: String, CaseIterable, Sendable {
-    case thin, medium, thick
+    case small, medium, large
 
     var width: CGFloat {
         switch self {
-        case .thin: 2
+        case .small: 2
         case .medium: 4
-        case .thick: 8
-        }
-    }
-
-    var fontSize: CGFloat {
-        switch self {
-        case .thin: 14
-        case .medium: 20
-        case .thick: 32
+        case .large: 7
         }
     }
 }
 
-/// One annotation in image pixels, origin top left; `scale` is pixels per point.
-struct AnnotationMark: Identifiable, Equatable, Sendable {
-    enum Shape: Equatable, Sendable {
-        case arrow(from: CGPoint, to: CGPoint)
-        case rectangle(CGRect)
-        case ellipse(CGRect)
-        case highlighter([CGPoint])
-        case text(origin: CGPoint, string: String)
-        case pixelate(CGRect)
+/// Text has its own point size rather than the shape thickness, so a thin arrow can sit by a big label.
+enum AnnotationTextSize {
+    static let sizes = [10, 12, 14, 16, 19, 24, 28, 36, 48, 64, 72, 96]
+    static let standard = 19
+
+    /// The preset one step away from `size`, or nil at either end.
+    static func stepped(from size: Int, up: Bool) -> Int? {
+        up ? sizes.first { $0 > size } : sizes.last { $0 < size }
     }
+}
 
-    static let highlighterWidthFactor: CGFloat = 4
-    static let highlighterAlpha: CGFloat = 0.4
-
-    let id: Int
-    var shape: Shape
+/// One mark, in image pixels with the origin top left, so export is exact and the view only scales.
+struct AnnotationMark: Identifiable, Equatable, Sendable {
+    let id: UUID
+    var tool: AnnotationTool
+    var rect: CGRect = .zero
+    var points: [CGPoint] = []
+    var text = ""
     var color: AnnotationColor
     var stroke: AnnotationStroke
+    var textSize = AnnotationTextSize.standard
 
-    func lineWidth(scale: CGFloat) -> CGFloat {
-        if case .highlighter = shape { return stroke.width * Self.highlighterWidthFactor * scale }
-        return stroke.width * scale
+    /// Arrows and outlines take a width; text takes a size; highlight and pixelate take neither.
+    var usesStroke: Bool { [.arrow, .rect, .ellipse].contains(tool) }
+    var usesColor: Bool { tool != .pixelate }
+}
+
+/// The drag a press became, judged in view points so a click stays a click at any zoom.
+struct AnnotationDrag {
+    static let tapDistance: CGFloat = 7
+    private var start: CGPoint = .zero
+    private(set) var isTap = true
+
+    mutating func begin(at point: CGPoint) {
+        start = point
+        isTap = true
     }
 
-    func fontSize(scale: CGFloat) -> CGFloat { stroke.fontSize * scale }
-
-    /// What the mark covers, its stroke included.
-    func bounds(scale: CGFloat) -> CGRect {
-        let half = lineWidth(scale: scale) / 2
-        switch shape {
-        case .arrow(let from, let to):
-            let head = AnnotationGeometry.arrowHeadLength(lineWidth: lineWidth(scale: scale))
-            return AnnotationGeometry.box(from, to).insetBy(dx: -head, dy: -head)
-        case .rectangle(let rect), .ellipse(let rect): return rect.insetBy(dx: -half, dy: -half)
-        case .pixelate(let rect): return rect
-        case .highlighter(let points):
-            return points.dropFirst().reduce(CGRect(origin: points.first ?? .zero, size: .zero)) {
-                $0.union(CGRect(origin: $1, size: .zero))
-            }.insetBy(dx: -half, dy: -half)
-        case .text(let origin, let string):
-            return CGRect(origin: origin, size: AnnotationText.size(string, fontSize: fontSize(scale: scale)))
-        }
-    }
-
-    /// Outlines hit near their stroke, so a new shape can start inside an old one; fills hit anywhere.
-    func hits(_ point: CGPoint, slack: CGFloat, scale: CGFloat) -> Bool {
-        let reach = slack + lineWidth(scale: scale) / 2
-        switch shape {
-        case .arrow(let from, let to):
-            return AnnotationGeometry.distance(point, toSegment: from, to) <= reach
-        case .rectangle(let rect):
-            return rect.insetBy(dx: -reach, dy: -reach).contains(point)
-                && !rect.insetBy(dx: reach, dy: reach).contains(point)
-        case .ellipse(let rect):
-            return AnnotationGeometry.distance(point, toEllipseIn: rect) <= reach
-        case .highlighter(let points):
-            guard let first = points.first else { return false }
-            if points.count == 1 { return AnnotationGeometry.distance(point, toSegment: first, first) <= reach }
-            return zip(points, points.dropFirst()).contains {
-                AnnotationGeometry.distance(point, toSegment: $0, $1) <= reach
-            }
-        case .pixelate, .text:
-            return bounds(scale: scale).insetBy(dx: -slack, dy: -slack).contains(point)
-        }
-    }
-
-    func moved(by offset: CGSize) -> AnnotationMark {
-        func shift(_ point: CGPoint) -> CGPoint { CGPoint(x: point.x + offset.width, y: point.y + offset.height) }
-        var copy = self
-        switch shape {
-        case .arrow(let from, let to): copy.shape = .arrow(from: shift(from), to: shift(to))
-        case .rectangle(let rect): copy.shape = .rectangle(rect.offsetBy(dx: offset.width, dy: offset.height))
-        case .ellipse(let rect): copy.shape = .ellipse(rect.offsetBy(dx: offset.width, dy: offset.height))
-        case .pixelate(let rect): copy.shape = .pixelate(rect.offsetBy(dx: offset.width, dy: offset.height))
-        case .highlighter(let points): copy.shape = .highlighter(points.map(shift))
-        case .text(let origin, let string): copy.shape = .text(origin: shift(origin), string: string)
-        }
-        return copy
+    mutating func update(to point: CGPoint) {
+        isTap = hypot(point.x - start.x, point.y - start.y) < Self.tapDistance
     }
 }
 
 enum AnnotationGeometry {
-    static func box(_ start: CGPoint, _ end: CGPoint) -> CGRect {
-        CGRect(x: min(start.x, end.x), y: min(start.y, end.y), width: abs(end.x - start.x),
-               height: abs(end.y - start.y))
+    enum Handle: CaseIterable, Sendable {
+        case topLeft, top, topRight, right, bottomRight, bottom, bottomLeft, left
+
+        func position(in rect: CGRect) -> CGPoint {
+            switch self {
+            case .topLeft: CGPoint(x: rect.minX, y: rect.minY)
+            case .top: CGPoint(x: rect.midX, y: rect.minY)
+            case .topRight: CGPoint(x: rect.maxX, y: rect.minY)
+            case .right: CGPoint(x: rect.maxX, y: rect.midY)
+            case .bottomRight: CGPoint(x: rect.maxX, y: rect.maxY)
+            case .bottom: CGPoint(x: rect.midX, y: rect.maxY)
+            case .bottomLeft: CGPoint(x: rect.minX, y: rect.maxY)
+            case .left: CGPoint(x: rect.minX, y: rect.midY)
+            }
+        }
     }
 
-    static func arrowHeadLength(lineWidth: CGFloat) -> CGFloat { max(lineWidth * 4, 10) }
+    static func handle(at point: CGPoint, rect: CGRect, tolerance: CGFloat) -> Handle? {
+        Handle.allCases.first { handle in
+            let position = handle.position(in: rect)
+            return abs(position.x - point.x) <= tolerance && abs(position.y - point.y) <= tolerance
+        }
+    }
 
-    static func distance(_ point: CGPoint, toSegment start: CGPoint, _ end: CGPoint) -> CGFloat {
+    /// The rectangle after dragging `handle` to `point`; edges swap when a drag crosses over.
+    static func resizedRect(_ rect: CGRect, dragging handle: Handle, to point: CGPoint) -> CGRect {
+        var minX = rect.minX, minY = rect.minY, maxX = rect.maxX, maxY = rect.maxY
+        switch handle {
+        case .topLeft: minX = point.x; minY = point.y
+        case .top: minY = point.y
+        case .topRight: maxX = point.x; minY = point.y
+        case .right: maxX = point.x
+        case .bottomRight: maxX = point.x; maxY = point.y
+        case .bottom: maxY = point.y
+        case .bottomLeft: minX = point.x; maxY = point.y
+        case .left: minX = point.x
+        }
+        return CGRect(x: min(minX, maxX), y: min(minY, maxY), width: abs(maxX - minX), height: abs(maxY - minY))
+    }
+
+    /// Moves a crop without resizing it, stopping at the image edges instead of shrinking.
+    static func movedRect(_ rect: CGRect, by delta: CGPoint, within bounds: CGRect) -> CGRect {
+        guard rect.width <= bounds.width, rect.height <= bounds.height else { return rect.intersection(bounds) }
+        let x = min(max(rect.minX + delta.x, bounds.minX), bounds.maxX - rect.width)
+        let y = min(max(rect.minY + delta.y, bounds.minY), bounds.maxY - rect.height)
+        return CGRect(x: x, y: y, width: rect.width, height: rect.height)
+    }
+
+    /// A crop cuts on pixel boundaries, so the chrome and the cut read the draft through here.
+    static func pixelSnappedCropRect(_ rect: CGRect, within bounds: CGRect) -> CGRect {
+        let minX = rect.minX.rounded(), minY = rect.minY.rounded()
+        let snapped = CGRect(x: minX, y: minY, width: rect.maxX.rounded() - minX, height: rect.maxY.rounded() - minY)
+        let result = snapped.intersection(bounds)
+        return result.isNull ? .zero : result
+    }
+
+    static func selectionRect(from origin: CGPoint, to current: CGPoint) -> CGRect {
+        CGRect(x: min(origin.x, current.x), y: min(origin.y, current.y),
+               width: abs(current.x - origin.x), height: abs(current.y - origin.y))
+    }
+
+    /// A full-image crop cannot move, so a drag inside it, or outside any crop, starts a new one.
+    static func startsNewCropSelection(at point: CGPoint, draft: CGRect, within bounds: CGRect) -> Bool {
+        bounds.contains(point) && (draft.standardized == bounds.standardized || !draft.contains(point))
+    }
+
+    static func distance(from point: CGPoint, toSegment start: CGPoint, _ end: CGPoint) -> CGFloat {
         let dx = end.x - start.x, dy = end.y - start.y
-        let length = dx * dx + dy * dy
-        let t = length == 0 ? 0 : max(0, min(1, ((point.x - start.x) * dx + (point.y - start.y) * dy) / length))
+        let lengthSquared = dx * dx + dy * dy
+        guard lengthSquared > 0 else { return hypot(point.x - start.x, point.y - start.y) }
+        let t = max(0, min(1, ((point.x - start.x) * dx + (point.y - start.y) * dy) / lengthSquared))
         return hypot(point.x - (start.x + t * dx), point.y - (start.y + t * dy))
     }
 
-    /// Radial distance to the outline: exact on a circle, close enough on an ellipse for a click.
-    static func distance(_ point: CGPoint, toEllipseIn rect: CGRect) -> CGFloat {
-        let a = rect.width / 2, b = rect.height / 2
-        guard a > 0, b > 0 else { return distance(point, toSegment: rect.origin, CGPoint(x: rect.maxX, y: rect.maxY)) }
-        let x = (point.x - rect.midX) / a, y = (point.y - rect.midY) / b
-        return abs(hypot(x, y) - 1) * min(a, b)
-    }
-}
-
-/// Text is laid out by Core Text, here and in the renderer, so hit testing matches what is drawn.
-enum AnnotationText {
-    static func line(_ string: String, fontSize: CGFloat, color: CGColor? = nil) -> CTLine {
-        let font = CTFontCreateUIFontForLanguage(.system, fontSize, nil)
-            ?? CTFontCreateWithName("Helvetica" as CFString, fontSize, nil)
-        var attributes: [NSAttributedString.Key: Any] = [.init(kCTFontAttributeName as String): font]
-        if let color { attributes[.init(kCTForegroundColorAttributeName as String)] = color }
-        return CTLineCreateWithAttributedString(NSAttributedString(string: string, attributes: attributes) as CFAttributedString)
+    static func arrowHead(from tail: CGPoint, to tip: CGPoint, strokeWidth: CGFloat)
+        -> (left: CGPoint, right: CGPoint) {
+        let angle = atan2(tip.y - tail.y, tip.x - tail.x)
+        let distance = hypot(tip.x - tail.x, tip.y - tail.y)
+        let length = min(max(10, strokeWidth * 3.4), max(distance * 0.72, min(strokeWidth * 1.2, distance)))
+        let spread = CGFloat.pi / 7
+        return (CGPoint(x: tip.x - length * cos(angle - spread), y: tip.y - length * sin(angle - spread)),
+                CGPoint(x: tip.x - length * cos(angle + spread), y: tip.y - length * sin(angle + spread)))
     }
 
-    static func size(_ string: String, fontSize: CGFloat) -> CGSize {
-        let metrics = metrics(line(string, fontSize: fontSize))
-        return CGSize(width: metrics.width, height: metrics.ascent + metrics.descent)
+    /// The whole arrow as one outline, so shaft and head never cut each other out under a fill rule.
+    static func arrowSilhouette(from tail: CGPoint, to tip: CGPoint, strokeWidth: CGFloat) -> CGPath {
+        let angle = atan2(tip.y - tail.y, tip.x - tail.x)
+        let head = arrowHead(from: tail, to: tip, strokeWidth: strokeWidth)
+        let baseMid = CGPoint(x: (head.left.x + head.right.x) / 2, y: (head.left.y + head.right.y) / 2)
+        let half = strokeWidth / 2
+        let normal = CGPoint(x: -sin(angle) * half, y: cos(angle) * half)
+        let path = CGMutablePath()
+        path.move(to: CGPoint(x: tail.x + normal.x, y: tail.y + normal.y))
+        path.addLine(to: CGPoint(x: baseMid.x + normal.x, y: baseMid.y + normal.y))
+        path.addLine(to: head.left)
+        path.addLine(to: tip)
+        path.addLine(to: head.right)
+        path.addLine(to: CGPoint(x: baseMid.x - normal.x, y: baseMid.y - normal.y))
+        path.addLine(to: CGPoint(x: tail.x - normal.x, y: tail.y - normal.y))
+        path.addArc(center: tail, radius: half, startAngle: angle - .pi / 2, endAngle: angle + .pi / 2,
+                    clockwise: true)
+        path.closeSubpath()
+        return path
     }
 
-    static func metrics(_ line: CTLine) -> (width: CGFloat, ascent: CGFloat, descent: CGFloat) {
-        var ascent: CGFloat = 0, descent: CGFloat = 0, leading: CGFloat = 0
-        let width = CTLineGetTypographicBounds(line, &ascent, &descent, &leading)
-        return (CGFloat(width), ascent, descent)
+    /// Mosaic block size in pixels, scaled to the capture so a small crop and a full screen redact alike.
+    static func pixelBlockSize(for imageSize: CGSize) -> Int {
+        max(10, Int(min(imageSize.width, imageSize.height) / 55))
     }
 }

@@ -55,7 +55,7 @@ final class CaptureEditorPanel: NSPanel, AnimatedPanel {
     override func sendEvent(_ event: NSEvent) {
         guard event.type == .keyDown, let key = Self.key(event),
             let action = AnnotationKeyAction.action(
-                for: key, modifiers: Self.modifiers(event), typingText: session.document.textEdit != nil)
+                for: key, modifiers: Self.modifiers(event), typingText: session.document.editingTextID != nil)
         else { return super.sendEvent(event) }
         session.perform(action)
     }
@@ -64,6 +64,7 @@ final class CaptureEditorPanel: NSPanel, AnimatedPanel {
         switch Int(event.keyCode) {
         case kVK_Escape: .escape
         case kVK_Delete, kVK_ForwardDelete: .delete
+        case kVK_Return, kVK_ANSI_KeypadEnter: .confirm
         default: event.charactersIgnoringModifiers?.first.map(AnnotationKeyAction.Key.character)
         }
     }

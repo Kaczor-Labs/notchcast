@@ -1,15 +1,24 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (C) 2026 Vorssaint
+// Adapted from Vorssaint 89d2626's screenshot editor view: the actions above, the rail beside the canvas.
+
 import SwiftUI
 
-/// Tools on top, the capture in the middle, the ways out at the bottom; the stock glass panel look.
+/// Actions on top, the tool rail beside the capture, the style row below; the stock glass panel look.
 struct CaptureEditorView: View {
     let session: CaptureEditorSession
+    /// The most the capture may take on screen; the canvas fits it inside.
     let canvasSize: CGSize
 
     var body: some View {
         VStack(spacing: Theme.Spacing.md) {
-            CaptureEditorToolbar(session: session)
-            CaptureEditorCanvas(session: session, size: canvasSize)
-            CaptureEditorFooter(session: session)
+            CaptureEditorActions(session: session)
+            HStack(alignment: .top, spacing: Theme.Spacing.md) {
+                CaptureEditorRail(session: session)
+                CaptureEditorCanvas(session: session, available: canvasSize)
+                    .frame(width: canvasSize.width, height: canvasSize.height)
+            }
+            CaptureEditorStyleRow(session: session)
         }
         .padding(Theme.Spacing.xl)
         .frame(minWidth: Theme.Size.panelWidth)
@@ -20,7 +29,7 @@ struct CaptureEditorView: View {
     }
 }
 
-private struct CaptureEditorFooter: View {
+private struct CaptureEditorActions: View {
     let session: CaptureEditorSession
 
     var body: some View {
@@ -66,7 +75,7 @@ private struct CaptureEditorDragChip: View {
         .frame(height: metrics.size.dialogButtonHeight)
         .background(Capsule().fill(Theme.Colors.controlSurface))
         .contentShape(Capsule())
-        .onDrag { CaptureEditorExport.provider(image: session.image, document: session.document) }
+        .onDrag { CaptureEditorExport.provider(document: session.document.finished()) }
         .tooltip(String(localized: "Drag the image into another app.", table: "NotchcastScreenshots"))
         .accessibilityElement(children: .combine)
         .accessibilityLabel(Text("Drag image", tableName: "NotchcastScreenshots"))

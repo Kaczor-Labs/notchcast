@@ -1,117 +1,174 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (C) 2026 Vorssaint
+// Adapted from Vorssaint 89d2626's screenshot renderer: marks, the pixelate mosaic and the flattened PNG.
+
 import CoreGraphics
 import CoreText
 import Foundation
 import ImageIO
 import UniformTypeIdentifiers
 
-/// One drawing path for the editor's canvas and the exported result, so what is seen is what is copied.
+/// Draws marks into a CGContext. The canvas and the export share this code, so what is on screen is
+/// what leaves the editor. Geometry is in image pixels, origin top left; `scale` is pixels per point.
 enum AnnotationRenderer {
-    enum Failure: Error { case drawingFailed, encodingFailed }
+    static let highlightAlpha: CGFloat = 0.42
+    /// The weight Vorssaint's marks use, semibold, as a Core Text weight trait.
+    static let textWeight: CGFloat = 0.3
+    /// Text sits this far in from its box, so the field and the drawn text line up.
+    static let textInset: CGFloat = 2
 
-    /// The side of one pixelated block, in points.
-    static let pixelBlock: CGFloat = 8
-    static let arrowHeadSpread = CGFloat.pi / 7
-
-    /// Draws into a context whose user space is the image's pixels, origin top left, y down.
-    static func draw(_ marks: [AnnotationMark], over base: CGImage, scale: CGFloat, in context: CGContext) {
-        drawImage(base, in: CGRect(x: 0, y: 0, width: base.width, height: base.height), context: context)
-        for mark in marks { draw(mark, over: base, scale: scale, in: context) }
+    static func font(size: CGFloat) -> CTFont {
+        let base = CTFontCreateUIFontForLanguage(.system, size, nil)
+            ?? CTFontCreateWithName("Helvetica" as CFString, size, nil)
+        let traits = [kCTFontWeightTrait: textWeight] as CFDictionary
+        let descriptor = CTFontDescriptorCreateWithAttributes([kCTFontTraitsAttribute: traits] as CFDictionary)
+        return CTFontCreateCopyWithAttributes(base, size, nil, descriptor)
     }
 
-    /// The annotated image, cut to the document's crop.
-    static func image(_ document: AnnotationDocument, over base: CGImage) throws -> CGImage {
-        let rect = document.outputRect.integral.intersection(CGRect(x: 0, y: 0, width: base.width, height: base.height))
-        guard !rect.isNull, rect.width >= 1, rect.height >= 1,
-            let context = bitmap(width: Int(rect.width), height: Int(rect.height), like: base)
-        else { throw Failure.drawingFailed }
-        context.translateBy(x: 0, y: rect.height)
+    static func fontSize(for textSize: Int, scale: CGFloat) -> CGFloat { CGFloat(textSize) * scale }
+
+    /// A text mark's box, for hit testing and the inline field.
+    static func textBounds(_ text: String, at origin: CGPoint, textSize: Int, scale: CGFloat) -> CGRect {
+        let measured = lineMetrics(textLine(text.isEmpty ? " " : text, size: fontSize(for: textSize, scale: scale), color: nil))
+        return CGRect(origin: origin, size: CGSize(width: ceil(measured.width) + textInset * 2,
+                                                   height: ceil(measured.ascent + measured.descent + measured.leading)))
+    }
+
+    /// Draws every mark over what is already in `context`. Text being typed is skipped, so the live
+    /// field is the only copy on screen; pixelate paints from `mosaic` and covers nothing without one.
+    static func draw(_ marks: [AnnotationMark], in context: CGContext, mosaic: CGImage?, imageSize: CGSize,
+                     scale: CGFloat, skippingText editingID: UUID? = nil) {
+        for mark in marks {
+            switch mark.tool {
+            case .pixelate:
+                guard let mosaic else { continue }
+                drawSample(mosaic, in: context, imageSize: imageSize, clippedTo: mark.rect.standardized)
+            case .highlight:
+                context.saveGState()
+                context.setBlendMode(.multiply)
+                context.setFillColor(mark.color.cgColor(alpha: highlightAlpha))
+                context.fill(mark.rect)
+                context.restoreGState()
+            case .rect:
+                strokeShape(mark, in: context, scale: scale) { context.stroke(mark.rect) }
+            case .ellipse:
+                strokeShape(mark, in: context, scale: scale) { context.strokeEllipse(in: mark.rect) }
+            case .arrow:
+                guard mark.points.count >= 2 else { continue }
+                context.saveGState()
+                context.setFillColor(mark.color.cgColor())
+                context.addPath(AnnotationGeometry.arrowSilhouette(
+                    from: mark.points[0], to: mark.points[1], strokeWidth: mark.stroke.width * scale))
+                context.fillPath()
+                context.restoreGState()
+            case .text:
+                if mark.id != editingID { drawText(mark, in: context, scale: scale) }
+            case .select, .crop:
+                break
+            }
+        }
+    }
+
+    /// The capture with its marks, as the editor shows it.
+    static func flattened(_ document: AnnotationDocument, using random: inout some RandomNumberGenerator)
+        -> CGImage? {
+        let image = document.image
+        let size = document.imageSize
+        guard let context = bitmap(width: image.width, height: image.height) else { return nil }
+        context.draw(image, in: CGRect(origin: .zero, size: size))
+        context.translateBy(x: 0, y: size.height)
         context.scaleBy(x: 1, y: -1)
-        context.translateBy(x: -rect.minX, y: -rect.minY)
-        draw(document.marks, over: base, scale: document.scale, in: context)
-        guard let image = context.makeImage() else { throw Failure.drawingFailed }
-        return image
+        let mosaic = document.marks.contains { $0.tool == .pixelate } ? mosaic(of: image, using: &random) : nil
+        draw(document.marks, in: context, mosaic: mosaic, imageSize: size, scale: document.scale)
+        return context.makeImage()
     }
 
-    static func png(_ document: AnnotationDocument, over base: CGImage) throws -> Data {
-        let image = try image(document, over: base)
+    /// PNG carrying the pixels per point as its DPI, as the system screenshot tool writes it.
+    static func pngData(from image: CGImage, scale: CGFloat) -> Data? {
         let data = NSMutableData()
-        guard let encoder = CGImageDestinationCreateWithData(data, UTType.png.identifier as CFString, 1, nil) else {
-            throw Failure.encodingFailed
-        }
-        CGImageDestinationAddImage(encoder, image, nil)
-        guard CGImageDestinationFinalize(encoder) else { throw Failure.encodingFailed }
-        return data as Data
+        guard let destination = CGImageDestinationCreateWithData(data, UTType.png.identifier as CFString, 1, nil)
+        else { return nil }
+        let properties = [kCGImagePropertyDPIWidth: Double(scale) * 72, kCGImagePropertyDPIHeight: Double(scale) * 72]
+        CGImageDestinationAddImage(destination, image, properties as CFDictionary)
+        return CGImageDestinationFinalize(destination) ? data as Data : nil
     }
 
-    private static func draw(_ mark: AnnotationMark, over base: CGImage, scale: CGFloat, in context: CGContext) {
-        let width = mark.lineWidth(scale: scale)
+    /// A low-resolution mosaic with per-block noise, so the blocks cannot be averaged back into text.
+    static func mosaic(of image: CGImage, using random: inout some RandomNumberGenerator) -> CGImage? {
+        let block = AnnotationGeometry.pixelBlockSize(for: CGSize(width: image.width, height: image.height))
+        let width = max(1, image.width / block), height = max(1, image.height / block)
+        guard let small = bitmap(width: width, height: height) else { return nil }
+        small.interpolationQuality = .medium
+        small.draw(image, in: CGRect(x: 0, y: 0, width: width, height: height))
+        scramble(small, using: &random)
+        return small.makeImage()
+    }
+
+    private static func scramble(_ context: CGContext, using random: inout some RandomNumberGenerator) {
+        guard let data = context.data else { return }
+        let bytes = data.bindMemory(to: UInt8.self, capacity: context.bytesPerRow * context.height)
+        for row in 0..<context.height {
+            for column in 0..<context.width {
+                let offset = row * context.bytesPerRow + column * 4
+                let noise = Int.random(in: -9...9, using: &random)
+                for channel in 0..<3 {
+                    bytes[offset + channel] = UInt8(max(0, min(255, Int(bytes[offset + channel]) + noise)))
+                }
+            }
+        }
+    }
+
+    /// Stretches the capture-wide mosaic under the clip, replacing what is there rather than blending.
+    private static func drawSample(_ sample: CGImage, in context: CGContext, imageSize: CGSize, clippedTo rect: CGRect) {
+        guard rect.width > 0, rect.height > 0 else { return }
         context.saveGState()
-        defer { context.restoreGState() }
-        context.setStrokeColor(mark.color.cgColor())
-        context.setFillColor(mark.color.cgColor())
-        context.setLineWidth(width)
-        context.setLineCap(.round)
-        context.setLineJoin(.round)
-        switch mark.shape {
-        case .arrow(let from, let to): drawArrow(from: from, to: to, lineWidth: width, in: context)
-        case .rectangle(let rect): context.stroke(rect)
-        case .ellipse(let rect): context.strokeEllipse(in: rect)
-        case .highlighter(let points):
-            context.setStrokeColor(mark.color.cgColor(alpha: AnnotationMark.highlighterAlpha))
-            context.setBlendMode(.multiply)
-            context.addLines(between: points)
-            context.strokePath()
-        case .text(let origin, let string):
-            let line = AnnotationText.line(string, fontSize: mark.fontSize(scale: scale), color: mark.color.cgColor())
-            context.textMatrix = CGAffineTransform(scaleX: 1, y: -1)
-            context.textPosition = CGPoint(x: origin.x, y: origin.y + AnnotationText.metrics(line).ascent)
-            CTLineDraw(line, context)
-        case .pixelate(let rect): pixelate(rect, of: base, block: pixelBlock * scale, in: context)
-        }
-    }
-
-    private static func drawArrow(from: CGPoint, to: CGPoint, lineWidth: CGFloat, in context: CGContext) {
-        let head = AnnotationGeometry.arrowHeadLength(lineWidth: lineWidth)
-        let angle = atan2(to.y - from.y, to.x - from.x)
-        func back(_ length: CGFloat, _ turn: CGFloat) -> CGPoint {
-            CGPoint(x: to.x - length * cos(angle + turn), y: to.y - length * sin(angle + turn))
-        }
-        context.move(to: from)
-        context.addLine(to: back(head * 0.8, 0))
-        context.strokePath()
-        context.move(to: to)
-        context.addLine(to: back(head, -arrowHeadSpread))
-        context.addLine(to: back(head, arrowHeadSpread))
-        context.closePath()
-        context.fillPath()
-    }
-
-    /// Averages the untouched image down to blocks, then scales them back up without smoothing.
-    private static func pixelate(_ rect: CGRect, of base: CGImage, block: CGFloat, in context: CGContext) {
-        let area = rect.integral.intersection(CGRect(x: 0, y: 0, width: base.width, height: base.height))
-        guard !area.isNull, area.width >= 1, area.height >= 1, let piece = base.cropping(to: area) else { return }
-        let columns = max(1, Int((area.width / max(block, 1)).rounded(.up)))
-        let rows = max(1, Int((area.height / max(block, 1)).rounded(.up)))
-        guard let small = bitmap(width: columns, height: rows, like: base) else { return }
-        small.interpolationQuality = .high
-        small.draw(piece, in: CGRect(x: 0, y: 0, width: columns, height: rows))
-        guard let mosaic = small.makeImage() else { return }
-        context.interpolationQuality = .none
-        drawImage(mosaic, in: area, context: context)
-    }
-
-    private static func drawImage(_ image: CGImage, in rect: CGRect, context: CGContext) {
-        context.saveGState()
-        context.translateBy(x: rect.minX, y: rect.maxY)
+        context.clip(to: CGRect(origin: .zero, size: imageSize))
+        context.clip(to: rect)
+        context.setBlendMode(.copy)
+        context.translateBy(x: 0, y: imageSize.height)
         context.scaleBy(x: 1, y: -1)
-        context.draw(image, in: CGRect(origin: .zero, size: rect.size))
+        context.interpolationQuality = .none
+        context.draw(sample, in: CGRect(origin: .zero, size: imageSize))
         context.restoreGState()
     }
 
-    private static func bitmap(width: Int, height: Int, like base: CGImage) -> CGContext? {
-        let space = base.colorSpace.flatMap { $0.model == .rgb ? $0 : nil }
-            ?? CGColorSpace(name: CGColorSpace.sRGB) ?? CGColorSpaceCreateDeviceRGB()
-        return CGContext(data: nil, width: width, height: height, bitsPerComponent: 8, bytesPerRow: 0,
-                         space: space, bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)
+    private static func strokeShape(_ mark: AnnotationMark, in context: CGContext, scale: CGFloat,
+                                    stroke: () -> Void) {
+        context.saveGState()
+        context.setStrokeColor(mark.color.cgColor())
+        context.setLineWidth(mark.stroke.width * scale)
+        context.setLineJoin(.round)
+        context.setLineCap(.round)
+        stroke()
+        context.restoreGState()
+    }
+
+    private static func drawText(_ mark: AnnotationMark, in context: CGContext, scale: CGFloat) {
+        guard !mark.text.isEmpty else { return }
+        let line = textLine(mark.text, size: fontSize(for: mark.textSize, scale: scale), color: mark.color.cgColor())
+        context.saveGState()
+        context.textMatrix = CGAffineTransform(scaleX: 1, y: -1)
+        context.textPosition = CGPoint(x: mark.rect.minX + textInset, y: mark.rect.minY + lineMetrics(line).ascent)
+        CTLineDraw(line, context)
+        context.restoreGState()
+    }
+
+    private static func textLine(_ string: String, size: CGFloat, color: CGColor?) -> CTLine {
+        var attributes: [NSAttributedString.Key: Any] = [.init(kCTFontAttributeName as String): font(size: size)]
+        if let color { attributes[.init(kCTForegroundColorAttributeName as String)] = color }
+        return CTLineCreateWithAttributedString(
+            NSAttributedString(string: string, attributes: attributes) as CFAttributedString)
+    }
+
+    private static func lineMetrics(_ line: CTLine) -> (width: CGFloat, ascent: CGFloat, descent: CGFloat, leading: CGFloat) {
+        var ascent: CGFloat = 0, descent: CGFloat = 0, leading: CGFloat = 0
+        let width = CTLineGetTypographicBounds(line, &ascent, &descent, &leading)
+        return (CGFloat(width), ascent, descent, leading)
+    }
+
+    private static func bitmap(width: Int, height: Int) -> CGContext? {
+        CGContext(data: nil, width: width, height: height, bitsPerComponent: 8, bytesPerRow: 0,
+                  space: CGColorSpace(name: CGColorSpace.sRGB) ?? CGColorSpaceCreateDeviceRGB(),
+                  bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)
     }
 }

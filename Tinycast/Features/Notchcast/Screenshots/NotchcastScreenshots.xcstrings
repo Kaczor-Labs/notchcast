@@ -1,6 +1,7 @@
 {
   "sourceLanguage" : "en",
   "strings" : {
+    "%lld pt" : {},
     "Arrow" : {},
     "Black" : {},
     "Blue" : {},
@@ -30,6 +31,7 @@
     "File" : {},
     "Green" : {},
     "Highlighter" : {},
+    "Larger Text" : {},
     "Medium" : {},
     "No screenshot to edit yet." : {},
     "Open each new screenshot in the editor before it is copied or saved." : {},
@@ -46,6 +48,8 @@
     "Screenshot folder" : {},
     "Screenshot selection" : {},
     "Screenshots" : {},
+    "Select" : {},
+    "Smaller Text" : {},
     "Text" : {},
     "Thick" : {},
     "Thin" : {},

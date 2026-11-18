@@ -1,12 +1,16 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (C) 2026 Vorssaint
+// Adapted from Vorssaint 89d2626's screenshot editor key handling.
+
 import Foundation
 
 /// What a key does in the editor; the panel translates its key events into `Key` first.
 enum AnnotationKeyAction: Equatable, Sendable {
     case tool(AnnotationTool)
-    case undo, redo, delete, copy, save, discard, endText
+    case undo, redo, delete, copy, save, discard, escape, confirm
 
     enum Key: Equatable, Sendable {
-        case escape, delete
+        case escape, delete, confirm
         case character(Character)
     }
 
@@ -18,34 +22,48 @@ enum AnnotationKeyAction: Equatable, Sendable {
         static let control = Self(rawValue: 8)
     }
 
-    /// While text is typed every key but Escape, ⌘C and ⌘S belongs to the text field.
+    /// While a text field edits, every key belongs to it.
     static func action(for key: Key, modifiers: Modifiers, typingText: Bool) -> Self? {
+        guard !typingText else { return nil }
         var letter: Character?
         if case .character(let character) = key { letter = character.lowercased().first }
-        switch (key, modifiers) {
-        case (.escape, []): return typingText ? .endText : .discard
-        case (.character, .command) where letter == "c": return typingText ? nil : .copy
-        case (.character, .command) where letter == "s": return .save
-        case _ where typingText: return nil
-        case (.delete, []): return .delete
-        case (.character, .command) where letter == "z": return .undo
-        case (.character, [.command, .shift]) where letter == "z": return .redo
-        case (.character, []): return AnnotationTool.allCases.first { $0.key == letter }.map(Self.tool)
-        default: return nil
+        if modifiers.contains(.command) {
+            switch key {
+            case .character where letter == "c": return .copy
+            case .character where letter == "s": return .save
+            case .character where letter == "z": return modifiers.contains(.shift) ? .redo : .undo
+            case .delete: return .discard
+            default: return nil
+            }
+        }
+        guard modifiers.isDisjoint(with: [.control, .option]) else { return nil }
+        switch key {
+        case .delete: return .delete
+        case .confirm: return .confirm
+        case .escape: return .escape
+        case .character(let character):
+            return character.wholeNumberValue.flatMap(AnnotationTool.shortcut(number:)).map(Self.tool)
         }
     }
 }
 
 extension AnnotationDocument {
-    /// The document's half of a key action; copy, save and discard belong to the editor's owner.
-    mutating func apply(_ action: AnnotationKeyAction) {
+    /// Applies a key or button action; the outcome, when there is one, closes the editor.
+    mutating func apply(_ action: AnnotationKeyAction) -> CaptureEditorOutcome? {
         switch action {
         case .tool(let tool): pick(tool)
         case .undo: undo()
         case .redo: redo()
-        case .delete: deleteSelection()
-        case .endText: commitText()
-        case .copy, .save, .discard: break
+        case .delete: deleteSelected()
+        case .copy: return .copy(finished())
+        case .save: return .save(finished())
+        case .discard: return .discard
+        case .escape: if !escape() { return .discard }
+        case .confirm:
+            // Return applies a pending crop; with none, it copies, as Vorssaint's editor does.
+            guard tool == .crop, cropDraft != nil else { return .copy(finished()) }
+            applyCrop()
         }
+        return nil
     }
 }

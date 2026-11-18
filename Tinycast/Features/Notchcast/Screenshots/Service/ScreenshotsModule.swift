@@ -136,11 +136,11 @@ final class ScreenshotsModule: NotchcastModule {
     }
 
     private func edit(_ image: CGImage) {
-        closeEditor = system.edit(image) { [weak self] outcome in self?.finishEditing(outcome, base: image) }
+        closeEditor = system.edit(image) { [weak self] outcome in self?.finishEditing(outcome) }
     }
 
     /// The editor stays open until its result is written, so a failed write loses no annotation.
-    private func finishEditing(_ outcome: CaptureEditorOutcome, base: CGImage) {
+    private func finishEditing(_ outcome: CaptureEditorOutcome) {
         guard closeEditor != nil, export == nil else { return }
         let document: AnnotationDocument
         switch outcome {
@@ -149,7 +149,7 @@ final class ScreenshotsModule: NotchcastModule {
         }
         export = Task {
             do {
-                let data = try await Self.render(document, over: base)
+                let data = try await Self.render(document)
                 try Task.checkCancellation()
                 if case .save = outcome {
                     _ = try await Self.save(data, in: folder(), date: context.now(), timeZone: .current)
@@ -208,12 +208,12 @@ final class ScreenshotsModule: NotchcastModule {
     }
 
     @concurrent
-    private static func render(_ document: AnnotationDocument, over base: CGImage) async throws -> Data {
-        do {
-            return try AnnotationRenderer.png(document.finished(), over: base)
-        } catch {
-            throw ScreenshotRequest.Failure.encodingFailed
-        }
+    private static func render(_ document: AnnotationDocument) async throws -> Data {
+        var random = SystemRandomNumberGenerator()
+        guard let image = AnnotationRenderer.flattened(document.finished(), using: &random),
+            let data = AnnotationRenderer.pngData(from: image, scale: document.scale)
+        else { throw ScreenshotRequest.Failure.encodingFailed }
+        return data
     }
 
     @concurrent
