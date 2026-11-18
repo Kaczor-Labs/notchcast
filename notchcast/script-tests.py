@@ -4,6 +4,7 @@ import argparse
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import os
 from pathlib import Path
+import re
 import subprocess
 import sys
 import tempfile
@@ -13,6 +14,8 @@ import time
 RUNTIMES = {".py": ["python3"], ".sh": ["bash"], ".mjs": ["node"],
             ".swift": ["swift", "-swift-version", "6"]}
 LAND_TEST = Path("notchcast/land-test.sh")
+# A test whose tool needs macOS carries this line; pr.yml runs every other one on Linux.
+MACOS = re.compile(r"^(?:#|//) script-tests: macos\b", re.M)
 LAND_INPUTS = [*Path(__file__).with_name("land-tooling.txt").read_text().split(), str(LAND_TEST)]
 
 
@@ -39,11 +42,15 @@ def run_test(path):
 parser = argparse.ArgumentParser(description=__doc__)
 parser.add_argument("--all", action="store_true", help="run land-test.sh even when its inputs did not change")
 parser.add_argument("--list", action="store_true", help="list selected tests without running them")
+parser.add_argument("--runner", choices=["linux", "macos"],
+                    help="only the tests marked '# script-tests: macos', or only the unmarked ones")
 parser.add_argument("--jobs", type=int, default=os.cpu_count() or 4, help="tests to run at once")
 args = parser.parse_args()
 tests = sorted(path for suffix in RUNTIMES for path in Path("notchcast").rglob(f"*-test{suffix}"))
 if not tests:
     sys.exit("script-tests.py: no tests found; run it from the repository root")
+if args.runner:
+    tests = [path for path in tests if bool(MACOS.search(path.read_text(errors="replace"))) == (args.runner == "macos")]
 if not args.all and LAND_TEST in tests and not land_inputs_changed():
     tests.remove(LAND_TEST)
     print(f"Skipping {LAND_TEST}: the diff does not touch {', '.join(LAND_INPUTS)}", file=sys.stderr, flush=True)

@@ -3,15 +3,15 @@
 
     lanes.py <base> <head>      prints build=true|false and scripts=true|false, one per line
 
-build is the Xcode lane (pr.yml's checks and harness shards), scripts the script tests. Docs need neither. A notchcast/
-file the build never reaches needs only the script tests. Every other path, unknown ones included, needs both, and so
-does any error: a wrong answer may only ever run too much.
+build is the Xcode lane (the build and harness steps of pr.yml's mac job), scripts the script tests. Docs need
+neither. A notchcast/ file the build never reaches needs only the script tests. Every other path, unknown ones
+included, needs both, and so does any error: a wrong answer may only ever run too much.
 """
 import re
 import subprocess
 import sys
 
-# What pr.yml's checks and harnesses jobs run from notchcast/; the build's closure grows from these.
+# What pr.yml's mac job runs from notchcast/ for the build lane; the build's closure grows from these.
 BUILD_SEEDS = {"notchcast/ci-build.sh", "notchcast/actions/xcode/action.yml", "notchcast/actions/xcodegen/action.yml",
                "notchcast/actions/tests/action.yml", "notchcast/lanes.py"}
 # Markdown under these is code: bundled, read by a check (check-addons, check-config) or fork-owned GitHub config.
@@ -42,7 +42,7 @@ def build_closure(head, changed):
             found |= {path for path in candidates if path == token or path.startswith(token + "/")}
         return found
 
-    # Exit 1 is no match; .github is left out because only the seeds are what pr.yml's Xcode jobs run.
+    # Exit 1 is no match; .github is left out because only the seeds are what pr.yml's Xcode steps run.
     outside = subprocess.run(["git", "grep", "-hoIE", TOKEN, head, "--", ".", ":!notchcast", ":!.github", ":!*.md"],
                              capture_output=True, text=True, errors="replace")
     if outside.returncode > 1:
