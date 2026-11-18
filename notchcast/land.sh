@@ -271,19 +271,30 @@ run_harnesses() {
 # Not covered without an Xcode build of this tree: code no selected harness compiles (UI, AppCore wiring,
 # resources); the PR build covered each head alone, and Sync and Snapshot follow on main.
 harnesses() {
-    local commit proof names
+    local commit proof= names unproven= skipped
     for commit in $(git rev-list --reverse "$base..HEAD"); do
         TMPDIR="$scratch/tmp" "$selector" "$commit^" "$commit"
     done | sort -u > "$scratch/selected"
     [ -s "$scratch/selected" ] || refuse 'no harness selected for the merged tree'
     names=$(< "$scratch/selected")
+    # run-tests.sh skips these here (test-harnesses.sh), so only a hosted run of this exact tree proves them.
+    [ "${RUNNER_ENVIRONMENT:-}" = github-hosted ] || [ "${NOTCHCAST_ISOLATED_RUNNER:-}" = 1 ] \
+        || unproven=$(grep -xF -f <(tr ' ' '\n' <<< "$HOSTED_ONLY_TESTS") "$scratch/selected" | paste -sd' ' - || true)
+    [ "$check" -eq 1 ] || proof=$(python3 "$(dirname "$selector")/ci.py" tested-run HEAD) || proof=
+    [ -z "$unproven" ] || [ "$check" -eq 1 ] || [ -n "$proof" ] \
+        || refuse "hosted-only harnesses are selected and no hosted run tested this tree: $unproven; this machine never runs them (HOSTED_ONLY_TESTS, notchcast/config.env): land on a train run that ran hosted (notchcast/train.sh ${train[*]})"
     # A covered train run tested this exact tree on GitHub; only the harnesses its hosted runner skips are left.
     if [ -n "$covered" ]; then
         echo "harnesses: covered by train ${train_run:0:8} (tree identical); running only what its runner skips"
         names=$(grep -xF -f <(tr ' ' '\n' <<< "$CI_SKIP_TESTS") "$scratch/selected" || true)
-    elif [ "$check" -eq 0 ] && proof=$(python3 "$(dirname "$selector")/ci.py" tested-run HEAD) && [ -n "$proof" ]; then
+    elif [ -n "${proof:-}" ]; then
         echo "harnesses: $proof built and tested this tree; running only what its runner skips"
         names=$(grep -xF -f <(tr ' ' '\n' <<< "$CI_SKIP_TESTS") "$scratch/selected" || true)
+    fi
+    skipped=$(grep -xF -f <(tr ' ' '\n' <<< "$unproven") <<< "$names" | paste -sd' ' - || true)
+    if [ -n "$skipped" ]; then
+        echo "SKIPPED, proven by no run: $skipped (hosted-only, HOSTED_ONLY_TESTS in notchcast/config.env)"
+        names=$(grep -vxF -f <(tr ' ' '\n' <<< "$skipped") <<< "$names" || true)
     fi
     run_harnesses $names
 }

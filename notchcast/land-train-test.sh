@@ -51,6 +51,8 @@ for name in check-drift.py check-drift-test.py; do
 done
 # The fixture's own hosted-runner skip, so it never depends on the real list.
 echo 'CI_SKIP_TESTS="clipboard-text-test"' >> "$seed/notchcast/config.env"
+echo 'HOSTED_ONLY_TESTS="hosted-test"' >> "$seed/notchcast/config.env"
+unset RUNNER_ENVIRONMENT NOTCHCAST_ISOLATED_RUNNER
 printf '#!/bin/sh\n' > "$seed/notchcast/check-identity.sh"
 printf '#!/bin/sh\n' > "$seed/notchcast/check-bundle-readme.sh"
 # Selects core, and <name>-test for a changed src/<name>.txt, as changed-harnesses.sh does from harness inputs.
@@ -93,7 +95,7 @@ echo "$ran" >> "$PASSES"
 exit $status
 STUB
 chmod +x "$seed"/notchcast/*.sh "$seed/Scripts/run-tests.sh"
-for name in notchcast-core b c clipboard-text; do
+for name in notchcast-core b c clipboard-text hosted; do
     echo '// fixture' > "$seed/Tests/$name-test.swift"
 done
 echo 'red-with: src/a.txt src/b.txt' > "$seed/Tests/a-test.swift"
@@ -285,6 +287,24 @@ TESTED=1 land 1
 [ "$(paste -sd'|' "$PASSES")" = clipboard-text-test ] || fail "with a tested tree the passes were '$(paste -sd'|' "$PASSES")'"
 [ "$(landed)" = 'Notchcast: Add B (#1)' ] || fail "tested tree landed '$(landed)'"
 echo 'PASS: a green PR build of the merged tree leaves only the harnesses its runner skips'
+
+fixture
+open_pr 1 pr-h 'Add H' src/hosted.txt
+land 1
+[ "$status" -eq 1 ] && grep -q '^REFUSED: hosted-only harnesses are selected and no hosted run tested this tree: hosted-test;' "$FIXTURE/output" \
+    || fail 'a selected hosted-only harness without a hosted run was not refused by name'
+[ "$(origin rev-parse main)" = "$base" ] && [ ! -s "$PASSES" ] || fail 'a refused hosted-only selection ran or landed something'
+echo 'PASS: a selected hosted-only harness refuses the landing, by name, without a hosted run of the tree'
+TESTED=1 land 1
+[ "$status" -eq 0 ] && [ ! -s "$PASSES" ] && [ "$(landed)" = 'Notchcast: Add H (#1)' ] \
+    || fail "with a hosted run of the tree the hosted-only PR ran '$(paste -sd'|' "$PASSES")' and landed '$(landed)'"
+echo 'PASS: a hosted run of the tree lands it, and the hosted-only harness never runs here'
+
+fixture
+open_pr 1 pr-h 'Add H' src/hosted.txt
+RUNNER_ENVIRONMENT=github-hosted land 1
+[ "$status" -eq 0 ] && [ "$(paste -sd'|' "$PASSES")" = 'hosted-test notchcast-core-test' ] || fail "on a hosted runner the pass was '$(paste -sd'|' "$PASSES")'"
+echo 'PASS: on a GitHub-hosted runner the landing pass runs the hosted-only harness itself'
 
 fixture
 open_pr 1 pr-b 'Add B' src/b.txt
