@@ -1,5 +1,6 @@
 import SwiftUI
 
+// notchcast-new-switch-ids: autoBackupSettings
 enum AutoBackupAddon: NotchcastAddon {
     static let switches = [
         NotchcastSwitch(
