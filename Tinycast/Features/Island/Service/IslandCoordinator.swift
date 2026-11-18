@@ -54,8 +54,8 @@ final class IslandCoordinator: NSObject {
 
     private func showGlance(_ next: IslandGlance?) {
         restingGlance = next
-        syncExpansion()
         for controller in backdrops.values { controller.glance = controller.showsRest ? next : nil }
+        syncExpansion()
     }
 
     private var screens: [NSScreen] {

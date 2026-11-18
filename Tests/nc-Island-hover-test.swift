@@ -2,6 +2,7 @@
 // notchcast-sources: Tinycast/Features/Island/Model/IslandPresentation.swift
 // notchcast-sources: Tinycast/Features/Island/Service/IslandHoverTracker.swift
 // notchcast-reads: Tinycast/Features/Island/Service/IslandCoordinator.swift
+// notchcast-reads: Tinycast/Features/Island/Service/IslandController.swift
 // notchcast-reads: Tinycast/Features/Island/Service/IslandPillMenu.swift
 // notchcast-reads: Tinycast/Features/Island/Service/IslandHoverTracker+Core.swift
 import CoreGraphics
@@ -139,6 +140,7 @@ struct IslandHoverTest {
         precondition(hits(755, 860) && hits(700, 849), "just below the notch counts, no aiming at its edge (H9)")
         precondition(hits(656, 860) && hits(855, 860), "below the menu bar the zone reaches past each end")
         precondition(!hits(655, 890) && !hits(856, 890), "inside the menu bar the items beside the notch stay its own")
+        precondition(hits(755, 900), "the screen's top pixel row over the notch counts (#1000)")
         precondition(!hits(755, 847), "the zone stops 20 points under the menu bar")
         precondition(!hits(652, 860), "and 10 points past each end")
         // A notchless 96 × 24 pill at the top edge of a 30-point menu bar.
@@ -146,6 +148,7 @@ struct IslandHoverTest {
         func pillHits(_ x: CGFloat, _ y: CGFloat) -> Bool {
             IslandHoverZone.contains(CGPoint(x: x, y: y), shape: pill, menuBarBottom: 870, below: 20, side: 10)
         }
+        precondition(pillHits(756, 900), "the top row over a top-edge pill counts (#1000)")
         precondition(pillHits(756, 872), "between the pill and the menu bar's lower edge counts")
         precondition(pillHits(756, 855) && !pillHits(756, 849), "the reach is measured from the menu bar's bottom")
         precondition(!pillHits(700, 880), "beside the pill inside the menu bar does not count")
@@ -236,6 +239,22 @@ struct IslandHoverTest {
             preconditionFailure("spaceChanged refreshes the hover")
         }
         precondition(written.upperBound < refreshed.lowerBound, "spaceChanged refreshes after the full-screen write")
+        let visibility = body(coordinator, "private func observeVisibility()")
+        for line in ["_ = core.isShowingDialog\n", "_ = core.settings.islandOpensOnHover\n",
+                     "self.hover.refresh()\n"] {
+            precondition(visibility.contains(line), "observeVisibility keeps \(line.dropLast()) (#1003)")
+        }
+        precondition(coordinator.contains("backdrop.onSettle = { [weak self] in self?.hover.refresh() }\n"),
+                     "a settling island refreshes the hover (#1003)")
+        let settled = try source("IslandController.swift").split(separator: "\n")
+            .filter { $0.contains("didSettle = ") }
+        precondition(settled.count == 1 && settled[0].contains("self?.onSettle?()"), "didSettle calls onSettle (#1003)")
+        let glance = body(coordinator, "private func showGlance(")
+        guard let set = glance.range(of: "controller.glance = "),
+              let synced = glance.range(of: "syncExpansion()\n") else {
+            preconditionFailure("showGlance sets the glance and syncs the presenter")
+        }
+        precondition(set.upperBound < synced.lowerBound, "the presenter reads the glance after it is set (#1001)")
         let core = try source("IslandHoverTracker+Core.swift")
         precondition(core.contains("addLocalMonitorForEvents") && core.contains("&& !(event.window is MenuPanel)"),
                      "a click in an own window counts, except on the island's menu")
