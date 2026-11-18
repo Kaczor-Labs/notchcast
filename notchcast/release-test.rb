@@ -32,10 +32,11 @@ uses = ->(job, action) { job.fetch('steps', []).count { |step| step['uses'] == "
   assert(Array(jobs.fetch(sign)['needs']).include?(build), "#{name} #{sign} must sign what #{build} built")
   if name == 'snapshot'
     publish = jobs.fetch('publish')
-    assert(%w[checks snapshot].all? { |need| publish['needs'].include?(need) } && !publish.key?('if'),
+    assert(publish['needs'].include?('snapshot') && !publish.key?('if'),
            'snapshot publish must remain gated on lint, tests and the signed build')
-    checks = jobs.fetch('checks')
-    steps = checks.fetch('steps')
+    checks = jobs.fetch(build)
+    release = checks.fetch('steps').index { |step| step['uses'] == './tools/notchcast/actions/release' }
+    steps = checks.fetch('steps').first(release)
     tests = steps.find { |step| step['uses'] == './tools/notchcast/actions/tests' }
     lint = steps.find { |step| step['name'] == 'Lint' }
     final = steps.last

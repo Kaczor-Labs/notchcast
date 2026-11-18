@@ -55,8 +55,8 @@ jobs:
         env:
           TAG: ${{ needs.plan.outputs.tag }}
         run: python3 notchcast/snapshot.py wait
-  # Harnesses and lint run beside the signed build; publish needs both green.
-  checks:
+  # The only job that runs the tree: harnesses unless main is green, lint, then the build. No secret.
+  build:
     needs: plan
     if: needs.plan.outputs.tag != ''
     runs-on: xcode-27
@@ -122,31 +122,6 @@ jobs:
         run: |
           echo "::error::Snapshot not published: tests=$TESTS lint-green=${LINT_GREEN:-false}"
           exit 1
-  # The tree's code builds and launches here, so no secret: the snapshot job signs what this job packed.
-  build:
-    needs: plan
-    if: needs.plan.outputs.tag != ''
-    runs-on: xcode-27
-    timeout-minutes: 120
-    permissions:
-      contents: read
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-        with:
-          ref: ${{ needs.plan.outputs.main }}
-          path: src
-          fetch-depth: 0
-          persist-credentials: false
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-        with:
-          ref: ${{ needs.plan.outputs.main }}
-          path: tools
-          persist-credentials: false
-      - uses: ./tools/notchcast/actions/xcode
-      - uses: ./tools/notchcast/actions/xcodegen
-      - name: Regenerate project
-        working-directory: src
-        run: '"$XCODEGEN" generate --quiet'
       - uses: ./tools/notchcast/actions/release
         with:
           version: ${{ needs.plan.outputs.version }}
@@ -190,7 +165,7 @@ jobs:
           retention-days: 1
   # Its own job, so "Re-run failed jobs" after a GitHub 5xx or SSH failure reuses the build above instead of rebuilding.
   publish:
-    needs: [plan, checks, snapshot, gate]
+    needs: [plan, snapshot, gate]
     runs-on: ubuntu-latest
     timeout-minutes: 30
     environment: sync

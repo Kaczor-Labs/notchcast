@@ -1,4 +1,5 @@
 #!/bin/bash
+# script-tests: macos (security keychains and codesign)
 # sign-app.sh on a real ad-hoc signed fixture app (a tool helper and a nested helper app, each with its own
 # entitlements), signed with a throwaway self-signed identity in a temporary keychain.
 set -euo pipefail
