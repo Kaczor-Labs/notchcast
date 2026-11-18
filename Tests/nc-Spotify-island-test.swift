@@ -91,7 +91,7 @@ final class Fake {
             now: { Date(timeIntervalSince1970: 1_800_000_000) }, soloistKey: { nil }, setSoloistKey: { _ in },
             tokens: { nil }, setTokens: { _ in }, installedBuild: { nil },
             install: { throw SoloistInstallError.install },
-            launch: { _, _, _ in throw SoloistLaunchError.notInstalled },
+            launch: { _, _, _, _ in throw SoloistLaunchError.notInstalled },
             connect: { _, _, _ in SoloistLink(send: { _ in }, close: {}) },
             wake: { _, _ in {} },
             nowPlaying: SpotifyNowPlayingSink(update: { _, _ in }, commands: { _ in }),
@@ -103,7 +103,7 @@ final class Fake {
                     }
                     return .init(status: 200, body: body, retryAfter: nil)
                 },
-                awaitRedirect: { _, _ in [:] }),
+                listen: { _, _, _ in throw CancellationError() }),
             openURL: { _ in })
     }
 }

@@ -132,7 +132,7 @@ private struct SpotifyProgressRow: View {
     }
 
     private func time(_ ms: Int, leading: Bool) -> some View {
-        Text(verbatim: (leading ? "" : "−") + Self.clock(ms))
+        Text(verbatim: (leading || ms <= 0 ? "" : "−") + Self.clock(ms))
             .font(Theme.Typography.rowTrailing.monospacedDigit())
             .foregroundStyle(Theme.Colors.textSecondary)
             .frame(width: SpotifyPlayerView.timeSlot, alignment: leading ? .leading : .trailing)
