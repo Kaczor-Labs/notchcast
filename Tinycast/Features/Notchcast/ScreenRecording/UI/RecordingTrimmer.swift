@@ -91,7 +91,7 @@ final class RecordingTrimmer {
             respond(.save(trim))
         }
         self.panel = panel
-        if let visible = (NSScreen.underCursor ?? NSScreen.main)?.visibleFrame {
+        if let visible = NSScreen.underCursor?.visibleFrame {
             panel.setFrameOrigin(NSPoint(x: visible.midX - panel.frame.width / 2,
                                          y: visible.midY - panel.frame.height / 2))
         }

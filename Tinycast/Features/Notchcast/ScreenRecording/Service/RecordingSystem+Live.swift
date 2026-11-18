@@ -11,9 +11,7 @@ extension RecordingSystem {
         grantScreen: { CGPreflightScreenCaptureAccess() || CGRequestScreenCaptureAccess() },
         grantMicrophone: { await AVCaptureDevice.requestAccess(for: .audio) },
         displayUnderCursor: {
-            let cursor = NSEvent.mouseLocation
-            let screen = NSScreen.screens.first { NSMouseInRect(cursor, $0.frame, false) } ?? NSScreen.main
-            return (screen?.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? NSNumber)?.uint32Value
+            return (NSScreen.underCursor?.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? NSNumber)?.uint32Value
         },
         select: { kind, completion in
             let surface = RecordingSelectionSurface(kind: kind, completion: completion)
@@ -46,7 +44,7 @@ extension RecordingSystem {
                 options: .idleSystemSleepDisabled, reason: "Recording the screen")
             return { ProcessInfo.processInfo.endActivity(activity) }
         },
-        freeBytes: { await freeBytes() },
+        freeBytes: { await availableBytes() },
         duration: { url in try await RecordingExporter.duration(url) },
         passthroughWorks: { url, container in await RecordingExporter.passthroughWorks(url, container) },
         export: { source, trim, plan, destination in
@@ -65,7 +63,7 @@ extension RecordingSystem {
 
     /// An unreadable volume never refuses a recording.
     @concurrent
-    private static func freeBytes() async -> Int64 {
+    private static func availableBytes() async -> Int64 {
         let values = try? FileManager.default.temporaryDirectory.resourceValues(
             forKeys: [.volumeAvailableCapacityForImportantUsageKey])
         return values?.volumeAvailableCapacityForImportantUsage ?? .max

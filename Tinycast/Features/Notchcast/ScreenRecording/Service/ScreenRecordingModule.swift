@@ -24,6 +24,7 @@ final class ScreenRecordingModule: NotchcastModule {
     private var stopTicking: (@MainActor () -> Void)?
     private var allowSleep: (@MainActor () -> Void)?
     private var diskCheck: Task<Void, Never>?
+    private var endedWhileStarting: UUID?
 
     init(context: NotchcastContext, system: RecordingSystem, timeZone: TimeZone = .current) {
         self.context = context
@@ -122,6 +123,7 @@ final class ScreenRecordingModule: NotchcastModule {
                 clip = url
                 startedAt = context.now()
                 showRecording()
+                if endedWhileStarting == id { stopRecording() }
             } catch {
                 if let file { try? FileManager.default.removeItem(at: file) }
                 guard operation == id else { return }
@@ -133,6 +135,7 @@ final class ScreenRecordingModule: NotchcastModule {
     /// The capture stopped by itself (its window closed, sharing was stopped): keep what it recorded.
     private func ended(_ id: UUID) {
         guard operation == id else { return }
+        if state.phase == .starting { endedWhileStarting = id }
         stopRecording()
     }
 
@@ -197,17 +200,27 @@ final class ScreenRecordingModule: NotchcastModule {
         let folder = try saving
             ? options.folder.map { URL(filePath: $0, directoryHint: .isDirectory) } ?? system.desktop()
             : system.workFolder()
+        if saving { try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true) }
         var plan = RecordingExport.copy
         let trim = trim ?? RecordingTrim(duration: 0)
         if !trim.isWhole || options.container != .mov {
             plan = .plan(trim, container: options.container,
                          passthroughWorks: await system.passthroughWorks(clip, options.container))
         }
-        let destination = freeName(in: folder, date: date, fileExtension: options.container.fileExtension)
+        let destination = RecordingRescue.freeName(
+            in: folder, date: date, timeZone: timeZone, fileExtension: options.container.fileExtension)
         do {
             try await system.export(clip, trim, plan, destination)
         } catch {
-            throw RecordingTarget.Failure.exportFailed
+            let desktop = [(try? system.desktop())].compactMap { $0 }
+            guard let kept = await RecordingRescue.keep(clip, in: desktop, date: date, timeZone: timeZone)
+            else { throw RecordingTarget.Failure.exportFailed }
+            context.presenter.post(IslandNotice(
+                id: Self.islandID, symbol: "record.circle",
+                text: String(localized: "Export failed, so the whole recording is on the Desktop.",
+                             table: "NotchcastScreenRecording"),
+                isFailure: true), onTap: { [system] in system.reveal(kept) })
+            return
         }
         try? FileManager.default.removeItem(at: clip)
         if saving {
@@ -220,16 +233,6 @@ final class ScreenRecordingModule: NotchcastModule {
             context.presenter.post(IslandNotice(
                 id: Self.islandID, symbol: "checkmark.circle",
                 text: String(localized: "Recording Copied", table: "NotchcastScreenRecording")), onTap: nil)
-        }
-    }
-
-    private func freeName(in folder: URL, date: Date, fileExtension: String) -> URL {
-        var collision = 0
-        while true {
-            let url = folder.appending(path: RecordingFileName.name(
-                date: date, timeZone: timeZone, fileExtension: fileExtension, collision: collision))
-            if !FileManager.default.fileExists(atPath: url.path(percentEncoded: false)) { return url }
-            collision += 1
         }
     }
 

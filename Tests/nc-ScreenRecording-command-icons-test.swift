@@ -3,6 +3,7 @@
 // notchcast-sources: Tinycast/Features/Notchcast/ScreenRecording/Model/*.swift
 // notchcast-sources: Tinycast/Features/Notchcast/ScreenRecording/Service/RecordingSystem.swift
 // notchcast-sources: Tinycast/Features/Notchcast/ScreenRecording/Service/ScreenRecordingModule.swift
+// notchcast-sources: Tinycast/Features/Notchcast/ScreenRecording/Service/ScreenRecordingRecovery.swift
 // notchcast-reads: Tinycast/Features/Notchcast/NotchcastCore.swift
 import SwiftUI
 

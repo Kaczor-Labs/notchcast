@@ -2,6 +2,7 @@
 // Copyright (C) 2026 Vorssaint
 // Adapted from Vorssaint 89d2626's recorder session: start order, then stop, drain and finish.
 
+import AppKit
 import AVFoundation
 import ScreenCaptureKit
 
@@ -9,6 +10,7 @@ import ScreenCaptureKit
 @MainActor
 final class ScreenRecordingCapture: RecordingCapture {
     private let session: RecordingSession
+    private var systemPauses: [NotificationToken] = []
 
     private init(session: RecordingSession) {
         self.session = session
@@ -16,10 +18,21 @@ final class ScreenRecordingCapture: RecordingCapture {
 
     static func start(_ target: RecordingTarget, _ options: RecordingOptions, _ file: URL,
                       ended: @escaping @MainActor (any Error) -> Void) async throws -> any RecordingCapture {
-        ScreenRecordingCapture(session: try await RecordingSession.open(target, options, file, ended: ended))
+        let capture = ScreenRecordingCapture(
+            session: try await RecordingSession.open(target, options, file, ended: ended))
+        // A stream does not outlive sleep or a user switch, so both end the recording with what it has.
+        let center = NSWorkspace.shared.notificationCenter
+        capture.systemPauses = [NSWorkspace.willSleepNotification, NSWorkspace.sessionDidResignActiveNotification]
+            .map { name in
+                NotificationToken(center.addObserver(forName: name, object: nil, queue: .main) { _ in
+                    MainActor.assumeIsolated { ended(RecordingTarget.Failure.captureFailed) }
+                }, center: center)
+            }
+        return capture
     }
 
     func stop() async throws {
+        systemPauses = []
         try await session.close()
     }
 }

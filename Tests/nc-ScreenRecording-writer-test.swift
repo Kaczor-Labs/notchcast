@@ -7,6 +7,7 @@
 // notchcast-sources: Tinycast/Features/Notchcast/ScreenRecording/Service/RecordingCaptureEngine.swift
 // notchcast-sources: Tinycast/Features/Notchcast/ScreenRecording/Service/RecordingMicrophone.swift
 // notchcast-sources: Tinycast/Features/Notchcast/ScreenRecording/Service/ScreenRecordingCapture.swift
+// notchcast-sources: Tinycast/Platform/NotificationToken.swift
 
 import AVFoundation
 import CoreMedia

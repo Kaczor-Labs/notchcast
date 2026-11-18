@@ -66,7 +66,7 @@ Settings search finds every switch with no line in the add-on: core installs one
 
 | Category | Tab | Build now (`buduj`) | Later (`później`), placed now |
 | - | - | - | - |
-| Capture | Capture | F1 Screenshots, F45 trimmer and F46 recording as one Screen Recording switch (#937, docs/features/screen-recording.md) | F39 editor, F40 text/OCR, F41 colour picker, F47 scrolling |
+| Capture | Capture | F1 Screenshots, F45 trimmer and F46 recording as one Screen Recording switch (#937, [screen-recording.md](screen-recording.md)) | F39 editor, F40 text/OCR, F41 colour picker, F47 scrolling |
 | Display & Sound | Display & Sound | F2 Brightness (+extra dimming), F100 Volume in Island | DDC volume/mute, XDR, per-display, F102 Audio priority |
 | Keyboard & Mouse | Keyboard & Mouse | F3 Hide with ⌘M, F4 Middle Click, F5 Quit Protection, F6 Show Desktop with F3 | F12 Green button maximizes, F33 Paste plain text |
 | Launcher | Launcher Extras | F10 Number Keys, F11 Small Commands | F27 Copy path, F29 GitHub search, F30 Quick Look on Space, F99 URL cleaner |

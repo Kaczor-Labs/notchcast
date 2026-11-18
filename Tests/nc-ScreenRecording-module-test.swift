@@ -6,6 +6,7 @@
 // notchcast-sources: Tinycast/Features/Notchcast/ScreenRecording/Model/*.swift
 // notchcast-sources: Tinycast/Features/Notchcast/ScreenRecording/Service/RecordingSystem.swift
 // notchcast-sources: Tinycast/Features/Notchcast/ScreenRecording/Service/ScreenRecordingModule.swift
+// notchcast-sources: Tinycast/Features/Notchcast/ScreenRecording/Service/ScreenRecordingRecovery.swift
 // notchcast-sources: Tests/NotchcastDictationFixture.swift
 
 import Foundation
@@ -76,6 +77,7 @@ final class RecordingFake {
     var clipboard: [URL] = []
     var revealed: [URL] = []
     var awake = 0
+    var endsWhileStarting = false
 }
 
 @MainActor let fake = RecordingFake()
@@ -100,6 +102,7 @@ extension RecordingSystem {
             fake.ended = ended
             writeClip(file, seconds: fake.recordedSeconds)
             fake.capture = FakeCapture()
+            if fake.endsWhileStarting { ended(RecordingTarget.Failure.captureFailed) }
             return fake.capture
         },
         everySecond: { tick in
@@ -245,6 +248,7 @@ enum ScreenRecordingModuleTests {
         await endings(rig)
         await switchOff(rig)
         rig.finish()
+        await recovery()
         print("\(checks) screen recording module checks; \(failures) failures")
         if failures > 0 { exit(1) }
         print("PASSED")
@@ -364,10 +368,21 @@ enum ScreenRecordingModuleTests {
         let kept = fake.starts.last!.file
         fake.answer?(.save(RecordingTrim(duration: 10)))
         await rig.settle()
-        check("a failed export is a failure", rig.presenter.last?.text == "Could not save the recording."
-              && rig.presenter.last?.isFailure == true)
-        check("and keeps the recorded clip", exists(kept))
+        let rescued = "Export failed, so the whole recording is on the Desktop."
+        check("a failed export is a failure", rig.presenter.last?.text == rescued && rig.presenter.last?.isFailure == true)
+        check("that leaves nothing in the work folder or the folder that failed",
+              !exists(kept) && names(in: chosen).count == 2)
+        rig.presenter.taps[rescued]?()
+        check("the clip is whole on the Desktop, and the notice's tap shows it",
+              fake.revealed.last.map { $0.pathExtension == "mov" && names(in: desktop).contains($0.lastPathComponent) } == true)
         files.withLock { $0.exportFails = false; $0.passthrough = true }
+
+        try? FileManager.default.removeItem(at: chosen)
+        await record(rig, .window(7))
+        fake.answer?(.save(RecordingTrim(duration: 10)))
+        await rig.settle()
+        check("a recording folder that was deleted is made again",
+              rig.presenter.last?.text == "Recording Saved" && names(in: chosen).count == 1)
         rig.defaults.removeObject(forKey: RecordingOptions.Keys.container)
         rig.defaults.removeObject(forKey: RecordingOptions.Keys.folder)
     }
@@ -484,6 +499,16 @@ enum ScreenRecordingModuleTests {
         check("a stop that throws still keeps a clip with frames", fake.trimmers.count == trimmers + 3)
         fake.answer?(.discard)
         await rig.settle()
+
+        fake.endsWhileStarting = true
+        rig.run("record-screen")
+        await rig.settle()
+        await rig.settle()
+        fake.endsWhileStarting = false
+        check("a capture that ends while it starts is stopped, not left recording",
+              fake.capture.stops == 1 && rig.presenter.status == nil && fake.trimmers.count == trimmers + 4)
+        fake.answer?(.discard)
+        await rig.settle()
     }
 
     static func switchOff(_ rig: Rig) async {
@@ -524,6 +549,33 @@ enum ScreenRecordingModuleTests {
         rig.run("record-area")
         check("and the next command picks again", fake.pick != nil)
         fake.pick?(nil)
+    }
+
+    /// A quit while recording or trimming leaves the clip in the work folder; the next start moves it out.
+    static func recovery() async {
+        let orphan = work.appending(path: "\(UUID().uuidString).mov")
+        let copied = work.appending(path: "Copied.mov")
+        writeClip(orphan, seconds: 10)
+        writeClip(copied, seconds: 10)
+        let before = names(in: desktop)
+        let rig = Rig()
+        check("off, the add-on still recovers", rig.module == nil)
+        let recovery = rig.controller.context(forSwitch: "recording")?.recovery(ScreenRecordingRecovery.self)
+        await recovery?.settled()
+        let moved = names(in: desktop).filter { !before.contains($0) }
+        check("a clip left by the last run moves to the recording folder", !exists(orphan) && moved.count == 1
+              && moved.first?.hasSuffix(".mov") == true)
+        check("a copied export in the work folder stays", exists(copied))
+        let notice = "Recovered a recording from the last session."
+        check("one notice says so", rig.presenter.posts.map(\.text) == [notice])
+        rig.presenter.taps[notice]?()
+        check("and its tap shows the file", fake.revealed.last?.lastPathComponent == moved.first)
+        rig.finish()
+
+        let again = Rig()
+        await again.controller.context(forSwitch: "recording")?.recovery(ScreenRecordingRecovery.self)?.settled()
+        check("with nothing left behind a start says nothing", again.presenter.posts.isEmpty)
+        again.finish()
     }
 
     /// Records `target` up to the trimmer: pick it, start, stop with the island's control.

@@ -36,4 +36,8 @@ enum ScreenRecordingAddon: NotchcastAddon {
     static func makeModule(_ context: NotchcastContext) -> (any NotchcastModule)? {
         ScreenRecordingModule(context: context, system: .live)
     }
+
+    static func makeRecovery(_ context: NotchcastContext) -> (any NotchcastModule)? {
+        ScreenRecordingRecovery(context: context, system: .live)
+    }
 }

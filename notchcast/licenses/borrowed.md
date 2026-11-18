@@ -33,5 +33,6 @@ ScreenRecording: Service/RecordingMicrophone.swift ← vorssaint/vorssaint-utils
 ScreenRecording: Service/ScreenRecordingCapture.swift ← vorssaint/vorssaint-utils@89d2626/Sources/Vorssaint/Services/Recorder/ScreenRecorderService.swift (GPL-3.0-or-later)
 ScreenRecording: Service/RecordingExporter.swift ← vorssaint/vorssaint-utils@89d2626/Sources/Vorssaint/Services/Recorder/RecorderSupport.swift (GPL-3.0-or-later)
 ScreenRecording: Service/RecordingSystem+Live.swift ← vorssaint/vorssaint-utils@89d2626/Sources/Vorssaint/Services/Recorder/ScreenRecorderService.swift (GPL-3.0-or-later)
+ScreenRecording: UI/RecordingSelectionSurface.swift ← vorssaint/vorssaint-utils@89d2626/Sources/Vorssaint/Services/QuickTools/ScreenshotSelectionController.swift (GPL-3.0-or-later)
 ScreenRecording: UI/RecordingTrimmer.swift ← vorssaint/vorssaint-utils@89d2626/Sources/Vorssaint/Services/Recorder/RecorderEditorController.swift (GPL-3.0-or-later)
 ScreenRecording: UI/RecordingTrimmerView.swift ← vorssaint/vorssaint-utils@89d2626/Sources/Vorssaint/UI/Recorder/RecorderEditorView.swift (GPL-3.0-or-later)

@@ -1,3 +1,7 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (C) 2026 Vorssaint
+// Adapted from Vorssaint 89d2626's selection controller: a shielding panel per display.
+
 import AppKit
 import Carbon.HIToolbox
 import SwiftUI
@@ -9,7 +13,7 @@ final class RecordingSelectionSurface {
     var recordable: [UInt32: RecordingWindow] = [:]
     private var panels: [RecordingSelectionPanel] = []
     private var completion: (@MainActor (RecordingTarget?) -> Void)?
-    private let primaryHeight = NSScreen.screens.first?.frame.height ?? 0
+    private let primaryHeight = NSScreen.primary?.frame.height ?? 0
 
     init(kind: RecordingKind, completion: @escaping @MainActor (RecordingTarget?) -> Void) {
         self.completion = completion
