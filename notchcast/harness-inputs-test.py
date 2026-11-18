@@ -32,7 +32,7 @@ class HarnessInputsTest(unittest.TestCase):
             'diff) if [[ " $* " == *" -z "* ]]; then printf "%s\\0" "$CHANGED"; '
             'else printf "%s\\n" "$CHANGED"; fi ;;\nesac\n')
         (self.root / "bin/git").chmod(0o755)
-        self.env = {**os.environ, "PATH": f"{self.root}/bin:{os.environ['PATH']}",
+        self.env = {**os.environ, "PATH": f"{self.root}/bin:{os.environ['PATH']}", "NOTCHCAST_PLATFORM": "Darwin",
                     "FIXTURE_ROOT": str(self.root), "GITHUB_ACTIONS": ""}
         self.env.pop("GITHUB_ACTIONS")
         (self.root / "Tinycast/Features/Example/Model/Example.swift").touch()
