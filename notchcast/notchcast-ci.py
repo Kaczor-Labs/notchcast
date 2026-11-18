@@ -34,7 +34,8 @@ Exit 0: the run passed. 1: the run failed. 2: usage or infrastructure error (gh,
 to prove), a NOPROOF run, or a run whose headSha is not the HEAD this started at (the branch moved; the verdict is
 still printed). 3: still pending; rerun the printed command. Overrides for tests: NOTCHCAST_CI_POLL (seconds between
 polls), NOTCHCAST_CI_MAX_DISPATCHES, and
-NOTCHCAST_CI_CLOCK=virtual (waits advance a counter instead of sleeping, and child processes run untimed).
+NOTCHCAST_CI_CLOCK=virtual (waits advance a counter instead of sleeping; a child process gets the virtual time
+left as its real timeout).
 """
 import argparse
 import json
@@ -89,7 +90,7 @@ def time_left():
     left = deadline - now()
     if left <= 0:
         raise OutOfTime
-    return None if left == float("inf") or VIRTUAL_CLOCK else left
+    return None if left == float("inf") else left
 
 
 def run(*cmd):
