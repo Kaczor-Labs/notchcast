@@ -14,6 +14,10 @@ on:
 permissions:
   contents: read
 
+# shadow: plan a harness selection and report failures outside it; shards still run every harness.
+env:
+  NOTCHCAST_HARNESS_SELECT: shadow
+
 # One group per workflow and PR head: a dispatch and a pull_request run on one head never both run.
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref_name == github.event.repository.default_branch && github.run_id || github.event.pull_request.head.label || format('{0}:{1}', github.repository_owner, github.ref_name) }}
@@ -33,6 +37,9 @@ jobs:
       runners: ${{ steps.route.outputs.runners }}
       build: ${{ steps.lanes.outputs.build }}
       scripts: ${{ steps.lanes.outputs.scripts }}
+      harness-planned: ${{ steps.select.outputs.planned }}
+      harness-selected: ${{ steps.select.outputs.selected }}
+      harness-unsure: ${{ steps.select.outputs.unsure }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
@@ -49,6 +56,18 @@ jobs:
             v2/addons-*) printf 'build=true\nscripts=true\n' | tee -a "$GITHUB_OUTPUT" ;;
             *) python3 notchcast/lanes.py "${BASE:-$(git merge-base origin/main HEAD)}" HEAD | tee -a "$GITHUB_OUTPUT" ;;
           esac
+      # Never fails the run: with no plan the shards report their failures unjudged.
+      - name: Harnesses the diff needs
+        id: select
+        if: steps.lanes.outputs.build == 'true'
+        continue-on-error: true
+        timeout-minutes: 2
+        env:
+          BASE: ${{ github.event.pull_request.base.sha || inputs.base }}
+        shell: bash
+        run: |
+          git sparse-checkout disable
+          python3 notchcast/harness-select.py plan "${BASE:-$(git merge-base origin/main HEAD)}" HEAD
       - id: route
         uses: ./notchcast/actions/route
         with:
@@ -105,6 +124,15 @@ jobs:
         with:
           shard: ${{ matrix.shard }} ${{ strategy.job-total }}
           cache: pr-${{ matrix.shard }}of${{ strategy.job-total }}
+      - name: Failures outside the harness selection
+        if: ${{ !cancelled() }}
+        continue-on-error: true
+        env:
+          HARNESS_PLANNED: ${{ needs.route.outputs.harness-planned }}
+          HARNESS_SELECTED: ${{ needs.route.outputs.harness-selected }}
+          HARNESS_UNSURE: ${{ needs.route.outputs.harness-unsure }}
+          SHARD: ${{ matrix.shard }}
+        run: python3 tools/notchcast/harness-select.py misses "$RUNNER_TEMP/harness-failures" "$SHARD"
   # On macOS like the tools they test (BSD sed and date, swift, xcrun), in parallel (notchcast/script-tests.py).
   script-tests:
     needs: route

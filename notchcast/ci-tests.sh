@@ -19,6 +19,10 @@ if [ -n "${NOTCHCAST_SWIFTC_CACHE:-}" ]; then
   ln -sf "$TOOLS/notchcast/swiftc-cache.py" "$RUNNER_TEMP/swiftc-shim/swiftc"
   export PATH="$RUNNER_TEMP/swiftc-shim:$PATH"
 fi
+# Harnesses that fail for good, one per line, for harness-select.py misses (pr.yml).
+failures=${RUNNER_TEMP:+$RUNNER_TEMP/harness-failures}
+record() { if [ -n "$failures" ]; then echo "$1" >> "$failures"; fi; }
+if [ -n "$failures" ]; then : > "$failures"; fi
 status=0
 ./Scripts/run-tests.sh || status=$?
 BIN="${TMPDIR:-/tmp}/tinycast-harness"
@@ -40,12 +44,12 @@ if [ "$status" -ne 0 ] && ls "$BIN"/*.failed >/dev/null 2>&1; then
     git worktree add -q --detach "$RUNNER_TEMP/pristine" "$UPSTREAM"
     for name in $still; do
       if [ ! -e "$RUNNER_TEMP/pristine/Tests/$name.swift" ]; then
-        echo "::error::$name fails with our commits and does not exist on upstream"; status=1
+        echo "::error::$name fails with our commits and does not exist on upstream"; status=1; record "$name"
         continue
       fi
       if (cd "$RUNNER_TEMP/pristine" && TMPDIR="$RUNNER_TEMP/pristine-tmp" && mkdir -p "$TMPDIR" && export TMPDIR \
           && ./Scripts/run-tests.sh "$name" >/dev/null 2>&1); then
-        echo "::error::$name fails with our commits and passes on upstream ${UPSTREAM:0:7}"; status=1
+        echo "::error::$name fails with our commits and passes on upstream ${UPSTREAM:0:7}"; status=1; record "$name"
       else
         echo "::warning::$name fails on upstream ${UPSTREAM:0:7} too; not ours, ignored"
       fi
