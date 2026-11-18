@@ -18,22 +18,19 @@ for runner in local self-hosted github-hosted; do
     CI_SKIP_TESTS=inherited bash notchcast/ci-tests.sh > "$scratch/out"
     if [ "$runner" = github-hosted ]; then
         grep -qw ClipboardTextTests "$SKIPS"
-    elif [ "$runner" = self-hosted ]; then
-        grep -qw RelaunchTests "$SKIPS" && grep -q '^::notice::SKIPPED on a self-hosted runner' "$scratch/out" \
-            || { echo 'FAIL: a self-hosted run did not skip, or skipped without saying so'; exit 1; }
     else
         [ ! -s "$SKIPS" ] || { echo "FAIL: $runner skipped harnesses"; exit 1; }
     fi
 done
-echo 'PASS: CI wrapper keeps the hosted skips on GitHub-hosted runners and the self-hosted skips on self-hosted ones'
-# A self-hosted runner is a working Mac: a harness naming one of these APIs runs there only once it is listed as skipped.
+echo 'PASS: CI wrapper keeps the hosted VM skips on GitHub-hosted runners only'
+# A harness naming one of these APIs could touch a working Mac, so it must be listed as hosted-only (hosted-only-test.sh).
 source "$root/notchcast/config.env"
 risky='NSWindow\(|NSPanel\(|PalettePanel\(|orderFront|becomeKey|makeKey|NSApplication\.shared|NSApp\.|/usr/bin/open|NSWorkspace|NSRunningApplication|AudioObjectSetPropertyData|CGEvent\(|CGEvent\.tapCreate|\.post\(tap|NSAppleScript|osascript|CFPreferencesSetValue|NSSound|NSPasteboard|AXUIElement|AVCaptureDevice|AVAudioEngine|SCStream|SecItem|KeychainSecretStore\(|NSOpenPanel|NSSavePanel|NSAlert|UNUserNotification'
 unlisted=$(cd "$root/Tests" && grep -lE "$risky" *.swift | sed 's/\.swift$//' \
     | grep -vxF -e NotchcastTapFixtures -e 'ExtensionTests+MenuBar' \
-    | grep -vxF -f <(tr ' ' '\n' <<< "$SELF_HOSTED_SKIP_TESTS $HIDDEN_TESTS") || true)
-[ -z "$unlisted" ] || { echo "FAIL: not in SELF_HOSTED_SKIP_TESTS (notchcast/config.env): $unlisted"; exit 1; }
-echo 'PASS: every harness that names a window, focus, launch, pasteboard, sound, event or preference API skips self-hosted'
+    | grep -vxF -f <(tr ' ' '\n' <<< "$HOSTED_ONLY_TESTS $HIDDEN_TESTS") || true)
+[ -z "$unlisted" ] || { echo "FAIL: not in HOSTED_ONLY_TESTS (notchcast/config.env): $unlisted"; exit 1; }
+echo 'PASS: every harness that names a window, focus, launch, pasteboard, sound, event or preference API is hosted-only'
 # A harness failing alone too and absent on upstream is written down for the selection check.
 cat > Scripts/run-tests.sh <<'STUB'
 #!/bin/bash
@@ -66,3 +63,13 @@ RUNNER_TEMP="$scratch/runner" UPSTREAM=0000000000000000000000000000000000000000 
 [ "$(cat "$scratch/runner/harness-failures")" = nc-New-test ] \
     || { cat "$scratch/out"; echo 'FAIL: a failing upstream comparison wrote no harness down'; exit 1; }
 echo 'PASS: a harness that fails for good is written down before the upstream comparison'
+# Red on upstream too: ignored for the verdict, and written down as proven nowhere by this run.
+mkdir Tests "$scratch/excusing"
+: > Tests/nc-New-test.swift
+git add Tests
+git commit -q -m 'Fixture upstream with the harness'
+RUNNER_TEMP="$scratch/excusing" UPSTREAM=$(git rev-parse HEAD) bash notchcast/ci-tests.sh > "$scratch/out" 2>&1 \
+    || { cat "$scratch/out"; echo 'FAIL: a harness red on upstream too failed the run'; exit 1; }
+[ "$(cat "$scratch/excusing/harness-excused")" = nc-New-test ] && [ ! -s "$scratch/excusing/harness-failures" ] \
+    || { cat "$scratch/out"; echo 'FAIL: a harness red on upstream too was not written to harness-excused'; exit 1; }
+echo 'PASS: a harness red on upstream too passes the run and is written to harness-excused'

@@ -1,3 +1,4 @@
+// notchcast-new-switch-ids: archives
 import SwiftUI
 
 /// Extracts opened archives with HatchZip or the user's fallback tools, instead of Archive Utility.

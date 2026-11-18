@@ -16,19 +16,19 @@ struct NotchcastDictationBridge: NotchcastTranscribing {
         core?.dictationCoordinator.willStart = hook
     }
 
-    func transcribe(_ audioURL: URL, isInterrupted: @escaping @MainActor @Sendable () -> Bool)
-        async throws -> String
-    {
+    func transcribe(
+        _ audioURL: URL, language: String?, isInterrupted: @escaping @MainActor @Sendable () -> Bool
+    ) async throws -> String {
         guard let core, core.dictationModels.isInstalled(core.settings.dictationModel) else {
             throw NotchcastTranscribeError.unavailable
         }
         let models = core.dictationModels
         let model = core.settings.dictationModel
-        let language = core.settings.dictationLanguage
+        let hint = language ?? core.settings.dictationLanguage
         do {
             return try await Self.transcribe(audioURL) { samples in
                 guard !isInterrupted() else { throw NotchcastTranscribeError.busy }
-                return try await models.transcribe(samples, model: model, language: language)
+                return try await models.transcribe(samples, model: model, language: hint)
             }
         } catch let failure as DictationWire.Failure {
             switch failure {
