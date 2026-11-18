@@ -193,6 +193,7 @@ struct DictationSettingsView: View {
                     )
                 }
 
+                DictationSharingSection()
             }
         }
         .formStyle(.grouped)
