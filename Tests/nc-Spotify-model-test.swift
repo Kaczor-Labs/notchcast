@@ -32,6 +32,8 @@ enum SpotifyModelTests {
         volume()
         pkce()
         web()
+        launchRules()
+        redirect()
         print("Spotify model: wire, state, expiry, back-off, volume, PKCE and Web API mapping hold")
     }
 
@@ -202,5 +204,40 @@ enum SpotifyModelTests {
         let local = SpotifyWire.Track(uri: "spotify:local:x", name: "x", type: "track", artists: nil, album: nil,
                                       durationMs: 1, isLocal: true)
         check(SpotifyWire.item(local) == nil, "local files can't play")
+    }
+
+    static func launchRules() {
+        typealias Rules = SoloistLaunchRules
+        check(Rules.socketURL(port: "4321\n", address: "127.0.0.1\n")?.absoluteString == "ws://127.0.0.1:4321", "url")
+        check(Rules.socketURL(port: "4321", address: nil) == nil, "a missing ws.addr is refused")
+        check(Rules.socketURL(port: "4321", address: "0.0.0.0") == nil, "a non-loopback address is refused")
+        check(Rules.socketURL(port: "70000", address: "127.0.0.1") == nil, "a port out of range")
+        check(Rules.pid(" 42\n") == 42 && Rules.pid("0") == nil && Rules.pid(nil) == nil, "pid file")
+        let installed = "/opt/notchcast/Soloist/soloist"
+        check(Rules.adoptable(runningPath: installed, installedPath: installed, signed: true, stopping: false), "ours")
+        check(!Rules.adoptable(runningPath: "/tmp/soloist", installedPath: installed, signed: true, stopping: false),
+              "a look-alike named soloist elsewhere is not adopted")
+        check(!Rules.adoptable(runningPath: installed, installedPath: installed, signed: false, stopping: false),
+              "an unsigned process at our path is not adopted")
+        check(!Rules.adoptable(runningPath: installed, installedPath: installed, signed: true, stopping: true),
+              "a process being stopped is not adopted")
+        check(!Rules.adoptable(runningPath: nil, installedPath: installed, signed: true, stopping: false), "gone")
+    }
+
+    static func redirect() {
+        func decide(_ text: String, ended: Bool = false) -> SpotifyRedirectDecision {
+            SpotifyRedirect.decide(Data(text.utf8), ended: ended, path: "/callback", state: "S")
+        }
+        let head = "GET /callback?code=C&state=S HTTP/1.1\r\nHost: 127.0.0.1\r\n"
+        check(decide(head) == .readMore, "a request head cut short waits for the rest")
+        check(decide(head, ended: true) == .reply(status: 400), "and is dropped if the peer stops there")
+        check(decide(head + "\r\n") == .finish(["code": "C", "state": "S"]), "the whole head ends the wait")
+        check(decide("GET /callback?code=X&state=other HTTP/1.1\r\n\r\n") == .reply(status: 400),
+              "another state is answered and ignored")
+        check(decide("GET /favicon.ico HTTP/1.1\r\n\r\n") == .reply(status: 404), "another path")
+        check(decide("GET /callback?error=access_denied&state=S HTTP/1.1\r\n\r\n")
+              == .finish(["error": "access_denied", "state": "S"]), "a refusal with our state ends it too")
+        check(decide(String(repeating: "a", count: SpotifyRedirect.maxRequestBytes + 1)) == .reply(status: 431),
+              "an oversized request")
     }
 }

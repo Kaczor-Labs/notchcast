@@ -61,6 +61,14 @@ final class FakeSpotify {
     var requests: [String] = []
     var answers: [(Int, String)] = []
     var opened: [URL] = []
+    /// Bind, open, cancel and redirect steps of each sign-in, in order.
+    var signInLog: [String] = []
+    var launchHangs = false
+    var launchCancelled = false
+    var hang: CheckedContinuation<Void, any Error>?
+    var redirectHangs = false
+    var redirectCancelled = false
+    var pendingRedirect: CheckedContinuation<[String: String], any Error>?
 
     var system: SpotifySystem {
         SpotifySystem(
@@ -74,12 +82,23 @@ final class FakeSpotify {
                 build = SoloistBuild(versionOutput: "soloist 1.4 build 1 (20270301)")
                 return build!
             },
-            launch: { [self] _, exited, rejected in
+            launch: { [self] _, spawned, exited, rejected in
                 launches += 1
                 if launchFails { throw SoloistLaunchError.noSocket }
                 self.exited = exited
                 self.rejected = rejected
-                return SoloistInstance(url: URL(string: "ws://127.0.0.1:1")!, stop: { [self] in stops += 1 })
+                spawned { [self] in stops += 1 }
+                if launchHangs {
+                    try await withTaskCancellationHandler {
+                        try await withCheckedThrowingContinuation { hang = $0 }
+                    } onCancel: {
+                        Task { @MainActor in
+                            FakeSpotify.shared.launchCancelled = true
+                            FakeSpotify.shared.hang?.resume(throwing: CancellationError())
+                        }
+                    }
+                }
+                return URL(string: "ws://127.0.0.1:1")!
             },
             connect: { [self] _, event, closed in
                 self.event = event
@@ -101,13 +120,28 @@ final class FakeSpotify {
                     }
                     return .init(status: status, body: Data(body.utf8), retryAfter: nil)
                 },
-                awaitRedirect: { _, _ in
-                    let url = await MainActor.run { FakeSpotify.shared.opened.last }
-                    let state = url.flatMap { URLComponents(url: $0, resolvingAgainstBaseURL: false) }?
-                        .queryItems?.first { $0.name == "state" }?.value ?? ""
-                    return ["code": "C", "state": state]
+                listen: { _, _, state in
+                    await MainActor.run { FakeSpotify.shared.signInLog.append("bound") }
+                    return SpotifyRedirectListener(
+                        redirect: { @MainActor in
+                            let fake = FakeSpotify.shared
+                            guard fake.redirectHangs else { return ["code": "C", "state": state] }
+                            return try await withTaskCancellationHandler {
+                                try await withCheckedThrowingContinuation { fake.pendingRedirect = $0 }
+                            } onCancel: {
+                                Task { @MainActor in
+                                    FakeSpotify.shared.redirectCancelled = true
+                                    FakeSpotify.shared.pendingRedirect?.resume(throwing: SpotifyAuthError.cancelled)
+                                    FakeSpotify.shared.pendingRedirect = nil
+                                }
+                            }
+                        },
+                        cancel: { MainActor.assumeIsolated { FakeSpotify.shared.signInLog.append("cancel") } })
                 }),
-            openURL: { [self] in opened.append($0) })
+            openURL: { [self] in
+                opened.append($0)
+                signInLog.append("open")
+            })
     }
 }
 
@@ -135,6 +169,7 @@ struct SpotifyModuleTests {
         await expiry()
         await web()
         await player()
+        await ownership()
         print("Spotify module: Soloist supervised, volume restored, expiry warned once, library signed in")
     }
 
@@ -350,6 +385,65 @@ struct SpotifyModuleTests {
         check(!module.isSignedIn && fake.tokens == nil && module.liked == nil, "a revoked sign-in signs out")
         module.setClientID("other")
         check(fake.tokens == nil, "a new client id drops the old tokens")
+        module.stop()
+    }
+
+    /// Off, quit, a new client id and a second sign-in each end what is still in flight.
+    @MainActor
+    static func ownership() async {
+        let fake = FakeSpotify()
+        fake.launchHangs = true
+        let (module, _) = make(fake, defaults: scratch())
+        module.start()
+        await settle()
+        check(fake.launches == 1 && module.phase == .starting, "Soloist spawned, its socket not up yet")
+        module.stop()
+        check(fake.stops == 1, "off stops a Soloist still starting, at once, as quit does")
+        await settle()
+        check(fake.launchCancelled, "and cancels its launch")
+        fake.launchHangs = false
+        module.start()
+        await settle()
+        check(fake.launches == 2 && module.phase == .running && fake.stops == 1, "on again starts a fresh one")
+
+        module.setClientID("client")
+        fake.redirectHangs = true
+        Task { await module.signIn() }
+        await settle()
+        check(fake.signInLog == ["bound", "open"], "the redirect port listens before the browser opens")
+        module.stop()
+        await settle()
+        check(fake.redirectCancelled && !module.signingIn && fake.signInLog.last == "cancel", "off ends the sign-in")
+
+        module.start()
+        await settle()
+        fake.redirectCancelled = false
+        fake.signInLog = []
+        Task { await module.signIn() }
+        await settle()
+        fake.redirectHangs = false
+        fake.answers = [(200, #"{"access_token":"A","expires_in":3600,"refresh_token":"R"}"#)]
+        await module.signIn()
+        check(fake.redirectCancelled, "a second sign-in ends the first")
+        check(fake.signInLog == ["bound", "open", "cancel", "bound", "open", "cancel"], "and frees the port first")
+        check(module.isSignedIn && !module.signingIn && fake.tokens?.refreshToken == "R", "then signs in")
+
+        fake.redirectHangs = true
+        fake.redirectCancelled = false
+        Task { await module.signIn() }
+        await settle()
+        module.setClientID("other")
+        await settle()
+        check(fake.redirectCancelled && !module.signingIn, "a new client id ends the sign-in in flight")
+
+        module.setClientID("client")
+        fake.tokens = SpotifyTokens(accessToken: "A", refreshToken: "R", expiresAt: fake.now, scope: "")
+        module.rebuildWeb()
+        guard let old = module.web else { return check(false, "signed in") }
+        module.setClientID("third")
+        fake.answers = [(200, #"{"access_token":"B","expires_in":3600,"refresh_token":"R2"}"#), (200, "[true]")]
+        _ = try? await old.isSaved("spotify:track:1")
+        check(fake.tokens == nil && !module.isSignedIn, "the old id's refresh never lands under the new id")
         module.stop()
     }
 }

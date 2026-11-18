@@ -9,9 +9,12 @@ extension SpotifyModule {
             return
         }
         let system = system
-        web = SpotifyWeb(clientID: clientID, tokens: system.tokens(), transport: system.web, now: system.now) { [weak self] tokens in
+        let issuer = clientID
+        web = SpotifyWeb(clientID: issuer, tokens: system.tokens(), transport: system.web,
+                         now: system.now) { [weak self] tokens in
+            guard let self, clientID == issuer else { return }
             system.setTokens(tokens)
-            self?.isSignedIn = tokens != nil
+            isSignedIn = tokens != nil
         }
         isSignedIn = web?.isSignedIn == true
     }
@@ -22,23 +25,37 @@ extension SpotifyModule {
         guard id != clientID else { return }
         clientID = id
         context.defaults.set(id, forKey: Self.clientIDKey)
+        cancelSignIn()
         system.setTokens(nil)
         signInError = nil
         rebuildWeb()
     }
 
+    /// A new attempt replaces one still waiting, so its listener frees the redirect port first.
     func signIn() async {
-        guard let web, !signingIn else { return }
+        guard let web else { return }
+        let previous = signInTask
+        cancelSignIn()
+        _ = await previous?.result
+        guard self.web === web else { return }
         signingIn = true
         signInError = nil
-        do {
-            try await web.signIn(open: system.openURL)
-        } catch {
-            signInError = error
-        }
+        let open = system.openURL
+        let task = Task { try await web.signIn(open: open) }
+        signInTask = task
+        let result = await task.result
+        guard signInTask == task else { return }
+        signInTask = nil
         signingIn = false
+        if case .failure(let error as SpotifyAuthError) = result { signInError = error }
         isSignedIn = web.isSignedIn
         refreshLiked()
+    }
+
+    func cancelSignIn() {
+        signInTask?.cancel()
+        signInTask = nil
+        signingIn = false
     }
 
     func signOut() {
