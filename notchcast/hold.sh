@@ -20,7 +20,8 @@ hold_read() {
     fi
 }
 
-hold_time() { date -r "$1" '+%H:%M %Z'; }
+# BSD date reads epoch seconds with -r, GNU date with -d @.
+hold_time() { date -r "$1" '+%H:%M %Z' 2>/dev/null || date -d "@$1" '+%H:%M %Z'; }
 
 # Splits a hold into owner, until, auto and lander ("<host>:<pid>"); fails on anything else.
 hold_parse() {
