@@ -1,4 +1,5 @@
 #!/bin/bash
+# script-tests: macos (codesign and plutil)
 set -euo pipefail
 TOOLS=$(cd "$(dirname "$0")" && pwd)
 TEMP=$(mktemp -d)

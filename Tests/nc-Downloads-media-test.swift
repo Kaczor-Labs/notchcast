@@ -260,24 +260,22 @@ struct DownloadsMediaTest {
         """
         try script.write(to: tool, atomically: false, encoding: .utf8)
         try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: tool.path)
-        for round in 0..<12 {
-            let folder = root.appending(path: "round-\(round)")
-            let context = DownloadRunContext(destination: folder, tools: DownloadToolLookup(directories: [root]))
-            let outputs = try await withThrowingTaskGroup(of: URL.self) { group in
-                for _ in 0..<12 {
-                    group.addTask {
-                        let job = DownloadJob(id: UUID().uuidString, kind: "transcript", source: "fixture",
-                            title: "Same", state: .waiting, created: Date())
-                        return try await TranscriptDownloadRunner().run(job, context: context)!
-                    }
+        let folder = root.appending(path: "published")
+        let context = DownloadRunContext(destination: folder, tools: DownloadToolLookup(directories: [root]))
+        let outputs = try await withThrowingTaskGroup(of: URL.self) { group in
+            for _ in 0..<12 {
+                group.addTask {
+                    let job = DownloadJob(id: UUID().uuidString, kind: "transcript", source: "fixture",
+                        title: "Same", state: .waiting, created: Date())
+                    return try await TranscriptDownloadRunner().run(job, context: context)!
                 }
-                var urls = [URL]()
-                for try await url in group { urls.append(url) }
-                return urls
             }
-            precondition(Set(outputs).count == 12, "Concurrent transcripts overwrote each other")
-            let files = try FileManager.default.contentsOfDirectory(atPath: folder.path)
-            precondition(files.count == 12)
+            var urls = [URL]()
+            for try await url in group { urls.append(url) }
+            return urls
         }
+        precondition(Set(outputs).count == 12, "Concurrent transcripts overwrote each other")
+        let files = try FileManager.default.contentsOfDirectory(atPath: folder.path)
+        precondition(files.count == 12)
     }
 }

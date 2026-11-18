@@ -17,9 +17,10 @@ cp -R "$root/notchcast" notchcast
 git add notchcast
 git -c core.hooksPath=/dev/null commit --quiet -m old
 old=$(git rev-parse HEAD)
-sed -i '' '2a\
+sed -i.orig '2a\
 echo "MAIN COPY"
 ' notchcast/land.sh
+rm notchcast/land.sh.orig
 git -c core.hooksPath=/dev/null commit --quiet -am new
 git remote add origin "$scratch/origin.git"
 git push --quiet origin main
