@@ -17,7 +17,8 @@ case "$*" in
     'pr list '*)
         base=$*
         base=${base#*--base }
-        jq -s --arg base "${base%% *}" 'map(select(.state == "OPEN" and .baseRefName == $base))' "$FIXTURE"/pr-*.json | jq -r "${*: -1}" ;;
+        [[ "$*" == *' --base '* ]] || base=
+        jq -s --arg base "${base%% *}" 'map(select(.state == "OPEN" and ($base == "" or .baseRefName == $base)))' "$FIXTURE"/pr-*.json | jq -r "${*: -1}" ;;
     # Logs the base it leaves and whether origin still had that branch.
     'pr edit '*'--base main')
         was=$(jq -r .baseRefName "$FIXTURE/pr-$3.json")
@@ -485,6 +486,7 @@ jq -r .headRefOid "$FIXTURE/pr-3.json" > "$FIXTURE/red"
 draft 4
 queue
 [ "$status" -eq 0 ] && grep -q '^queue: batch 2 1$' "$FIXTURE/train-output" && grep -q '^LANDED #2 1$' "$FIXTURE/train-output" \
+    && grep -q '^open PRs: 5/25$' "$FIXTURE/train-output" \
     || queue_fail 'a green batch did not land'
 [ "$(landed)" = 'Notchcast: Add C (#2)|Notchcast: Add B (#1)' ] || queue_fail "the green batch landed '$(landed)'"
 [ "$(grep -c -- '--ref train/2-1\( \|$\)' "$FIXTURE/dispatched")" -eq 4 ] && [ "$(wc -l < "$FIXTURE/dispatched")" -eq 4 ] \

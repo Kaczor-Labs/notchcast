@@ -181,6 +181,7 @@ while [ ${#queue[@]} -gt 0 ]; do
     git fetch -q origin main '+refs/notchcast/synced/*:refs/notchcast/synced/*'
     git fetch -q upstream main || refuse 'cannot refresh upstream main'
     base=$(git rev-parse origin/main)
+    echo "open PRs: $(gh pr list -R "$FORK_REPO" --state open -L 200 --json number -q length || echo '?')/25"
     built=()
     for train in "${queue[@]}"; do
         build_train "$base" $train
