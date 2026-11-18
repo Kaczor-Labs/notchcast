@@ -1,5 +1,7 @@
 // notchcast-sources: Tinycast/Features/Notchcast/Core/Model/NotchcastMediaKey.swift
 // notchcast-sources: Tinycast/Features/Notchcast/DisplaySound/Model/*.swift
+// notchcast-sources: Tinycast/Features/Island/Model/IslandPresentation.swift
+// notchcast-sources: Tinycast/Features/Island/Model/IslandLevelDwell.swift
 
 import Foundation
 
@@ -25,6 +27,9 @@ enum DisplaySoundModelTests {
         check(BrightnessLevel(0).picture == 1 && !BrightnessLevel(0).isDimmed, "0 keeps the full picture")
         check(close(BrightnessLevel(-0.25).picture, BrightnessLevel.minimumPicture), "−0.25 is the deepest dim")
         check(BrightnessLevel(-0.25).hardware == 0, "extra dimming leaves the backlight at 0")
+        check(BrightnessLevel(0.125).readout == "13%", "Settings rounds 12.5% up, as the island does")
+        check(BrightnessLevel(0.625).readout == "63%", "Settings rounds 62.5% up, as the island does")
+        check(BrightnessLevel(-0.125).readout == "Dim", "Settings names extra dimming")
 
         // 1/16 steps, 1/64 fine, snapping onto the grid.
         check(close(BrightnessLevel(0.5).stepped(up: true, fine: false).value, 0.5625), "1/16 up")
