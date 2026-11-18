@@ -9,8 +9,16 @@ struct SystemToolsSystem: Sendable {
     let readProcesses: @MainActor @Sendable () async -> [ProcessSample]
     /// Quits, or force quits, the very process the sample names; false when it is gone or refused.
     let signal: @MainActor @Sendable (_ sample: ProcessSample, _ force: Bool) -> Bool
-    /// Shows the picker over a session; the returned closure closes it.
-    let presentPicker: @MainActor @Sendable (KillProcessSession, NotchcastSurfaces) -> @MainActor () -> Void
+    /// Shows a picker; the returned closure closes it.
+    let presentPicker: @MainActor @Sendable (any SystemToolsPicking, NotchcastSurfaces) -> @MainActor () -> Void
     /// `networkQuality -c`'s output; cancelling the task ends the tool.
     let runNetworkQuality: @Sendable () async throws -> Data
+    let localAddresses: @MainActor @Sendable () -> [LocalAddress]
+    /// The lookup service's reply body; the one request this add-on makes, and only on command.
+    let fetchPublicAddress: @Sendable () async throws -> Data
+    let savedWiFiNetworks: @Sendable () async throws -> [String]
+    /// macOS asks the user first; nil when no password is saved for that network.
+    let readWiFiPassword: @Sendable (_ network: String) async throws -> String?
+    /// A concealed copy stays out of clipboard history.
+    let copy: @MainActor @Sendable (_ text: String, _ concealed: Bool) -> Bool
 }

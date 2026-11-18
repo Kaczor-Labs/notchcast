@@ -1,26 +1,25 @@
 import AppKit
 import SwiftUI
 
-/// The stock menu and its panel over one session: typing filters, ↩ quits, ⌥↩ force quits.
+/// The stock menu in its panel over one picker model: typing filters, ↩ or ⌥↩ chooses.
 @MainActor
-final class KillProcessPicker {
-    private static let refreshInterval: Duration = .seconds(2)
+final class SystemToolsPicker {
     /// Optical centring, as Notchcast's own questions sit: an exactly centred panel reads low.
     private static let centerLift: CGFloat = 0.08
 
-    private let session: KillProcessSession
+    private let session: any SystemToolsPicking
     private let panel = MenuPanel()
     private let palette = PaletteState()
     private let hosting: NSHostingView<AnyView>
     private var refreshTask: Task<Void, Never>?
 
-    private init(session: KillProcessSession, surfaces: NotchcastSurfaces) {
+    private init(session: any SystemToolsPicking, surfaces: NotchcastSurfaces) {
         self.session = session
         let metrics = InterfaceMetrics(scale: CGFloat(surfaces.interfaceScale()))
         let frosted = surfaces.isFrosted()
         hosting = NSHostingView(rootView: AnyView(EmptyView()))
         hosting.rootView = AnyView(
-            KillProcessMenu(
+            SystemToolsMenu(
                 session: session, activate: { [weak self] in self?.activate($0) },
                 resized: { [weak self] in Task { @MainActor in self?.place() } }
             )
@@ -28,11 +27,11 @@ final class KillProcessPicker {
         hosting.sizingOptions = [.intrinsicContentSize]
         panel.hasShadow = frosted
         panel.contentView = hosting
-        panel.setAccessibilityLabel(String(localized: "Kill Process", table: "NotchcastSystemTools"))
+        panel.setAccessibilityLabel(session.title)
     }
 
-    static func present(_ session: KillProcessSession, surfaces: NotchcastSurfaces) -> @MainActor () -> Void {
-        let picker = KillProcessPicker(session: session, surfaces: surfaces)
+    static func present(_ session: any SystemToolsPicking, surfaces: NotchcastSurfaces) -> @MainActor () -> Void {
+        let picker = SystemToolsPicker(session: session, surfaces: surfaces)
         picker.open()
         return { picker.close() }
     }
@@ -42,10 +41,11 @@ final class KillProcessPicker {
         panel.onResignKey = { [weak self] _ in self?.close() }
         place()
         panel.makeKeyAndOrderFront(nil)
+        guard let interval = session.refreshInterval else { return }
         refreshTask = Task { [weak self] in
             while !Task.isCancelled, let session = self?.session {
                 await session.refresh()
-                try? await Task.sleep(for: Self.refreshInterval)
+                try? await Task.sleep(for: interval)
             }
         }
     }
@@ -73,16 +73,16 @@ final class KillProcessPicker {
     }
 
     private func activate(_ index: Int) {
-        guard session.rows.indices.contains(index) else { return }
-        let row = session.rows[index]
-        let force = NSEvent.modifierFlags.contains(.option)
+        guard session.pickerRows.indices.contains(index) else { return }
+        let option = NSEvent.modifierFlags.contains(.option)
         close()
-        Task { await session.quit(row, force: force) }
+        session.activate(index, option: option)
     }
 
     private func move(_ step: Int) {
-        guard !session.rows.isEmpty else { return }
-        session.selectedIndex = (session.selectedIndex + step + session.rows.count) % session.rows.count
+        let count = session.pickerRows.count
+        guard count > 0 else { return }
+        session.selectedIndex = (session.selectedIndex + step + count) % count
     }
 
     /// The pill menu's keys: Esc clears the query, then closes.
@@ -107,27 +107,25 @@ final class KillProcessPicker {
     }
 }
 
-private struct KillProcessMenu: View {
-    let session: KillProcessSession
+private struct SystemToolsMenu: View {
+    let session: any SystemToolsPicking
     let activate: (Int) -> Void
     let resized: () -> Void
     @Environment(PaletteState.self) private var palette
 
     var body: some View {
         PopoverMenu(
-            header: String(localized: "↩ Quit   ⌥↩ Force Quit", table: "NotchcastSystemTools"),
-            items: session.rows.map(item),
+            header: session.header,
+            items: session.pickerRows.map(item),
             selection: Binding(get: { session.selectedIndex }, set: { session.selectedIndex = $0 }),
             onActivate: activate,
-            search: .init(
-                placeholder: String(localized: "Search Processes…", table: "NotchcastSystemTools"), placement: .top))
+            search: .init(placeholder: session.placeholder, placement: .top))
             .onChange(of: palette.menuQuery) { session.query = palette.menuQuery }
-            .onChange(of: session.rows.count) { resized() }
+            .onChange(of: session.pickerRows.count) { resized() }
     }
 
-    private func item(_ row: ProcessRow) -> PopoverMenuItem {
+    private func item(_ row: SystemToolsPickerRow) -> PopoverMenuItem {
         PopoverMenuItem(
-            title: row.sample.name, icon: row.sample.bundlePath.map { .file(path: $0) } ?? .symbol("gearshape"),
-            detail: ProcessListPolicy.detail(row)) {}
+            title: row.title, icon: row.bundlePath.map { .file(path: $0) } ?? .symbol(row.symbol), detail: row.detail) {}
     }
 }

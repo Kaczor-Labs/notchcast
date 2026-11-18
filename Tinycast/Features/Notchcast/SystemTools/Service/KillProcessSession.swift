@@ -4,7 +4,7 @@ import Observation
 /// One open picker: the processes it lists, the query, and the quit the user picks.
 @MainActor
 @Observable
-final class KillProcessSession {
+final class KillProcessSession: SystemToolsPicking {
     static let noticeID = "systemTools.kill"
     static let symbol = "xmark.octagon"
 
@@ -27,6 +27,24 @@ final class KillProcessSession {
     var selectedIndex: Int {
         get { rows.firstIndex { $0.sample.pid == selectedPID } ?? 0 }
         set { selectedPID = rows.indices.contains(newValue) ? rows[newValue].sample.pid : nil }
+    }
+
+    var title: String { String(localized: "Kill Process", table: "NotchcastSystemTools") }
+    var header: String { String(localized: "↩ Quit   ⌥↩ Force Quit", table: "NotchcastSystemTools") }
+    var placeholder: String { String(localized: "Search Processes…", table: "NotchcastSystemTools") }
+    var refreshInterval: Duration? { .seconds(2) }
+    var pickerRows: [SystemToolsPickerRow] {
+        rows.map {
+            SystemToolsPickerRow(
+                title: $0.sample.name, detail: ProcessListPolicy.detail($0), bundlePath: $0.sample.bundlePath,
+                symbol: "gearshape")
+        }
+    }
+
+    func activate(_ index: Int, option: Bool) {
+        guard rows.indices.contains(index) else { return }
+        let row = rows[index]
+        Task { await quit(row, force: option) }
     }
 
     func refresh() async {

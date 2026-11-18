@@ -10,8 +10,10 @@ final class SystemToolsModule: NotchcastModule {
     /// A result is read, not glanced at, so it stays past the stock message dwell.
     static let resultSeconds: TimeInterval = 8
 
-    private let context: NotchcastContext
-    private let system: SystemToolsSystem
+    let context: NotchcastContext
+    let system: SystemToolsSystem
+    /// The one address lookup, network list or password read in flight.
+    var lookup: Task<Void, Never>?
     private var closePicker: (@MainActor () -> Void)?
     private var networkTask: Task<Void, Never>?
     private var escapeTap: UUID?
@@ -34,6 +36,8 @@ final class SystemToolsModule: NotchcastModule {
         isRunning = false
         closePicker?()
         closePicker = nil
+        lookup?.cancel()
+        lookup = nil
         guard isTestingNetwork else { return }
         endNetworkTest()
         context.presenter.end(notice: Self.networkNoticeID)
@@ -41,8 +45,12 @@ final class SystemToolsModule: NotchcastModule {
 
     func killProcess() {
         guard isRunning else { return }
+        present(KillProcessSession(system: system, context: context))
+    }
+
+    func present(_ picker: any SystemToolsPicking) {
         closePicker?()
-        closePicker = system.presentPicker(KillProcessSession(system: system, context: context), context.surfaces)
+        closePicker = system.presentPicker(picker, context.surfaces)
     }
 
     func testNetwork() {

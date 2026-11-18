@@ -68,6 +68,8 @@
 // notchcast-sources: Tinycast/Features/Notchcast/SystemTools/Model/*.swift
 // notchcast-sources: Tinycast/Features/Notchcast/SystemTools/Service/KillProcessSession.swift
 // notchcast-sources: Tinycast/Features/Notchcast/SystemTools/Service/SystemToolsModule.swift
+// notchcast-sources: Tinycast/Features/Notchcast/SystemTools/Service/SystemToolsModule+Addresses.swift
+// notchcast-sources: Tinycast/Features/Notchcast/SystemTools/Service/SystemToolsPicking.swift
 // notchcast-sources: Tinycast/Features/Notchcast/SystemTools/Service/SystemToolsSystem.swift
 // notchcast-sources: Tinycast/Features/Notchcast/SystemTools/Service/SudoTouchIDStore.swift
 // notchcast-reads: Tinycast/Features/Notchcast/*/*Addon.swift Tinycast/Features/Notchcast/NotchcastCore.swift

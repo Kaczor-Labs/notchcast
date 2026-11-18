@@ -16,6 +16,7 @@ enum SystemToolsPolicyTests {
         pamFile()
         processList()
         networkQuality()
+        networkInfo()
         print("\(checks) system tools policy checks; \(failures) failures")
         if failures > 0 { exit(1) }
         print("PASSED")
@@ -171,5 +172,50 @@ enum SystemToolsPolicyTests {
         check("output that is not JSON is unreadable", failure("Downlink capacity: 278 Mbps") == .unreadable)
         check("a run missing upload is unreadable", failure(#"{"dl_throughput": 5}"#) == .unreadable)
         check("an empty run is unreadable", failure("") == .unreadable)
+    }
+
+    static func networkInfo() {
+        let ports = """
+            Hardware Port: Ethernet
+            Device: en7
+            Ethernet Address: aa:bb:cc:dd:ee:ff
+
+            Hardware Port: Wi-Fi
+            Device: en1
+            Ethernet Address: aa:bb:cc:dd:ee:00
+            """
+        check("the Wi-Fi device is the one under its port", NetworkInfoPolicy.wifiDevice(hardwarePorts: ports) == "en1")
+        check("no Wi-Fi port, no device",
+              NetworkInfoPolicy.wifiDevice(hardwarePorts: "Hardware Port: Ethernet\nDevice: en0") == nil)
+        let preferred = "Preferred networks on en1:\n\tHome\n\tOffice 5G\n\tHome\n\t \n"
+        check("saved networks keep the system's order, once each",
+              NetworkInfoPolicy.savedNetworks(preferred: preferred) == ["Home", "Office 5G"])
+        check("an error line lists nothing",
+              NetworkInfoPolicy.savedNetworks(preferred: "en1 is not a Wi-Fi interface.\n").isEmpty)
+        check("network search ignores case", NetworkInfoPolicy.filter(["Home", "Office 5G"], query: "office") == ["Office 5G"])
+        check("a blank search lists all", NetworkInfoPolicy.filter(["Home", "Office"], query: " ").count == 2)
+
+        func address(_ text: String) -> String? { NetworkInfoPolicy.publicAddress(from: Data(text.utf8)) }
+        check("an IPv4 reply is read", address("203.0.113.7\n") == "203.0.113.7")
+        check("an IPv6 reply is read", address("2001:db8::1") == "2001:db8::1")
+        check("an HTML page is not an address", address("<html>blocked</html>") == nil)
+        check("an octet over 255 is not an address", address("203.0.113.700") == nil)
+        check("three octets are not an address", address("10.0.1") == nil)
+        check("a long reply is refused", NetworkInfoPolicy.publicAddress(from: Data(repeating: 0x31, count: 65)) == nil)
+
+        check("an up IPv4 Wi-Fi interface counts",
+              NetworkAddressPolicy.includes(name: "en0", isUp: true, isRunning: true, isIPv4: true))
+        check("loopback never counts", !NetworkAddressPolicy.includes(name: "lo0", isUp: true, isRunning: true, isIPv4: true))
+        check("a VPN tunnel never counts",
+              !NetworkAddressPolicy.includes(name: "utun3", isUp: true, isRunning: true, isIPv4: true))
+        check("a down interface never counts",
+              !NetworkAddressPolicy.includes(name: "en0", isUp: false, isRunning: true, isIPv4: true))
+        check("IPv6 is left out", !NetworkAddressPolicy.includes(name: "en0", isUp: true, isRunning: true, isIPv4: false))
+        let arranged = NetworkAddressPolicy.arrange([
+            LocalAddress(ip: "192.168.1.5", connection: "Wi-Fi"), LocalAddress(ip: "10.0.0.2", connection: nil),
+            LocalAddress(ip: "192.168.1.5", connection: "Wi-Fi"),
+        ])
+        check("addresses are sorted, once each", arranged.map(\.ip) == ["10.0.0.2", "192.168.1.5"])
+        check("an address is labelled by its connection", arranged.last?.label == "192.168.1.5 (Wi-Fi)")
     }
 }

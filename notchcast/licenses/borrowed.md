@@ -27,3 +27,6 @@ SystemTools: Model/ProcessListPolicy.swift ← vorssaint/vorssaint-utils@89d2626
 SystemTools: Model/ProcessListPolicy.swift ← vorssaint/vorssaint-utils@89d2626/Sources/Vorssaint/Services/Metrics/MetricFormat.swift (GPL-3.0-or-later)
 SystemTools: Service/LiveProcesses.swift ← vorssaint/vorssaint-utils@89d2626/Sources/Vorssaint/Services/KillProcess/KillProcessService.swift (GPL-3.0-or-later)
 SystemTools: Service/LiveProcesses.swift ← vorssaint/vorssaint-utils@89d2626/Sources/Vorssaint/Services/SystemMonitor/ProcessUsageService.swift (GPL-3.0-or-later)
+SystemTools: Model/NetworkAddressPolicy.swift ← vorssaint/vorssaint-utils@89d2626/Sources/Vorssaint/Services/Metrics/NetworkAddressService.swift (GPL-3.0-or-later)
+SystemTools: Model/NetworkAddressPolicy.swift ← vorssaint/vorssaint-utils@89d2626/Sources/Vorssaint/Services/Metrics/MetricFormat.swift (GPL-3.0-or-later)
+SystemTools: Service/LiveNetworkAddresses.swift ← vorssaint/vorssaint-utils@89d2626/Sources/Vorssaint/Services/Metrics/NetworkAddressService.swift (GPL-3.0-or-later)
