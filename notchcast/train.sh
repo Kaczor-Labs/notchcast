@@ -178,8 +178,52 @@ if [ "$*" = --queue ]; then
     echo "queue: batch $picked"
     set -- $picked
 fi
-queue=("$*")
 status=0
+# Landing squashes each PR, so a PR that holds another's commits can conflict with main once that one lands, though
+# the train merges both heads cleanly. A train of such a pair is refused; --queue leaves the holder out and tells it.
+git fetch -q origin main '+refs/notchcast/synced/*:refs/notchcast/synced/*'
+# PR $1 holds PR $2 when its head reaches a commit on $2's own first-parent line; a branch both merged is on neither.
+holds() { [ -n "$(comm -12 "$scratch/all-$1" "$scratch/line-$2")" ]; }
+clear=
+for pr in "$@"; do
+    git fetch -q origin "refs/pull/$pr/head"
+    git rev-parse FETCH_HEAD > "$scratch/head-$pr"
+    git rev-list FETCH_HEAD --not origin/main --glob=refs/notchcast/synced/ | sort > "$scratch/all-$pr"
+    git rev-list --first-parent FETCH_HEAD --not origin/main --glob=refs/notchcast/synced/ | sort > "$scratch/line-$pr"
+    kept=
+    out=
+    for other in $clear; do
+        if [ -n "$out" ]; then
+            holder=
+        elif holds "$pr" "$other"; then
+            holder=$pr
+            # Both lines share commits when one PR was cut from the other: the one cut later is the holder.
+            ! holds "$other" "$pr" || ! git merge-base --is-ancestor "$(< "$scratch/head-$pr")" "$(< "$scratch/head-$other")" || holder=$other
+        elif holds "$other" "$pr"; then
+            holder=$other
+        else
+            holder=
+        fi
+        if [ -z "$holder" ]; then
+            kept="$kept $other"
+            continue
+        fi
+        first=$other
+        [ "$holder" = "$pr" ] || first=$pr
+        reason="#$holder contains commits of #$first, and landing squashes each PR, so #$holder can conflict with main once #$first lands. Land #$first first, then merge main into #$holder."
+        [ -n "$auto" ] || refuse "$reason"
+        status=1
+        echo "DROPPED #$holder: $reason"
+        note="Left out of the landing batch at its head $(< "$scratch/head-$holder"): $reason"
+        gh pr view "$holder" -R "$FORK_REPO" --json comments | jq -e --arg note "$note" 'any(.comments[]; .body == $note)' >/dev/null \
+            || gh pr comment "$holder" -R "$FORK_REPO" --body "$note" >/dev/null || echo "WARN: could not comment on #$holder" >&2
+        [ "$holder" = "$other" ] || { out=1; kept="$kept $other"; }
+    done
+    clear=$kept
+    [ -n "$out" ] || clear="$clear $pr"
+done
+set -- $clear
+queue=("$*")
 while [ ${#queue[@]} -gt 0 ]; do
     git fetch -q origin main '+refs/notchcast/synced/*:refs/notchcast/synced/*'
     git fetch -q upstream main || refuse 'cannot refresh upstream main'
