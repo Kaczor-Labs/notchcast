@@ -16,6 +16,7 @@ case "$*" in
     'pr view '*'--json headRefOid'*) jq -r .headRefOid "$FIXTURE/pr-$3.json" ;;
     'pr view '*) cat "$FIXTURE/pr-$3.json" ;;
     'pr close '*) echo "$3 ${*: -1}" >> "$FIXTURE/closed" ;;
+    'pr list '*) ;;
     *check-runs*)
         sha=$*
         sha=${sha#*commits/}

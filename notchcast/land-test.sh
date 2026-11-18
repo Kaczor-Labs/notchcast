@@ -71,6 +71,18 @@ rm "$status_fixture"
 unset -f gh
 (
     eval "$(sed -n '/^delete_head() {$/,/^}$/p' "$root/notchcast/land.sh")"
+    # A fake gh: PR 7 is based on stacked; its retarget logs whether origin/stacked still existed.
+    gh() {
+        case "$*" in
+            "pr list -R $FORK_REPO --base stacked --state open "*) echo 7 ;;
+            "pr list -R $FORK_REPO --base unlistable "*) return 1 ;;
+            "pr list -R $FORK_REPO --base "*) ;;
+            "pr edit 7 -R $FORK_REPO --base main")
+                echo "edit 7 $(git ls-remote origin refs/heads/stacked | wc -l | tr -d ' ')" >> "$scratch/gh.log"
+                [ -z "${edit_fails:-}" ] ;;
+            *) echo "unexpected gh $*" >&2; return 1 ;;
+        esac
+    }
     git init --quiet --bare "$scratch/remote.git"
     git clone --quiet "$scratch/remote.git" "$scratch/delete"
     cd "$scratch/delete"
@@ -94,6 +106,22 @@ unset -f gh
     delete_head remote-moved "$moved" true
     [ -n "$(git ls-remote origin refs/heads/remote-moved)" ]
     echo 'PASS: delete_head matching, moved remote, moved local and fork'
+    git push --quiet origin "$head:refs/heads/stacked"
+    edit_fails=1
+    output=$(delete_head stacked "$head" 2>&1)
+    [ "$(git ls-remote origin refs/heads/stacked | cut -f1)" = "$head" ]
+    [[ "$output" == *'WARN: kept origin/stacked: PR #7 still targets it'* ]]
+    echo 'PASS: delete_head keeps a branch whose stacked PR could not move to main'
+    edit_fails=
+    delete_head stacked "$head"
+    [ "$(tail -1 "$scratch/gh.log")" = 'edit 7 1' ]
+    [ -z "$(git ls-remote origin refs/heads/stacked)" ]
+    echo 'PASS: delete_head moves a stacked PR to main before deleting its base'
+    git push --quiet origin "$head:refs/heads/unlistable"
+    output=$(delete_head unlistable "$head" 2>&1)
+    [ -n "$(git ls-remote origin refs/heads/unlistable)" ]
+    [[ "$output" == *'WARN: kept origin/unlistable: cannot list PRs based on it'* ]]
+    echo 'PASS: delete_head keeps a branch when it cannot list the PRs based on it'
 )
 if [ "${1:-}" = --statuses ]; then
     echo 'PASS: local build status fixtures'
