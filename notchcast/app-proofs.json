@@ -5,6 +5,12 @@
     "Tinycast/Features/Settings/AppSettingsKey.swift",
     "Tinycast/Features/Notchcast/Hidden/*"
   ],
+  "number-keys": [
+    "Tinycast/Features/Notchcast/Hidden/NotchcastAppProof.swift",
+    "Tinycast/Features/Notchcast/NumberKeys/*",
+    "Tinycast/Features/Launcher/UI/LauncherScreen.swift",
+    "Tinycast/Features/Launcher/UI/LauncherList.swift"
+  ],
   "addon-launcher": [
     "Tinycast/Features/Notchcast/Hidden/NotchcastAppProof.swift",
     "Tinycast/Features/Notchcast/NotchcastCore.swift",
