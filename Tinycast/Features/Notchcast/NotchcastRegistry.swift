@@ -13,5 +13,9 @@ enum NotchcastRegistry {
         ScreenshotsAddon.self,
         IPhoneBackupAddon.self,
         DisplaySoundAddon.self,
+        NoiseControlAddon.self,
+        PastePlainTextAddon.self,
+        ColorPickerAddon.self,
+        CopyPathAddon.self,
     ]
 }

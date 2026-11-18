@@ -1,5 +1,15 @@
 import Foundation
 
+/// Clipboard history's pair around a pasteboard write Notchcast makes itself.
+struct NotchcastClipboardMutation {
+    /// Records a copy the history poller has not read yet, before the write replaces it.
+    let prepare: @MainActor () -> Void
+    /// Baselines the poller on the write's change count, so it never records the write as a copy.
+    let synchronize: @MainActor (_ changeCount: Int) -> Void
+
+    static let none = NotchcastClipboardMutation(prepare: {}, synchronize: { _ in })
+}
+
 /// The only door from an add-on to the app: one per add-on, owned by the controller.
 @MainActor
 final class NotchcastContext {
@@ -10,10 +20,14 @@ final class NotchcastContext {
     private let hub: NotchcastTapHub
     private let transcription: NotchcastTranscriptionRunner
     private let onTapsChanged: @MainActor () -> Void
+    private let onCommandsChanged: @MainActor () -> Void
+    private let clipboard: NotchcastClipboardMutation
     /// Strong is safe: a recovery context links to nothing, and the controller's slot owns both.
     private let recoveryContext: NotchcastContext?
     private(set) var wantedTaps: [(token: UUID, tap: NotchcastTap)] = []
     private(set) var module: (any NotchcastModule)?
+    /// Entry ids the module cannot run right now: the launcher drops them, their hotkeys still run.
+    private(set) var unavailableCommands: Set<String> = []
     /// Returns true to consume a digit typed in the launcher (Number Keys, hook H9).
     private(set) var launcherDigit: (@MainActor (_ digit: Int, _ query: String, _ entryRows: [Int]) -> Int?)?
     /// Returns true to claim a URL or file opened with the app (a link clicked, a document opened).
@@ -23,7 +37,8 @@ final class NotchcastContext {
         defaults: UserDefaults, preferences: NotchcastPreferences, presenter: any IslandPresenting,
         hub: NotchcastTapHub, transcription: NotchcastTranscriptionRunner,
         now: @escaping @MainActor () -> Date,
-        onTapsChanged: @escaping @MainActor () -> Void, recovery: NotchcastContext? = nil
+        onTapsChanged: @escaping @MainActor () -> Void, onCommandsChanged: @escaping @MainActor () -> Void = {},
+        recovery: NotchcastContext? = nil, clipboard: NotchcastClipboardMutation = .none
     ) {
         self.defaults = defaults
         self.preferences = preferences
@@ -32,6 +47,8 @@ final class NotchcastContext {
         self.transcription = transcription
         self.now = now
         self.onTapsChanged = onTapsChanged
+        self.onCommandsChanged = onCommandsChanged
+        self.clipboard = clipboard
         recoveryContext = recovery
     }
 
@@ -62,6 +79,12 @@ final class NotchcastContext {
         onTapsChanged()
     }
 
+    func setUnavailable(_ entryIDs: Set<String>) {
+        guard entryIDs != unavailableCommands else { return }
+        unavailableCommands = entryIDs
+        onCommandsChanged()
+    }
+
     /// ⌘1–⌘0 ask this first; a returned row index opens that row instead of the favourite.
     func handleLauncherDigit(_ handler: (@MainActor (_ digit: Int, _ query: String, _ entryRows: [Int]) -> Int?)?) {
         launcherDigit = handler
@@ -74,6 +97,12 @@ final class NotchcastContext {
     /// Stock Dictation's text for a file; `.busy` while the user dictates or another one runs.
     func transcribe(_ audioURL: URL) async throws -> String { try await transcription.transcribe(audioURL) }
 
+    /// Call before writing the general pasteboard, so the user's last copy reaches history first.
+    func prepareClipboardMutation() { clipboard.prepare() }
+
+    /// Call with the change count of each own write; a foreign write since then is still recorded.
+    func synchronizeClipboard(changeCount: Int) { clipboard.synchronize(changeCount) }
+
     /// Rereads Accessibility trust after a grant, restarting a tap that could not start.
     func refreshPermission() { hub.refreshPermission() }
 
@@ -84,6 +113,7 @@ final class NotchcastContext {
         module = nil
         wantedTaps.removeAll()
         launcherDigit = nil
+        unavailableCommands = []
         openURL = nil
     }
 }
