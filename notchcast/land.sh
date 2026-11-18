@@ -196,7 +196,7 @@ drop() {
 green() { [ "$(check_run "$1" build)" = success ] || local_build_green "$1"; }
 # The gates PR $1 passes before it is merged: open, ready, and its checks green on its exact head.
 admit() {
-    local pr=$1 metadata head name verdict required branch generated proven sha
+    local pr=$1 metadata head name verdict required branch generated proven sha moved rest
     metadata=$(gh pr view "$pr" -R "$FORK_REPO" --json state,isDraft,labels,headRefOid,headRefName,baseRefName,isCrossRepository,title,body)
     [ "$(jq -r .baseRefName <<< "$metadata")" = main ] || refuse 'PR base must be main'
     [ "$(jq -r .state <<< "$metadata")" = OPEN ] || refuse 'PR must be open and ready'
@@ -235,19 +235,23 @@ admit() {
         for sha in $(git rev-list --max-count=30 "$head") $(gh run list -R "$FORK_REPO" -w PR -b "$branch" -L 30 --json headSha,conclusion \
                 --jq '.[] | select(.conclusion == "success") | .headSha' | awk '!seen[$0]++'); do
             git fetch -q origin "$sha" 2>/dev/null && green "$sha" || continue
-            [ -n "$(git diff --name-only "$sha" "$head" | grep -vxF "$generated")" ] || { proven=$sha; break; }
+            moved=$(git diff --no-renames --name-only "$sha" "$head") || continue
+            rest=$(grep -vxF "$generated" <<< "$moved") || [ "$?" -eq 1 ] || refuse 'cannot compare a green head with this one'
+            [ -n "$rest" ] || { proven=$sha; break; }
         done
         [ -n "$proven" ] || refuse "build is not green on ${head:0:8}; if it has none, run: gh workflow run PR --ref $branch -R $FORK_REPO -f hosted=true"
         echo "build: ${head:0:8} differs from green ${proven:0:8} only in generated files"
     fi
     printf '%s\n' "$metadata" > "$scratch/pr-$pr.json"
 }
-# True when trees $1 and $2 differ in nothing but generated files (ci.py GENERATED, read from main's tooling): landing
-# keeps main's copies of those (merge_onto), so a proof of one tree holds for the other. Paths, never commit messages.
+# True when commits $1 and $2 have the same tested tree (ci.py tested-key, main's tooling): they differ at most in the
+# project, scheme and README, which CI regenerates or never tests and landing takes from main (merge_onto). The
+# Raycast runtime counts as tested: harnesses load it. Trees, never commit messages; an unreadable side is a difference.
 generated_only() {
-    local moved
-    moved=$(git diff --name-only "$1" "$2") || return 1
-    [ -z "$(grep -vxF -f <(cd "$top" && python3 -c 'from notchcast.ci import GENERATED; print("\n".join(GENERATED))') <<< "$moved" || true)" ]
+    local one two
+    one=$(git rev-parse --verify -q "$1^{commit}") && two=$(git rev-parse --verify -q "$2^{commit}") || return 1
+    one=$(cd "$top" && python3 notchcast/ci.py tested-key "$one") && two=$(cd "$top" && python3 notchcast/ci.py tested-key "$two") || return 1
+    [ -n "$one" ] && [ "$one" = "$two" ]
 }
 uncovered() { echo "train: ${train_run:0:8} $1; each PR's own head checks decide" >&2; }
 # Sets covered when $train_run is a green train.sh merge of each PR's current head onto current main, or onto a main
@@ -523,8 +527,7 @@ while :; do
     previous=$base
     base=$moved_to
     # Trees, not the commit range: a Sync rewrite of main changes real files and still reruns.
-    moved=$(git diff --name-only "$previous" "$base") || refuse 'cannot read how main moved'
-    if [ -z "$(grep -vxF -f <(python3 -c 'from notchcast.ci import GENERATED; print("\n".join(GENERATED))') <<< "$moved" || true)" ]; then
+    if generated_only "$previous" "$base"; then
         echo "main moved ${previous:0:8} -> ${base:0:8} only in generated files; merging again without rerunning harnesses"
     else
         [ -z "$covered" ] || refuse "main moved past train ${train_run:0:8}'s base; run notchcast/train.sh again"

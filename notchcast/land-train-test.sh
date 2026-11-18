@@ -181,6 +181,20 @@ fail() { cat "$FIXTURE/output"; echo "FAIL: $1"; exit 1; }
 origin() { git -C "$FIXTURE/origin.git" "$@"; }
 landed() { origin log --reverse --format=%s "$base..main" | paste -sd'|' -; }
 pass() { sed -n "$1p" "$PASSES"; }
+# racing land <args>: origin's main moves to its meanwhile branch under land.sh's first push to main.
+racing() {
+    mkdir "$FIXTURE/bin"
+    cat > "$FIXTURE/bin/git" <<'STUB'
+#!/bin/bash
+if [ "$1" = push ] && [[ "$*" == *:refs/heads/main ]] && [ ! -e "$FIXTURE/moved" ]; then
+    : > "$FIXTURE/moved"
+    "$REAL_GIT" -C "$FIXTURE/origin.git" update-ref refs/heads/main refs/heads/meanwhile
+fi
+exec "$REAL_GIT" "$@"
+STUB
+    chmod +x "$FIXTURE/bin/git"
+    REAL_GIT=$(command -v git) PATH="$FIXTURE/bin:$PATH" "$@"
+}
 
 fixture
 open_pr 1 pr-b 'Add B' src/b.txt
@@ -249,17 +263,7 @@ git add src/moved.txt
 git commit --quiet -m 'Fixture: main moves'
 git push --quiet origin meanwhile
 git switch --quiet main
-mkdir "$FIXTURE/bin"
-cat > "$FIXTURE/bin/git" <<'STUB'
-#!/bin/bash
-if [ "$1" = push ] && [[ "$*" == *:refs/heads/main ]] && [ ! -e "$FIXTURE/moved" ]; then
-    : > "$FIXTURE/moved"
-    "$REAL_GIT" -C "$FIXTURE/origin.git" update-ref refs/heads/main refs/heads/meanwhile
-fi
-exec "$REAL_GIT" "$@"
-STUB
-chmod +x "$FIXTURE/bin/git"
-REAL_GIT=$(command -v git) PATH="$FIXTURE/bin:$PATH" land 1 2
+racing land 1 2
 [ "$status" -eq 0 ] && grep -q 'merging again and rerunning harnesses' "$FIXTURE/output" || fail 'a train did not follow main'
 [ "$(landed)" = 'Fixture: main moves|Notchcast: Add B (#1)|Notchcast: Add C (#2)' ] || fail "after main moved the train landed '$(landed)'"
 [ "$(paste -sd'|' "$PASSES")" = 'b-test c-test notchcast-core-test|b-test c-test notchcast-core-test' ] || fail "passes were '$(paste -sd'|' "$PASSES")'"
@@ -453,9 +457,9 @@ HEAD_CHECKS=failure land --train-run "$train_sha" 1 2
     || fail 'a train run on a stale base was not refused'
 echo 'PASS: a train run whose base is no longer main is refused as without a train'
 
-# Main moves after the train went green; Tinycast.xcodeproj/project.pbxproj is in ci.py GENERATED. The commit
-# subject is the same each time, so only the paths it touches can decide.
-for moved in Tinycast.xcodeproj/project.pbxproj src/moved.txt 'Tinycast.xcodeproj/project.pbxproj src/moved.txt'; do
+# Main moves after the train went green. ci.py tested-key leaves out Tinycast.xcodeproj/project.pbxproj and keeps
+# the Raycast runtime. The commit subject is the same each time, so only the paths it touches can decide.
+for moved in Tinycast.xcodeproj/project.pbxproj src/moved.txt 'Tinycast.xcodeproj/project.pbxproj src/moved.txt' Tinycast/Resources/RaycastRuntime.generated.js; do
     fixture
     open_pr 1 pr-b 'Add B' src/b.txt
     open_pr 2 pr-c 'Add C' src/c.txt
@@ -474,14 +478,61 @@ for moved in Tinycast.xcodeproj/project.pbxproj src/moved.txt 'Tinycast.xcodepro
         [ "$status" -eq 0 ] && grep -q 'only in generated files; the run still proves it' "$FIXTURE/output" \
             && [ "$(landed)" = 'Notchcast: Add B (#1)|Notchcast: Add C (#2)' ] || fail 'a train run did not land after main moved only in generated files'
         [ "$(origin rev-parse main~2)" = "$base" ] && [ "$(origin show main:Tinycast.xcodeproj/project.pbxproj)" = moved ] \
-            && [ "$(origin diff --name-only "$train_sha" main)" = Tinycast.xcodeproj/project.pbxproj ] || fail 'the landing is not the tested tree on the moved main'
+            && [ "$(origin diff --no-renames --name-only "$train_sha" main)" = Tinycast.xcodeproj/project.pbxproj ] || fail 'the landing is not the tested tree on the moved main'
         [ ! -s "$PASSES" ] && [ -z "$(origin for-each-ref refs/heads/train/)" ] || fail 'the proven train ran harnesses again or kept its branch'
     else
         [ "$status" -eq 1 ] && grep -q 'not current main' "$FIXTURE/output" && grep -q '^REFUSED: [a-z]* is failure on' "$FIXTURE/output" && untouched \
             || fail "a train run was not refused after main moved in '$moved'"
     fi
 done
-echo 'PASS: main moving only in generated files keeps a train run'"'"'s proof; a move that touches any other path, alone or with them, refuses'
+echo 'PASS: main moving only in the generated project keeps a train run'"'"'s proof; a move that touches any other path, the Raycast runtime too, refuses'
+
+# Main moves under the covered train's push, to a commit made before the train ran.
+for moved in Tinycast.xcodeproj/project.pbxproj src/moved.txt; do
+    fixture
+    open_pr 1 pr-b 'Add B' src/b.txt
+    open_pr 2 pr-c 'Add C' src/c.txt
+    git switch --quiet -c meanwhile "$base"
+    mkdir -p "$(dirname "$moved")"
+    echo moved > "$moved"
+    git add "$moved"
+    git commit --quiet -m 'Fixture: main moves'
+    git push --quiet origin meanwhile
+    git switch --quiet main
+    train 1 2
+    echo "$train_sha" > "$FIXTURE/green"
+    HEAD_CHECKS=failure racing land --train-run "$train_sha" 1 2
+    if [ "$moved" = Tinycast.xcodeproj/project.pbxproj ]; then
+        [ "$status" -eq 0 ] && grep -q 'only in generated files; merging again without rerunning harnesses' "$FIXTURE/output" \
+            && [ "$(landed)" = 'Fixture: main moves|Notchcast: Add B (#1)|Notchcast: Add C (#2)' ] || fail 'a covered train did not land after main moved only in generated files under its push'
+        [ ! -s "$PASSES" ] && [ "$(origin diff --no-renames --name-only "$train_sha" main)" = "$moved" ] \
+            || fail 'the raced landing ran harnesses or is not the tested tree on the moved main'
+    else
+        base=$(origin rev-parse meanwhile)
+        [ "$status" -eq 1 ] && grep -q "^REFUSED: main moved past train ${train_sha:0:8}'s base" "$FIXTURE/output" && untouched && [ ! -s "$PASSES" ] \
+            || fail 'a covered train was not refused after main moved in another path under its push'
+    fi
+done
+echo 'PASS: main moving under a covered train'"'"'s push lands it untested again when only the generated project moved, and refuses on any other path'
+
+# A green run whose tree is not the merge of its parents: the heads and the base match, the tree does not.
+fixture
+open_pr 1 pr-b 'Add B' src/b.txt
+open_pr 2 pr-c 'Add C' src/c.txt
+train 1 2
+git fetch --quiet origin train/1-2
+git switch --quiet --detach "$train_sha"
+echo extra > src/extra.txt
+git add src/extra.txt
+git commit --quiet --amend --no-edit
+train_sha=$(git rev-parse HEAD)
+git push --quiet origin HEAD:refs/heads/train/extra
+git switch --quiet main
+echo "$train_sha" > "$FIXTURE/green"
+HEAD_CHECKS=failure land --train-run "$train_sha" 1 2
+[ "$status" -eq 1 ] && grep -q "^REFUSED: the merged tree is not the tree train ${train_sha:0:8} tested" "$FIXTURE/output" && untouched \
+    || fail 'a train run whose tree is not the merged tree was not refused'
+echo 'PASS: a train run that tested another tree than the one land.sh merges is refused'
 
 fixture
 open_pr 1 pr-b 'Add B' src/b.txt
