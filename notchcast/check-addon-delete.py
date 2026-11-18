@@ -44,6 +44,9 @@ STALE_AGE = 3600
 STOP_SIGNALS = (signal.SIGINT, signal.SIGTERM, signal.SIGHUP)
 STOP_GRACE = 10
 RUNNING = []
+# A stop signal landing mid-start waits until the step is in RUNNING, or its tree would outlive us.
+STARTING = []
+HELD = []
 SOURCE_HOOK = 'source "$1" >/dev/null; s=$?; printf %s "${NOTCHCAST_BUILD_QUEUE-}"; exit $s'
 
 
@@ -118,13 +121,18 @@ def stop_group(child):
 
 
 def step(name, command, tree, log, env):
+    STARTING.append(name)
     try:
         with open(log, 'w') as out:
             child = subprocess.Popen(command, cwd=tree, stdout=out, stderr=subprocess.STDOUT, env=env,
                                      start_new_session=True)
+        RUNNING.append(child)
     except OSError as error:
         raise Tooling(f'{name} could not start ({error}); log: {log}')
-    RUNNING.append(child)
+    finally:
+        STARTING.pop()
+        if HELD:
+            signal.raise_signal(HELD[0])
     try:
         code = child.wait(timeout=TIMEOUT)
     except subprocess.TimeoutExpired:
@@ -316,6 +324,9 @@ def main():
     owned = []
 
     def stop(signum, _frame):
+        if STARTING:
+            HELD.append(signum)
+            return
         for each in STOP_SIGNALS:
             signal.signal(each, signal.SIG_IGN)
         for child in RUNNING:
