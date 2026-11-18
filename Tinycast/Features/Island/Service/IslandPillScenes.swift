@@ -194,9 +194,9 @@ enum IslandPillScenes {
         controller.clickBackdrop(.leftMouseDown)
         await IslandVerification.pause(0.4)
         IslandVerification.require(!paletteVisible, "a click on the glance never opens the launcher (#884)")
-        IslandVerification.require(core.island.pillMenu.itemTitles.first
-            == String(localized: "Join \(MenuBarSummary.title(meeting.title))"), "a click on the glance opens the menu, Join first")
-        if let menu = menuPanel { await closeMenu(menu, "glance click") }
+        IslandVerification.require(menuPanel == nil && core.island.hover.isOpen,
+                                   "a click on the glance opens the island, never its menu (#1029)")
+        core.island.hover.togglePin()
     }
 
     /// A modal that hid the carded pill must not leave it hidden once the launcher has closed.

@@ -28,6 +28,9 @@ struct IslandHoverTest {
         menuEscape()
         monitors()
         pinnedClick()
+        topRowRest()
+        primaryClick()
+        try clickHooks()
         try refreshHooks()
         print("IslandHoverTest passed")
     }
@@ -223,6 +226,62 @@ struct IslandHoverTest {
         precondition(tracker.isOpen, "a move outside keeps the pin")
         world.move(Input(inside: false), click: true)
         precondition(!tracker.isOpen && world.opens == [true, false], "a click outside dismisses the pin and says so")
+    }
+
+    /// The pointer pushed against the top of the screen over the island, then left alone (#1029, #1000).
+    static func topRowRest() {
+        let notch = CGRect(x: 663, y: 868, width: 185, height: 32)
+        let pill = CGRect(x: 708, y: 876, width: 96, height: 24)
+        for (shape, bar) in [(notch, CGFloat(868)), (pill, 870)] {
+            let world = FakeWorld()
+            let tracker = world.tracker()
+            let inside = IslandHoverZone.contains(CGPoint(x: 756, y: 900), shape: shape, menuBarBottom: bar,
+                                                  below: 20, side: 10)
+            world.move(Input(inside: inside))
+            precondition(!tracker.isOpen && world.wakeAt == open, "resting on the top row starts the intent delay")
+            world.advance(to: open)
+            precondition(tracker.isOpen && world.opens == [true], "and the island opens with no further pointer move")
+        }
+    }
+
+    /// A primary click opens the island as hover does and holds it, hover on or off (#1029).
+    static func primaryClick() {
+        for enabled in [true, false] {
+            let world = FakeWorld()
+            world.input = Input(inside: true, buttonHeld: true, enabled: enabled)
+            let tracker = world.tracker()
+            tracker.pin()
+            precondition(tracker.isOpen && world.opens == [true], "a click opens the island at once")
+            tracker.pin()
+            precondition(tracker.isOpen && world.opens == [true], "a second click keeps it open")
+            world.move(Input(inside: false, enabled: enabled))
+            world.advance(to: 60)
+            precondition(tracker.isOpen, "a clicked-open island stays after the pointer leaves")
+            world.move(Input(inside: false, enabled: enabled), click: true)
+            precondition(!tracker.isOpen && world.opens == [true, false], "until a click outside")
+        }
+        let world = FakeWorld()
+        world.input = Input(inside: true, covered: true)
+        let tracker = world.tracker()
+        tracker.pin()
+        precondition(!tracker.isOpen, "under the launcher a click opens nothing")
+    }
+
+    /// The wiring the tracker cannot see: which click reaches `pin` and which the menu (#1029).
+    static func clickHooks() throws {
+        let coordinator = try source("IslandCoordinator.swift")
+        guard let start = coordinator.range(of: "backdrop.onOpen = {"),
+              let end = coordinator.range(of: "backdrop.onSettle = ") else {
+            preconditionFailure("the coordinator wires the island's click")
+        }
+        let click = coordinator[start.lowerBound..<end.lowerBound]
+        precondition(click.contains("self?.hover.pin()\n"), "a primary click opens and pins the island")
+        precondition(!click.contains("openMenu") && !click.contains("pillMenu"), "a primary click never shows the island's menu")
+        precondition(coordinator.contains("backdrop.onMenu = { [weak self] pill, window in "
+            + "self?.pillMenu.toggle(below: pill, in: window) }\n"), "a secondary click shows the island's menu")
+        let menu = try source("IslandPillMenu.swift")
+        precondition(!menu.contains("Support") && !menu.contains("supportCoordinator"),
+                     "the island's menu has no Support Tinycast row")
     }
 
     /// Each of these changes an input without a pointer event, so each must ask the tracker again.
