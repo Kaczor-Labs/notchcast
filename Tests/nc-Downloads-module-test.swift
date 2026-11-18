@@ -77,6 +77,9 @@ struct DownloadsModuleTest {
             "download-video", "download-audio", "download-youtube-transcript", "save-webpage-as-markdown",
             "add-links-to-distill", "run-distill",
         ], "command slugs")
+        let transcript = DownloadsAddon.commands.first { $0.slug == "download-youtube-transcript" }
+        expect(transcript?.name == "Download Transcript", "#870: the transcript command reads Download Transcript")
+        expect(transcript?.keywords.contains("youtube") == true, "#870: searching youtube still finds it")
         expect(DownloadsAddon.commands.map(\.switchID) == Array(repeating: "downloads", count: 4)
                + Array(repeating: "distill", count: 2), "each command follows its own switch")
     }
