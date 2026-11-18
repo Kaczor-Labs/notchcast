@@ -1,0 +1,20 @@
+{
+  "sourceLanguage" : "en",
+  "strings" : {
+    "Auto-backup settings" : {},
+    "Backup folder" : {},
+    "Backups to keep" : {},
+    "Choose…" : {},
+    "No backups yet" : {},
+    "Restore" : {},
+    "Restore %@" : {},
+    "Restore settings from this backup?" : {},
+    "Restore…" : {},
+    "Saves a settings backup to a folder on change and once a day, such as Documents in iCloud Drive." : {},
+    "Settings backup failed: %@" : {},
+    "Settings saved in %@ replace the current ones." : {},
+    "Show in Finder" : {},
+    "The oldest backup this Mac wrote goes first." : {}
+  },
+  "version" : "1.0"
+}
