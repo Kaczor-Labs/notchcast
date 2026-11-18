@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Sync's plan moves main onto new upstream only with the repo owner's passing review status on that upstream commit."""
+"""Sync moves main onto new upstream, and signs a release, only with the repo owner's passing review of that commit."""
 import importlib.util
 import json
 import os
@@ -39,7 +39,7 @@ class PlanReviewGateTests(unittest.TestCase):
         self.git(self.up, "tag", "-a", "-m", "release", "v0.0.2")
         self.git(root, "init", "-q", "--bare", str(fork))
         self.urls = {"https://github.com/up/stream.git": str(self.up), "https://github.com/fork/repo.git": str(fork)}
-        self.statuses, self.review_prs = {}, []
+        self.statuses, self.review_prs, self.upstream_releases = {}, [], ["v0.0.1", "v0.0.2"]
         self.cwd = os.getcwd()
         os.chdir(self.main)
 
@@ -72,7 +72,7 @@ class PlanReviewGateTests(unittest.TestCase):
             return "[[]]"
         if args.startswith("gh release list"):
             return json.dumps([{"tagName": tag, "name": tag, "isDraft": False, "isPrerelease": False}
-                               for tag in ("v0.0.1", "v0.0.2")])
+                               for tag in self.upstream_releases])
         if args.endswith("/status"):
             return json.dumps({"statuses": [{"context": "test/tested", "state": "success"}]})
         if args.startswith("gh pr list") and "--label" in cmd:
@@ -81,18 +81,29 @@ class PlanReviewGateTests(unittest.TestCase):
             return "[]"
         raise AssertionError(f"unexpected gh call: {args}")
 
-    def plan(self):
-        def fake(*cmd, cwd=None, env=None):
-            if cmd[0] == "gh":
-                return self.gh(cmd)
-            return REAL_RUN(*(self.urls.get(arg, arg) for arg in cmd), cwd=cwd, env=env)
-        with tempfile.NamedTemporaryFile("r") as out, mock.patch.object(CI, "run", fake), \
-                mock.patch.object(CI, "config", return_value=CFG), mock.patch.dict(os.environ, {"GITHUB_OUTPUT": out.name}), \
+    def fake_run(self, *cmd, cwd=None, env=None):
+        if cmd[0] == "gh":
+            return self.gh(cmd)
+        return REAL_RUN(*(self.urls.get(arg, arg) for arg in cmd), cwd=cwd, env=env)
+
+    def ci(self, function, *args):
+        with mock.patch.object(CI, "run", self.fake_run), mock.patch.object(CI, "config", return_value=CFG), \
                 mock.patch("builtins.print"):
-            CI.plan()
+            return function(*args)
+
+    def plan(self):
+        with tempfile.NamedTemporaryFile("r") as out, mock.patch.dict(os.environ, {"GITHUB_OUTPUT": out.name}):
+            self.ci(CI.plan)
             values = dict(line.rstrip("\n").split("=", 1) for line in out)
-        values["releases"] = [release["tag"] for release in json.loads(values["releases"])]
+        releases = json.loads(values["releases"])
+        values["releases"] = [release["tag"] for release in releases]
+        values["commits"] = {release["tag"]: release.get("commit") for release in releases}
         return values
+
+    def exit_code(self, function, *args):
+        with self.assertRaises(SystemExit) as raised:
+            self.ci(function, *args)
+        return raised.exception.code
 
     def test_no_record_never_moves_main(self):
         for statuses in ({}, {self.u1: []}):
@@ -132,6 +143,39 @@ class PlanReviewGateTests(unittest.TestCase):
         self.assertEqual(self.plan()["releases"], ["v0.0.1"])
         self.statuses = {self.u1: [status("success")]}
         self.assertEqual(self.plan()["releases"], ["v0.0.1", "v0.0.2"])
+
+    def test_tagged_ancestor_of_reviewed_upstream_is_not_released(self):
+        parent = self.commit(self.up, {"evil.sh": "x\n", ".github/workflows/evil.yml": "on: push\n"}, "parent")
+        self.git(self.up, "tag", "-a", "-m", "release", "v0.0.3")
+        self.git(self.up, "rm", "-q", "evil.sh", ".github/workflows/evil.yml")
+        child = self.commit(self.up, {}, "child deletes it")
+        self.upstream_releases = ["v0.0.1", "v0.0.2", "v0.0.3"]
+        self.statuses = {child: [status("success")]}
+        result = self.plan()
+        self.assertEqual((result["rebase"], result["upstream_main"]), ("true", child))
+        self.assertEqual(result["releases"], ["v0.0.1"])
+        self.statuses[parent] = [status("success")]
+        self.assertEqual(self.plan()["releases"], ["v0.0.1", "v0.0.3"])
+
+    def test_release_pins_the_commit_plan_cleared(self):
+        self.statuses = {self.u1: [status("success")]}
+        self.assertEqual(self.plan()["commits"], {"v0.0.1": self.u0, "v0.0.2": self.u1})
+        self.assertIsNone(self.ci(CI.pin_tag, "v0.0.2", self.u1))
+        self.assertEqual(self.git(self.main, "rev-parse", "refs/remotes/upstream/main"), self.u1)
+        moved = self.commit(self.up, {"c.txt": "c\n"}, "after plan")
+        self.git(self.up, "tag", "-f", "-a", "-m", "moved", "v0.0.2", moved)
+        self.assertIn("moved tag v0.0.2", str(self.exit_code(CI.pin_tag, "v0.0.2", self.u1)))
+
+    def test_main_push_rereads_the_review(self):
+        for statuses, code in (([status("success")], 0), ([status("failure"), status("success")], 1),
+                               ([status("success", BOT)], 1), (None, 1)):
+            with self.subTest(statuses=statuses):
+                self.statuses = {} if statuses is None else {self.u1: statuses}
+                self.assertEqual(self.exit_code(CI.reviewed, self.u1), code)
+        workflow = (Path(__file__).parent.parent / ".github/workflows/sync.yml").read_text()
+        update = workflow.split("- name: Update main", 1)[1].split("- name:", 1)[0]
+        self.assertLess(update.index('ci.py reviewed "$UP"'), update.index("push --atomic"))
+        self.assertIn("UP: ${{ needs.plan.outputs.upstream_main }}", update)
 
     def test_review_pr_closes_once_main_holds_upstream(self):
         self.git(self.up, "update-ref", "refs/heads/main", self.u0)

@@ -151,13 +151,22 @@ jobs:
       # The replaced tip is kept under refs/notchcast/synced/ (no branch, tag or workflow trigger), so land.sh can
       # find the fork point of a PR cut before this rewrite.
       # A landing that moved main since plan loses the lease: that is no failure; its push starts the next Sync.
+      # A review of U that is no longer a success (plan read it up to two hours ago) ends the same way, nothing pushed.
       - name: Update main
         id: update
         if: needs.plan.outputs.rebase == 'true'
         working-directory: src
         env:
           OLD: ${{ needs.plan.outputs.main }}
+          UP: ${{ needs.plan.outputs.upstream_main }}
+          GH_TOKEN: ${{ github.token }}
         run: |
+          if ! python3 ../tools/notchcast/ci.py reviewed "$UP"; then
+            rm -f "$RUNNER_TEMP/deploy-key"
+            echo "::notice::main stays: the review of upstream ${UP:0:7} is no longer a success"
+            echo "lost=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
           if ! git -c core.hooksPath=/dev/null push --atomic --force-with-lease="refs/heads/main:$OLD" "$FORK_SSH" \
             HEAD:refs/heads/main "$OLD:refs/notchcast/synced/$OLD"; then
             rm -f "$RUNNER_TEMP/deploy-key"
@@ -257,13 +266,15 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: python3 tools/notchcast/ci.py app-info "$TAG" "$RUNNER_TEMP"
+      # Onto the commit plan cleared, never what the tag names now: upstream can move a tag during the main job.
       - name: Replay our commits onto the tag
         working-directory: src
+        env:
+          COMMIT: ${{ matrix.release.commit }}
         run: |
-          source ../tools/notchcast/config.env
-          git fetch -q "https://github.com/$UPSTREAM_REPO.git" "+refs/heads/main:refs/remotes/upstream/main" "+refs/tags/$TAG:refs/tags/$TAG"
-          python3 ../tools/notchcast/ci.py replay . "refs/tags/$TAG^{commit}"
-          echo "TAG_COMMIT=$(git rev-parse "refs/tags/$TAG^{commit}")" >> "$GITHUB_ENV"
+          python3 ../tools/notchcast/ci.py pin-tag "$TAG" "$COMMIT"
+          python3 ../tools/notchcast/ci.py replay . "$COMMIT"
+          { echo "TAG_COMMIT=$COMMIT"; echo "REPLAYED=$(git rev-parse HEAD)"; } >> "$GITHUB_ENV"
       - uses: ./tools/notchcast/actions/tests
         with:
           upstream: ${{ env.TAG_COMMIT }}
@@ -278,13 +289,13 @@ jobs:
       - uses: ./tools/notchcast/actions/deploy-key
         with:
           key: ${{ secrets.DEPLOY_KEY }}
-      # Upstream's tag, unchanged. GITHUB_TOKEN cannot push commits that touch workflows; the deploy-key push may
-      # trigger workflows, but the tagged tree's upstream workflows cannot read the secrets (environment `sync`, main only).
+      # The replayed commit that was built, never upstream's tag object: a tag push runs the workflows of the tree it
+      # names, and this tree holds only ours, none of which a tag starts. GITHUB_TOKEN cannot push workflow files.
       - name: Mirror the tag
         working-directory: src
         run: |
           if [ -z "$(git ls-remote "$FORK_SSH" "refs/tags/$TAG")" ]; then
-            git -c core.hooksPath=/dev/null push "$FORK_SSH" "refs/tags/$TAG:refs/tags/$TAG"
+            git -c core.hooksPath=/dev/null push "$FORK_SSH" "$REPLAYED:refs/tags/$TAG"
           fi
           rm -f "$RUNNER_TEMP/deploy-key"
       - name: Publish the release
@@ -296,11 +307,10 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -a; source tools/notchcast/config.env; set +a
-          UPSTREAM="$(git -C src rev-parse "refs/tags/$TAG^{commit}")"
           {
             cat "$RUNNER_TEMP/upstream-notes.md"
             printf '\n\n---\nNotchcast build of %s %s (%s) with our commits from main %s, signed by %s (SHA-1 %s).\n' \
-              "$UPSTREAM_REPO" "$TAG" "${UPSTREAM:0:12}" "${MAIN:0:12}" "$SIGN_IDENTITY" "$SIGN_SHA1"
+              "$UPSTREAM_REPO" "$TAG" "${TAG_COMMIT:0:12}" "${MAIN:0:12}" "$SIGN_IDENTITY" "$SIGN_SHA1"
           } > "$RUNNER_TEMP/notes.md"
           FLAGS=()
           if [ "$PRERELEASE" = "true" ]; then FLAGS+=(--prerelease); fi

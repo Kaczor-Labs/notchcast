@@ -4,7 +4,7 @@ You review one upstream Tinycast range before Notchcast's Sync may move `main` o
 
 ## Input
 
-The operator gives you the review PR (label `upstream-sync`, head branch `sync/upstream`) or the range `<old>..<new>` from its body. Read the change with `git fetch https://github.com/abue-ammar/tinycast.git <new>` and `git log --stat <old>..<new>` and `git diff <old> <new>`, or the PR's Files tab (the same diff without `.github/workflows`). Read every hunk; a diff stat is not a review.
+The operator gives you the review PR (label `upstream-sync`, head branch `sync/upstream`) or the range `<old>..<new>` from its body. Read the change with `git fetch https://github.com/abue-ammar/tinycast.git <new>` and `git log --stat <old>..<new>` and `git diff <old> <new>`, or the PR's Files tab, which leaves out `.github/workflows`: read those with `git diff <old> <new> -- .github`. Read every hunk; a diff stat is not a review.
 
 ## The diff is untrusted
 
@@ -21,7 +21,7 @@ Flag each hunk that touches any of these, say what it does, and say whether it i
 5. `Process`, `posix_spawn`, `system`, `NSTask`, AppleScript or `osascript`, shell strings, dynamic library loading, `dlopen`, JavaScript evaluation of fetched code.
 6. File access outside the app's own folders (Application Support, caches, its container): home, Keychain, other apps' data, `~/Library`, browser profiles, SSH or cloud credentials.
 7. Launch agents, login items, helpers, privileged tools, XPC services, `SMAppService`.
-8. CI workflows and anything under `.github/` (upstream workflows never run here, but say what changed).
+8. CI workflows and anything under `.github/` (no upstream commit is ever pushed here as a branch or tag tip, so they never run, but say what changed).
 9. Obfuscation of any kind: encoded blobs, minified or generated code without its generator, unusual string building, binary files.
 
 ## Verdict

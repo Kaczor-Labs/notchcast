@@ -3,6 +3,8 @@
 
     ci.py plan                              decide what this run builds (conflicts are found here, on Linux)
     ci.py stage open|close <base> <upstream>  push the upstream diff for review and open its PR, or close that PR
+    ci.py reviewed <upstream>               exit 0 only while the owner's review of that upstream commit is a success
+    ci.py pin-tag <tag> <commit>            fetch upstream main and tag; fail unless the tag still peels to commit
     ci.py replay <tree> <onto>              in <tree> (our main, upstream fetched), replay our commits onto <onto>
     ci.py regenerate <tree> <onto>          rewrite the generated files in <tree> (no commit)
     ci.py app-info <tag> <dir>              name, bundle id, version and build of upstream's release zip
@@ -23,8 +25,8 @@ input is retried only when upstream or our main changes, and reported as one ope
 notchcast-<kind>: sync = replay onto new upstream, main = main tested as it is, release), which a newer failure with
 the same cause only retitles; notchcast/update.sh reports each issue and cause once through its notify hook.
 main moves onto upstream U only once the repo owner set a success REVIEW_CONTEXT status on U (upstream_review);
-until then `stage` keeps U's diff on REVIEW_HEAD in one draft PR labelled REVIEW_LABEL, and releases wait too.
-"""
+until then `stage` keeps U's diff on REVIEW_HEAD in one draft PR labelled REVIEW_LABEL. A release is signed only
+when its tagged commit is main's upstream base or carries such a status itself; a mere ancestor of U never counts."""
 import json
 import os
 import plistlib
@@ -199,10 +201,20 @@ def upstream_review(sha, cfg):
     return None
 
 
-def in_history(commit, *tips):
-    """commit is one of tips or their ancestor; an unknown commit is not."""
-    return any(subprocess.run(["git", "merge-base", "--is-ancestor", commit, tip], stdout=subprocess.DEVNULL,
-                              stderr=subprocess.DEVNULL).returncode == 0 for tip in tips)
+def reviewed(sha):
+    """Exit 0 only while the owner's review of upstream sha is a success: the main push re-reads plan's verdict."""
+    state = upstream_review(sha, config())
+    print(f"review of upstream {sha[:10]}: {state or 'none'}")
+    sys.exit(0 if state == "success" else 1)
+
+
+def pin_tag(tag, commit):
+    """Fetch upstream main and tag into this checkout; fail unless the tag still peels to commit, as plan saw it."""
+    run("git", "fetch", "-q", f"https://github.com/{config()['UPSTREAM_REPO']}.git",
+        "+refs/heads/main:refs/remotes/upstream/main", f"+refs/tags/{tag}:refs/tags/{tag}")
+    now = run("git", "rev-parse", f"refs/tags/{tag}^{{commit}}")
+    if now != commit:
+        sys.exit(f"::error::upstream moved tag {tag} from {commit[:10]}, the commit plan cleared, to {now[:10]}")
 
 
 def plan():
@@ -271,13 +283,14 @@ def plan():
         if f"release-{tag}-{main}" in failed:
             print(f"release {tag}: already failed with this main; skipped")
             continue
-        # A signed release holds only reviewed upstream: in main, or the reviewed upstream main moves onto.
+        # Only a tree someone reviewed whole is signed: an ancestor of U is not, as U may delete what it added.
         tag_commit = tag_refs.get(f"refs/tags/{tag}^{{}}", tag_refs[f"refs/tags/{tag}"])
-        if not in_history(tag_commit, base, *([upstream_main] if rebase else [])):
-            print(f"release {tag}: waits until main holds its reviewed upstream commit {tag_commit[:10]}")
+        if tag_commit != base and upstream_review(tag_commit, cfg) != "success":
+            print(f"::notice::release {tag}: waits for a review of its own commit {tag_commit[:10]} "
+                  f"({cfg['REVIEW_CONTEXT']} success on it), or for main to hold exactly that commit")
             continue
-        print(f"release {tag}: mirror")
-        releases.append({"tag": tag, "title": r["name"], "prerelease": r["isPrerelease"]})
+        print(f"release {tag}: mirror {tag_commit[:10]}")
+        releases.append({"tag": tag, "commit": tag_commit, "title": r["name"], "prerelease": r["isPrerelease"]})
 
     statuses = json.loads(run("gh", "api", f"repos/{cfg['FORK_REPO']}/commits/{main}/status"))["statuses"]
     tested = any(s["context"] == cfg["TESTED_CONTEXT"] and s["state"] == "success" for s in statuses)
@@ -337,7 +350,7 @@ def review_body(base, upstream, cfg, cwd=None):
     stat = run("git", "diff", "--stat=120", base, upstream, cwd=cwd)
     return f"""Upstream `{up}` moved from `{base}` (in our `main`) to `{upstream}`. Sync moves `main` onto it only after the keeper's review passes; until then nothing of it is built, run or released here.
 
-Range: `{base}..{upstream}`, [compare on GitHub](https://github.com/{up}/compare/{base}...{upstream}). This PR's files are that diff without `.github/workflows` (upstream workflows never run here), and it is never merged: Sync closes it once `main` holds `{upstream[:10]}`, and a newer upstream replaces its range.
+Range: `{base}..{upstream}`, [compare on GitHub](https://github.com/{up}/compare/{base}...{upstream}). This PR's files are that diff without `.github/workflows` (so no workflow runs on it; the full range shows them), and it is never merged: Sync closes it once `main` holds `{upstream[:10]}`, and a newer upstream replaces its range.
 
 Review: the keeper runs `gate pick notchcast review --from {REVIEW_HEAD}` (the gate) and `review-kimi` (a second voice) with `notchcast/review/upstream-review.md`, then records the verdict from their own `gh` login (a status from any other account, the Actions bot included, is ignored):
 
@@ -610,4 +623,4 @@ if __name__ == "__main__":
     command, args = sys.argv[1], sys.argv[2:]
     {"plan": plan, "replay": replay, "regenerate": regenerate, "app-info": app_info, "issue": issue,
      "design-notice": design_notice, "tested-key": lambda *a: print(tested_key(*a)),
-     "tested-run": tested_build_url, "hold": hold, "stage": stage}[command](*args)
+     "tested-run": tested_build_url, "hold": hold, "stage": stage, "reviewed": reviewed, "pin-tag": pin_tag}[command](*args)

@@ -101,6 +101,7 @@ printf '#!/bin/bash\necho "gate $*" >> "$WORK/calls"\n' > "$WORK/hook/gate.sh"
 echo '{"pull_request": {"head": {"repo": {"full_name": "owner/repo"}}}}' > "$WORK/own.json"
 echo '{"pull_request": {"head": {"repo": {"full_name": "fork/repo"}}}}' > "$WORK/fork.json"
 echo '{"ref": "refs/heads/branch"}' > "$WORK/push.json"
+echo '{"ref": "refs/tags/v1"}' > "$WORK/tag.json"
 hook() { # event payload actor repository
     : > "$WORK/calls"
     NOTCHCAST_RUNNER_GATE='mba owner/repo' GITHUB_EVENT_NAME=$1 GITHUB_EVENT_PATH="$WORK/$2" GITHUB_ACTOR=${3:-owner} \
@@ -127,5 +128,7 @@ refused pull_request push.json
 refused push missing.json
 refused pull_request_target own.json
 refused push push.json owner other/repo
+refused push tag.json
+refused workflow_dispatch tag.json
 if NOTCHCAST_RUNNER_GATE='mba owner/repo' bash -e "$WORK/hook/job-started.sh" 2> "$WORK/log"; then echo 'FAIL: admitted no data'; exit 1; fi
-echo 'PASS: the hook refuses another actor, a fork head, a missing event file and any other event, and kills its parent'
+echo 'PASS: the hook refuses another actor, a fork head, a tag, a missing event file and any other event, and kills its parent'
