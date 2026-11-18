@@ -94,7 +94,7 @@ jobs:
           HOSTED: ${{ runner.environment == 'github-hosted' }}
         run: |
           echo "hosted=$HOSTED" >> "$GITHUB_OUTPUT"
-          [ "$HOSTED" = true ] || echo "::notice::SKIPPED on a self-hosted runner: the macOS script tests, SELF_HOSTED_SKIP_TESTS harnesses, the tested-tree record"
+          [ "$HOSTED" = true ] || echo "::notice::SKIPPED on a self-hosted runner: the macOS script tests, HOSTED_ONLY_TESTS harnesses (unless the runner is isolated), the tested-tree record"
       # First: the shortest lane. land-test.sh serves this checkout's upstream main to its fixture remote.
       - name: Script tests that need macOS
         if: runner.environment == 'github-hosted'
@@ -157,9 +157,33 @@ jobs:
           persist-credentials: false
       - name: Script tests
         run: python3 notchcast/script-tests.py --all --runner linux
+  # The selected harnesses that also run on Linux (LINUX_OK_TESTS, notchcast/config.env), in the official Swift image:
+  # what a Linux worker runs before a push and land.sh on Linux trusts. mac still runs every harness.
+  linux-harnesses:
+    needs: route
+    if: needs.route.outputs.build == 'true'
+    runs-on: ubuntu-latest
+    container: swift:6.4.2-noble@sha256:23d9b28ad97fb1cf1999edc3a0cb265ee915ed42299a9344e7173d5a6d2b05f4
+    timeout-minutes: 15
+    steps:
+      - name: Tools the Swift image lacks
+        run: apt-get update -qq && apt-get install -y -qq --no-install-recommends python3 procps
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      # An unsure or missing selection runs every linux-ok harness; run-tests.sh names the mac-only ones it skips.
+      - name: Linux-ok harnesses the diff needs
+        env:
+          HARNESS_SELECTED: ${{ needs.route.outputs.harness-selected }}
+          HARNESS_UNSURE: ${{ needs.route.outputs.harness-unsure }}
+        run: |
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+          if [ -n "$HARNESS_SELECTED" ] && [ -z "$HARNESS_UNSURE" ]; then export NOTCHCAST_ONLY_TESTS="$HARNESS_SELECTED"; fi
+          ./Scripts/run-tests.sh
   # land.sh reads the check named build: green only when every lane the diff needs is.
   build:
-    needs: [route, mac, linux-checks, script-tests]
+    needs: [route, mac, linux-checks, linux-harnesses, script-tests]
     if: ${{ !cancelled() && (github.event_name == 'workflow_dispatch' || !github.event.pull_request.draft) }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -176,13 +200,14 @@ jobs:
           SCRIPTS: ${{ needs.route.outputs.scripts }}
           MAC: ${{ needs.mac.result }}
           LINUX_CHECKS: ${{ needs.linux-checks.result }}
+          LINUX_HARNESSES: ${{ needs.linux-harnesses.result }}
           SCRIPT_TESTS: ${{ needs.script-tests.result }}
         run: |
           case "$BUILD:$SCRIPTS" in true:true|false:true|false:false) ;; *) echo "::error::lanes said '$BUILD' '$SCRIPTS'"; exit 1;; esac
           want() { if [ "$1" = true ]; then echo success; else echo skipped; fi; }
           if [ "$ROUTE" != success ] || [ "$MAC" != "$(want "$SCRIPTS")" ] || [ "$LINUX_CHECKS" != "$(want "$BUILD")" ] \
-              || [ "$SCRIPT_TESTS" != "$(want "$SCRIPTS")" ]; then
-            echo "::error::route: $ROUTE (build $BUILD, scripts $SCRIPTS), mac: $MAC, linux checks: $LINUX_CHECKS, script tests: $SCRIPT_TESTS"
+              || [ "$LINUX_HARNESSES" != "$(want "$BUILD")" ] || [ "$SCRIPT_TESTS" != "$(want "$SCRIPTS")" ]; then
+            echo "::error::route: $ROUTE (build $BUILD, scripts $SCRIPTS), mac: $MAC, linux checks: $LINUX_CHECKS, linux harnesses: $LINUX_HARNESSES, script tests: $SCRIPT_TESTS"
             exit 1
           fi
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7

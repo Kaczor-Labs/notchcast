@@ -19,7 +19,7 @@ concurrency:
 jobs:
   # The generators run with a read-only token and no stored credentials.
   regenerate:
-    runs-on: macos-15
+    runs-on: ubuntu-latest
     # Up to 40 min of it waiting out a Sync replay.
     timeout-minutes: 60
     permissions:
