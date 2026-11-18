@@ -25,10 +25,11 @@ end
   assert(callers.size == 1, "#{name} must use the shared release action once")
   if name == 'snapshot'
     publish = workflow.fetch('jobs').fetch('publish')
-    assert(%w[checks snapshot].all? { |need| publish['needs'].include?(need) } && !publish.key?('if'),
+    assert(publish['needs'].include?('snapshot') && !publish.key?('if'),
            'snapshot publish must remain gated on lint, tests and the signed build')
-    checks = workflow.fetch('jobs').fetch('checks')
-    steps = checks.fetch('steps')
+    checks = workflow.fetch('jobs').fetch('snapshot')
+    release = checks.fetch('steps').index(callers.first)
+    steps = checks.fetch('steps').first(release)
     tests = steps.find { |step| step['uses'] == './tools/notchcast/actions/tests' }
     lint = steps.find { |step| step['name'] == 'Lint' }
     final = steps.last
