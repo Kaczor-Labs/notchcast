@@ -27,7 +27,7 @@ Notchcast has its own bundle id (`app.notchcast`), URL scheme (`notchcast://`) a
 
 ## Update
 
-The in-app updater stays off in Notchcast. To keep a Mac current, clone this repo and run `/bin/bash notchcast/install-launchd.sh update` once (needs the `gh` CLI logged in). Every 30 minutes it installs the newest snapshot into `/Applications`, after it checks the bundle id, version and our signing certificate. It keeps one previous copy for rollback, restarts Notchcast only if it was running, and never touches settings or data. Turn off **Automatically check for updates** in Notchcast's settings to pause it. Without the script, download a newer snapshot by hand and repeat steps 2 and 3. Details: [Installing on a Mac](/notchcast/README.md#installing-on-a-mac).
+The in-app updater stays off in Notchcast. To keep a Mac current, clone this repo and run `/bin/bash notchcast/install-launchd.sh update` once (needs the `gh` CLI logged in). Every 30 minutes it installs the newest snapshot into `/Applications`, after it checks the bundle id, version and our signing certificate. It keeps one previous copy for rollback, restarts Notchcast only if it was running, and never touches settings or data. The script itself does not update: after pulling this repo, run the same command again to update it. Turn off **Automatically check for updates** in Notchcast's settings to pause it. Without the script, download a newer snapshot by hand and repeat steps 2 and 3. Details: [Installing on a Mac](/notchcast/README.md#installing-on-a-mac).
 
 ## Use it
 
