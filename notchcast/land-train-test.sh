@@ -52,12 +52,15 @@ done
 # The fixture's own hosted-runner skip, so it never depends on the real list.
 echo 'CI_SKIP_TESTS="clipboard-text-test"' >> "$seed/notchcast/config.env"
 echo 'HOSTED_ONLY_TESTS="hosted-test"' >> "$seed/notchcast/config.env"
+echo 'LINUX_OK_TESTS="notchcast-core-test hosted-test"' >> "$seed/notchcast/config.env"
 unset RUNNER_ENVIRONMENT NOTCHCAST_ISOLATED_RUNNER
 printf '#!/bin/sh\n' > "$seed/notchcast/check-identity.sh"
 printf '#!/bin/sh\n' > "$seed/notchcast/check-bundle-readme.sh"
 # Selects core, and <name>-test for a changed src/<name>.txt, as changed-harnesses.sh does from harness inputs.
 cat > "$seed/notchcast/changed-harnesses.sh" <<'STUB'
 #!/bin/bash
+# --linux <file>: every harness of the fixture is linux-ok, so no reason is written.
+if [ "$1" = --linux ]; then : > "$2"; shift 2; fi
 echo notchcast-core-test
 for path in $(git diff --name-only "$1" "$2" -- src); do
     name=$(basename "$path" .txt)-test
@@ -107,6 +110,8 @@ echo base > "$seed/src/shared.txt"
 echo '# fixture' > "$seed/.gitattributes"
 : > "$seed/Tinycast/Features/Notchcast/Core/NotchcastFeature.swift"
 export HOME="$scratch/home" PATH="$scratch/bin:$PATH" NOTCHCAST_LAND_TOOLS=test
+# The fixture's harnesses are stubs, so every train here lands as on a Mac, which runs each one.
+export NOTCHCAST_PLATFORM=Darwin
 identify() { git config user.name "$MAINTAINER_NAME"; git config user.email "$MAINTAINER_EMAIL"; }
 git init --quiet -b main "$seed"
 cd "$seed"
@@ -305,6 +310,21 @@ open_pr 1 pr-h 'Add H' src/hosted.txt
 RUNNER_ENVIRONMENT=github-hosted land 1
 [ "$status" -eq 0 ] && [ "$(paste -sd'|' "$PASSES")" = 'hosted-test notchcast-core-test' ] || fail "on a hosted runner the pass was '$(paste -sd'|' "$PASSES")'"
 echo 'PASS: on a GitHub-hosted runner the landing pass runs the hosted-only harness itself'
+
+fixture
+open_pr 1 pr-h 'Add H' src/hosted.txt
+for where in NOTHING=1 RUNNER_ENVIRONMENT=github-hosted; do
+    export "$where"
+    NOTCHCAST_PLATFORM=Linux land 1
+    unset "${where%%=*}"
+    [ "$status" -eq 1 ] && grep -q '^REFUSED: hosted-only harnesses are selected and no hosted run tested this tree: hosted-test;' "$FIXTURE/output" \
+        && [ "$(origin rev-parse main)" = "$base" ] && [ ! -s "$PASSES" ] || fail "on Linux ($where) a linux-ok selection with a hosted-only harness was not refused by name"
+done
+echo 'PASS: on Linux a linux-ok selection with a hosted-only harness is refused by name, on any runner'
+NOTCHCAST_PLATFORM=Linux TESTED=1 land 1
+[ "$status" -eq 0 ] && [ ! -s "$PASSES" ] && [ "$(landed)" = 'Notchcast: Add H (#1)' ] \
+    || fail "on Linux with a hosted run of the tree the hosted-only PR ran '$(paste -sd'|' "$PASSES")' and landed '$(landed)'"
+echo 'PASS: on Linux a hosted run of the tree lands it, and the hosted-only harness never runs there'
 
 fixture
 open_pr 1 pr-b 'Add B' src/b.txt
