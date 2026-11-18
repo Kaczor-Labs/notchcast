@@ -8,6 +8,8 @@ cat > "$scratch/bin/gh" <<'STUB'
 #!/bin/bash
 if [ "$1 $2" = 'pr view' ]; then echo '{"headRefOid":"fixture","baseRefOid":"base"}'; fi
 if [ "$1 $2" = 'variable get' ]; then
+    # HOLD_ONCE: the hold ends after its first read, so a run that waits on it moves on at its next poll.
+    if [ -n "${HOLD_ONCE:-}" ]; then [ ! -e "$HOLD_ONCE" ] || HOLD_FILE=/dev/null; : > "$HOLD_ONCE"; fi
     [ -s "$HOLD_FILE" ] && cat "$HOLD_FILE" || { echo 'variable LANDING_HOLD was not found' >&2; exit 1; }
 fi
 STUB
@@ -62,23 +64,19 @@ RUN=owner bash "$script" 1 > "$scratch/owner" 2>&1 || { cat "$scratch/owner"; ex
 grep -q '^owner: .*build-queue.py hold --landing -- bash ' "$QUEUE_CALLS" || { cat "$QUEUE_CALLS"; echo 'FAIL: the hold owner did not go first'; exit 1; }
 echo 'PASS: the hold owner builds in the landing lane'
 echo "330 $later" > "$HOLD_FILE"
-RUN=other bash "$script" 1 > "$scratch/other" 2>&1 &
-other=$!
-sleep 3
-! grep -q '^other:' "$QUEUE_CALLS" || { echo 'FAIL: another PR built during the hold'; exit 1; }
+HOLD_ONCE="$scratch/other-read" NOTCHCAST_HOLD_POLL_SECONDS=0 RUN=other bash "$script" 1 > "$scratch/other" 2>&1 \
+    || { cat "$scratch/other"; exit 1; }
 grep -q 'local CI waits: landing is held for 330' "$scratch/other" || { cat "$scratch/other"; echo 'FAIL: no wait message'; exit 1; }
-: > "$HOLD_FILE"
-wait "$other" || { cat "$scratch/other"; exit 1; }
+[ "$(grep -n -m1 'local CI waits' "$scratch/other" | cut -d: -f1)" -lt "$(grep -n -m1 '^builder other' "$scratch/other" | cut -d: -f1)" ] \
+    || { cat "$scratch/other"; echo 'FAIL: another PR built during the hold'; exit 1; }
 grep -q '^other: .*build-queue.py hold -- bash ' "$QUEUE_CALLS" || { cat "$QUEUE_CALLS"; echo 'FAIL: the waiting build did not run after release'; exit 1; }
 echo 'PASS: another PR waits for the hold, then builds in the normal lane'
 # land.sh's own auto hold is no reason to stall other PRs' builds or to reorder the queue.
 echo "330 $later auto" > "$HOLD_FILE"
-RUN=autoother bash "$script" 1 > "$scratch/autoother" 2>&1 &
-autoother=$!
-sleep 3
-grep -q '^autoother: .*build-queue.py hold -- bash ' "$QUEUE_CALLS" || { kill "$autoother" 2>/dev/null; cat "$scratch/autoother"; echo 'FAIL: waited on an auto hold'; exit 1; }
-wait "$autoother"
-! grep -q 'local CI waits' "$scratch/autoother" || { echo 'FAIL: wait message under an auto hold'; exit 1; }
+HOLD_ONCE="$scratch/autoother-read" NOTCHCAST_HOLD_POLL_SECONDS=0 RUN=autoother bash "$script" 1 > "$scratch/autoother" 2>&1 \
+    || { cat "$scratch/autoother"; exit 1; }
+! grep -q 'local CI waits' "$scratch/autoother" || { cat "$scratch/autoother"; echo 'FAIL: waited on an auto hold'; exit 1; }
+grep -q '^autoother: .*build-queue.py hold -- bash ' "$QUEUE_CALLS" || { cat "$QUEUE_CALLS"; echo 'FAIL: auto hold changed lane'; exit 1; }
 echo "1 $later auto" > "$HOLD_FILE"
 RUN=autoowner bash "$script" 1 > "$scratch/autoowner" 2>&1 || { cat "$scratch/autoowner"; exit 1; }
 grep -q '^autoowner: .*build-queue.py hold -- bash ' "$QUEUE_CALLS" || { cat "$QUEUE_CALLS"; echo 'FAIL: auto hold owner changed lane'; exit 1; }
