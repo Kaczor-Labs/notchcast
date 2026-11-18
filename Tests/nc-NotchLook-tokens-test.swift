@@ -229,6 +229,9 @@ struct NotchLookTokensTests {
             legible("chat body on \(look)", resolved(chatBody, frosted: frosted), on: ground)
             visible("focused field edge on \(look)", resolved(c.primaryAction, frosted: frosted), on: ground)
             visible("level outline on \(look)", resolved(c.textSecondary, frosted: frosted), on: ground)
+            let row = over(resolved(c.selection, frosted: frosted), ground)
+            visible("in-progress meeting glyph on a selected row on \(look)",
+                    resolved(c.primaryAction, frosted: frosted), on: row)
             for (name, ink) in syntax {
                 legible("\(name) code on \(look)", resolved(NotchTheme.Colors.codeInk(ink), frosted: frosted), on: card)
             }
