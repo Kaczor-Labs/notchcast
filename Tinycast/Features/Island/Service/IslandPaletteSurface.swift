@@ -77,6 +77,45 @@ private struct IslandGlass<S: Shape>: ViewModifier {
 }
 
 extension View {
+    /// The footer capsule and menu circle float over scrolling rows, so on Frosted they cover them.
+    func floatingFrosted(in shape: some Shape) -> some View {
+        modifier(IslandFloatingGlass(shape: shape)).frosted(in: shape)
+    }
+}
+
+private struct IslandFloatingGlass<S: Shape>: ViewModifier {
+    let shape: S
+    @Environment(\.paletteOnIsland) private var onIsland
+    @Environment(\.islandFrosted) private var frosted
+    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
+    @Environment(\.colorSchemeContrast) private var contrast
+
+    func body(content: Content) -> some View {
+        content.background {
+            if onIsland, frosted {
+                if reduceTransparency || contrast == .increased {
+                    shape.fill(NotchTheme.Colors.islandGlassSolid)
+                } else {
+                    IslandRowBlur(shape: shape).overlay(shape.fill(NotchTheme.Colors.islandGlassTint))
+                }
+            }
+        }
+    }
+}
+
+/// Blurs this window's own rows under the control; the backdrop's glass lives in another window.
+private struct IslandRowBlur<S: Shape>: NSViewRepresentable {
+    let shape: S
+
+    func makeNSView(context: Context) -> IslandMaskedBlur { IslandMaskedBlur(blending: .withinWindow) }
+
+    func updateNSView(_ view: IslandMaskedBlur, context: Context) {
+        let shape = shape
+        view.outline = { shape.path(in: $0).cgPath }
+    }
+}
+
+extension View {
     /// A menu's backing: the island black, or Frosted's denser menu glass and edge.
     func islandMenuBacking(in shape: some Shape) -> some View {
         background { IslandMenuBacking(shape: shape) }
@@ -106,11 +145,11 @@ private struct IslandMenuBacking<S: Shape>: View {
     }
 }
 
-/// The backdrop's behind-window blur, masked to the menu's shape since a window blur ignores clips.
+/// A blur masked to a SwiftUI shape, since an `NSVisualEffectView` ignores SwiftUI clips.
 private struct IslandMenuBlur<S: Shape>: NSViewRepresentable {
     let shape: S
 
-    func makeNSView(context: Context) -> IslandMaskedBlur { IslandMaskedBlur() }
+    func makeNSView(context: Context) -> IslandMaskedBlur { IslandMaskedBlur(blending: .behindWindow) }
 
     func updateNSView(_ view: IslandMaskedBlur, context: Context) {
         let shape = shape
@@ -125,12 +164,12 @@ private final class IslandMaskedBlur: NSView {
         didSet { needsLayout = true }
     }
 
-    init() {
+    init(blending: NSVisualEffectView.BlendingMode) {
         super.init(frame: .zero)
         wantsLayer = true
         layer?.mask = mask
         blur.material = .hudWindow
-        blur.blendingMode = .behindWindow
+        blur.blendingMode = blending
         blur.state = .active
         blur.autoresizingMask = [.width, .height]
         addSubview(blur)
