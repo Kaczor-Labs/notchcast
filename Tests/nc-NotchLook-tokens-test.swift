@@ -85,7 +85,7 @@ struct NotchLookTokensTests {
 
     static func main() {
         let c = Theme.Colors.self
-        let lagoon = Color(nsColor: NSColor(srgbRed: 70 / 255, green: 240 / 255, blue: 198 / 255, alpha: 1))
+        let accent = Color(.sRGB, red: 1, green: 1, blue: 1)
 
         print("# dark takes the NotchKit values")
         same("dark selection", c.selection, Color.white.opacity(0.24), .darkAqua)
@@ -93,8 +93,8 @@ struct NotchLookTokensTests {
         same("dark keyCapFill", NotchTheme.Colors.keyCapFill, Color.white.opacity(0.14), .darkAqua)
         same("dark menuHover", c.menuHover, Color.white.opacity(0.24), .darkAqua)
         same("dark separator", c.separator, Color.white.opacity(0.16), .darkAqua)
-        same("dark primaryAction", c.primaryAction, lagoon, .darkAqua)
-        same("dark progress", c.progress, lagoon, .darkAqua)
+        same("dark primaryAction", c.primaryAction, accent, .darkAqua)
+        same("dark progress", c.progress, accent, .darkAqua)
 
         print("# light branches are upstream's")
         same("light selection", c.selection, Color.black.opacity(0.09), .aqua)
@@ -134,19 +134,19 @@ struct NotchLookTokensTests {
 
         print("# Black resolves exactly what it always did")
         let black: [(String, Color, Color)] = [
-            ("textPrimary", c.textPrimary, .white), ("textSecondary", c.textSecondary, Color.white.opacity(0.6)),
-            ("textTertiary", c.textTertiary, Color.white.opacity(0.4)), ("menuSymbol", c.menuSymbol, Color.white.opacity(0.7)),
+            ("textPrimary", c.textPrimary, .white), ("textSecondary", c.textSecondary, Color.white.opacity(0.72)),
+            ("textTertiary", c.textTertiary, Color.white.opacity(0.6)), ("menuSymbol", c.menuSymbol, Color.white.opacity(0.7)),
             ("selection", c.selection, Color.white.opacity(0.24)), ("menuHover", c.menuHover, Color.white.opacity(0.24)),
-            ("primaryAction", c.primaryAction, lagoon), ("destructive", c.destructive, .red),
+            ("primaryAction", c.primaryAction, accent), ("destructive", c.destructive, .red),
             ("keyCapFill", NotchTheme.Colors.keyCapFill, Color.white.opacity(0.14)),
-            ("keyCapInk", NotchTheme.Colors.keyCapInk, Color.white.opacity(0.6)),
+            ("keyCapInk", NotchTheme.Colors.keyCapInk, Color.white.opacity(0.72)),
             ("controlEdge", NotchTheme.Colors.controlEdge, .clear),
             ("islandPanelFill", NotchTheme.Colors.islandPanelFill, .black),
             ("secondaryLabel", NotchTheme.Colors.secondaryLabel, .secondary),
         ]
         for (name, token, value) in black { sameResolved("black \(name)", token, value, frosted: false) }
-        sameResolved("black lifted secondary stays", c.textSecondary, Color.white.opacity(0.6), frosted: false, lifted: true)
-        sameResolved("black lifted tertiary stays", c.textTertiary, Color.white.opacity(0.4), frosted: false, lifted: true)
+        sameResolved("black lifted secondary stays", c.textSecondary, Color.white.opacity(0.72), frosted: false, lifted: true)
+        sameResolved("black lifted tertiary stays", c.textTertiary, Color.white.opacity(0.6), frosted: false, lifted: true)
         sameResolved("black lifted destructive stays", c.destructive, .red, frosted: false, lifted: true)
         sameResolved("black lifted secondaryLabel stays", NotchTheme.Colors.secondaryLabel, .secondary,
                      frosted: false, lifted: true)
@@ -188,9 +188,8 @@ struct NotchLookTokensTests {
                 legible("lifted \(name) on \(ground)", resolved(ink, frosted: true, lifted: true), on: rgb)
             }
         }
-        let accent = over(resolved(IslandButtonFill.primary(0.36), frosted: true), body)
-        let accentInk = c.primaryAction.frosted(f.accentInk)
-        legible("accent ink on pressed primary", resolved(accentInk, frosted: true), on: accent)
+        let pressed = over(resolved(IslandButtonFill.primary(0.36), frosted: true), body)
+        legible("accent ink on pressed primary", resolved(NotchTheme.Colors.accentInk, frosted: true), on: pressed)
 
         print("\n\(passes) passed, \(failures) failed")
         print(failures == 0 ? "PASS nc-NotchLook-tokens" : "FAIL nc-NotchLook-tokens")

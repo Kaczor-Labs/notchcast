@@ -5,8 +5,10 @@ import Foundation
 @MainActor
 final class NotchcastCore {
     let controller: NotchcastController
+    let dictationServer: DictationServer
     private var trustMonitor: NotchcastTrustMonitor?
     private var launcherHides: NotchcastLauncherHides?
+    private var globeTrigger: NotchcastGlobeTrigger?
 
     init(core: AppCore, addons: [any NotchcastAddon.Type] = NotchcastRegistry.addons) {
         let bundleID = Bundle.main.bundleIdentifier ?? "Notchcast"
@@ -21,6 +23,9 @@ final class NotchcastCore {
                 prepare: { history.prepareForTinycastPasteboardMutation() },
                 synchronize: { history.synchronizeAfterTinycastPasteboardMutation(changeCount: $0) }),
             presenter: core.islandPresenter)
+        dictationServer = DictationServer(
+            defaults: defaults, settings: core.settings, coordinator: core.dictationCoordinator,
+            runner: controller.transcription)
         NotchcastPane.install(Set(controller.switches.map(\.category)))
         let commands = addons.flatMap { $0.commands }
         NotchcastSettingsSearch.install(
@@ -52,11 +57,15 @@ final class NotchcastCore {
         launcherHides = NotchcastLauncherHides(
             visibility: core.visibility, preferences: controller.preferences, commandIDs: Set(commands.map(\.id)))
         trustMonitor = NotchcastTrustMonitor(hub: hub)
+        globeTrigger = NotchcastGlobeTrigger(core: core, hub: hub)
         controller.start()
+        dictationServer.start()
     }
 
     func stop() {
+        dictationServer.stop()
         trustMonitor = nil
+        globeTrigger?.stop()
         controller.stop()
         controller.hub.stop()
     }

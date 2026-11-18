@@ -22,6 +22,7 @@ final class NotchcastController {
 
     let preferences: NotchcastPreferences
     let hub: NotchcastTapHub
+    let transcription: NotchcastTranscriptionRunner
     private(set) var slots: [Slot] = []
     private(set) var enabledCommands: [NotchcastCommand] = []
     var onCommandsChanged: (([NotchcastCommand]) -> Void)?
@@ -37,6 +38,7 @@ final class NotchcastController {
         preferences = NotchcastPreferences(defaults: defaults, switches: addons.flatMap { $0.switches })
         self.hub = hub
         let transcription = NotchcastTranscriptionRunner(dictation: dictation)
+        self.transcription = transcription
         func makeContext(recovery: NotchcastContext? = nil) -> NotchcastContext {
             NotchcastContext(
                 defaults: defaults, preferences: preferences, presenter: presenter, hub: hub,
