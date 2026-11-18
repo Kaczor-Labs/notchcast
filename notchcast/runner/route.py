@@ -19,12 +19,7 @@ def takes_macs(env):
         return False
     if env.get("EVENT") in ("push", "workflow_dispatch"):
         return True
-    # A synchronize arrives with a push, and that push's Main harnesses run is the one that takes the Macs.
-    return (
-        env.get("EVENT") == "pull_request"
-        and env.get("HEAD_REPO") == env.get("REPO")
-        and env.get("ACTION") != "synchronize"
-    )
+    return env.get("EVENT") == "pull_request" and env.get("HEAD_REPO") == env.get("REPO")
 
 
 def count_of(env):
