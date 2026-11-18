@@ -1,4 +1,5 @@
 #!/bin/bash
+# script-tests: macos (local-ci.sh's getconf DARWIN_USER_TEMP_DIR)
 set -euo pipefail
 tools=$(cd "$(dirname "$0")" && pwd)
 scratch=$(mktemp -d)
