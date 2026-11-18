@@ -38,7 +38,8 @@ run_case() {
     local name=$1 installed=$2 expected=$3
     shift 3
     export HOME="$WORK/$name" NOTCHCAST_APP="$WORK/$name/App.app"
-    mkdir -p "$HOME"
+    mkdir -p "$HOME/.config/notchcast"
+    [ "${PIN:-}" = none ] || echo "SIGN_SHA1=${PIN:-95280FD4EC25303CCC1FE2AA2A5E8B0A1A757DCC}" > "$HOME/.config/notchcast/private.env"
     if [ "$installed" != no ]; then
         cp -R "$FIXTURE" "$NOTCHCAST_APP"
         /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString $installed" "$NOTCHCAST_APP/Contents/Info.plist"
@@ -76,3 +77,20 @@ run_case lower-base-newer-snapshot "${LATEST#v}" v0.12.7-beta.1.snapshot.2026110
 printf -v RELEASE_TAGS 'v0.12.10-beta.%s\n' {1..30}
 RELEASE_TAGS+="$LATEST"
 run_case snapshot-after-30-mirrors 0.12.8.snapshot.20261107201744 "$LATEST"
+export RELEASE_TAGS="$LATEST"
+refused_case() {
+    local name=$1 message=$2
+    STATUS=0
+    run_case "$name" 0.12.7 "$LATEST" > /dev/null 2>&1 || STATUS=$?
+    test "$STATUS" != 0 || { echo "FAIL: $name installed"; exit 1; }
+    test ! -f "$HOME/installed" || { echo "FAIL: $name installed"; exit 1; }
+    grep -q "$message" "$HOME/log" || { echo "FAIL: $name did not say why"; cat "$HOME/log"; exit 1; }
+    echo "PASS: $name"
+}
+PIN=0000000000000000000000000000000000000000 refused_case pin-differs 'not signed by'
+# The pin comes only from private.env: one in the tooling's config.env, as a pushed main could add, is ignored.
+echo 'SIGN_SHA1=95280FD4EC25303CCC1FE2AA2A5E8B0A1A757DCC' >> "$WORK/config.env"
+PIN=none refused_case no-private-env 'no SIGN_SHA1'
+PIN=lowercase-or-missing refused_case no-private-pin 'no SIGN_SHA1'
+test ! -f "$HOME/downloaded" || { echo 'FAIL: no-private-pin downloaded a release'; exit 1; }
+echo 'PASS: update.sh refuses without a SIGN_SHA1 in private.env, whatever config.env says'
