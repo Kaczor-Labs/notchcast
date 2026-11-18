@@ -12,6 +12,10 @@ on:
         description: Shards for an all run, 1 to 9; each is one more macOS job
         type: number
         default: 1
+      hosted:
+        description: Run on hosted xcode-27 even while NOTCHCAST_MAC_RUNNER is set (no harness skipped)
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -71,7 +75,7 @@ jobs:
     needs: plan
     # An empty selection skips this job and the run still concludes success; an empty matrix would fail it.
     if: ${{ needs.plan.outputs.shards != '[]' }}
-    runs-on: ${{ github.event_name == 'workflow_dispatch' && vars.NOTCHCAST_MAC_RUNNER || 'xcode-27' }}
+    runs-on: ${{ github.event_name == 'workflow_dispatch' && !inputs.hosted && vars.NOTCHCAST_MAC_RUNNER || 'xcode-27' }}
     timeout-minutes: 30
     strategy:
       fail-fast: false

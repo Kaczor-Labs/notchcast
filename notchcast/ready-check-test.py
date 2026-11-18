@@ -111,7 +111,8 @@ class CoverageTest(unittest.TestCase):
 
 
 # The one way to a self-hosted Mac (README Runners): a dispatch, which no fork can start; unset, it is xcode-27.
-GATED_MAC = "${{ github.event_name == 'workflow_dispatch' && vars.NOTCHCAST_MAC_RUNNER || 'xcode-27' }}"
+GATED_MAC = ("${{ github.event_name == 'workflow_dispatch' && !inputs.hosted && vars.NOTCHCAST_MAC_RUNNER "
+             "|| 'xcode-27' }}")
 # Only jobs that hold no secret and launch no app; a workflow outside this map is hosted-only.
 GATED_JOBS = {"pr.yml": 1, "main-harnesses.yml": 1}
 

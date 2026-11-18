@@ -10,6 +10,10 @@ on:
       base:
         description: Base commit the checks compare against, as a PR's base (notchcast/train.sh)
         default: ''
+      hosted:
+        description: Run the macOS job on hosted xcode-27 even while NOTCHCAST_MAC_RUNNER is set (full proof)
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -68,7 +72,7 @@ jobs:
   mac:
     needs: route
     if: needs.route.outputs.scripts == 'true'
-    runs-on: ${{ github.event_name == 'workflow_dispatch' && vars.NOTCHCAST_MAC_RUNNER || 'xcode-27' }}
+    runs-on: ${{ github.event_name == 'workflow_dispatch' && !inputs.hosted && vars.NOTCHCAST_MAC_RUNNER || 'xcode-27' }}
     timeout-minutes: 90
     outputs:
       hosted: ${{ steps.runner.outputs.hosted }}
