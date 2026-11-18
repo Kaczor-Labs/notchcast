@@ -5,13 +5,16 @@ import Carbon.HIToolbox
 @MainActor
 final class NotchcastGlobeTrigger {
     private weak var core: AppCore?
+    private let hub: NotchcastTapHub
+    private var isTrusted = false
     private var detector = DictationMode.GlobeDetector()
     private var monitors: [Any] = []
     private var deadlineTask: Task<Void, Never>?
     private var isRunning = true
 
-    init(core: AppCore) {
+    init(core: AppCore, hub: NotchcastTapHub) {
         self.core = core
+        self.hub = hub
         observe()
     }
 
@@ -22,11 +25,14 @@ final class NotchcastGlobeTrigger {
 
     private func observe() {
         guard isRunning, let core else { return }
-        let wanted = withObservationTracking {
-            core.settings.dictationEnabled && core.settings.dictationMode == .globe
+        let (wanted, trusted) = withObservationTracking {
+            (core.settings.dictationEnabled && core.settings.dictationMode == .globe, hub.isTrusted)
         } onChange: { [weak self] in
             Task { @MainActor in self?.observe() }
         }
+        // A global monitor added before the Accessibility grant never delivers; a new one does.
+        if trusted, !isTrusted { apply(false) }
+        isTrusted = trusted
         apply(wanted)
     }
 
@@ -81,7 +87,7 @@ final class NotchcastGlobeTrigger {
             // NSEvent timestamps count from boot, as `systemUptime` does.
             try? await Task.sleep(for: .seconds(deadline - ProcessInfo.processInfo.systemUptime))
             guard !Task.isCancelled, let self else { return }
-            run(detector.elapsed(at: ProcessInfo.processInfo.systemUptime))
+            run(detector.elapsed(at: deadline))
         }
     }
 

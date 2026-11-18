@@ -49,7 +49,7 @@ final class NotchcastCore {
         launcherHides = NotchcastLauncherHides(
             visibility: core.visibility, preferences: controller.preferences, commandIDs: Set(commands.map(\.id)))
         trustMonitor = NotchcastTrustMonitor(hub: hub)
-        globeTrigger = NotchcastGlobeTrigger(core: core)
+        globeTrigger = NotchcastGlobeTrigger(core: core, hub: hub)
         controller.start()
     }
 

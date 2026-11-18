@@ -105,7 +105,7 @@ final class DictationCoordinator {
     }
 
     func pressed() {
-        guard settings.dictationEnabled, settings.dictationMode != .globe else { return }
+        guard settings.dictationEnabled else { return }
         if phase == .stopping { return }
         if settings.dictationMode == .pushToTalk,
             hotKeys.binding(for: .dictation)?.shortcut == nil,
@@ -116,13 +116,13 @@ final class DictationCoordinator {
             return
         }
         if phase != .idle {
-            if settings.dictationMode == .toggle { finish() }
+            if settings.dictationMode != .pushToTalk { finish() }
             return
         }
         begin(target: InjectionTarget.current())
     }
 
-    /// Globe mode's funnel: the recorded shortcut stays idle, and a field's own mic is left alone.
+    /// Globe mode's funnel; a field's own mic is left alone.
     func globe(_ action: DictationMode.GlobeDetector.Action) {
         guard settings.dictationEnabled, settings.dictationMode == .globe, field == nil else { return }
         switch action {
