@@ -105,7 +105,7 @@ def clone_counts(root, files):
 
 
 def measure(root, upstream, gates):
-    prod = sources(root, 'Tinycast') | sources(root, 'notchcast/root')
+    prod = sources(root, 'Tinycast')
     tests = sources(root, 'Tests')
     added = set(git(root, 'diff', '--diff-filter=A', '--name-only', upstream, '--', '*.swift').splitlines())
     added.update(git(root, 'ls-files', '--others', '--exclude-standard', '--', '*.swift').splitlines())
@@ -260,11 +260,11 @@ def main_counters(root, upstream):
         return {}
     added = set(git(root, 'diff', '--diff-filter=A', '--name-only', fork, base, '--', '*.swift').splitlines())
     with tempfile.TemporaryDirectory(prefix='drift-main.') as work:
-        present = git(root, 'ls-tree', '--name-only', base, '--', 'Tinycast', 'notchcast/root').split()
+        present = git(root, 'ls-tree', '--name-only', base, '--', 'Tinycast').split()
         archive = subprocess.run(['git', '-C', str(root), 'archive', base, *present],
                                  capture_output=True, check=True).stdout
         subprocess.run(['tar', '-x', '-C', work], input=archive, check=True)
-        prod = {p: text for p, text in (sources(Path(work), 'Tinycast') | sources(Path(work), 'notchcast/root')).items()
+        prod = {p: text for p, text in sources(Path(work), 'Tinycast').items()
                 if p in added}
     return pattern_counters(prod)
 
