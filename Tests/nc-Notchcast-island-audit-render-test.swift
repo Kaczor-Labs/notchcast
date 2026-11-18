@@ -23,6 +23,8 @@
 // notchcast-sources: Tinycast/Features/Updates/Model/ReleaseArchitecture.swift
 // notchcast-sources: Tinycast/Features/Updates/Service/UpdateInstaller.swift
 // notchcast-sources: Tinycast/Features/Updates/Service/UpdateFailure.swift
+// notchcast-sources: Tinycast/DesignSystem/Scrolling/SelectionFollowing.swift
+// notchcast-sources: Tinycast/DesignSystem/Scrolling/ScrollIntent.swift Tinycast/DesignSystem/Scrolling/SelectionReveal.swift
 // notchcast-sources: Tinycast/Features/Updates/Service/Quarantine.swift
 // notchcast-sources: Tinycast/Features/Updates/Service/BundleSignature.swift
 // notchcast-sources: Tinycast/Features/Updates/Service/ToolRunner.swift
@@ -44,6 +46,8 @@ enum IslandVerification {
 struct NotchcastIslandAuditRenderTest {
     static let folder = URL(fileURLWithPath: ProcessInfo.processInfo.environment["NC_AUDIT_RENDERS"]
         ?? NSTemporaryDirectory() + "nc-island-audit-renders")
+    /// `NC_AUDIT_LOOK=frosted` renders Frosted on its glass tint over a white wallpaper.
+    static let frosted = ProcessInfo.processInfo.environment["NC_AUDIT_LOOK"] == "frosted"
 
     static func write(_ name: String, _ image: CGImage?) {
         guard let image else { preconditionFailure("\(name) did not render") }
@@ -56,11 +60,13 @@ struct NotchcastIslandAuditRenderTest {
         }
     }
 
-    /// Every SwiftUI surface sits on the island black, the way the island hosts it.
+    /// Every SwiftUI surface sits on the island in its look, the way the island hosts it.
     static func render(_ name: String, @ViewBuilder _ content: () -> some View) {
         let view = content()
             .padding(16)
-            .background(NotchTheme.Colors.islandSurface)
+            .background(ground(desk: false))
+            .environment(\.islandFrosted, frosted)
+            .environment(\.paletteOnIsland, true)
             .environment(\.colorScheme, .dark)
             .environment(PaletteState())
         let renderer = ImageRenderer(content: view)
@@ -69,11 +75,13 @@ struct NotchcastIslandAuditRenderTest {
     }
 
     /// A field or scroll view is AppKit-backed and blank to `ImageRenderer`, so a window caches it.
-    static func renderHosted(_ name: String, size: CGSize, @ViewBuilder _ content: () -> some View) {
+    static func renderHosted(_ name: String, size: CGSize, desk: Bool = false, @ViewBuilder _ content: () -> some View) {
         let view = content()
             .padding(16)
             .frame(width: size.width, height: size.height, alignment: .top)
-            .background(NotchTheme.Colors.islandSurface)
+            .background(ground(desk: desk))
+            .environment(\.islandFrosted, frosted)
+            .environment(\.paletteOnIsland, true)
             .environment(\.colorScheme, .dark)
             .environment(PaletteState())
         let host = NSHostingView(rootView: view)
@@ -90,6 +98,17 @@ struct NotchcastIslandAuditRenderTest {
         }
         host.cacheDisplay(in: host.bounds, to: bitmap)
         write(name, bitmap.cgImage)
+    }
+
+    /// Black is the island black; Frosted its tint over white, or white alone under a floating menu.
+    @ViewBuilder static func ground(desk: Bool) -> some View {
+        if !frosted {
+            NotchTheme.Colors.islandSurface
+        } else if desk {
+            Color.white
+        } else {
+            NotchTheme.Colors.islandGlassTint.background(Color.white)
+        }
     }
 
     /// Engine art draws in AppKit into the pill's outline, so it renders the way the canvas does.
@@ -114,6 +133,7 @@ struct NotchcastIslandAuditRenderTest {
 
     static func main() {
         _ = NSApplication.shared
+        NSApp.setActivationPolicy(.prohibited)
         NSApp.appearance = NSAppearance(named: .darkAqua)
         // ImageRenderer draws no Liquid Glass until a hosting view has laid glass out once.
         NSHostingView(rootView: Color.clear.frosted(in: Circle())).layoutSubtreeIfNeeded()
@@ -200,7 +220,7 @@ struct NotchcastIslandAuditRenderTest {
                 DialogChip(title: "Selected", selected: true, onTap: {})
             }
         }
-        renderHosted("09-popover-menu", size: CGSize(width: 360, height: 300)) {
+        renderHosted("09-popover-menu", size: CGSize(width: 360, height: 300), desk: true) {
             PopoverMenu(
                 header: "Notchcast",
                 items: [
@@ -224,6 +244,22 @@ struct NotchcastIslandAuditRenderTest {
             }
         }
 
+        render("20-rows") {
+            VStack(spacing: 2) {
+                auditRow("Safari", subtitle: "Browser", trailing: "Application", fill: Theme.Colors.selection)
+                    .selectionFrame(true)
+                auditRow("Calculator", subtitle: nil, trailing: "Application", fill: Theme.Colors.rowHover)
+                auditRow("Empty Trash", subtitle: "Finder", trailing: "Command", fill: .clear)
+                Text("Search for apps and commands…").foregroundStyle(Theme.Colors.textTertiary)
+                    .frame(maxWidth: .infinity, alignment: .leading).padding(.horizontal, 8).padding(.top, 8)
+            }
+            .frame(width: 480)
+        }
+
+        guard !frosted else {
+            print("PASS rendered island audit surfaces (frosted) to \(folder.path)")
+            return
+        }
         let notch = false
         renderArt("10-notice-glyph", IslandNoticeArt(
             IslandNotice(id: "a", symbol: "doc.on.clipboard", text: "Copied"), notch: notch))
@@ -237,8 +273,34 @@ struct NotchcastIslandAuditRenderTest {
             [IslandStatus(id: "u", symbol: "arrow.clockwise.circle", text: nil, label: "Update ready")], notch: notch))
         renderArt("14-level", IslandLevelArt(
             IslandLevel(source: "volume", symbol: "speaker.wave.2.fill", label: "Volume", value: 0.6), notch: notch))
+        renderArt("14b-level-muted", IslandLevelArt(
+            IslandLevel(source: "volume", symbol: "speaker.slash.fill", label: "Volume", value: 0), notch: notch))
+        renderArt("14c-level-brightness", IslandLevelArt(
+            IslandLevel(source: "brightness", symbol: "sun.max.fill", label: "Brightness", value: 1,
+                        range: -0.25...1), notch: notch))
+        renderArt("14d-level-extra-dimming", IslandLevelArt(
+            IslandLevel(source: "brightness", symbol: "sun.min.fill", label: "Brightness", value: -0.125,
+                        range: -0.25...1), notch: notch))
+        renderArt("14e-level-notch", IslandLevelArt(
+            IslandLevel(source: "volume", symbol: "speaker.wave.1.fill", label: "Volume", value: 0.31), notch: true))
         print("PASS rendered island audit surfaces to \(folder.path)")
     }
+}
+
+/// A launcher row's anatomy: title, secondary subtitle, tertiary kind label and a shortcut.
+@MainActor
+func auditRow(_ title: String, subtitle: String?, trailing: String, fill: Color) -> some View {
+    HStack(spacing: 10) {
+        RoundedRectangle(cornerRadius: 7).fill(Theme.Colors.success).frame(width: 28, height: 28)
+        Text(title).foregroundStyle(Theme.Colors.textPrimary)
+        if let subtitle { Text(subtitle).foregroundStyle(Theme.Colors.textSecondary) }
+        KeyCapChip(text: "⌘", style: .outline)
+        Spacer()
+        Text(trailing).foregroundStyle(Theme.Colors.textTertiary)
+    }
+    .padding(.horizontal, 8)
+    .padding(.vertical, 6)
+    .background(fill, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
 }
 
 /// Stand-in for the coordinator `UpdatePill` reads, so the pill renders without `AppCore`.

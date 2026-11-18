@@ -108,10 +108,10 @@ final class IslandCoordinator: NSObject {
     /// Catches a window created after the last sweep the moment it first shows.
     @objc private func windowShown(_ notification: Notification) {
         guard let window = notification.object as? NSWindow, window.occlusionState.contains(.visible) else { return }
-        window.sharingType = captureSharing
+        window.sharingType = IslandCaptureSharing.sharing(for: window, captures: captureSharing)
     }
 
-    /// Every Notchcast window, not just the island, follows "Show in screenshots and videos" live.
+    /// Every untitled Notchcast window follows "Show in screenshots and videos" live.
     func applyCaptureSharing() {
         let stuck = shareCaptures()
         // Closing the menu re-enters here; closing the launcher does through `observeVisibility`.
@@ -130,7 +130,9 @@ final class IslandCoordinator: NSObject {
             if sharing == .readOnly, controller.sharingType == .none { reshown.insert(ObjectIdentifier(controller)) }
             controller.sharingType = sharing
         }
-        for window in NSApp.windows where !(window is IslandBackdrop) { window.sharingType = sharing }
+        for window in NSApp.windows where !(window is IslandBackdrop) {
+            window.sharingType = IslandCaptureSharing.sharing(for: window, captures: sharing)
+        }
         guard sharing == .none else { return [] }
         return backdrops.filter { reshown.contains(ObjectIdentifier($0.value)) }.map(\.key)
     }
@@ -319,6 +321,11 @@ final class IslandCoordinator: NSObject {
     /// The look an AppKit surface on `screen` takes.
     func look(for screen: NSScreen) -> IslandLook {
         looks.look(uuid: screen.islandDisplayUUID, hasNotch: IslandLayout.notch(on: screen) != .zero)
+    }
+
+    /// Whether a question or report on `screen` sits on Frosted glass; nil is the question's.
+    func frosted(on screen: NSScreen?) -> Bool {
+        (screen ?? questionScreen).map { look(for: $0) == .frosted } ?? false
     }
 
     /// Repaints each island in place, follows the palette's display and lists displays for Settings.
