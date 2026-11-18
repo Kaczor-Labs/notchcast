@@ -1,5 +1,5 @@
-// notchcast-sources: Tinycast/Features/Dictation/Model/DictationServerHTTP.swift Tinycast/Features/Dictation/Model/DictationServerUpload.swift
-// notchcast-sources: Tinycast/Features/Dictation/Model/DictationServerQueue.swift Tinycast/Features/Dictation/Model/DictationLanguage.swift
+// notchcast-sources: Tinycast/Features/DictationSharing/Model/DictationServerHTTP.swift Tinycast/Features/DictationSharing/Model/DictationServerUpload.swift
+// notchcast-sources: Tinycast/Features/DictationSharing/Model/DictationServerQueue.swift Tinycast/Features/Dictation/Model/DictationLanguage.swift
 // notchcast-sources: Tinycast/Features/Notchcast/Core/Service/NotchcastTranscription.swift Tests/NotchcastDictationFixture.swift
 import Foundation
 

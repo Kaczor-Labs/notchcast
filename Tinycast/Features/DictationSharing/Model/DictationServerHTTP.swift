@@ -176,7 +176,8 @@ struct DictationServerResponse: Error, Equatable, Sendable {
     }
 
     var encoded: Data {
-        var head = "HTTP/1.1 \(status) \(Self.reasons[status] ?? "Error")\r\n"
+        let reason = Self.reasons[status] ?? "Error"
+        var head = "HTTP/1.1 \(status) \(reason)\r\n"
         head += "Content-Type: \(contentType)\r\nContent-Length: \(body.count)\r\n"
         head += "Cache-Control: no-store\r\nConnection: close\r\n"
         if status == 401 { head += "WWW-Authenticate: Bearer\r\n" }

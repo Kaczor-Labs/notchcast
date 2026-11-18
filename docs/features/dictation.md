@@ -146,7 +146,7 @@ and competing downloads on shared or independent cache roots, without sockets or
 `DictationVolumeTests` uses private files and injected audio controls to verify crash recovery
 before and after fade steps, user volume changes, output switching, failed writes and rapid cancellation,
 without changing the system volume or downloading a model.
-`nc-Dictation-server-test` checks the endpoint's head parsing, host and token checks, size caps,
+`nc-DictationSharing-server-test` checks the endpoint's head parsing, host and token checks, size caps,
 multipart forms fed byte by byte, responses, and the dictation-wins queue through the add-on runner with
 fakes, without a socket, a timer or a model.
 
