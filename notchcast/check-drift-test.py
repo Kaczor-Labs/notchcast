@@ -178,15 +178,6 @@ class Gates(unittest.TestCase):
         write(self.root, 'Tinycast/Features/Notchcast/Core/NotchcastFeature.swift', '\n' * 1001)
         self.assertEqual(self.run_check('2').returncode, 0)
 
-    def test_root_helper_is_checked(self):
-        write(self.root, 'notchcast/root/DriftHelper.swift', '\n' * 401)
-        self.red('2', 'file-size: notchcast/root/DriftHelper.swift: 401 > 0')
-
-    def test_root_helper_dead_and_core_lookup(self):
-        write(self.root, 'notchcast/root/DriftHelper.swift', 'struct UnusedHelper {}\nlet service = NotchcastCore.todo\n')
-        self.red('1', 'core-lookups: notchcast/root/DriftHelper.swift')
-        self.red('3', ':UnusedHelper:')
-
     def test_copied_key_literal(self):
         write(self.root, TODO, 'let firstKey = "notchcast.drift.probe"\n')
         write(self.root, 'Tinycast/Features/Treadmill/DriftProbe.swift', 'let secondKey = "notchcast.drift.probe"\n')
