@@ -9,7 +9,7 @@ in the run-tests log, so a harness the runner skipped cannot pass as clean.
 Prints PASS per folder, or FAIL with the step and its log. A failure the deletion caused is a contract breach
 (exit 1); one the tools caused (clone, xcodegen, timeout, a build that stopped without a Swift error) is a
 tooling failure (exit 2). ready-check runs --rotate when its branch changes Tinycast/Features/Notchcast/.
---list prints the folders at the ref, one per line, and builds nothing; delete-check.yml runs one job per line.
+--list prints the folders at the ref, one per line, and builds nothing; delete-check.yml runs them in turn in one job.
 The scratch dir holds owner.pid; SIGTERM, SIGINT or SIGHUP stops the running step's process group, removes the
 dir and exits 128+signal, and each run first removes the dirs of dead owners, or pid-less ones over an hour old.
 With NOTCHCAST_BUILD_QUEUE set, in the environment or ~/.config/notchcast/private.env (notchcast/README.md,
@@ -35,7 +35,7 @@ ADDON_DECL = re.compile(r'\b(?:struct|enum|class)\s+(\w+)\b[^{]*\bNotchcastAddon
 SWIFT_ERROR = re.compile(r'\.swift:\d+:\d+: error:')
 HARNESS_FAIL = re.compile(r'FAIL\S*\s+\S+')
 ANSI = re.compile(r'\x1b\[[0-9;]*m')
-RESULT_LINE = re.compile(r'^\[\d+/\d+\]\s+\S+\s+(\S+)', re.M)
+RESULT_LINE = re.compile(r'^\[\s*\d+/\d+\]\s+\S+\s+(\S+)', re.M)
 LOGS = pathlib.Path.home() / 'Library/Caches/notchcast/addon-delete'
 TIMEOUT = 3600
 SCRATCH_PREFIX = 'notchcast-delete.'

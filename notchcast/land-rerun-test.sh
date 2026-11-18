@@ -112,7 +112,7 @@ if [ "$status" -ne 1 ] || [ -e "$scratch/harnessed" ] || ! grep -q 'cannot read 
 fi
 [ "$(wc -l < "$PUSHES")" -eq 1 ]
 echo 'PASS: an unreadable move refuses before the second push'
-# The runtime JS is generated but a harness loads it, so a move touching it reruns the harnesses.
+# The runtime JS is generated and only hidden harnesses load it, so a move touching it skips the harnesses too.
 git switch -q --detach "$base"
 echo rebuilt > runtime.js
 git add runtime.js
@@ -120,14 +120,14 @@ git commit -qm 'Fixture runtime'
 export MOVED=$(git rev-parse HEAD)
 git switch -q --detach "$head"
 : > "$PUSHES"
-rm -f "$scratch/rebuilt"
+rm -f "$scratch/rebuilt" "$scratch/harnessed"
 git update-ref refs/remotes/origin/main "$base"
 status=0
 (source "$scratch/retry") > "$scratch/output" 2>&1 || status=$?
-if [ "$status" -ne 0 ] || [ ! -e "$scratch/harnessed" ] || ! grep -q 'rerunning harnesses' "$scratch/output"; then
+if [ "$status" -ne 0 ] || [ -e "$scratch/harnessed" ] || ! grep -q 'only in generated files' "$scratch/output"; then
     cat "$scratch/output"
-    echo 'FAIL: a runtime JS move skipped the harnesses'
+    echo 'FAIL: a runtime JS move reran the harnesses'
     exit 1
 fi
 [ "$(wc -l < "$PUSHES")" -eq 2 ]
-echo 'PASS: a runtime JS move merges again and reruns the harnesses'
+echo 'PASS: a runtime JS move merges again and skips the harnesses'
