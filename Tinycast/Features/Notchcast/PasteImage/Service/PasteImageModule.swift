@@ -71,7 +71,7 @@ final class PasteImageModule: NotchcastModule {
         _ action: @escaping @MainActor @Sendable (PasteImageModule) -> Void
     ) -> NotificationToken {
         NotificationToken(center.addObserver(forName: name, object: nil, queue: .main) { [weak self] _ in
-            Task { @MainActor [weak self] in if let self { action(self) } }
+            MainActor.assumeIsolated { if let self { action(self) } }
         }, center: center)
     }
 
@@ -105,11 +105,12 @@ final class PasteImageModule: NotchcastModule {
         let keyCode = state.gate.withLock { $0.keyCode }
         let date = context.now()
         work = Task { [weak self, system] in
-            let role = await system.focusedRole(pid)
+            let focus = await system.focus()
             guard let self, !Task.isCancelled else { return }
-            guard system.frontFinder() == pid else { return finish() }
-            guard !PasteImagePolicy.passesThrough(focusedRole: role), let clip = system.clipboardImage() else {
-                system.replay(pid, keyCode)
+            guard system.frontFinder() == pid, !PasteImagePolicy.passesThrough(focus: focus, finderPID: pid),
+                  let clip = system.clipboardImage()
+            else {
+                system.replay(keyCode)
                 return finish()
             }
             let saved = await system.save(clip, date)

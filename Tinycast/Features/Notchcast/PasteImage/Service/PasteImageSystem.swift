@@ -8,8 +8,10 @@ struct PasteImageSystem: Sendable {
     /// Read on the tap thread, and only for a plain ⌘V while Finder is in front.
     let clipboardTypes: @Sendable () -> [String]
     let clipboardImage: @MainActor @Sendable () -> PasteImageClip?
-    let focusedRole: @Sendable (_ pid: Int32) async -> String?
+    /// Nil when the focus cannot be read.
+    let focus: @Sendable () async -> PasteImageFocus?
     /// Converts to PNG and has Finder place it, off the main actor; false on any failure.
     let save: @Sendable (PasteImageClip, Date) async -> Bool
-    let replay: @MainActor @Sendable (_ pid: Int32, _ keyCode: Int) -> Void
+    /// Posts ⌘V back to whatever holds the keys, tagged so no tap of ours takes it again.
+    let replay: @MainActor @Sendable (_ keyCode: Int) -> Void
 }

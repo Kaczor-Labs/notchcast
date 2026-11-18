@@ -23,9 +23,9 @@ extension PasteImageSystem {
             }
             return nil
         },
-        focusedRole: { await PasteImageFinder.focusedRole(of: $0) },
+        focus: { await PasteImageFinder.focus() },
         save: { await PasteImageFinder.save($0, at: $1) },
-        replay: { pid, keyCode in
+        replay: { keyCode in
             let source = CGEventSource(stateID: .combinedSessionState)
             let events = [true, false].compactMap {
                 CGEvent(keyboardEventSource: source, virtualKey: CGKeyCode(keyCode), keyDown: $0)
@@ -33,7 +33,7 @@ extension PasteImageSystem {
             for event in events {
                 event.flags = .maskCommand
                 event.setIntegerValueField(.eventSourceUserData, value: Paster.tinycastEventTag)
-                event.postToPid(pid)
+                event.post(tap: .cgSessionEventTap)
             }
         }
     )
@@ -56,23 +56,25 @@ private nonisolated enum PasteImageFinder {
         remove: { try? FileManager.default.removeItem(at: $0) })
 
     @concurrent
-    static func focusedRole(of pid: Int32) async -> String? {
-        let app = AXUIElementCreateApplication(pid)
-        AXUIElementSetMessagingTimeout(app, 1)
+    static func focus() async -> PasteImageFocus? {
+        let system = AXUIElementCreateSystemWide()
+        AXUIElementSetMessagingTimeout(system, 1)
         var focused: CFTypeRef?
-        guard AXUIElementCopyAttributeValue(app, kAXFocusedUIElementAttribute as CFString, &focused) == .success,
+        guard AXUIElementCopyAttributeValue(system, kAXFocusedUIElementAttribute as CFString, &focused) == .success,
               let focused, CFGetTypeID(focused) == AXUIElementGetTypeID()
         else { return nil }
         let element = unsafeDowncast(focused, to: AXUIElement.self)
+        var pid: pid_t = 0
+        guard AXUIElementGetPid(element, &pid) == .success else { return nil }
         AXUIElementSetMessagingTimeout(element, 1)
         var role: CFTypeRef?
         AXUIElementCopyAttributeValue(element, kAXRoleAttribute as CFString, &role)
-        return role as? String
+        return PasteImageFocus(pid: pid, role: role as? String)
     }
 
     @concurrent
     static func save(_ clip: PasteImageClip, at date: Date) async -> Bool {
-        guard let png = clip.isPNG ? clip.data : png(from: clip.data) else { return false }
+        guard canPlace(), let png = clip.isPNG ? clip.data : png(from: clip.data) else { return false }
         return PasteImageSaver.save(png, at: date, files: files, place: place)
     }
 
@@ -87,26 +89,49 @@ private nonisolated enum PasteImageFinder {
         return CGImageDestinationFinalize(destination) ? output as Data : nil
     }
 
+    /// Asks Finder for `URL of target of Finder window 1`, and whether that window exists when it has none.
+    private static func canPlace() -> Bool {
+        let finder = NSAppleEventDescriptor(bundleIdentifier: PasteImagePolicy.finderBundleIdentifier)
+        let window = specifier("brow", "indx", NSAppleEventDescriptor(int32: 1))
+        let url = property("pURL", of: property("fvtg", of: window))
+        let target = send(event("core", "getd", to: finder, directObject: url))
+        let folder = target.status == 0 ? result(target.reply)?.stringValue.flatMap(URL.init(string:)) : nil
+        if let folder { return PasteImagePolicy.accepts(frontFolder: folder, hasWindow: true) }
+        let exists = send(event("core", "doex", to: finder, directObject: window))
+        guard exists.status == 0, let hasWindow = result(exists.reply)?.booleanValue else { return false }
+        return PasteImagePolicy.accepts(frontFolder: nil, hasWindow: hasWindow)
+    }
+
+    private static func result(_ reply: NSAppleEventDescriptor?) -> NSAppleEventDescriptor? {
+        reply?.paramDescriptor(forKeyword: code("----"))
+    }
+
     /// `move file to insertion location`, then `select` the moved item, as Finder's own paste leaves it.
     private static func place(_ file: URL) -> PasteImagePlacement {
         let finder = NSAppleEventDescriptor(bundleIdentifier: PasteImagePolicy.finderBundleIdentifier)
         let move = event("core", "move", to: finder, directObject: NSAppleEventDescriptor(fileURL: file))
-        move.setParam(insertionLocation(), forKeyword: code("insh"))
+        move.setParam(property("pins"), forKeyword: code("insh"))
         let (reply, status) = send(move)
         guard status == 0 else { return nameTakenCodes.contains(status) ? .nameTaken : .failed }
-        if let moved = reply?.paramDescriptor(forKeyword: code("----")) {
+        if let moved = result(reply) {
             _ = send(event("misc", "slct", to: finder, directObject: moved))
         }
         return .placed
     }
 
-    /// The front Finder window's folder, or the Desktop when no window is open.
-    private static func insertionLocation() -> NSAppleEventDescriptor {
+    /// `pins` is the insertion location: the front window's folder, or the Desktop when no window is open.
+    private static func property(_ name: String, of owner: NSAppleEventDescriptor = .null()) -> NSAppleEventDescriptor {
+        specifier("prop", "prop", NSAppleEventDescriptor(typeCode: code(name)), from: owner)
+    }
+
+    private static func specifier(
+        _ want: String, _ form: String, _ selector: NSAppleEventDescriptor, from owner: NSAppleEventDescriptor = .null()
+    ) -> NSAppleEventDescriptor {
         let record = NSAppleEventDescriptor.record()
-        record.setDescriptor(NSAppleEventDescriptor(typeCode: code("prop")), forKeyword: code("want"))
-        record.setDescriptor(.null(), forKeyword: code("from"))
-        record.setDescriptor(NSAppleEventDescriptor(enumCode: code("prop")), forKeyword: code("form"))
-        record.setDescriptor(NSAppleEventDescriptor(typeCode: code("pins")), forKeyword: code("seld"))
+        record.setDescriptor(NSAppleEventDescriptor(typeCode: code(want)), forKeyword: code("want"))
+        record.setDescriptor(owner, forKeyword: code("from"))
+        record.setDescriptor(NSAppleEventDescriptor(enumCode: code(form)), forKeyword: code("form"))
+        record.setDescriptor(selector, forKeyword: code("seld"))
         return record.coerce(toDescriptorType: code("obj ")) ?? record
     }
 

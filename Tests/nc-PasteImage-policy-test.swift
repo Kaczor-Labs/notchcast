@@ -53,10 +53,25 @@ enum PasteImagePolicyTests {
         precondition(!PasteImagePolicy.accepts(types: ["public.file-url", "public.tiff"]), "copied files keep Finder's")
         precondition(!PasteImagePolicy.accepts(types: ["public.utf8-plain-text"]), "text is no image")
         precondition(!PasteImagePolicy.accepts(types: []), "an empty clipboard is no image")
-        precondition(PasteImagePolicy.passesThrough(focusedRole: "AXTextField"), "rename field takes text")
-        precondition(PasteImagePolicy.passesThrough(focusedRole: "AXTextArea"), "text area takes text")
-        precondition(!PasteImagePolicy.passesThrough(focusedRole: "AXOutline"), "the file list takes the image")
-        precondition(!PasteImagePolicy.passesThrough(focusedRole: nil), "an unreadable focus takes the image")
+        func passes(_ pid: Int32, _ role: String?) -> Bool {
+            PasteImagePolicy.passesThrough(focus: PasteImageFocus(pid: pid, role: role), finderPID: 7)
+        }
+        precondition(passes(7, "AXTextField"), "rename field takes text")
+        precondition(passes(7, "AXTextArea"), "text area takes text")
+        precondition(passes(7, "AXComboBox"), "Connect to Server's address field takes text")
+        precondition(!passes(7, "AXOutline"), "the file list takes the image")
+        precondition(passes(99, "AXOutline"), "a panel over Finder keeps its ⌘V")
+        precondition(passes(7, nil), "an unreadable role gets ⌘V back")
+        precondition(PasteImagePolicy.passesThrough(focus: nil, finderPID: 7), "an unreadable focus gets ⌘V back")
+        func accepts(_ path: String?, window: Bool = true) -> Bool {
+            PasteImagePolicy.accepts(frontFolder: path.flatMap(URL.init(string:)), hasWindow: window)
+        }
+        precondition(accepts("file:///Volumes/Disk/Pictures/"), "a folder window takes the image")
+        precondition(accepts(nil, window: false), "no window: the Desktop takes it")
+        precondition(!accepts(nil), "a search or Recents has no folder")
+        precondition(!accepts("file:///Volumes/Disk/.Trash/"), "the Trash takes nothing")
+        precondition(!accepts("file:///Volumes/Stick/.Trashes/501/"), "nor a volume's Trash")
+        precondition(!accepts("smb://server/share/"), "only a file URL is a folder")
         precondition(PasteImagePolicy.keyCode(commandCharacter: { _ in nil }) == 9, "fallback is kVK_ANSI_V")
         precondition(PasteImagePolicy.keyCode(commandCharacter: { $0 == 47 ? "v" : "x" }) == 47, "Dvorak's ⌘V")
         precondition(

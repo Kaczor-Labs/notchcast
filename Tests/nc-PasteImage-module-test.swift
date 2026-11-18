@@ -24,14 +24,15 @@ final class FakeSystem {
     var characters: [Int: String] = [9: "v"]
     var types = ["public.png"]
     var image: PasteImageClip? = png
-    var role: String?
+    var focus: PasteImageFocus? = PasteImageFocus(pid: 7, role: "AXOutline")
     var hold = false
     var saveWorks = true
     var saves: [Date] = []
-    var replays: [[Int]] = []
+    var replays: [Int] = []
 
     func reset() {
-        finder = 7; finderReads = 0; characters = [9: "v"]; types = ["public.png"]; image = png; role = nil
+        finder = 7; finderReads = 0; characters = [9: "v"]; types = ["public.png"]; image = png
+        focus = PasteImageFocus(pid: 7, role: "AXOutline")
         hold = false; saveWorks = true; saves = []; replays = []
     }
 
@@ -55,9 +56,9 @@ extension PasteImageSystem {
         commandCharacter: { fake.characters[$0] },
         clipboardTypes: { fakeTypes.withLock { $0 } },
         clipboardImage: { fake.image },
-        focusedRole: { _ in await fake.role },
+        focus: { await fake.focus },
         save: { await fake.save($0, $1) },
-        replay: { pid, keyCode in fake.replays.append([Int(pid), keyCode]) }
+        replay: { fake.replays.append($0) }
     )
 }
 
@@ -178,14 +179,23 @@ enum PasteImageModuleTests {
         precondition(rig.send(9) == .pass && rig.send(9, down: false) == .pass, "acceptance 2: copied files")
         fake.types = ["public.png"]
 
-        fake.role = "AXTextField"
+        let list = fake.focus
+        fake.focus = PasteImageFocus(pid: 7, role: "AXTextField")
         await rig.paste("acceptance 3") { fake.replays.count == 1 }
-        precondition(fake.replays == [[7, 9]] && fake.saves.count == 1, "a rename field gets a text ⌘V")
-        fake.role = nil
+        precondition(fake.replays == [9] && fake.saves.count == 1, "a rename field gets a text ⌘V")
+
+        fake.focus = PasteImageFocus(pid: 99, role: "AXOutline")
+        await rig.paste("a panel over Finder") { fake.replays.count == 2 }
+        precondition(fake.saves.count == 1, "keys held by a panel floating over Finder: ⌘V goes back, no file")
+
+        fake.focus = nil
+        await rig.paste("unreadable focus") { fake.replays.count == 3 }
+        precondition(fake.saves.count == 1, "a focus that cannot be read: ⌘V goes back, no file")
+        fake.focus = list
 
         fake.image = nil
-        await rig.paste("clipboard changed") { fake.replays.count == 2 }
-        precondition(fake.replays == [[7, 9], [7, 9]] && fake.saves.count == 1, "no image left: a plain ⌘V")
+        await rig.paste("clipboard changed") { fake.replays.count == 4 }
+        precondition(fake.replays == [9, 9, 9, 9] && fake.saves.count == 1, "no image left: a plain ⌘V")
         fake.image = png
 
         fake.hold = true
@@ -205,10 +215,9 @@ enum PasteImageModuleTests {
         await rig.paste("after a failure") { fake.saves.count == 3 }
         precondition(rig.presenter.posts.count == 1, "the next paste works")
 
-        let reads = fake.finderReads
         fake.finder = nil
-        await rig.paste("Finder left") { fake.finderReads > reads }
-        precondition(fake.saves.count == 3 && fake.replays.count == 2, "Finder no longer in front: nothing happens")
+        await rig.paste("Finder left") { fake.replays.count == 5 }
+        precondition(fake.saves.count == 3, "Finder left the front before the tap heard of it: ⌘V goes back")
 
         await rig.activate()
         precondition(rig.send(9) == .pass, "outside Finder ⌘V passes")

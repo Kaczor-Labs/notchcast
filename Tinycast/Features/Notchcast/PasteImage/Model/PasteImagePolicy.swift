@@ -7,13 +7,20 @@ struct PasteImageClip: Equatable, Sendable {
     let isPNG: Bool
 }
 
+/// The element that holds the keys, read system-wide so a panel floating over Finder is seen.
+struct PasteImageFocus: Equatable, Sendable {
+    let pid: Int32
+    let role: String?
+}
+
 enum PasteImagePolicy {
     static let finderBundleIdentifier = "com.apple.finder"
     /// `kVK_ANSI_V`, used until the layout's Command character "v" is found.
     static let fallbackKeyCode = 9
     static let imageTypes = ["public.png", "public.tiff", "public.jpeg", "public.heic"]
     static let fileURLType = "public.file-url"
-    static let textRoles: Set<String> = ["AXTextField", "AXTextArea"]
+    static let textRoles: Set<String> = ["AXTextField", "AXTextArea", "AXComboBox"]
+    static let trashNames: Set<String> = [".Trash", ".Trashes"]
     static let attempts = 10
     static let timeout: TimeInterval = 30
     static let modifiers: CGEventFlags = [.maskCommand, .maskShift, .maskAlternate, .maskControl, .maskSecondaryFn]
@@ -28,9 +35,16 @@ enum PasteImagePolicy {
         !types.contains(fileURLType) && types.contains { imageTypes.contains($0) }
     }
 
-    /// A rename or search field takes ⌘V as a text paste.
-    static func passesThrough(focusedRole: String?) -> Bool {
-        focusedRole.map(textRoles.contains) ?? false
+    /// Only a readable, non-text element of Finder itself takes the image; anything else gets ⌘V back.
+    static func passesThrough(focus: PasteImageFocus?, finderPID: Int32) -> Bool {
+        guard let focus, focus.pid == finderPID, let role = focus.role else { return true }
+        return textRoles.contains(role)
+    }
+
+    /// A search, Recents or the Trash is no folder to paste into; with no window open it is the Desktop.
+    static func accepts(frontFolder: URL?, hasWindow: Bool) -> Bool {
+        guard let frontFolder else { return !hasWindow }
+        return frontFolder.isFileURL && !frontFolder.pathComponents.contains { trashNames.contains($0) }
     }
 
     static func fileName(at date: Date, attempt: Int) -> String {
