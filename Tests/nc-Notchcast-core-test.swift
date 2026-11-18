@@ -344,6 +344,14 @@ struct NotchcastCoreTest {
                   && controller.run(entryID: "command:nc-probe-run"))
         controller.preferences.setShowsInLauncher("command:nc-probe-run", true)
         check("Show in launcher on lists it again", published.count == 3 && controller.launcherCommands(probe).count == 1)
+        let probeContext = controller.context(forSwitch: "probeMain")
+        probeContext?.setUnavailable(["command:nc-probe-run"])
+        check("a command its module marks unavailable leaves the launcher, keeping its hotkey",
+              published.count == 4 && controller.launcherCommands(probe).isEmpty && controller.enabledCommands.count == 1)
+        probeContext?.setUnavailable(["command:nc-probe-run"])
+        check("marking it unavailable again publishes nothing", published.count == 4)
+        probeContext?.setUnavailable([])
+        check("available again lists it again", published.count == 5 && controller.launcherCommands(probe).count == 1)
 
         controller.preferences.set("probeChild", on: true)
         drain()
