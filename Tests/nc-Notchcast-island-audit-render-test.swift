@@ -439,9 +439,7 @@ struct NotchcastIslandAuditRenderTest {
                 auditLauncherBottom(notch: notch)
             }
         }
-        if frosted {
-            for notch in [false, true] { renderShades("27-glass-shade-\(notch ? "notch" : "island")", notch: notch) }
-        }
+        for notch in [false, true] where frosted { renderShades("27-glass-shade-\(notch ? "notch" : "island")", notch: notch) }
         print("PASS rendered island audit surfaces to \(folder.path)")
     }
 
@@ -449,7 +447,6 @@ struct NotchcastIslandAuditRenderTest {
     static func renderShades(_ name: String, notch: Bool) {
         let cell = CGSize(width: 340, height: notch ? 240 : 300)
         let rest = NotchTheme.Size.islandRest
-        let radius = Theme.Radius.panel
         writeArt(name, size: cell) { rect in
             NSColor.white.setFill()
             rect.fill()
@@ -462,30 +459,21 @@ struct NotchcastIslandAuditRenderTest {
             canvas.restingKeyline = notch ? 0 : 1
             // The notch sheet runs past the top edge, as the engine's outline does above the screen.
             let open = CGRect(x: 20, y: 20, width: 300, height: notch ? cell.height : 200)
-            var shapes = [CGPath(roundedRect: open, cornerWidth: radius, cornerHeight: radius, transform: nil)]
-            if !notch {
-                let pill = CGRect(x: cell.width / 2 - rest.width / 2, y: cell.height - 20 - rest.height,
-                                  width: rest.width, height: rest.height)
-                shapes.append(CGPath(roundedRect: pill, cornerWidth: rest.height / 2, cornerHeight: rest.height / 2,
-                                     transform: nil))
-            }
-            for shape in shapes {
-                canvas.outline = shape
+            let pill = CGRect(x: cell.width / 2 - rest.width / 2, y: cell.height - 20 - rest.height,
+                              width: rest.width, height: rest.height)
+            for (shape, corner) in [(open, Theme.Radius.panel)] + (notch ? [] : [(pill, rest.height / 2)]) {
+                canvas.outline = CGPath(roundedRect: shape, cornerWidth: corner, cornerHeight: corner, transform: nil)
                 context.beginTransparencyLayer(auxiliaryInfo: nil)
                 canvas.draw(canvas.bounds)
                 context.endTransparencyLayer()
             }
-            if notch {
-                NSColor.black.setFill()
-                CGRect(x: cell.width / 2 - 92, y: cell.height - 32, width: 184, height: 32).fill()
-            }
-            var x: CGFloat = 40
-            for (word, ink) in [("Primary", Theme.Colors.textPrimary), ("Secondary", Theme.Colors.textSecondary),
-                                ("Tertiary", Theme.Colors.textTertiary)] {
-                let text = NSAttributedString(string: word, attributes: [
-                    .font: NSFont.systemFont(ofSize: 13), .foregroundColor: ink.islandInk(frosted: true)])
-                text.draw(at: CGPoint(x: x, y: 34))
-                x += text.size().width + 16
+            NSColor.black.setFill()
+            if notch { CGRect(x: cell.width / 2 - 92, y: cell.height - 32, width: 184, height: 32).fill() }
+            for (index, (word, ink)) in [("Primary", Theme.Colors.textPrimary), ("Secondary", Theme.Colors.textSecondary),
+                                         ("Tertiary", Theme.Colors.textTertiary)].enumerated() {
+                NSAttributedString(string: word, attributes: [
+                    .font: NSFont.systemFont(ofSize: 13), .foregroundColor: ink.islandInk(frosted: true),
+                ]).draw(at: CGPoint(x: 40 + CGFloat(index) * 90, y: 34))
             }
         }
     }
