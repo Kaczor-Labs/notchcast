@@ -60,7 +60,7 @@ Reference: HIG Live Activities, "When the background is dark — for example, in
 | Island outline | Fixed at every interface scale (1, 1.1, 1.2). | `Theme.Radius.panel` (26, `ObsidianTokens.Glass.radiusIsland`) |
 | Any shape inside an island surface | Concentric: inner radius = outer radius − the inset between them, read from `metrics.radius`. Launcher rows `metrics.radius.row` (18), menu rows `metrics.radius.menuRow` (18), keycaps `metrics.radius.keyCap` (10), dialog `metrics.radius.panel`, buttons and HUDs `Capsule()`. A menu panel is menu row + list inset = 26. | `metrics.radius.*` (row and menu row `ObsidianTokens.Spacing.radius`, keycap `radiusSm`); menu panel → `NotchTheme.Radius.islandMenu` (§15) |
 
-Today `PopoverMenu` uses `metrics.radius.menuPanel` (16), smaller than the 18-point rows it holds. Hook A3.
+On the island `PopoverMenu` reads `NotchTheme.Radius.islandMenu`; stock keeps `metrics.radius.menuPanel` (16). Hook A3.
 
 Reference: HIG Live Activities, "Use consistent margins and concentric placement."
 
@@ -199,33 +199,33 @@ Reference: HIG Live Activities, "Focus on simple, direct actions."
 
 ## 14. Breaks today
 
-The island-black branch is fixing the first four, and #8 is closed; the rest are open. Counts are from §16.
+Open: 9, 12, 13, 14 and 15; the rest are closed. Counts are from §16, where a closed break's hook can still print the stock branch of the same line.
 
 | # | Where | Breaks | Target |
 | --- | --- | --- | --- |
-| 1 | `RootPaletteView.swift:1079`, `:1657` | §1, §9: footer capsule and menu circle use `frosted(in:)` | no glass, §9 |
-| 2 | `BarButton.swift:64` | §7: selected fill is `Theme.Colors.selection` | `NotchTheme.Colors.keyCapFill` on the island |
-| 3 | `MessageHUDView.swift:59`, `:60`, `:79` | §10: radial glow, `panelScrim` and a tinted `strokeBorder` rim | island surface only |
-| 4 | `DialogView.swift:62` | §1: `panelScrim` under the island surface | island surface only |
-| 5 | `UpdatePill.swift:90` | §1, §9: tinted interactive `.glassEffect` | no glass, tint on glyph and label |
-| 6 | `ModalActionButtonStyle.swift:43`–`:47` | §7: neutral buttons fill `controlSurface` / `controlHover` / `controlPressed` | bare, `rowHover`, `keyCapFill` on the island |
-| 7 | `PopoverMenu.swift:129` | §3: menu radius 16 inside 18-point rows | `NotchTheme.Radius.islandMenu` |
+| 1 | `RootPaletteView.swift:1092`, `:1667` | Closed: `frosted(in:)` is `islandGlass`, `.identity` glass on the island (#731); A1 and A11 still print the two call sites | done |
+| 2 | `BarButton.swift:67` | Closed: on the island the fill is `IslandButtonFill.neutral`, `keyCapFill` when selected or pressed (#747); A9 prints the stock branch | done |
+| 3 | `MessageHUDView.swift` | Closed: no glow, scrim or rim; hover is `rowHover` (#733) | done |
+| 4 | `DialogView.swift` | Closed: no `panelScrim` under the dialog (#733) | done |
+| 5 | `UpdatePill.swift:89` | Closed: `islandGlass` with no tint; the stage tint colours the glyph and label (#731, #761) | done |
+| 6 | `ModalActionButtonStyle.swift:47`–`:51` | Closed: on the island neutral buttons take `IslandButtonFill.neutral` (#747); A9 prints the three stock-branch lines | done |
+| 7 | `PopoverMenu.swift:131` | Closed: the menu radius on the island is `NotchTheme.Radius.islandMenu` (#734) | done |
 | 8 | `IslandNoticeArt.swift` | Closed: the failure glyph is `IslandNoticeArt.failureTone` and its dwell `IslandNotice.failureSeconds` (#732); on a notch the notice text expands below (§10) | done |
-| 9 | `UpdateCoordinator.swift:122` | §10: Try Again dialog shows `arrow.down.circle`, the notice `exclamationmark.arrow.circlepath` | one glyph per state |
-| 10 | `RootPaletteView.swift:1647`–`:1648`, `LauncherList.swift:321` | §6: hand-drawn menu-circle bars (14 and 8 × 1.5) and a 3 × 3 running dot | SF Symbol, or §15 tokens |
-| 11 | `VolumeHUDView.swift:39` | §1: `panelScrim` (hidden view, reached only by the volume scene) | island surface only |
-| 12 | `PalettePanel.swift:273`, `MenuPanel.swift:20`, `HUDPanel.swift:19`, `DialogPanel.swift:39` | §1: `hasShadow = true` | `false` |
-| 13 | `ChatTranscriptView.swift:169`–`:170`, `ChatSuggestionChips.swift:55` | §1, §2: `.ultraThinMaterial` with a `border` rim, a `frosted` chip | `rowHover` circle, §7 chip |
-| 14 | palette-screen cards, `EmojiGridView.swift:322`–`:333` | §2: `cardStroke` hairlines and a selection ring | fill, §2 |
+| 9 | `IslandUpdateActivity.swift:89` | §10: Try Again dialog shows `arrow.down.circle`, the notice `exclamationmark.arrow.circlepath` | one glyph per state |
+| 10 | `RootPaletteView.swift:1678`–`:1679`, `LauncherList.swift:322` | Closed: on the island the menu circle draws the `line.3.horizontal` symbol (#736; A7 prints the stock bars) and the running dot reads `NotchTheme.Size.runningDot` (#759) | done |
+| 11 | `VolumeHUDView.swift:39` | Closed: no `panelScrim` (#733) | done |
+| 12 | `PalettePanel.swift:273`, `HUDPanel.swift:19`, `DialogPanel.swift:39` | §1: `hasShadow = true` (`MenuPanel.swift:20` is closed, #741) | `false` |
+| 13 | `ChatSuggestionChips.swift:55` | §7: a `frosted` chip (the jump button, `ChatTranscriptView.swift:169`–`:170`, is closed: a `rowHover` circle with no rim, #763) | §7 chip |
+| 14 | `RoomPreviewView.swift:58`, `RoomPickerList.swift:120` | §2: a `roomCardStroke` rim and a `cardStroke` badge ring (the palette-screen cards and the emoji rings in `EmojiGridView.swift:323`–`:334` are closed, stock only: #763, #769) | fill, §2 |
 | 15 | `IconTile.swift`, `Theme.IconTile` (upstream's icon pack, `docs/ui.md` "Icon pack") | §6: every symbol entry in a launcher row, in a feature's own list (Quicklinks, Custom Commands, Snippets, Rooms, Calculator History, chat history) and at the head of the inline argument strip is a white glyph on the saturated gradient of its `IconTint`, in the app icon's outline with a top edge light | one glass tile, #916 |
 
 ## 15. Tokens to add
 
 | Proposed token | Value | For | Why |
 | --- | --- | --- | --- |
-| `NotchTheme.Radius.islandMenu` | 26 (`Theme.Radius.menuRow` 18 + `Theme.Spacing.md` 8) | §3 menu panel on the island | concentric with its rows; equals the island outline |
+| `NotchTheme.Radius.islandMenu` | 26 (`Theme.Radius.menuRow` 18 + `Theme.Spacing.md` 8) | §3 menu panel on the island | defined (#734): concentric with its rows; equals the island outline |
 | `NotchTheme.Size.menuGlyphBars` | 14 and 8 wide, 1.5 thick | §9 menu circle | only if the hand-drawn bars stay; an SF Symbol needs no token |
-| `NotchTheme.Size.runningDot` | 3 | §6 running-app dot in launcher rows | today a literal in `LauncherList` |
+| `NotchTheme.Size.runningDot` | 3 | §6 running-app dot in launcher rows | defined (#759) |
 | `NotchTheme.Size.islandLevelCell`, `islandLevelTrack` | 24 and 96 | §4 level art | defined (#756): `IslandLevelArt` reads them instead of the rest pill's height and width |
 | `Theme.Typography.indicatorGlyphSize` → `metrics.typography.indicatorGlyph` | 10 | §6 Quicklinks list indicator glyph (`QuicklinkListView`) | defined (#756) |
 | `Theme.Typography.removeGlyphSize` → `metrics.typography.removeGlyph` | 9, semibold | §6 composer chip remove glyph (`ChatComposerChips`) | defined (#756) |
@@ -242,23 +242,23 @@ Run from the repo root with `bash`, after ``I=$(find Tinycast/Palette Tinycast/F
 
 | Hook | Rule | Check | Hits |
 | --- | --- | --- | --- |
-| A1 | §1 surface | `grep -rnE -A1 'frosted\(in:\|\.glassEffect\(\|GlassEffectView\(\|panelScrim\|Material' $I \| grep -E 'frosted\(in:\|\.regular\|GlassEffectView\(\|panelScrim\|Material' \| grep -vE 'onIsland \? \.identity\|IslandVerification\.stock\|CompactBar\.swift[:-]123'` | 8 |
-| A2 | §2 stroke | `grep -rnE 'strokeBorder\|\.border\(\|cardStroke\|emojiSelectionBorder\|emojiInnerBorder\|roomCardStroke' $I \| grep -v 'controlEdge'` (Frosted's control edge, §2) | 20 |
-| A3 | §3 radius | `grep -rnE 'radius: metrics\.radius\.menuPanel' $I` | 1 |
+| A1 | §1 surface | `grep -rnE -A1 'frosted\(in:\|\.glassEffect\(\|GlassEffectView\(\|panelScrim\|Material' $I \| grep -E 'frosted\(in:\|\.regular\|GlassEffectView\(\|panelScrim\|Material' \| grep -vE 'onIsland \? \.identity\|IslandVerification\.stock\|CompactBar\.swift[:-]123'` | 4 |
+| A2 | §2 stroke | `grep -rnE 'strokeBorder\|\.border\(\|cardStroke\|emojiSelectionBorder\|emojiInnerBorder\|roomCardStroke' $I \| grep -v 'controlEdge'` (Frosted's control edge, §2) | 15 |
+| A3 | §3 radius | `grep -rnE 'radius: metrics\.radius\.menuPanel' $I` | 0 |
 | A4 | §4 widths | `grep -rnE 'stageWidth: [^s]' Tinycast/Features/Island/Service/IslandController.swift \| grep -vE 'panelWidth\|size\.width\|stageWidth: width'` | 0 |
-| A5 | §5 padding | `grep -rnE '\.padding\((\.[a-zA-Z]+, )?[0-9]\|spacing: [0-9]{2,}' $I` | 3 |
-| A6 | §6 type | `grep -rnE 'font\(\.system\(\|^\s*\.system\(size\|NSFont\.systemFont\(ofSize: [0-9]' $I` | 15 |
-| A7 | §6 icon | `grep -rnE 'frame\(width: [0-9]+(\.[0-9])?, height: [0-9]' $I` | 4 |
+| A5 | §5 padding | `grep -rnE '\.padding\((\.[a-zA-Z]+, )?[0-9]\|spacing: [0-9]{2,}' $I` | 0 |
+| A6 | §6 type | `grep -rnE 'font\(\.system\(\|^\s*\.system\(size\|NSFont\.systemFont\(ofSize: [0-9]' $I` | 13 |
+| A7 | §6 icon | `grep -rnE 'frame\(width: [0-9]+(\.[0-9])?, height: [0-9]' $I` | 2 |
 | A8 | §7 keycap | `grep -rn 'KeyCapChip(' $I \| grep -v 'style: .outline'` | 1 |
 | A9 | §7 button | `grep -rnE 'Theme\.Colors\.(selection\|controlSurface\|controlHover\|controlPressed)' Tinycast/DesignSystem/BarButton.swift Tinycast/DesignSystem/ModalActionButtonStyle.swift` | 4 |
 | A10 | §8 menu | `grep -rnE -A3 '(headerMenu\|PopoverMenu)\(' Tinycast --include='*.swift' \| grep -E 'width: [0-9]'` | 0 |
 | A11 | §9 footer | `grep -rnE 'frosted\(in: (Capsule\|Circle)\(\)\)' Tinycast/Palette/RootPaletteView.swift` | 2 |
 | A12 | §10 notice | `grep -q 'failureTone' Tinycast/Features/Island/Service/IslandNoticeArt.swift \|\| echo 'IslandNoticeArt.swift: no failure tone'` | 0 |
-| A13 | §10 HUD and dialog | `grep -rnE '\{ glow \}\|strokeBorder\|panelScrim' Tinycast/Windows/HUD Tinycast/Windows/Dialog` | 5 |
-| A14 | §10 update glyph | `grep -rn 'symbol: "arrow.down.circle", recovery' Tinycast/Features/Updates/UI/UpdateCoordinator.swift` | 1 |
+| A13 | §10 HUD and dialog | `grep -rnE '\{ glow \}\|strokeBorder\|panelScrim' Tinycast/Windows/HUD Tinycast/Windows/Dialog` | 0 |
+| A14 | §10 update glyph | `grep -rn 'symbol: "arrow.down.circle", recovery' Tinycast/Features/Updates Tinycast/Features/Island` | 1 |
 | A15 | §11 settings | `grep -rnE 'formStyle\(\|NotchTheme\.' $(grep -rlE 'struct [A-Za-z]+SettingsView' Tinycast/Features/Notchcast) \| grep -v 'formStyle(.grouped)'` | 0 |
 | A16 | §12 add-ons | `grep -rnE ': NSPanel\|NSHostingView\(\|NSWindow\(' Tinycast/Features/Notchcast --include='*.swift' \| grep -v '/Screenshots/'` | 0 |
-| A17 | §1 shadow | `grep -rnE 'hasShadow = true' Tinycast/Palette/PalettePanel.swift Tinycast/Palette/MenuPanel.swift Tinycast/Windows/HUD/HUDPanel.swift Tinycast/Windows/Dialog/DialogPanel.swift Tinycast/Features/Island` (window shadows stay off; Frosted's lift is a layer shadow in `IslandFrost`) | 4 |
+| A17 | §1 shadow | `grep -rnE 'hasShadow = true' Tinycast/Palette/PalettePanel.swift Tinycast/Palette/MenuPanel.swift Tinycast/Windows/HUD/HUDPanel.swift Tinycast/Windows/Dialog/DialogPanel.swift Tinycast/Features/Island` (window shadows stay off; Frosted's lift is a layer shadow in `IslandFrost`) | 3 |
 | A18 | §6 glyph | `grep -rnE 'Image\(systemName' $I` | 39 |
 | A19 | §1 look on Frosted | `./Scripts/run-tests.sh nc-Notchcast-frosted-guard-test \| grep -c '^FAIL'` (an `islandSurface` fill outside a look branch, an `NSColor(token)` ink) | 0 |
 
