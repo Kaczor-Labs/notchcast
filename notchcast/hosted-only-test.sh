@@ -18,7 +18,7 @@ source notchcast/test-harnesses.sh
 if [ -n "$only" ]; then echo "ran $only"; else awk '{ print "ran " $2 }' "$QUEUE"; fi
 STUB
 chmod +x "$scratch/bin/python3" "$scratch/Scripts/run-tests.sh"
-export PATH="$scratch/bin:$PATH" TMPDIR="$scratch"
+export PATH="$scratch/bin:$PATH" TMPDIR="$scratch" NOTCHCAST_PLATFORM=Darwin
 unset CI_SKIP_TESTS NOTCHCAST_SHARD NOTCHCAST_ONLY_TESTS RUNNER_ENVIRONMENT NOTCHCAST_ISOLATED_RUNNER
 cd "$scratch"
 fail() { cat out; echo "FAIL: $1"; exit 1; }
@@ -49,6 +49,12 @@ for where in RUNNER_ENVIRONMENT=github-hosted NOTCHCAST_ISOLATED_RUNNER=1; do
     env "$where" Scripts/run-tests.sh KeychainTests > out 2>&1 && grep -qx 'ran KeychainTests' out || fail "$where refused a named run"
 done
 echo 'PASS: a GitHub-hosted or isolated runner runs hosted-only harnesses, named or in the suite'
+echo 'LINUX_OK_TESTS="PlainTests KeychainTests"' >> notchcast/config.env
+suite linux NOTCHCAST_PLATFORM=Linux
+[ "$(grep -c '^ran ' out)" = 1 ] && grep -qx 'ran PlainTests' out && grep -q '^SKIPPED KeychainTests: hosted-only: ' out \
+    && grep -q '^1 mac-only harnesses skipped on Linux .*: WindowTests$' out \
+    || fail 'on Linux a linux-ok hosted-only harness was not skipped as hosted-only'
+echo 'PASS: on Linux a harness that is linux-ok and hosted-only is skipped as hosted-only'
 # Nothing the repository runs may claim to be the isolated runner: only that runner's service environment does.
 setters=$(cd "$root" && git grep -lE 'NOTCHCAST_ISOLATED_RUNNER[]}"]*=' -- . ':!notchcast/hosted-only-test.sh' ':!*.md' || true)
 [ -z "$setters" ] || { echo "FAIL: NOTCHCAST_ISOLATED_RUNNER is set in: $setters"; exit 1; }
