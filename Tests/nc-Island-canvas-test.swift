@@ -7,6 +7,7 @@
 // notchcast-sources: Tinycast/Features/Island/Service/IslandLevelArt.swift
 // notchcast-sources: Tinycast/Features/Island/Model/IslandKeyline.swift Tinycast/Features/Island/Model/IslandLook.swift
 // notchcast-sources: Tinycast/Features/Island/Service/IslandCanvas.swift
+// notchcast-sources: Tinycast/Features/Island/Model/IslandGlassShade.swift
 // notchcast-sources: Tinycast/Features/Island/Service/IslandExpansionArt.swift
 import AppKit
 

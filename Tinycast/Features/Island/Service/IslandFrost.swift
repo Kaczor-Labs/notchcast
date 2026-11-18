@@ -7,6 +7,9 @@ final class IslandFrost {
     let root: NSView
     private let clip = IslandInertView()
     private let blur = IslandBlurView()
+    private let mute = IslandMuteView()
+    private let preferences = UserDefaults(
+        suiteName: NotchcastPreferences.suiteName(bundleID: Bundle.main.bundleIdentifier ?? ""))
     private let mask = CAShapeLayer()
     private let lift = IslandLiftWindow()
     private var liftShape: (CGPath, NotchTheme.Shadow)?
@@ -24,8 +27,9 @@ final class IslandFrost {
         blur.material = .hudWindow
         blur.blendingMode = .behindWindow
         blur.state = .active
-        for view in [clip, blur, canvas] { view.autoresizingMask = [.width, .height] }
+        for view in [clip, blur, mute, canvas] { view.autoresizingMask = [.width, .height] }
         clip.addSubview(blur)
+        clip.addSubview(mute)
         root.addSubview(clip)
         root.addSubview(canvas)
     }
@@ -53,6 +57,8 @@ final class IslandFrost {
         canvas.solidGlass = NSWorkspace.shared.accessibilityDisplayShouldReduceTransparency
             || NSWorkspace.shared.accessibilityDisplayShouldIncreaseContrast
         clip.isHidden = canvas.solidGlass
+        canvas.shade = IslandGlassShade.current(preferences)
+        mute.layer?.opacity = Float(canvas.shade.mute)
         mask.path = canvas.outline
         if lift.frame != backdrop.frame { lift.setFrame(backdrop.frame, display: false) }
         if lift.parent == nil, backdrop.isVisible { backdrop.addChildWindow(lift, ordered: .below) }
@@ -80,6 +86,23 @@ private final class IslandInertView: NSView {
 }
 
 private final class IslandBlurView: NSVisualEffectView {
+    override func hitTest(_ point: NSPoint) -> NSView? { nil }
+}
+
+/// Grey in the saturation blend mode takes colour from the blur under it and keeps its light.
+private final class IslandMuteView: NSView {
+    override init(frame: NSRect) {
+        super.init(frame: frame)
+        let layer = CALayer()
+        layer.backgroundColor = CGColor(gray: 0.5, alpha: 1)
+        layer.compositingFilter = "saturationBlendMode"
+        layer.opacity = 0
+        self.layer = layer
+        wantsLayer = true
+    }
+
+    required init?(coder: NSCoder) { fatalError() }
+
     override func hitTest(_ point: NSPoint) -> NSView? { nil }
 }
 
