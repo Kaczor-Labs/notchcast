@@ -108,7 +108,7 @@ private struct UninstallRow: View {
             Spacer(minLength: metrics.spacing.md)
             Text(candidate.size?.formatted ?? "")
                 .font(metrics.typography.rowTrailing)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(NotchTheme.Colors.secondaryLabel)
             FileIconView(path: candidate.path)
                 .frame(width: metrics.size.resultRowIcon, height: metrics.size.resultRowIcon)
         }

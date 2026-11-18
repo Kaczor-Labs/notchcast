@@ -85,7 +85,7 @@ struct FileSearchRow: View {
         guard !showsLocation, result.isDirectory, !result.parentName.isEmpty else {
             return Text(result.name)
         }
-        let parent = Text(verbatim: "\(result.parentName)/").foregroundStyle(.secondary)
+        let parent = Text(verbatim: "\(result.parentName)/").foregroundStyle(NotchTheme.Colors.secondaryLabel)
         return Text("\(parent)\(result.name)")
     }
 
@@ -108,7 +108,7 @@ struct FileSearchRow: View {
             if showsLocation {
                 Text(result.parentPath)
                     .font(metrics.typography.rowTrailing)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(NotchTheme.Colors.secondaryLabel)
                     .lineLimit(1)
                     .truncationMode(.middle)
             }
@@ -117,7 +117,7 @@ struct FileSearchRow: View {
                 if showsLocation {
                     Text(result.isDirectory ? "Folder" : "File")
                         .font(metrics.typography.rowTrailing)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(NotchTheme.Colors.secondaryLabel)
                 }
             }
         }
