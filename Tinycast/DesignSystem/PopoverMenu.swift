@@ -132,7 +132,7 @@ struct PopoverMenu: View {
             attachedRadius: metrics.size.menuButton / 2)
         surfaceContent
             .frame(width: width ?? metrics.size.actionMenuWidth)
-            .background(NotchTheme.Colors.islandSurface, in: shape)
+            .islandMenuBacking(in: shape)
             .clipShape(shape)
     }
 
@@ -434,6 +434,7 @@ private struct PopoverMenuRow: View {
             .opacity(item.isEnabled ? 1 : 0.45)
         }
         .buttonStyle(.plain)
+        .environment(\.islandInkLifted, selected)
         .disabled(!item.isSelectable)
         .accessibilityAddTraits(item.isChecked == true ? .isSelected : [])
     }
