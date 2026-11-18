@@ -344,6 +344,7 @@ enum IPhoneBackupModuleTests {
         rig = Rig()
         await rig.set(true)
         ask = rig.ask()
+        Task { @MainActor in Thread.sleep(forTimeInterval: 0.1) }
         ask.setPresented(false)
         precondition(rig.isOn && fake.writes.isEmpty, "the dismissal decides one turn later")
         await drain()
