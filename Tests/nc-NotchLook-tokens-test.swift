@@ -2,6 +2,7 @@
 // notchcast-sources: Tinycast/DesignSystem/Theme.swift
 // notchcast-sources: Tinycast/Features/Notchcast/NotchTheme.swift
 // notchcast-sources: Tinycast/DesignSystem/InterfaceMetrics.swift
+// notchcast-sources: Tinycast/Features/Notchcast/IslandButtonFill.swift
 import AppKit
 import SwiftUI
 
@@ -35,6 +36,47 @@ struct NotchLookTokensTests {
         let actual = components(token, name)
         let wanted = components(expected, name)
         check(label, actual == wanted, "\(actual) != \(wanted)")
+    }
+
+    static func resolved(_ color: Color, frosted: Bool, lifted: Bool = false) -> Color.Resolved {
+        var environment = EnvironmentValues()
+        environment.colorScheme = .dark
+        environment.islandFrosted = frosted
+        environment.islandInkLifted = lifted
+        return color.resolve(in: environment)
+    }
+
+    static func sameResolved(
+        _ label: String, _ token: Color, _ expected: Color, frosted: Bool, lifted: Bool = false
+    ) {
+        let actual = resolved(token, frosted: frosted, lifted: lifted)
+        let wanted = resolved(expected, frosted: false)
+        check(label, rgba(actual) == rgba(wanted), "\(rgba(actual)) != \(rgba(wanted))")
+    }
+
+    static func rgba(_ color: Color.Resolved) -> [Int] {
+        [color.red, color.green, color.blue, color.opacity].map { Int(($0 * 255).rounded()) }
+    }
+
+    /// Source-over in sRGB, as the brief measured: `top` at its opacity over an opaque `bottom`.
+    static func over(_ top: Color.Resolved, _ bottom: [Double]) -> [Double] {
+        let a = Double(top.opacity)
+        return zip([top.red, top.green, top.blue].map(Double.init), bottom).map { $0 * a + $1 * (1 - a) }
+    }
+
+    static func contrast(_ ink: Color.Resolved, on ground: [Double]) -> Double {
+        func luminance(_ rgb: [Double]) -> Double {
+            let l = rgb.map { $0 <= 0.04045 ? $0 / 12.92 : pow(($0 + 0.055) / 1.055, 2.4) }
+            return 0.2126 * l[0] + 0.7152 * l[1] + 0.0722 * l[2]
+        }
+        let pair = [luminance(over(ink, ground)), luminance(ground)].sorted(by: >)
+        return (pair[0] + 0.05) / (pair[1] + 0.05)
+    }
+
+    static func legible(_ label: String, _ ink: Color.Resolved, on ground: [Double]) {
+        let ratio = contrast(ink, on: ground)
+        print(String(format: "  %.2f:1  %@", ratio, label))
+        check(label, ratio >= 4.5, String(format: "%.2f:1", ratio))
     }
 
     static func equal(_ label: String, _ actual: CGFloat, _ expected: CGFloat) {
@@ -89,6 +131,66 @@ struct NotchLookTokensTests {
         equal("scaled indicator glyph size", InterfaceMetrics(scale: 1.5).scaled(Theme.Typography.indicatorGlyphSize), 15)
         equal("spacing.xl", InterfaceMetrics.standard.spacing.xl, 12)
         equal("size.menuIcon", InterfaceMetrics.standard.size.menuIcon, 20)
+
+        print("# Black resolves exactly what it always did")
+        let black: [(String, Color, Color)] = [
+            ("textPrimary", c.textPrimary, .white), ("textSecondary", c.textSecondary, Color.white.opacity(0.6)),
+            ("textTertiary", c.textTertiary, Color.white.opacity(0.4)), ("menuSymbol", c.menuSymbol, Color.white.opacity(0.7)),
+            ("selection", c.selection, Color.white.opacity(0.24)), ("menuHover", c.menuHover, Color.white.opacity(0.24)),
+            ("primaryAction", c.primaryAction, lagoon), ("destructive", c.destructive, .red),
+            ("keyCapFill", NotchTheme.Colors.keyCapFill, Color.white.opacity(0.14)),
+            ("keyCapInk", NotchTheme.Colors.keyCapInk, Color.white.opacity(0.6)),
+            ("controlEdge", NotchTheme.Colors.controlEdge, .clear),
+            ("islandPanelFill", NotchTheme.Colors.islandPanelFill, .black),
+            ("secondaryLabel", NotchTheme.Colors.secondaryLabel, .secondary),
+        ]
+        for (name, token, value) in black { sameResolved("black \(name)", token, value, frosted: false) }
+        sameResolved("black lifted secondary stays", c.textSecondary, Color.white.opacity(0.6), frosted: false, lifted: true)
+        sameResolved("black lifted tertiary stays", c.textTertiary, Color.white.opacity(0.4), frosted: false, lifted: true)
+        sameResolved("black lifted destructive stays", c.destructive, .red, frosted: false, lifted: true)
+        sameResolved("black lifted secondaryLabel stays", NotchTheme.Colors.secondaryLabel, .secondary,
+                     frosted: false, lifted: true)
+
+        print("# Frosted resolves the brief's values")
+        let f = NotchTheme.Frosted.self
+        let frostedValues: [(String, Color, Color)] = [
+            ("textPrimary", c.textPrimary, f.textPrimary), ("textSecondary", c.textSecondary, f.textSecondary),
+            ("textTertiary", c.textTertiary, f.textTertiary), ("selection", c.selection, f.selection),
+            ("rowHover", c.rowHover, f.rowHover), ("menuHover", c.menuHover, f.menuHover),
+            ("primaryAction", c.primaryAction, f.accent), ("progress", c.progress, f.accent),
+            ("destructive", c.destructive, f.destructive), ("keyCapFill", NotchTheme.Colors.keyCapFill, f.controlFill),
+            ("islandPanelFill", NotchTheme.Colors.islandPanelFill, .clear),
+            ("secondaryLabel", NotchTheme.Colors.secondaryLabel, f.textSecondary),
+        ]
+        for (name, token, value) in frostedValues { sameResolved("frosted \(name)", token, value, frosted: true) }
+        check("frosted lifted secondary is primary",
+              rgba(resolved(c.textSecondary, frosted: true, lifted: true)) == rgba(resolved(f.textPrimary, frosted: false)))
+
+        print("# Frosted text keeps 4.5:1 on its glass over a white wallpaper")
+        let white = [1.0, 1.0, 1.0]
+        let body = over(resolved(NotchTheme.Colors.islandGlassTint, frosted: true), white)
+        let menu = over(resolved(f.menuTint, frosted: true), white)
+        let solid = over(resolved(NotchTheme.Colors.islandGlassSolid, frosted: true), white)
+        let inks: [(String, Color)] = [
+            ("primary", c.textPrimary), ("secondary", c.textSecondary), ("tertiary", c.textTertiary),
+            ("keycap", NotchTheme.Colors.keyCapInk), ("menu symbol", c.menuSymbol), ("red", c.destructive),
+            ("green", c.success), ("yellow", c.warning), ("secondary label", NotchTheme.Colors.secondaryLabel),
+        ]
+        for (ground, rgb) in [("island", body), ("menu", menu), ("solid", solid)] {
+            for (name, ink) in inks { legible("\(name) on \(ground)", resolved(ink, frosted: true), on: rgb) }
+        }
+        let slabs = [("selection on island", over(resolved(c.selection, frosted: true), body)),
+                     ("menu highlight", over(resolved(c.menuHover, frosted: true), menu)),
+                     ("keycap on island", over(resolved(NotchTheme.Colors.keyCapFill, frosted: true), body)),
+                     ("red wash pressed", over(resolved(IslandButtonFill.destructive(0.36), frosted: true), body))]
+        for (ground, rgb) in slabs {
+            for (name, ink) in inks {
+                legible("lifted \(name) on \(ground)", resolved(ink, frosted: true, lifted: true), on: rgb)
+            }
+        }
+        let accent = over(resolved(IslandButtonFill.primary(0.36), frosted: true), body)
+        let accentInk = c.primaryAction.frosted(f.accentInk)
+        legible("accent ink on pressed primary", resolved(accentInk, frosted: true), on: accent)
 
         print("\n\(passes) passed, \(failures) failed")
         print(failures == 0 ? "PASS nc-NotchLook-tokens" : "FAIL nc-NotchLook-tokens")

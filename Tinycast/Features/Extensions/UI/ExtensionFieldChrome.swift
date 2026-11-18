@@ -87,7 +87,7 @@ struct ExtensionPickerRow: View {
                 if let detail {
                     Text(detail)
                         .font(metrics.typography.menuShortcut)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(NotchTheme.Colors.secondaryLabel)
                         .lineLimit(1)
                 }
                 if checked {
@@ -102,6 +102,7 @@ struct ExtensionPickerRow: View {
                 maxWidth: .infinity, minHeight: form.popoverRowHeight,
                 maxHeight: form.popoverRowHeight, alignment: .leading
             )
+            .environment(\.islandInkLifted, selected)
             .contentShape(Rectangle())
             .background(
                 RoundedRectangle(cornerRadius: metrics.radius.menuRow, style: .continuous)
