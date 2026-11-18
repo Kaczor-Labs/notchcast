@@ -31,7 +31,10 @@ enum DownloadsAddon: NotchcastAddon {
     ]
 
     static let commands = DownloadsModule.Action.allCases.map { action in
-        NotchcastCommand(slug: action.slug, name: action.name, symbol: action.symbol, switchID: action.switchID) {
+        NotchcastCommand(
+            slug: action.slug, name: action.name, symbol: action.symbol, switchID: action.switchID,
+            keywords: action.keywords
+        ) {
             $0.module(DownloadsModule.self)?.perform(action)
         }
     }
@@ -57,12 +60,15 @@ extension DownloadsModule.Action {
         switch self {
         case .video: String(localized: "Download Video", table: "NotchcastDownloads")
         case .audio: String(localized: "Download Audio", table: "NotchcastDownloads")
-        case .transcript: String(localized: "Download YouTube Transcript", table: "NotchcastDownloads")
+        case .transcript: String(localized: "Download Transcript", table: "NotchcastDownloads")
         case .webpage: String(localized: "Save Webpage as Markdown", table: "NotchcastDownloads")
         case .addDistill: String(localized: "Add Links to Distill", table: "NotchcastDownloads")
         case .runDistill: String(localized: "Run Distill", table: "NotchcastDownloads")
         }
     }
+
+    /// Search words the name leaves out: a transcript comes from YouTube.
+    var keywords: [String] { self == .transcript ? ["youtube"] : [] }
 
     var symbol: String {
         switch self {
