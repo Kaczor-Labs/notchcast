@@ -1,4 +1,4 @@
-# The add-on delete test (notchcast/docs/addons.md §5) with one hosted macOS job per add-on folder.
+# The add-on delete test (notchcast/docs/addons.md §5): one hosted macOS job runs every add-on folder in turn.
 name: Delete check
 
 on:
@@ -40,17 +40,11 @@ jobs:
     needs: plan
     if: ${{ needs.plan.outputs.folders != '[]' }}
     runs-on: xcode-27
-    # Two script steps of up to an hour each, plus setup.
-    timeout-minutes: 150
-    strategy:
-      fail-fast: false
-      # GitHub runs 5 hosted macOS jobs at once for this account; one stays free for branch pushes.
-      max-parallel: 4
-      matrix:
-        folder: ${{ fromJSON(needs.plan.outputs.folders) }}
+    # One macOS job for every folder, in turn (about 15 minutes each): GitHub runs 5 at once for the account.
+    timeout-minutes: 360
     env:
       SHA: ${{ needs.plan.outputs.sha }}
-      FOLDER: ${{ matrix.folder }}
+      FOLDERS: ${{ needs.plan.outputs.folders }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
@@ -58,7 +52,8 @@ jobs:
           persist-credentials: false
       - uses: ./notchcast/actions/xcode
       - uses: ./notchcast/actions/xcodegen
-      - name: Delete ${{ matrix.folder }}
+      # A failing folder never stops the rest: each gets its verdict line, and the step fails at the end.
+      - name: Delete each add-on folder
         shell: bash
         run: |
           git fetch -q --no-tags origin "$SHA"
@@ -66,23 +61,30 @@ jobs:
           export LIBDISPATCH_COOPERATIVE_POOL_STRICT=1 NOTCHCAST_TEST_HELPER_EXECUTABLE=1
           echo "DELETE_LOGS=$HOME/Library/Caches/notchcast/addon-delete" >> "$GITHUB_ENV"
           mkdir -p "$RUNNER_TEMP/result"
-          code=0
-          python3 notchcast/check-addon-delete.py --ref "$SHA" -- "$FOLDER" | tee "$RUNNER_TEMP/out" || code=${PIPESTATUS[0]}
-          line=$(grep -E '^(PASS|FAIL) delete' "$RUNNER_TEMP/out" | tail -n1 || true)
-          printf '%s\t%s\t%s\n' "$FOLDER" "$code" "${line:-no verdict line}" > "$RUNNER_TEMP/result/$FOLDER.tsv"
-          exit "$code"
+          failed=0
+          for FOLDER in $(jq -r '.[]' <<< "$FOLDERS"); do
+            echo "::group::$FOLDER"
+            code=0
+            python3 notchcast/check-addon-delete.py --ref "$SHA" -- "$FOLDER" | tee "$RUNNER_TEMP/out" || code=${PIPESTATUS[0]}
+            line=$(grep -E '^(PASS|FAIL) delete' "$RUNNER_TEMP/out" | tail -n1 || true)
+            printf '%s\t%s\t%s\n' "$FOLDER" "$code" "${line:-no verdict line}" > "$RUNNER_TEMP/result/$FOLDER.tsv"
+            echo "::endgroup::"
+            echo "$FOLDER: ${line:-no verdict line} (exit $code)"
+            [ "$code" -eq 0 ] || failed=1
+          done
+          exit "$failed"
       - name: Upload result
         if: ${{ !cancelled() }}
         uses: actions/upload-artifact@v7
         with:
-          name: result-${{ matrix.folder }}
+          name: results
           path: ${{ runner.temp }}/result/
           if-no-files-found: ignore
       - name: Upload logs
         if: failure()
         uses: actions/upload-artifact@v7
         with:
-          name: logs-${{ matrix.folder }}
+          name: logs
           path: ${{ env.DELETE_LOGS }}/*.log
           if-no-files-found: ignore
   summary:
@@ -93,9 +95,8 @@ jobs:
     steps:
       - uses: actions/download-artifact@v8
         with:
-          pattern: result-*
+          name: results
           path: results
-          merge-multiple: true
       - env:
           SHA: ${{ needs.plan.outputs.sha }}
           FOLDERS: ${{ needs.plan.outputs.folders }}
@@ -111,7 +112,7 @@ jobs:
             echo "| --- | --- | --- |"
             for folder in $(jq -r '.[]' <<< "$FOLDERS"); do
               file="results/$folder.tsv"
-              if [ -f "$file" ]; then IFS=$'\t' read -r _ code line < "$file"; else code=none line='no result: the job stopped before the script finished'; fi
+              if [ -f "$file" ]; then IFS=$'\t' read -r _ code line < "$file"; else code=none line='no result: the job stopped before this folder finished'; fi
               case "$code" in 0) result=PASS ;; 1) result='FAIL breach' ;; *) result='FAIL tooling' ;; esac
               echo "| $folder | $result | ${line//|/\\|} |"
             done

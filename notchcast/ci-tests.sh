@@ -8,7 +8,13 @@ set -a
 # shellcheck disable=SC1091
 source "$TOOLS/notchcast/config.env"
 set +a
-if [ "${RUNNER_ENVIRONMENT:-}" != github-hosted ]; then unset CI_SKIP_TESTS; fi
+case "${RUNNER_ENVIRONMENT:-}" in
+  github-hosted) ;;
+  self-hosted)
+    CI_SKIP_TESTS=$SELF_HOSTED_SKIP_TESTS
+    echo "::notice::SKIPPED on a self-hosted runner, so this run is not full proof: $SELF_HOSTED_SKIP_TESTS" ;;
+  *) unset CI_SKIP_TESTS ;;
+esac
 # The queue filter in notchcast/test-harnesses.sh reads NOTCHCAST_ONLY_TESTS, NOTCHCAST_SHARD and CI_SKIP_TESTS.
 if [ -n "${NOTCHCAST_SWIFTC_CACHE:-}" ]; then
   # The swiftc already on PATH, not the toolchain's binary: xcrun's shim is what supplies the SDK.
