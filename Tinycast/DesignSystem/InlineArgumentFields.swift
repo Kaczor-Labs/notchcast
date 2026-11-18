@@ -85,6 +85,7 @@ private struct ArgumentFieldChrome: ViewModifier {
 
     func body(content: Content) -> some View {
         content
+            .environment(\.islandInkLifted, isFocused)
             .frame(width: InlineArgumentFields.fieldWidth(for: argument, metrics: metrics))
             .padding(.horizontal, metrics.spacing.sm)
             .frame(height: InlineArgumentFields.height(metrics))

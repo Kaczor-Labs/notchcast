@@ -47,13 +47,49 @@ enum NotchTheme {
         /// Frosted's edge, so the glass reads as an object over a busy wallpaper.
         static let islandEdge = Color(.sRGB, white: 1, opacity: 0.12)
         /// Apart from `rowHover`, so retuning hover never dims a resting keycap.
-        static let keyCapFill = Theme.Colors.ramp(dark: 0.14, light: 0.045)
+        static let keyCapFill = Theme.Colors.ramp(dark: 0.14, light: 0.045).frosted(Frosted.controlFill)
+        static let keyCapInk = Theme.Colors.textSecondary.frosted(Frosted.keyCapInk)
+        /// Black's controls are bare; Frosted's take an edge to read over the glass.
+        static let controlEdge = Color.clear.frosted(Frosted.controlEdge)
+        /// Under a question or report: Black paints it, Frosted lets the backdrop's glass show.
+        static let islandPanelFill = islandSurface.frosted(.clear)
+        /// Black keeps SwiftUI's `.secondary` grey, so a row that used it renders the same pixels.
+        static let secondaryLabel = Color.secondary.frosted(Frosted.textSecondary, lifted: Frosted.textPrimary)
         /// A rule inside a `keyCapFill` card: the `selection` step, which reads on card and black.
         static let cardRule = Theme.Colors.selection
     }
 }
 
 extension NotchTheme {
+    /// Frosted's in-island values: every text ink keeps 4.5:1 on the glass.
+    enum Frosted {
+        static let textPrimary = ink(0xF2F3F5)
+        static let textSecondary = ink(0xB6B8C1)
+        static let textTertiary = ink(0xADB0B9)
+        static let keyCapInk = ink(0xE4E6EA)
+        static let menuSymbol = ink(0xC3C5CC)
+        static let selection = Color(.sRGB, white: 1, opacity: 0.12)
+        static let rowHover = Color(.sRGB, white: 1, opacity: 0.06)
+        static let menuHover = Color(.sRGB, white: 1, opacity: 0.10)
+        static let separator = Color(.sRGB, white: 1, opacity: 0.10)
+        static let controlFill = Color(.sRGB, white: 1, opacity: 0.07)
+        static let controlEdge = Color(.sRGB, white: 1, opacity: 0.14)
+        /// The one accent: the dialog's primary, progress, switches and the focus edge.
+        static let accent = textPrimary
+        static let accentInk = ink(0x111214)
+        static let destructive = ink(0xFF827A)
+        static let destructiveLifted = ink(0xFFB3AE)
+        static let success = ink(0x86D39B)
+        static let warning = ink(0xE8C66A)
+        /// Denser than the island body: a menu sits over the island and the desktop at once.
+        static let menuTint = Color(.sRGB, red: 38 / 255, green: 39 / 255, blue: 43 / 255, opacity: 0.92)
+
+        private static func ink(_ hex: Int) -> Color {
+            Color(.sRGB, red: Double(hex >> 16 & 0xFF) / 255, green: Double(hex >> 8 & 0xFF) / 255,
+                  blue: Double(hex & 0xFF) / 255)
+        }
+    }
+
     /// A drop shadow as CSS writes it: a negative spread pulls the shadow in from the shape.
     struct Shadow: Equatable, Sendable {
         let y: CGFloat
