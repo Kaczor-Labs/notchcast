@@ -8,6 +8,14 @@ extension EnvironmentValues {
     @Entry var islandFrosted = false
     /// Text on a selection slab or a wash, which costs Frosted inks their 4.5:1.
     @Entry var islandInkLifted = false
+    /// #898 prototype: how a Frosted control floating over the list covers the rows under it.
+    @Entry var islandFloatingFill = IslandFloatingFill.blur
+}
+
+/// #898 prototype: option (b) paints the solid glass, option (d) blurs the rows within the window.
+enum IslandFloatingFill: Sendable {
+    case solid
+    case blur
 }
 
 extension Color {
@@ -66,17 +74,53 @@ private struct IslandGlass<S: Shape>: ViewModifier {
 
     func body(content: Content) -> some View {
         content
-            .background {
-                if onIsland, !frosted { shape.fill(NotchTheme.Colors.islandSurface) }
-                // Solid like Black's, since footer controls float over rows that must not show through.
-                if onIsland, frosted { shape.fill(NotchTheme.Colors.islandGlassSolid) }
-            }
+            .background { if onIsland, !frosted { shape.fill(NotchTheme.Colors.islandSurface) } }
             .overlay {
                 if onIsland, frosted {
                     shape.stroke(NotchTheme.Frosted.controlEdge, lineWidth: 2).clipShape(shape)
                 }
             }
             .glassEffect(onIsland ? .identity : glass, in: shape)
+    }
+}
+
+extension View {
+    /// The footer capsule and menu circle float over scrolling rows, so on Frosted they cover them.
+    func floatingFrosted(in shape: some Shape) -> some View {
+        modifier(IslandFloatingGlass(shape: shape)).frosted(in: shape)
+    }
+}
+
+private struct IslandFloatingGlass<S: Shape>: ViewModifier {
+    let shape: S
+    @Environment(\.paletteOnIsland) private var onIsland
+    @Environment(\.islandFrosted) private var frosted
+    @Environment(\.islandFloatingFill) private var fill
+    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
+    @Environment(\.colorSchemeContrast) private var contrast
+
+    func body(content: Content) -> some View {
+        content.background {
+            if onIsland, frosted {
+                if fill == .solid || reduceTransparency || contrast == .increased {
+                    shape.fill(NotchTheme.Colors.islandGlassSolid)
+                } else {
+                    IslandRowBlur(shape: shape).overlay(shape.fill(NotchTheme.Colors.islandGlassTint))
+                }
+            }
+        }
+    }
+}
+
+/// Blurs this window's own rows under the control; the backdrop's glass lives in another window.
+private struct IslandRowBlur<S: Shape>: NSViewRepresentable {
+    let shape: S
+
+    func makeNSView(context: Context) -> IslandMaskedBlur { IslandMaskedBlur(blending: .withinWindow) }
+
+    func updateNSView(_ view: IslandMaskedBlur, context: Context) {
+        let shape = shape
+        view.outline = { shape.path(in: $0).cgPath }
     }
 }
 
@@ -110,11 +154,11 @@ private struct IslandMenuBacking<S: Shape>: View {
     }
 }
 
-/// The backdrop's behind-window blur, masked to the menu's shape since a window blur ignores clips.
+/// A blur masked to a SwiftUI shape, since an `NSVisualEffectView` ignores SwiftUI clips.
 private struct IslandMenuBlur<S: Shape>: NSViewRepresentable {
     let shape: S
 
-    func makeNSView(context: Context) -> IslandMaskedBlur { IslandMaskedBlur() }
+    func makeNSView(context: Context) -> IslandMaskedBlur { IslandMaskedBlur(blending: .behindWindow) }
 
     func updateNSView(_ view: IslandMaskedBlur, context: Context) {
         let shape = shape
@@ -129,12 +173,12 @@ private final class IslandMaskedBlur: NSView {
         didSet { needsLayout = true }
     }
 
-    init() {
+    init(blending: NSVisualEffectView.BlendingMode) {
         super.init(frame: .zero)
         wantsLayer = true
         layer?.mask = mask
         blur.material = .hudWindow
-        blur.blendingMode = .behindWindow
+        blur.blendingMode = blending
         blur.state = .active
         blur.autoresizingMask = [.width, .height]
         addSubview(blur)

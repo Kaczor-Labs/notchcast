@@ -37,8 +37,8 @@ struct IslandPaletteSurfaceTest {
         return lit
     }
 
-    /// The same controls over white: pure black pixels, and dark ones that cover the white (#898).
-    static func pixels(frosted: Bool) -> (black: Int, dark: Int) {
+    /// The same controls over white on a Frosted display: no black of their own may hide the glass.
+    static func blackPixels(frosted: Bool) -> Int {
         let controls = HStack(spacing: 12) {
             Color.clear.frame(width: 28, height: 28).frosted(in: Circle())
             Color.clear.frame(width: 160, height: 28).frosted(in: Capsule())
@@ -52,17 +52,14 @@ struct IslandPaletteSurfaceTest {
             preconditionFailure("controls did not render")
         }
         let bitmap = NSBitmapImageRep(cgImage: image)
-        var black = 0
         var dark = 0
         for column in 0..<bitmap.pixelsWide {
             for row in 0..<bitmap.pixelsHigh {
                 guard let colour = bitmap.colorAt(x: column, y: row)?.usingColorSpace(.sRGB) else { continue }
-                let sum = colour.redComponent + colour.greenComponent + colour.blueComponent
-                if sum < 0.03 { black += 1 }
-                if sum < 0.5 { dark += 1 }
+                if colour.redComponent + colour.greenComponent + colour.blueComponent < 0.5 { dark += 1 }
             }
         }
-        return (black, dark)
+        return dark
     }
 
     static func main() {
@@ -86,10 +83,9 @@ struct IslandPaletteSurfaceTest {
         precondition(island == 0, "island controls must be islandSurface black, found \(island) lit pixels")
         let stock = nonBlackPixels(onIsland: false)
         precondition(stock > 0, "stock frosted(in:) must still render Liquid Glass")
-        precondition(pixels(frosted: false).black > 0, "Black displays keep the controls' black")
-        let frosted = pixels(frosted: true)
-        precondition(frosted.black == 0, "Frosted controls paint no island black, found \(frosted.black)")
-        precondition(frosted.dark > 0, "Frosted controls paint the solid glass, so rows cannot show through")
-        print("PASS island launcher keeps one width; controls black on Black, solid glass on Frosted; stock keeps its glass")
+        precondition(blackPixels(frosted: false) > 0, "Black displays keep the controls' black")
+        let frosted = blackPixels(frosted: true)
+        precondition(frosted == 0, "Frosted controls paint no black over the glass, found \(frosted)")
+        print("PASS island launcher keeps one width; controls black on Black, bare on Frosted; stock keeps its glass")
     }
 }

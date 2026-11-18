@@ -49,6 +49,9 @@ struct NotchcastIslandAuditRenderTest {
         ?? NSTemporaryDirectory() + "nc-island-audit-renders")
     /// `NC_AUDIT_LOOK=frosted` renders Frosted on its glass tint over a white wallpaper.
     static let frosted = ProcessInfo.processInfo.environment["NC_AUDIT_LOOK"] == "frosted"
+    /// #898 prototype: `NC_AUDIT_FLOATING=solid` renders option (b), anything else option (d).
+    static let floating: IslandFloatingFill =
+        ProcessInfo.processInfo.environment["NC_AUDIT_FLOATING"] == "solid" ? .solid : .blur
 
     static func write(_ name: String, _ image: CGImage?) {
         guard let image else { preconditionFailure("\(name) did not render") }
@@ -67,6 +70,7 @@ struct NotchcastIslandAuditRenderTest {
             .padding(16)
             .background(ground(desk: false))
             .environment(\.islandFrosted, frosted)
+            .environment(\.islandFloatingFill, floating)
             .environment(\.paletteOnIsland, true)
             .environment(\.colorScheme, .dark)
             .environment(PaletteState())
@@ -82,6 +86,7 @@ struct NotchcastIslandAuditRenderTest {
             .frame(width: size.width, height: size.height, alignment: .top)
             .background(ground(desk: desk))
             .environment(\.islandFrosted, frosted)
+            .environment(\.islandFloatingFill, floating)
             .environment(\.paletteOnIsland, true)
             .environment(\.colorScheme, .dark)
             .environment(PaletteState())
@@ -385,7 +390,7 @@ func auditLauncherBottom(notch: Bool) -> some View {
     .edgeDissolve()
     .safeAreaInset(edge: .bottom, spacing: 0) {
         HStack(spacing: 0) {
-            Color.clear.frame(width: 36, height: 36).frosted(in: Circle())
+            Color.clear.frame(width: 36, height: 36).floatingFrosted(in: Circle())
             Spacer()
             HStack(spacing: 2) {
                 BarButton(action: {}) {
@@ -403,7 +408,7 @@ func auditLauncherBottom(notch: Bool) -> some View {
                 }
             }
             .padding(4)
-            .frosted(in: Capsule())
+            .floatingFrosted(in: Capsule())
         }
         .padding(.horizontal, 12)
         .frame(height: 44)

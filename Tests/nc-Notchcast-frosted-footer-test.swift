@@ -27,11 +27,12 @@ struct NotchcastFrostedFooterTest {
         let view = ZStack {
             Text("Application").font(.system(size: 22, weight: .bold)).foregroundStyle(.white)
                 .opacity(label ? 1 : 0)
-            Color.clear.frame(width: 180, height: 40).frosted(in: Capsule())
+            Color.clear.frame(width: 180, height: 40).floatingFrosted(in: Capsule())
         }
         .frame(width: size.width, height: size.height)
         .background(ground)
         .environment(\.islandFrosted, frosted)
+        .environment(\.islandFloatingFill, .solid)
         .environment(\.paletteOnIsland, true)
         .environment(\.colorScheme, .dark)
         let host = NSHostingView(rootView: view)
@@ -76,6 +77,7 @@ struct NotchcastFrostedFooterTest {
             let shown = render(frosted: frosted, label: true)
             let hidden = render(frosted: frosted, label: false)
             let worst = leak(shown, hidden)
+            print(String(format: "\(look): channel difference %.3f", worst))
             check("\(look): a row label stays hidden under the footer capsule", worst < 0.02,
                   String(format: "channel difference %.2f", worst))
         }

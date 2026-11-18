@@ -14,6 +14,7 @@ enum NotchcastAppProof {
         case "hidden-settings": hiddenSettings()
         case "number-keys": numberKeys()
         case "addon-launcher": addonLauncher()
+        case "footer-capture": footerCapture()
         default: fail("unknown proof \(name)")
         }
         print("PROOF PASS \(name)")
