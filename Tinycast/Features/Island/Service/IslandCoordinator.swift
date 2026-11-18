@@ -19,6 +19,7 @@ final class IslandCoordinator: NSObject {
     private(set) lazy var glance = IslandCalendarGlance(core: core) { [weak self] in self?.showGlance($0) }
     private var restingGlance: IslandGlance?
     private(set) lazy var update = IslandUpdateActivity(core: core)
+    private(set) lazy var hover = IslandHoverTracker(core: core)
     private(set) lazy var looks = IslandLookStore(defaults: UserDefaults(
         suiteName: NotchcastPreferences.suiteName(bundleID: Bundle.main.bundleIdentifier ?? "Notchcast")) ?? .standard)
 
@@ -46,6 +47,7 @@ final class IslandCoordinator: NSObject {
         observeLooks()
         glance.start()
         update.start()
+        hover.start()
     }
 
     var resting: IslandController? { backdrops.values.first { $0.showsRest } }
@@ -76,10 +78,12 @@ final class IslandCoordinator: NSObject {
             backdrop.showsRest = screen.islandDisplayID == main?.islandDisplayID
             backdrop.outlineWhenOpen = core.settings.islandOutlineWhenOpen
             backdrop.canOpen = { [weak self] in self?.panel?.isVisible != true }
-            backdrop.onOpen = { [weak self, weak backdrop] in
+            // The launcher has its hotkey; a click acts on what the island shows, else opens its menu.
+            backdrop.onOpen = { [weak backdrop] in
                 if backdrop?.showsRest == true, let tap = presenter?.tap { return tap() }
-                self?.core.paletteCoordinator.showPalette(mode: .launcher)
+                backdrop?.openMenu()
             }
+            backdrop.onSettle = { [weak self] in self?.hover.refresh() }
             backdrop.onMenu = { [weak self] pill, window in self?.pillMenu.toggle(below: pill, in: window) }
             backdrop.glance = backdrop.showsRest ? restingGlance : nil
             presenter?.restore(backdrop, resting: backdrop.showsRest)
@@ -93,6 +97,7 @@ final class IslandCoordinator: NSObject {
         presenter?.restingChanged()
         if restingGlance != nil { syncExpansion() }
         spaceChanged()
+        hover.refresh()
     }
 
     private func dropBackdrop(_ id: CGDirectDisplayID) {
@@ -145,6 +150,7 @@ final class IslandCoordinator: NSObject {
             guard !Task.isCancelled, let self else { return }
             for (id, backdrop) in backdrops { backdrop.onFullScreenSpace = full.contains(id) }
             for screen in screens { backdrops[screen.islandDisplayID]?.refreshMenuBar(screen) }
+            hover.refresh()
         }
     }
 
@@ -280,6 +286,7 @@ final class IslandCoordinator: NSObject {
             panel.level = paletteLevel
         }
         for controller in backdrops.values { controller.frameChanged() }
+        hover.refresh()
     }
 
     private func observeCaptureSharing() {
@@ -358,10 +365,13 @@ final class IslandCoordinator: NSObject {
         withObservationTracking {
             _ = core.palette.isVisible
             _ = core.settings.animationsEnabled
+            _ = core.isShowingDialog
+            _ = core.settings.islandOpensOnHover
         } onChange: { [weak self] in
             Task { @MainActor in
                 guard let self else { return }
                 self.observeVisibility()
+                self.hover.refresh()
                 if self.core.palette.isVisible { self.active?.opened() } else { self.active?.closed() }
                 if !self.core.palette.isVisible { self.applyCaptureSharing() }
             }
