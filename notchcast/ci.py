@@ -20,6 +20,8 @@ files, so those never conflict and never travel in our diffs. Two commits are ma
 new ones never land, and "Notchcast: generated files", always last, which rewrites GENERATED (`regenerate`).
 Catalog conflicts merge by key; other conflicts use per-file diffs from the replay tip in main's
 replay-fixes/<lowercase subject, non-alphanumerics hyphenated>[.<base label>].patch (the first that applies) or fail.
+A commit with patches of the same name in replay-adaptations/ gets the first that applies after its pick, however
+the pick went (one already in the commit counts); when none applies the replay fails on that commit.
 Failures are remembered as refs/notchcast-failed/<main|release-<tag>>-<upstream or tag>-<our main>, so the same
 input is retried only when upstream or our main changes, and reported as one open issue per kind (label
 notchcast-<kind>: sync = replay onto new upstream, main = main tested as it is, release), which a newer failure with
@@ -53,6 +55,8 @@ BOT = {
     "GIT_COMMITTER_NAME": "github-actions[bot]",
     "GIT_COMMITTER_EMAIL": "41898282+github-actions[bot]@users.noreply.github.com",
 }
+# Hand changes for a commit that picks without conflict yet breaks on the new upstream.
+ADAPTATIONS = "notchcast/replay-adaptations"
 # The review PR's branches: upstream's diff without .github/workflows, so no push or PR event runs a workflow.
 REVIEW_BASE, REVIEW_HEAD = "sync/upstream-base", "sync/upstream"
 TAG_RE = re.compile(r"v(\d+)\.(\d+)\.(\d+)(?:-[a-z]+\.(\d+))?")
@@ -416,10 +420,10 @@ class Conflict(Exception):
                    if touched else "No upstream commit touched them, so an earlier commit of ours moved the lines.\n"))
 
 
-def replay_fixes(tree, main, name):
-    """main's stored fixes for one commit: <name>.patch, then <name>.<base label>.patch for older release bases."""
-    listed = run("git", "ls-tree", "--name-only", main, "notchcast/replay-fixes/", cwd=tree).splitlines()
-    bare = f"notchcast/replay-fixes/{name}.patch"
+def replay_fixes(tree, main, name, folder="notchcast/replay-fixes"):
+    """main's stored patches for one commit: <name>.patch, then <name>.<base label>.patch for older release bases."""
+    listed = run("git", "ls-tree", "--name-only", main, f"{folder}/", cwd=tree).splitlines()
+    bare = f"{folder}/{name}.patch"
     return ([bare] if bare in listed else []) + sorted(
         path for path in listed
         if path.startswith(bare.removesuffix("patch")) and path.endswith(".patch") and path != bare)
@@ -440,6 +444,7 @@ def replay(tree, onto, check=False):
     for sha in commits:
         subject = run("git", "show", "-s", "--format=%s", sha, cwd=tree)
         print(f"replay {sha[:10]} {subject}", flush=True)
+        name = re.sub(r"[^a-z0-9]+", "-", subject.lower()).strip("-")
         if subject == GENERATED_COMMIT:
             generated_commit = sha
             continue
@@ -470,7 +475,6 @@ def replay(tree, onto, check=False):
                     resolved_catalog = True
             if (picked.returncode and not conflicts and not resolved_catalog
                     or set(conflicts) - set(GENERATED)):
-                name = re.sub(r"[^a-z0-9]+", "-", subject.lower()).strip("-")
                 applied = None
                 expected = set(conflicts) - set(GENERATED) - {catalog}
                 for fix in replay_fixes(tree, main, name):
@@ -497,6 +501,24 @@ def replay(tree, onto, check=False):
                     run("git", "reset", "-q", "--hard", cwd=tree)
                     raise Conflict(subject, [f for f in conflicts if f not in GENERATED]
                                    or [(picked.stderr.strip().splitlines() or ["cherry-pick failed"])[0]])
+            adaptations = replay_fixes(tree, main, name, ADAPTATIONS)
+            for adaptation in adaptations:
+                patch = subprocess.run(["git", "show", f"{main}:{adaptation}"], cwd=tree, text=True,
+                                       capture_output=True, check=True).stdout
+                # Already in the commit (Sync rewrote main with it) counts as applied.
+                if any(subprocess.run(["git", "apply", *flags, "-"], input=patch, cwd=tree, text=True,
+                                      capture_output=True).returncode == 0
+                       for flags in (["--index"], ["--reverse", "--check"])):
+                    break
+            else:
+                if adaptations:
+                    patch = subprocess.run(["git", "show", f"{main}:{adaptations[0]}"], cwd=tree, text=True,
+                                           capture_output=True, check=True).stdout
+                    paths = subprocess.run(["git", "apply", "--numstat", "-z", "-"], input=patch, cwd=tree,
+                                           text=True, capture_output=True).stdout
+                    run("git", "reset", "-q", "--hard", cwd=tree)
+                    raise Conflict(subject, [entry.split("\t", 2)[2] for entry in paths.split("\0") if entry]
+                                   or [f"{adaptations[0]} does not apply"])
             # Generated files stay as they were; the generated-files commit rewrites them.
             for path in GENERATED:
                 if subprocess.run(["git", "cat-file", "-e", f"HEAD:{path}"], cwd=tree, stderr=subprocess.DEVNULL).returncode == 0:
