@@ -422,7 +422,7 @@ class CiTests(unittest.TestCase):
                 self.scenario(hang=[hang])
                 # real time: subprocess.run's own timeout cuts the hung call, 1 s per subtest; no other call is timed
                 result = subprocess.run([sys.executable, "-c", TIME_ONLY_THE_HUNG_CALL, hang, str(CI), "--repo",
-                                         str(self.repo), "--max-wait", "1"], text=True, capture_output=True, env=self.env)
+                                         str(self.repo), "--keeper", "--max-wait", "1"], text=True, capture_output=True, env=self.env)
                 self.assertEqual(result.returncode, 3, result.stderr)
                 self.assertEqual(result.stdout.splitlines()[-1], last)
 
