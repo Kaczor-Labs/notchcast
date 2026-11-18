@@ -35,11 +35,11 @@ struct FormTextInput: NSViewRepresentable {
         context.coordinator.input = self
         let font = metrics.typography.textNSFont(.body)
         if view.font != font { view.font = font }
-        let color = NSColor(Theme.Colors.textPrimary)
+        let color = Theme.Colors.textPrimary.nsColor(in: context.environment)
         if view.textColor != color { view.textColor = color }
         let placeholder = NSAttributedString(
             string: placeholder,
-            attributes: [.font: font, .foregroundColor: NSColor(Theme.Colors.textTertiary)])
+            attributes: [.font: font, .foregroundColor: Theme.Colors.textTertiary.nsColor(in: context.environment)])
         if view.placeholderAttributedString != placeholder {
             view.placeholderAttributedString = placeholder
         }
