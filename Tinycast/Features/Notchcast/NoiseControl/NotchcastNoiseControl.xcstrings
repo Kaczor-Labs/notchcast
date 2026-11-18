@@ -1,0 +1,20 @@
+{
+  "sourceLanguage" : "en",
+  "strings" : {
+    "Adaptive" : {},
+    "AirPods Noise Control" : {},
+    "Allow Accessibility access to switch noise control." : {},
+    "Cycle Noise Control" : {},
+    "No headphones with noise control are connected." : {},
+    "Noise Cancellation" : {},
+    "Noise Control Off" : {},
+    "Noise control switching needs macOS set to English." : {},
+    "Show Sound in the menu bar to switch noise control." : {},
+    "Switch AirPods and Beats listening modes through the Sound menu in the menu bar." : {},
+    "The Sound menu did not respond in time." : {},
+    "The Sound menu shows no noise control." : {},
+    "These headphones do not offer this mode." : {},
+    "Transparency" : {}
+  },
+  "version" : "1.0"
+}
