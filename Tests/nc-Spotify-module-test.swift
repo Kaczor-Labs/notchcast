@@ -16,6 +16,9 @@
 // notchcast-sources: Tinycast/Features/Notchcast/Core/Service/NotchcastTapThread.swift
 // notchcast-sources: Tinycast/Features/Island/Model/IslandPresentation.swift
 // notchcast-sources: Tinycast/Features/Island/Service/IslandPresenting.swift
+// notchcast-sources: Tinycast/Features/Island/Service/IslandPlayerSource.swift
+// notchcast-sources: Tinycast/Features/Island/Model/IslandPlayer.swift
+// notchcast-sources: Tinycast/Features/Notchcast/Spotify/Service/SpotifyPlayerPage.swift
 // notchcast-sources: Tests/NotchcastTapFixtures.swift
 // notchcast-sources: Tests/NotchcastDictationFixture.swift
 
@@ -131,6 +134,7 @@ struct SpotifyModuleTests {
         await restarts()
         await expiry()
         await web()
+        await player()
         print("Spotify module: Soloist supervised, volume restored, expiry warned once, library signed in")
     }
 
@@ -145,6 +149,64 @@ struct SpotifyModuleTests {
             now: { fake.now }, onTapsChanged: {})
         guard let module = SpotifyAddon.makeModule(context) as? SpotifyModule else { preconditionFailure("module") }
         return (module, presenter)
+    }
+
+    /// Records the Player page the add-on posts, so the island's view of Spotify is checked as shipped.
+    @MainActor
+    final class PagePresenter: IslandPresenting {
+        var page: IslandPage?
+        var action: (@MainActor (String) -> Void)?
+        func showLevel(_ level: IslandLevel) {}
+        func post(_ notice: IslandNotice, onTap: (@MainActor () -> Void)?) {}
+        func end(notice id: String) {}
+        func setStatus(_ status: IslandStatus?, for id: String, onTap: (@MainActor () -> Void)?) {}
+        func setMenuRows(_ rows: [IslandMenuRow], owner: String, onSelect: @escaping @MainActor (String) -> Void) {}
+        func setPage(_ page: IslandPage?, id: String, onAction: (@MainActor (String) -> Void)?) {
+            check(id == "player", "Spotify posts only the Player page")
+            self.page = page
+            action = onAction
+        }
+    }
+
+    @MainActor
+    static func player() async {
+        let fake = FakeSpotify()
+        FakeSpotify.shared = fake
+        let defaults = scratch()
+        let presenter = PagePresenter()
+        let hub = NotchcastTapHub(syntheticTag: 0, isTrusted: { false }) { _ in preconditionFailure("no tap") }
+        let context = NotchcastContext(
+            defaults: defaults, preferences: NotchcastPreferences(defaults: defaults, switches: SpotifyAddon.switches),
+            presenter: presenter, hub: hub, transcription: NotchcastTranscriptionRunner(dictation: FakeDictation()),
+            now: { fake.now }, onTapsChanged: {})
+        guard let module = SpotifyAddon.makeModule(context) as? SpotifyModule else { return check(false, "module") }
+        module.start()
+        await settle()
+        check(presenter.page == nil, "no song, no Player page")
+        let cover = #""visual_identity":{"cover":[{"url":"https://covers.test/a.jpg","size":"large"}]},"#
+        let track = trackJSON.replacingOccurrences(of: #""playback":"#, with: cover + #""playback":"#)
+        fake.answers = [(200, "JPEG")]
+        fake.event?(event(#"{"type":"playback_state","status":"paused","item":\#(track),"is_active":true,"#
+            + #""position":{"position_ms":30000,"timestamp_ms":1000,"speed":0}}"#))
+        await settle()
+        guard case .media(let media)? = presenter.page?.blocks.first else { return check(false, "a Player page") }
+        check(media.title == "Paper Lanterns" && media.subtitle == "Juno Vale", "the song and its artist")
+        check(media.time == IslandMediaTime(elapsed: 30, duration: 200, rate: 0, sampledAt: Date(timeIntervalSince1970: 1)),
+              "the time runs from Soloist's position, paused")
+        check(media.buttons.map(\.symbol) == ["backward.fill", "play.fill", "forward.fill"], "paused shows Play")
+        check(fake.requests == ["GET /a.jpg"] && media.artwork == Data("JPEG".utf8), "the cover, fetched once")
+        fake.event?(event(#"{"type":"position_sync","position":{"position_ms":31000,"timestamp_ms":2000,"speed":0}}"#))
+        await settle()
+        check(fake.requests.count == 1 && presenter.page?.line.artwork == Data("JPEG".utf8), "and kept per song")
+        fake.sent = []
+        presenter.action?(IslandPlayerControl.next.rawValue)
+        presenter.action?(IslandPlayerControl.playPause.rawValue)
+        presenter.action?(IslandPage.refreshAction)
+        await settle()
+        check(fake.sent == [.skipNext, .play(uri: nil), .getState], "the page's buttons and Command-R reach Soloist")
+        module.stop()
+        await settle()
+        check(presenter.page == nil, "off removes the Player page")
     }
 
     @MainActor

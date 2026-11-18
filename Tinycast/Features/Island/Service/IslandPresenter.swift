@@ -21,6 +21,7 @@ final class IslandPresenter: IslandPresenting {
     private var noticeTaps: [String: @MainActor () -> Void] = [:]
     private var statusTaps: [String: @MainActor () -> Void] = [:]
     private(set) var menus: [Menu] = []
+    let pages = IslandPageHost()
     private let now: @MainActor () -> TimeInterval
     private let sleep: @MainActor (TimeInterval) async throws -> Void
 
@@ -72,7 +73,7 @@ final class IslandPresenter: IslandPresenting {
         statusTaps[id] = status == nil ? nil : onTap
         if let status { statuses.append(status) }
         AppCore.shared.island.resting?.statuses = statuses
-        if hovered { AppCore.shared.island.resting?.notice = shownNotice }
+        if hoverOpensPill { AppCore.shared.island.resting?.notice = shownNotice }
     }
 
     /// A click on the resting pill acts on what it shows; the meeting glance hides status.
@@ -85,12 +86,21 @@ final class IslandPresenter: IslandPresenting {
     /// The pointer resting on the island opens the long form of what it shows (#884 H2 to H7).
     func hoverChanged(_ open: Bool) {
         hovered = open
+        pages.hover(open, on: AppCore.shared.island.resting)
         noticesChanged()
+    }
+
+    /// Pages take the hover first (#975); with none, the pill's own long form shows as before.
+    private var hoverOpensPill: Bool { hovered && !pages.isOpen }
+
+    func setPage(_ page: IslandPage?, id: String, onAction: (@MainActor (String) -> Void)?) {
+        pages.set(page, id: id, onAction: onAction)
+        if hovered { hoverChanged(true) }
     }
 
     private var shownNotice: IslandNotice? {
         IslandHover.notice(top: notices.notice, statuses: statuses, glance: AppCore.shared.island.resting?.glance != nil,
-                           level: dwell.level != nil, hovered: hovered)
+                           level: dwell.level != nil, hovered: hoverOpensPill)
     }
 
     /// Hands notices and status to the resting pill without posting, so none re-announces.
@@ -106,7 +116,10 @@ final class IslandPresenter: IslandPresenting {
     }
 
     /// A rebuild can add or drop the resting pill, which a notice's dwell waits for.
-    func restingChanged() { noticesChanged() }
+    func restingChanged() {
+        if hovered { pages.hover(true, on: AppCore.shared.island.resting) }
+        noticesChanged()
+    }
 
     /// An owner keeps its first registration's place, so replacing its rows never reorders the menu.
     func setMenuRows(_ rows: [IslandMenuRow], owner: String, onSelect: @escaping @MainActor (String) -> Void) {
@@ -195,7 +208,7 @@ final class IslandPresenter: IslandPresenting {
             expansionTask?.cancel()
             expansionTask = nil
         }
-        let pill = expansion.showing == nil && !hovered ? nil : core.island.resting
+        let pill = expansion.showing == nil && !hoverOpensPill ? nil : core.island.resting
         if expandedPill !== pill { expandedPill?.expanded = false }
         expandedPill = pill
         pill?.expanded = true

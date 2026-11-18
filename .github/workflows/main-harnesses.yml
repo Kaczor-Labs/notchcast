@@ -94,3 +94,13 @@ jobs:
           only: ${{ needs.plan.outputs.tests }}
           shard: ${{ matrix.shard }} ${{ strategy.job-total }}
           cache: push-${{ matrix.shard }}of${{ strategy.job-total }}
+      # The render harnesses write PNGs there; a worker without a Mac reads them from this artifact.
+      - name: Collect renders
+        if: ${{ !cancelled() }}
+        run: cp -R "${TMPDIR:-/tmp}/nc-island-audit-renders" "$RUNNER_TEMP/renders" 2>/dev/null || true
+      - uses: actions/upload-artifact@v7
+        if: ${{ !cancelled() }}
+        with:
+          name: island-renders-${{ matrix.shard }}
+          path: ${{ runner.temp }}/renders
+          if-no-files-found: ignore

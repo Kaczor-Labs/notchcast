@@ -22,10 +22,16 @@
     "Downloads" : {
       "shouldTranslate" : false
     },
+    "Elapsed" : {
+
+    },
     "Files & Downloads" : {
       "shouldTranslate" : false
     },
     "Frosted" : {
+
+    },
+    "Home" : {
 
     },
     "Island" : {
@@ -58,6 +64,9 @@
     "Needs Accessibility access" : {
       "shouldTranslate" : false
     },
+    "Next Track" : {
+
+    },
     "Notchcast" : {
       "shouldTranslate" : false
     },
@@ -73,7 +82,19 @@
     "Outline when open" : {
 
     },
+    "Pause" : {
+
+    },
+    "Play" : {
+
+    },
+    "Player" : {
+
+    },
     "Position on displays without a notch" : {
+
+    },
+    "Previous Track" : {
 
     },
     "Resting the pointer on the island opens what it shows." : {
