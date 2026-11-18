@@ -9,9 +9,9 @@ on:
         type: boolean
         default: false
       shards:
-        description: Shards for an all run, 1 to 9
+        description: Shards for an all run, 1 to 9; each is one more macOS job
         type: number
-        default: 4
+        default: 1
 
 permissions:
   contents: read
@@ -46,7 +46,7 @@ jobs:
             ./notchcast/changed-harnesses.sh "$BEFORE" "$GITHUB_SHA" > "$RUNNER_TEMP/selected"
           fi
           cat "$RUNNER_TEMP/selected"
-      # About 40 harnesses compile in the time one more runner takes to start; at most 3 run beside a PR's checks job.
+      # A selection runs in one macOS job: GitHub runs at most 5 at once for the account, across every branch.
       # An all run has no selection: an empty tests output runs the whole suite, split by name over the shards.
       - name: Shards
         id: shards
@@ -60,18 +60,18 @@ jobs:
             echo "all harnesses in $shards shard(s)"
           else
             count=$(grep -c . "$RUNNER_TEMP/selected" || true)
-            shards=$(( (count + 39) / 40 ))
-            [ "$shards" -le 3 ] || shards=3
+            shards=$(( count > 0 ))
             tests=$(tr '\n' ' ' < "$RUNNER_TEMP/selected")
             echo "$count harnesses in $shards shard(s)"
           fi
           echo "tests=$tests" >> "$GITHUB_OUTPUT"
           echo "shards=[$(seq -s, 0 $((shards - 1)))]" >> "$GITHUB_OUTPUT"
+  # A dispatch only, so never a fork's code: vars.NOTCHCAST_MAC_RUNNER may name a self-hosted Mac (README Runners).
   harnesses:
     needs: plan
     # An empty selection skips this job and the run still concludes success; an empty matrix would fail it.
     if: ${{ needs.plan.outputs.shards != '[]' }}
-    runs-on: xcode-27
+    runs-on: ${{ (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && vars.NOTCHCAST_MAC_RUNNER || 'xcode-27' }}
     timeout-minutes: 30
     strategy:
       fail-fast: false

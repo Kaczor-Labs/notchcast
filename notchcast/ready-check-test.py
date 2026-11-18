@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# script-tests: macos (ready-check.sh's getconf DARWIN_USER_TEMP_DIR)
 """Verify ready-check.sh covers every pr.yml step and reports PASS or the first failing gate."""
 import os
 from pathlib import Path
@@ -18,15 +19,15 @@ COVERED = {
     ("pr.yml:route", "actions/checkout"): "lane planning; no gate",
     ("pr.yml:route", "Lanes the diff needs"): "picks the jobs below; ready-check.sh runs them all",
     ("pr.yml:route", "Harnesses the diff needs"): "shadow selection; reports, gates nothing",
-    ("pr.yml:checks", "actions/checkout"): "the shared clone at HEAD",
-    ("pr.yml:checks", "Shared PR build lane"): "ci-build.sh, unsharded",
-    ("pr.yml:harnesses", "actions/checkout"): "the shared clone at HEAD",
-    ("pr.yml:harnesses", "./tools/notchcast/actions/xcode"): "ci-build.sh's xcode step",
-    ("pr.yml:harnesses", "./tools/notchcast/actions/tests"): "ci-build.sh's harnesses step",
-    ("pr.yml:harnesses", "Failures outside the harness selection"): "shadow selection; reports, gates nothing",
+    ("pr.yml:mac", "actions/checkout"): "the shared clone at HEAD",
+    ("pr.yml:mac", "./tools/notchcast/actions/xcode"): "ci-build.sh's xcode step",
+    ("pr.yml:mac", "Script tests that need macOS"): "ci-build.sh's script-tests step",
+    ("pr.yml:mac", "Shared PR build lane"): "ci-build.sh, unsharded",
+    ("pr.yml:mac", "./tools/notchcast/actions/tests"): "ci-build.sh's harnesses step",
+    ("pr.yml:mac", "Failures outside the harness selection"): "shadow selection; reports, gates nothing",
+    ("pr.yml:linux-checks", "actions/checkout"): "the shared clone at HEAD",
+    ("pr.yml:linux-checks", "Checks that need no Mac"): "ci-build.sh sources ci-checks.sh",
     ("pr.yml:script-tests", "actions/checkout"): "the shared clone at HEAD",
-    ("pr.yml:script-tests", "./notchcast/actions/xcode"): "ci-build.sh's xcode step",
-    ("pr.yml:script-tests", "Fetch upstream"): "ci-build.sh's upstream step",
     ("pr.yml:script-tests", "Script tests"): "ci-build.sh's script-tests step",
     ("pr.yml:build", "A train run names its base"): "train branches only",
     ("pr.yml:build", "Every lane the diff needs passed, and only those were skipped"): "aggregate of the jobs above",
@@ -108,14 +109,25 @@ class CoverageTest(unittest.TestCase):
                 self.assertRegex(ci_tests, rf"export .*\b{name}={value.strip(chr(39))}\b")
 
 
+# The one way to a self-hosted Mac (README Runners): this repo is public, so a fork's pull_request stays hosted.
+GATED_MAC = ("${{ (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == "
+             "github.repository) && vars.NOTCHCAST_MAC_RUNNER || 'xcode-27' }}")
+# Only jobs that hold no secret and launch no app; a workflow outside this map is hosted-only.
+GATED_JOBS = {"pr.yml": 1, "main-harnesses.yml": 1}
+
+
 class RunnerTest(unittest.TestCase):
     def test_every_job_runs_on_a_hosted_image(self):
         allowed = {"ubuntu-latest", "xcode-27", "macos-15"}
+        gated = {}
         for workflow in sorted((ROOT / ".github/workflows").glob("*.y*ml")):
             lines = workflow.read_text().splitlines()
             for i, line in enumerate(lines):
                 match = re.match(r"(\s*)runs-on:(.*)", line)
                 if not match:
+                    continue
+                if match[2].strip() == GATED_MAC:
+                    gated[workflow.name] = gated.get(workflow.name, 0) + 1
                     continue
                 value = [match[2].split("#")[0]]
                 for more in lines[i + 1:]:
@@ -126,6 +138,8 @@ class RunnerTest(unittest.TestCase):
                 with self.subTest(f"{workflow.name}:{i + 1}"):
                     self.assertTrue(labels, "runs-on has no label")
                     self.assertEqual(set(labels) - allowed, set(), "runs-on names a runner README Runners does not")
+        self.assertEqual(gated, GATED_JOBS, "only these jobs may leave the hosted images, behind the fork gate")
+
 
 # Machine git config (init.defaultBranch, signing, url rewrites) never reaches the fixture repos.
 GIT_ISOLATED = {"GIT_CONFIG_NOSYSTEM": "1", "GIT_CONFIG_GLOBAL": os.devnull}

@@ -14,7 +14,7 @@ on:
 permissions:
   contents: read
 
-# shadow: plan a harness selection and report failures outside it; shards still run every harness.
+# shadow: plan a harness selection and report failures outside it; the mac job still runs every harness.
 env:
   NOTCHCAST_HARNESS_SELECT: shadow
 
@@ -51,7 +51,7 @@ jobs:
             v2/addons-*) printf 'build=true\nscripts=true\n' | tee -a "$GITHUB_OUTPUT" ;;
             *) python3 notchcast/lanes.py "${BASE:-$(git merge-base origin/main HEAD)}" HEAD | tee -a "$GITHUB_OUTPUT" ;;
           esac
-      # Never fails the run: with no plan the shards report their failures unjudged.
+      # Never fails the run: with no plan the mac job reports its failures unjudged.
       - name: Harnesses the diff needs
         id: select
         if: steps.lanes.outputs.build == 'true'
@@ -63,38 +63,13 @@ jobs:
         run: |
           git sparse-checkout disable
           python3 notchcast/harness-select.py plan "${BASE:-$(git merge-base origin/main HEAD)}" HEAD
-  checks:
+  # The one macOS job of a run: GitHub runs at most 5 at once for the account, so every lane that needs a Mac runs here in turn.
+  # A fork's pull_request never reaches vars.NOTCHCAST_MAC_RUNNER, a self-hosted Mac (ready-check-test.py holds the gate).
+  mac:
     needs: route
-    if: needs.route.outputs.build == 'true'
-    runs-on: xcode-27
-    timeout-minutes: 20
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-        with:
-          path: tools
-          persist-credentials: false
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-        with:
-          path: src
-          fetch-depth: 0
-          persist-credentials: false
-      - name: Shared PR build lane
-        working-directory: src
-        env:
-          BASE_SHA: ${{ github.event.pull_request.base.sha || inputs.base }}
-          HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
-          NOTCHCAST_HARNESSES_SHARDED: '1'
-        run: bash ../tools/notchcast/ci-build.sh
-  # The whole suite in one job beside the checks job, which outlasts it; each shard costs ~45 s of setup.
-  harnesses:
-    needs: route
-    if: needs.route.outputs.build == 'true'
-    runs-on: xcode-27
-    timeout-minutes: 60
-    strategy:
-      fail-fast: false
-      matrix:
-        shard: [0]
+    if: needs.route.outputs.scripts == 'true'
+    runs-on: ${{ (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && vars.NOTCHCAST_MAC_RUNNER || 'xcode-27' }}
+    timeout-minutes: 90
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
@@ -106,41 +81,70 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
       - uses: ./tools/notchcast/actions/xcode
+      # First: the shortest lane. land-test.sh serves this checkout's upstream main to its fixture remote.
+      - name: Script tests that need macOS
+        working-directory: src
+        timeout-minutes: 10
+        run: |
+          bash notchcast/fetch-upstream.sh --no-tags
+          python3 notchcast/script-tests.py --all --runner macos
+      - name: Shared PR build lane
+        if: needs.route.outputs.build == 'true'
+        working-directory: src
+        timeout-minutes: 20
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha || inputs.base }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+          NOTCHCAST_HARNESSES_SHARDED: '1'
+        run: bash ../tools/notchcast/ci-build.sh
+      # The whole suite (notchcast/test-harnesses.sh), after the build lane rather than in a job beside it.
       - id: tests
+        if: needs.route.outputs.build == 'true'
+        timeout-minutes: 60
         uses: ./tools/notchcast/actions/tests
         with:
-          shard: ${{ matrix.shard }} ${{ strategy.job-total }}
-          cache: pr-${{ matrix.shard }}of${{ strategy.job-total }}
+          cache: pr-0of1
       - name: Failures outside the harness selection
-        if: ${{ !cancelled() }}
+        if: ${{ !cancelled() && needs.route.outputs.build == 'true' }}
         continue-on-error: true
         env:
           HARNESS_PLANNED: ${{ needs.route.outputs.harness-planned }}
           HARNESS_SELECTED: ${{ needs.route.outputs.harness-selected }}
           HARNESS_UNSURE: ${{ needs.route.outputs.harness-unsure }}
           HARNESS_TESTS: ${{ steps.tests.outcome }}
-          SHARD: ${{ matrix.shard }}
-        run: python3 tools/notchcast/harness-select.py misses "$RUNNER_TEMP/harness-failures" "$SHARD"
-  # On macOS like the tools they test (BSD sed and date, swift, xcrun), in parallel (notchcast/script-tests.py).
-  script-tests:
+        run: python3 tools/notchcast/harness-select.py misses "$RUNNER_TEMP/harness-failures" 0
+  # ci-build.sh's checks that need no Mac (notchcast/ci-checks.sh), beside mac.
+  linux-checks:
     needs: route
-    if: needs.route.outputs.scripts == 'true'
-    runs-on: xcode-27
+    if: needs.route.outputs.build == 'true'
+    runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           fetch-depth: 0
           persist-credentials: false
-      - uses: ./notchcast/actions/xcode
-      # land-test.sh serves this checkout's upstream main to its fixture remote.
-      - name: Fetch upstream
-        run: bash notchcast/fetch-upstream.sh --no-tags
+      - name: Checks that need no Mac
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha || inputs.base }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: bash notchcast/ci-checks.sh
+  # On Linux, in parallel (notchcast/script-tests.py); a test marked as needing macOS runs in mac instead.
+  script-tests:
+    needs: route
+    if: needs.route.outputs.scripts == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          fetch-depth: 0
+          persist-credentials: false
       - name: Script tests
-        run: python3 notchcast/script-tests.py --all
+        run: python3 notchcast/script-tests.py --all --runner linux
   # land.sh reads the check named build: green only when every lane the diff needs is.
   build:
-    needs: [route, checks, harnesses, script-tests]
+    needs: [route, mac, linux-checks, script-tests]
     if: ${{ !cancelled() && (github.event_name == 'workflow_dispatch' || !github.event.pull_request.draft) }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -155,21 +159,21 @@ jobs:
           ROUTE: ${{ needs.route.result }}
           BUILD: ${{ needs.route.outputs.build }}
           SCRIPTS: ${{ needs.route.outputs.scripts }}
-          CHECKS: ${{ needs.checks.result }}
-          HARNESSES: ${{ needs.harnesses.result }}
+          MAC: ${{ needs.mac.result }}
+          LINUX_CHECKS: ${{ needs.linux-checks.result }}
           SCRIPT_TESTS: ${{ needs.script-tests.result }}
         run: |
           case "$BUILD:$SCRIPTS" in true:true|false:true|false:false) ;; *) echo "::error::lanes said '$BUILD' '$SCRIPTS'"; exit 1;; esac
           want() { if [ "$1" = true ]; then echo success; else echo skipped; fi; }
-          if [ "$ROUTE" != success ] || [ "$CHECKS" != "$(want "$BUILD")" ] || [ "$HARNESSES" != "$(want "$BUILD")" ] \
+          if [ "$ROUTE" != success ] || [ "$MAC" != "$(want "$SCRIPTS")" ] || [ "$LINUX_CHECKS" != "$(want "$BUILD")" ] \
               || [ "$SCRIPT_TESTS" != "$(want "$SCRIPTS")" ]; then
-            echo "::error::route: $ROUTE (build $BUILD, scripts $SCRIPTS), checks: $CHECKS, harnesses: $HARNESSES, script tests: $SCRIPT_TESTS"
+            echo "::error::route: $ROUTE (build $BUILD, scripts $SCRIPTS), mac: $MAC, linux checks: $LINUX_CHECKS, script tests: $SCRIPT_TESTS"
             exit 1
           fi
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           persist-credentials: false
-      # check-config reads every notchcast/ file, docs too; the checks job runs it when the build lane does.
+      # check-config reads every notchcast/ file, docs too; linux-checks runs it when the build lane does.
       - name: Config literals
         if: needs.route.outputs.build != 'true'
         run: python3 notchcast/check-config.py
