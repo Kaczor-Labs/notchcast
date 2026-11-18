@@ -1,6 +1,6 @@
 import Foundation
 
-/// Finds ZIPs whose names are in a Windows code page, which The Unarchiver decodes and HatchZip does not.
+/// Finds ZIPs named in a Windows code page, which The Unarchiver decodes and HatchZip does not.
 nonisolated enum ZIPNameEncoding {
     /// The end record plus the longest comment it may carry.
     static let tailLength = 22 + 65_535

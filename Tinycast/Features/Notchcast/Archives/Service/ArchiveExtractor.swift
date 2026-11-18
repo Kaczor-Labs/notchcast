@@ -1,11 +1,11 @@
 import Foundation
 
-/// One archive from listing to its place beside the archive; every program call goes through `run`.
+/// One archive from listing to its place beside it; every program call goes through `run`.
 nonisolated struct ArchiveExtractor: Sendable {
     var locate: @Sendable (String) async -> URL?
     var run: @Sendable (URL, [String]) async throws -> ArchiveProcessResult
 
-    /// Asked once when keeping the archive does not fit; gets HatchZip's in-place plan, true goes ahead.
+    /// Asked once when keeping the archive does not fit, with HatchZip's in-place plan.
     typealias AskInPlace = @Sendable (_ plan: String) async -> Bool
 
     /// The final file or folder. `onInPlace` runs before the archive starts being consumed.
@@ -58,7 +58,7 @@ nonisolated struct ArchiveExtractor: Sendable {
         return try place(job, stem: route.stem)
     }
 
-    /// After a stop or a failure once writing began: the archive whole again, files kept only when in place.
+    /// After a stop or failure once writing began: archive whole again, files kept only in place.
     @concurrent
     func abandon(_ job: ArchiveJob) async -> URL? {
         guard FileManager.default.fileExists(atPath: job.staging.path) else { return nil }

@@ -1,6 +1,6 @@
 import Foundation
 
-/// The program that extracts an archive: HatchZip first, the user's other tools for what it cannot read.
+/// The program that extracts an archive: HatchZip first, the user's own tools for the rest.
 nonisolated enum ArchiveEngine: String, Sendable {
     case hatchzip
     case bsdtar

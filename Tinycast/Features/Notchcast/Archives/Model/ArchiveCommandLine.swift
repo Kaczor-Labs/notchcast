@@ -40,7 +40,7 @@ nonisolated enum ArchiveCommandLine {
         }
     }
 
-    /// For a single stream the program is `/bin/sh`, which hands the stream to `tool` with no shell parsing.
+    /// A single stream runs under `/bin/sh`, with every path a positional argument, never spliced in.
     static func extract(
         _ engine: ArchiveEngine, tool: URL, archive: URL, staging: URL, stem: String, inPlace: Bool
     ) -> [String] {

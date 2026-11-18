@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// Extracts every opened archive with HatchZip, or the user's fallback tools, instead of Archive Utility.
+/// Extracts opened archives with HatchZip or the user's fallback tools, instead of Archive Utility.
 enum ArchivesAddon: NotchcastAddon {
     static let switches = [
         NotchcastSwitch(

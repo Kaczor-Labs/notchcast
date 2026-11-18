@@ -12,7 +12,6 @@ final class ArchivesModule: NotchcastModule {
     private let environment: ArchivesEnvironment
     private(set) var jobs: [ArchiveJob] = []
     private(set) var current: (job: ArchiveJob, task: Task<Void, Never>)?
-    private var stopping: Set<UUID> = []
 
     init(context: NotchcastContext, environment: ArchivesEnvironment) {
         self.context = context
@@ -56,7 +55,6 @@ final class ArchivesModule: NotchcastModule {
 
     func cancel(_ id: UUID) {
         if current?.job.id == id {
-            stopping.insert(id)
             current?.task.cancel()
         } else {
             jobs.removeAll { $0.id == id }
@@ -86,11 +84,10 @@ final class ArchivesModule: NotchcastModule {
                 let placed = try await extractor.extract(job, askInPlace: ask, onInPlace: markInPlace)
                 self?.finish(job, placed: placed, failure: nil)
             } catch is CancellationError {
-                await self?.stopped(job, extractor: extractor)
+                await self?.stopped(job, failure: nil, extractor: extractor)
             } catch {
                 let failure = error as? ArchiveFailure ?? .failed(error.localizedDescription)
-                let salvaged = await extractor.abandon(self?.latest(job) ?? job)
-                self?.finish(job, placed: salvaged, failure: failure)
+                await self?.stopped(job, failure: failure, extractor: extractor)
             }
         }
         current = (job, task)
@@ -101,11 +98,11 @@ final class ArchivesModule: NotchcastModule {
             onTap: { [weak self] in self?.confirmCancel(job) })
     }
 
-    /// A user's stop discards or salvages the job; a module stop leaves it journalled to resume.
-    private func stopped(_ job: ArchiveJob, extractor: ArchiveExtractor) async {
-        guard stopping.remove(job.id) != nil, current?.job.id == job.id else { return }
+    /// A stop or failure discards or salvages the job; after a module stop it stays to resume.
+    private func stopped(_ job: ArchiveJob, failure: ArchiveFailure?, extractor: ArchiveExtractor) async {
+        guard current?.job.id == job.id else { return }
         let salvaged = await extractor.abandon(latest(job))
-        finish(job, placed: salvaged, failure: nil, cancelled: true)
+        finish(job, placed: salvaged, failure: failure, cancelled: failure == nil)
     }
 
     private func finish(_ job: ArchiveJob, placed: URL?, failure: ArchiveFailure?, cancelled: Bool = false) {
@@ -131,13 +128,18 @@ final class ArchivesModule: NotchcastModule {
     private func report(_ failure: ArchiveFailure, salvaged: URL? = nil) {
         context.presenter.post(
             IslandNotice(id: "archives.failed", symbol: "exclamationmark.triangle", text: failure.message, isFailure: true),
-            onTap: salvaged.map { url in { [weak self] in self?.environment.reveal(url) } })
+            onTap: revealing(salvaged))
     }
 
     private func post(_ text: String, symbol: String, reveal url: URL?) {
         context.presenter.post(
             IslandNotice(id: "archives.done", symbol: symbol, text: text),
-            onTap: url.map { url in { [weak self] in self?.environment.reveal(url) } })
+            onTap: revealing(url))
+    }
+
+    private func revealing(_ url: URL?) -> (@MainActor () -> Void)? {
+        guard let url else { return nil }
+        return { [weak self] in self?.environment.reveal(url) }
     }
 
     private func confirmCancel(_ job: ArchiveJob) {

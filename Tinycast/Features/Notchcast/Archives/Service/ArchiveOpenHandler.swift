@@ -1,6 +1,6 @@
 import AppKit
 
-/// Takes the open-documents event while Archives runs; stock Tinycast opens no files, so nothing is lost.
+/// Takes open-documents events while Archives runs; stock Tinycast opens no files, so none is lost.
 @MainActor
 final class ArchiveOpenHandler: NSObject {
     private var onOpen: (@MainActor ([URL]) -> Void)?

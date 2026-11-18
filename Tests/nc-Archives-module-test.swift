@@ -1,4 +1,5 @@
-// notchcast-sources: Tinycast/Features/Notchcast/Core/Model/*.swift Tinycast/Features/Notchcast/Core/Service/*.swift
+// notchcast-sources: Tinycast/Features/Notchcast/Core/Model/*.swift
+// notchcast-sources: Tinycast/Features/Notchcast/Core/Service/*.swift
 // notchcast-sources: Tinycast/Features/Island/Model/IslandPresentation.swift
 // notchcast-sources: Tinycast/Features/Island/Service/IslandPresenting.swift
 // notchcast-sources: Tinycast/Platform/NotificationToken.swift Tinycast/Platform/ProcessExit.swift
@@ -32,7 +33,7 @@ func check(_ condition: Bool, _ message: @autoclosure () -> String) {
     if !condition { fatalError(message()) }
 }
 
-/// Plays each tool: listings come from `listings`, an extraction writes `files` into its output folder.
+/// Plays each tool: listings come from `listings`, an extraction writes `files` where it is told.
 final class FakeTools: Sendable {
     struct State {
         var calls: [[String]] = []

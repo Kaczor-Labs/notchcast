@@ -21,7 +21,7 @@ nonisolated struct ArchiveListing: Equatable, Sendable {
         self.archiveSize = archiveSize
     }
 
-    /// `hatchzip list`: a 10-wide size column, two spaces, the path; then `N entries, X uncompressed, Y … archive`.
+    /// `hatchzip list`: a 10-wide size column, two spaces, the path; then a totals line.
     static func hatchzip(_ output: String) -> ArchiveListing {
         var entries: [ArchiveEntry] = []
         var expanded: Int64?
