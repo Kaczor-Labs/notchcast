@@ -17,7 +17,7 @@ import subprocess
 import sys
 
 PLAIN = {"-o", "-swift-version", "-O", "-Onone", "-parse-as-library", "-strict-concurrency=complete", "-target",
-         "-warnings-as-errors", "-Xlinker", "-sectcreate", "-lsqlite3"}
+         "-warnings-as-errors", "-Xlinker", "-sectcreate", "-lsqlite3", "-module-name", "-package-name"}
 
 
 def cache_key(toolchain, args, root):
