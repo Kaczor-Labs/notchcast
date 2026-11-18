@@ -320,6 +320,16 @@ struct NotchcastIslandAuditRenderTest {
         renderHeadline("21-headline-failed-notch", IslandHeadlineArt(
             IslandNotice(id: "d", symbol: "exclamationmark.arrow.circlepath", text: "Update failed",
                          isFailure: true, seconds: 4), notch: 200, frosted: frosted))
+        let meeting = MeetingEvent(id: "m", title: "Standup", start: Date(timeIntervalSince1970: 600),
+            end: Date(timeIntervalSince1970: 2400), isAllDay: false, isDeclined: false, calendarID: "c",
+            calendarName: "Work", calendarColor: nil, calendarItemID: "i", link: nil)
+        let expansion = IslandExpansionArt(IslandGlance(meeting, now: Date(timeIntervalSince1970: 0),
+            locale: Locale(identifier: "en_US")), frosted: frosted)
+        let room = CGRect(x: 16, y: 16, width: expansion.size.width, height: expansion.size.height)
+        writeArt("25-meeting-expansion-notch", size: CGSize(width: room.width + 32, height: room.height + 32)) { rect in
+            paintPill(rect, pill: NSBezierPath(roundedRect: room, xRadius: 16, yRadius: 16))
+            expansion.draw(in: room)
+        }
         renderBand("22-level-band", IslandLevelArt(
             IslandLevel(source: "volume", symbol: "speaker.wave.2.fill", label: "Volume", value: 0.6),
             notch: false, frosted: frosted))
