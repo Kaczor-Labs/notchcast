@@ -91,9 +91,12 @@ runs:
         APP="$RUNNER_TEMP/DerivedData/Build/Products/Release/$APP_NAME.app"
         mkdir -p dist
         # Only ditto keeps the signature verifiable; the updater expands the zip with ditto.
-        ditto -c -k --keepParent --sequesterRsrc "$APP" "dist/$APP_NAME-$VERSION.zip"
+        ditto -c -k --keepParent --sequesterRsrc "$APP" "dist/$APP_NAME-$VERSION.zip" \
+          || { echo "::error::ditto could not zip $APP"; exit 1; }
         STAGE="$(mktemp -d)"
         cp -R "$APP" "$STAGE/"
         ln -s /Applications "$STAGE/Applications"
-        hdiutil create -quiet -srcfolder "$STAGE" -volname "$APP_NAME" -format UDZO "dist/$APP_NAME-$VERSION.dmg"
+        # Never mounts a volume, unlike hdiutil create, which failed silently at its unmount (#902).
+        diskutil image create from --format UDZO --volumeName "$APP_NAME" "$STAGE" "dist/$APP_NAME-$VERSION.dmg" >/dev/null \
+          || { echo "::error::diskutil could not build the dmg; its message is above"; exit 1; }
         ls -l dist

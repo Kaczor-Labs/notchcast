@@ -70,4 +70,35 @@ Dir.mktmpdir('release-launch-') do |directory|
     puts "PASS launch check #{expected ? 'accepts a live process' : 'rejects a crashed process'}"
   end
 end
+package = ACTION.fetch('runs').fetch('steps').find { |step| step['name'] == 'Package zip and dmg' }
+assert(package && !package['run'].match?(/^\s*hdiutil|-quiet/), 'packaging must not hide why it failed (#902)')
+
+Dir.mktmpdir('release-package-') do |directory|
+  FileUtils.mkdir_p(File.join(directory, 'tools/notchcast'))
+  File.write(File.join(directory, 'tools/notchcast/config.env'), "APP_NAME=Fixture\n")
+  FileUtils.mkdir_p(File.join(directory, 'DerivedData/Build/Products/Release/Fixture.app/Contents'))
+  FileUtils.mkdir_p(File.join(directory, 'bin'))
+  File.write(File.join(directory, 'bin/ditto'), "#!/bin/bash\ntouch \"${@: -1}\"\n")
+  script = File.join(directory, 'package.sh')
+  File.write(script, package.fetch('run'))
+  env = {'RUNNER_TEMP' => directory, 'VERSION' => '1.0', 'PATH' => "#{directory}/bin:#{ENV.fetch('PATH')}"}
+  [['touch "${@: -1}"; echo "$@" > "$RUNNER_TEMP/args"', true],
+   ['echo "Error: Resource busy" >&2; exit 1', false]].each do |body, expected|
+    File.write(File.join(directory, 'bin/diskutil'), "#!/bin/bash\n#{body}\n")
+    FileUtils.chmod(0755, Dir.glob(File.join(directory, 'bin/*')))
+    FileUtils.rm_rf(File.join(directory, 'dist'))
+    output, status = Open3.capture2e(env, 'bash', '-e', script, chdir: directory)
+    assert(status.success? == expected, "package result does not match diskutil: #{output}")
+    if expected
+      args = File.read(File.join(directory, 'args'))
+      assert(args.start_with?('image create from --format UDZO --volumeName Fixture ') &&
+             args.end_with?(" dist/Fixture-1.0.dmg\n") && File.exist?(File.join(directory, 'dist/Fixture-1.0.zip')),
+             "package must build a UDZO dmg and a zip: #{args}")
+    else
+      assert(output.include?('Resource busy') && output.include?('::error::diskutil'),
+             "a failed dmg must say why: #{output}")
+    end
+    puts "PASS package #{expected ? 'builds the zip and dmg' : 'reports a failed dmg'}"
+  end
+end
 puts 'release action: PASS'
