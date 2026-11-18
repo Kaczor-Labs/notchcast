@@ -1,4 +1,5 @@
 #!/bin/bash
+# script-tests: macos (kick.sh's BSD sed -i and date -j)
 # shellcheck disable=SC2016
 set -euo pipefail
 ROOT=$(cd "$(dirname "$0")/.." && pwd)
