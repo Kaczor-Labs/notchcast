@@ -35,8 +35,10 @@ enum IslandLevelPlacement: Equatable, Sendable {
 }
 
 extension IslandLevel {
-    /// Plain digits; extra dimming reads below 0%, as its zone sits left of the track.
-    var readout: String { "\(Int((value * 100).rounded()))%" }
+    var readout: String { Self.readout(value) }
+
+    /// Plain digits, half away from zero; extra dimming reads below 0%, its zone left of the track.
+    static func readout(_ value: Double) -> String { "\(Int((value * 100).rounded()))%" }
 }
 
 /// Extents along a track `width` wide: 0...1 is the track, the rest of `range` outlined zones.

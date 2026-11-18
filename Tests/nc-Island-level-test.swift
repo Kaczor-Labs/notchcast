@@ -13,6 +13,10 @@ struct IslandLevelTest {
         precondition(reading.readout == "100%", "full reads 100%")
         reading.value = 0
         precondition(reading.readout == "0%", "empty or muted reads 0%")
+        reading.value = 0.125
+        precondition(reading.readout == "13%", "half a percent rounds away from zero, got \(reading.readout)")
+        reading.value = 0.625
+        precondition(reading.readout == "63%", "62.5% rounds away from zero, got \(reading.readout)")
         reading.value = -0.0625
         precondition(reading.readout == "-6%", "extra dimming reads below 0%, got \(reading.readout)")
         var dwell = IslandLevelDwell()

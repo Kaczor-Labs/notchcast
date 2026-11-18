@@ -60,7 +60,7 @@ final class IslandLevelBand: NSView {
         didSet {
             needsDisplay = true
             setAccessibilityLabel(art?.level.label)
-            setAccessibilityValue(art?.level.value)
+            setAccessibilityValue(art?.level.readout)
         }
     }
 
