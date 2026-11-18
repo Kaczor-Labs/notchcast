@@ -60,6 +60,12 @@ final class IslandLevelBand: NSView {
         }
     }
 
+    /// The art resolves its inks once, so a look change rebuilds it rather than leaving the old ink.
+    func restyle(frosted: Bool) {
+        guard let art, art.frosted != frosted else { return }
+        self.art = IslandLevelArt(art.level, notch: false, frosted: frosted)
+    }
+
     override func isAccessibilityElement() -> Bool { true }
     override func accessibilityRole() -> NSAccessibility.Role? { .levelIndicator }
 

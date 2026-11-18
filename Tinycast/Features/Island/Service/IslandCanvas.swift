@@ -18,7 +18,9 @@ final class IslandCanvas: NSView {
     var glanceWidth: CGFloat = 0
     var keylineEnabled = true
     var scale: CGFloat = 2
-    var look = IslandLook.black { didSet { if look != oldValue { onAppearanceChange?() } } }
+    var look = IslandLook.black { didSet { if look != oldValue { replay?(self); onAppearanceChange?() } } }
+    /// Each art resolves its inks once, so a look flip replays the last `show` to rebuild it.
+    private var replay: ((IslandCanvas) -> Void)?
     /// Frosted under Reduce Transparency or Increase Contrast paints its glass solid.
     var solidGlass = false
     var restingKeyline = 0.0
@@ -141,6 +143,8 @@ final class IslandCanvas: NSView {
     /// The presenter's order: level, notice, meeting glance, then status; a notch grows a headline.
     func show(glance: IslandGlance?, level: IslandLevel?, notice: IslandNotice?, statuses: [IslandStatus],
               expanded: Bool, notch: CGFloat?) {
+        replay = { $0.show(glance: glance, level: level, notice: notice, statuses: statuses, expanded: expanded,
+                           notch: notch) }
         let frosted = look == .frosted
         headline = if let notch, level == nil, let notice, notice.isHeadline {
             IslandHeadlineArt(notice, notch: notch, frosted: frosted)

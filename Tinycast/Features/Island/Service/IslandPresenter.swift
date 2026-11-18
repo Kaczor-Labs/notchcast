@@ -86,6 +86,12 @@ final class IslandPresenter: IslandPresenting {
         controller.statuses = resting ? statuses : []
     }
 
+    /// A look change repaints a band already up, which would otherwise keep the old look to its fade.
+    func looksChanged() {
+        guard bandShown else { return }
+        (band?.contentView as? IslandLevelBand)?.restyle(frosted: AppCore.shared.island.frosted(on: nil))
+    }
+
     /// A rebuild can add or drop the resting pill, which a notice's dwell waits for.
     func restingChanged() { noticesChanged() }
 

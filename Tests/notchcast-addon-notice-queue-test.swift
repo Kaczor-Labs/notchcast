@@ -53,7 +53,7 @@ final class HUDPanel: NSPanel {
     func cancelFade() {}
 }
 
-final class IslandLevelBand: NSView { var art: IslandLevelArt? }
+final class IslandLevelBand: NSView { var art: IslandLevelArt?; func restyle(frosted: Bool) {} }
 
 struct IslandLevelArt {
     init(_ level: IslandLevel, notch: Bool, frosted: Bool) {}
