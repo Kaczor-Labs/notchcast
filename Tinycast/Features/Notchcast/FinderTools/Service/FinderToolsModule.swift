@@ -37,26 +37,29 @@ final class FinderToolsModule: NotchcastModule {
                 switchID: switchID, mask: mask, handler: .synchronous(handler(tap)),
                 reset: { [policy] in policy.value.withLock { $0.reset() } }))
         }
-        let workspace = NSWorkspace.shared.notificationCenter
-        let inputSources = DistributedNotificationCenter.default()
         observers = [
-            NotificationToken(workspace.addObserver(
-                forName: NSWorkspace.didActivateApplicationNotification, object: nil, queue: .main
-            ) { [weak self] _ in
-                Task { @MainActor [weak self] in self?.applicationActivated() }
-            }, center: workspace),
-            NotificationToken(inputSources.addObserver(
-                forName: Notification.Name(kTISNotifySelectedKeyboardInputSourceChanged as String),
-                object: nil, queue: .main
-            ) { [weak self] _ in
-                Task { @MainActor [weak self] in self?.relayout() }
-            }, center: inputSources),
-            NotificationToken(NotificationCenter.default.addObserver(
-                forName: UserDefaults.didChangeNotification, object: context.defaults, queue: .main
-            ) { [weak self] _ in
-                Task { @MainActor [weak self] in self?.switchesChanged() }
-            }, center: .default),
+            observe(NSWorkspace.didActivateApplicationNotification, in: NSWorkspace.shared.notificationCenter) {
+                $0.applicationActivated()
+            },
+            observe(
+                Notification.Name(kTISNotifySelectedKeyboardInputSourceChanged as String),
+                in: DistributedNotificationCenter.default()
+            ) { $0.relayout() },
+            observe(UserDefaults.didChangeNotification, in: .default, object: context.defaults) {
+                $0.switchesChanged()
+            },
         ]
+    }
+
+    private func observe(
+        _ name: Notification.Name, in center: NotificationCenter, object: Any? = nil,
+        _ action: @escaping @MainActor @Sendable (FinderToolsModule) -> Void
+    ) -> NotificationToken {
+        NotificationToken(center.addObserver(forName: name, object: object, queue: .main) { [weak self] _ in
+            Task { @MainActor [weak self] in
+                if let self { action(self) }
+            }
+        }, center: center)
     }
 
     func stop() {
@@ -137,10 +140,12 @@ final class FinderToolsModule: NotchcastModule {
     }
 
     private nonisolated static func modifiers(_ flags: CGEventFlags) -> FinderToolsPolicy.Modifiers {
-        let pairs: [(CGEventFlags, FinderToolsPolicy.Modifiers)] = [
-            (.maskCommand, .command), (.maskShift, .shift), (.maskAlternate, .option), (.maskControl, .control),
-        ]
-        return pairs.reduce(into: []) { if flags.contains($1.0) { $0.insert($1.1) } }
+        var modifiers: FinderToolsPolicy.Modifiers = []
+        if flags.contains(.maskCommand) { modifiers.insert(.command) }
+        if flags.contains(.maskShift) { modifiers.insert(.shift) }
+        if flags.contains(.maskAlternate) { modifiers.insert(.option) }
+        if flags.contains(.maskControl) { modifiers.insert(.control) }
+        return modifiers
     }
 
     private func applicationActivated() {
