@@ -337,6 +337,13 @@ struct NotchcastCoreTest {
         check("a digit maps to its entry row", controller.launcherRow(digit: 2, query: "sa", entryRows: [2, 5]) == 5)
         check("a declined digit falls through", controller.launcherRow(digit: 3, query: "sa", entryRows: [2, 5]) == nil)
         check("the context finds its module", controller.context(forSwitch: "probeMain")?.module(ProbeModule.self) != nil)
+        let probe = controller.enabledCommands
+        controller.preferences.setShowsInLauncher("command:nc-probe-run", false)
+        check("Show in launcher off leaves the launcher list, keeping the command",
+              published.count == 2 && controller.launcherCommands(probe).isEmpty
+                  && controller.run(entryID: "command:nc-probe-run"))
+        controller.preferences.setShowsInLauncher("command:nc-probe-run", true)
+        check("Show in launcher on lists it again", published.count == 3 && controller.launcherCommands(probe).count == 1)
 
         controller.preferences.set("probeChild", on: true)
         drain()
@@ -519,6 +526,8 @@ struct NotchcastCoreTest {
         check("each add-on switch draws its commands' alias and hotkey fields",
               view.contains("AliasField(key: command.id, name: command.name)")
                 && view.contains("ShortcutRecorder(action: .notchcastCommand(entryID: command.id))"))
+        check("each add-on command draws its own Show in launcher checkbox",
+              view.contains("preferences.setShowsInLauncher(command.id, $0)"))
     }
 
     /// The Notchcast sidebar section: which tab holds which category, which tabs show, and their links.
