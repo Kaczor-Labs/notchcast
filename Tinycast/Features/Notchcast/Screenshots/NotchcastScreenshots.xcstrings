@@ -3,7 +3,8 @@
   "strings" : {
     "Capture Area" : {},
     "Capture Screen" : {},
-    "Capture an area, window or display." : {},
+    "Capture Text" : {},
+    "Capture an area, window or display, or copy its text." : {},
     "Capture area is unavailable." : {},
     "Choose…" : {},
     "Clipboard" : {},
@@ -14,6 +15,7 @@
     "Desktop" : {},
     "Drag to capture an area, click a window, or press Return for the whole screen." : {},
     "File" : {},
+    "No text found in the selected area." : {},
     "Screen Recording access is required." : {},
     "Screenshot destination" : {},
     "Screenshot folder" : {},
