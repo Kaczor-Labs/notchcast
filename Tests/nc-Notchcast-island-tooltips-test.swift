@@ -4,7 +4,7 @@
 // notchcast-reads: Tinycast/DesignSystem/InlineArgumentFields.swift Tinycast/Palette/RootPaletteView.swift Tinycast/Features/Notchcast/IslandHelp.swift
 import Foundation
 
-// design-system.md §13.8: island controls hang Tinycast's `.tooltip`, never the system `.help()`.
+// design-system.md §13.9: island controls hang Tinycast's `.tooltip`, never the system `.help()`.
 let islandFiles = [
     "Tinycast/Features/Launcher/UI/CompactBar.swift",
     "Tinycast/Features/Launcher/UI/SectionHeader.swift",
