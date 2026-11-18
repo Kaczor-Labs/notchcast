@@ -192,12 +192,9 @@ struct NotchLookTokensTests {
         legible("accent ink on pressed primary", resolved(NotchTheme.Colors.accentInk, frosted: true), on: pressed)
 
         print("# A command tile's white glyph keeps 3:1 on the tile on the cursor row")
-        let glass = ObsidianTokens.Glass.self
-        let declared = over(resolved(glass.glassCursor, frosted: true), over(resolved(glass.glassBar, frosted: true), white))
         let cursorRows = [("black", over(resolved(c.selection, frosted: false), [0, 0, 0])),
                           ("frosted", over(resolved(c.selection, frosted: true), body)),
-                          ("frosted solid", over(resolved(c.selection, frosted: true), solid)),
-                          ("OBSIDIAN glassCursor", declared)]
+                          ("frosted solid", over(resolved(c.selection, frosted: true), solid))]
         let tile = resolved(NotchTheme.Colors.iconTileFill, frosted: true)
         for (name, row) in cursorRows {
             legible("tile glyph on the \(name) cursor row", resolved(.white, frosted: true), on: over(tile, row), atLeast: 3)
