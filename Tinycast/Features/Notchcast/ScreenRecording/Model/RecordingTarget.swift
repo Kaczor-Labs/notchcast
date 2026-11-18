@@ -1,3 +1,7 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (C) 2026 Vorssaint
+// Adapted from Vorssaint 89d2626's recorder support: even pixel sides with a minimum.
+
 import CoreGraphics
 import Foundation
 
@@ -73,13 +77,19 @@ enum RecordingGeometry {
         return area.offsetBy(dx: -frame.minX, dy: -frame.minY)
     }
 
-    /// Whole pixels, rounded up to even sides as H.264 and HEVC need; nil when empty or too big.
+    /// Encoders reject or quietly adjust odd sides, so a capture is sized in whole, even pixels.
+    static let minimumPixels = 32
+
+    /// Even sides rounded down, at least `minimumPixels`; nil when empty or too big.
     static func pixelSize(points: CGSize, scale: CGFloat) -> (width: Int, height: Int)? {
-        guard points.width.isFinite, points.height.isFinite, scale.isFinite, scale > 0 else { return nil }
-        let width = Int((points.width * scale).rounded(.up))
-        let height = Int((points.height * scale).rounded(.up))
-        guard width > 0, height > 0 else { return nil }
-        let even = (width + width % 2, height + height % 2)
-        return even.0 <= maximumPixels && even.1 <= maximumPixels ? even : nil
+        guard points.width.isFinite, points.height.isFinite, points.width > 0, points.height > 0,
+              scale.isFinite, scale > 0,
+              max(points.width, points.height) * scale < CGFloat(maximumPixels + 1) else { return nil }
+        return (evenSide(points.width * scale), evenSide(points.height * scale))
+    }
+
+    private static func evenSide(_ pixels: CGFloat) -> Int {
+        let whole = max(minimumPixels, Int(pixels.rounded(.down)))
+        return whole - whole % 2
     }
 }

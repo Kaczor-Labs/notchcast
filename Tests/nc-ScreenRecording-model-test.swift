@@ -77,20 +77,33 @@ enum ScreenRecordingModelTests {
         check("a cut passes through when it can", RecordingExport.plan(trim, passthroughWorks: true) == .passthrough)
         check("a cut re-encodes when it cannot", RecordingExport.plan(trim, passthroughWorks: false) == .reencode)
         trim.setStart(9)
-        check("start stops short of the end", abs(trim.start - (8 - RecordingTrim.minimumLength)) < 1e-9)
+        check("a start past the end pushes the end ahead of it",
+              trim.start == 9 && abs(trim.end - (9 + RecordingTrim.minimumLength)) < 1e-9)
         trim.setEnd(0)
-        check("end stops past the start", abs(trim.end - (trim.start + RecordingTrim.minimumLength)) < 1e-9)
-        trim.setEnd(50)
+        check("an end before the start gives way to it",
+              trim.start == 9 && abs(trim.end - (9 + RecordingTrim.minimumLength)) < 1e-9)
+        trim.setStart(9.95)
+        check("a start at the very end leaves the minimum before it",
+              abs(trim.start - (10 - RecordingTrim.minimumLength)) < 1e-9 && abs(trim.end - 10) < 1e-9)
         trim.setStart(-4)
+        trim.setEnd(50)
         check("handles stay inside the clip", trim.start == 0 && trim.end == 10)
+        trim.setStart(3)
+        trim.setEnd(7)
         trim.setStart(.nan)
         trim.setEnd(.infinity)
-        check("non-finite times are ignored", trim.start == 0 && trim.end == 10)
+        check("non-finite times fall back to the clip's ends", trim.start == 0 && trim.end == 10 && trim.isWhole)
         let empty = RecordingTrim(duration: .nan)
-        check("an unreadable duration is empty and whole", empty.duration == 0 && empty.isWhole)
+        check("an unreadable duration is empty and whole", empty.duration == 0 && empty.length == 0 && empty.isWhole)
         var short = RecordingTrim(duration: 0.05)
         short.setStart(1)
-        check("a clip shorter than the minimum keeps its start at 0", short.start == 0 && short.end == 0.05)
+        check("a clip shorter than the minimum keeps all of it", short.start == 0 && short.end == 0.05)
+
+        let id = UUID()
+        let destination = URL(filePath: "/tmp/clips/Screen Recording.mov")
+        check("a cut is written beside its destination under a hidden name",
+              RecordingExport.stagingURL(for: destination, id: id)
+                == URL(filePath: "/tmp/clips/.notchcast-partial-\(id.uuidString).mov"))
     }
 
     static func geometry() {
@@ -120,13 +133,17 @@ enum ScreenRecordingModelTests {
                 == CGRect(x: 100, y: 100, width: 200, height: 100))
         check("an area across two displays has no source rect",
               RecordingGeometry.sourceRect(CGRect(x: 1400, y: 100, width: 200, height: 100), onDisplay: second) == nil)
-        let pixels = RecordingGeometry.pixelSize(points: CGSize(width: 100.3, height: 51), scale: 2)
-        check("pixels round up to even sides", pixels?.width == 202 && pixels?.height == 102)
+        let pixels = RecordingGeometry.pixelSize(points: CGSize(width: 100.3, height: 51.5), scale: 2)
+        check("pixels round down to even sides", pixels?.width == 200 && pixels?.height == 102)
+        let tiny = RecordingGeometry.pixelSize(points: CGSize(width: 5, height: 300), scale: 1)
+        check("a side never drops below the minimum", tiny?.width == 32 && tiny?.height == 300)
         check("an empty capture has no size", RecordingGeometry.pixelSize(points: .zero, scale: 2) == nil)
         check("an oversize capture has no size",
               RecordingGeometry.pixelSize(points: CGSize(width: 9000, height: 10), scale: 2) == nil)
         check("a broken scale has no size",
               RecordingGeometry.pixelSize(points: CGSize(width: 10, height: 10), scale: .nan) == nil)
+        check("an absurd size has no size, rather than a crash",
+              RecordingGeometry.pixelSize(points: CGSize(width: 1e300, height: 10), scale: 2) == nil)
     }
 
     static func options() {

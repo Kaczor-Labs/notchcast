@@ -1,3 +1,7 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (C) 2026 Vorssaint
+// Adapted from Vorssaint 89d2626's exporter: a cut is written beside its destination, then moved in.
+
 import AppKit
 import AVFoundation
 import ScreenCaptureKit
@@ -83,7 +87,10 @@ extension RecordingSystem {
         session.timeRange = CMTimeRange(
             start: CMTime(seconds: trim.start, preferredTimescale: 600),
             end: CMTime(seconds: trim.end, preferredTimescale: 600))
-        try await session.export(to: destination, as: fileType(destination))
+        let staged = RecordingExport.stagingURL(for: destination, id: UUID())
+        defer { try? FileManager.default.removeItem(at: staged) }
+        try await session.export(to: staged, as: fileType(destination))
+        try FileManager.default.moveItem(at: staged, to: destination)
     }
 
     /// What ScreenCaptureKit itself offers, so a window that can be picked can also be recorded.

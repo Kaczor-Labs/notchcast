@@ -22,3 +22,7 @@ DisplaySound: Model/BrightnessFunctionKeys.swift ← vorssaint/vorssaint-utils@8
 DisplaySound: Service/BrightnessDisplayService.swift ← vorssaint/vorssaint-utils@89d2626/Sources/Vorssaint/Services/Display/BrightnessService.swift (GPL-3.0-or-later)
 DisplaySound: Service/BrightnessController.swift ← vorssaint/vorssaint-utils@89d2626/Sources/Vorssaint/Services/Display/BrightnessService.swift (GPL-3.0-or-later)
 DisplaySound: UI/BrightnessDisplayRowState.swift ← vorssaint/vorssaint-utils@89d2626/Sources/Vorssaint/Services/Display/BrightnessService.swift (GPL-3.0-or-later)
+ScreenRecording: Model/RecordingTrim.swift ← vorssaint/vorssaint-utils@89d2626/Sources/Vorssaint/Services/Recorder/RecorderSupport.swift (GPL-3.0-or-later)
+ScreenRecording: Model/RecordingTarget.swift ← vorssaint/vorssaint-utils@89d2626/Sources/Vorssaint/Services/Recorder/RecorderSupport.swift (GPL-3.0-or-later)
+ScreenRecording: Service/ScreenRecordingCapture.swift ← vorssaint/vorssaint-utils@89d2626/Sources/Vorssaint/Services/Recorder/RecorderCaptureEngine.swift (GPL-3.0-or-later)
+ScreenRecording: Service/RecordingSystem+Live.swift ← vorssaint/vorssaint-utils@89d2626/Sources/Vorssaint/Services/Recorder/RecorderExporter.swift (GPL-3.0-or-later)

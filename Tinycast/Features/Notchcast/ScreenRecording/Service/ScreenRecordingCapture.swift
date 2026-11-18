@@ -1,3 +1,7 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (C) 2026 Vorssaint
+// Adapted from Vorssaint 89d2626's capture engine: the stream's configuration and its failures.
+
 import AVFoundation
 import ScreenCaptureKit
 
@@ -22,8 +26,8 @@ final class ScreenRecordingCapture: RecordingCapture {
                 case .finished: settle(.success(()))
                 case .failed(let error):
                     let unexpected = !stopping && outcome == nil
-                    settle(.failure(error))
-                    if unexpected { self.ended(error) }
+                    settle(.failure(Self.failure(for: error)))
+                    if unexpected { self.ended(Self.failure(for: error)) }
                 }
             }
         }
@@ -32,8 +36,24 @@ final class ScreenRecordingCapture: RecordingCapture {
     static func start(_ target: RecordingTarget, _ options: RecordingOptions, _ file: URL,
                       ended: @escaping @MainActor (any Error) -> Void) async throws -> any RecordingCapture {
         let (events, continuation) = AsyncStream.makeStream(of: StreamRelay.Event.self)
-        let box = try await open(target, options, file, relay: StreamRelay(events: continuation))
-        return ScreenRecordingCapture(box: box, events: events, ended: ended)
+        do {
+            let box = try await open(target, options, file, relay: StreamRelay(events: continuation))
+            return ScreenRecordingCapture(box: box, events: events, ended: ended)
+        } catch {
+            throw failure(for: error)
+        }
+    }
+
+    /// ScreenCaptureKit's own codes as the few failures a person can act on.
+    private static func failure(for error: any Error) -> any Error {
+        let streamError = error as NSError
+        guard streamError.domain == SCStreamErrorDomain, let code = SCStreamError.Code(rawValue: streamError.code)
+        else { return error }
+        switch code {
+        case .userDeclined: return RecordingTarget.Failure.screenPermission
+        case .noWindowList, .noDisplayList, .noCaptureSource: return RecordingTarget.Failure.targetUnavailable
+        default: return RecordingTarget.Failure.captureFailed
+        }
     }
 
     /// Returns once the file is finished; a stream that already failed returns at once.
@@ -66,6 +86,7 @@ final class ScreenRecordingCapture: RecordingCapture {
         let content = try await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: true)
         let filter: SCContentFilter
         var sourceRect: CGRect?
+        var followsWindow = false
         switch target {
         case .area(let rect):
             guard let display = content.displays.first(where: { $0.frame.contains(rect) }),
@@ -78,6 +99,7 @@ final class ScreenRecordingCapture: RecordingCapture {
                 throw RecordingTarget.Failure.targetUnavailable
             }
             filter = SCContentFilter(desktopIndependentWindow: window)
+            followsWindow = true
         case .display(let id):
             guard let display = content.displays.first(where: { $0.displayID == id }) else {
                 throw RecordingTarget.Failure.targetUnavailable
@@ -92,9 +114,22 @@ final class ScreenRecordingCapture: RecordingCapture {
         configuration.height = pixels.height
         if let sourceRect { configuration.sourceRect = sourceRect }
         configuration.minimumFrameInterval = CMTime(value: 1, timescale: 60)
+        configuration.pixelFormat = kCVPixelFormatType_32BGRA
+        configuration.colorSpaceName = CGColorSpace.sRGB
+        // A window keeps the size it started at, so a resize scales into it instead of leaving a gap.
+        configuration.scalesToFit = followsWindow
+        configuration.preservesAspectRatio = true
+        configuration.captureResolution = .best
+        configuration.shouldBeOpaque = true
+        configuration.ignoreShadowsDisplay = true
+        configuration.ignoreShadowsSingleWindow = true
         configuration.showsCursor = true
-        configuration.capturesAudio = options.systemAudio
-        configuration.excludesCurrentProcessAudio = true
+        if options.systemAudio {
+            configuration.capturesAudio = true
+            configuration.sampleRate = 48_000
+            configuration.channelCount = 2
+            configuration.excludesCurrentProcessAudio = true
+        }
         configuration.captureMicrophone = options.microphone
         let recording = SCRecordingOutputConfiguration()
         recording.outputURL = file
