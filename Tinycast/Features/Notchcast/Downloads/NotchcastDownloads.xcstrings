@@ -22,6 +22,21 @@
     "Keep sharing until ratio 1.0" : {
 
     },
+    "Use Wi-Fi and a plugged-in iPhone together" : {
+
+    },
+    "Downloads over 200 MB use both while the iPhone shares Personal Hotspot over USB." : {
+
+    },
+    "Every torrent uses both while the iPhone shares Personal Hotspot over USB." : {
+
+    },
+    "Wi-Fi + iPhone" : {
+
+    },
+    "iPhone · %@" : {
+
+    },
     "No peers found in 10 minutes." : {
 
     },

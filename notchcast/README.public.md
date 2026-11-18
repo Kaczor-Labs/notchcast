@@ -38,11 +38,11 @@ The in-app updater stays off in Notchcast. To keep a Mac current, clone this rep
 - **Look per display.** Each display's island is Black or Frosted (glass). A display you never set is Black when it has a notch and Frosted when it has none. Change it in Settings › Notchcast › Island.
 - **Settings › Notchcast.** One tab per area, each add-on with its own switch; an add-on's tab shows only while that add-on is in the build.
   - **Island**: look, outline when open, open on hover, position on displays without a notch, show in screenshots and videos.
-  - **Keyboard & Mouse**: hide with ⌘M, Show Desktop with F3, Quit Protection, trackpad middle click.
+  - **Keyboard & Mouse**: hide with ⌘M, Show Desktop with F3, Quit Protection, trackpad middle click, Paste Plain Text.
   - **Display & Sound**: brightness keys for every display, volume in the island, stop Apple Music opening on media keys, AirPods and Beats noise control from the launcher.
   - **Capture**: screenshots of an area, window or display.
   - **Launcher Extras**: ⌘1–⌘9 open the first nine results; small commands for passwords, short links and AirDrop.
-  - **Downloads**: video, audio, transcripts and webpages from clipboard links, with optional aria2c and transcription into a local folder; optionally a copy of each note in a Markdown folder you choose, where dropped PDF, HTML and audio files become notes and their originals go to the Trash.
+  - **Downloads**: video, audio, transcripts and webpages from clipboard links, with optional aria2c and transcription into a local folder; big downloads and torrents can use Wi-Fi and a USB-tethered iPhone together; optionally a copy of each note in a Markdown folder you choose, where PDF, HTML, audio and video files dropped in while the option is on become notes and their originals go to the Trash.
   - **Mac Tweaks**: turn off iPhone auto backups.
 - **Add-on commands** are ordinary launcher commands: search them, and give them an alias, a hotkey or Show in launcher on the command's row in its Notchcast tab.
 
