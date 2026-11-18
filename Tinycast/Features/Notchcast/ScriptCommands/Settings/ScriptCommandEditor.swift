@@ -35,7 +35,7 @@ struct ScriptCommandEditor: View {
         }
     }
 
-    private func binding<Value>(_ field: WritableKeyPath<ScriptCommand, Value>) -> Binding<Value> {
+    private func binding<Value>(_ field: WritableKeyPath<ScriptCommand, Value> & Sendable) -> Binding<Value> {
         Binding(
             get: { module.rows.first { $0.id == id }.map { $0[keyPath: field] } ?? ScriptCommand(id: id)[keyPath: field] },
             set: { value in
