@@ -10,18 +10,23 @@ final class NotchcastContext {
     private let hub: NotchcastTapHub
     private let transcription: NotchcastTranscriptionRunner
     private let onTapsChanged: @MainActor () -> Void
+    private let onCommandsChanged: @MainActor () -> Void
     /// Strong is safe: a recovery context links to nothing, and the controller's slot owns both.
     private let recoveryContext: NotchcastContext?
     private(set) var wantedTaps: [(token: UUID, tap: NotchcastTap)] = []
     private(set) var module: (any NotchcastModule)?
     /// Returns true to consume a digit typed in the launcher (Number Keys, hook H9).
     private(set) var launcherDigit: (@MainActor (_ digit: Int, _ query: String, _ entryRows: [Int]) -> Int?)?
+    /// Commands the running module added to the descriptor's own, such as one per device.
+    private(set) var commands: [NotchcastCommand] = []
+    private(set) var launcherShown: (@MainActor () -> Void)?
 
     init(
         defaults: UserDefaults, preferences: NotchcastPreferences, presenter: any IslandPresenting,
         hub: NotchcastTapHub, transcription: NotchcastTranscriptionRunner,
         now: @escaping @MainActor () -> Date,
-        onTapsChanged: @escaping @MainActor () -> Void, recovery: NotchcastContext? = nil
+        onTapsChanged: @escaping @MainActor () -> Void, onCommandsChanged: @escaping @MainActor () -> Void = {},
+        recovery: NotchcastContext? = nil
     ) {
         self.defaults = defaults
         self.preferences = preferences
@@ -30,6 +35,7 @@ final class NotchcastContext {
         self.transcription = transcription
         self.now = now
         self.onTapsChanged = onTapsChanged
+        self.onCommandsChanged = onCommandsChanged
         recoveryContext = recovery
     }
 
@@ -65,6 +71,15 @@ final class NotchcastContext {
         launcherDigit = handler
     }
 
+    /// Replaces the module's own commands; the launcher, hotkeys and Settings follow at once.
+    func setCommands(_ commands: [NotchcastCommand]) {
+        self.commands = commands
+        onCommandsChanged()
+    }
+
+    /// Runs each time the launcher opens, so a module can refresh what its commands list.
+    func handleLauncherShown(_ handler: (@MainActor () -> Void)?) { launcherShown = handler }
+
     /// Stock Dictation's text for a file; `.busy` while the user dictates or another one runs.
     func transcribe(_ audioURL: URL) async throws -> String { try await transcription.transcribe(audioURL) }
 
@@ -78,5 +93,7 @@ final class NotchcastContext {
         module = nil
         wantedTaps.removeAll()
         launcherDigit = nil
+        commands = []
+        launcherShown = nil
     }
 }

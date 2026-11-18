@@ -1,0 +1,24 @@
+{
+  "sourceLanguage" : "en",
+  "strings" : {
+    "%@ is offline." : {},
+    "Allow Automation access to read the Finder selection." : {},
+    "Cancelled" : {},
+    "Could not zip %@." : {},
+    "No device can receive files." : {},
+    "Select files in Finder first." : {},
+    "Send the Finder selection to another of your devices with Tailscale." : {},
+    "Sending to %@" : {},
+    "Sent" : {},
+    "Taildrop" : {},
+    "Taildrop failed." : {},
+    "Taildrop failed: %@" : {},
+    "Taildrop is ready." : {},
+    "Taildrop to %@" : {},
+    "Tailscale is not installed." : {},
+    "Tailscale is not running." : {},
+    "Tailscale is signed out." : {},
+    "That device no longer receives files." : {}
+  },
+  "version" : "1.0"
+}

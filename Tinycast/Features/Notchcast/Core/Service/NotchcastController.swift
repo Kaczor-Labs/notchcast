@@ -41,7 +41,8 @@ final class NotchcastController {
             NotchcastContext(
                 defaults: defaults, preferences: preferences, presenter: presenter, hub: hub,
                 transcription: transcription, now: now,
-                onTapsChanged: { [weak self] in self?.applyTaps() }, recovery: recovery)
+                onTapsChanged: { [weak self] in self?.applyTaps() },
+                onCommandsChanged: { [weak self] in self?.commandsChanged() }, recovery: recovery)
         }
         slots = addons.map { addon in
             let recovery = makeContext()
@@ -82,7 +83,7 @@ final class NotchcastController {
     /// False when the id is no enabled add-on command, so the caller falls through to stock.
     func run(entryID: String) -> Bool {
         guard let command = enabledCommands.first(where: { $0.id == entryID }),
-            let slot = slots.first(where: { $0.addon.commands.contains { $0.id == entryID } })
+            let slot = slots.first(where: { allCommands(of: $0).contains { $0.id == entryID } })
         else { return false }
         command.run(slot.context)
         return true
@@ -90,6 +91,13 @@ final class NotchcastController {
 
     func launcherRow(digit: Int, query: String, entryRows: [Int]) -> Int? {
         slots.lazy.compactMap { $0.context.launcherDigit?(digit, query, entryRows) }.first
+    }
+
+    /// The descriptor's commands, then the ones the add-on's running module added.
+    func allCommands(of slot: Slot) -> [NotchcastCommand] { slot.addon.commands + slot.context.commands }
+
+    func launcherShown() {
+        for slot in slots { slot.context.launcherShown?() }
     }
 
     func context(forSwitch id: String) -> NotchcastContext? {
@@ -124,8 +132,13 @@ final class NotchcastController {
         publishCommands()
     }
 
+    private func commandsChanged() {
+        guard isRunning else { return }
+        publishCommands()
+    }
+
     private func publishCommands() {
-        let commands = slots.flatMap { $0.addon.commands }.filter { enabled.contains($0.switchID) }
+        let commands = slots.flatMap(allCommands(of:)).filter { enabled.contains($0.switchID) }
         let shown = launcherCommands(commands).map(\.id)
         guard commands.map(\.id) != enabledCommands.map(\.id) || shown != launcherIDs else { return }
         enabledCommands = commands
