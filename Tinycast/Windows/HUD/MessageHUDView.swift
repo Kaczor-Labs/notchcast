@@ -46,7 +46,7 @@ struct MessageHUDView: View {
         .frame(maxWidth: metrics.size.hudMaxWidth, alignment: .leading)
         .fixedSize()
         .background(hovered ? Theme.Colors.rowHover : .clear)
-        .background(NotchTheme.Colors.islandSurface)
+        .background(NotchTheme.Colors.islandPanelFill)
         .clipShape(Capsule())
     }
 
