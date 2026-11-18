@@ -21,6 +21,11 @@ struct IslandCanvasTest {
         let glance = IslandGlance(meeting, now: Date(timeIntervalSince1970: 0), locale: Locale(identifier: "en_US"))
         let canvas = IslandCanvas()
 
+        let beside = GlanceArt(glance, notch: true, frosted: false)
+        let glyph = Double(GlanceArt.glyph(glance.symbol, tone: .white)?.size.width ?? 0)
+        precondition(beside.layout.leading == glyph, "Beside a notch the meeting glance is its glyph, never its title")
+        precondition(GlanceArt(glance, notch: false, frosted: false).layout.showsTitle, "Without a notch the title stays")
+
         canvas.show(glance: nil, level: nil, notice: notice, statuses: [], expanded: false, notch: notch)
         precondition(canvas.headline != nil && canvas.glance == nil, "On a notch a text notice is a headline")
         canvas.show(glance: nil, level: nil, notice: nil, statuses: [], expanded: false, notch: notch)
