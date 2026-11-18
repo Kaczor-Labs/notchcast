@@ -15,6 +15,7 @@ enum NotchcastRegistry {
         DisplaySoundAddon.self,
         NoiseControlAddon.self,
         AutoBackupAddon.self,
+        PastePlainTextAddon.self,
         ColorPickerAddon.self,
         CopyPathAddon.self,
     ]
