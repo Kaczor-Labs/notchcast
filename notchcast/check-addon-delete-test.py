@@ -87,8 +87,9 @@ class DeleteTest(unittest.TestCase):
 
     def test_a_fork_harness_the_runner_skipped_is_reported(self):
         log = ('[1/3] \x1b[32mok\x1b[0m    nc-Keep-test       0.0s\n'
-               '[2/3] \x1b[31mFAIL\x1b[0m  notchcast-hidden-features-test\n')
-        names = ['nc-Keep-test', 'nc-Other-test', 'notchcast-hidden-features-test']
+               '[2/3] \x1b[31mFAIL\x1b[0m  notchcast-hidden-features-test\n'
+               '[ 97/170] ok    nc-Padded-test   0.0s\n')
+        names = ['nc-Keep-test', 'nc-Other-test', 'notchcast-hidden-features-test', 'nc-Padded-test']
         self.assertEqual(delete.unreported(log, names), ['nc-Other-test'])
 
     def test_fork_harnesses_come_from_harness_inputs(self):
