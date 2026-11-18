@@ -1,5 +1,6 @@
 import ApplicationServices
 import Foundation
+import Observation
 
 /// The one owner of the add-on system: created by AppCore in `start`, stopped at terminate.
 @MainActor
@@ -27,7 +28,9 @@ final class NotchcastCore {
         let tabs = Dictionary(
             controller.switches.map { ($0.id, NotchcastPane.holding($0.category)) },
             uniquingKeysWith: { first, _ in first })
-        controller.onCommandsChanged = { [weak core, weak controller] commands in
+        let declaredIDs = Set(commands.map(\.id))
+        controller.onCommandsChanged = { [weak self, weak core, weak controller] commands in
+            self?.launcherHides?.commandIDs = declaredIDs.union(commands.map(\.id))
             core?.appIndex.extraCommandEntries = (controller?.launcherCommands(commands) ?? []).map {
                 AppEntry(notchcastCommand: $0.id, name: $0.name, symbol: $0.symbol, keywords: $0.keywords,
                          owner: .notchcast(tabs[$0.switchID] ?? .island))
@@ -46,9 +49,22 @@ final class NotchcastCore {
             controller?.launcherRow(digit: digit, query: query, entryRows: entryRows)
         }
         launcherHides = NotchcastLauncherHides(
-            visibility: core.visibility, preferences: controller.preferences, commandIDs: Set(commands.map(\.id)))
+            visibility: core.visibility, preferences: controller.preferences, commandIDs: declaredIDs)
         trustMonitor = NotchcastTrustMonitor(hub: hub)
         controller.start()
+        watchLauncher(core.palette)
+    }
+
+    /// Tells the add-ons each time the palette opens; the observation re-arms itself on every flip.
+    private func watchLauncher(_ palette: PaletteState) {
+        let isOpen = withObservationTracking {
+            palette.isVisible
+        } onChange: { [weak self, weak palette] in
+            Task { @MainActor in
+                if let palette { self?.watchLauncher(palette) }
+            }
+        }
+        if isOpen { controller.launcherOpened() }
     }
 
     func stop() {

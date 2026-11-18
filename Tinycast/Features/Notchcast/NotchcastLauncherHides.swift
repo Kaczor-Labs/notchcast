@@ -5,7 +5,8 @@ import Observation
 final class NotchcastLauncherHides {
     private let visibility: VisibilityStore
     private let preferences: NotchcastPreferences
-    private let commandIDs: Set<String>
+    /// Grows with the commands modules list at run time, so their Hide lands on a checkbox too.
+    var commandIDs: Set<String>
     /// The pending copy of a launcher Hide onto its checkbox, so a caller can await it.
     private(set) var adoption: Task<Void, Never>?
 

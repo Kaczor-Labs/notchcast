@@ -12,6 +12,9 @@ final class NotchcastController {
         let recovery: NotchcastContext
         let declaredTaps: [(token: UUID, tap: NotchcastTap)]
         let settings: [SettingsEntry]
+
+        /// Declared ones first, then those its module lists at run time.
+        var commands: [NotchcastCommand] { addon.commands + context.liveCommands }
     }
 
     /// An add-on's settings row with an identity fixed at registration, for a stable `ForEach`.
@@ -41,7 +44,8 @@ final class NotchcastController {
             NotchcastContext(
                 defaults: defaults, preferences: preferences, presenter: presenter, hub: hub,
                 transcription: transcription, now: now,
-                onTapsChanged: { [weak self] in self?.applyTaps() }, recovery: recovery)
+                onTapsChanged: { [weak self] in self?.applyTaps() },
+                onCommandsChanged: { [weak self] in self?.publishCommands() }, recovery: recovery)
         }
         slots = addons.map { addon in
             let recovery = makeContext()
@@ -82,7 +86,7 @@ final class NotchcastController {
     /// False when the id is no enabled add-on command, so the caller falls through to stock.
     func run(entryID: String) -> Bool {
         guard let command = enabledCommands.first(where: { $0.id == entryID }),
-            let slot = slots.first(where: { $0.addon.commands.contains { $0.id == entryID } })
+            let slot = slots.first(where: { $0.commands.contains { $0.id == entryID } })
         else { return false }
         command.run(slot.context)
         return true
@@ -90,6 +94,10 @@ final class NotchcastController {
 
     func launcherRow(digit: Int, query: String, entryRows: [Int]) -> Int? {
         slots.lazy.compactMap { $0.context.launcherDigit?(digit, query, entryRows) }.first
+    }
+
+    func launcherOpened() {
+        for slot in slots { slot.context.launcherOpened?() }
     }
 
     func context(forSwitch id: String) -> NotchcastContext? {
@@ -125,9 +133,10 @@ final class NotchcastController {
     }
 
     private func publishCommands() {
-        let commands = slots.flatMap { $0.addon.commands }.filter { enabled.contains($0.switchID) }
+        let commands = slots.flatMap(\.commands).filter { enabled.contains($0.switchID) }
         let shown = launcherCommands(commands).map(\.id)
-        guard commands.map(\.id) != enabledCommands.map(\.id) || shown != launcherIDs else { return }
+        let renamed = commands.map(\.name) != enabledCommands.map(\.name)
+        guard renamed || commands.map(\.id) != enabledCommands.map(\.id) || shown != launcherIDs else { return }
         enabledCommands = commands
         launcherIDs = shown
         onCommandsChanged?(commands)

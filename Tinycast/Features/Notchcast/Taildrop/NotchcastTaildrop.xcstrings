@@ -1,0 +1,22 @@
+{
+  "sourceLanguage" : "en",
+  "strings" : {
+    "A Taildrop is already running." : {},
+    "Allow Automation access to read the Finder selection." : {},
+    "Could not read %@." : {},
+    "Could not zip %@." : {},
+    "Finder did not respond in time." : {},
+    "Select files or folders in Finder first." : {},
+    "Send the Finder selection to your other Tailscale devices." : {},
+    "Sending to %@" : {},
+    "Sent to %@" : {},
+    "Taildrop" : {},
+    "Taildrop cancelled" : {},
+    "Taildrop failed." : {},
+    "Taildrop to %@" : {},
+    "Tailscale is not installed." : {},
+    "Tailscale is not running." : {},
+    "Tailscale is signed out or disconnected." : {}
+  },
+  "version" : "1.0"
+}
