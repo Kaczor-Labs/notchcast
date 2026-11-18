@@ -6,6 +6,7 @@ import Foundation
 final class NotchcastCore {
     let controller: NotchcastController
     private var trustMonitor: NotchcastTrustMonitor?
+    private var launcherHides: NotchcastLauncherHides?
 
     init(core: AppCore, addons: [any NotchcastAddon.Type] = NotchcastRegistry.addons) {
         let bundleID = Bundle.main.bundleIdentifier ?? "Notchcast"
@@ -26,8 +27,8 @@ final class NotchcastCore {
         let tabs = Dictionary(
             controller.switches.map { ($0.id, NotchcastPane.holding($0.category)) },
             uniquingKeysWith: { first, _ in first })
-        controller.onCommandsChanged = { [weak core] commands in
-            core?.appIndex.extraCommandEntries = commands.map {
+        controller.onCommandsChanged = { [weak core, weak controller] commands in
+            core?.appIndex.extraCommandEntries = (controller?.launcherCommands(commands) ?? []).map {
                 AppEntry(notchcastCommand: $0.id, name: $0.name, symbol: $0.symbol, keywords: $0.keywords,
                          owner: .notchcast(tabs[$0.switchID] ?? .island))
             }
@@ -44,6 +45,8 @@ final class NotchcastCore {
         LauncherScreen.digitRow = { [weak controller] digit, query, entryRows in
             controller?.launcherRow(digit: digit, query: query, entryRows: entryRows)
         }
+        launcherHides = NotchcastLauncherHides(
+            visibility: core.visibility, preferences: controller.preferences, commandIDs: Set(commands.map(\.id)))
         trustMonitor = NotchcastTrustMonitor(hub: hub)
         controller.start()
     }
