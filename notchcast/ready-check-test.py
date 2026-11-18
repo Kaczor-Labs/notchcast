@@ -108,6 +108,25 @@ class CoverageTest(unittest.TestCase):
                 self.assertRegex(ci_tests, rf"export .*\b{name}={value.strip(chr(39))}\b")
 
 
+class RunnerTest(unittest.TestCase):
+    def test_every_job_runs_on_a_hosted_image(self):
+        allowed = {"ubuntu-latest", "xcode-27", "macos-15"}
+        for workflow in sorted((ROOT / ".github/workflows").glob("*.y*ml")):
+            lines = workflow.read_text().splitlines()
+            for i, line in enumerate(lines):
+                match = re.match(r"(\s*)runs-on:(.*)", line)
+                if not match:
+                    continue
+                value = [match[2].split("#")[0]]
+                for more in lines[i + 1:]:
+                    if more.strip() and len(more) - len(more.lstrip()) <= len(match[1]):
+                        break
+                    value.append(more.split("#")[0])
+                labels = re.findall(r"[^\s\[\],'\"-][^\s\[\],'\"]*", " ".join(value))
+                with self.subTest(f"{workflow.name}:{i + 1}"):
+                    self.assertTrue(labels, "runs-on has no label")
+                    self.assertEqual(set(labels) - allowed, set(), "runs-on names a runner README Runners does not")
+
 # Machine git config (init.defaultBranch, signing, url rewrites) never reaches the fixture repos.
 GIT_ISOLATED = {"GIT_CONFIG_NOSYSTEM": "1", "GIT_CONFIG_GLOBAL": os.devnull}
 
