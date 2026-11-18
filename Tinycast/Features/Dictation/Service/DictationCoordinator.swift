@@ -16,7 +16,7 @@ final class DictationCoordinator {
     private let injector: TextInjector
     private let showMessage: (String, DialogTone) -> Void
     private let confirmEnable: () async -> Bool
-    @ObservationIgnored private var phase: Phase = .idle
+    private var phase: Phase = .idle
     @ObservationIgnored private var token = UUID()
     @ObservationIgnored private var enableTask: Task<Void, Never>?
     @ObservationIgnored private var startTask: Task<Void, Never>?
