@@ -1,0 +1,14 @@
+#!/bin/bash
+# lockf(1) on Linux, where only flock(1) exists: Scripts/run-tests.sh finds this when `command -v lockf` fails.
+set -euo pipefail
+wait=()
+while :; do
+    case "${1:-}" in
+        -k) shift;;
+        -t) if [ "$2" = 0 ]; then wait=(-n); else wait=(-w "$2"); fi; shift 2;;
+        *)  break;;
+    esac
+done
+file=$1
+shift
+exec flock "${wait[@]}" "$file" "$@"
