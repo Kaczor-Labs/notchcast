@@ -8,6 +8,9 @@ final class NotchcastPreferences {
     @ObservationIgnored private let defaults: UserDefaults
     @ObservationIgnored private let switches: [String: NotchcastSwitch]
     private var stored: [String: Bool]
+    private var launcherHidden: Set<String>
+
+    nonisolated static let launcherHiddenKey = "launcherHiddenCommands"
 
     nonisolated static func suiteName(bundleID: String) -> String { bundleID + ".notchcast" }
 
@@ -17,6 +20,16 @@ final class NotchcastPreferences {
         stored = self.switches.keys.reduce(into: [:]) { stored, id in
             if let value = defaults.object(forKey: id) as? Bool { stored[id] = value }
         }
+        launcherHidden = Set(defaults.stringArray(forKey: Self.launcherHiddenKey) ?? [])
+    }
+
+    /// A command's own "Show in launcher", on until the user turns it off.
+    func showsInLauncher(_ commandID: String) -> Bool { !launcherHidden.contains(commandID) }
+
+    func setShowsInLauncher(_ commandID: String, _ shown: Bool) {
+        guard showsInLauncher(commandID) != shown else { return }
+        if shown { launcherHidden.remove(commandID) } else { launcherHidden.insert(commandID) }
+        defaults.set(launcherHidden.sorted(), forKey: Self.launcherHiddenKey)
     }
 
     func isDeclared(_ id: String) -> Bool { switches[id] != nil }

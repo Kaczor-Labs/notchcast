@@ -31,7 +31,7 @@ struct NotchcastSettingsView: View {
     }
 }
 
-/// A switch, then its commands' alias and hotkey fields and its extra rows while it is on.
+/// A switch, then its commands' alias, hotkey and launcher fields and its extra rows while it is on.
 private struct NotchcastSwitchRows: View {
     let controller: NotchcastController
     let item: NotchcastSwitch
@@ -63,9 +63,16 @@ private struct NotchcastSwitchRows: View {
         }
         if preferences.isEnabled(item.id) {
             ForEach(controller.slots.flatMap { $0.addon.commands }.filter { $0.switchID == item.id }) { command in
-                SettingsRow(title: command.name) {
+                let shown = preferences.showsInLauncher(command.id)
+                SettingsRow(title: command.name, labelOpacity: shown ? 1 : 0.45) {
                     AliasField(key: command.id, name: command.name)
                     ShortcutRecorder(action: .notchcastCommand(entryID: command.id))
+                    Toggle("", isOn: Binding(get: { shown }, set: { preferences.setShowsInLauncher(command.id, $0) }))
+                        .labelsHidden()
+                        .toggleStyle(.checkbox)
+                        .launcherVisibilityHelp()
+                        .accessibilityLabel(
+                            String(localized: "Show \(command.name) in the launcher", table: "Notchcast"))
                 }
             }
             if let context = controller.context(forSwitch: item.id) {

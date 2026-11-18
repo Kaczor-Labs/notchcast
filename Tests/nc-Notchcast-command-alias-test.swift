@@ -9,6 +9,10 @@
 // notchcast-sources: Tinycast/Platform/Memo.swift Tinycast/Platform/Signposts.swift
 // notchcast-sources: Tinycast/Platform/NotificationToken.swift Tinycast/Platform/LocalizedResource.swift
 // notchcast-sources: Tinycast/Features/Notchcast/NotchcastCommandEntry.swift
+// notchcast-sources: Tinycast/Features/Notchcast/NotchcastLauncherHides.swift
+// notchcast-sources: Tinycast/Features/Notchcast/Core/Service/NotchcastPreferences.swift
+// notchcast-sources: Tinycast/Features/Notchcast/Core/Model/NotchcastSwitch.swift
+// notchcast-sources: Tinycast/Features/Notchcast/Core/Model/NotchcastCategory.swift
 // notchcast-sources: Tinycast/Features/HotKeys/Model/HotKeyAction.swift
 // notchcast-sources: Tinycast/Features/HotKeys/Model/HotKeyAction+EntryID.swift
 // notchcast-sources: Tinycast/Features/HotKeys/Model/DoubleTapModifier.swift Tinycast/Features/HotKeys/Model/ModifierKey.swift
@@ -19,7 +23,7 @@ import AppKit
 import Carbon.HIToolbox
 import Observation
 
-/// Two shipped add-on commands take an alias and a hotkey, and run with stock Commands switched off.
+/// Two shipped add-on commands take an alias, a hotkey and their own launcher switch, Commands off.
 @main
 @MainActor
 enum NotchcastCommandAliasTests {
@@ -58,9 +62,61 @@ enum NotchcastCommandAliasTests {
         }
         hotKeys(index.apps.filter { $0.id.hasPrefix("command:nc-") }, defaults: defaults)
         stockCommandsOff(index.apps.filter { $0.id.hasPrefix("command:nc-") }, defaults: defaults)
+        launcherToggle(commands.map { ($0.0, $0.1, $0.2) })
         print("\(checks) add-on command alias checks; \(failures) failures")
         if failures > 0 { exit(1) }
         print("PASSED")
+    }
+
+    /// #868: a command's own "Show in launcher" alone decides whether the launcher finds it.
+    static func launcherToggle(_ commands: [(id: String, name: String, alias: String)]) {
+        let domain = "tinycast.notchcast-launcher-toggle-test.\(UUID())"
+        let defaults = UserDefaults(suiteName: domain)!
+        defer { defaults.removePersistentDomain(forName: domain) }
+        let aliases = AliasStore(defaults: defaults)
+        let index = AppIndex(
+            ranking: LauncherRankingStore(
+                fileURL: FileManager.default.temporaryDirectory.appendingPathComponent("\(domain).json")),
+            aliases: aliases)
+        let visibility = VisibilityStore(defaults: defaults)
+        let favorites = FavoritesStore(defaults: defaults)
+        let hotKeys = HotKeyManager(defaults: defaults)
+        // The maintainer's Mac: an earlier version hid both commands, and stock Commands is off.
+        visibility.replace(hiddenItems: commands.map(\.id), disabledKinds: ["command"])
+        let preferences = NotchcastPreferences(defaults: defaults, switches: [])
+        let hides = NotchcastLauncherHides(
+            visibility: visibility, preferences: preferences, commandIDs: Set(commands.map(\.id)))
+        func publish() {
+            index.extraCommandEntries = commands.filter { preferences.showsInLauncher($0.id) }.map {
+                AppEntry(notchcastCommand: $0.id, name: $0.name, symbol: "key", keywords: [], owner: .addonTab)
+            }
+        }
+        func found(_ query: String, _ id: String) -> Bool {
+            index.orderedResults(query: query, visibility: visibility, favorites: favorites, hotKeys: hotKeys)
+                .entries.first?.id == id
+        }
+        publish()
+        for command in commands {
+            aliases.setAlias(command.alias, for: command.id)
+            check("\(command.name) shows in launcher by default", preferences.showsInLauncher(command.id))
+            check("\(command.name) is found by name despite an earlier stock hide", found(command.name, command.id))
+            check("\(command.name) is found by alias despite an earlier stock hide", found(command.alias, command.id))
+            preferences.setShowsInLauncher(command.id, false)
+            publish()
+            check("\(command.name) off is not found by name", !found(command.name, command.id))
+            check("\(command.name) off is not found by alias", !found(command.alias, command.id))
+            check("\(command.name) off survives a relaunch",
+                  !NotchcastPreferences(defaults: defaults, switches: []).showsInLauncher(command.id))
+            preferences.setShowsInLauncher(command.id, true)
+            publish()
+            check("\(command.name) back on is found by alias", found(command.alias, command.id))
+        }
+        let first = index.apps.first { $0.id == commands[0].id }!
+        visibility.setItemVisible(false, for: first)
+        RunLoop.main.run(until: Date())
+        check("the launcher's Hide turns the command's own switch off", !preferences.showsInLauncher(first.id))
+        check("the launcher's Hide leaves no stock hide behind", visibility.isItemVisible(first))
+        withExtendedLifetime(hides) {}
     }
 
     /// The stock Commands switch gates stock commands only; Capture Area must survive it being off.

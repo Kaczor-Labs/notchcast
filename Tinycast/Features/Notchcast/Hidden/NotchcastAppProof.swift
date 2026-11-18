@@ -12,6 +12,7 @@ enum NotchcastAppProof {
         setbuf(stdout, nil)
         switch name {
         case "hidden-settings": hiddenSettings()
+        case "addon-launcher": addonLauncher()
         default: fail("unknown proof \(name)")
         }
         print("PROOF PASS \(name)")
@@ -52,6 +53,37 @@ enum NotchcastAppProof {
         check(!settings.paletteDraggable, "paletteDraggable reads off")
         check(settings.openOnCursorScreen, "openOnCursorScreen reads on")
         check(settings.palettePosition(on: "proof") == nil, "stored palette position is ignored")
+    }
+
+    /// #868: the shipped wiring lists Capture Area by name and alias over an earlier version's hides.
+    private static func addonLauncher() {
+        let defaults = UserDefaults.standard
+        let suite = NotchcastPreferences.suiteName(bundleID: bundleID)
+        let addons = UserDefaults(suiteName: suite)!
+        defer {
+            defaults.removePersistentDomain(forName: bundleID)
+            addons.removePersistentDomain(forName: suite)
+        }
+        let ids = ["command:nc-screenshot-area", "command:nc-screenshot-display"]
+        defaults.set(ids, forKey: "hiddenLauncherItems")
+        defaults.set(["command", "systemSettings"], forKey: "hiddenLauncherKinds")
+        for addon in NotchcastRegistry.addons {
+            for item in addon.switches { addons.set(item.id == "screenshot", forKey: item.id) }
+        }
+        let core = AppCore.shared
+        let notchcast = NotchcastCore(core: core)
+        defer { notchcast.stop() }
+        core.aliases.setAlias("xj", for: ids[0])
+        func found(_ query: String) -> Bool {
+            core.appIndex.orderedResults(
+                query: query, visibility: core.visibility, favorites: core.favorites, hotKeys: core.hotKeys
+            ).entries.first?.id == ids[0]
+        }
+        check(found("Capture Area"), "Capture Area is found by name")
+        check(found("xj"), "Capture Area is found by its alias")
+        notchcast.controller.preferences.setShowsInLauncher(ids[0], false)
+        RunLoop.main.run(until: Date())
+        check(!found("Capture Area") && !found("xj"), "Capture Area with Show in launcher off is hidden")
     }
 
     private static func check(_ condition: Bool, _ message: String) {

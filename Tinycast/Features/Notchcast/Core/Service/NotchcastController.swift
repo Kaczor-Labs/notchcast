@@ -26,6 +26,7 @@ final class NotchcastController {
     private(set) var enabledCommands: [NotchcastCommand] = []
     var onCommandsChanged: (([NotchcastCommand]) -> Void)?
     private var enabled: Set<String> = []
+    private var launcherIDs: [String] = []
     private var isRunning = false
 
     init(
@@ -94,8 +95,10 @@ final class NotchcastController {
     private func reconcile() {
         guard isRunning else { return }
         let ids = switches.map(\.id)
+        let commandIDs = slots.flatMap { $0.addon.commands.map(\.id) }
         let now = withObservationTracking {
-            Set(ids.filter(preferences.isEnabled))
+            _ = commandIDs.map(preferences.showsInLauncher)
+            return Set(ids.filter(preferences.isEnabled))
         } onChange: { [weak self] in
             Task { @MainActor in self?.reconcile() }
         }
@@ -117,9 +120,16 @@ final class NotchcastController {
         }
         applyTaps()
         let commands = slots.flatMap { $0.addon.commands }.filter { now.contains($0.switchID) }
-        guard commands.map(\.id) != enabledCommands.map(\.id) else { return }
+        let shown = launcherCommands(commands).map(\.id)
+        guard commands.map(\.id) != enabledCommands.map(\.id) || shown != launcherIDs else { return }
         enabledCommands = commands
+        launcherIDs = shown
         onCommandsChanged?(commands)
+    }
+
+    /// The enabled commands the launcher lists; a hidden one keeps its hotkey.
+    func launcherCommands(_ commands: [NotchcastCommand]) -> [NotchcastCommand] {
+        commands.filter { preferences.showsInLauncher($0.id) }
     }
 
     /// Hands the hub the full list, so a tap enabled late still runs where it was subscribed.
