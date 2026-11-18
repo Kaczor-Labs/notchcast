@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# script-tests: macos (pref-sweep.py's /usr/bin/defaults)
 """A harness run leaves none of its test preference suites behind, however it ends."""
 import os
 from pathlib import Path
@@ -46,7 +47,7 @@ class PrefSweepTest(unittest.TestCase):
         sources = self.scratch / "Tests"
         sources.mkdir()
         (sources / "FixtureTests.swift").write_text(FIXTURE_SOURCE)
-        self.env = {**os.environ, "NOTCHCAST_PREFS_DIR": str(self.prefs), "NOTCHCAST_PREF_SWEEP_SETTLE": "0",
+        self.env = {**os.environ, "NOTCHCAST_PREFS_DIR": str(self.prefs), "NOTCHCAST_PLATFORM": "Darwin", "NOTCHCAST_PREF_SWEEP_SETTLE": "0",
                     "NOTCHCAST_PREF_SWEEP_STATE": str(self.scratch / "state"),
                     "NOTCHCAST_PREF_SWEEP_SOURCES": str(sources)}
 

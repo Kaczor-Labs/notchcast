@@ -158,8 +158,12 @@ struct NotchLookTokensTests {
             ("secondaryLabel", NotchTheme.Colors.secondaryLabel, .secondary),
         ]
         for (name, token, value) in black { sameResolved("black \(name)", token, value, frosted: false) }
-        sameResolved("black lifted secondary stays", c.textSecondary, Color.white.opacity(0.72), frosted: false, lifted: true)
-        sameResolved("black lifted tertiary stays", c.textTertiary, Color.white.opacity(0.6), frosted: false, lifted: true)
+        sameResolved("black lifted secondary is primary", c.textSecondary, .white, frosted: false, lifted: true)
+        sameResolved("black lifted tertiary is primary", c.textTertiary, .white, frosted: false, lifted: true)
+        let blackSlab = over(resolved(c.selection, frosted: false), [0, 0, 0])
+        for (name, ink) in [("primary", c.textPrimary), ("secondary", c.textSecondary), ("tertiary", c.textTertiary)] {
+            legible("black lifted \(name) on selection", resolved(ink, frosted: false, lifted: true), on: blackSlab)
+        }
         sameResolved("black lifted destructive stays", c.destructive, .red, frosted: false, lifted: true)
         sameResolved("black lifted secondaryLabel stays", NotchTheme.Colors.secondaryLabel, .secondary,
                      frosted: false, lifted: true)
@@ -172,12 +176,22 @@ struct NotchLookTokensTests {
             ("rowHover", c.rowHover, f.rowHover), ("menuHover", c.menuHover, f.menuHover),
             ("primaryAction", c.primaryAction, f.accent), ("progress", c.progress, f.accent),
             ("destructive", c.destructive, f.destructive), ("keyCapFill", NotchTheme.Colors.keyCapFill, f.controlFill),
+            ("textSecondary is the token", c.textSecondary, ObsidianTokens.Glass.glassMutedForegroundSecondary),
+            ("textSecondary is white 0.72", c.textSecondary, Color.white.opacity(0.72)),
+            ("textTertiary is the token", c.textTertiary, ObsidianTokens.Glass.glassMutedForegroundTertiary),
+            ("textTertiary is white 0.60", c.textTertiary, Color.white.opacity(0.6)),
+            ("controlEdge is glassRule", NotchTheme.Colors.controlEdge, ObsidianTokens.Glass.glassRule),
+            ("controlEdge is white 0.16", NotchTheme.Colors.controlEdge, Color.white.opacity(0.16)),
+            ("destructive is glassDestructive", c.destructive, ObsidianTokens.Glass.glassDestructive),
+            ("destructive is #ffb3b3", c.destructive, Color(.sRGB, red: 1, green: 179 / 255, blue: 179 / 255)),
             ("islandPanelFill", NotchTheme.Colors.islandPanelFill, .clear),
             ("secondaryLabel", NotchTheme.Colors.secondaryLabel, f.textSecondary),
         ]
         for (name, token, value) in frostedValues { sameResolved("frosted \(name)", token, value, frosted: true) }
         check("frosted lifted secondary is primary",
               rgba(resolved(c.textSecondary, frosted: true, lifted: true)) == rgba(resolved(f.textPrimary, frosted: false)))
+        sameResolved("frosted lifted destructive is glassDestructive", c.destructive, ObsidianTokens.Glass.glassDestructive,
+                     frosted: true, lifted: true)
 
         print("# Frosted text keeps 4.5:1 on its glass over a white wallpaper")
         let white = [1.0, 1.0, 1.0]
@@ -201,8 +215,33 @@ struct NotchLookTokensTests {
                 legible("lifted \(name) on \(ground)", resolved(ink, frosted: true, lifted: true), on: rgb)
             }
         }
+        // glass.md §5: a hovered row keeps its resting inks, so the token inks are measured on the hover wash too.
+        let hovered = over(resolved(c.rowHover, frosted: true), body)
+        for (name, ink) in [("secondary", c.textSecondary), ("tertiary", c.textTertiary), ("red", c.destructive)] {
+            legible("\(name) on hovered row", resolved(ink, frosted: true), on: hovered)
+        }
         let pressed = over(resolved(IslandButtonFill.primary(0.36), frosted: true), body)
         legible("accent ink on pressed primary", resolved(NotchTheme.Colors.accentInk, frosted: true), on: pressed)
+
+        print("# A command tile's white glyph keeps 4.5:1 on the tile on the cursor row")
+        let glass = ObsidianTokens.Glass.self
+        let obsidianGrounds = [
+            ("bar", over(resolved(glass.glassBar, frosted: true), white)),
+            ("pane", over(resolved(glass.glassPane, frosted: true), white)),
+            ("sheet", over(resolved(glass.glassSheet, frosted: true), white)),
+            ("bar solid", over(resolved(glass.glassBarSolid, frosted: true), white)),
+            ("pane solid", over(resolved(glass.glassPaneSolid, frosted: true), white)),
+            ("sheet solid", over(resolved(glass.glassSheetSolid, frosted: true), white)),
+        ]
+        let obsidianCursor = resolved(glass.glassCursor, frosted: true)
+        let cursorRows = [("black", over(resolved(c.selection, frosted: false), [0, 0, 0])),
+                          ("frosted", over(resolved(c.selection, frosted: true), body)),
+                          ("frosted solid", over(resolved(c.selection, frosted: true), solid))]
+            + obsidianGrounds.map { ("OBSIDIAN \($0.0)", over(obsidianCursor, $0.1)) }
+        let tile = resolved(NotchTheme.Colors.iconTileFill, frosted: true)
+        for (name, row) in cursorRows {
+            legible("tile glyph on the \(name) cursor row", resolved(.white, frosted: true), on: over(tile, row))
+        }
 
         print("# Black text keeps 4.5:1 on the island black")
         let black0 = [0.0, 0.0, 0.0]
