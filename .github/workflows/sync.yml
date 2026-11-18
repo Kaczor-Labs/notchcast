@@ -319,7 +319,7 @@ jobs:
           {
             cat "$RUNNER_TEMP/upstream-notes.md"
             printf '\n\n---\nNotchcast build of %s %s (%s) with our commits from main %s, signed by %s (SHA-1 %s).\n' \
-              "$UPSTREAM_REPO" "$TAG" "${TAG_COMMIT:0:12}" "${MAIN:0:12}" "$SIGN_IDENTITY" "$SIGN_SHA1"
+              "$UPSTREAM_REPO" "$TAG" "${TAG_COMMIT:0:12}" "${MAIN:0:12}" "$SIGN_IDENTITY" "$RELEASE_SIGN_SHA1"
           } > "$RUNNER_TEMP/notes.md"
           FLAGS=()
           if [ "$PRERELEASE" = "true" ]; then FLAGS+=(--prerelease); fi
