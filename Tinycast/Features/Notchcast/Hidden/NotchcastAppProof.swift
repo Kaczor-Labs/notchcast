@@ -12,6 +12,7 @@ enum NotchcastAppProof {
         setbuf(stdout, nil)
         switch name {
         case "hidden-settings": hiddenSettings()
+        case "number-keys": numberKeys()
         case "addon-launcher": addonLauncher()
         default: fail("unknown proof \(name)")
         }
@@ -86,12 +87,12 @@ enum NotchcastAppProof {
         check(!found(command.name) && !found("xj"), "\(command.name) with Show in launcher off is hidden")
     }
 
-    private static func check(_ condition: Bool, _ message: String) {
+    static func check(_ condition: Bool, _ message: String) {
         guard condition else { fail(message) }
         print("PASS \(message)")
     }
 
-    private static func fail(_ message: String) -> Never {
+    static func fail(_ message: String) -> Never {
         FileHandle.standardError.write(Data("FAIL \(message)\n".utf8))
         exit(1)
     }
