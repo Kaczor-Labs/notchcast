@@ -6,7 +6,7 @@ enum AutoBackupAddon: NotchcastAddon {
             id: "autoBackupSettings",
             title: String(localized: "Auto-backup settings", table: "NotchcastAutoBackup"),
             subtitle: String(
-                localized: "Saves a settings backup to a folder on change and once a day, such as Documents in iCloud Drive.",
+                localized: "Backs up your settings on change and once a day, into Documents or a folder you choose.",
                 table: "NotchcastAutoBackup"),
             category: .macTweaks
         ),

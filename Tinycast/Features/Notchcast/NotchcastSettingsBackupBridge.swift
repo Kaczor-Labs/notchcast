@@ -25,7 +25,7 @@ struct NotchcastSettingsBackupBridge: NotchcastSettingsBackup {
         var plan = BackupComposer.plan([], from: core)
         plan.categories = [.configuration]
         plan.settings = settings
-        try await Task.detached(priority: .utility) {
+        try await Task.detached(priority: .utility) { [plan] in
             let staging = try BackupStaging()
             defer { staging.discard() }
             _ = try BackupComposer.write(plan, into: staging.bundle)

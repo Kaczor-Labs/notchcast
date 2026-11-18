@@ -2,6 +2,7 @@
   "sourceLanguage" : "en",
   "strings" : {
     "Auto-backup settings" : {},
+    "Backs up your settings on change and once a day, into Documents or a folder you choose." : {},
     "Backup folder" : {},
     "Backups to keep" : {},
     "Choose…" : {},
@@ -10,7 +11,6 @@
     "Restore %@" : {},
     "Restore settings from this backup?" : {},
     "Restore…" : {},
-    "Saves a settings backup to a folder on change and once a day, such as Documents in iCloud Drive." : {},
     "Settings backup failed: %@" : {},
     "Settings saved in %@ replace the current ones." : {},
     "Show in Finder" : {},
