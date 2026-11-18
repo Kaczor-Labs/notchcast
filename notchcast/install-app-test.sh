@@ -19,7 +19,7 @@ cat > "$WORK/bin/open" <<'FAKE'
 #!/bin/bash
 echo "$*" >> "$WORK/open.log"
 [ "$1" = -g ] && [ "$#" = 2 ] && [[ "$2" = "$WORK"/* ]] || exit 1
-nohup "$2/Contents/MacOS/test-app" "$(cat "$2/Contents/Resources/lifetime")" </dev/null >/dev/null 2>&1 &
+"$2/Contents/MacOS/test-app" "$(cat "$2/Contents/Resources/lifetime")" </dev/null >/dev/null 2>&1 &
 FAKE
 cat > "$WORK/bin/osascript" <<'FAKE'
 #!/bin/bash
