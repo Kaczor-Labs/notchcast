@@ -29,6 +29,7 @@ jobs:
           launchctl print "user/$(id -u)" 2>&1 | head -12
           launchctl print "gui/$(id -u)" 2>&1 | head -3
           defaults read -g AppleLanguages 2>&1 | head -5; defaults read -g AppleLocale 2>&1
+          true
       - name: Pasteboard where the job runs
         run: |
           set +e
@@ -40,7 +41,7 @@ jobs:
           print("set:", ok, "read:", pb.string(forType: .string) ?? "nil")
           EOF
           swiftc -o "$RUNNER_TEMP/pb" "$RUNNER_TEMP/pb.swift" && "$RUNNER_TEMP/pb"
-          echo "rc=$?"
+          echo "rc=$?"; true
       - name: Pasteboard inside the user's own launchd domain
         run: |
           set +e
@@ -63,7 +64,7 @@ jobs:
           for i in 1 2 3 4 5 6 7 8 9 10; do [ -s "$out" ] && break; sleep 1; done
           cat "$out" 2>&1
           launchctl print "user/$uid/notchcast.probe" 2>&1 | grep -E "state|last exit|domain" | head -5
-          launchctl bootout "user/$uid/notchcast.probe"; echo "bootout rc=$?"
+          launchctl bootout "user/$uid/notchcast.probe"; echo "bootout rc=$?"; true
       - name: The six harnesses, where the job runs
         working-directory: src
         run: |
@@ -72,6 +73,7 @@ jobs:
           for name in AppInstallationTests RelaunchTests PasteboardTests; do
             ./Scripts/run-tests.sh "$name" 2>&1 | grep -E "FAIL|PASSED|FAILED|ok " | head -12
           done
+          true
       - name: The six harnesses, inside the user's own launchd domain
         working-directory: src
         run: |
@@ -102,4 +104,4 @@ jobs:
           launchctl bootstrap "user/$uid" "$RUNNER_TEMP/probe2.plist"; echo "bootstrap rc=$?"
           for i in $(seq 1 600); do [ -e "$out.done" ] && break; sleep 1; done
           grep -E "FAIL|PASSED|FAILED|ok |rror" "$out" | head -80
-          launchctl bootout "user/$uid/notchcast.probe2"; echo "bootout rc=$?"
+          launchctl bootout "user/$uid/notchcast.probe2"; echo "bootout rc=$?"; true
