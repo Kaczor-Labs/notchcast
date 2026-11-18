@@ -51,12 +51,12 @@ extension SystemReading {
             up = Double(now.sent - before.sent) / elapsed
         }
         top = Self.ranked(previous: previous.processes, current: current.processes, elapsed: elapsed,
-                       processorCount: current.processorCount)
+                          processorCount: current.processorCount)
     }
 
     /// Each name's share of the whole Mac, helpers summed under their shared name, heaviest first.
     static func ranked(previous: [SystemProcessTime], current: [SystemProcessTime], elapsed: TimeInterval,
-                    processorCount: Int) -> [SystemProcessLoad] {
+                       processorCount: Int) -> [SystemProcessLoad] {
         let before = Dictionary(previous.map { ($0.pid, $0) }, uniquingKeysWith: { first, _ in first })
         let capacity = elapsed * 1_000_000_000 * Double(max(processorCount, 1))
         var shares: [String: Double] = [:]

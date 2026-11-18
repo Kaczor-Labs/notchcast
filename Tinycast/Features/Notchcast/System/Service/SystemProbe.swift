@@ -136,6 +136,6 @@ enum SystemProbe {
     }
 
     private static func string(_ characters: [CChar]) -> String {
-        String(decoding: characters.prefix { $0 != 0 }.map { UInt8(bitPattern: $0) }, as: UTF8.self)
+        String(bytes: characters.prefix { $0 != 0 }.map { UInt8(bitPattern: $0) }, encoding: .utf8) ?? ""
     }
 }
