@@ -86,6 +86,16 @@ class ScriptTestsTest(unittest.TestCase):
         status, output, _ = self.invoke(["--all", "--list"], changed="")
         self.assertIn("notchcast/land-test.sh", output.splitlines())
 
+    def test_runner_splits_on_the_macos_line(self):
+        (self.root / "notchcast/land-test.sh").write_text("#!/bin/bash\n# script-tests: macos (lockf)\n")
+        (self.root / "notchcast/generated-retry-test.mjs").write_text("// script-tests: macos (xcrun)\n")
+        (self.root / "notchcast/plain-test.sh").write_text("echo '# script-tests: macos'\n")
+        macos = ["notchcast/generated-retry-test.mjs", "notchcast/land-test.sh"]
+        _, output, _ = self.invoke(["--all", "--list", "--runner", "macos"])
+        self.assertEqual(macos, output.splitlines())
+        _, output, _ = self.invoke(["--all", "--list", "--runner", "linux"])
+        self.assertEqual(sorted(set(DEFAULT) - set(macos)), output.splitlines())
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)

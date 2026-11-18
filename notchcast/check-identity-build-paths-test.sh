@@ -1,4 +1,5 @@
 #!/bin/bash
+# script-tests: macos (xcrun)
 set -euo pipefail
 root=$(git rev-parse --show-toplevel)
 scratch=$(mktemp -d)

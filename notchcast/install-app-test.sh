@@ -1,4 +1,5 @@
 #!/bin/bash
+# script-tests: macos (install-app.sh's ditto and PlistBuddy)
 # install-app.sh against synthetic bundles; fake open/osascript/launchctl on PATH, so no real app or agent is touched.
 set -euo pipefail
 WORK="$(mktemp -d)"
