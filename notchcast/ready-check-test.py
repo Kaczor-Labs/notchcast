@@ -15,8 +15,7 @@ WORKFLOW = ROOT / ".github/workflows/pr.yml"
 SCRIPT = ROOT / "notchcast/ready-check.sh"
 # Every step of pr.yml and of the local actions it uses, and how ready-check.sh covers it.
 COVERED = {
-    ("pr.yml:route", "actions/checkout"): "runner routing; no gate",
-    ("pr.yml:route", "./notchcast/actions/route"): "runner routing; no gate",
+    ("pr.yml:route", "actions/checkout"): "lane planning; no gate",
     ("pr.yml:route", "Lanes the diff needs"): "picks the jobs below; ready-check.sh runs them all",
     ("pr.yml:route", "Harnesses the diff needs"): "shadow selection; reports, gates nothing",
     ("pr.yml:checks", "actions/checkout"): "the shared clone at HEAD",
@@ -36,7 +35,6 @@ COVERED = {
     ("pr.yml:build", "Record the tested tree"): "records the tree; no gate",
     ("pr.yml:build", "actions/upload-artifact"): "records the tree; no gate",
     ("xcode", 'source "$GITHUB_ACTION_PATH/../../ci-xcode.sh"'): "ci-build.sh sources ci-xcode.sh",
-    ("tests", "cache"): "harness binary cache; no gate",
     ("tests", "actions/cache/restore"): "harness binary cache; no gate",
     ("tests", 'bash "$GITHUB_ACTION_PATH/../../ci-tests.sh"'): "ci-build.sh runs ci-tests.sh",
     ("tests", "Failed harness logs"): "logs only; ready-check keeps the whole log",
@@ -109,6 +107,25 @@ class CoverageTest(unittest.TestCase):
             if "${{" not in value:
                 self.assertRegex(ci_tests, rf"export .*\b{name}={value.strip(chr(39))}\b")
 
+
+class RunnerTest(unittest.TestCase):
+    def test_every_job_runs_on_a_hosted_image(self):
+        allowed = {"ubuntu-latest", "xcode-27", "macos-15"}
+        for workflow in sorted((ROOT / ".github/workflows").glob("*.y*ml")):
+            lines = workflow.read_text().splitlines()
+            for i, line in enumerate(lines):
+                match = re.match(r"(\s*)runs-on:(.*)", line)
+                if not match:
+                    continue
+                value = [match[2].split("#")[0]]
+                for more in lines[i + 1:]:
+                    if more.strip() and len(more) - len(more.lstrip()) <= len(match[1]):
+                        break
+                    value.append(more.split("#")[0])
+                labels = re.findall(r"[^\s\[\],'\"-][^\s\[\],'\"]*", " ".join(value))
+                with self.subTest(f"{workflow.name}:{i + 1}"):
+                    self.assertTrue(labels, "runs-on has no label")
+                    self.assertEqual(set(labels) - allowed, set(), "runs-on names a runner README Runners does not")
 
 # Machine git config (init.defaultBranch, signing, url rewrites) never reaches the fixture repos.
 GIT_ISOLATED = {"GIT_CONFIG_NOSYSTEM": "1", "GIT_CONFIG_GLOBAL": os.devnull}
