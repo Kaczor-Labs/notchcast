@@ -20,5 +20,12 @@
     "Tinycast/Features/Notchcast/Core/Service/NotchcastPreferences.swift",
     "Tinycast/Features/Launcher/Service/AppIndex.swift",
     "Tinycast/Features/Launcher/Service/VisibilityStore.swift"
+  ],
+  "icloud-sync-off": [
+    "Tinycast/App/TinycastApp.swift",
+    "Tinycast/Features/Settings/AppSettings.swift",
+    "Tinycast/Features/CloudSync/*",
+    "Tinycast/Features/Notchcast/Hidden/*",
+    "Tinycast/Migrations/*"
   ]
 }
