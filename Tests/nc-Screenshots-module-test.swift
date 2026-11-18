@@ -187,8 +187,8 @@ enum ScreenshotsModuleTests {
         precondition(ScreenshotsAddon.switches.map(\.id) == ["screenshot"], "v1 switch id")
         precondition(ScreenshotsAddon.commands.map(\.id) == [area, display, text], "frozen command ids")
         precondition(ScreenshotsAddon.commands.map { "hotkey." + $0.id }
-                     == ["hotkey.command:nc-screenshot-area", "hotkey.command:nc-screenshot-display"],
-                     "both stored bindings name these commands")
+                     == ["hotkey.command:nc-screenshot-area", "hotkey.command:nc-screenshot-display",
+                         "hotkey.command:nc-capture-text"], "each stored binding names its command")
         precondition(rig.controller.enabledCommands.map(\.id) == [area, display, text], "on by default")
 
         fake.holdFreeze = true
