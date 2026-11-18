@@ -1,13 +1,14 @@
 import Foundation
 
-/// F10: while a query is typed, ⌘1–⌘9 run the first nine launcher rows instead of favourites.
+/// F10: while a query is typed, ⌘1–⌘9 run the first nine result rows of any kind, not favourites.
 enum NumberKeysAddon: NotchcastAddon {
     static let switches = [
         NotchcastSwitch(
             id: "launcherNumberKeys",
             title: String(localized: "Open results with number keys", table: "NotchcastNumberKeys"),
             subtitle: String(
-                localized: "Command-1 to Command-9 open the first nine search results.", table: "NotchcastNumberKeys"),
+                localized: "While you type, Command-1 to Command-9 open the first nine results of any kind, not your favourites.",
+                table: "NotchcastNumberKeys"),
             category: .launcher)
     ]
 

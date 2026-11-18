@@ -199,7 +199,7 @@ struct LauncherList: View {
                                 case .file(let result, let index):
                                     FileSearchRow(
                                         result: result, selected: row.id == selectedRowID,
-                                        showsLocation: true
+                                        showsLocation: true, slot: digitSlots[row.id]
                                     )
                                     .contentShape(Rectangle())
                                     .onRowTap(drag: result.rowDrag(dropped: onDropped)) {
@@ -210,7 +210,7 @@ struct LauncherList: View {
                                 case .fallback(let app, let index):
                                     AppRow(
                                         app: app, selected: row.id == selectedRowID, running: false,
-                                        slot: nil
+                                        slot: digitSlots[row.id]
                                     )
                                     .contentShape(Rectangle())
                                     .onTapGesture { fallbacks?.onActivate(index) }
