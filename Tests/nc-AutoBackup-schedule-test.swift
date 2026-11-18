@@ -181,7 +181,8 @@ enum AutoBackupScheduleTests {
         precondition(disk.files.contains("/b/someone-else.tinycast"), "a file Notchcast did not write is never removed")
         disk.files.remove("/b/5")
         let trimmed = s.didWrite("/b/12", digest: "12", at: at(9_000), keep: 3, exists: disk.exists)
-        precondition(trimmed == ["/b/2", "/b/3", "/b/4", "/b/6", "/b/7", "/b/8", "/b/9"], "a lower keep trims, gone files skipped")
+        precondition(trimmed == ["/b/2", "/b/3", "/b/4", "/b/6", "/b/7", "/b/8", "/b/9"],
+                     "a lower keep trims, gone files skipped")
         precondition(s.written == ["/b/10", "/b/11", "/b/12"], "the newest three stay")
         precondition(s.didWrite("/b/12", digest: "12", at: at(9_100), keep: 0, exists: { _ in true }) == ["/b/10", "/b/11"],
                      "keep never drops below one, and a rewritten name counts once")
@@ -198,7 +199,8 @@ enum AutoBackupScheduleTests {
     static func names() {
         let name = Schedule.fileName(at: Date(timeIntervalSince1970: 1_800_000_005), timeZone: utc)
         precondition(name == "Notchcast Settings 2027-01-15 08.00.05.tinycast", "name: \(name)")
-        let warsaw = Schedule.fileName(at: Date(timeIntervalSince1970: 1_800_000_005), timeZone: TimeZone(identifier: "Europe/Warsaw")!)
+        let warsaw = Schedule.fileName(
+            at: Date(timeIntervalSince1970: 1_800_000_005), timeZone: TimeZone(identifier: "Europe/Warsaw")!)
         precondition(warsaw == "Notchcast Settings 2027-01-15 09.00.05.tinycast", "local time: \(warsaw)")
         let documents = URL(filePath: "/fake/Documents", directoryHint: .isDirectory)
         precondition(Schedule.folder(chosen: nil, documents: documents, channel: nil).path(percentEncoded: false)
@@ -207,8 +209,9 @@ enum AutoBackupScheduleTests {
             == "/fake/Documents/Notchcast Backups/app.notchcast.dev/", "a Debug channel gets its own subfolder")
         precondition(Schedule.folder(chosen: "/x/y", documents: documents, channel: "dev").path(percentEncoded: false)
             == "/x/y/dev/", "a chosen folder keeps the channel subfolder")
-        let json = try! JSONEncoder().encode(Schedule(written: ["/b/1"], lastDigest: "a", lastWrite: start))
-        precondition(try! JSONDecoder().decode(Schedule.self, from: json).written == ["/b/1"], "state round trips")
+        let saved = Schedule(written: ["/b/1"], lastDigest: "a", lastWrite: start)
+        let json = try? JSONEncoder().encode(saved)
+        precondition(json.flatMap { try? JSONDecoder().decode(Schedule.self, from: $0) } == saved, "state round trips")
     }
 
     @MainActor
