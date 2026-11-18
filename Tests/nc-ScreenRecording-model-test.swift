@@ -102,8 +102,8 @@ enum ScreenRecordingModelTests {
         let id = UUID()
         let destination = URL(filePath: "/tmp/clips/Screen Recording.mov")
         check("a cut is written beside its destination under a hidden name",
-              RecordingExport.stagingURL(for: destination, id: id)
-                == URL(filePath: "/tmp/clips/.notchcast-partial-\(id.uuidString).mov"))
+              RecordingExport.stagingURL(for: destination, id: id).path(percentEncoded: false)
+                == "/tmp/clips/.notchcast-partial-\(id.uuidString).mov")
     }
 
     static func geometry() {

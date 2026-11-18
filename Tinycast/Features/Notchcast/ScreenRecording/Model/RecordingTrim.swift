@@ -15,7 +15,9 @@ struct RecordingTrim: Equatable, Sendable {
 
     init(duration: TimeInterval) {
         self.duration = duration.isFinite ? max(0, duration) : 0
-        (start, end) = Self.sanitized(start: 0, end: self.duration, duration: self.duration)
+        let kept = Self.sanitized(start: 0, end: self.duration, duration: self.duration)
+        start = kept.start
+        end = kept.end
     }
 
     var length: TimeInterval { max(0, end - start) }
