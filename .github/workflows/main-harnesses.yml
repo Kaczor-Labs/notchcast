@@ -73,6 +73,8 @@ jobs:
     if: ${{ needs.plan.outputs.shards != '[]' }}
     runs-on: xcode-27
     timeout-minutes: 30
+    env:
+      NC_AUDIT_RENDERS: ${{ runner.temp }}/renders
     strategy:
       fail-fast: false
       matrix:
@@ -94,3 +96,38 @@ jobs:
           only: ${{ needs.plan.outputs.tests }}
           shard: ${{ matrix.shard }} ${{ strategy.job-total }}
           cache: push-${{ matrix.shard }}of${{ strategy.job-total }}
+      # TEMP (#960, reverted before the PR): the audit renders in Frosted, and both looks as an artifact.
+      - name: TEMP Frosted renders
+        if: ${{ !cancelled() }}
+        working-directory: src
+        env:
+          NOTCHCAST_ONLY_TESTS: nc-Notchcast-island-audit-render-test
+          NC_AUDIT_LOOK: frosted
+          LIBDISPATCH_COOPERATIVE_POOL_STRICT: '1'
+        run: bash ../tools/notchcast/ci-tests.sh
+      - uses: actions/upload-artifact@v7
+        if: ${{ !cancelled() }}
+        with:
+          name: renders-${{ matrix.shard }}
+          path: ${{ runner.temp }}/renders/960-*
+          if-no-files-found: ignore
+          retention-days: 3
+  # TEMP (#960, reverted before the PR): the Debug build and lint a draft PR never gets.
+  tempbuild:
+    runs-on: xcode-27
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          path: tools
+          persist-credentials: false
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          path: src
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Shared PR build lane
+        working-directory: src
+        env:
+          NOTCHCAST_HARNESSES_SHARDED: '1'
+        run: bash ../tools/notchcast/ci-build.sh
