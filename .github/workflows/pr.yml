@@ -94,7 +94,7 @@ jobs:
           HOSTED: ${{ runner.environment == 'github-hosted' }}
         run: |
           echo "hosted=$HOSTED" >> "$GITHUB_OUTPUT"
-          [ "$HOSTED" = true ] || echo "::notice::SKIPPED on a self-hosted runner: the macOS script tests, SELF_HOSTED_SKIP_TESTS harnesses, the tested-tree record"
+          [ "$HOSTED" = true ] || echo "::notice::SKIPPED on a self-hosted runner: the macOS script tests, HOSTED_ONLY_TESTS harnesses (unless the runner is isolated), the tested-tree record"
       # First: the shortest lane. land-test.sh serves this checkout's upstream main to its fixture remote.
       - name: Script tests that need macOS
         if: runner.environment == 'github-hosted'
