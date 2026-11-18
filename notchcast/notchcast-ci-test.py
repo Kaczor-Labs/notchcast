@@ -36,7 +36,7 @@ if args[:2] == ["api", "rate_limit"] and args[-1].endswith(".remaining"):
     (d / "budget").write_text(str(n + 1))
     print(left[min(n, len(left) - 1)])
 elif args[:2] == ["api", "rate_limit"]:
-    print(int(__import__("time").time()) - 10)
+    print(0)  # a reset long past: no wait, whatever the real clock says
 elif args[0] == "api":
     path = next(a for a in args if a.startswith("repos/"))
     if "/runs?" in path:
@@ -378,14 +378,14 @@ class CiTests(unittest.TestCase):
 
     def test_max_wait_before_dispatch_prints_waiting_and_dispatches_nothing(self):
         self.scenario(polls=[[run_state(n, "queued") for n in range(3)]])
-        result = self.ci("--max-wait", "0.3")
+        result = self.ci("--max-wait", "10", NOTCHCAST_CI_POLL="1")
         self.assertEqual(result.returncode, 3, result.stderr)
         self.assertEqual(result.stdout.splitlines()[-1], f"WAITING (not dispatched); rerun: {self.rerun()} --no-push")
         self.assertFalse([c for c in self.calls() if "-X" in c])
 
     def test_max_wait_after_dispatch_prints_pending_with_the_run_to_resume(self):
         self.scenario(view=self.view(None, status="in_progress"))
-        result = self.ci("--max-wait", "5", NOTCHCAST_CI_POLL="0.2")  # the calls before the dispatch count too
+        result = self.ci("--max-wait", "20", NOTCHCAST_CI_POLL="1")
         self.assertEqual(result.returncode, 3, result.stderr)
         self.assertEqual(result.stdout.splitlines()[-1], f"PENDING {URL} at {self.head[:12]}; rerun: {self.rerun()} --run 777")
         self.assertEqual(len([c for c in self.calls() if "-X" in c]), 1)
@@ -397,7 +397,7 @@ class CiTests(unittest.TestCase):
             with self.subTest(hang=hang):
                 self.scenario(hang=[hang])
                 started = time.time()
-                result = self.ci("--max-wait", "10", NOTCHCAST_CI_CLOCK="")  # only a real clock bounds a hang
+                result = self.ci("--max-wait", "5")  # the hung call alone spends real time: 5 s
                 self.assertLess(time.time() - started, 30)
                 self.assertEqual(result.returncode, 3, result.stderr)
                 self.assertEqual(result.stdout.splitlines()[-1], last)
