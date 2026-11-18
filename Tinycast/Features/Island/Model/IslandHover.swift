@@ -108,13 +108,14 @@ enum IslandHoverZone {
     /// Under the menu bar it widens by `side` and reaches `below`; inside it, it keeps to the shape.
     static func contains(_ point: CGPoint, shape: CGRect, menuBarBottom: CGFloat, below: CGFloat,
                          side: CGFloat) -> Bool {
-        if shape.contains(point) { return true }
+        // NSMouseInRect, as NSScreen.underCursor: the pointer's topmost row sits on a rect's maxY.
+        if NSMouseInRect(point, shape, false) { return true }
         let column = CGRect(x: shape.minX, y: min(shape.minY, menuBarBottom), width: shape.width,
                             height: shape.maxY - min(shape.minY, menuBarBottom))
-        if column.contains(point) { return true }
+        if NSMouseInRect(point, column, false) { return true }
         let floor = min(shape.minY, menuBarBottom)
         let band = CGRect(x: shape.minX - side, y: floor - below, width: shape.width + 2 * side, height: below)
-        return band.contains(point)
+        return NSMouseInRect(point, band, false)
     }
 }
 

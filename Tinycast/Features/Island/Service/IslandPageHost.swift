@@ -140,7 +140,7 @@ final class IslandPageHost {
         host.sizingOptions = [.intrinsicContentSize]
         panel.contentView = host
         panel.onClick = { [weak self] in self?.clicked() }
-        panel.onMenu = { [weak self] in self?.controller?.openMenu() }
+        panel.onMenu = { [weak self] in self?.controller?.canvas.onMenu?() }
         panel.onKey = { [weak self] in self?.key($0) ?? false }
         panel.onScroll = { [weak self] in self?.scrolled($0) }
         return panel

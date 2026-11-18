@@ -48,11 +48,11 @@ final class IslandPresenter: IslandPresenting {
         noticesChanged()
     }
 
-    /// The carded meeting the resting glance shows, or nil once its join window closes.
+    /// The carded meeting the resting glance shows, or nil; a hovered status name gives way to it.
     func meetingChanged(_ occurrence: IslandMeetingExpansion.Occurrence?) {
         self.occurrence = occurrence
         if occurrence != nil, !observing { observePlacement() }
-        updateExpansion()
+        noticesChanged()
     }
 
     func post(_ notice: IslandNotice, onTap: (@MainActor () -> Void)?) {
@@ -80,17 +80,7 @@ final class IslandPresenter: IslandPresenting {
     var tap: (@MainActor () -> Void)? {
         if let notice = notices.notice { return noticeTaps[notice.id] }
         if AppCore.shared.island.resting?.glance != nil { return nil }
-        return statuses.last.flatMap { statusTaps[$0.id] } ?? pagesTap
-    }
-
-    /// A click on the bare island opens the pages pinned, so they stay reachable with hover off.
-    private var pagesTap: (@MainActor () -> Void)? {
-        guard !pages.deck.pages.isEmpty, !pages.isOpen else { return nil }
-        return {
-            let hover = AppCore.shared.island.hover
-            hover.refresh()
-            if !hover.isPinned { hover.togglePin() }
-        }
+        return statuses.last.flatMap { statusTaps[$0.id] }
     }
 
     /// The pointer resting on the island opens the long form of what it shows (#884 H2 to H7).

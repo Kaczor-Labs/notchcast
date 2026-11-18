@@ -220,6 +220,15 @@ struct AddonNoticeQueueTest {
               hovered.notice?.text == "Keeping Awake" && hovered.expanded)
         presenter.hoverChanged(false)
         check("and leaving closes it", hovered.notice == nil && !hovered.expanded)
+        let ready = IslandStatus(id: "update", symbol: "arrow.clockwise.circle", text: nil, label: "Update ready")
+        presenter.setStatus(ready, for: ready.id, onTap: nil)
+        presenter.hoverChanged(true)
+        check("a hovered status shows its name", core.island.resting?.notice?.id == "hover.update")
+        core.island.resting?.glance = "Standup"
+        presenter.meetingChanged(.init(id: "standup", start: Date(timeIntervalSince1970: 0)))
+        check("a meeting glance arriving on a hovered island replaces the status name (#1001)",
+              core.island.resting?.notice == nil && core.island.resting?.expanded == true)
+        presenter.hoverChanged(false)
         controller.stop()
         print(failures == 0 ? "PASS AddonNoticeQueueTest" : "FAILED \(failures)")
         exit(failures == 0 ? 0 : 1)

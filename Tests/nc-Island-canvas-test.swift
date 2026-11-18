@@ -68,6 +68,42 @@ struct IslandCanvasTest {
         print("short headline: width \(short.size.width), text \(short.textWidth) of \(ceil(short.text.size().width))")
         precondition(short.textWidth == ceil(short.text.size().width) && short.size.width > notch + Theme.Radius.panel * 2,
                      "A headline under the cap keeps its natural width")
-        print("Island canvas: headline, fade-out, expansion, cover, notch switch, percent and headline cap hold")
+        clicks()
+        print("Island canvas: headline, fade-out, expansion, cover, notch switch, percent, headline cap and clicks hold")
+    }
+
+    /// A primary click opens the island and only a secondary one reaches its menu (#1029).
+    @MainActor static func clicks() {
+        let canvas = IslandCanvas(frame: CGRect(x: 0, y: 0, width: 100, height: 24))
+        canvas.outline = CGPath(rect: canvas.bounds, transform: nil)
+        var opens = 0
+        var menus = 0
+        canvas.canOpen = { true }
+        canvas.onOpen = { opens += 1 }
+        canvas.onMenu = { menus += 1 }
+        func event(_ type: NSEvent.EventType, _ flags: NSEvent.ModifierFlags = []) -> NSEvent {
+            guard let event = NSEvent.mouseEvent(with: type, location: CGPoint(x: 50, y: 12), modifierFlags: flags,
+                timestamp: 0, windowNumber: 0, context: nil, eventNumber: 0, clickCount: 1, pressure: 1) else {
+                preconditionFailure("no mouse event")
+            }
+            return event
+        }
+        canvas.mouseDown(with: event(.leftMouseDown))
+        precondition(opens == 1 && menus == 0, "A primary click opens the island and shows no menu")
+        canvas.rightMouseDown(with: event(.rightMouseDown))
+        canvas.mouseDown(with: event(.leftMouseDown, .control))
+        precondition(opens == 1 && menus == 2, "A right click and a Control click show the menu")
+        precondition(canvas.accessibilityPerformPress() && opens == 2 && menus == 2, "VoiceOver's press opens it too")
+        var pointer = 0
+        canvas.onPointer = { pointer += 1 }
+        canvas.updateTrackingAreas()
+        canvas.updateTrackingAreas()
+        let wanted: NSTrackingArea.Options = [.mouseEnteredAndExited, .mouseMoved, .activeAlways, .inVisibleRect]
+        precondition(canvas.trackingAreas.count == 1 && canvas.trackingAreas[0].options == wanted,
+                     "The island tracks the pointer in its own window, whichever app is active (#1029)")
+        canvas.mouseMoved(with: event(.mouseMoved))
+        canvas.mouseEntered(with: event(.mouseMoved))
+        canvas.mouseExited(with: event(.mouseMoved))
+        precondition(pointer == 3 && opens == 2 && menus == 2, "A tracked enter, move or exit reports the pointer only")
     }
 }
