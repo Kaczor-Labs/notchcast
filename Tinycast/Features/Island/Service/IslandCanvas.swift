@@ -194,8 +194,9 @@ struct GlanceArt: PillArt {
         title = NSAttributedString(string: glance.title, attributes: primary)
         separator = NSAttributedString(string: " · ", attributes: secondary)
         countdown = NSAttributedString(string: glance.countdown, attributes: primary)
-        layout = IslandGlanceLayout(notch: notch, glyph: Double(glyph?.size.width ?? 0), gap: gap,
-            title: title.size().width, separator: separator.size().width,
+        // Beside a notch only the glyph and countdown; the title shows below it on hover (design §10).
+        layout = IslandGlanceLayout(notch: notch, glyph: Double(glyph?.size.width ?? 0), gap: notch ? 0 : gap,
+            title: notch ? 0 : title.size().width, separator: separator.size().width,
             countdown: countdown.size().width, wing: NotchTheme.Size.islandGlanceWing)
     }
 
@@ -218,7 +219,7 @@ struct GlanceArt: PillArt {
                                   height: glyph.size.height))
             x += glyph.size.width + gap
         }
-        if layout.showsTitle { place(title) }
+        if layout.showsTitle, !notch { place(title) }
         if notch {
             x = pill.maxX - edge - countdown.size().width
             place(countdown)
