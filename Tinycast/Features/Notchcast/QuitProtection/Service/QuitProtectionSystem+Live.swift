@@ -9,6 +9,7 @@ extension QuitProtectionSystem {
             else { return nil }
             return QuitProtectionEngine.Target(processIdentifier: app.processIdentifier, bundleIdentifier: bundleID)
         },
+        workspaceNotifications: { NSWorkspace.shared.notificationCenter },
         commandCharacter: { ASCIIKeyboardLayout.character(for: $0, modifiers: UInt32(cmdKey >> 8)) },
         terminate: { pid in NSRunningApplication(processIdentifier: pid)?.terminate() ?? false },
         post: { pid, keyCode in

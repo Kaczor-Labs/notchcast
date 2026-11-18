@@ -92,7 +92,7 @@ final class QuitProtectionModule: NotchcastModule {
             },
             reset: { [weak self] in self?.resetSession() }
         ))
-        let workspace = NSWorkspace.shared.notificationCenter
+        let workspace = system.workspaceNotifications()
         let inputSources = DistributedNotificationCenter.default()
         observers = [
             NotificationToken(workspace.addObserver(

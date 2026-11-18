@@ -23,6 +23,8 @@ struct QuitProtectionSettingsView: View {
 let editor = QuitProtectionEngine.Target(processIdentifier: 42, bundleIdentifier: "test.editor")
 let clock = Mutex<TimeInterval>(100)
 let uptimeReads = Mutex(0)
+/// The module's own workspace center, so another process coming forward never reaches it.
+let workspaceCenter = NotificationCenter()
 
 @MainActor
 final class FakeSystem {
@@ -49,6 +51,7 @@ extension QuitProtectionSystem {
             return clock.withLock { $0 }
         },
         frontmost: { fake.frontmost },
+        workspaceNotifications: { workspaceCenter },
         commandCharacter: { [12: "q", 13: "w", 0: "a"][$0] },
         terminate: { pid in
             guard fake.terminateSucceeds else { return false }
@@ -185,7 +188,7 @@ enum QuitProtectionModuleTests {
         precondition(fake.terminated == [42] && fake.posted == [[42, 12]], "a target no longer frontmost is spared")
         rig.key(12, down: false)
         fake.frontmost = editor
-        NSWorkspace.shared.notificationCenter.post(name: NSWorkspace.didActivateApplicationNotification, object: nil)
+        workspaceCenter.post(name: NSWorkspace.didActivateApplicationNotification, object: nil)
 
         rig.defaults.set(true, forKey: QuitProtectionStore.closeEnabledKey)
         await drain()
