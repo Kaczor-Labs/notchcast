@@ -1,11 +1,5 @@
 import Foundation
 
-/// A launched or adopted Soloist: its loopback socket and how to stop it.
-struct SoloistInstance: Sendable {
-    let url: URL
-    let stop: @MainActor @Sendable () async -> Void
-}
-
 enum SoloistLaunchError: Error, Equatable {
     case notInstalled
     case launchFailed
@@ -38,8 +32,10 @@ struct SpotifySystem {
     var setTokens: @MainActor (SpotifyTokens?) -> Void
     var installedBuild: @MainActor () async -> SoloistBuild?
     var install: @MainActor () async throws -> SoloistBuild
-    var launch: @MainActor (_ key: String, _ exited: @escaping @MainActor (SoloistExit) -> Void,
-                            _ rejected: @escaping @MainActor () -> Void) async throws -> SoloistInstance
+    /// Hands over the stop the moment Soloist is spawned or adopted; returns its socket once listening.
+    var launch: @MainActor (_ key: String, _ spawned: @escaping @MainActor (_ stop: @escaping @MainActor () -> Void) -> Void,
+                            _ exited: @escaping @MainActor (SoloistExit) -> Void,
+                            _ rejected: @escaping @MainActor () -> Void) async throws -> URL
     var connect: @MainActor (_ url: URL, _ event: @escaping @MainActor (SoloistEvent) -> Void,
                              _ closed: @escaping @MainActor () -> Void) -> SoloistLink
     /// Calls `fire` once `date` passes; the returned closure cancels it.
@@ -70,6 +66,12 @@ struct SpotifyWebTransport: Sendable {
     }
 
     var send: @Sendable (URLRequest) async throws -> Response
-    /// The one-shot loopback server: returns the redirect's query once the browser lands on it.
-    var awaitRedirect: @Sendable (_ port: UInt16, _ path: String) async throws -> [String: String]
+    /// Binds the loopback redirect listener; returns only once the port is listening.
+    var listen: @Sendable (_ port: UInt16, _ path: String, _ state: String) async throws -> SpotifyRedirectListener
+}
+
+/// A bound redirect listener: wait for the query carrying the attempt's state, or stop listening.
+struct SpotifyRedirectListener: Sendable {
+    var redirect: @Sendable () async throws -> [String: String]
+    var cancel: @Sendable () -> Void
 }

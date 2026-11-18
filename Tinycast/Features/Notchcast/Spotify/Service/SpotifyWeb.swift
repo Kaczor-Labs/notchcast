@@ -39,21 +39,25 @@ final class SpotifyWeb {
 
     var isSignedIn: Bool { tokens != nil }
 
-    /// Opens the browser, waits for the loopback redirect, then trades the code for tokens.
+    /// Binds the loopback redirect, opens the browser, waits for the code, then trades it for tokens.
     func signIn(open: @MainActor (URL) -> Void) async throws(SpotifyAuthError) {
         var generator = SystemRandomNumberGenerator()
         let attempt = SpotifyAuthorization.begin(clientID: clientID, using: &generator)
-        let transport = transport
-        let redirect = Task {
-            try await transport.awaitRedirect(SpotifyAuthorization.redirectPort, SpotifyAuthorization.redirectPath)
-        }
-        open(attempt.authorizeURL)
         let query: [String: String]
-        do { query = try await redirect.value } catch let error as SpotifyAuthError { throw error } catch {
+        do {
+            let listener = try await transport.listen(SpotifyAuthorization.redirectPort,
+                                                      SpotifyAuthorization.redirectPath, attempt.state)
+            defer { listener.cancel() }
+            try Task.checkCancellation()
+            open(attempt.authorizeURL)
+            query = try await listener.redirect()
+        } catch let error as SpotifyAuthError { throw error } catch is CancellationError { throw .cancelled } catch {
             throw .offline
         }
         let code = try attempt.code(from: query)
-        save(try await tokenRequest(attempt.exchangeForm(code: code), previous: nil))
+        let tokens = try await tokenRequest(attempt.exchangeForm(code: code), previous: nil)
+        guard !Task.isCancelled else { throw .cancelled }
+        save(tokens)
     }
 
     func signOut() { save(nil) }

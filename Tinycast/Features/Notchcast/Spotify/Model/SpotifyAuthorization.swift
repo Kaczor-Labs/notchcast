@@ -131,8 +131,28 @@ struct SpotifyAuthorization: Sendable, Equatable {
     }
 }
 
+/// What the loopback listener does with the bytes one connection sent so far.
+enum SpotifyRedirectDecision: Equatable {
+    case readMore
+    /// Answer and keep listening: another path, a stray request or another sign-in's state.
+    case reply(status: Int)
+    case finish([String: String])
+}
+
 /// The first line of the loopback request, `GET /callback?code=…&state=… HTTP/1.1`, as path and query.
 enum SpotifyRedirect {
+    static let maxRequestBytes = 16_384
+
+    /// Only a whole request head counts, and only one carrying this attempt's state ends the wait.
+    static func decide(_ request: Data, ended: Bool, path: String, state: String) -> SpotifyRedirectDecision {
+        guard request.count <= maxRequestBytes else { return .reply(status: 431) }
+        guard request.range(of: Data("\r\n\r\n".utf8)) != nil else { return ended ? .reply(status: 400) : .readMore }
+        guard let parsed = parse(String(decoding: request, as: UTF8.self)), parsed.path == path else {
+            return .reply(status: 404)
+        }
+        return parsed.query["state"] == state ? .finish(parsed.query) : .reply(status: 400)
+    }
+
     static func parse(_ request: String) -> (path: String, query: [String: String])? {
         guard let target = request.split(separator: " ", maxSplits: 2).dropFirst().first,
               let components = URLComponents(string: "http://127.0.0.1" + target) else { return nil }
