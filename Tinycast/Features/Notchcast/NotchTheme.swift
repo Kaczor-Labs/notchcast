@@ -53,6 +53,8 @@ enum NotchTheme {
         static let controlEdge = Color.clear.frosted(Frosted.controlEdge)
         /// Under a question or report: Black paints it, Frosted lets the backdrop's glass show.
         static let islandPanelFill = islandSurface.frosted(.clear)
+        /// Black keeps SwiftUI's `.secondary` grey, so a row that used it renders the same pixels.
+        static let secondaryLabel = Color.secondary.frosted(Frosted.textSecondary, lifted: Frosted.textPrimary)
         /// A rule inside a `keyCapFill` card: the `selection` step, which reads on card and black.
         static let cardRule = Theme.Colors.selection
     }

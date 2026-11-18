@@ -142,11 +142,14 @@ struct NotchLookTokensTests {
             ("keyCapInk", NotchTheme.Colors.keyCapInk, Color.white.opacity(0.6)),
             ("controlEdge", NotchTheme.Colors.controlEdge, .clear),
             ("islandPanelFill", NotchTheme.Colors.islandPanelFill, .black),
+            ("secondaryLabel", NotchTheme.Colors.secondaryLabel, .secondary),
         ]
         for (name, token, value) in black { sameResolved("black \(name)", token, value, frosted: false) }
         sameResolved("black lifted secondary stays", c.textSecondary, Color.white.opacity(0.6), frosted: false, lifted: true)
         sameResolved("black lifted tertiary stays", c.textTertiary, Color.white.opacity(0.4), frosted: false, lifted: true)
         sameResolved("black lifted destructive stays", c.destructive, .red, frosted: false, lifted: true)
+        sameResolved("black lifted secondaryLabel stays", NotchTheme.Colors.secondaryLabel, .secondary,
+                     frosted: false, lifted: true)
 
         print("# Frosted resolves the brief's values")
         let f = NotchTheme.Frosted.self
@@ -157,6 +160,7 @@ struct NotchLookTokensTests {
             ("primaryAction", c.primaryAction, f.accent), ("progress", c.progress, f.accent),
             ("destructive", c.destructive, f.destructive), ("keyCapFill", NotchTheme.Colors.keyCapFill, f.controlFill),
             ("islandPanelFill", NotchTheme.Colors.islandPanelFill, .clear),
+            ("secondaryLabel", NotchTheme.Colors.secondaryLabel, f.textSecondary),
         ]
         for (name, token, value) in frostedValues { sameResolved("frosted \(name)", token, value, frosted: true) }
         check("frosted lifted secondary is primary",
@@ -170,7 +174,7 @@ struct NotchLookTokensTests {
         let inks: [(String, Color)] = [
             ("primary", c.textPrimary), ("secondary", c.textSecondary), ("tertiary", c.textTertiary),
             ("keycap", NotchTheme.Colors.keyCapInk), ("menu symbol", c.menuSymbol), ("red", c.destructive),
-            ("green", c.success), ("yellow", c.warning),
+            ("green", c.success), ("yellow", c.warning), ("secondary label", NotchTheme.Colors.secondaryLabel),
         ]
         for (ground, rgb) in [("island", body), ("menu", menu), ("solid", solid)] {
             for (name, ink) in inks { legible("\(name) on \(ground)", resolved(ink, frosted: true), on: rgb) }
@@ -180,7 +184,9 @@ struct NotchLookTokensTests {
                      ("keycap on island", over(resolved(NotchTheme.Colors.keyCapFill, frosted: true), body)),
                      ("red wash pressed", over(resolved(IslandButtonFill.destructive(0.36), frosted: true), body))]
         for (ground, rgb) in slabs {
-            for (name, ink) in inks { legible("lifted \(name) on \(ground)", resolved(ink, frosted: true, lifted: true), on: rgb) }
+            for (name, ink) in inks {
+                legible("lifted \(name) on \(ground)", resolved(ink, frosted: true, lifted: true), on: rgb)
+            }
         }
         let accent = over(resolved(IslandButtonFill.primary(0.36), frosted: true), body)
         let accentInk = c.primaryAction.frosted(f.accentInk)
