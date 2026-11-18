@@ -99,7 +99,12 @@ build_train() {
 workflows='pr.yml proof.yml design.yml leaks.yml'
 # A train's Mac job runs on the isolated runner while NOTCHCAST_MAC_RUNNER names one (README, Runners), else hosted.
 mac=hosted
-if [ "${NOTCHCAST_TRAIN_MAC:-}" != hosted ] && gh variable get NOTCHCAST_MAC_RUNNER -R "$FORK_REPO" >/dev/null 2>&1; then mac=isolated; fi
+label=$(gh variable get NOTCHCAST_MAC_RUNNER -R "$FORK_REPO" 2>/dev/null || true)
+if [ "${NOTCHCAST_TRAIN_MAC:-}" != hosted ] && [ -n "$label" ]; then
+    # A job for a label with no runner online stays queued for good, so such a train goes hosted.
+    online=$(gh api "repos/$FORK_REPO/actions/runners" --jq '.runners[] | select(.status == "online") | .labels[].name' 2>/dev/null || true)
+    if grep -qxF "$label" <<< "$online"; then mac=isolated; else echo "train: no runner labelled $label is online, so the Mac job is hosted"; fi
+fi
 # Pushes $sha as new branch $branch and dispatches its workflows against base $1.
 start_train() {
     local base=$1 file
