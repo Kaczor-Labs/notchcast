@@ -2,6 +2,9 @@
 """Notchcast CI helper, run by .github/workflows/sync.yml.
 
     ci.py plan                              decide what this run builds (conflicts are found here, on Linux)
+    ci.py stage open|close <base> <upstream>  push the upstream diff for review and open its PR, or close that PR
+    ci.py reviewed <upstream>               exit 0 only while the owner's review of that upstream commit is a success
+    ci.py pin-tag <tag> <commit>            fetch upstream main and tag; fail unless the tag still peels to commit
     ci.py replay <tree> <onto>              in <tree> (our main, upstream fetched), replay our commits onto <onto>
     ci.py regenerate <tree> <onto>          rewrite the generated files in <tree> (no commit)
     ci.py app-info <tag> <dir>              name, bundle id, version and build of upstream's release zip
@@ -21,7 +24,9 @@ Failures are remembered as refs/notchcast-failed/<main|release-<tag>>-<upstream 
 input is retried only when upstream or our main changes, and reported as one open issue per kind (label
 notchcast-<kind>: sync = replay onto new upstream, main = main tested as it is, release), which a newer failure with
 the same cause only retitles; notchcast/update.sh reports each issue and cause once through its notify hook.
-"""
+main moves onto upstream U only once the repo owner set a success REVIEW_CONTEXT status on U (upstream_review);
+until then `stage` keeps U's diff on REVIEW_HEAD in one draft PR labelled REVIEW_LABEL. A release is signed only
+when its tagged commit is main's upstream base or carries such a status itself; a mere ancestor of U never counts."""
 import json
 import os
 import plistlib
@@ -48,6 +53,8 @@ BOT = {
     "GIT_COMMITTER_NAME": "github-actions[bot]",
     "GIT_COMMITTER_EMAIL": "41898282+github-actions[bot]@users.noreply.github.com",
 }
+# The review PR's branches: upstream's diff without .github/workflows, so no push or PR event runs a workflow.
+REVIEW_BASE, REVIEW_HEAD = "sync/upstream-base", "sync/upstream"
 TAG_RE = re.compile(r"v(\d+)\.(\d+)\.(\d+)(?:-[a-z]+\.(\d+))?")
 
 
@@ -178,6 +185,38 @@ def reuse_pr_build(main, cfg):
     return found
 
 
+def upstream_review(sha, cfg):
+    """State of the repo owner's newest REVIEW_CONTEXT status on upstream sha in our repo, or None. Statuses by any
+    other account, the Actions bot included, never count, so no workflow token can pass the gate."""
+    repo = cfg["FORK_REPO"]
+    owner = repo.split("/")[0].lower()
+    try:
+        pages = json.loads(run("gh", "api", "--paginate", "--slurp", f"repos/{repo}/commits/{sha}/statuses?per_page=100"))
+    except (subprocess.CalledProcessError, ValueError) as error:
+        print(f"review record of {sha[:10]} not readable ({error}); counted as none")
+        return None
+    for status in (status for page in pages for status in page):
+        if status.get("context") == cfg["REVIEW_CONTEXT"] and ((status.get("creator") or {}).get("login") or "").lower() == owner:
+            return status.get("state")
+    return None
+
+
+def reviewed(sha):
+    """Exit 0 only while the owner's review of upstream sha is a success: the main push re-reads plan's verdict."""
+    state = upstream_review(sha, config())
+    print(f"review of upstream {sha[:10]}: {state or 'none'}")
+    sys.exit(0 if state == "success" else 1)
+
+
+def pin_tag(tag, commit):
+    """Fetch upstream main and tag into this checkout; fail unless the tag still peels to commit, as plan saw it."""
+    run("git", "fetch", "-q", f"https://github.com/{config()['UPSTREAM_REPO']}.git",
+        "+refs/heads/main:refs/remotes/upstream/main", f"+refs/tags/{tag}:refs/tags/{tag}")
+    now = run("git", "rev-parse", f"refs/tags/{tag}^{{commit}}")
+    if now != commit:
+        sys.exit(f"::error::upstream moved tag {tag} from {commit[:10]}, the commit plan cleared, to {now[:10]}")
+
+
 def plan():
     """Run in a checkout of our main with history (fetch-depth 0)."""
     cfg = config()
@@ -186,12 +225,15 @@ def plan():
     run("git", "fetch", "-q", upstream, "refs/heads/main")
     upstream_main = run("git", "rev-parse", "FETCH_HEAD")
     base = run("git", "merge-base", main, upstream_main)
-    upstream_tags = {r.removeprefix("refs/tags/") for r in ls_remote(upstream, "refs/tags/*") if not r.endswith("^{}")}
+    tag_refs = ls_remote(upstream, "refs/tags/*")
+    upstream_tags = {r.removeprefix("refs/tags/") for r in tag_refs if not r.endswith("^{}")}
     failed = {r.removeprefix("refs/notchcast-failed/")
               for r in ls_remote(f"https://github.com/{cfg['FORK_REPO']}.git", "refs/notchcast-failed/*")}
 
     main_key = f"main-{upstream_main}-{main}"
     rebase = base != upstream_main
+    # Read before any job runs upstream's tree.
+    review = upstream_review(upstream_main, cfg) if rebase else None
     held = False
     if rebase:
         prs = json.loads(run("gh", "pr", "list", "-R", cfg["FORK_REPO"], "--base", "main", "--state", "open", "--limit", "1000",
@@ -202,6 +244,10 @@ def plan():
             print(f"main: hold rebase onto upstream {upstream_main[:10]}: {message}" if held else message)
     if not rebase:
         print(f"main: contains upstream {upstream_main[:10]}")
+    elif review != "success":
+        print(f"::notice::main stays on upstream {base[:10]}: upstream {upstream_main[:10]} has "
+              f"{'no review record' if review is None else f'review {review}'}; see the {cfg['REVIEW_LABEL']} PR")
+        rebase = False
     elif held:
         rebase = False
     elif main_key in failed:
@@ -237,8 +283,14 @@ def plan():
         if f"release-{tag}-{main}" in failed:
             print(f"release {tag}: already failed with this main; skipped")
             continue
-        print(f"release {tag}: mirror")
-        releases.append({"tag": tag, "title": r["name"], "prerelease": r["isPrerelease"]})
+        # Only a tree someone reviewed whole is signed: an ancestor of U is not, as U may delete what it added.
+        tag_commit = tag_refs.get(f"refs/tags/{tag}^{{}}", tag_refs[f"refs/tags/{tag}"])
+        if tag_commit != base and upstream_review(tag_commit, cfg) != "success":
+            print(f"::notice::release {tag}: waits for a review of its own commit {tag_commit[:10]} "
+                  f"({cfg['REVIEW_CONTEXT']} success on it), or for main to hold exactly that commit")
+            continue
+        print(f"release {tag}: mirror {tag_commit[:10]}")
+        releases.append({"tag": tag, "commit": tag_commit, "title": r["name"], "prerelease": r["isPrerelease"]})
 
     statuses = json.loads(run("gh", "api", f"repos/{cfg['FORK_REPO']}/commits/{main}/status"))["statuses"]
     tested = any(s["context"] == cfg["TESTED_CONTEXT"] and s["state"] == "success" for s in statuses)
@@ -250,8 +302,99 @@ def plan():
         test_main = False
         tested = True
     print(f"main {main[:10]}: {'tested' if tested else 'failed before' if not test_main and not rebase else 'not tested yet'}")
+    # open: upstream waits for review; close: main holds upstream, so an open review PR is done.
+    stage = "open" if base != upstream_main and review != "success" else ""
+    if base == upstream_main and json.loads(run("gh", "pr", "list", "-R", cfg["FORK_REPO"], "--label", cfg["REVIEW_LABEL"],
+                                                  "--state", "open", "--json", "number")):
+        stage = "close"
     output(rebase=str(rebase).lower(), test_main=str(test_main).lower(), main=main, base=base,
-           upstream_main=upstream_main, main_key=main_key, releases=json.dumps(releases, separators=(",", ":")))
+           upstream_main=upstream_main, main_key=main_key, releases=json.dumps(releases, separators=(",", ":")),
+           stage=stage)
+
+
+def without_workflows(commit, cwd=None):
+    """Tree of commit without .github/workflows."""
+    with tempfile.TemporaryDirectory() as scratch:
+        env = {"GIT_INDEX_FILE": f"{scratch}/index"}
+        run("git", "read-tree", commit, cwd=cwd, env=env)
+        run("git", "rm", "-r", "-q", "-f", "--cached", "--ignore-unmatch", "--", ".github/workflows", cwd=cwd, env=env)
+        return run("git", "write-tree", cwd=cwd, env=env)
+
+
+def review_commits(base, upstream, cwd=None):
+    """(review base, review head): base and upstream without workflows, the head's parents being the review base and
+    upstream, so the PR diff is base..upstream and its commits are upstream's. Same inputs, same commits."""
+    date = run("git", "show", "-s", "--format=%cI", upstream, cwd=cwd)
+    name, email = AUTHOR.removesuffix(">").split(" <")
+    env = dict(BOT, GIT_AUTHOR_NAME=name, GIT_AUTHOR_EMAIL=email, GIT_AUTHOR_DATE=date, GIT_COMMITTER_DATE=date)
+    review_base = run("git", "commit-tree", without_workflows(base, cwd), "-p", base,
+                      "-m", f"Notchcast: upstream review base {base[:10]}", cwd=cwd, env=env)
+    head = run("git", "commit-tree", without_workflows(upstream, cwd), "-p", review_base, "-p", upstream,
+               "-m", f"Notchcast: upstream {base[:10]}..{upstream[:10]} for review", cwd=cwd, env=env)
+    return review_base, head
+
+
+def fenced(text, limit):
+    """text in a code block that no backtick in it can close, cut to limit characters."""
+    text = text.replace("`", "'")
+    if len(text) > limit:
+        text = text[:limit].rsplit("\n", 1)[0] + "\n…"
+    return f"```\n{text}\n```"
+
+
+def review_body(base, upstream, cfg, cwd=None):
+    up, fork, context = cfg["UPSTREAM_REPO"], cfg["FORK_REPO"], cfg["REVIEW_CONTEXT"]
+    command = (f"gh api -X POST repos/{fork}/statuses/{upstream} -f context={context} -f state=success "
+               f"-f description='PASS {base[:7]}..{upstream[:7]}'")
+    commits = run("git", "log", "--format=%h %s", f"{base}..{upstream}", cwd=cwd)
+    stat = run("git", "diff", "--stat=120", base, upstream, cwd=cwd)
+    return f"""Upstream `{up}` moved from `{base}` (in our `main`) to `{upstream}`. Sync moves `main` onto it only after the keeper's review passes; until then nothing of it is built, run or released here.
+
+Range: `{base}..{upstream}`, [compare on GitHub](https://github.com/{up}/compare/{base}...{upstream}). This PR's files are that diff without `.github/workflows` (so no workflow runs on it; the full range shows them), and it is never merged: Sync closes it once `main` holds `{upstream[:10]}`, and a newer upstream replaces its range.
+
+Review: the keeper runs `gate pick notchcast review --from {REVIEW_HEAD}` (the gate) and `review-kimi` (a second voice) with `notchcast/review/upstream-review.md`, then records the verdict from their own `gh` login (a status from any other account, the Actions bot included, is ignored):
+
+```
+{command}
+```
+
+On FAIL, the same with `-f state=failure` and the reasons in `description`.
+
+Commits:
+
+{fenced(commits, 20000)}
+
+Diff stat:
+
+{fenced(stat, 30000)}
+"""
+
+
+def stage(action, base, upstream):
+    """Run in a checkout of our main with history, the deploy key set up for `open`."""
+    cfg = config()
+    repo = cfg["FORK_REPO"]
+    label = cfg["REVIEW_LABEL"]
+    prs = json.loads(run("gh", "pr", "list", "-R", repo, "--label", label, "--state", "open", "--json", "number"))
+    if action == "close":
+        for pr in prs:
+            run("gh", "pr", "close", str(pr["number"]), "-R", repo, "--comment", f"`main` holds upstream `{upstream[:10]}` now.")
+        return
+    run("git", "fetch", "-q", f"https://github.com/{cfg['UPSTREAM_REPO']}.git", upstream)
+    review_base, head = review_commits(base, upstream)
+    run("git", "-c", "core.hooksPath=/dev/null", "push", "-q", "--atomic", "--force", os.environ["FORK_SSH"],
+        f"{review_base}:refs/heads/{REVIEW_BASE}", f"{head}:refs/heads/{REVIEW_HEAD}")
+    title = f"Upstream review: {cfg['UPSTREAM_REPO']} {base[:7]}..{upstream[:7]}"
+    with tempfile.NamedTemporaryFile("w", suffix=".md") as body:
+        body.write(review_body(base, upstream, cfg))
+        body.flush()
+        run("gh", "label", "create", label, "-R", repo, "--color", "b60205", "--force")
+        if prs:
+            run("gh", "pr", "edit", str(prs[0]["number"]), "-R", repo, "--title", title, "--body-file", body.name)
+            print(f"updated PR #{prs[0]['number']}: {title}")
+        else:
+            print(run("gh", "pr", "create", "-R", repo, "--draft", "--base", REVIEW_BASE, "--head", REVIEW_HEAD,
+                      "--label", label, "--title", title, "--body-file", body.name))
 
 
 class Conflict(Exception):
@@ -480,4 +623,4 @@ if __name__ == "__main__":
     command, args = sys.argv[1], sys.argv[2:]
     {"plan": plan, "replay": replay, "regenerate": regenerate, "app-info": app_info, "issue": issue,
      "design-notice": design_notice, "tested-key": lambda *a: print(tested_key(*a)),
-     "tested-run": tested_build_url, "hold": hold}[command](*args)
+     "tested-run": tested_build_url, "hold": hold, "stage": stage, "reviewed": reviewed, "pin-tag": pin_tag}[command](*args)
