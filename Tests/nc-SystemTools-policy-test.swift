@@ -141,8 +141,8 @@ enum SystemToolsPolicyTests {
 
         let noRPM = try? NetworkQualityResult.parse(Data(#"{"dl_throughput": 5e6, "ul_throughput": 1e6}"#.utf8))
         check("a run without responsiveness still parses, with no RPM", noRPM?.summary.contains("RPM") == false)
-        check("under 100 Mbps keeps one decimal",
-              NetworkQualityResult.megabits(5_000_000) == 5.0.formatted(.number.precision(.fractionLength(1))))
+        let five = 5.0.formatted(.number.precision(.fractionLength(1)))
+        check("under 100 Mbps keeps one decimal", noRPM?.summary.contains("↓ \(five) Mbps") == true)
 
         func failure(_ text: String) -> NetworkQualityResult.Failure? {
             do {

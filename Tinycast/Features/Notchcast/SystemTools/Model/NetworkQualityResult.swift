@@ -28,16 +28,16 @@ struct NetworkQualityResult: Equatable, Sendable {
 
     /// "↓ 278 Mbps  ↑ 21.4 Mbps  1,234 RPM": one line, short enough for the island.
     var summary: String {
-        let speeds = String(
-            localized: "↓ \(Self.megabits(downloadBitsPerSecond)) Mbps  ↑ \(Self.megabits(uploadBitsPerSecond)) Mbps",
-            table: "NotchcastSystemTools")
+        let download = Self.megabits(downloadBitsPerSecond)
+        let upload = Self.megabits(uploadBitsPerSecond)
+        let speeds = String(localized: "↓ \(download) Mbps  ↑ \(upload) Mbps", table: "NotchcastSystemTools")
         guard let responsivenessRPM else { return speeds }
         let rpm = Int(responsivenessRPM.rounded()).formatted()
         return String(localized: "\(speeds)  \(rpm) RPM", table: "NotchcastSystemTools")
     }
 
     /// One decimal under 100 Mbps, where it still tells two results apart.
-    static func megabits(_ bitsPerSecond: Double) -> String {
+    private static func megabits(_ bitsPerSecond: Double) -> String {
         let value = bitsPerSecond / 1_000_000
         return value.formatted(.number.precision(.fractionLength(value < 100 ? 1 : 0)))
     }
