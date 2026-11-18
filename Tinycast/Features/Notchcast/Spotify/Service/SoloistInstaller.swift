@@ -9,8 +9,6 @@ import Security
 /// Fetches Soloist only from Spotify's own URL; Notchcast never bundles or mirrors it.
 enum SoloistInstaller {
     static let downloadURL = URL(string: "https://soloist-builds.spotifycdn.com/soloist_release_osx_arm64.tar.gz")!
-    static let downloadsPage = URL(
-        string: "https://developer.spotify.com/documentation/soloist/reference/downloads-and-updates")!
     /// Soloist's designated requirement: Apple-issued Developer ID and Spotify's team, 2FNC3A47ZF.
     static let requirement = """
         identifier "com.spotify.soloist" and anchor apple generic \
