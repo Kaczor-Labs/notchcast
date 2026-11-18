@@ -13,7 +13,7 @@ final class NotchcastController {
         let declaredTaps: [(token: UUID, tap: NotchcastTap)]
         let settings: [SettingsEntry]
 
-        var commands: [NotchcastCommand] { addon.commands + context.commands }
+        @MainActor var commands: [NotchcastCommand] { addon.commands + context.commands }
     }
 
     /// An add-on's settings row with an identity fixed at registration, for a stable `ForEach`.
