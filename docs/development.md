@@ -213,12 +213,12 @@ language is one line there. Pass a directory to keep the downloads between runs:
 `gen-countries.js` joins IANA's `zone.tab` with CLDR's `en` territory names on the ISO 3166 code. Re-run
 it when IANA adds or moves a country's zone; see [calculator.md](features/calculator.md#time-zones).
 
-`Tinycast/DesignSystem/ObsidianTokens.swift` is generated outside this repo: the OBSIDIAN design system
+`notchcast/vendor/Obsidian/ObsidianTokens.swift` is generated outside this repo: the OBSIDIAN design system
 builds it from its `tokens/tokens.json`. `Theme` maps its names onto it. Refresh it by copying the
 generated file over it unchanged, then check the copy:
 
 ```sh
-cp ~/.config/skillshare/skills/design-system/swift/ObsidianTokens.swift Tinycast/DesignSystem/
+cp ~/.config/skillshare/skills/design-system/swift/ObsidianTokens.swift notchcast/vendor/Obsidian/
 python3 ~/.config/skillshare/skills/design-system/scripts/check-tokens.py --notchcast .
 ```
 
