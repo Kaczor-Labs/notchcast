@@ -50,6 +50,8 @@ struct NotchcastIslandAuditRenderTest {
         ?? NSTemporaryDirectory() + "nc-island-audit-renders")
     /// `NC_AUDIT_LOOK=frosted` renders Frosted on its glass tint over a white wallpaper.
     static let frosted = ProcessInfo.processInfo.environment["NC_AUDIT_LOOK"] == "frosted"
+    /// `NC_AUDIT_SOLID=1` renders Frosted's no-blur fallback: each thickness's solid, and the menu solid.
+    static let solid = ProcessInfo.processInfo.environment["NC_AUDIT_SOLID"] == "1"
 
     static func write(_ name: String, _ image: CGImage?) {
         guard let image else { preconditionFailure("\(name) did not render") }
@@ -63,10 +65,10 @@ struct NotchcastIslandAuditRenderTest {
     }
 
     /// Every SwiftUI surface sits on the island in its look, the way the island hosts it.
-    static func render(_ name: String, @ViewBuilder _ content: () -> some View) {
+    static func render(_ name: String, glass: NotchTheme.GlassLayer = .bar, @ViewBuilder _ content: () -> some View) {
         let view = content()
             .padding(16)
-            .background(ground(desk: false))
+            .background(ground(desk: false, glass: glass))
             .environment(\.islandFrosted, frosted)
             .environment(\.paletteOnIsland, true)
             .environment(\.colorScheme, .dark)
@@ -82,6 +84,7 @@ struct NotchcastIslandAuditRenderTest {
             .padding(16)
             .frame(width: size.width, height: size.height, alignment: .top)
             .background(ground(desk: desk))
+            .environment(\.islandGlassBelow, solid)
             .environment(\.islandFrosted, frosted)
             .environment(\.paletteOnIsland, true)
             .environment(\.colorScheme, .dark)
@@ -102,14 +105,47 @@ struct NotchcastIslandAuditRenderTest {
         write(name, bitmap.cgImage)
     }
 
-    /// Black is the island black; Frosted its tint over white, or white alone under a floating menu.
-    @ViewBuilder static func ground(desk: Bool) -> some View {
+    /// Black is the island black; Frosted the thickness's fill over white, or white alone under a floating menu.
+    @ViewBuilder static func ground(desk: Bool, glass: NotchTheme.GlassLayer = .bar) -> some View {
         if !frosted {
             NotchTheme.Colors.islandSurface
         } else if desk {
             Color.white
         } else {
-            NotchTheme.Colors.islandGlassTint.background(Color.white)
+            glass.fill(solid: solid).background(Color.white)
+        }
+    }
+
+    /// A report or a question as the island holds it: grown in that thickness from the top edge, with and
+    /// without a 185 × 32 notch.
+    static func renderHeld(_ name: String, _ glass: NotchTheme.GlassLayer, @ViewBuilder _ content: () -> some View) {
+        let renderer = ImageRenderer(content: content().environment(\.islandFrosted, frosted)
+            .environment(\.paletteOnIsland, true).environment(\.colorScheme, .dark))
+        renderer.scale = 2
+        guard let image = renderer.nsImage else { preconditionFailure("\(name) did not render") }
+        let inset = NotchTheme.Spacing.islandInset
+        let notchSize = CGSize(width: 185, height: 32)
+        for notch in [false, true] {
+            let top = notch ? notchSize.height : 0
+            let island = CGSize(width: max(image.size.width + inset * 2, notchSize.width + 2 * Theme.Radius.panel),
+                                height: top + image.size.height + inset * 2)
+            let form = "\(notch ? "notch" : "nonotch")-\(frosted ? "frosted" : "black")\(solid ? "-solid" : "")"
+            writeArt("\(name)-\(form)", size: CGSize(width: island.width + 64, height: island.height + 32)) { rect in
+                (frosted ? NSColor.white : NSColor(white: 0.18, alpha: 1)).setFill()
+                rect.fill()
+                // Taller than the picture, so the top corners fall above the screen's edge.
+                let shape = CGRect(x: 32, y: rect.maxY - island.height, width: island.width,
+                                   height: island.height + Theme.Radius.panel)
+                NSColor(frosted ? glass.fill(solid: solid) : NotchTheme.Colors.islandSurface).setFill()
+                NSBezierPath(roundedRect: shape, xRadius: Theme.Radius.panel, yRadius: Theme.Radius.panel).fill()
+                if notch {
+                    NSColor.black.setFill()
+                    CGRect(x: shape.midX - notchSize.width / 2, y: rect.maxY - notchSize.height,
+                           width: notchSize.width, height: notchSize.height).fill()
+                }
+                image.draw(in: CGRect(x: shape.midX - image.size.width / 2, y: shape.minY + inset,
+                                      width: image.size.width, height: image.size.height))
+            }
         }
     }
 
@@ -306,7 +342,7 @@ struct NotchcastIslandAuditRenderTest {
             }
             .frame(width: 520)
         }
-        render("05-message-hud") {
+        render("05-message-hud", glass: .pane) {
             VStack(spacing: 12) {
                 MessageHUDView(message: "Copied to Clipboard", accessory: .tone(.success))
                 MessageHUDView(message: "Could not open the file", accessory: .tone(.danger))
@@ -314,7 +350,7 @@ struct NotchcastIslandAuditRenderTest {
                 MessageHUDView(message: "Downloading…", accessory: .progress, onCancel: {})
             }
         }
-        render("06-dialog-update-failed") {
+        render("06-dialog-update-failed", glass: .sheet) {
             DialogView(
                 request: DialogRequest(
                     title: "Update failed", message: "The download did not finish.",
@@ -323,7 +359,7 @@ struct NotchcastIslandAuditRenderTest {
                     defaultIndex: 1, cancelIndex: 0),
                 width: 290, onChoose: { _ in })
         }
-        render("07-dialog-neutral") {
+        render("07-dialog-neutral", glass: .sheet) {
             DialogView(
                 request: DialogRequest(
                     title: "Quit Safari?", message: "Two windows are open.", symbol: "safari",
@@ -332,7 +368,19 @@ struct NotchcastIslandAuditRenderTest {
                     defaultIndex: 1, cancelIndex: 0),
                 width: 420, onChoose: { _ in })
         }
-        render("08-dialog-chips") {
+        renderHeld("979-hud", .pane) {
+            MessageHUDView(message: "Copied to Clipboard", accessory: .tone(.success))
+        }
+        renderHeld("979-dialog", .sheet) {
+            DialogView(
+                request: DialogRequest(
+                    title: "Quit Safari?", message: "Two windows are open.", symbol: "safari",
+                    actions: [DialogAction(title: "Cancel", role: .cancel),
+                              DialogAction(title: "Quit", role: .destructive)],
+                    defaultIndex: 1, cancelIndex: 0),
+                width: 290, onChoose: { _ in })
+        }
+        render("08-dialog-chips", glass: .sheet) {
             HStack(spacing: 8) {
                 DialogChip(title: "Rest", selected: false, onTap: {})
                 DialogChip(title: "Selected", selected: true, onTap: {})

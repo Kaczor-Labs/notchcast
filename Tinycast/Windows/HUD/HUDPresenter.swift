@@ -35,9 +35,9 @@ final class HUDPresenter {
         if case .edgeInset = anchor { AppCore.shared.island.overlays.placeReport(panel, screen: screen()) } else { place(panel) }
         // A panel on screen may be mid-fade, so bring it back rather than start another.
         if panel.isVisible {
-            panel.cancelFade()
+            panel.glassStay()
         } else {
-            panel.fadeIn(duration: Theme.Duration.enter) { panel.orderFrontRegardless() }
+            panel.glassEnter { panel.orderFrontRegardless() }
         }
         if dwells { scheduleDismissal() } else { dismissal?.cancel() }
     }
@@ -45,13 +45,13 @@ final class HUDPresenter {
     func dismiss() {
         dismissal?.cancel()
         guard let panel, panel.isVisible else { return }
-        panel.fadeOut(duration: Theme.Duration.exit)
+        panel.glassLeave()
     }
 
     /// Re-arms the dismissal, so a repeat extends the dwell rather than replaying it.
     func extend() {
         guard let panel, panel.isVisible else { return }
-        panel.cancelFade()
+        panel.glassStay()
         scheduleDismissal()
     }
 
@@ -62,7 +62,7 @@ final class HUDPresenter {
         dismissal = Task { [weak self, dwell] in
             try? await Task.sleep(for: .seconds(dwell))
             guard !Task.isCancelled else { return }
-            self?.panel?.fadeOut(duration: Theme.Duration.exit)
+            self?.panel?.glassLeave()
         }
     }
 

@@ -82,8 +82,6 @@ extension NotchTheme {
         static let destructiveLifted = ink(0xFFB3AE)
         static let success = ink(0x86D39B)
         static let warning = ink(0xE8C66A)
-        /// Denser than the island body: a menu sits over the island and the desktop at once.
-        static let menuTint = Color(.sRGB, red: 38 / 255, green: 39 / 255, blue: 43 / 255, opacity: 0.92)
 
         private static func ink(_ hex: Int) -> Color {
             Color(.sRGB, red: Double(hex >> 16 & 0xFF) / 255, green: Double(hex >> 8 & 0xFF) / 255,

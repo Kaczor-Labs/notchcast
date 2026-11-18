@@ -21,7 +21,7 @@ final class IslandFrost {
         clip.wantsLayer = true
         clip.layer?.mask = mask
         clip.isHidden = true
-        blur.material = .hudWindow
+        blur.material = NotchTheme.GlassLayer.material
         blur.blendingMode = .behindWindow
         blur.state = .active
         for view in [clip, blur, canvas] { view.autoresizingMask = [.width, .height] }
