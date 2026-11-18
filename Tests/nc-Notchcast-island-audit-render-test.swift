@@ -6,6 +6,7 @@
 // notchcast-sources: Tinycast/Windows/HUD/MessageHUDView.swift Tinycast/Windows/Dialog/DialogView.swift
 // notchcast-sources: Tinycast/Windows/Dialog/DialogRequest.swift Tinycast/Windows/Dialog/DialogChip.swift
 // notchcast-sources: Tinycast/Features/Island/Model/IslandPresentation.swift
+// notchcast-sources: Tinycast/Features/Island/Model/IslandHover.swift
 // notchcast-sources: Tinycast/Features/Notchcast/IslandButtonFill.swift
 // notchcast-sources: Tinycast/Features/Island/Model/IslandLevelDwell.swift
 // notchcast-sources: Tinycast/Features/Island/Model/PillMenuRows.swift Tinycast/Features/Calendar/Model/*.swift
@@ -168,6 +169,84 @@ struct NotchcastIslandAuditRenderTest {
                 return true
             }
             image.draw(in: box)
+        }
+    }
+
+    /// #884's hover states at the screen's top edge: a 185 × 32 notch, or the 96 × 24 pill without one.
+    static func renderHover(_ meeting: MeetingEvent) {
+        let notchSize = CGSize(width: 185, height: 32)
+        let glance = IslandGlance(meeting, now: Date(timeIntervalSince1970: 0), locale: Locale(identifier: "en_US"))
+        let ready = IslandStatus(id: "update", symbol: "arrow.clockwise.circle", text: nil, label: "Update ready")
+        let download = IslandNotice(id: "dl", symbol: "arrow.down.circle", text: "Lecture 04.mp4",
+                                    progress: IslandProgress(fraction: 0.42, headline: false))
+        func hovered(_ top: IslandNotice?, _ statuses: [IslandStatus] = []) -> IslandNotice {
+            IslandHover.notice(top: top, statuses: statuses, glance: false, level: false, hovered: true)!
+        }
+        /// Draws the island hanging from the top edge, `body` tall below the notch, art in that lower part.
+        func island(_ name: String, width: CGFloat, body: CGFloat, notch: Bool, radius: CGFloat,
+                    notchLeft: CGFloat? = nil, _ draw: @escaping (CGRect) -> Void) {
+            let top = notch ? notchSize.height : 0
+            let size = CGSize(width: max(width, notch ? notchSize.width : NotchTheme.Size.islandRest.width) + 64,
+                              height: top + body + 32)
+            writeArt(name, size: size) { rect in
+                let shape = CGRect(x: 32, y: rect.maxY - top - body, width: size.width - 64, height: top + body)
+                let path = NSBezierPath()
+                path.move(to: CGPoint(x: shape.minX, y: rect.maxY))
+                path.line(to: CGPoint(x: shape.minX, y: shape.minY + radius))
+                path.appendArc(withCenter: CGPoint(x: shape.minX + radius, y: shape.minY + radius), radius: radius,
+                               startAngle: 180, endAngle: 270)
+                path.line(to: CGPoint(x: shape.maxX - radius, y: shape.minY))
+                path.appendArc(withCenter: CGPoint(x: shape.maxX - radius, y: shape.minY + radius), radius: radius,
+                               startAngle: 270, endAngle: 360)
+                path.line(to: CGPoint(x: shape.maxX, y: rect.maxY))
+                path.close()
+                paintPill(rect, pill: notch || body > NotchTheme.Size.islandRest.height ? path
+                          : NSBezierPath(roundedRect: shape, xRadius: body / 2, yRadius: body / 2))
+                if notch {
+                    NSColor.black.setFill()
+                    CGRect(x: shape.minX + (notchLeft ?? (shape.width - notchSize.width) / 2),
+                           y: rect.maxY - notchSize.height,
+                           width: notchSize.width, height: notchSize.height).fill()
+                }
+                draw(notch && body == 0 ? CGRect(x: shape.minX, y: shape.minY, width: shape.width, height: top)
+                     : CGRect(x: shape.minX, y: shape.minY, width: shape.width, height: body))
+            }
+        }
+        /// The compact pill: content hugs the ends, a notch keeps the middle, as the engine sizes the slots.
+        func compactWidth(_ art: some PillArt, notch: Bool) -> CGFloat {
+            let inner = notch ? Theme.Spacing.md : 0
+            return (notch ? notchSize.width : 0) + 2 * (Theme.Spacing.lg + inner) + art.layout.leading
+                + art.layout.trailing
+        }
+        func compact(_ name: String, _ art: some PillArt, notch: Bool) {
+            island(name, width: compactWidth(art, notch: notch), body: notch ? 0 : NotchTheme.Size.islandRest.height,
+                   notch: notch, radius: notch ? 10 : 12,
+                   notchLeft: Theme.Spacing.lg + Theme.Spacing.md + art.layout.leading) { art.draw(in: $0) }
+        }
+        let look = frosted ? "frosted" : "black"
+        for notch in [false, true] {
+            let form = notch ? "notch" : "nonotch"
+            let meetingArt = GlanceArt(glance, notch: notch, frosted: frosted)
+            compact("884-04-meeting-\(form)-\(look)", meetingArt, notch: notch)
+            let expansion = IslandExpansionArt(glance, frosted: frosted)
+            island("884-05-meeting-hover-\(form)-\(look)",
+                   width: max(expansion.size.width, compactWidth(meetingArt, notch: notch)), body: expansion.size.height,
+                   notch: notch, radius: Theme.Radius.panel) { expansion.draw(in: $0) }
+            compact("884-06-status-\(form)-\(look)", IslandStatusArt([ready], notch: notch, frosted: frosted),
+                    notch: notch)
+            compact("884-08-download-\(form)-\(look)", IslandNoticeArt(download, notch: notch, frosted: frosted),
+                    notch: notch)
+            for (step, top, statuses) in [("07-status", nil, [ready]), ("09-download", download, [])] {
+                let notice = hovered(top, statuses)
+                if notch {
+                    let line = IslandHeadlineArt(notice, notch: notchSize.width, frosted: frosted)
+                    island("884-\(step)-hover-\(form)-\(look)", width: line.size.width, body: line.size.height,
+                           notch: true, radius: Theme.Radius.panel) { line.draw(in: $0) }
+                } else {
+                    compact("884-\(step)-hover-\(form)-\(look)",
+                            IslandNoticeArt(notice, notch: false, frosted: frosted), notch: false)
+                }
+            }
         }
     }
 
@@ -352,6 +431,7 @@ struct NotchcastIslandAuditRenderTest {
             paintPill(rect, pill: NSBezierPath(roundedRect: room, xRadius: 16, yRadius: 16))
             expansion.draw(in: room)
         }
+        renderHover(meeting)
         renderBand("22-level-band", IslandLevelArt(
             IslandLevel(source: "volume", symbol: "speaker.wave.2.fill", label: "Volume", value: 0.6),
             notch: false, frosted: frosted))
