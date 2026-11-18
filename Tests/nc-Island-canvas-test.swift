@@ -94,5 +94,16 @@ struct IslandCanvasTest {
         canvas.mouseDown(with: event(.leftMouseDown, .control))
         precondition(opens == 1 && menus == 2, "A right click and a Control click show the menu")
         precondition(canvas.accessibilityPerformPress() && opens == 2 && menus == 2, "VoiceOver's press opens it too")
+        var pointer = 0
+        canvas.onPointer = { pointer += 1 }
+        canvas.updateTrackingAreas()
+        canvas.updateTrackingAreas()
+        let wanted: NSTrackingArea.Options = [.mouseEnteredAndExited, .mouseMoved, .activeAlways, .inVisibleRect]
+        precondition(canvas.trackingAreas.count == 1 && canvas.trackingAreas[0].options == wanted,
+                     "The island tracks the pointer in its own window, whichever app is active (#1029)")
+        canvas.mouseMoved(with: event(.mouseMoved))
+        canvas.mouseEntered(with: event(.mouseMoved))
+        canvas.mouseExited(with: event(.mouseMoved))
+        precondition(pointer == 3 && opens == 2 && menus == 2, "A tracked enter, move or exit reports the pointer only")
     }
 }

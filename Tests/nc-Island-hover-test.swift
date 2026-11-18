@@ -29,6 +29,7 @@ struct IslandHoverTest {
         monitors()
         pinnedClick()
         topRowRest()
+        trackedMove()
         primaryClick()
         try clickHooks()
         try refreshHooks()
@@ -244,6 +245,21 @@ struct IslandHoverTest {
         }
     }
 
+    /// The island window's tracking area reports a move the monitors never saw (#1029).
+    static func trackedMove() {
+        let world = FakeWorld()
+        let tracker = world.tracker()
+        world.input = Input(inside: true)
+        tracker.refresh()
+        precondition(world.wakeAt == open, "a tracked move starts the intent delay with no monitor event")
+        world.advance(to: open)
+        precondition(tracker.isOpen && world.opens == [true], "and the island opens")
+        world.input = Input(inside: false)
+        tracker.refresh()
+        world.advance(to: open + close)
+        precondition(!tracker.isOpen, "a tracked exit closes it")
+    }
+
     /// A primary click opens the island as hover does and holds it, hover on or off (#1029).
     static func primaryClick() {
         for enabled in [true, false] {
@@ -279,6 +295,8 @@ struct IslandHoverTest {
         precondition(!click.contains("openMenu") && !click.contains("pillMenu"), "a primary click never shows the island's menu")
         precondition(coordinator.contains("backdrop.onMenu = { [weak self] pill, window in "
             + "self?.pillMenu.toggle(below: pill, in: window) }\n"), "a secondary click shows the island's menu")
+        precondition(coordinator.contains("backdrop.canvas.onPointer = { [weak self] in self?.hover.refresh() }\n"),
+                     "the island window's tracking area feeds the hover")
         let menu = try source("IslandPillMenu.swift")
         precondition(!menu.contains("Support") && !menu.contains("supportCoordinator"),
                      "the island's menu has no Support Tinycast row")

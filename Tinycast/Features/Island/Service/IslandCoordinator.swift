@@ -84,6 +84,7 @@ final class IslandCoordinator: NSObject {
                 self?.hover.pin()
             }
             backdrop.onSettle = { [weak self] in self?.hover.refresh() }
+            backdrop.canvas.onPointer = { [weak self] in self?.hover.refresh() }
             backdrop.onMenu = { [weak self] pill, window in self?.pillMenu.toggle(below: pill, in: window) }
             backdrop.glance = backdrop.showsRest ? restingGlance : nil
             presenter?.restore(backdrop, resting: backdrop.showsRest)
