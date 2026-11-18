@@ -356,8 +356,7 @@ while :; do
     base=$moved_to
     # Trees, not the commit range: a Sync rewrite of main changes real files and still reruns.
     moved=$(git diff --name-only "$previous" "$base") || refuse 'cannot read how main moved'
-    # A harness (ext-test.swift) loads the runtime JS, so a move changing it still reruns them.
-    if [ -z "$(grep -vxF -f <(python3 -c 'from notchcast.ci import GENERATED, RUNTIME_JS; print("\n".join(set(GENERATED) - {RUNTIME_JS}))') <<< "$moved" || true)" ]; then
+    if [ -z "$(grep -vxF -f <(python3 -c 'from notchcast.ci import GENERATED; print("\n".join(GENERATED))') <<< "$moved" || true)" ]; then
         echo "main moved ${previous:0:8} -> ${base:0:8} only in generated files; merging again without rerunning harnesses"
     else
         echo "main moved ${previous:0:8} -> ${base:0:8}; merging again and rerunning harnesses"
