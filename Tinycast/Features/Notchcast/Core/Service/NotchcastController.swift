@@ -22,6 +22,7 @@ final class NotchcastController {
 
     let preferences: NotchcastPreferences
     let hub: NotchcastTapHub
+    let transcription: NotchcastTranscriptionRunner
     private(set) var slots: [Slot] = []
     private(set) var enabledCommands: [NotchcastCommand] = []
     var onCommandsChanged: (([NotchcastCommand]) -> Void)?
@@ -37,6 +38,7 @@ final class NotchcastController {
         preferences = NotchcastPreferences(defaults: defaults, switches: addons.flatMap { $0.switches })
         self.hub = hub
         let transcription = NotchcastTranscriptionRunner(dictation: dictation)
+        self.transcription = transcription
         func makeContext(recovery: NotchcastContext? = nil) -> NotchcastContext {
             NotchcastContext(
                 defaults: defaults, preferences: preferences, presenter: presenter, hub: hub,
@@ -90,6 +92,11 @@ final class NotchcastController {
 
     func launcherRow(digit: Int, query: String, entryRows: [Int]) -> Int? {
         slots.lazy.compactMap { $0.context.launcherDigit?(digit, query, entryRows) }.first
+    }
+
+    /// False when no add-on claims the URL; a running module goes before any recovery.
+    func open(_ url: URL) -> Bool {
+        slots.contains { $0.context.openURL?(url) == true } || slots.contains { $0.recovery.openURL?(url) == true }
     }
 
     func context(forSwitch id: String) -> NotchcastContext? {

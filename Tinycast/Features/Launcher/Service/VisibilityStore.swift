@@ -37,6 +37,7 @@ final class VisibilityStore {
     /// An entry a feature pane owns answers to that feature's switch, so no category gates it.
     private func isCategoryEnabled(_ entry: AppEntry) -> Bool {
         entry.settingsOwner != nil || isKindEnabled(entry.kind)
+            || key(for: entry) == "command:open-in-browser"  // Notchcast: no category gates a typed address
     }
 
     func isItemVisible(_ entry: AppEntry) -> Bool { isItemVisible(key: key(for: entry)) }
