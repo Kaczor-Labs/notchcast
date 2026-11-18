@@ -74,14 +74,12 @@ enum AnnotationRenderer {
     }
 
     /// A `scale` is written as the DPI, so a Retina result opens at its size in points.
-    static func png(_ image: CGImage, scale: CGFloat? = nil) throws -> Data {
+    static func png(_ image: CGImage, scale: CGFloat) throws -> Data {
         let data = NSMutableData()
         guard let encoder = CGImageDestinationCreateWithData(data, UTType.png.identifier as CFString, 1, nil) else {
             throw Failure.encodingFailed
         }
-        let density = scale.map { 72 * $0 }.map {
-            [kCGImagePropertyDPIWidth: $0, kCGImagePropertyDPIHeight: $0] as CFDictionary
-        }
+        let density = [kCGImagePropertyDPIWidth: 72 * scale, kCGImagePropertyDPIHeight: 72 * scale] as CFDictionary
         CGImageDestinationAddImage(encoder, image, density)
         guard CGImageDestinationFinalize(encoder) else { throw Failure.encodingFailed }
         return data as Data

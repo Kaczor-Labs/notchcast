@@ -65,7 +65,7 @@ final class ScreenshotsModule: NotchcastModule {
         guard system.grantAccess() else { return report(ScreenshotRequest.Failure.permissionDenied) }
         run { [self] in
             guard let shot = try await capture(scope) else { return }
-            let data = try await Self.png(shot.image)
+            let data = try await Self.png(shot.image, scale: shot.scale)
             try Task.checkCancellation()
             lastCapture = (data, shot.scale)
             if context.defaults.bool(forKey: Self.editAfterCaptureKey) {
@@ -208,9 +208,9 @@ final class ScreenshotsModule: NotchcastModule {
     }
 
     @concurrent
-    private static func png(_ image: CGImage) async throws -> Data {
+    private static func png(_ image: CGImage, scale: CGFloat) async throws -> Data {
         do {
-            return try AnnotationRenderer.png(image)
+            return try AnnotationRenderer.png(image, scale: scale)
         } catch {
             throw ScreenshotRequest.Failure.encodingFailed
         }

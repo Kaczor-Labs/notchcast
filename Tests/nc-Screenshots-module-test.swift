@@ -153,6 +153,11 @@ func files(in folder: URL) -> [String] {
 
 func isPNG(_ data: Data?) -> Bool { data?.prefix(4) == Data([0x89, 0x50, 0x4E, 0x47]) }
 
+func pngDPI(_ data: Data?) -> Double? {
+    data.flatMap { CGImageSourceCreateWithData($0 as CFData, nil) }
+        .flatMap { CGImageSourceCopyPropertiesAtIndex($0, 0, nil) as? [CFString: Any] }?[kCGImagePropertyDPIWidth] as? Double
+}
+
 func pngWidth(_ data: Data?) -> Int? {
     data.flatMap { CGImageSourceCreateWithData($0 as CFData, nil) }
         .flatMap { CGImageSourceCreateImageAtIndex($0, 0, nil) }?.width
@@ -205,6 +210,8 @@ enum ScreenshotsModuleTests {
         fake.pick(.rect(CGRect(x: 10, y: 10, width: 20, height: 10)))
         await drain()
         precondition(fake.clipboard.count == 1 && isPNG(fake.clipboard.last), "clipboard by default")
+        precondition(pngDPI(fake.clipboard.last).map { abs($0 - 144) < 1 } == true,
+                     "an unedited Retina capture says 144 dpi, like an edited one")
         precondition(files(in: desktopFolder).isEmpty && presenter.posts.isEmpty, "no file by default")
 
         precondition(rig.controller.run(entryID: area))
