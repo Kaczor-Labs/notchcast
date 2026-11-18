@@ -21,10 +21,10 @@ extension TaildropSystem {
 
 /// One tool run to its end, off the caller's thread; cancelling the task terminates the tool.
 private nonisolated enum TaildropProcess {
-    /// Homebrew on either architecture, then the CLI inside the Tailscale app.
+    /// The CLI inside the Tailscale app, which matches the running daemon, then Homebrew's.
     static let cliPaths = [
-        "/opt/homebrew/bin/tailscale", "/usr/local/bin/tailscale",
         "/Applications/Tailscale.app/Contents/MacOS/Tailscale",
+        "/opt/homebrew/bin/tailscale", "/usr/local/bin/tailscale",
     ]
 
     /// Shared by the launch, the cancel handler and the stderr reader, which run on three threads.
@@ -79,7 +79,7 @@ private nonisolated enum TaildropProcess {
     }
 }
 
-/// Finder's selection as file URLs, read with two `core/getd` Apple Events of 5 s each.
+/// Finder's selection as file URLs: one `core/getd` Apple Event, then one per item, 5 s each.
 private nonisolated enum TaildropFinder {
     private static let automationDenied = -1743
 

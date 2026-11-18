@@ -1,7 +1,9 @@
 import Foundation
+import Observation
 
 /// The only door from an add-on to the app: one per add-on, owned by the controller.
 @MainActor
+@Observable
 final class NotchcastContext {
     let defaults: UserDefaults
     let preferences: NotchcastPreferences

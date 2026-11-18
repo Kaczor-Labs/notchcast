@@ -1,4 +1,3 @@
-import CoreGraphics
 import Foundation
 
 /// Lists each device as a command and runs one send at a time, reported as one island notice.
@@ -6,14 +5,12 @@ import Foundation
 final class TaildropModule: NotchcastModule {
     static let noticeID = "taildrop"
     static let symbol = "paperplane"
-    private static let escapeKey: Int64 = 53
 
     private let context: NotchcastContext
     private let system: TaildropSystem
     private(set) var listing: Task<Void, Never>?
     private var sending: Task<Void, Never>?
     private var job: UUID?
-    private var escapeTap: UUID?
     private(set) var isRunning = false
 
     init(context: NotchcastContext, system: TaildropSystem) {
@@ -68,9 +65,6 @@ final class TaildropModule: NotchcastModule {
         let (system, job) = (system, UUID())
         self.job = job
         progress(0, of: 1, to: target.name)
-        escapeTap = context.subscribe(NotchcastTap(
-            switchID: TaildropAddon.switchID, mask: NotchcastTapPolicy.mask(for: .keyDown),
-            handler: .observe { [weak self] event in self?.keyDown(event) }))
         sending = Task { [weak self] in
             let result: Result<Int, any Error>
             do {
@@ -89,14 +83,6 @@ final class TaildropModule: NotchcastModule {
     }
 
     func cancel() { sending?.cancel() }
-
-    private func keyDown(_ event: NotchcastTapEvent) {
-        let modifiers: CGEventFlags = [.maskCommand, .maskControl, .maskAlternate, .maskShift]
-        guard event.keyCode == Self.escapeKey, !event.isRepeat, event.flags.isDisjoint(with: modifiers) else {
-            return
-        }
-        cancel()
-    }
 
     /// The device list failed without the CLI missing: one command stays, so the reason has a home.
     private func publish(_ targets: [TaildropTarget], failure: TaildropFailure?) {
@@ -129,8 +115,6 @@ final class TaildropModule: NotchcastModule {
     private func settle() {
         sending = nil
         job = nil
-        if let escapeTap { context.unsubscribe(escapeTap) }
-        escapeTap = nil
     }
 
     private func finish(_ result: Result<Int, any Error>) {
@@ -147,10 +131,11 @@ final class TaildropModule: NotchcastModule {
 
     private func progress(_ done: Int, of total: Int, to name: String) {
         let fraction = total > 1 ? Double(done) / Double(total) : nil
+        let text = total > 1
+            ? String(localized: "Sending \(total) items to \(name)", table: "NotchcastTaildrop")
+            : String(localized: "Sending to \(name)", table: "NotchcastTaildrop")
         let notice = IslandNotice(
-            id: Self.noticeID, symbol: Self.symbol,
-            text: String(localized: "Sending to \(name)", table: "NotchcastTaildrop"),
-            progress: IslandProgress(fraction: fraction))
+            id: Self.noticeID, symbol: Self.symbol, text: text, progress: IslandProgress(fraction: fraction))
         context.presenter.post(notice, onTap: { [weak self] in self?.cancel() })
     }
 

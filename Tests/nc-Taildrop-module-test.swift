@@ -145,22 +145,15 @@ final class Rig {
     let defaults: UserDefaults
     let presenter = RecordingPresenter()
     let controller: NotchcastController
-    var session: FakeSession?
     var published = 0
 
     init(on: Bool = true) {
         defaults = UserDefaults(suiteName: suite)!
         if on { defaults.set(true, forKey: "taildrop") }
-        var rig: Rig?
-        let hub = NotchcastTapHub(syntheticTag: 0x54494E59, isTrusted: { true }, makeSession: {
-            let session = FakeSession($0)
-            rig?.session = session
-            return session
-        })
+        let hub = NotchcastTapHub(syntheticTag: 0x54494E59, isTrusted: { true }, makeSession: { FakeSession($0) })
         controller = NotchcastController(
             addons: [TaildropAddon.self], defaults: defaults, hub: hub,
             dictation: FakeDictation(), presenter: presenter)
-        rig = self
         controller.onCommandsChanged = { [weak self] _ in self?.published += 1 }
         controller.start()
     }
@@ -183,12 +176,6 @@ final class Rig {
         precondition(last?.text == text, "notice text was \(last?.text ?? "nil"), wanted \(text)")
         precondition(last?.isFailure == failure && last?.symbol == symbol, "\(text): failure flag and symbol")
         precondition(last?.id == "taildrop" && last?.progress == nil, "\(text): one notice id, a result")
-    }
-
-    func pressEscape(_ flags: CGEventFlags = []) {
-        let event = CGEvent(keyboardEventSource: nil, virtualKey: 53, keyDown: true)!
-        event.flags = flags
-        _ = session!.router.receive(type: .keyDown, event: event)
     }
 
     func finish() {
@@ -415,12 +402,16 @@ enum TaildropModuleTests {
         await rig.run("taildrop-to-studio-mac")
         rig.expect("Sent", failure: false, symbol: "checkmark")
         let progress = rig.presenter.posts.dropLast()
-        precondition(progress.allSatisfy { $0.text == "Sending to studio-mac" && $0.id == "taildrop" }, "one notice")
+        precondition(progress.allSatisfy { $0.id == "taildrop" }, "one notice")
+        precondition(
+            progress.map(\.text)
+                == ["Sending to studio-mac"] + Array(repeating: "Sending 3 items to studio-mac", count: 3),
+            "the notice says how much is being sent once the selection is read: \(progress.map(\.text))")
         precondition(
             progress.map { $0.progress?.fraction } == [nil, 0, 1.0 / 3, 2.0 / 3],
             "unknown until the selection is read, then a share per item: \(progress.map { $0.progress?.fraction })")
         precondition(world.sends.count == 3 && world.removed == [scratch], "three sends, archive folder deleted")
-        precondition(rig.context.wantedTaps.isEmpty, "the Esc tap is gone once the send ends")
+        precondition(rig.context.wantedTaps.isEmpty, "a send watches no key")
 
         world.set { $0.selection = [] }
         await rig.run("taildrop-to-studio-mac")
@@ -432,34 +423,24 @@ enum TaildropModuleTests {
         await rig.run("taildrop-to-studio-mac")
         rig.expect("Taildrop failed: no space left", failure: true)
 
-        // Esc cancels a running send; a held modifier does not.
+        // A click on the progress notice cancels a running send; no key does.
         world.reset()
         world.set { $0.selection = ["/big/Docs"]; $0.folders = ["/big/Docs"]; $0.hangsOn = scratch + "/Docs.zip" }
         await rig.run("taildrop-to-studio-mac", closing: false)
         await until("the send is under way") { world.sends.count == 1 }
-        precondition(rig.context.wantedTaps.count == 1 && rig.session != nil, "Esc is watched only while sending")
+        precondition(rig.context.wantedTaps.isEmpty, "a running send watches no key either")
         let posts = rig.presenter.posts.count
         await rig.run("taildrop-to-pocket-phone", closing: false)
         precondition(rig.presenter.posts.count == posts && world.sends.count == 1, "one send at a time")
-        rig.pressEscape(.maskCommand)
-        rig.pressEscape()
-        await until("Esc cancels") { rig.last?.progress == nil }
-        rig.expect("Cancelled", failure: false)
-        precondition(world.removed == [scratch], "a cancelled send deletes its archive too")
-        precondition(rig.context.wantedTaps.isEmpty, "and stops watching Esc")
-
-        // A click on the progress notice cancels as well.
-        world.set { $0.removed = [] }
-        await rig.run("taildrop-to-studio-mac", closing: false)
-        await until("the second send is under way") { world.sends.count == 2 }
         guard let click = rig.presenter.taps.last ?? nil else { preconditionFailure("the progress notice takes a click") }
         click()
         await until("the click cancels") { rig.last?.progress == nil }
         rig.expect("Cancelled", failure: false)
+        precondition(world.removed == [scratch], "a cancelled send deletes its archive too")
 
         // The switch going off mid-send ends it quietly.
         await rig.run("taildrop-to-studio-mac", closing: false)
-        await until("the third send is under way") { world.sends.count == 3 }
+        await until("the second send is under way") { world.sends.count == 2 }
         let before = rig.presenter.posts.count
         rig.controller.preferences.set("taildrop", on: false)
         await until("the module stops") { rig.module == nil }
