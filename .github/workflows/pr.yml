@@ -75,7 +75,9 @@ jobs:
     runs-on: ${{ github.event_name == 'workflow_dispatch' && !inputs.hosted && vars.NOTCHCAST_MAC_RUNNER || 'xcode-27' }}
     timeout-minutes: 90
     outputs:
-      hosted: ${{ steps.runner.outputs.hosted }}
+      kind: ${{ steps.runner.outputs.kind }}
+      toolchain: ${{ steps.proved.outputs.toolchain }}
+      excused: ${{ steps.proved.outputs.excused }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
@@ -87,17 +89,26 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
       - uses: ./tools/notchcast/actions/xcode
-      # A self-hosted runner is a maintainer's working Mac: its run skips what could touch that Mac and proves no tree.
+      # hosted is GitHub's VM and isolated a Mac user of its own (README, Runners): both run everything. working is a
+      # maintainer's own session: its run skips what could touch that Mac and proves no tree.
       - name: Runner kind
         id: runner
         env:
           HOSTED: ${{ runner.environment == 'github-hosted' }}
         run: |
-          echo "hosted=$HOSTED" >> "$GITHUB_OUTPUT"
-          [ "$HOSTED" = true ] || echo "::notice::SKIPPED on a self-hosted runner: the macOS script tests, HOSTED_ONLY_TESTS harnesses (unless the runner is isolated), the tested-tree record"
+          kind=working
+          if [ "$HOSTED" = true ]; then kind=hosted; elif [ "${NOTCHCAST_ISOLATED_RUNNER:-}" = 1 ]; then kind=isolated; fi
+          echo "kind=$kind" >> "$GITHUB_OUTPUT"
+          [ "$kind" != working ] || echo "::notice::SKIPPED on a working Mac: the macOS script tests, HOSTED_ONLY_TESTS harnesses, the tested-tree record"
+      # Runners of one Mac share its temp folder: each job keeps its harness logs in its own. The figures only print.
+      - name: Runner load at start
+        if: steps.runner.outputs.kind != 'hosted'
+        run: |
+          mkdir -p "$RUNNER_TEMP/tmp" && echo "TMPDIR=$RUNNER_TEMP/tmp" >> "$GITHUB_ENV"
+          sysctl -n hw.ncpu hw.memsize; uptime; vm_stat | head -8; sysctl vm.swapusage
       # First: the shortest lane. land-test.sh serves this checkout's upstream main to its fixture remote.
       - name: Script tests that need macOS
-        if: runner.environment == 'github-hosted'
+        if: steps.runner.outputs.kind != 'working'
         working-directory: src
         timeout-minutes: 10
         run: |
@@ -128,6 +139,16 @@ jobs:
           HARNESS_UNSURE: ${{ needs.route.outputs.harness-unsure }}
           HARNESS_TESTS: ${{ steps.tests.outcome }}
         run: python3 tools/notchcast/harness-select.py misses "$RUNNER_TEMP/harness-failures" 0
+      - name: Runner load at end
+        if: ${{ !cancelled() && steps.runner.outputs.kind != 'hosted' }}
+        run: sysctl -n hw.ncpu hw.memsize; uptime; vm_stat | head -8; sysctl vm.swapusage
+      # For the tested-tree record: the toolchain, and the harnesses red here and on upstream, which this run proved nowhere.
+      - name: What the isolated runner proved
+        id: proved
+        if: steps.runner.outputs.kind == 'isolated' && needs.route.outputs.build == 'true'
+        run: |
+          echo "toolchain=$({ xcodebuild -version; sw_vers; } | tr -s '\t\n' ' ' | sed 's/ $//')" >> "$GITHUB_OUTPUT"
+          echo "excused=$(paste -sd' ' "$RUNNER_TEMP/harness-excused")" >> "$GITHUB_OUTPUT"
   # ci-build.sh's checks that need no Mac (notchcast/ci-checks.sh), beside mac.
   linux-checks:
     needs: route
@@ -193,6 +214,11 @@ jobs:
         run: |
           echo "::error::train branches are dispatched by notchcast/train.sh with -f base=<main sha>"
           exit 1
+      - name: A train's Mac job proves its tree
+        if: startsWith(github.ref, 'refs/heads/train/') && needs.mac.outputs.kind == 'working'
+        run: |
+          echo "::error::this train's Mac job ran on a working Mac, which skips tests and proves no tree"
+          exit 1
       - name: Every lane the diff needs passed, and only those were skipped
         env:
           ROUTE: ${{ needs.route.result }}
@@ -217,18 +243,29 @@ jobs:
       - name: Config literals
         if: needs.route.outputs.build != 'true'
         run: python3 notchcast/check-config.py
-      # Only after a green hosted build: Sync's plan skips testing a tree (GENERATED aside) a PR build already proved.
+      # Only after a green build. Hosted: Sync's plan skips testing a tree (GENERATED aside) a PR build already proved.
+      # Isolated: a record of its own name with the runner's stamp, which only land.sh reads and judges (README, Runners).
       - name: Record the tested tree
-        if: needs.route.outputs.build == 'true' && needs.mac.outputs.hosted == 'true'
+        if: needs.route.outputs.build == 'true' && needs.mac.outputs.kind != 'working'
         id: tree
+        env:
+          KIND: ${{ needs.mac.outputs.kind }}
+          TOOLCHAIN: ${{ needs.mac.outputs.toolchain }}
+          EXCUSED: ${{ needs.mac.outputs.excused }}
         run: |
           echo "key=$(python3 notchcast/ci.py tested-key HEAD)" >> "$GITHUB_OUTPUT"
-          git rev-parse HEAD > "$RUNNER_TEMP/tested-commit"
+          mkdir "$RUNNER_TEMP/tested"
+          git rev-parse HEAD > "$RUNNER_TEMP/tested/tested-commit"
+          if [ "$KIND" = isolated ]; then
+            [ -n "$TOOLCHAIN" ] || { echo "::error::the isolated runner left no toolchain stamp"; exit 1; }
+            printf '%s\n' "$TOOLCHAIN" > "$RUNNER_TEMP/tested/toolchain"
+            printf '%s\n' "$EXCUSED" > "$RUNNER_TEMP/tested/excused"
+          fi
       - uses: actions/upload-artifact@v7
-        if: needs.route.outputs.build == 'true' && needs.mac.outputs.hosted == 'true'
+        if: needs.route.outputs.build == 'true' && needs.mac.outputs.kind != 'working'
         with:
-          name: tested-tree-${{ steps.tree.outputs.key }}
-          path: ${{ runner.temp }}/tested-commit
+          name: tested-tree-${{ needs.mac.outputs.kind == 'isolated' && 'isolated-' || '' }}${{ steps.tree.outputs.key }}
+          path: ${{ runner.temp }}/tested
           if-no-files-found: error
           overwrite: true
           retention-days: 7

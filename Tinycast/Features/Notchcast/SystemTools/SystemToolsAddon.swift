@@ -1,3 +1,4 @@
+// notchcast-new-switch-ids: systemTools
 import SwiftUI
 
 enum SystemToolsAddon: NotchcastAddon {
