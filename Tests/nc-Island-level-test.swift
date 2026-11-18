@@ -17,8 +17,17 @@ struct IslandLevelTest {
         precondition(reading.readout == "13%", "half a percent rounds away from zero, got \(reading.readout)")
         reading.value = 0.625
         precondition(reading.readout == "63%", "62.5% rounds away from zero, got \(reading.readout)")
-        reading.value = -0.0625
-        precondition(reading.readout == "-6%", "extra dimming reads below 0%, got \(reading.readout)")
+        var dimmable = IslandLevel(source: "brightness", symbol: "sun.min.fill", label: "Brightness", value: -0.25,
+                                   range: -0.25...1)
+        precondition(dimmable.readout == "0%", "the darkest extra dimming reads 0%, got \(dimmable.readout)")
+        dimmable.value = 0
+        precondition(dimmable.readout == "20%", "the system minimum sits a fifth along, got \(dimmable.readout)")
+        dimmable.value = 1
+        precondition(dimmable.readout == "100%", "the brightest reads 100%, got \(dimmable.readout)")
+        dimmable.value = 0.03125
+        precondition(dimmable.readout == "23%", "22.5% rounds away from zero, got \(dimmable.readout)")
+        dimmable.value = -1
+        precondition(dimmable.readout == "0%", "a value past the bar clamps to 0%, got \(dimmable.readout)")
         var dwell = IslandLevelDwell()
         let level = IslandLevel(source: "brightness", symbol: "sun.max.fill", label: "Brightness", value: 0)
         var starts = 0

@@ -35,10 +35,17 @@ enum IslandLevelPlacement: Equatable, Sendable {
 }
 
 extension IslandLevel {
-    var readout: String { Self.readout(value) }
+    var readout: String { Self.readout(value, in: range) }
 
-    /// Plain digits, half away from zero; extra dimming reads below 0%, its zone left of the track.
-    static func readout(_ value: Double) -> String { "\(Int((value * 100).rounded()))%" }
+    static func readout(_ value: Double, in range: ClosedRange<Double>) -> String { "\(percent(value, in: range))%" }
+
+    /// The whole bar, outlined zones included, spans 0…100, so extra dimming never reads below zero.
+    static func percent(_ value: Double, in range: ClosedRange<Double>) -> Int {
+        let low = min(range.lowerBound, 0)
+        let high = max(range.upperBound, 1)
+        let clamped = min(max(value, low), high)
+        return Int(((clamped - low) * 100 / (high - low)).rounded())
+    }
 }
 
 /// Extents along a track `width` wide: 0...1 is the track, the rest of `range` outlined zones.
