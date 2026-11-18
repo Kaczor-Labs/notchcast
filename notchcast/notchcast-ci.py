@@ -45,9 +45,8 @@ import subprocess
 import sys
 import time
 
-# macOS capacity is 7 concurrent jobs: GitHub's 5 hosted (plan cap) plus self-hosted runners mba-1 and mba-2;
-# 3 dispatches fit 5 slots, so 5 fit 7-8. Waiting at this many keeps leads from flooding the queue ahead of PR and Sync runs.
-MAX_DISPATCHES = 5
+# 3 dispatches fill GitHub's 5 concurrent hosted macOS jobs; more would queue ahead of PR and Sync runs.
+MAX_DISPATCHES = 3
 REPO = re.search(r"^FORK_REPO=(.+)$", (Path(__file__).resolve().parent / "config.env").read_text(), re.M)[1]
 WORKFLOW = "main-harnesses.yml"
 HOOKS = "notchcast/githooks"

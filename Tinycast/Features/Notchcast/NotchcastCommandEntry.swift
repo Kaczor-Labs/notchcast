@@ -6,5 +6,7 @@ extension AppEntry {
         self.init(
             id: id, name: name, url: URL(string: "tinycast://" + id.replacingOccurrences(of: ":", with: "/"))!,
             bundleID: nil, kind: .command, settingsOwner: owner, symbolName: symbol, keywords: keywords)
+        // Upstream draws a `.command` only from CommandID, so an add-on id would get its question mark.
+        iconOverride = .tile(symbol: symbol, tint: owner.tint)
     }
 }
