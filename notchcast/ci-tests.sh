@@ -24,6 +24,9 @@ fi
 failures=${RUNNER_TEMP:+$RUNNER_TEMP/harness-failures}
 record() { if [ -n "$failures" ]; then echo "$1" >> "$failures"; fi; }
 if [ -n "$failures" ]; then : > "$failures"; fi
+# Harnesses red here and on upstream too: ignored for the verdict, but this run proved none of them (pr.yml).
+excused=${RUNNER_TEMP:+$RUNNER_TEMP/harness-excused}
+if [ -n "$excused" ]; then : > "$excused"; fi
 status=0
 ./Scripts/run-tests.sh || status=$?
 BIN="${TMPDIR:-/tmp}/tinycast-harness"
@@ -56,6 +59,7 @@ if [ "$status" -ne 0 ] && ls "$BIN"/*.failed >/dev/null 2>&1; then
         echo "::error::$name fails with our commits and passes on upstream ${UPSTREAM:0:7}"; status=1; record "$name"
       else
         echo "::warning::$name fails on upstream ${UPSTREAM:0:7} too; not ours, ignored"
+        if [ -n "$excused" ]; then echo "$name" >> "$excused"; fi
       fi
     done
     git worktree remove --force "$RUNNER_TEMP/pristine"

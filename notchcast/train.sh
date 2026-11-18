@@ -97,16 +97,19 @@ build_train() {
 }
 # Every one must finish green on the train's tip; all but Design take the train's base, as a PR run has it.
 workflows='pr.yml proof.yml design.yml leaks.yml'
+# A train's Mac job runs on the isolated runner while NOTCHCAST_MAC_RUNNER names one (README, Runners), else hosted.
+mac=hosted
+if [ "${NOTCHCAST_TRAIN_MAC:-}" != hosted ] && gh variable get NOTCHCAST_MAC_RUNNER -R "$FORK_REPO" >/dev/null 2>&1; then mac=isolated; fi
 # Pushes $sha as new branch $branch and dispatches its workflows against base $1.
 start_train() {
     local base=$1 file
+    echo "train: $branch has its Mac job on the $mac runner" >&2
     git push -q origin "$sha:refs/heads/$branch"
     echo "$branch $sha" >> "$unsettled"
     for file in $workflows; do
         if [ "$file" = design.yml ]; then
             gh workflow run "$file" -R "$FORK_REPO" --ref "$branch" >&2
-        elif [ "$file" = pr.yml ]; then
-            # A self-hosted Mac proves no tree, so a train's PR run must be hosted to count.
+        elif [ "$file" = pr.yml ] && [ "$mac" = hosted ]; then
             gh workflow run "$file" -R "$FORK_REPO" --ref "$branch" -f "base=$base" -f hosted=true >&2
         else
             gh workflow run "$file" -R "$FORK_REPO" --ref "$branch" -f "base=$base" >&2
