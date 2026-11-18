@@ -1,24 +1,25 @@
 #!/usr/bin/env python3
 """Prove a Notchcast branch's harnesses on GitHub's macOS runners instead of the local build queue.
 
-    python3 notchcast/notchcast-ci.py --repo DIR [--no-push | --run ID] [--max-wait SECONDS]
+    python3 notchcast/notchcast-ci.py --repo DIR --keeper [--no-push | --run ID] [--max-wait SECONDS]
 
-Moved here from old Chad's bin/ at the Chad v2 cutover.
+Keeper-only: Main harnesses is one lane for every branch (one run going, one pending), so without --keeper this
+pushes and dispatches nothing and exits 2.
 
 Each call ends within about 100 s, because a Bash call past 120 s moves to the background: --max-wait (default 100)
 bounds every wait and every gh and git call below (a push past it is an error); pass a longer one only from a background shell. Out of time before it
 dispatches it prints `WAITING (not dispatched); rerun: ... --no-push`, after it `PENDING <url> at <sha12>; rerun: ...
---run <id>`, and exits 3: run the printed rerun command. --run ID skips the push, the cap and the dispatch and polls that run (its headSha still checked against HEAD) to the usual verdict; a run of any workflow but
+--run <id>`, and exits 3: run the printed rerun command. --run ID skips the push, the queue check and the dispatch and polls that run (its headSha still checked against HEAD) to the usual verdict; a run of any workflow but
 main-harnesses.yml is an error.
 
 First, refuse a HEAD that tracks a `*.pyc` or `__pycache__/` path, whatever its content, and a checkout whose
 core.hooksPath is not notchcast/githooks (its pushes would skip the repo's pre-push hook). Then, in order: (1) run exactly
 `git -C DIR push -u origin HEAD:refs/heads/<branch>` without LEFTHOOK* and GIT_CONFIG* variables (no force; a
 detached HEAD and main are refused) and stop when it fails; with --no-push, refuse unless origin's branch already
-equals local HEAD. Main harnesses runs only when dispatched. (2) Wait
-while MAX_DISPATCHES or more of the latest 50 workflow_dispatch runs of main-harnesses.yml are not completed
-(GitHub itself caps concurrent macOS jobs and queues the rest FIFO; this cap only keeps our dispatches from flooding
-that queue ahead of PR and Sync runs), with one API call every 60 s, printing one line per change. (3) Dispatch
+equals local HEAD. Main harnesses runs only when dispatched. (2) When one of the latest 50 workflow_dispatch runs of
+main-harnesses.yml has not started (queued, pending, waiting or requested), dispatch nothing, print `QUEUED <url>: one
+Main harnesses run already waits; rerun when it starts` and exit 4: a second waiting run would cancel the first in the
+workflow's concurrency group. A run in progress does not block; the new run waits behind it. (3) Dispatch
 main-harnesses.yml on the branch and use the workflow_run_id and html_url its response carries (never "the latest
 run"); a response without workflow_run_id is an error. (4) Poll the run with one `gh run view`
 every 60 s until it completes, then print the last ~40 lines of the failing step's log on a failure and one final line:
@@ -32,8 +33,8 @@ dispatch, fewer than 500 calls left likewise waits for the reset (`notchcast-ci:
 
 Exit 0: the run passed. 1: the run failed. 2: usage or infrastructure error (gh, git, a failed push, no push
 to prove), a NOPROOF run, or a run whose headSha is not the HEAD this started at (the branch moved; the verdict is
-still printed). 3: still pending; rerun the printed command. Overrides for tests: NOTCHCAST_CI_POLL (seconds between
-polls), NOTCHCAST_CI_MAX_DISPATCHES, and
+still printed), or no --keeper. 3: still pending; rerun the printed command. 4: QUEUED, nothing dispatched; rerun once
+the waiting run starts. Overrides for tests: NOTCHCAST_CI_POLL (seconds between polls) and
 NOTCHCAST_CI_CLOCK=virtual (waits advance a counter instead of sleeping; a child process gets the virtual time
 left as its real timeout).
 """
@@ -46,10 +47,10 @@ import subprocess
 import sys
 import time
 
-# 3 dispatches fill GitHub's 5 concurrent hosted macOS jobs; more would queue ahead of PR and Sync runs.
-MAX_DISPATCHES = 3
 REPO = re.search(r"^FORK_REPO=(.+)$", (Path(__file__).resolve().parent / "config.env").read_text(), re.M)[1]
 WORKFLOW = "main-harnesses.yml"
+KEEPER_ONLY = "Main harnesses is Keeper-only: push your branch (git push) and ask your Keeper for the harness proof"
+NOT_STARTED = ("queued", "pending", "waiting", "requested")
 HOOKS = "notchcast/githooks"
 STEP = "Changed harnesses"
 FAILED_LOG_LINES = 40
@@ -62,6 +63,10 @@ class Infra(Exception):
 
 
 class OutOfTime(Exception):
+    pass
+
+
+class Queued(Exception):
     pass
 
 
@@ -107,10 +112,6 @@ def git(repo, *args):
     return run("git", "-C", repo, *args)
 
 
-def max_dispatches():
-    return int(os.environ.get("NOTCHCAST_CI_MAX_DISPATCHES", MAX_DISPATCHES))
-
-
 def rate_limit(field):
     return int(run("gh", "api", "rate_limit", "--jq", f".resources.core.{field}"))  # not counted by GitHub
 
@@ -141,19 +142,12 @@ def poll_seconds():
     return float(os.environ.get("NOTCHCAST_CI_POLL", "60"))
 
 
-def outstanding_dispatches():
+def refuse_while_one_waits():
     runs = json.loads(patient_gh("api", f"repos/{REPO}/actions/workflows/{WORKFLOW}/runs"
                                  "?event=workflow_dispatch&per_page=50"))
-    return sum(r["status"] != "completed" for r in runs["workflow_runs"])
-
-
-def wait_for_capacity(cap):
-    last = None
-    while (busy := outstanding_dispatches()) >= cap:
-        if busy != last:
-            print(f"notchcast-ci: {busy} harness dispatch(es) queued or running, cap {cap}; waiting", flush=True)
-            last = busy
-        nap(poll_seconds())
+    for waiting in runs["workflow_runs"]:
+        if waiting["status"] in NOT_STARTED:
+            raise Queued(waiting["html_url"])
 
 
 def finished_run(run_id):
@@ -216,10 +210,14 @@ def selected_harnesses(run_id):
 def main(argv):
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--repo", required=True, help="the Notchcast checkout")
+    parser.add_argument("--keeper", action="store_true", help="you are the Keeper, the only one who dispatches")
     parser.add_argument("--no-push", action="store_true", help="prove the branch as origin already has it")
     parser.add_argument("--run", type=int, help="poll this already dispatched run instead of dispatching")
     parser.add_argument("--max-wait", type=float, default=100, help="seconds this call may wait in all (default 100)")
     args = parser.parse_args(argv)
+    if not args.keeper:
+        print(KEEPER_ONLY, file=sys.stderr)
+        return 2
     global deadline
     deadline = now() + args.max_wait
     try:
@@ -241,7 +239,7 @@ def prove(args):
         raise Infra(f"needs a checked-out branch other than main (HEAD is {branch or 'detached'})")
     head = git(repo, "rev-parse", "HEAD")
     refuse_unsafe_checkout(repo)
-    rerun = f"python3 {repo}/notchcast/notchcast-ci.py --repo {repo}"
+    rerun = f"python3 {repo}/notchcast/notchcast-ci.py --repo {repo} --keeper"
     if args.run:
         run_id, url = args.run, f"https://github.com/{REPO}/actions/runs/{args.run}"
     else:
@@ -250,6 +248,9 @@ def prove(args):
         except OutOfTime:
             print(f"WAITING (not dispatched); rerun: {rerun} --no-push")
             return 3
+        except Queued as waiting:
+            print(f"QUEUED {waiting}: one Main harnesses run already waits; rerun when it starts")
+            return 4
     try:
         if args.run:
             path = patient_gh("api", f"repos/{REPO}/actions/runs/{run_id}", "--jq", ".path")
@@ -274,8 +275,7 @@ def refuse_unsafe_checkout(repo):
 
 
 def start_run(args, repo, branch, head):
-    """Push (unless --no-push), wait for capacity and budget, then dispatch: (run_id, url)."""
-    cap = max_dispatches()
+    """Push (unless --no-push), refuse while a run waits, wait for budget, then dispatch: (run_id, url)."""
     if args.no_push:
         remote = git(repo, "ls-remote", "origin", f"refs/heads/{branch}").split()
         if remote[:1] != [head]:
@@ -283,7 +283,7 @@ def start_run(args, repo, branch, head):
                         "run this without --no-push to push it")
     else:
         push(repo, branch)
-    wait_for_capacity(cap)
+    refuse_while_one_waits()
     wait_for_api_budget()
     run_id, url = dispatch(branch)
     print(f"notchcast-ci: dispatched {url}; watching", flush=True)
