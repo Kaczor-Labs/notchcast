@@ -21,6 +21,7 @@ COVERED = {
     ("pr.yml:route", "Harnesses the diff needs"): "shadow selection; reports, gates nothing",
     ("pr.yml:mac", "actions/checkout"): "the shared clone at HEAD",
     ("pr.yml:mac", "./tools/notchcast/actions/xcode"): "ci-build.sh's xcode step",
+    ("pr.yml:mac", "Runner kind"): "names a self-hosted run; no gate",
     ("pr.yml:mac", "Script tests that need macOS"): "ci-build.sh's script-tests step",
     ("pr.yml:mac", "Shared PR build lane"): "ci-build.sh, unsharded",
     ("pr.yml:mac", "./tools/notchcast/actions/tests"): "ci-build.sh's harnesses step",
@@ -138,6 +139,18 @@ class RunnerTest(unittest.TestCase):
                     self.assertTrue(labels, "runs-on has no label")
                     self.assertEqual(set(labels) - allowed, set(), "runs-on names a runner README Runners does not")
         self.assertEqual(gated, GATED_JOBS, "only these jobs may leave the hosted images, behind the fork gate")
+
+    def test_a_self_hosted_run_proves_no_tree_and_runs_no_script_test(self):
+        found = {(job, signature(text)): text for job, text in steps(WORKFLOW, 6)}
+        hosted = "needs.route.outputs.build == 'true' && needs.mac.outputs.hosted == 'true'"
+        for step in ("Record the tested tree", "actions/upload-artifact"):
+            self.assertEqual(field(found["build", step], "if"), hosted, step)
+        self.assertIn("      hosted: ${{ steps.runner.outputs.hosted }}\n", WORKFLOW.read_text())
+        self.assertEqual(env(found["mac", "Runner kind"]), {"HOSTED": "${{ runner.environment == 'github-hosted' }}"})
+        self.assertEqual(field(found["mac", "Script tests that need macOS"], "if"), "runner.environment == 'github-hosted'")
+        # Only Sync's hosted job sets the tested status; a job that may run self-hosted has no way to.
+        for name in GATED_JOBS:
+            self.assertNotIn("statuses: write", (ROOT / ".github/workflows" / name).read_text(), name)
 
 
 # Machine git config (init.defaultBranch, signing, url rewrites) never reaches the fixture repos.

@@ -70,6 +70,8 @@ jobs:
     if: needs.route.outputs.scripts == 'true'
     runs-on: ${{ github.event_name == 'workflow_dispatch' && vars.NOTCHCAST_MAC_RUNNER || 'xcode-27' }}
     timeout-minutes: 90
+    outputs:
+      hosted: ${{ steps.runner.outputs.hosted }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
@@ -81,8 +83,17 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
       - uses: ./tools/notchcast/actions/xcode
+      # A self-hosted runner is a maintainer's working Mac: its run skips what could touch that Mac and proves no tree.
+      - name: Runner kind
+        id: runner
+        env:
+          HOSTED: ${{ runner.environment == 'github-hosted' }}
+        run: |
+          echo "hosted=$HOSTED" >> "$GITHUB_OUTPUT"
+          [ "$HOSTED" = true ] || echo "::notice::SKIPPED on a self-hosted runner: the macOS script tests, SELF_HOSTED_SKIP_TESTS harnesses, the tested-tree record"
       # First: the shortest lane. land-test.sh serves this checkout's upstream main to its fixture remote.
       - name: Script tests that need macOS
+        if: runner.environment == 'github-hosted'
         working-directory: src
         timeout-minutes: 10
         run: |
@@ -177,15 +188,15 @@ jobs:
       - name: Config literals
         if: needs.route.outputs.build != 'true'
         run: python3 notchcast/check-config.py
-      # Only after a green build: Sync's plan skips testing a tree (GENERATED aside) a PR build already proved.
+      # Only after a green hosted build: Sync's plan skips testing a tree (GENERATED aside) a PR build already proved.
       - name: Record the tested tree
-        if: needs.route.outputs.build == 'true'
+        if: needs.route.outputs.build == 'true' && needs.mac.outputs.hosted == 'true'
         id: tree
         run: |
           echo "key=$(python3 notchcast/ci.py tested-key HEAD)" >> "$GITHUB_OUTPUT"
           git rev-parse HEAD > "$RUNNER_TEMP/tested-commit"
       - uses: actions/upload-artifact@v7
-        if: needs.route.outputs.build == 'true'
+        if: needs.route.outputs.build == 'true' && needs.mac.outputs.hosted == 'true'
         with:
           name: tested-tree-${{ steps.tree.outputs.key }}
           path: ${{ runner.temp }}/tested-commit

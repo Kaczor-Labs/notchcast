@@ -15,14 +15,25 @@ export TMPDIR="$scratch/tmp" SKIPS="$scratch/skips" GITHUB_ACTIONS=true
 for runner in local self-hosted github-hosted; do
     export RUNNER_ENVIRONMENT=$runner
     [ "$runner" != local ] || unset RUNNER_ENVIRONMENT
-    CI_SKIP_TESTS=inherited bash notchcast/ci-tests.sh
+    CI_SKIP_TESTS=inherited bash notchcast/ci-tests.sh > "$scratch/out"
     if [ "$runner" = github-hosted ]; then
         grep -qw ClipboardTextTests "$SKIPS"
+    elif [ "$runner" = self-hosted ]; then
+        grep -qw RelaunchTests "$SKIPS" && grep -q '^::notice::SKIPPED on a self-hosted runner' "$scratch/out" \
+            || { echo 'FAIL: a self-hosted run did not skip, or skipped without saying so'; exit 1; }
     else
         [ ! -s "$SKIPS" ] || { echo "FAIL: $runner skipped harnesses"; exit 1; }
     fi
 done
-echo 'PASS: CI wrapper preserves skips only on GitHub-hosted runners'
+echo 'PASS: CI wrapper keeps the hosted skips on GitHub-hosted runners and the self-hosted skips on self-hosted ones'
+# A self-hosted runner is a working Mac: a harness naming one of these APIs runs there only once it is listed as skipped.
+source "$root/notchcast/config.env"
+risky='NSWindow\(|NSPanel\(|PalettePanel\(|orderFront|becomeKey|makeKey|NSApplication\.shared|NSApp\.|/usr/bin/open|NSWorkspace|NSRunningApplication|AudioObjectSetPropertyData|CGEvent\(|CGEvent\.tapCreate|\.post\(tap|NSAppleScript|osascript|CFPreferencesSetValue|NSSound|NSPasteboard|AXUIElement|AVCaptureDevice|AVAudioEngine|SCStream|SecItem|NSOpenPanel|NSSavePanel|NSAlert|UNUserNotification'
+unlisted=$(cd "$root/Tests" && grep -lE "$risky" *.swift | sed 's/\.swift$//' \
+    | grep -vxF -e NotchcastTapFixtures -e 'ExtensionTests+MenuBar' \
+    | grep -vxF -f <(tr ' ' '\n' <<< "$SELF_HOSTED_SKIP_TESTS $HIDDEN_TESTS") || true)
+[ -z "$unlisted" ] || { echo "FAIL: not in SELF_HOSTED_SKIP_TESTS (notchcast/config.env): $unlisted"; exit 1; }
+echo 'PASS: every harness that names a window, focus, launch, pasteboard, sound, event or preference API skips self-hosted'
 # A harness failing alone too and absent on upstream is written down for the selection check.
 cat > Scripts/run-tests.sh <<'STUB'
 #!/bin/bash
