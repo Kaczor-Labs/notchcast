@@ -22,6 +22,8 @@ struct AnnotationDrag: Sendable {
     var registered = false
     /// A drag on the selected mark under a drawing tool edits it instead of drawing.
     var editsSelection = false
+    /// The redo history a new mark's undo step dropped, given back when the drag was only a click.
+    var redo: [AnnotationDocument.Snapshot] = []
 
     /// The handle or arrow end of the selected mark under a point, if any.
     static func grip(of mark: AnnotationMark, at point: CGPoint, scale: CGFloat) -> AnnotationHandle? {

@@ -249,6 +249,9 @@ func undoRedo() {
 
     document.undo()
     document.undo()
+    document.pick(.rectangle)
+    tap(&document, at: p(390, 290))
+    check(document.canRedo && document.marks == states[9].marks, "a click with a drawing tool keeps the redo history")
     draw(&document, .rectangle, from: p(150, 5), to: p(190, 30))
     check(!document.canRedo, "a new edit after undo drops the redo history")
     document.undo()
@@ -383,6 +386,9 @@ func rendering() throws {
     draw(&retina, .arrow, from: p(10, 50), to: p(150, 50))
     let wide = Pixels(try AnnotationRenderer.image(retina))
     check(wide.isRed(80, 47) && !wide.isRed(80, 43), "a Retina capture strokes twice the pixels, 8 for a 4 pt line")
+    let density = CGImageSourceCreateWithData(try AnnotationRenderer.png(retina) as CFData, nil)
+        .flatMap { CGImageSourceCopyPropertiesAtIndex($0, 0, nil) as? [CFString: Any] }?[kCGImagePropertyDPIWidth] as? Double
+    check(density.map { abs($0 - 144) < 1 } == true, "a Retina PNG says 144 dpi, got \(String(describing: density))")
 }
 
 @main

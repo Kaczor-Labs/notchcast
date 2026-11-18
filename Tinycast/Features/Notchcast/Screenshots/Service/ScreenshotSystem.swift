@@ -18,7 +18,7 @@ struct ScreenshotSystem: Sendable {
     let select: @MainActor @Sendable (
         [ScreenshotFrozenDisplay], [ScreenshotWindow], @escaping @MainActor (ScreenshotRequest?) -> Void
     ) -> @MainActor () -> Void
-    /// Opens the editor on a capture; it answers once per Copy, Save or Escape, and the closure closes it.
-    let edit: @MainActor @Sendable (CGImage, @escaping @MainActor (CaptureEditorOutcome) -> Void)
+    /// Opens the editor on a capture and its pixels per point; it answers per Copy, Save or Escape.
+    let edit: @MainActor @Sendable (CGImage, CGFloat, @escaping @MainActor (CaptureEditorOutcome) -> Void)
         -> @MainActor () -> Void
 }

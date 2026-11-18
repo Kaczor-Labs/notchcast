@@ -172,7 +172,10 @@ struct AnnotationDocument: Sendable {
                 selectedID = ended.draftID
             } else {
                 marks.removeAll { $0.id == ended.draftID }
-                if ended.registered, !undoStack.isEmpty { undoStack.removeLast() }
+                if ended.registered, !undoStack.isEmpty {
+                    undoStack.removeLast()
+                    redoStack = ended.redo
+                }
                 refreshBlurSources()
                 selectExisting(at: point)
             }
@@ -327,6 +330,7 @@ struct AnnotationDocument: Sendable {
     }
 
     private mutating func startDraft(_ mark: AnnotationMark) {
+        drag.redo = redoStack
         registerUndo()
         drag.registered = true
         drag.draftID = mark.id

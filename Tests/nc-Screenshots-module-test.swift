@@ -98,7 +98,7 @@ extension ScreenshotSystem {
                 fake.pick(nil)
             }
         },
-        edit: { _, _ in fatalError("editing is off by default; nc-Screenshots-editor-test covers it") }
+        edit: { _, _, _ in fatalError("editing is off by default; nc-Screenshots-editor-test covers it") }
     )
 }
 

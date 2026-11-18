@@ -63,6 +63,7 @@ final class EditorFake {
     var freezes = 0
     var answer: (@MainActor (ScreenshotRequest?) -> Void)?
     var edited: [CGImage] = []
+    var scales: [CGFloat] = []
     var finish: (@MainActor (CaptureEditorOutcome) -> Void)?
     var closes = 0
 
@@ -98,8 +99,9 @@ extension ScreenshotSystem {
             fake.signals.fire("select")
             return { fake.answer = nil }
         },
-        edit: { image, finish in
+        edit: { image, scale, finish in
             fake.edited.append(image)
+            fake.scales.append(scale)
             fake.finish = finish
             fake.signals.fire("edit")
             return {
@@ -222,6 +224,7 @@ enum ScreenshotsEditorTests {
         precondition(controller.run(entryID: editLast))
         await signals.wait("edit")
         precondition(fake.edited.count == 3 && fake.edited.last!.width == 120, "the original is kept to edit again")
+        precondition(fake.scales == [2, 2, 2], "the editor gets the scale of the display captured, got \(fake.scales)")
         fake.clipboardWorks = false
         fake.finish?(.copy(annotated(capture)))
         await signals.wait("notice")

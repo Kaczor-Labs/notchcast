@@ -39,7 +39,7 @@ struct ScreenshotsSettingsView: View {
                 Text("Desktop", tableName: "NotchcastScreenshots")
             }
         }
-        .settingsEnabled(destination != .clipboard)
+        .settingsEnabled(destination != .clipboard || editAfterCapture)
     }
 
     private func chooseFolder() {

@@ -8,7 +8,7 @@ import UniformTypeIdentifiers
 
 /// The annotated result as a PNG file, rendered only when a drag out of the editor drops.
 enum CaptureEditorExport {
-    static func provider(_ document: AnnotationDocument) -> NSItemProvider {
+    static func provider(_ document: AnnotationDocument, in dragFolder: URL) -> NSItemProvider {
         let name = ScreenshotFileName.name(date: Date(), timeZone: .current)
         let provider = NSItemProvider()
         provider.suggestedName = (name as NSString).deletingPathExtension
@@ -17,7 +17,7 @@ enum CaptureEditorExport {
         ) { completion in
             do {
                 // Its own folder, so two drags in one second never replace each other's file.
-                let folder = FileManager.default.temporaryDirectory.appending(path: "Capture Editor \(UUID().uuidString)")
+                let folder = dragFolder.appending(path: UUID().uuidString)
                 try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
                 let url = folder.appending(path: name)
                 try AnnotationRenderer.png(document.finished()).write(to: url)

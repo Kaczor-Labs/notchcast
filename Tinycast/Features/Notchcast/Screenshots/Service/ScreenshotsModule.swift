@@ -1,6 +1,5 @@
 import Foundation
 import ImageIO
-import UniformTypeIdentifiers
 
 /// Runs one capture or edit at a time; a trigger while one is active, the editor included, is ignored.
 @MainActor
@@ -17,7 +16,7 @@ final class ScreenshotsModule: NotchcastModule {
     private var operation: UUID?
     private var closeSurface: (@MainActor () -> Void)?
     /// The last capture as PNG, so Edit Last Screenshot never holds a full bitmap between edits.
-    private var lastCapture: Data?
+    private var lastCapture: (png: Data, scale: CGFloat)?
     private var closeEditor: (@MainActor () -> Void)?
     private var export: Task<Void, Never>?
 
@@ -51,9 +50,11 @@ final class ScreenshotsModule: NotchcastModule {
         guard isIdle else { return }
         guard let lastCapture else { return report(ScreenshotRequest.Failure.nothingToEdit) }
         run { [self] in
-            guard let image = await Self.decode(lastCapture) else { throw ScreenshotRequest.Failure.encodingFailed }
+            guard let image = await Self.decode(lastCapture.png) else {
+                throw ScreenshotRequest.Failure.encodingFailed
+            }
             try Task.checkCancellation()
-            edit(image)
+            edit(image, scale: lastCapture.scale)
         }
     }
 
@@ -63,11 +64,15 @@ final class ScreenshotsModule: NotchcastModule {
         guard isIdle else { return }
         guard system.grantAccess() else { return report(ScreenshotRequest.Failure.permissionDenied) }
         run { [self] in
-            guard let image = try await image(for: scope) else { return }
-            let data = try await Self.png(image)
+            guard let capture = try await capture(scope) else { return }
+            let data = try await Self.png(capture.image)
             try Task.checkCancellation()
-            lastCapture = data
-            if context.defaults.bool(forKey: Self.editAfterCaptureKey) { edit(image) } else { try await output(data) }
+            lastCapture = (data, capture.scale)
+            if context.defaults.bool(forKey: Self.editAfterCaptureKey) {
+                edit(capture.image, scale: capture.scale)
+            } else {
+                try await output(data)
+            }
         }
     }
 
@@ -86,22 +91,24 @@ final class ScreenshotsModule: NotchcastModule {
         }
     }
 
-    private func image(for scope: Scope) async throws -> CGImage? {
+    /// The picture with its pixels per point, read from the display it was frozen on.
+    private func capture(_ scope: Scope) async throws -> (image: CGImage, scale: CGFloat)? {
         switch scope {
         case .display:
             guard let display = try await system.freeze(system.cursor(), exclusion).first else {
                 throw ScreenshotRequest.Failure.targetUnavailable
             }
-            return display.image
+            return (display.image, display.scale)
         case .area:
             let frozen = try await system.freeze(nil, exclusion)
             try Task.checkCancellation()
             let pickable = exclusion.pickable(system.windows())
             let windows = try await system.freezeWindows(pickable.map(\.id))
             try Task.checkCancellation()
-            guard let request = await select(frozen, pickable.filter { windows[$0.id] != nil }) else { return nil }
+            let offered = pickable.filter { windows[$0.id] != nil }
+            guard let request = await select(frozen, offered) else { return nil }
             try Task.checkCancellation()
-            return try image(for: request, in: frozen, windows: windows)
+            return try capture(request, in: frozen, windows: windows, frames: offered)
         }
     }
 
@@ -115,28 +122,32 @@ final class ScreenshotsModule: NotchcastModule {
         }
     }
 
-    private func image(for request: ScreenshotRequest, in frozen: [ScreenshotFrozenDisplay],
-                       windows: [UInt32: CGImage]) throws -> CGImage {
+    private func capture(
+        _ request: ScreenshotRequest, in frozen: [ScreenshotFrozenDisplay], windows: [UInt32: CGImage],
+        frames: [ScreenshotWindow]
+    ) throws -> (image: CGImage, scale: CGFloat) {
         switch request {
         case .rect(let rect):
             guard ScreenshotRequest.isValid(rect: rect) else { throw ScreenshotRequest.Failure.invalidRect }
             guard let display = frozen.first(where: { $0.frame.contains(rect) }),
                 let image = ScreenshotGeometry.crop(display, to: rect)
             else { throw ScreenshotRequest.Failure.targetUnavailable }
-            return image
+            return (image, display.scale)
         case .window(let id):
             guard let image = windows[id] else { throw ScreenshotRequest.Failure.targetUnavailable }
-            return image
+            let center = frames.first { $0.id == id }.map { CGPoint(x: $0.frame.midX, y: $0.frame.midY) }
+            let display = center.flatMap { center in frozen.first { $0.frame.contains(center) } } ?? frozen.first
+            return (image, display?.scale ?? 1)
         case .display(let id):
             guard let display = frozen.first(where: { $0.id == id }) else {
                 throw ScreenshotRequest.Failure.targetUnavailable
             }
-            return display.image
+            return (display.image, display.scale)
         }
     }
 
-    private func edit(_ image: CGImage) {
-        closeEditor = system.edit(image) { [weak self] outcome in self?.finishEditing(outcome) }
+    private func edit(_ image: CGImage, scale: CGFloat) {
+        closeEditor = system.edit(image, scale) { [weak self] outcome in self?.finishEditing(outcome) }
     }
 
     /// The editor stays open until its result is written, so a failed write loses no annotation.
@@ -198,13 +209,11 @@ final class ScreenshotsModule: NotchcastModule {
 
     @concurrent
     private static func png(_ image: CGImage) async throws -> Data {
-        let data = NSMutableData()
-        guard let encoder = CGImageDestinationCreateWithData(data, UTType.png.identifier as CFString, 1, nil) else {
+        do {
+            return try AnnotationRenderer.png(image)
+        } catch {
             throw ScreenshotRequest.Failure.encodingFailed
         }
-        CGImageDestinationAddImage(encoder, image, nil)
-        guard CGImageDestinationFinalize(encoder) else { throw ScreenshotRequest.Failure.encodingFailed }
-        return data as Data
     }
 
     @concurrent

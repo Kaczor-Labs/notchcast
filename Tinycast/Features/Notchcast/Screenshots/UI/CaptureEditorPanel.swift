@@ -10,10 +10,10 @@ final class CaptureEditorPanel: NSPanel, AnimatedPanel {
     private let session: CaptureEditorSession
 
     /// Opens the editor on the screen under the pointer; the returned closure closes it without answering.
-    static func open(_ image: CGImage, finish: @escaping @MainActor (CaptureEditorOutcome) -> Void)
-        -> @MainActor () -> Void {
+    static func open(
+        _ image: CGImage, scale: CGFloat, finish: @escaping @MainActor (CaptureEditorOutcome) -> Void
+    ) -> @MainActor () -> Void {
         let screen = NSScreen.underCursor ?? NSScreen.main
-        let scale = screen?.backingScaleFactor ?? 2
         let session = CaptureEditorSession(image: image, scale: scale, finish: finish)
         let visible = screen?.visibleFrame ?? NSRect(origin: .zero, size: Theme.Size.settingsWindow)
         let points = CGSize(width: CGFloat(image.width) / scale, height: CGFloat(image.height) / scale)
@@ -25,9 +25,13 @@ final class CaptureEditorPanel: NSPanel, AnimatedPanel {
         let panel = CaptureEditorPanel(session: session, content: hosting)
         panel.setFrameOrigin(NSPoint(
             x: visible.midX - hosting.frame.width / 2,
-            y: visible.midY - hosting.frame.height / 2 + visible.height * centerLift))
+            y: min(visible.midY - hosting.frame.height / 2 + visible.height * centerLift,
+                   visible.maxY - hosting.frame.height)))
         panel.makeKeyAndOrderFront(nil)
-        return { panel.orderOut(nil) }
+        return {
+            panel.orderOut(nil)
+            try? FileManager.default.removeItem(at: session.dragFolder)
+        }
     }
 
     private init(session: CaptureEditorSession, content: NSView) {

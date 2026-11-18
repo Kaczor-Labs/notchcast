@@ -1,4 +1,5 @@
 import CoreGraphics
+import Foundation
 import Observation
 
 /// The open editor's state: the document being annotated and the way out its owner listens on.
@@ -6,6 +7,8 @@ import Observation
 @Observable
 final class CaptureEditorSession {
     var document: AnnotationDocument
+    /// Where drags out of the editor leave their files; the panel removes it on close.
+    let dragFolder = FileManager.default.temporaryDirectory.appending(path: "Capture Editor \(UUID().uuidString)")
     private let finish: @MainActor (CaptureEditorOutcome) -> Void
 
     init(image: CGImage, scale: CGFloat, finish: @escaping @MainActor (CaptureEditorOutcome) -> Void) {

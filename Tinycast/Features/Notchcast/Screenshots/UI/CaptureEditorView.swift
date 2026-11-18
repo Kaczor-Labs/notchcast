@@ -73,7 +73,7 @@ private struct CaptureEditorDragChip: View {
         .frame(height: metrics.size.dialogButtonHeight)
         .background(Capsule().fill(Theme.Colors.controlSurface))
         .contentShape(Capsule())
-        .onDrag { CaptureEditorExport.provider(session.document) }
+        .onDrag { CaptureEditorExport.provider(session.document, in: session.dragFolder) }
         .tooltip(String(localized: "Drag the image into another app.", table: "NotchcastScreenshots"), edge: .bottom)
         .accessibilityElement(children: .combine)
         .accessibilityLabel(Text("Drag image", tableName: "NotchcastScreenshots"))
