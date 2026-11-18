@@ -85,7 +85,7 @@ jobs:
           HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
           NOTCHCAST_HARNESSES_SHARDED: '1'
         run: bash ../tools/notchcast/ci-build.sh
-  # The whole suite, split by harness name (notchcast/test-harnesses.sh), beside the checks job.
+  # The whole suite in one job beside the checks job, which outlasts it; each shard costs ~45 s of setup.
   harnesses:
     needs: route
     if: needs.route.outputs.build == 'true'
@@ -94,7 +94,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        shard: [0, 1, 2]
+        shard: [0]
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
