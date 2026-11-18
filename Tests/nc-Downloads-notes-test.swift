@@ -234,7 +234,8 @@ struct DownloadsNotesTest {
         let report = folder.appending(path: "report.html")
         try Data("<p>Report</p>".utf8).write(to: report)
         let job = dropped(report)
-        for (target, reason) in [(folder.deletingLastPathComponent(), "the folder changed"), (nil, "Convert is off")] {
+        let elsewhere: [(URL?, String)] = [(folder.deletingLastPathComponent(), "the folder changed"), (nil, "Convert is off")]
+        for (target, reason) in elsewhere {
             watched.folder = target
             await expectCancelled("\(reason) before the run: nothing converts") {
                 _ = try await runner(root, notes: notes, watched: watched).run(job, context: context)
