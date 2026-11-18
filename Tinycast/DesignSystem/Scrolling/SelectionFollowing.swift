@@ -12,6 +12,7 @@ extension View {
                 }
             }
         }
+        .environment(\.islandInkLifted, selected)
     }
 
     /// Keeps the keyboard selection in the band between the bars; needs `selectionFrame` on rows.

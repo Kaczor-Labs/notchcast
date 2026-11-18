@@ -68,6 +68,7 @@ final class MenuPanelController {
     private var hosting: NSHostingView<AnyView>?
     private weak var parent: NSWindow?
     private var placement: Placement?
+    private var frosted = false
 
     var isOpen: Bool { panel?.isVisible ?? false }
 
@@ -76,6 +77,8 @@ final class MenuPanelController {
         onKeyDown: @escaping (NSEvent) -> Bool, onDismiss: @escaping () -> Void
     ) {
         let panel = ensurePanel(state: core.palette)
+        frosted = parent.screen.map { core.island.look(for: $0) == .frosted } ?? false
+        panel.hasShadow = frosted
         configureCallbacks(
             for: panel, core: core, onKeyDown: onKeyDown, onDismiss: onDismiss)
         setContent(AnyView(content.paletteEnvironment(core)), in: panel)
@@ -101,6 +104,7 @@ final class MenuPanelController {
     }
 
     private func setContent(_ root: AnyView, in panel: MenuPanel) {
+        let root = AnyView(root.environment(\.islandFrosted, frosted))
         if let hosting {
             hosting.rootView = root
             return

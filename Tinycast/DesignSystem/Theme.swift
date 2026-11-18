@@ -442,15 +442,15 @@ enum Theme {
             dark: .srgbInk(0, alpha: 0.18), light: .srgbInk(0, alpha: 0.18))
 
         /// Selection fill, shared by every list so they look identical.
-        static let selection = ramp(dark: 0.24, light: 0.09)
-        static let rowHover = ramp(dark: 0.08, light: 0.045)
+        static let selection = ramp(dark: 0.24, light: 0.09).frosted(NotchTheme.Frosted.selection)
+        static let rowHover = ramp(dark: 0.08, light: 0.045).frosted(NotchTheme.Frosted.rowHover)
         static let emojiCell = ramp(dark: 0.045, light: 0.04)
         static let emojiHoverBorder = ramp(dark: 0.42, light: 0.34)
         static let emojiSelectionBorder = ramp(dark: 0.92, light: 0.72)
         static let emojiInnerBorder = adaptive(
             dark: .srgbInk(0, alpha: 0.72), light: .srgbInk(1, alpha: 0.72))
-        static let menuHover = ramp(dark: 0.24, light: 0.09)
-        static let separator = ramp(dark: 0.16, light: 0.12)
+        static let menuHover = ramp(dark: 0.24, light: 0.09).frosted(NotchTheme.Frosted.menuHover)
+        static let separator = ramp(dark: 0.16, light: 0.12).frosted(NotchTheme.Frosted.separator)
         /// Small control surfaces: kbd chips, glyph tiles.
         static let controlSurface = ramp(dark: 0.10, light: 0.08)
         static let controlHover = ramp(dark: 0.16, light: 0.14)
@@ -463,10 +463,12 @@ enum Theme {
         /// Control borders: outlined kbd chips.
         static let border = ramp(dark: 0.20, light: 0.18)
         /// Alpha 1, so a call site can dim it with `.opacity` and land on the value it replaced.
-        static let textPrimary = ramp(dark: 1.0, light: 1.0)
+        static let textPrimary = ramp(dark: 1.0, light: 1.0).frosted(NotchTheme.Frosted.textPrimary)
         static let textSecondary = ramp(dark: 0.60, light: 0.60)
+            .frosted(NotchTheme.Frosted.textSecondary, lifted: NotchTheme.Frosted.textPrimary)
         static let textTertiary = ramp(dark: 0.40, light: 0.42)
-        static let menuSymbol = ramp(dark: 0.70, light: 0.70)
+            .frosted(NotchTheme.Frosted.textTertiary, lifted: NotchTheme.Frosted.textPrimary)
+        static let menuSymbol = ramp(dark: 0.70, light: 0.70).frosted(NotchTheme.Frosted.menuSymbol)
         static let noteText = ramp(dark: 0.90, light: 0.85)
         static let iconPlaceholder = ramp(dark: 0.06, light: 0.06)
         static let sheen = ramp(dark: 0.04, light: 0.04)
@@ -502,10 +504,12 @@ enum Theme {
         static let dropGuideArmed = Color.blue
         /// A dialog's standard default action; destructive defaults keep their semantic red.
         static let primaryAction = adaptive(
-            dark: NSColor(srgbRed: 70 / 255, green: 240 / 255, blue: 198 / 255, alpha: 1), light: .systemBlue)
+            dark: NSColor(srgbRed: 70 / 255, green: 240 / 255, blue: 198 / 255, alpha: 1), light: .systemBlue
+        ).frosted(NotchTheme.Frosted.accent)
         static let destructive = Color.red
-        static let success = Color.green
-        static let warning = Color.orange
+            .frosted(NotchTheme.Frosted.destructive, lifted: NotchTheme.Frosted.destructiveLifted)
+        static let success = Color.green.frosted(NotchTheme.Frosted.success)
+        static let warning = Color.orange.frosted(NotchTheme.Frosted.warning)
         static let composerSend = ramp(dark: 0.92, light: 0.92)
         static let composerSendInk = adaptive(dark: .srgbInk(0, alpha: 0.85), light: .srgbInk(1, alpha: 1))
         /// The window's own page, for a card that must hide the transcript it floats over.

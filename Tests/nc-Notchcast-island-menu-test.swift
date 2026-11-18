@@ -47,7 +47,7 @@ struct NotchIslandMenuTests {
         check("island secondary is textSecondary", secondary == dark(Color.white.opacity(0.60)))
         check("stock primary stays system", NotchMenuInk.primary(onIsland: false) == .primary)
         check("stock secondary stays system", NotchMenuInk.secondary(onIsland: false) == .secondary)
-        check("destructive is the one red", Theme.Colors.destructive == Color.red)
+        check("destructive is the one red", dark(Theme.Colors.destructive) == dark(Color.red))
 
         print("# the menu uses them")
         let path = "Tinycast/DesignSystem/PopoverMenu.swift"
