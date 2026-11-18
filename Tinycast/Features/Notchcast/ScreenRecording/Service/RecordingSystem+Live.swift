@@ -29,10 +29,7 @@ extension RecordingSystem {
         },
         everySecond: { tick in
             let ticker = Task { @MainActor in
-                while !Task.isCancelled {
-                    try? await Task.sleep(for: .seconds(1))
-                    tick()
-                }
+                while (try? await Task.sleep(for: .seconds(1))) != nil { tick() }
             }
             return { ticker.cancel() }
         },
