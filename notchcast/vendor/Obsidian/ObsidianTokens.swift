@@ -1,5 +1,5 @@
 // Generated from tokens/tokens.json by scripts/build-tokens.py. Edit tokens.json, not this file.
-// OBSIDIAN 2.0.0 (CHANGELOG.md).
+// OBSIDIAN 2.0.1 (CHANGELOG.md).
 // OBSIDIAN tokens for macOS (SwiftUI): one nested enum per tokens/<group>.css, constants named after the CSS
 // custom property in camelCase. Where tokens.json gives a mac value it replaces the web one here.
 import SwiftUI
@@ -9,7 +9,7 @@ import AppKit
 
 public enum ObsidianTokens {
     /// The release these values belong to (CHANGELOG.md in the design-system skill).
-    public static let version = "2.0.0"
+    public static let version = "2.0.1"
     /// One CSS box-shadow layer. SwiftUI's .shadow(color:radius:x:y:) takes radius = blur / 2 and has no spread.
     public struct Shadow: Sendable {
         public let color: Color
@@ -256,7 +256,7 @@ public enum ObsidianTokens {
 
     public enum Motion {
         public static let transitionFast: Double = 0.12 // seconds (mac; web: 0.10s)
-        public static let transitionBase: Double = 0.15 // seconds
+        public static let transitionBase: Double = 0.12 // seconds (mac; web: 0.15s)
         public static let transitionSpring: Double = 0.18 // seconds (mac; web: 0.25s)
         public static let transitionSlow: Double = 0.32 // seconds (mac; web: 0.40s)
         public static let transitionReveal: Double = 0.6 // seconds
