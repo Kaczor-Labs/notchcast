@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# script-tests: macos (ready-check.sh's getconf DARWIN_USER_TEMP_DIR)
 """Verify ready-check.sh covers every pr.yml step and reports PASS or the first failing gate."""
 import os
 from pathlib import Path
@@ -28,6 +27,9 @@ COVERED = {
     ("pr.yml:mac", "Failures outside the harness selection"): "shadow selection; reports, gates nothing",
     ("pr.yml:linux-checks", "actions/checkout"): "the shared clone at HEAD",
     ("pr.yml:linux-checks", "Checks that need no Mac"): "ci-build.sh sources ci-checks.sh",
+    ("pr.yml:linux-harnesses", "Tools the Swift image lacks"): "the Swift image's setup; no gate",
+    ("pr.yml:linux-harnesses", "actions/checkout"): "the shared clone at HEAD",
+    ("pr.yml:linux-harnesses", "Linux-ok harnesses the diff needs"): "ci-build.sh's harnesses step runs them all on the Mac",
     ("pr.yml:script-tests", "actions/checkout"): "the shared clone at HEAD",
     ("pr.yml:script-tests", "Script tests"): "ci-build.sh's script-tests step",
     ("pr.yml:build", "A train run names its base"): "train branches only",

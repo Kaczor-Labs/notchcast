@@ -25,6 +25,11 @@ end of this file is the sixth, judged by what you touched.
 ./Scripts/run-tests.sh CalcTests    # just one, while iterating
 ```
 
+On Linux the suite runs only the harnesses listed in `LINUX_OK_TESTS` (`notchcast/config.env`), names the
+mac-only ones it skipped, and still runs any single harness you name. Before a push from a Linux machine,
+run the harnesses the branch changed there; the command is in
+[notchcast/README.md](../notchcast/README.md#linux).
+
 `AppleIntelligenceTests` runs deterministic checks by default. Its real model generation is opt-in:
 
 ```sh
