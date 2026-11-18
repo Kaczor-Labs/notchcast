@@ -80,7 +80,8 @@ private nonisolated enum PasteImageFinder {
     private static func png(from data: Data) -> Data? {
         let output = NSMutableData()
         guard let source = CGImageSourceCreateWithData(data as CFData, nil), CGImageSourceGetCount(source) > 0,
-              let destination = CGImageDestinationCreateWithData(output, UTType.png.identifier as CFString, 1, nil)
+              let destination = CGImageDestinationCreateWithData(
+                  output as CFMutableData, UTType.png.identifier as CFString, 1, nil)
         else { return nil }
         CGImageDestinationAddImageFromSource(destination, source, 0, nil)
         return CGImageDestinationFinalize(destination) ? output as Data : nil

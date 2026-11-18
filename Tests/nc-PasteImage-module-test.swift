@@ -44,7 +44,7 @@ final class FakeSystem {
 }
 
 @MainActor let fake = FakeSystem()
-let clipboardTypes = Mutex<[String]>(["public.png"])
+let fakeTypes = Mutex<[String]>(["public.png"])
 
 extension PasteImageSystem {
     static let live = PasteImageSystem(
@@ -53,7 +53,7 @@ extension PasteImageSystem {
             return fake.finder
         },
         commandCharacter: { fake.characters[$0] },
-        clipboardTypes: { clipboardTypes.withLock { $0 } },
+        clipboardTypes: { fakeTypes.withLock { $0 } },
         clipboardImage: { fake.image },
         focusedRole: { _ in await fake.role },
         save: { await fake.save($0, $1) },
@@ -122,7 +122,7 @@ final class Rig {
 
     func send(_ code: Int, down: Bool = true, flags: CGEventFlags = .maskCommand, repeat: Bool = false,
               synthetic: Bool = false) -> NotchcastTapRouter.Outcome {
-        clipboardTypes.withLock { $0 = fake.types }
+        fakeTypes.withLock { $0 = fake.types }
         let event = CGEvent(keyboardEventSource: nil, virtualKey: CGKeyCode(code), keyDown: down)!
         event.flags = flags
         if `repeat` { event.setIntegerValueField(.keyboardEventAutorepeat, value: 1) }
