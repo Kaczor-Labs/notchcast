@@ -1,0 +1,2 @@
+# Every add-on PR appends one line to the add-on list; a union merge keeps both sides instead of conflicting.
+Tinycast/Features/Notchcast/NotchcastRegistry.swift merge=union
