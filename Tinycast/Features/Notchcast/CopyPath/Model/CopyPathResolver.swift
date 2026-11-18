@@ -1,0 +1,101 @@
+import Foundation
+
+/// The app Copy Path reads: whichever owned the menu bar before the launcher opened.
+nonisolated struct CopyPathApp: Equatable, Sendable {
+    let bundleID: String?
+    let pid: Int32
+}
+
+/// The live apps behind one seam, so a harness fakes every read; a timeout throws, per `CopyPathStatus`.
+nonisolated struct CopyPathReader: Sendable {
+    /// File URLs or POSIX paths, in Finder's order.
+    let finderSelection: @Sendable () async throws -> [String]
+    let finderFolder: @Sendable () async throws -> String?
+    let browserAddress: @Sendable (_ bundleID: String, _ kind: CopyPathResolver.Browser) async throws -> String?
+    /// One window's `AXDocument`; nil when that window or its document is not there.
+    let document: @Sendable (_ pid: Int32, _ window: CopyPathResolver.Window) async throws -> String?
+}
+
+/// A permission the user refused; the notice names it and the matching Settings pane opens.
+nonisolated enum CopyPathFailure: Error, Equatable, Sendable {
+    case finderAutomation
+    case browserAutomation
+    case accessibility
+}
+
+/// What Copy Path puts on the clipboard; nil when there is nothing to copy.
+nonisolated enum CopyPathResolver {
+    enum Browser: Sendable { case safari, chromium }
+    enum Window: Sendable, CaseIterable { case focused, main }
+
+    static let finder = "com.apple.finder"
+    static let browsers: [String: Browser] = [
+        "com.apple.Safari": .safari,
+        "com.apple.SafariTechnologyPreview": .safari,
+        "com.google.Chrome": .chromium,
+        "com.google.Chrome.canary": .chromium,
+        "com.brave.Browser": .chromium,
+        "com.microsoft.edgemac": .chromium,
+        "company.thebrowser.Browser": .chromium,
+        "com.vivaldi.Vivaldi": .chromium,
+        "com.operasoftware.Opera": .chromium,
+        "org.chromium.Chromium": .chromium,
+    ]
+
+    static func resolve(_ app: CopyPathApp?, home: String, reader: CopyPathReader) async throws -> String? {
+        guard let app else { return nil }
+        if app.bundleID == finder {
+            let selected = try await reader.finderSelection().compactMap { localPath($0).flatMap { fold($0, home) } }
+            if !selected.isEmpty { return selected.joined(separator: "\n") }
+            try Task.checkCancellation()
+            return try await reader.finderFolder().flatMap { localPath($0).flatMap { fold($0, home) } }
+        }
+        if let bundleID = app.bundleID, let kind = browsers[bundleID],
+            let link = try await reader.browserAddress(bundleID, kind).flatMap(webLink) {
+            return link
+        }
+        for window in Window.allCases {
+            try Task.checkCancellation()
+            if let raw = try await reader.document(app.pid, window), !raw.isEmpty { return document(raw, home: home) }
+        }
+        return nil
+    }
+
+    /// A local path folded to the home folder, else a cleaned web link, else nothing.
+    static func document(_ raw: String, home: String) -> String? {
+        localPath(raw).flatMap { fold($0, home) } ?? webLink(raw)
+    }
+
+    /// An absolute path, or the path of a `file:` URL with no host or `localhost`.
+    static func localPath(_ raw: String) -> String? {
+        if raw.hasPrefix("/") { return raw }
+        guard let url = URL(string: raw), url.scheme?.lowercased() == "file" else { return nil }
+        let host = url.host(percentEncoded: false) ?? ""
+        guard host.isEmpty || host.lowercased() == "localhost" else { return nil }
+        let path = url.path(percentEncoded: false)
+        return path.hasPrefix("/") ? path : nil
+    }
+
+    /// `~` for the home folder, `~/…` inside it, trailing slashes trimmed, `/` kept.
+    static func fold(_ path: String, _ home: String) -> String? {
+        guard path.hasPrefix("/") else { return nil }
+        let path = trimmed(path)
+        let home = trimmed(home)
+        guard home != "/" else { return path }
+        if path == home { return "~" }
+        return path.hasPrefix(home + "/") ? "~" + path.dropFirst(home.count) : path
+    }
+
+    /// An http(s) link with a host, tracking parameters dropped; nil for anything else.
+    static func webLink(_ raw: String) -> String? {
+        guard let url = URL(string: raw), ["http", "https"].contains(url.scheme?.lowercased() ?? ""),
+            let host = url.host(), !host.isEmpty else { return nil }
+        return CopyPathLinkCleaner.clean(raw)
+    }
+
+    private static func trimmed(_ path: String) -> String {
+        var path = Substring(path)
+        while path.count > 1, path.hasSuffix("/") { path.removeLast() }
+        return String(path)
+    }
+}
