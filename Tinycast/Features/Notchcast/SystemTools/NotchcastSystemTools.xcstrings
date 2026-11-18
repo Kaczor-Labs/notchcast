@@ -1,0 +1,29 @@
+{
+  "sourceLanguage" : "en",
+  "strings" : {
+    "%@  %@ RPM" : {},
+    "%@%% · %@" : {},
+    "Anything unsaved in it is lost." : {},
+    "Asks for your admin password each time it changes." : {},
+    "Couldn’t Quit %@" : {},
+    "Couldn’t change it. Nothing was written." : {},
+    "Force Quit" : {},
+    "Force Quit %@" : {},
+    "Force Quit “%@”?" : {},
+    "Kill Process" : {},
+    "Kill a process, test your network, and Touch ID for sudo." : {},
+    "Network Test Cancelled" : {},
+    "Network Test Failed" : {},
+    "Notchcast wants to change Touch ID for sudo." : {},
+    "Quit %@" : {},
+    "Search Processes…" : {},
+    "System tools" : {},
+    "Test Network Quality" : {},
+    "Testing network…" : {},
+    "This Mac’s sudo setup no longer reads sudo_local." : {},
+    "Touch ID for sudo" : {},
+    "↓ %@ Mbps  ↑ %@ Mbps" : {},
+    "↩ Quit   ⌥↩ Force Quit" : {}
+  },
+  "version" : "1.0"
+}

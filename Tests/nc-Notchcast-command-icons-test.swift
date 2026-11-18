@@ -64,6 +64,12 @@
 // notchcast-sources: Tinycast/Features/Notchcast/Downloads/Service/WebpageSaver.swift
 // notchcast-sources: Tinycast/Features/Notchcast/Downloads/Service/WebpageWebViewConfiguration.swift
 // notchcast-sources: Tinycast/Features/Notchcast/Downloads/Service/XPost.swift
+// notchcast-sources: Tinycast/Features/Notchcast/SystemTools/SystemToolsAddon.swift
+// notchcast-sources: Tinycast/Features/Notchcast/SystemTools/Model/*.swift
+// notchcast-sources: Tinycast/Features/Notchcast/SystemTools/Service/KillProcessSession.swift
+// notchcast-sources: Tinycast/Features/Notchcast/SystemTools/Service/SystemToolsModule.swift
+// notchcast-sources: Tinycast/Features/Notchcast/SystemTools/Service/SystemToolsSystem.swift
+// notchcast-sources: Tinycast/Features/Notchcast/SystemTools/Service/SudoTouchIDStore.swift
 // notchcast-reads: Tinycast/Features/Notchcast/*/*Addon.swift Tinycast/Features/Notchcast/NotchcastCore.swift
 import AppKit
 import SwiftUI
@@ -72,7 +78,9 @@ import SwiftUI
 @main
 @MainActor
 enum NotchcastCommandIconTests {
-    static let addons: [any NotchcastAddon.Type] = [SmallCommandsAddon.self, DownloadsAddon.self, ScreenshotsAddon.self]
+    static let addons: [any NotchcastAddon.Type] = [
+        SmallCommandsAddon.self, DownloadsAddon.self, ScreenshotsAddon.self, SystemToolsAddon.self,
+    ]
 
     static var failures = 0
     static var checks = 0
@@ -152,6 +160,16 @@ extension ScreenshotSystem {
 }
 extension DownloadsModule.Environment {
     static func live() -> Self { fatalError("the harness never makes a module") }
+}
+struct SudoTouchIDSettingsView: View {
+    init(store: SudoTouchIDStore) {}
+    var body: some View { EmptyView() }
+}
+extension SystemToolsSystem {
+    static var live: Self { fatalError("the harness never makes a module") }
+}
+extension SudoTouchIDFiles {
+    static var live: Self { fatalError("the harness never writes the pam files") }
 }
 
 // Empty feature catalogs keep this harness on the launcher index; AppInstallationTests stubs the same.
