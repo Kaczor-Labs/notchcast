@@ -13,17 +13,41 @@ mkdir -p "$scratch/bin" "$scratch/home" "$seed/notchcast" "$seed/Scripts" "$seed
 cat > "$scratch/bin/gh" <<'STUB'
 #!/bin/bash
 case "$*" in
+    # The real --jq filter over every fixture PR.
+    'pr list '*)
+        base=$*
+        base=${base#*--base }
+        [[ "$*" == *' --base '* ]] || base=
+        jq -s --arg base "${base%% *}" 'map(select(.state == "OPEN" and ($base == "" or .baseRefName == $base)))' "$FIXTURE"/pr-*.json | jq -r "${*: -1}" ;;
+    # Logs the base it leaves and whether origin still had that branch.
+    'pr edit '*'--base main')
+        was=$(jq -r .baseRefName "$FIXTURE/pr-$3.json")
+        echo "$3 $was $(git -C "$FIXTURE/origin.git" for-each-ref "refs/heads/$was" | wc -l | tr -d ' ')" >> "$FIXTURE/retargeted"
+        jq '.baseRefName = "main"' "$FIXTURE/pr-$3.json" > "$FIXTURE/pr.json" && mv "$FIXTURE/pr.json" "$FIXTURE/pr-$3.json" ;;
+    'pr comment '*)
+        echo "$3 ${*: -1}" >> "$FIXTURE/comments"
+        jq --arg body "${*: -1}" '.comments += [{body: $body}]' "$FIXTURE/pr-$3.json" > "$FIXTURE/pr.json" && mv "$FIXTURE/pr.json" "$FIXTURE/pr-$3.json" ;;
+    *issues/*/timeline*)
+        pr=${2#*issues/}
+        cat "$FIXTURE/ready-${pr%%/*}" 2>/dev/null || true ;;
     'pr view '*'--json headRefOid'*) jq -r .headRefOid "$FIXTURE/pr-$3.json" ;;
     'pr view '*) cat "$FIXTURE/pr-$3.json" ;;
-    'pr close '*) echo "$3 ${*: -1}" >> "$FIXTURE/closed" ;;
+    'pr close '*)
+        echo "$3 ${*: -1}" >> "$FIXTURE/closed"
+        jq '.state = "CLOSED"' "$FIXTURE/pr-$3.json" > "$FIXTURE/pr.json" && mv "$FIXTURE/pr.json" "$FIXTURE/pr-$3.json" ;;
     *check-runs*)
         sha=$*
         sha=${sha#*commits/}
-        if grep -qxF "${sha%%/*}" "$FIXTURE/green" 2>/dev/null; then echo success; else echo "${HEAD_CHECKS:-success}"; fi ;;
+        if grep -qxF "${sha%%/*}" "$FIXTURE/red" 2>/dev/null; then echo failure
+        elif grep -qxF "${sha%%/*}" "$FIXTURE/green" 2>/dev/null; then echo success; else echo "${HEAD_CHECKS:-success}"; fi ;;
     'workflow run '*)
         [[ -z "${DISPATCH_FAILS:-}" || "$*" != *"--ref $DISPATCH_FAILS "* ]] || { echo 'HTTP 422' >&2; exit 1; }
         echo "$*" >> "$FIXTURE/dispatched" ;;
     'run list '*databaseId,status*) ;;
+    'run list '*headSha,url*)
+        branch=$*
+        branch=${branch#*-b }
+        echo "https://fixture.invalid/red/${branch%% *}" ;;
     # A dispatched train run is red when its branch train/<a>-<b> names a PR in RED_PRS.
     'run list '*workflow_dispatch*)
         branch=$*
@@ -143,8 +167,8 @@ open_pr() {
     git add "$@"
     git commit --quiet -m "$title"
     git push --quiet origin "$branch" "$branch:refs/pull/$number/head"
-    jq -n --arg head "$(git rev-parse HEAD)" --arg branch "$branch" --arg title "$title" \
-        '{state: "OPEN", isDraft: false, headRefOid: $head, headRefName: $branch, baseRefName: "main", isCrossRepository: false, title: $title, body: "", labels: []}' \
+    jq -n --arg head "$(git rev-parse HEAD)" --arg branch "$branch" --arg title "$title" --argjson number "$number" \
+        '{number: $number, createdAt: "2026-01-0\($number)T00:00:00Z", comments: [], state: "OPEN", isDraft: false, headRefOid: $head, headRefName: $branch, baseRefName: "main", isCrossRepository: false, title: $title, body: "", labels: []}' \
         > "$FIXTURE/pr-$number.json"
     git switch --quiet main
 }
@@ -176,6 +200,17 @@ grep -q "^1 Landed on main as $(origin rev-parse main~1) .* onto $base\.$" "$FIX
 [ -z "$(origin for-each-ref refs/heads/pr-b refs/heads/pr-c)" ] || fail 'landed heads were not deleted'
 [ ! -e "$FIXTURE/hold" ] || fail 'the train left its hold behind'
 echo 'PASS: a 2-PR train lands one squash per PR after one harness pass over the union of their selections'
+
+# #2 is stacked on #1's branch: GitHub would close it when that branch is deleted.
+fixture
+open_pr 1 pr-b 'Add B' src/b.txt
+open_pr 2 pr-c 'Add C' src/c.txt
+jq '.baseRefName = "pr-b"' "$FIXTURE/pr-2.json" > "$FIXTURE/pr.json" && mv "$FIXTURE/pr.json" "$FIXTURE/pr-2.json"
+land 1
+[ "$status" -eq 0 ] && grep -q '^retargeted #2 from pr-b to main$' "$FIXTURE/output" || fail 'landing #1 did not say it moved the PR stacked on its branch'
+[ "$(cat "$FIXTURE/retargeted")" = '2 pr-b 1' ] && [ -z "$(origin for-each-ref refs/heads/pr-b)" ] \
+    && [ "$(jq -r '.state + " " + .baseRefName' "$FIXTURE/pr-2.json")" = 'OPEN main' ] || fail 'the stacked PR was not moved to main before its base was deleted'
+echo 'PASS: a PR stacked on a landed branch is moved to main, and said so, before that branch is deleted'
 
 fixture
 open_pr 1 pr-one 'Add one' src/shared.txt
@@ -442,10 +477,71 @@ echo 'PASS: a red train splits in halves onto new trains down to the red PR, kee
 fixture
 open_pr 1 pr-one 'Add one' src/shared.txt
 open_pr 2 pr-two 'Add two' src/shared.txt
-train 1 2
-[ "$status" -eq 1 ] && grep -q 'REFUSED: merge conflict: src/shared.txt' "$FIXTURE/train-output" || { cat "$FIXTURE/train-output"; fail 'a conflicting train was not refused'; }
-[ -z "$(origin for-each-ref refs/heads/train/)" ] && [ ! -e "$FIXTURE/dispatched" ] && untouched || fail 'a refused train pushed or dispatched'
-echo 'PASS: a train whose merge is refused pushes no branch and dispatches nothing'
+git merge --quiet --ff-only pr-one
+git push --quiet origin main
+base=$(git rev-parse HEAD)
+train 2
+[ "$status" -eq 1 ] && grep -q '^DROPPED #2: conflicts with main; rebase on main$' "$FIXTURE/train-output" \
+    || { cat "$FIXTURE/train-output"; fail 'a train of one PR that conflicts with main was not dropped'; }
+[ -z "$(origin for-each-ref refs/heads/train/)" ] && [ ! -e "$FIXTURE/dispatched" ] && untouched || fail 'a train with no PR left pushed or dispatched'
+echo 'PASS: a train whose every merge is refused pushes no branch and dispatches nothing'
+
+# --queue: picks the batch itself and lands what is green; LAND_BATCH_SIZE is appended to the checkout's config.env.
+queue() {
+    status=0
+    NOTCHCAST_TRAIN_POLL=0 bash notchcast/train.sh --queue > "$FIXTURE/train-output" 2>&1 || status=$?
+}
+queue_fail() { cat "$FIXTURE/train-output"; echo "FAIL: $1"; exit 1; }
+
+# #2 was marked ready before #1 was opened; #3 is red on its head, #4 an unlabelled draft, #5 is past the batch size.
+fixture
+echo LAND_BATCH_SIZE=2 >> notchcast/config.env
+open_pr 1 pr-b 'Add B' src/b.txt
+open_pr 2 pr-c 'Add C' src/c.txt
+open_pr 3 pr-one 'Add one' src/one.txt
+open_pr 4 pr-d 'Add D' src/d.txt
+open_pr 5 pr-a 'Add A' src/a.txt
+echo 2025-12-01T00:00:00Z > "$FIXTURE/ready-2"
+jq -r .headRefOid "$FIXTURE/pr-3.json" > "$FIXTURE/red"
+draft 4
+queue
+[ "$status" -eq 0 ] && grep -q '^queue: batch 2 1$' "$FIXTURE/train-output" && grep -q '^LANDED #2 1$' "$FIXTURE/train-output" \
+    && grep -q '^open PRs: 5/25$' "$FIXTURE/train-output" \
+    || queue_fail 'a green batch did not land'
+[ "$(landed)" = 'Notchcast: Add C (#2)|Notchcast: Add B (#1)' ] || queue_fail "the green batch landed '$(landed)'"
+[ "$(grep -c -- '--ref train/2-1\( \|$\)' "$FIXTURE/dispatched")" -eq 4 ] && [ "$(wc -l < "$FIXTURE/dispatched")" -eq 4 ] \
+    || queue_fail "the green batch dispatched '$(paste -sd'|' "$FIXTURE/dispatched")'"
+[ "$(cut -d' ' -f1 "$FIXTURE/closed" | paste -sd' ' -)" = '2 1' ] && [ -z "$(origin for-each-ref refs/heads/train/)" ] && [ ! -e "$FIXTURE/comments" ] \
+    || queue_fail 'the green batch did not close exactly its PRs and delete its branch'
+echo 'PASS: --queue stacks the oldest signed-off green PRs up to the batch size, runs them once and lands one commit per PR'
+
+fixture
+open_pr 1 pr-b 'Add B' src/b.txt
+open_pr 2 pr-c 'Add C' src/c.txt
+open_pr 3 pr-one 'Add one' src/one.txt
+RED_PRS=2 queue
+[ "$status" -eq 1 ] && grep -q '^CULPRIT #2 https://fixture.invalid/red/train/2$' "$FIXTURE/train-output" || queue_fail 'a red batch did not report its culprit'
+[ "$(grep -c '^LANDED' "$FIXTURE/train-output")" -eq 2 ] && [ "$(landed)" = 'Notchcast: Add one (#3)|Notchcast: Add B (#1)' ] \
+    || queue_fail "the red batch landed '$(landed)'"
+[ "$(cat "$FIXTURE/comments")" = "2 Red alone on main $(origin rev-parse --short=8 main~1) in the landing batch at head $(jq -r .headRefOid "$FIXTURE/pr-2.json"): https://fixture.invalid/red/train/2" ] \
+    || queue_fail "the culprit comment was '$(cat "$FIXTURE/comments")'"
+! grep -q '^2 ' "$FIXTURE/closed" && [ -z "$(origin for-each-ref refs/heads/train/)" ] || queue_fail 'the culprit was closed or a train branch was left'
+base=$(origin rev-parse main)
+queue
+[ "$status" -eq 0 ] && grep -q '^queue: no open PR' "$FIXTURE/train-output" && [ "$(origin rev-parse main)" = "$base" ] \
+    || queue_fail 'the culprit was picked again on the same head'
+echo 'PASS: a red batch splits in halves, lands each green half on the main the one before it left, and reports the culprit once'
+
+fixture
+open_pr 1 pr-one 'Add one' src/shared.txt
+open_pr 2 pr-two 'Add two' src/shared.txt
+open_pr 3 pr-c 'Add C' src/c.txt
+queue
+[ "$status" -eq 1 ] && grep -q '^DROPPED #2: conflicts with #1 in the landing batch; rebase on main$' "$FIXTURE/train-output" \
+    && [ "$(cat "$FIXTURE/comments")" = '2 conflicts with #1 in the landing batch; rebase on main' ] || queue_fail 'the later conflicting PR was not dropped and told'
+[ "$(landed)" = 'Notchcast: Add one (#1)|Notchcast: Add C (#3)' ] && [ "$(grep -c -- '--ref train/1-3\( \|$\)' "$FIXTURE/dispatched")" -eq 4 ] \
+    && ! grep -q '^2 ' "$FIXTURE/closed" || queue_fail "the conflict batch landed '$(landed)'"
+echo 'PASS: a PR that conflicts with an earlier one in the batch is dropped with a comment naming it, and the rest lands'
 
 fixture
 open_pr 1 pr-b 'Add B' src/b.txt
