@@ -105,6 +105,8 @@ echo base > "$seed/src/shared.txt"
 echo '# fixture' > "$seed/.gitattributes"
 : > "$seed/Tinycast/Features/Notchcast/Core/NotchcastFeature.swift"
 export HOME="$scratch/home" PATH="$scratch/bin:$PATH" NOTCHCAST_LAND_TOOLS=test
+# The fixture's harnesses are stubs, so every train here lands as on a Mac, which runs each one.
+export NOTCHCAST_PLATFORM=Darwin
 identify() { git config user.name "$MAINTAINER_NAME"; git config user.email "$MAINTAINER_EMAIL"; }
 git init --quiet -b main "$seed"
 cd "$seed"

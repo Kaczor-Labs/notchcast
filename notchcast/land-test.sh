@@ -63,7 +63,7 @@ case "$*" in
     run\ list*) while [ "$1" != --commit ]; do shift; done; cat "$GH/run-$2" 2>/dev/null || true ;;
     run\ view*--log) echo 'FAILED  1 of 9 harness(es) failed in 3s: FavoritesTests' ;;
     run\ view*) cat "$GH/verdict-$3" ;;
-    pr\ create*) echo https://github.com/kaczordodgers/notchcast/pull/99 ;;
+    pr\ create*) echo https://example.com/pull/99 ;;
     pr\ view*) echo fixture-branch ;;
     pr\ close*|pr\ reopen*) ;;
     *) exit 3 ;;
@@ -75,8 +75,8 @@ STUB
     git clone --quiet --no-hardlinks "$scratch/repo" "$scratch/guard"
     cd "$scratch/guard"
     git remote set-url origin "$scratch/guard.git"
-    git config user.name Damian
-    git config user.email 336236323+kaczordodgers@users.noreply.github.com
+    git config user.name Fixture
+    git config user.email fixture@example.com
     git fetch --quiet "$scratch/repo" refs/remotes/upstream/main:refs/remotes/upstream/main
     # scenario <commits on $base, oldest first: linux|mac>: main is rebuilt, and gh starts with no verdict and no call.
     scenario() {
@@ -94,7 +94,7 @@ STUB
         git push --quiet origin --delete fixture-branch 2>/dev/null || true
         tip=$(git rev-parse HEAD)
     }
-    red() { echo 55 > "$GH/run-$1"; echo 'red https://github.com/kaczordodgers/notchcast/actions/runs/55' > "$GH/verdict-55"; }
+    red() { echo 55 > "$GH/run-$1"; echo 'red https://example.com/actions/runs/55' > "$GH/verdict-55"; }
     main() { git ls-remote origin refs/heads/main | cut -f1; }
     guard() { bash "$land" --guard > "$scratch/guard.log" 2>&1 || { cat "$scratch/guard.log"; exit 1; }; }
     scenario linux

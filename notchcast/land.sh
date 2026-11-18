@@ -397,8 +397,12 @@ harnesses() {
     local commit proof names why tested=
     : > "$scratch/linux"
     for commit in $(git rev-list --reverse "$base..HEAD"); do
-        TMPDIR="$scratch/tmp" "$selector" --linux "$scratch/linux-one" "$commit^" "$commit"
-        cat "$scratch/linux-one" >> "$scratch/linux"
+        if [ "$platform" = linux ]; then
+            TMPDIR="$scratch/tmp" "$selector" --linux "$scratch/linux-one" "$commit^" "$commit"
+            cat "$scratch/linux-one" >> "$scratch/linux"
+        else
+            TMPDIR="$scratch/tmp" "$selector" "$commit^" "$commit"
+        fi
     done | sort -u > "$scratch/selected"
     [ -s "$scratch/selected" ] || refuse 'no harness selected for the merged tree'
     names=$(< "$scratch/selected")
