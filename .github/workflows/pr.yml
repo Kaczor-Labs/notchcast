@@ -64,11 +64,11 @@ jobs:
           git sparse-checkout disable
           python3 notchcast/harness-select.py plan "${BASE:-$(git merge-base origin/main HEAD)}" HEAD
   # The one macOS job of a run: GitHub runs at most 5 at once for the account, so every lane that needs a Mac runs here in turn.
-  # A fork's pull_request never reaches vars.NOTCHCAST_MAC_RUNNER, a self-hosted Mac (ready-check-test.py holds the gate).
+  # Only a dispatch reaches vars.NOTCHCAST_MAC_RUNNER, a self-hosted Mac: a pull_request, a fork's too, stays hosted.
   mac:
     needs: route
     if: needs.route.outputs.scripts == 'true'
-    runs-on: ${{ (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && vars.NOTCHCAST_MAC_RUNNER || 'xcode-27' }}
+    runs-on: ${{ github.event_name == 'workflow_dispatch' && vars.NOTCHCAST_MAC_RUNNER || 'xcode-27' }}
     timeout-minutes: 90
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7

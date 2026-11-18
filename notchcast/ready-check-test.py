@@ -109,9 +109,8 @@ class CoverageTest(unittest.TestCase):
                 self.assertRegex(ci_tests, rf"export .*\b{name}={value.strip(chr(39))}\b")
 
 
-# The one way to a self-hosted Mac (README Runners): this repo is public, so a fork's pull_request stays hosted.
-GATED_MAC = ("${{ (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == "
-             "github.repository) && vars.NOTCHCAST_MAC_RUNNER || 'xcode-27' }}")
+# The one way to a self-hosted Mac (README Runners): a dispatch, which no fork can start; unset, it is xcode-27.
+GATED_MAC = "${{ github.event_name == 'workflow_dispatch' && vars.NOTCHCAST_MAC_RUNNER || 'xcode-27' }}"
 # Only jobs that hold no secret and launch no app; a workflow outside this map is hosted-only.
 GATED_JOBS = {"pr.yml": 1, "main-harnesses.yml": 1}
 

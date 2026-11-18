@@ -71,7 +71,7 @@ jobs:
     needs: plan
     # An empty selection skips this job and the run still concludes success; an empty matrix would fail it.
     if: ${{ needs.plan.outputs.shards != '[]' }}
-    runs-on: ${{ (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && vars.NOTCHCAST_MAC_RUNNER || 'xcode-27' }}
+    runs-on: ${{ github.event_name == 'workflow_dispatch' && vars.NOTCHCAST_MAC_RUNNER || 'xcode-27' }}
     timeout-minutes: 30
     strategy:
       fail-fast: false
