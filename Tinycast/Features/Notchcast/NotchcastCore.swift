@@ -7,6 +7,7 @@ final class NotchcastCore {
     let controller: NotchcastController
     private var trustMonitor: NotchcastTrustMonitor?
     private var launcherHides: NotchcastLauncherHides?
+    private var globeTrigger: NotchcastGlobeTrigger?
 
     init(core: AppCore, addons: [any NotchcastAddon.Type] = NotchcastRegistry.addons) {
         let bundleID = Bundle.main.bundleIdentifier ?? "Notchcast"
@@ -48,11 +49,13 @@ final class NotchcastCore {
         launcherHides = NotchcastLauncherHides(
             visibility: core.visibility, preferences: controller.preferences, commandIDs: Set(commands.map(\.id)))
         trustMonitor = NotchcastTrustMonitor(hub: hub)
+        globeTrigger = NotchcastGlobeTrigger(core: core)
         controller.start()
     }
 
     func stop() {
         trustMonitor = nil
+        globeTrigger?.stop()
         controller.stop()
         controller.hub.stop()
     }

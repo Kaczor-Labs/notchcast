@@ -57,10 +57,14 @@ struct DictationSettingsView: View {
                     } label: {
                         SettingsRowTitle(.dictationCommands, "Shortcut behavior")
                     }
-                    HStack {
-                        SettingsRowTitle(.dictationCommands, "Shortcut")
-                        Spacer()
-                        ShortcutRecorder(action: .dictation)
+                    if settings.dictationMode == .globe {
+                        NotchcastGlobeHint()
+                    } else {
+                        HStack {
+                            SettingsRowTitle(.dictationCommands, "Shortcut")
+                            Spacer()
+                            ShortcutRecorder(action: .dictation)
+                        }
                     }
                     if settings.dictationMode == .pushToTalk {
                         let issue = coordinator.holdShortcutIssue
