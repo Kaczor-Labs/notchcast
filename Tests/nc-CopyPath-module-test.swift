@@ -193,10 +193,11 @@ enum CopyPathModuleTests {
         await rig.run(waits: false)
         for _ in 0..<100 { await Task.yield() }
         rig.controller.preferences.set("copyPath", on: false)
+        for _ in 0..<1_000 where rig.module != nil { await Task.yield() }
+        precondition(rig.module == nil, "switch off stops the module")
         fake.hold = false
         for _ in 0..<1_000 where fake.released.isEmpty { await Task.yield() }
         for _ in 0..<1_000 { await Task.yield() }
-        precondition(rig.module == nil, "switch off stops the module")
         let offCancels = fake.released == ["file:///home/tester/a": true]
         precondition(offCancels, "switch off cancels the read in flight: \(fake.released)")
         precondition(rig.presenter.posts.count == before && fake.copies.isEmpty, "a run in flight is dropped")
