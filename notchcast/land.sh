@@ -27,11 +27,22 @@ selector="$(cd "$(dirname "$0")" && pwd)/changed-harnesses.sh"
 cd "$(git rev-parse --show-toplevel)"
 source "$(dirname "$0")/merge.sh"
 delete_head() {
-    local name=$1 expected=$2 fork=${3:-false} remote local_head
+    local name=$1 expected=$2 fork=${3:-false} remote local_head stacked pr kept=
     [ "$fork" = false ] || return 0
     remote=$(git ls-remote origin "refs/heads/$name") || { echo 'WARN: cannot read origin head' >&2; return 0; }
     if [ "${remote%%[[:space:]]*}" = "$expected" ]; then
-        git push origin --delete "$name" || echo "WARN: could not delete origin/$name" >&2
+        # GitHub closes every open PR based on a deleted branch, so each moves to main first.
+        stacked=$(gh pr list -R "$FORK_REPO" --base "$name" --state open --limit 1000 --json number --jq '.[].number') \
+            || { echo "WARN: kept origin/$name: cannot list PRs based on it" >&2; kept=1; }
+        for pr in $stacked; do
+            if gh pr edit "$pr" -R "$FORK_REPO" --base main >/dev/null; then
+                echo "retargeted #$pr from $name to main"
+            else
+                echo "WARN: kept origin/$name: PR #$pr still targets it" >&2
+                kept=1
+            fi
+        done
+        [ -n "$kept" ] || git push origin --delete "$name" || echo "WARN: could not delete origin/$name" >&2
     fi
     local_head=$(git rev-parse --verify "refs/heads/$name" 2>/dev/null) || return 0
     if [ "$local_head" = "$expected" ]; then
@@ -181,12 +192,6 @@ drop() {
     done
     train=("${kept[@]}")
     rerun=1
-}
-# Check runs on the commit, not the PR's statusCheckRollup: the rollup omits dispatched runs, and a PR
-# GitHub calls conflicting gets no pull_request run at all. Cancelled or skipped runs count only alone.
-check_run() {
-    gh api "repos/$FORK_REPO/commits/$1/check-runs?check_name=$2&filter=all" \
-        --jq '[.check_runs[] | select(.app.slug == "github-actions")] | (map(select(.conclusion != "cancelled" and .conclusion != "skipped")) | max_by([.started_at, .id])) // max_by([.started_at, .id]) | if . == null then "none" elif .status != "completed" then "pending" else .conclusion end'
 }
 green() { [ "$(check_run "$1" build)" = success ] || local_build_green "$1"; }
 # The gates PR $1 passes before it is merged: open, ready, and its checks green on its exact head.
