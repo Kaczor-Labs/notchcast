@@ -26,74 +26,80 @@ extension CopyPathSystem {
 
 /// Reads Finder and browsers with `core/getd` Apple Events, 5 s each.
 private nonisolated enum CopyPathAppleEvents {
-    enum Step {
-        case first(String)
-        case property(String)
+    /// One object-specifier hop: a named property, or the first element of a class.
+    struct Hop {
+        let want: NSAppleEventDescriptor
+        let form: NSAppleEventDescriptor
+        let seld: NSAppleEventDescriptor
+
+        static func property(_ name: String) -> Hop {
+            Hop(want: .init(typeCode: code("prop")), form: .init(enumCode: code("prop")), seld: .init(typeCode: code(name)))
+        }
+
+        static func first(_ kind: String) -> Hop {
+            Hop(want: .init(typeCode: code(kind)), form: .init(enumCode: code("indx")), seld: .init(int32: 1))
+        }
     }
 
     @concurrent
     static func finderSelection() async throws -> [String] {
-        try get(CopyPathResolver.finder, [.property("sele")], denied: .finderAutomation).flatMap { item in
-            try get(CopyPathResolver.finder, [.property("pURL")], in: item, denied: .finderAutomation)
+        let items = try values(CopyPathResolver.finder, [.property("sele")], denied: .finderAutomation)
+        return try items.flatMap {
+            try values(CopyPathResolver.finder, [.property("pURL")], from: $0, denied: .finderAutomation)
         }.compactMap(\.stringValue)
     }
 
     @concurrent
     static func finderFolder() async throws -> String? {
-        let steps: [Step] = [.first("brow"), .property("fvtg"), .property("pURL")]
-        return try get(CopyPathResolver.finder, steps, denied: .finderAutomation).first?.stringValue
+        let path: [Hop] = [.first("brow"), .property("fvtg"), .property("pURL")]
+        return try values(CopyPathResolver.finder, path, denied: .finderAutomation).first?.stringValue
     }
 
     @concurrent
     static func browserAddress(_ bundleID: String, kind: CopyPathResolver.Browser) async throws -> String? {
-        let steps: [Step] = switch kind {
+        let path: [Hop] = switch kind {
         case .safari: [.first("docu"), .property("pURL")]
         case .chromium: [.first("cwin"), .property("acTa"), .property("URL ")]
         }
-        return try get(bundleID, steps, denied: .browserAutomation).first?.stringValue
+        return try values(bundleID, path, denied: .browserAutomation).first?.stringValue
     }
 
-    private static func get(
-        _ bundleID: String, _ steps: [Step], in container: NSAppleEventDescriptor = .null(),
-        denied: CopyPathFailure
+    /// The reply's items; a missing object, a quit app or a timeout read as none.
+    private static func values(
+        _ bundleID: String, _ path: [Hop], from root: NSAppleEventDescriptor = .null(), denied: CopyPathFailure
     ) throws -> [NSAppleEventDescriptor] {
         try Task.checkCancellation()
-        var specifier = container
-        for step in steps {
+        let object = path.reduce(Optional(root)) { from, hop in
             let record = NSAppleEventDescriptor.record()
-            record.setDescriptor(specifier, forKeyword: code("from"))
-            switch step {
-            case .first(let kind):
-                record.setDescriptor(NSAppleEventDescriptor(typeCode: code(kind)), forKeyword: code("want"))
-                record.setDescriptor(NSAppleEventDescriptor(enumCode: code("indx")), forKeyword: code("form"))
-                record.setDescriptor(NSAppleEventDescriptor(int32: 1), forKeyword: code("seld"))
-            case .property(let name):
-                record.setDescriptor(NSAppleEventDescriptor(typeCode: code("prop")), forKeyword: code("want"))
-                record.setDescriptor(NSAppleEventDescriptor(enumCode: code("prop")), forKeyword: code("form"))
-                record.setDescriptor(NSAppleEventDescriptor(typeCode: code(name)), forKeyword: code("seld"))
+            for (key, value) in [("from", from), ("want", hop.want), ("form", hop.form), ("seld", hop.seld)] {
+                guard let value else { return nil }
+                record.setDescriptor(value, forKeyword: code(key))
             }
-            guard let object = record.coerce(toDescriptorType: code("obj ")) else { return [] }
-            specifier = object
+            return record.coerce(toDescriptorType: code("obj "))
         }
+        guard let object else { return [] }
+        let target = NSAppleEventDescriptor(bundleIdentifier: bundleID)
         let event = NSAppleEventDescriptor(
-            eventClass: code("core"), eventID: code("getd"),
-            targetDescriptor: NSAppleEventDescriptor(bundleIdentifier: bundleID), returnID: -1, transactionID: 0)
-        event.setParam(specifier, forKeyword: code("----"))
+            eventClass: code("core"), eventID: code("getd"), targetDescriptor: target, returnID: -1, transactionID: 0)
+        event.setParam(object, forKeyword: code("----"))
         let reply: NSAppleEventDescriptor
         do {
             reply = try event.sendEvent(options: [.waitForReply, .canInteract], timeout: 5)
-        } catch let error as NSError {
-            if error.code == -1743 { throw denied }
-            return []
+        } catch {
+            return try refused((error as NSError).code, denied)
         }
         try Task.checkCancellation()
-        if let status = reply.paramDescriptor(forKeyword: code("errn"))?.int32Value, status != 0 {
-            if status == -1743 { throw denied }
-            return []
-        }
+        let status = Int(reply.paramDescriptor(forKeyword: code("errn"))?.int32Value ?? 0)
+        guard status == 0 else { return try refused(status, denied) }
         guard let answer = reply.paramDescriptor(forKeyword: code("----")) else { return [] }
         guard answer.descriptorType == code("list") else { return [answer] }
-        return answer.numberOfItems > 0 ? (1...answer.numberOfItems).compactMap { answer.atIndex($0) } : []
+        return (0..<answer.numberOfItems).compactMap { answer.atIndex($0 + 1) }
+    }
+
+    /// -1743 is a refused Automation grant; every other error reads as nothing to copy.
+    private static func refused(_ status: Int, _ denied: CopyPathFailure) throws -> [NSAppleEventDescriptor] {
+        if status == -1743 { throw denied }
+        return []
     }
 
     private static func code(_ text: String) -> UInt32 {
