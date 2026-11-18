@@ -24,17 +24,12 @@ concurrency:
   cancel-in-progress: ${{ github.ref_name != github.event.repository.default_branch }}
 
 jobs:
-  # On Linux: a runner for checks (slot 0), each shard and the script tests (slot 4), hosted first, then the maintainer Mac pool (notchcast/runner/route.py).
-  # It also names the lanes the diff needs (notchcast/lanes.py): a skipped one still reports, and build accepts it.
+  # On Linux: names the lanes the diff needs (notchcast/lanes.py): a skipped one still reports, and build accepts it.
   route:
     if: github.event_name == 'workflow_dispatch' || !github.event.pull_request.draft
     runs-on: ubuntu-latest
     timeout-minutes: 5
-    permissions:
-      contents: read
-      actions: read
     outputs:
-      runners: ${{ steps.route.outputs.runners }}
       build: ${{ steps.lanes.outputs.build }}
       scripts: ${{ steps.lanes.outputs.scripts }}
       harness-planned: ${{ steps.select.outputs.planned }}
@@ -68,16 +63,10 @@ jobs:
         run: |
           git sparse-checkout disable
           python3 notchcast/harness-select.py plan "${BASE:-$(git merge-base origin/main HEAD)}" HEAD
-      - id: route
-        uses: ./notchcast/actions/route
-        with:
-          count: 5
-          idle: |
-            ${{ vars.NOTCHCAST_IDLE_MBA }}
   checks:
     needs: route
     if: needs.route.outputs.build == 'true'
-    runs-on: ${{ fromJSON(needs.route.outputs.runners)[0] }}
+    runs-on: xcode-27
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
@@ -100,15 +89,12 @@ jobs:
   harnesses:
     needs: route
     if: needs.route.outputs.build == 'true'
-    runs-on: ${{ fromJSON(needs.route.outputs.runners)[matrix.slot] }}
+    runs-on: xcode-27
     timeout-minutes: 60
     strategy:
       fail-fast: false
       matrix:
-        include:
-          - {shard: 0, slot: 1}
-          - {shard: 1, slot: 2}
-          - {shard: 2, slot: 3}
+        shard: [0, 1, 2]
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
@@ -139,7 +125,7 @@ jobs:
   script-tests:
     needs: route
     if: needs.route.outputs.scripts == 'true'
-    runs-on: ${{ fromJSON(needs.route.outputs.runners)[needs.route.outputs.build == 'true' && 4 || 0] }}
+    runs-on: xcode-27
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
