@@ -34,34 +34,3 @@ jobs:
         run: |
           bash notchcast/fetch-upstream.sh
           notchcast/design-check.sh "$(git merge-base HEAD refs/remotes/upstream/main)"
-  # TEMPORARY (#1032 proof, removed before review): Linux regenerates main's generated files byte for byte.
-  xcodegen-linux-proof:
-    if: github.event_name == 'workflow_dispatch'
-    runs-on: ubuntu-latest
-    timeout-minutes: 30
-    steps:
-      - uses: actions/checkout@v7
-        with:
-          path: tools
-          persist-credentials: false
-      - uses: actions/checkout@v7
-        with:
-          ref: c0d5180393aa750c84e9e0ea173e82e0fd15370e
-          path: src
-          fetch-depth: 0
-          persist-credentials: false
-      - uses: ./tools/notchcast/actions/xcodegen
-      - uses: actions/setup-node@v7
-        with:
-          node-version: 22
-      - working-directory: src
-        run: |
-          swift --version
-          "$XCODEGEN" --version
-          bash notchcast/fetch-upstream.sh
-          python3 notchcast/ci.py regenerate . "$(git merge-base HEAD refs/remotes/upstream/main)"
-          git status --porcelain
-          (cd Scripts/raycast-runtime && npx --yes pnpm@10 install --frozen-lockfile && node build.mjs)
-          git status --porcelain
-          git diff --stat
-          test -z "$(git status --porcelain)"
