@@ -1,0 +1,54 @@
+diff --git a/Tinycast/Features/Settings/SettingsTab.swift b/Tinycast/Features/Settings/SettingsTab.swift
+index 43ffd73ff..422a3786f 100644
+--- a/Tinycast/Features/Settings/SettingsTab.swift
++++ b/Tinycast/Features/Settings/SettingsTab.swift
+@@ -2,7 +2,7 @@ enum SettingsTab: CaseIterable, Identifiable {
+     case general, iCloudSync, applications, systemSettings, systemActions, commands, quicklinks,
+         appleShortcuts,
+         fallbacks, clipboard, snippets, fileSearch, windowManagement, navigation, notes, calendar, emoji,
+-        dictation, ai, quickActions, extensions, permissions, backup, about
++        dictation, ai, quickActions, extensions, permissions, backup, about, notchcast
+     /// The case, never an index: a selectable `List` flattens section and row IDs together.
+     var id: Self { self }
+ 
+@@ -38,6 +38,7 @@ enum SettingsTab: CaseIterable, Identifiable {
+         case .permissions: "permissions"
+         case .backup: "backup"
+         case .about: "about"
++        case .notchcast: "notchcast"
+         }
+     }
+ 
+@@ -67,6 +68,7 @@ enum SettingsTab: CaseIterable, Identifiable {
+         case .permissions: return String(localized: "Permissions")
+         case .backup: return String(localized: "Backup")
+         case .about: return String(localized: "About")
++        case .notchcast: return String(localized: "Notchcast", table: "Notchcast")
+         }
+     }
+ 
+@@ -96,13 +98,14 @@ enum SettingsTab: CaseIterable, Identifiable {
+         case .permissions: return "lock.shield.fill"
+         case .backup: return "arrow.up.arrow.down.circle.fill"
+         case .about: return "info.circle.fill"
++        case .notchcast: return "capsule.fill"
+         }
+     }
+ 
+     var tint: IconTint {
+         switch self {
+         case .general, .systemSettings, .fallbacks, .about: return .gray
+-        case .commands, .navigation: return .graphite
++        case .commands, .navigation, .notchcast: return .graphite
+         case .permissions, .quicklinks, .fileSearch: return .blue
+         case .applications, .iCloudSync, .backup: return .cyan
+         case .windowManagement: return .mint
+@@ -151,7 +154,7 @@ enum SettingsSection: CaseIterable, Identifiable {
+                 .clipboard, .snippets, .fileSearch, .windowManagement, .navigation, .notes,
+                 .calendar, .emoji, .dictation, .ai, .quickActions, .extensions
+             ]
+-        case .advanced: return [.backup, .about]
++        case .advanced: return [.backup, .about, .notchcast]
+         }
+     }
+ }
