@@ -282,6 +282,56 @@ class ReplayTests(unittest.TestCase):
     def test_resolution_does_not_mask_later_failure(self):
         self.scenario(later_conflict=True)
 
+    def adaptation(self, patch):
+        """Our commit adds a key and picks cleanly; upstream adds a list of every key that lacks it, which no
+        conflict reveals. The stored adaptation for our commit adds it there."""
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            def git(*args):
+                return CI.run("git", *args, cwd=root)
+            def commit(message, files):
+                for name, text in files.items():
+                    (root / name).parent.mkdir(parents=True, exist_ok=True)
+                    (root / name).write_text(text)
+                git("add", ".")
+                git("commit", "-qm", message)
+                return git("rev-parse", "HEAD")
+            git("init", "-q")
+            git("config", "user.name", "Test")
+            git("config", "user.email", "test@example.com")
+            git("config", "core.hooksPath", "/dev/null")
+            base = commit("base", {"keys": "a\n"})
+            commit("Ours: add a key", {"keys": "a\nours\n"})
+            if patch:
+                commit("stored adaptation", {f"{CI.ADAPTATIONS}/{name}": text for name, text in patch.items()})
+            ours = git("rev-parse", "HEAD")
+            git("checkout", "-q", "--detach", base)
+            upstream = commit("upstream", {"scope": "a\n"})
+            git("update-ref", "refs/remotes/upstream/main", upstream)
+            git("checkout", "-q", "--detach", ours)
+            CI.replay(root, upstream, check=True)
+            return ((root / "scope").read_text(), git("show", "--format=", "--name-only", "HEAD~1"),
+                    git("status", "--porcelain"))
+
+    ADAPT = "diff --git a/scope b/scope\n--- a/scope\n+++ b/scope\n@@ -1 +1,2 @@\n a\n+ours\n"
+
+    def test_adaptation_applies_after_a_clean_pick(self):
+        self.assertEqual(self.adaptation({"ours-add-a-key.patch": self.ADAPT}), ("a\nours\n", "keys\nscope", ""))
+
+    def test_adaptation_labelled_for_another_base_applies_when_the_bare_one_does_not(self):
+        scope, _, _ = self.adaptation({"ours-add-a-key.patch": self.ADAPT.replace(" a\n", " b\n"),
+                                       "ours-add-a-key.v1-0-0.patch": self.ADAPT})
+        self.assertEqual(scope, "a\nours\n")
+
+    def test_adaptation_that_does_not_apply_fails_on_its_commit(self):
+        with self.assertRaises(CI.Conflict) as caught:
+            self.adaptation({"ours-add-a-key.patch": self.ADAPT.replace(" a\n", " b\n")})
+        self.assertEqual((caught.exception.subject, caught.exception.files), ("Ours: add a key", ["scope"]))
+
+    def test_no_adaptation_leaves_the_clean_pick_alone(self):
+        scope, _, status = self.adaptation(None)
+        self.assertEqual((scope, status), ("a\n", ""))
+
     def test_pruned_paths_stay_gone_without_conflict(self):
         """Our generated commit removes website/; upstream keeps editing it. The replay never picks that removal,
         so it cannot conflict, and regenerate removes the path again."""
