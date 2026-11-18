@@ -17,8 +17,17 @@ struct IslandLevelTest {
         precondition(reading.readout == "13%", "half a percent rounds away from zero, got \(reading.readout)")
         reading.value = 0.625
         precondition(reading.readout == "63%", "62.5% rounds away from zero, got \(reading.readout)")
-        reading.value = -0.0625
-        precondition(reading.readout == "-6%", "extra dimming reads below 0%, got \(reading.readout)")
+        var dimmable = IslandLevel(source: "brightness", symbol: "sun.min.fill", label: "Brightness", value: -0.25,
+                                   range: -0.25...1)
+        precondition(dimmable.readout == "0%", "the darkest extra dimming reads 0%, got \(dimmable.readout)")
+        dimmable.value = 0
+        precondition(dimmable.readout == "20%", "the system minimum sits a fifth along, got \(dimmable.readout)")
+        dimmable.value = 1
+        precondition(dimmable.readout == "100%", "the brightest reads 100%, got \(dimmable.readout)")
+        dimmable.value = 0.03125
+        precondition(dimmable.readout == "23%", "22.5% rounds away from zero, got \(dimmable.readout)")
+        dimmable.value = -1
+        precondition(dimmable.readout == "0%", "a value past the bar clamps to 0%, got \(dimmable.readout)")
         var dwell = IslandLevelDwell()
         let level = IslandLevel(source: "brightness", symbol: "sun.max.fill", label: "Brightness", value: 0)
         var starts = 0
@@ -46,9 +55,24 @@ struct IslandLevelTest {
         let zoned = IslandLevelTrack(boosted, width: 100)
         precondition(zoned.below == 0...25 && zoned.track == 25...75 && zoned.above == 75...100,
                      "Outside 0...1 draws outlined zones past the track: \(zoned)")
-        precondition(zoned.fill == 25...87.5, "Fill runs from 0 into the upper zone: \(zoned.fill)")
+        precondition(zoned.fill == 0...87.5, "Fill runs from the left edge into the upper zone: \(zoned.fill)")
         boosted.value = -0.25
-        precondition(IslandLevelTrack(boosted, width: 100).fill == 12.5...25, "A negative value fills below 0")
+        precondition(IslandLevelTrack(boosted, width: 100).fill == 0...12.5, "A negative value fills from the left")
+        var lit = IslandLevel(source: "brightness", symbol: "sun.max.fill", label: "Brightness", value: -0.25,
+                              range: -0.25...1)
+        for step in 0...80 {
+            lit.value = -0.25 + Double(step) / 64
+            let fill = IslandLevelTrack(lit, width: 100).fill
+            let percent = Double(IslandLevel.percent(lit.value, in: lit.range))
+            precondition(fill.lowerBound == 0 && abs(fill.upperBound - percent) <= 0.5 + 1e-9,
+                         "The fill is the readout's share of the bar at \(lit.value): \(fill) vs \(percent)%")
+        }
+        lit.value = -0.25
+        precondition(IslandLevelTrack(lit, width: 100).fill == 0...0, "The darkest reads 0% and shows no fill")
+        lit.value = 0
+        precondition(IslandLevelTrack(lit, width: 100).fill == 0...20, "The system minimum fills a fifth")
+        lit.value = 1
+        precondition(IslandLevelTrack(lit, width: 100).fill == 0...100, "The brightest fills the whole bar")
 
         var live = IslandLevelDwell()
         precondition(live.placement(palette: false, question: false) == nil, "Nothing live, nothing placed")
