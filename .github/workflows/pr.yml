@@ -94,7 +94,13 @@ jobs:
           HOSTED: ${{ runner.environment == 'github-hosted' }}
         run: |
           echo "hosted=$HOSTED" >> "$GITHUB_OUTPUT"
-          [ "$HOSTED" = true ] || echo "::notice::SKIPPED on a self-hosted runner: the macOS script tests, HOSTED_ONLY_TESTS harnesses (unless the runner is isolated), the tested-tree record"
+          [ "$HOSTED" = true ] || echo "::notice::SKIPPED on a self-hosted runner: the macOS script tests, HOSTED_ONLY_TESTS harnesses (unless the runner is isolated), the hosted tested-tree record"
+      # Two runners share one Mac and one temp folder: each job keeps its harness logs in its own. Prints only.
+      - name: Runner load at start
+        if: runner.environment != 'github-hosted'
+        run: |
+          mkdir -p "$RUNNER_TEMP/tmp" && echo "TMPDIR=$RUNNER_TEMP/tmp" >> "$GITHUB_ENV"
+          sysctl -n hw.ncpu hw.memsize; uptime; vm_stat | head -8; sysctl vm.swapusage
       # First: the shortest lane. land-test.sh serves this checkout's upstream main to its fixture remote.
       - name: Script tests that need macOS
         if: runner.environment == 'github-hosted'
@@ -128,6 +134,35 @@ jobs:
           HARNESS_UNSURE: ${{ needs.route.outputs.harness-unsure }}
           HARNESS_TESTS: ${{ steps.tests.outcome }}
         run: python3 tools/notchcast/harness-select.py misses "$RUNNER_TEMP/harness-failures" 0
+      - name: Runner load at end
+        if: ${{ !cancelled() && runner.environment != 'github-hosted' }}
+        run: sysctl -n hw.ncpu hw.memsize; uptime; vm_stat | head -8; sysctl vm.swapusage
+      # What this runner really ran, per harness, with its toolchain. From an isolated runner it is the proof
+      # land.sh --train-run reads (README Runners); from a hosted one only the list a comparison run needs.
+      - name: Harness results
+        id: results
+        working-directory: src
+        run: |
+          out="$RUNNER_TEMP/harness-results" bin="${TMPDIR:-/tmp}/tinycast-harness"
+          mkdir -p "$out"
+          for log in "$bin"/*.log; do
+            [ -e "$log" ] || continue
+            name=$(basename "$log" .log)
+            if [ -e "$bin/$name.failed" ]; then verdict=fail; elif grep -q '^SKIP:' "$log"; then verdict=skip; else verdict=pass; fi
+            echo "$name $verdict"
+          done > "$out/results"
+          { xcodebuild -version; sw_vers; } | tr -s '\t\n' ' ' | sed 's/ $//' > "$out/toolchain"
+          if [ "${NOTCHCAST_ISOLATED_RUNNER:-}" = 1 ]; then echo isolated; else echo "$RUNNER_ENVIRONMENT"; fi > "$out/runner"
+          git rev-parse HEAD > "$out/tested-commit"
+          cat "$out/runner" "$out/toolchain"
+          echo "key=$(python3 ../tools/notchcast/ci.py tested-key HEAD)" >> "$GITHUB_OUTPUT"
+      - uses: actions/upload-artifact@v7
+        with:
+          name: ${{ runner.environment == 'github-hosted' && 'harness-results' || 'tested-tree-isolated' }}-${{ steps.results.outputs.key }}
+          path: ${{ runner.temp }}/harness-results
+          if-no-files-found: error
+          overwrite: true
+          retention-days: 7
   # ci-build.sh's checks that need no Mac (notchcast/ci-checks.sh), beside mac.
   linux-checks:
     needs: route
