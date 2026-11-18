@@ -22,7 +22,7 @@ final class KillProcessPicker {
         hosting.rootView = AnyView(
             KillProcessMenu(
                 session: session, activate: { [weak self] in self?.activate($0) },
-                resized: { [weak self] in self?.place() }
+                resized: { [weak self] in Task { @MainActor in self?.place() } }
             )
             .environment(palette).environment(\.metrics, metrics).environment(\.islandFrosted, frosted))
         hosting.sizingOptions = [.intrinsicContentSize]
@@ -43,8 +43,8 @@ final class KillProcessPicker {
         place()
         panel.makeKeyAndOrderFront(nil)
         refreshTask = Task { [weak self] in
-            while !Task.isCancelled {
-                await self?.session.refresh()
+            while !Task.isCancelled, let session = self?.session {
+                await session.refresh()
                 try? await Task.sleep(for: Self.refreshInterval)
             }
         }
