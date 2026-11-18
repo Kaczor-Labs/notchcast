@@ -1,3 +1,4 @@
+// notchcast-new-switch-ids: downloadsUseIPhone
 import Foundation
 
 /// Saves copied links as video, audio, transcripts or Markdown, and distils them into one folder.
