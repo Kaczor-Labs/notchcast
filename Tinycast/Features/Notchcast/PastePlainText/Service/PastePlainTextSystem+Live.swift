@@ -47,7 +47,7 @@ private final class GeneralPlainPasteBoard: PlainPasteBoard {
             let copy = NSPasteboardItem()
             for entry in entries {
                 guard copy.setData(entry.data, forType: .init(entry.type)) else {
-                    return .failed(changeCount: board.changeCount)
+                    return board.changeCount == changeCount ? .failed(changeCount: changeCount) : .superseded
                 }
             }
             copies.append(copy)

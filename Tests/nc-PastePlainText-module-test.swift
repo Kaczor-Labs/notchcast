@@ -235,7 +235,6 @@ enum PastePlainTextModuleTests {
                      "RTF is never converted when a string is there")
     }
 
-
     @MainActor
     static func makeEngine() -> PlainPasteEngine {
         PlainPasteEngine(
