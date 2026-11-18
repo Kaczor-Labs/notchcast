@@ -39,11 +39,19 @@ struct NotchcastFrostedGuardTest {
     static let blindInkAllowed = ["static let caretColor = NSColor(Theme.Colors.textPrimary)",
                                   "context.setStrokeColor(NSColor(Theme.Colors.cardStroke).cgColor)"]
 
+    /// The system accent, link blue and brand violet; the island's one accent is `primaryAction`, white.
+    static let colourAccent = ["Color.accentColor", "controlAccentColor", "NSColor.linkColor", "Theme.Colors.brand",
+                               "selectedTextBackgroundColor", "selectedContentBackgroundColor"]
+    static let scheduleFile = "Tinycast/Features/Calendar/UI/ScheduleView.swift"
+    /// A key panel owns a field editor, whose selection is the system accent until the panel inks it.
+    static let keyPanels = ["Tinycast/Palette/PalettePanel.swift", "Tinycast/Palette/MenuPanel.swift",
+                            "Tinycast/Windows/Dialog/DialogPanel.swift"]
+
     @MainActor static func main() {
         _ = NSApplication.shared
         precondition(islandFiles.count > 100, "Run from the repo root; found \(islandFiles.count) island files")
         var failures: [String] = []
-        for file in islandFiles {
+        for file in islandFiles + [scheduleFile] {
             guard let source = try? String(contentsOfFile: file, encoding: .utf8) else {
                 failures.append("\(file): unreadable")
                 continue
@@ -58,10 +66,18 @@ struct NotchcastFrostedGuardTest {
                     failures.append("\(file):\(index + 1): paints islandSurface outside a look branch, so Black "
                         + "shows on Frosted; use islandPanelFill, islandMenuBacking or islandGlass")
                 }
+                if colourAccent.contains(where: line.contains) {
+                    failures.append("\(file):\(index + 1): a colour accent on the island; use "
+                        + "Theme.Colors.primaryAction, or applyIslandInks(frosted:) on a text view")
+                }
                 if blindInk.contains(where: line.contains), !blindInkAllowed.contains(where: line.contains) {
                     failures.append("\(file):\(index + 1): AppKit ink ignores the look; use "
                         + "token.islandInk(frosted:) or token.nsColor(in: context.environment)")
                 }
+            }
+            if keyPanels.contains(file), !source.contains("applyIslandInks(frosted:") {
+                failures.append("\(file): its field editor keeps the system accent's selection; call "
+                    + "applyIslandInks(frosted:) in makeFirstResponder")
             }
         }
 

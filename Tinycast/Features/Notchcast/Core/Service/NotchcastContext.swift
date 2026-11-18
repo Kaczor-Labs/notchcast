@@ -10,18 +10,24 @@ final class NotchcastContext {
     private let hub: NotchcastTapHub
     private let transcription: NotchcastTranscriptionRunner
     private let onTapsChanged: @MainActor () -> Void
+    private let onCommandsChanged: @MainActor () -> Void
     /// Strong is safe: a recovery context links to nothing, and the controller's slot owns both.
     private let recoveryContext: NotchcastContext?
     private(set) var wantedTaps: [(token: UUID, tap: NotchcastTap)] = []
     private(set) var module: (any NotchcastModule)?
+    /// Entry ids the module cannot run right now: the launcher drops them, their hotkeys still run.
+    private(set) var unavailableCommands: Set<String> = []
     /// Returns true to consume a digit typed in the launcher (Number Keys, hook H9).
     private(set) var launcherDigit: (@MainActor (_ digit: Int, _ query: String, _ entryRows: [Int]) -> Int?)?
+    /// Returns true to claim a URL or file opened with the app (a link clicked, a document opened).
+    private(set) var openURL: (@MainActor (URL) -> Bool)?
 
     init(
         defaults: UserDefaults, preferences: NotchcastPreferences, presenter: any IslandPresenting,
         hub: NotchcastTapHub, transcription: NotchcastTranscriptionRunner,
         now: @escaping @MainActor () -> Date,
-        onTapsChanged: @escaping @MainActor () -> Void, recovery: NotchcastContext? = nil
+        onTapsChanged: @escaping @MainActor () -> Void, onCommandsChanged: @escaping @MainActor () -> Void = {},
+        recovery: NotchcastContext? = nil
     ) {
         self.defaults = defaults
         self.preferences = preferences
@@ -30,6 +36,7 @@ final class NotchcastContext {
         self.transcription = transcription
         self.now = now
         self.onTapsChanged = onTapsChanged
+        self.onCommandsChanged = onCommandsChanged
         recoveryContext = recovery
     }
 
@@ -60,9 +67,19 @@ final class NotchcastContext {
         onTapsChanged()
     }
 
+    func setUnavailable(_ entryIDs: Set<String>) {
+        guard entryIDs != unavailableCommands else { return }
+        unavailableCommands = entryIDs
+        onCommandsChanged()
+    }
+
     /// ⌘1–⌘0 ask this first; a returned row index opens that row instead of the favourite.
     func handleLauncherDigit(_ handler: (@MainActor (_ digit: Int, _ query: String, _ entryRows: [Int]) -> Int?)?) {
         launcherDigit = handler
+    }
+
+    func handleOpenURL(_ handler: (@MainActor (URL) -> Bool)?) {
+        openURL = handler
     }
 
     /// Stock Dictation's text for a file; `.busy` while the user dictates or another one runs.
@@ -78,5 +95,7 @@ final class NotchcastContext {
         module = nil
         wantedTaps.removeAll()
         launcherDigit = nil
+        unavailableCommands = []
+        openURL = nil
     }
 }

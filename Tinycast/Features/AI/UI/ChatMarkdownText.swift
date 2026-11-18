@@ -93,7 +93,7 @@ final class ChatSelectableTextView: NSTextView {
         isVerticallyResizable = false
         isHorizontallyResizable = false
         allowsUndo = false
-        linkTextAttributes = [.foregroundColor: NSColor.linkColor, .cursor: NSCursor.pointingHand]
+        applyIslandInks(frosted: false)
     }
 
     override init(frame frameRect: NSRect, textContainer container: NSTextContainer?) {
@@ -107,6 +107,7 @@ final class ChatSelectableTextView: NSTextView {
     func show(_ next: ChatMarkdownSource) {
         guard next != source else { return }
         source = next
+        applyIslandInks(frosted: next.frosted)
         let output = ChatMarkdownRenderer(next).render()
         rendered = output
         measured = nil
