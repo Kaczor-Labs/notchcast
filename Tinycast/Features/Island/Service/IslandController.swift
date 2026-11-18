@@ -46,6 +46,17 @@ final class IslandController: NSObject {
     var onOpen: (() -> Void)? { didSet { canvas.onOpen = onOpen } }
     /// Hands over the pill's rect, top-left origin in the island window, for the pill menu.
     var onMenu: ((CGRect, NSWindow) -> Void)?
+    var onSettle: (() -> Void)?
+    private(set) var screen: NSScreen?
+    var hasOverlays: Bool { !overlays.isEmpty }
+    var isMoving: Bool { !source.isIdle }
+    /// The visible outline in screen points, for the hover zone.
+    var screenShape: CGRect? {
+        guard let bounds = canvas.outline?.boundingBoxOfPath else { return nil }
+        return bounds.offsetBy(dx: backdrop.frame.minX, dy: backdrop.frame.minY).intersection(backdrop.frame)
+    }
+
+    func openMenu() { canvas.onMenu?() }
     var glance: IslandGlance? {
         didSet { if glance != oldValue { redraw() } }
     }
@@ -84,10 +95,11 @@ final class IslandController: NSObject {
         }
         canvas.canOpen = { [weak self] in
             guard let self else { return false }
-            return self.canOpen?() == true && self.overlays.isEmpty && NSApp.modalWindow == nil && self.isResting
+            return self.canOpen?() == true && self.overlays.isEmpty && NSApp.modalWindow == nil
+                && (self.isResting || self.expanded && self.source.isIdle)
         }
         source.didFrame = { [weak self] in self?.paintFrame() }
-        source.didSettle = { [weak self] in self?.applyPending() }
+        source.didSettle = { [weak self] in self?.applyPending(); self?.onSettle?() }
         NSWorkspace.shared.notificationCenter.addObserver(self, selector: #selector(frameChanged),
             name: NSWorkspace.accessibilityDisplayOptionsDidChangeNotification, object: nil)
     }
@@ -128,6 +140,7 @@ final class IslandController: NSObject {
         // Until `closed` or the pill settles, the mask, panel and overlays keep the live layout.
         guard update != .deferred else { pending.hold(screen); return }
         pending.drop()
+        self.screen = screen
         let moved = layout?.screen != next.screen || layout?.notch != next.notch || layout?.top != next.top
         layout = next
         canvas.scale = screen.backingScaleFactor
@@ -168,8 +181,10 @@ final class IslandController: NSObject {
         metrics.compact.maxSlotWidth = NotchTheme.Size.islandGlanceWing
         metrics.compact.maxWidth = next.canvas.width
         metrics.compact.balance = 0
+        let clock = FrameClock(frameSource: source)
+        clock.timeScale = Self.motionSpeed
         let surface = IslandSurface<CGSize>(
-            presentation: .idle, clock: FrameClock(frameSource: source), metrics: metrics,
+            presentation: .idle, clock: clock, metrics: metrics,
             motion: .standard, dpr: screen.backingScaleFactor, reduced: reducedMotion,
             keyline: 0, stageWidth: Theme.Size.panelWidth, measure: { presentation, _ in
                 switch presentation {
@@ -230,6 +245,9 @@ final class IslandController: NSObject {
     func opened() {
         frameChanged()
     }
+
+    /// Every island spring runs this many times faster, so an open or close lands in about 0.1 s (#884).
+    static let motionSpeed = 4.0
 
     static let paletteLevel = NSWindow.Level(rawValue: IslandBackdrop.levelValue + 1)
     static let reportLevel = NSWindow.Level(rawValue: IslandBackdrop.levelValue + 2)
