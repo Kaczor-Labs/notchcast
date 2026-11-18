@@ -263,6 +263,7 @@ enum QuitProtectionModuleTests {
         rig.key(0)
         rig.flags([.maskShift])
         rig.flags([])
+        NSWorkspace.shared.notificationCenter.post(name: NSWorkspace.didActivateApplicationNotification, object: nil)
         await drain()
         precondition(uptimeReads.withLock { $0 } - reads == 5, "events that change nothing never hop to main")
 
