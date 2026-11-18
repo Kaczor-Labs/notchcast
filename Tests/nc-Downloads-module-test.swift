@@ -27,6 +27,18 @@
 // notchcast-sources: Tinycast/Features/Notchcast/Downloads/Service/DownloadToolLookup.swift
 // notchcast-sources: Tinycast/Features/Notchcast/Downloads/Service/DownloadsIslandBridge.swift
 // notchcast-sources: Tinycast/Features/Notchcast/Downloads/Service/DownloadsModule.swift
+// notchcast-sources: Tinycast/Features/Notchcast/Downloads/Service/DownloadsModule+Torrents.swift
+// notchcast-sources: Tinycast/Features/Notchcast/Downloads/Service/TorrentIslandBridge.swift
+// notchcast-sources: Tinycast/Features/Notchcast/Downloads/Service/TorrentManager.swift
+// notchcast-sources: Tinycast/Features/Notchcast/Downloads/Service/TorrentSession.swift
+// notchcast-sources: Tinycast/Features/Notchcast/Downloads/Model/TorrentBencode.swift
+// notchcast-sources: Tinycast/Features/Notchcast/Downloads/Model/TorrentMetainfo.swift
+// notchcast-sources: Tinycast/Features/Notchcast/Downloads/Model/TorrentInput.swift
+// notchcast-sources: Tinycast/Features/Notchcast/Downloads/Model/TorrentJob.swift
+// notchcast-sources: Tinycast/Features/Notchcast/Downloads/Model/TorrentStatus.swift
+// notchcast-sources: Tinycast/Features/Notchcast/Downloads/Model/TorrentJobPolicy.swift
+// notchcast-sources: Tinycast/Features/Notchcast/Downloads/Model/TorrentIslandPolicy.swift
+// notchcast-sources: Tinycast/Features/Notchcast/Downloads/Model/Aria2Arguments.swift
 // notchcast-sources: Tinycast/Features/Notchcast/Downloads/Service/DownloadsQueueController.swift
 // notchcast-sources: Tinycast/Features/Notchcast/Downloads/Service/JobOutput.swift
 // notchcast-sources: Tinycast/Features/Notchcast/Downloads/Service/MediaDownloadRunner.swift
@@ -63,25 +75,31 @@ struct DownloadsModuleTest {
         defer { try? FileManager.default.removeItem(at: root) }
         shape()
         try await lifecycle(root)
-        print("Downloads module: v1 switches, six commands, queue follows its switch, stop keeps accepted links")
+        try await torrents(root)
+        print("Downloads module: v1 switches, nine commands, queues follow their switch, stop keeps accepted links,"
+              + " torrents open magnet links")
     }
 
     private static func shape() {
         let switches = DownloadsAddon.switches
-        expect(switches.map(\.id) == ["downloads", "downloadsAria2", "distill", "distillTimestamps"], "v1 raw ids stay")
+        expect(switches.map(\.id) == [
+            "downloads", "downloadsAria2", "distill", "distillTimestamps", "torrents", "torrentsKeepSharing",
+        ], "v1 raw ids stay")
         expect(switches.allSatisfy { !$0.defaultEnabled && $0.category == .filesDownloads && $0.requiredGrants.isEmpty },
                "every switch starts off in Files & Downloads")
-        expect(switches.map(\.dependencies) == [[], ["downloads"], [], ["distill"]],
-               "aria2 needs Downloads, Timestamps needs Distill")
+        expect(switches.map(\.dependencies) == [[], ["downloads"], [], ["distill"], [], ["torrents"]],
+               "aria2 needs Downloads, Timestamps needs Distill, keep-sharing needs Torrents")
         expect(DownloadsAddon.commands.map(\.slug) == [
             "download-video", "download-audio", "download-youtube-transcript", "save-webpage-as-markdown",
-            "add-links-to-distill", "run-distill",
+            "add-links-to-distill", "run-distill", "download-torrent-from-clipboard", "open-torrent-file",
+            "cancel-all-torrents",
         ], "command slugs")
         let transcript = DownloadsAddon.commands.first { $0.slug == "download-youtube-transcript" }
         expect(transcript?.name == "Download Transcript", "#870: the transcript command reads Download Transcript")
         expect(transcript?.keywords.contains("youtube") == true, "#870: searching youtube still finds it")
         expect(DownloadsAddon.commands.map(\.switchID) == Array(repeating: "downloads", count: 4)
-               + Array(repeating: "distill", count: 2), "each command follows its own switch")
+               + Array(repeating: "distill", count: 2) + Array(repeating: "torrents", count: 3),
+               "each command follows its own switch")
     }
 
     private static func lifecycle(_ root: URL) async throws {
@@ -156,6 +174,55 @@ struct DownloadsModuleTest {
         try await Task.sleep(for: .milliseconds(50))
         expect(presenter.log[posted...].contains { $0.hasPrefix("post downloads.error ") },
                "a link that could not be saved is reported even when stop follows at once")
+    }
+
+    /// Torrents ride the Downloads module: the open hook, the switch, and the refusals said out loud.
+    private static func torrents(_ root: URL) async throws {
+        let suite = "nc-downloads-torrents-test.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suite)!
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let fakes = Fakes()
+        let environment = DownloadsModule.Environment(
+            downloads: root.appending(path: "torrents/Downloads", directoryHint: .isDirectory),
+            queues: root.appending(path: "torrents/queues", directoryHint: .isDirectory),
+            tools: DownloadToolLookup(directories: [root.appending(path: "bin")], home: root),
+            clipboard: { fakes.clipboard })
+        let hub = NotchcastTapHub(syntheticTag: 0, isTrusted: { false }) { _ in
+            preconditionFailure("the harness never installs a tap")
+        }
+        let preferences = NotchcastPreferences(defaults: defaults, switches: DownloadsAddon.switches)
+        let presenter = RecordingPresenter()
+        let context = NotchcastContext(defaults: defaults, preferences: preferences, presenter: presenter, hub: hub,
+                                       transcription: NotchcastTranscriptionRunner(dictation: FakeDictation()),
+                                       now: { .now }, onTapsChanged: {})
+        let module = DownloadsModule(context: context, environment: environment)
+        context.attach(module)
+        func command(_ slug: String) { DownloadsAddon.commands.first { $0.slug == slug }!.run(context) }
+        let magnet = URL(string: "magnet:?xt=urn:btih:c12fe1c06bba254a9dc9f519b335aa7c1367a88a&dn=Big")!
+
+        expect(context.openURL == nil, "no open hook before the module starts")
+        module.start()
+        expect(context.openURL?(URL(string: "https://example.com/page")!) == false, "other links fall through")
+        expect(context.openURL?(magnet) == true, "a magnet link is claimed")
+        try await eventually { presenter.log.last == "post torrents.refused The torrent engine is not running." }
+
+        preferences.set("torrents", on: true)
+        try await eventually { module.torrents.isRunning }
+        fakes.clipboard = "nothing here"
+        command("download-torrent-from-clipboard")
+        try await eventually { presenter.log.last == "post torrents.refused No usable torrent link or file was found." }
+        fakes.clipboard = magnet.absoluteString
+        command("download-torrent-from-clipboard")
+        try await eventually { module.torrents.jobs.map(\.state) == [.failed("aria2c not found")] }
+        try await eventually {
+            presenter.log.contains { $0.hasPrefix("post torrents.failed.") && $0.hasSuffix("aria2c not found") }
+        }
+
+        preferences.set("torrents", on: false)
+        try await eventually { !module.torrents.isRunning }
+        module.stop()
+        context.detach()
+        expect(context.openURL == nil, "the hook goes with the module")
     }
 
     private static func expect(_ value: @autoclosure () throws -> Bool, _ message: String) rethrows {
