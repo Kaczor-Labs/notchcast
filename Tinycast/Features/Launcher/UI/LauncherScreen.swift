@@ -334,8 +334,7 @@ struct LauncherScreen: PaletteScreen {
         case .copyPath: return copyQuicklink(at: selection)
         case .copyFile: return copyDeepLink(at: selection)
         case .favoriteSlot(let index):
-            let entryRows = rows.indices.filter { entry(at: $0) != nil }
-            if let row = Self.digitRow?(index + 1, vm.query, entryRows) { activate(at: row); return true }
+            if let row = Self.digitRow?(index + 1, vm.query, numberKeyRows) { activate(at: row); return true }
             return launchFavorite(at: index)
         case .copyCalculation: return copyCalculation(at: selection)
         case .openInApp, .showDetails:

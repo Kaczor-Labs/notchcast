@@ -45,6 +45,16 @@ struct NumberKeysRowTest {
             precondition(none.isEmpty, "no query or switched off: favourites keep their own keycaps")
         }
         precondition(LauncherNumberKeys.keycaps { _ in 5 } == [5: "1"], "a shared row shows its lowest digit")
+        // #869: a file, a fallback and an entry each take a digit; only a lead card is skipped.
+        let keys: [String?] = [nil, "file-/f.txt", "fallback-web", "com.app"]
+        let numbered = LauncherNumberKeys.numberedRows(keys)
+        precondition(numbered == [1, 2, 3], "every result row is numbered, the calculator card is not")
+        let slots = LauncherNumberKeys.slots(keys: keys) {
+            LauncherNumberKeys.rowIndex(digit: $0, query: "f", entryRows: numbered, enabled: true)
+        }
+        precondition(slots == ["file-/f.txt": "1", "fallback-web": "2", "com.app": "3"], "file and fallback show keycaps")
+        precondition(LauncherNumberKeys.rowIndex(digit: 1, query: "f", entryRows: numbered, enabled: true) == 1,
+                     "⌘1 opens the file row, never an empty favourite slot")
         print("nc-NumberKeys-row-test: ok")
     }
 }
