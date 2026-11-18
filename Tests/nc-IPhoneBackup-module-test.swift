@@ -156,7 +156,8 @@ func decoded(_ data: Data?) -> Policy.Journal {
     return journal
 }
 
-func drain() async { try? await Task.sleep(for: .milliseconds(30)) }
+/// Every hop here lands on the main actor, so yielding runs them in order.
+@MainActor func drain() async { for _ in 0..<10 { await Task.yield() } }
 
 @MainActor
 func reset(_ value: Policy.Value?) {
