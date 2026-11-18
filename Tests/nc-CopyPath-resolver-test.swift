@@ -124,7 +124,7 @@ func folding() {
 }
 
 func cleaning() {
-    let clean = NotchcastLinkCleaner.clean
+    let clean: (String) -> String = { NotchcastLinkCleaner.clean($0) }
     check(clean("https://x.org/p?a=1&b=2#f"), "https://x.org/p?a=1&b=2#f", "nothing to strip: unchanged")
     check(clean("https://x.org/p?utm_source=a&utm_medium=b"), "https://x.org/p", "all stripped drops the ?")
     check(clean("https://x.org/p?UTM_Campaign=a&b=1"), "https://x.org/p?b=1", "names compare case-insensitively")
