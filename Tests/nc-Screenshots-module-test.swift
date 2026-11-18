@@ -178,7 +178,7 @@ enum ScreenshotsModuleTests {
         await drain()
         precondition(fake.freezes.count == 1 && fake.freezes[0].point == nil, "area freezes every display")
         let exclusion = fake.freezes[0].exclusion
-        precondition(exclusion.pid == ProcessInfo.processInfo.processIdentifier, "our own windows are excluded")
+        precondition(exclusion.pid == ProcessInfo.processInfo.processIdentifier, "the exclusion knows our own windows")
         precondition(rig.controller.run(entryID: area) && rig.controller.run(entryID: display),
                      "a second trigger still resolves")
         await drain()
@@ -186,7 +186,8 @@ enum ScreenshotsModuleTests {
 
         let own = exclusion.pid
         fake.windows = [
-            ScreenshotWindow(id: 50, ownerPID: own, frame: CGRect(x: 0, y: 0, width: 200, height: 50)),
+            ScreenshotWindow(id: 50, ownerPID: own, frame: CGRect(x: 0, y: 0, width: 200, height: 50),
+                             isShared: false),
             ScreenshotWindow(id: 51, ownerPID: 9, frame: CGRect(x: 10, y: 10, width: 60, height: 40)),
             ScreenshotWindow(id: 52, ownerPID: 9, frame: CGRect(x: 10, y: 10, width: 60, height: 40), layer: 25),
         ]
@@ -195,7 +196,7 @@ enum ScreenshotsModuleTests {
         await drain()
         precondition(fake.surfaces.count == 1, "one surface after the freeze")
         precondition(fake.surfaces[0].displays == [1, 2] && fake.surfaces[0].windows == [51],
-                     "the surface gets every frozen display and only pickable foreign windows")
+                     "the surface gets every frozen display and only pickable windows")
         precondition(rig.controller.run(entryID: display))
         await drain()
         precondition(fake.freezes.count == 1, "still one session while the surface is up")
