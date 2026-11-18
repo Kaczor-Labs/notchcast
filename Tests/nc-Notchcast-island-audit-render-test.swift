@@ -404,6 +404,15 @@ struct NotchcastIslandAuditRenderTest {
             renderArt("14d-level-extra-dimming-\(form)", IslandLevelArt(
                 IslandLevel(source: "brightness", symbol: "sun.min.fill", label: "Brightness", value: -0.125,
                             range: -0.25...1), notch: notch, frosted: frosted))
+            renderArt("14f-level-darkest-\(form)", IslandLevelArt(
+                IslandLevel(source: "brightness", symbol: "sun.min.fill", label: "Brightness", value: -0.25,
+                            range: -0.25...1), notch: notch, frosted: frosted))
+            renderArt("14g-level-system-minimum-\(form)", IslandLevelArt(
+                IslandLevel(source: "brightness", symbol: "sun.max.fill", label: "Brightness", value: 0,
+                            range: -0.25...1), notch: notch, frosted: frosted))
+            renderArt("14h-level-brightness-half-\(form)", IslandLevelArt(
+                IslandLevel(source: "brightness", symbol: "sun.max.fill", label: "Brightness", value: 0.5,
+                            range: -0.25...1), notch: notch, frosted: frosted))
         }
         renderArt("14e-level-notch-low", IslandLevelArt(
             IslandLevel(source: "volume", symbol: "speaker.wave.1.fill", label: "Volume", value: 0.31),
