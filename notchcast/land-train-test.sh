@@ -486,6 +486,30 @@ train 2
 [ -z "$(origin for-each-ref refs/heads/train/)" ] && [ ! -e "$FIXTURE/dispatched" ] && untouched || fail 'a train with no PR left pushed or dispatched'
 echo 'PASS: a train whose every merge is refused pushes no branch and dispatches nothing'
 
+# #2 merged #1's branch into its own, so its head holds #1's commit; #3 shares nothing with either.
+tangled() {
+    fixture
+    open_pr 1 pr-b 'Add B' src/b.txt
+    open_pr 2 pr-c 'Add C' src/c.txt
+    open_pr 3 pr-one 'Add one' src/one.txt
+    git switch --quiet pr-c
+    git merge --quiet --no-edit pr-b
+    git push --quiet origin pr-c pr-c:refs/pull/2/head
+    jq --arg head "$(git rev-parse HEAD)" '.headRefOid = $head' "$FIXTURE/pr-2.json" > "$FIXTURE/pr.json" && mv "$FIXTURE/pr.json" "$FIXTURE/pr-2.json"
+    git switch --quiet main
+}
+tangled
+for args in '1 2' '2 1 3'; do
+    train $args
+    [ "$status" -eq 1 ] && grep -q '^REFUSED: #2 contains commits of #1, .* Land #1 first, then merge main into #2\.$' "$FIXTURE/train-output" \
+        || { cat "$FIXTURE/train-output"; echo "FAIL: train.sh $args, where #2 holds #1's commits, was not refused naming both"; exit 1; }
+    [ -z "$(origin for-each-ref refs/heads/train/)" ] && [ ! -e "$FIXTURE/dispatched" ] && [ ! -e "$FIXTURE/comments" ] && untouched \
+        || { echo "FAIL: the refused train.sh $args pushed, dispatched or commented"; exit 1; }
+done
+train 1 3
+[ "$status" -eq 0 ] && grep -q '^GREEN train/1-3 ' "$FIXTURE/train-output" || { cat "$FIXTURE/train-output"; echo 'FAIL: an unrelated pair beside the tangled PR did not run'; exit 1; }
+echo "PASS: a train in which one PR holds another's commits is refused before any dispatch, naming both; an unrelated pair runs"
+
 # --queue: picks the batch itself and lands what is green; LAND_BATCH_SIZE is appended to the checkout's config.env.
 queue() {
     status=0
@@ -542,6 +566,15 @@ queue
 [ "$(landed)" = 'Notchcast: Add one (#1)|Notchcast: Add C (#3)' ] && [ "$(grep -c -- '--ref train/1-3\( \|$\)' "$FIXTURE/dispatched")" -eq 4 ] \
     && ! grep -q '^2 ' "$FIXTURE/closed" || queue_fail "the conflict batch landed '$(landed)'"
 echo 'PASS: a PR that conflicts with an earlier one in the batch is dropped with a comment naming it, and the rest lands'
+
+tangled
+queue
+[ "$status" -eq 1 ] && grep -q '^DROPPED #2: #2 contains commits of #1, ' "$FIXTURE/train-output" && grep -q '^LANDED #1 3$' "$FIXTURE/train-output" \
+    || queue_fail "the PR that holds another's commits was not left out of the batch"
+[ "$(landed)" = 'Notchcast: Add B (#1)|Notchcast: Add one (#3)' ] && ! grep -q -- '--ref train/1-2' "$FIXTURE/dispatched" && ! grep -q '^2 ' "$FIXTURE/closed" \
+    && grep -q '^2 Left out of the landing batch: #2 contains commits of #1, .* Land #1 first, then merge main into #2\.$' "$FIXTURE/comments" \
+    || queue_fail "the tangled batch landed '$(landed)'"
+echo "PASS: --queue leaves out the PR that holds another's commits, tells it what to do, and lands the rest"
 
 fixture
 open_pr 1 pr-b 'Add B' src/b.txt
