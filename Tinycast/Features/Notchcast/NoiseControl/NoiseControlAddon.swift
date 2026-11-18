@@ -33,6 +33,6 @@ enum NoiseControlAddon: NotchcastAddon {
     static func makeModule(_ context: NotchcastContext) -> (any NotchcastModule)? {
         NoiseControlModule(
             context: context, system: .live,
-            commandIDs: table.map { (NotchcastCommand.idPrefix + $0.slug, $0.request) })
+            commandIDs: table.map { (id: NotchcastCommand.idPrefix + $0.slug, request: $0.request) })
     }
 }

@@ -46,18 +46,18 @@ private enum NoiseControlOutput {
 
 /// Removes its CoreAudio listener when released, so the module's teardown is dropping it.
 private final class NoiseControlOutputListener {
-    private let system = AudioObjectID(kAudioObjectSystemObject)
+    private static let system = AudioObjectID(kAudioObjectSystemObject)
     private var address: AudioObjectPropertyAddress
     private let block: AudioObjectPropertyListenerBlock
 
     init?(_ address: AudioObjectPropertyAddress, block: @escaping AudioObjectPropertyListenerBlock) {
         var address = address
-        guard AudioObjectAddPropertyListenerBlock(system, &address, .main, block) == noErr else { return nil }
+        guard AudioObjectAddPropertyListenerBlock(Self.system, &address, .main, block) == noErr else { return nil }
         self.address = address
         self.block = block
     }
 
-    deinit { AudioObjectRemovePropertyListenerBlock(system, &address, .main, block) }
+    deinit { AudioObjectRemovePropertyListenerBlock(Self.system, &address, .main, block) }
 }
 
 /// Control Center's Sound menu via the public Accessibility API, each call under a short timeout.
