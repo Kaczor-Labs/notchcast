@@ -3,5 +3,11 @@ description: Pinned XcodeGen; replay regenerates Tinycast.xcodeproj with it. Set
 runs:
   using: composite
   steps:
+    # Linux builds XcodeGen from source (ci-xcodegen.sh); a pin change is a new key.
+    - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
+      if: runner.os == 'Linux'
+      with:
+        path: ${{ runner.temp }}/xcodegen
+        key: xcodegen-linux-${{ hashFiles('**/notchcast/ci-xcodegen.sh') }}
     - shell: bash
       run: source "$GITHUB_ACTION_PATH/../../ci-xcodegen.sh"

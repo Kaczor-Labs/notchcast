@@ -34,13 +34,13 @@ enum Theme {
     }
 
     enum Radius {
-        static let panel: CGFloat = 26
-        static let row: CGFloat = 18
+        static let panel: CGFloat = ObsidianTokens.Glass.radiusIsland
+        static let row: CGFloat = ObsidianTokens.Spacing.radius
         static let formField: CGFloat = 10
         /// Emoji tiles are roomier than list rows, so their corners take one larger step.
         static let emojiCell: CGFloat = 12
         static let menu: CGFloat = 6
-        static let menuRow: CGFloat = 18
+        static let menuRow: CGFloat = ObsidianTokens.Spacing.radius
         /// A header pop-up button; the footer's action pills stay capsules.
         static let barControl: CGFloat = 8
         static let menuPanel: CGFloat = 16
@@ -56,7 +56,7 @@ enum Theme {
         static let codeBlock: CGFloat = 14
         /// A window-to-be in the room preview, rounded like a real window rather than a row.
         static let roomCard: CGFloat = 16
-        static let keyCap: CGFloat = 10
+        static let keyCap: CGFloat = ObsidianTokens.Spacing.radiusSm
         static let recorderKeyCap: CGFloat = 4
         static let tooltip: CGFloat = 8
     }
@@ -443,7 +443,9 @@ enum Theme {
 
         /// Selection fill, shared by every list so they look identical.
         static let selection = ramp(dark: 0.24, light: 0.09).frosted(NotchTheme.Frosted.selection)
-        static let rowHover = ramp(dark: 0.08, light: 0.045).frosted(NotchTheme.Frosted.rowHover)
+        static let rowHover = adaptive(
+            dark: NSColor(ObsidianTokens.Glass.glassHover), light: .srgbInk(0, alpha: 0.045)
+        ).frosted(NotchTheme.Frosted.rowHover)
         static let emojiCell = ramp(dark: 0.045, light: 0.04)
         static let emojiHoverBorder = ramp(dark: 0.42, light: 0.34)
         static let emojiSelectionBorder = ramp(dark: 0.92, light: 0.72)
@@ -464,10 +466,12 @@ enum Theme {
         static let border = ramp(dark: 0.20, light: 0.18)
         /// Alpha 1, so a call site can dim it with `.opacity` and land on the value it replaced.
         static let textPrimary = ramp(dark: 1.0, light: 1.0).frosted(NotchTheme.Frosted.textPrimary)
-        static let textSecondary = ramp(dark: 0.60, light: 0.60)
-            .frosted(NotchTheme.Frosted.textSecondary, lifted: NotchTheme.Frosted.textPrimary)
-        static let textTertiary = ramp(dark: 0.40, light: 0.42)
-            .frosted(NotchTheme.Frosted.textTertiary, lifted: NotchTheme.Frosted.textPrimary)
+        static let textSecondary = adaptive(
+            dark: NSColor(ObsidianTokens.Glass.glassMutedForegroundSecondary), light: .srgbInk(0, alpha: 0.60)
+        ).frosted(NotchTheme.Frosted.textSecondary, lifted: NotchTheme.Frosted.textPrimary)
+        static let textTertiary = adaptive(
+            dark: NSColor(ObsidianTokens.Glass.glassMutedForegroundTertiary), light: .srgbInk(0, alpha: 0.42)
+        ).frosted(NotchTheme.Frosted.textTertiary, lifted: NotchTheme.Frosted.textPrimary)
         static let menuSymbol = ramp(dark: 0.70, light: 0.70).frosted(NotchTheme.Frosted.menuSymbol)
         static let noteText = ramp(dark: 0.90, light: 0.85)
         static let iconPlaceholder = ramp(dark: 0.06, light: 0.06)
@@ -504,7 +508,7 @@ enum Theme {
         static let dropGuideArmed = Color.blue
         /// A dialog's standard default action; destructive defaults keep their semantic red.
         static let primaryAction = adaptive(
-            dark: NSColor(srgbRed: 70 / 255, green: 240 / 255, blue: 198 / 255, alpha: 1), light: .systemBlue
+            dark: NSColor(ObsidianTokens.Theme.primary), light: .systemBlue
         ).frosted(NotchTheme.Frosted.accent)
         static let destructive = Color.red
             .frosted(NotchTheme.Frosted.destructive, lifted: NotchTheme.Frosted.destructiveLifted)
