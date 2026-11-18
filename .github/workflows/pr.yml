@@ -14,9 +14,10 @@ on:
 permissions:
   contents: read
 
-# shadow: plan a harness selection and report failures outside it; shards still run every harness.
+# on: a PR's harness job runs only a sure selection (notchcast/harness-select.py); an unsure one runs the whole suite.
+# A dispatch (a train) always runs it whole: land.sh takes that run as proof of the train's tree.
 env:
-  NOTCHCAST_HARNESS_SELECT: shadow
+  NOTCHCAST_HARNESS_SELECT: ${{ github.event_name == 'pull_request' && 'on' || 'shadow' }}
 
 # One group per workflow and PR head: a dispatch and a pull_request run on one head never both run.
 concurrency:
@@ -35,6 +36,7 @@ jobs:
       harness-planned: ${{ steps.select.outputs.planned }}
       harness-selected: ${{ steps.select.outputs.selected }}
       harness-unsure: ${{ steps.select.outputs.unsure }}
+      harness-only: ${{ steps.select.outputs.only }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
@@ -51,7 +53,7 @@ jobs:
             v2/addons-*) printf 'build=true\nscripts=true\n' | tee -a "$GITHUB_OUTPUT" ;;
             *) python3 notchcast/lanes.py "${BASE:-$(git merge-base origin/main HEAD)}" HEAD | tee -a "$GITHUB_OUTPUT" ;;
           esac
-      # Never fails the run: with no plan the shards report their failures unjudged.
+      # Never fails the run: with no plan the shards run the whole suite.
       - name: Harnesses the diff needs
         id: select
         if: steps.lanes.outputs.build == 'true'
@@ -85,7 +87,8 @@ jobs:
           HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
           NOTCHCAST_HARNESSES_SHARDED: '1'
         run: bash ../tools/notchcast/ci-build.sh
-  # The whole suite, split by harness name (notchcast/test-harnesses.sh), beside the checks job.
+  # The whole suite, split by harness name (notchcast/test-harnesses.sh), beside the checks job; a sure selection
+  # (route's harness-only) runs alone, in shard 0.
   harnesses:
     needs: route
     if: needs.route.outputs.build == 'true'
@@ -107,9 +110,11 @@ jobs:
           persist-credentials: false
       - uses: ./tools/notchcast/actions/xcode
       - id: tests
+        if: needs.route.outputs.harness-only == '' || matrix.shard == 0
         uses: ./tools/notchcast/actions/tests
         with:
-          shard: ${{ matrix.shard }} ${{ strategy.job-total }}
+          only: ${{ needs.route.outputs.harness-only }}
+          shard: ${{ needs.route.outputs.harness-only == '' && format('{0} {1}', matrix.shard, strategy.job-total) || '' }}
           cache: pr-${{ matrix.shard }}of${{ strategy.job-total }}
       - name: Failures outside the harness selection
         if: ${{ !cancelled() }}
@@ -173,15 +178,16 @@ jobs:
       - name: Config literals
         if: needs.route.outputs.build != 'true'
         run: python3 notchcast/check-config.py
-      # Only after a green build: Sync's plan skips testing a tree (GENERATED aside) a PR build already proved.
+      # Only after a green build of the whole suite: Sync's plan and land.sh skip testing a tree (GENERATED aside)
+      # a PR build already proved. A selection proves no tree, so it records none.
       - name: Record the tested tree
-        if: needs.route.outputs.build == 'true'
+        if: needs.route.outputs.build == 'true' && needs.route.outputs.harness-only == ''
         id: tree
         run: |
           echo "key=$(python3 notchcast/ci.py tested-key HEAD)" >> "$GITHUB_OUTPUT"
           git rev-parse HEAD > "$RUNNER_TEMP/tested-commit"
       - uses: actions/upload-artifact@v7
-        if: needs.route.outputs.build == 'true'
+        if: needs.route.outputs.build == 'true' && needs.route.outputs.harness-only == ''
         with:
           name: tested-tree-${{ steps.tree.outputs.key }}
           path: ${{ runner.temp }}/tested-commit

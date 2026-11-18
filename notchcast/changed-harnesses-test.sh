@@ -58,3 +58,22 @@ for path in notchcast/changed-harnesses.sh Scripts/run-tests.sh notchcast/action
     grep -qx "runner: $path" "$scratch/unsure" || { echo "FAIL: a change to $path was not unsure"; exit 1; }
 done
 echo 'PASS: the selector and the runner never judge their own change'
+for path in Tinycast/DesignSystem/BarButton.swift Tinycast/Platform/Memo.swift \
+        Tinycast/Features/Notchcast/Core/Model/NotchcastPane.swift Tests/Kit/Island.kit; do
+    pick "$scratch/unsure" "$path" > "$scratch/selected"
+    grep -qx "shared: $path" "$scratch/unsure" || { echo "FAIL: shared $path was not unsure: $(cat "$scratch/unsure")"; exit 1; }
+done
+pick "$scratch/unsure" project.yml > "$scratch/selected"
+grep -qx 'runner: project.yml' "$scratch/unsure" || { echo 'FAIL: project.yml was not unsure'; exit 1; }
+echo 'PASS: shared code (DesignSystem, Platform, the add-on core, kits, project.yml) falls back to the whole suite'
+addon=Tinycast/Features/Notchcast/ShowDesktop
+pick "$scratch/unsure" "$addon/ShowDesktopAddon.swift" "$addon/Service/ShowDesktopModule.swift" \
+    Tinycast/Features/Notchcast/NotchcastRegistry.swift Tests/nc-ShowDesktop-module-test.swift > "$scratch/selected"
+for name in nc-ShowDesktop-module-test nc-Notchcast-registry-test nc-Notchcast-command-icons-test; do
+    grep -qx "$name" "$scratch/selected" || { echo "FAIL: an add-on change omitted $name"; exit 1; }
+done
+[ ! -s "$scratch/unsure" ] || { echo "FAIL: an add-on change was unsure: $(cat "$scratch/unsure")"; exit 1; }
+if grep -qx -e CalcTests -e nc-QuitProtection-module-test "$scratch/selected"; then
+    echo 'FAIL: an add-on change selected an unrelated harness'; exit 1
+fi
+echo 'PASS: an add-on change selects its own harnesses and the core registry and icon harnesses, and is sure'

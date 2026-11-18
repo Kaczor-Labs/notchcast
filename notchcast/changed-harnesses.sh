@@ -40,11 +40,14 @@ if unsure:
               'Scripts/run-tests.sh', 'project.yml', '.github/workflows/pr.yml'}
     reasons = [f'runner: {file}' for file in sorted(changed)
                if file in runner or file.startswith('notchcast/actions/tests/')]
+    # Shared code reaches harnesses through sources a header may not list yet: run them all.
+    shared = ('Tinycast/DesignSystem/', 'Tinycast/Platform/', 'Tinycast/Features/Notchcast/Core/', 'Tests/Kit/')
+    reasons += [f'shared: {file}' for file in sorted(changed) if file.startswith(shared)]
     from lanes import build_closure, needs_build
     closure = build_closure(head, changed)
     # A path the build reaches but no harness names may still compile into one: run them all.
     reasons += [f'unmapped: {file}' for file in sorted(changed - matched)
-                if needs_build(file, closure) and f'runner: {file}' not in reasons]
+                if needs_build(file, closure) and not {f'runner: {file}', f'shared: {file}'} & set(reasons)]
     with open(unsure, 'w') as out:
         out.writelines(reason + '\n' for reason in reasons)
 # Selection keeps CI_SKIP_TESTS harnesses: the shard runner drops them only on a hosted VM.

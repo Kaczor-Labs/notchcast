@@ -1,13 +1,14 @@
 #!/usr/bin/env python3
-"""pr.yml's harness selection, in shadow: the shards still run the whole suite, and this only reports.
+"""pr.yml's harness selection: a sure selection is all a PR run's harness job runs, anything else runs the whole suite.
 
-    harness-select.py plan <base> <head>         GITHUB_OUTPUT planned, selected, unsure (changed-harnesses.sh)
+    harness-select.py plan <base> <head>         GITHUB_OUTPUT planned, selected, unsure, only (changed-harnesses.sh)
     harness-select.py misses <failures> <shard>  a failed harness a sure selection left out is a miss
 
-misses reads HARNESS_PLANNED, HARNESS_SELECTED and HARNESS_UNSURE (plan's outputs), HARNESS_TESTS (the tests
-step's outcome) and the names ci-tests.sh wrote, one per line. Unsure means the whole suite runs even once selection
-is on. Every line it prints starts with "harness-select", so `gh run view <run> --log | grep harness-select` shows
-a run's plan and misses.
+NOTCHCAST_HARNESS_SELECT=on makes plan write `only`, the harnesses to run: the selection when it is sure, else empty,
+which runs the whole suite. Any other mode is shadow: `only` stays empty and misses reports what a selection would
+have left out. misses reads HARNESS_PLANNED, HARNESS_SELECTED and HARNESS_UNSURE (plan's outputs), HARNESS_TESTS
+(the tests step's outcome) and the names ci-tests.sh wrote, one per line. Every line it prints starts with
+"harness-select", so `gh run view <run> --log | grep harness-select` shows a run's plan and misses.
 """
 import os
 from pathlib import Path
@@ -59,12 +60,15 @@ def plan(base, head):
         total = str(suite_size())
     except OSError:
         total = "?"
-    outputs = {"planned": "true", "selected": " ".join(selected), "unsure": short(reasons) if reasons else ""}
+    mode = os.environ.get("NOTCHCAST_HARNESS_SELECT", "unset")
+    only = selected if mode == "on" and not reasons else []
+    outputs = {"planned": "true", "selected": " ".join(selected), "unsure": short(reasons) if reasons else "",
+               "only": " ".join(only)}
     if path := os.environ.get("GITHUB_OUTPUT"):
         with open(path, "a") as out:
             out.writelines(f"{key}={output_value(value)}\n" for key, value in outputs.items())
-    mode = os.environ.get("NOTCHCAST_HARNESS_SELECT", "unset")
-    report(f"harness-select plan: mode={mode} selected={len(selected)}/{total} unsure={outputs['unsure'] or 'no'}")
+    report(f"harness-select plan: mode={mode} selected={len(selected)}/{total} unsure={outputs['unsure'] or 'no'}"
+           f" runs={'the selection' if only else 'the whole suite'}")
     if summary := os.environ.get("GITHUB_STEP_SUMMARY"):
         with open(summary, "a") as out:
             out.write("<details><summary>Selected harnesses</summary>\n\n" + "\n".join(selected) + "\n\n</details>\n\n"

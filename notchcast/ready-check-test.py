@@ -17,7 +17,7 @@ SCRIPT = ROOT / "notchcast/ready-check.sh"
 COVERED = {
     ("pr.yml:route", "actions/checkout"): "lane planning; no gate",
     ("pr.yml:route", "Lanes the diff needs"): "picks the jobs below; ready-check.sh runs them all",
-    ("pr.yml:route", "Harnesses the diff needs"): "shadow selection; reports, gates nothing",
+    ("pr.yml:route", "Harnesses the diff needs"): "picks what a PR run's harness job runs; ready-check.sh runs the whole suite",
     ("pr.yml:checks", "actions/checkout"): "the shared clone at HEAD",
     ("pr.yml:checks", "Shared PR build lane"): "ci-build.sh, unsharded",
     ("pr.yml:harnesses", "actions/checkout"): "the shared clone at HEAD",
