@@ -43,6 +43,15 @@ final class IslandOverlayController: NSObject {
         reposition()
     }
 
+    /// A panel fading out no longer holds the island open, so the fade and the contraction run together.
+    func setLeaving(_ panel: NSWindow, _ leaving: Bool) {
+        guard let entry = held.first(where: { $0.panel === panel }), entry.leaving != leaving else { return }
+        entry.leaving = leaving
+        reposition()
+    }
+
+    private var held: [Entry] { (question.map { [$0] } ?? []) + reports }
+
     @objc private func changed(_ notification: Notification) {
         guard let window = notification.object as? NSWindow,
               window === question?.panel || reports.contains(where: { $0.panel === window }) else { return }
@@ -54,10 +63,12 @@ final class IslandOverlayController: NSObject {
     }
 
     func reposition() {
-        reports.removeAll { $0.panel == nil }
+        self.reports.removeAll { $0.panel == nil }
         var framesByDisplay: [CGDirectDisplayID: [CGRect]] = [:]
         var questionDisplay: CGDirectDisplayID?
-        let overlays = (question.map { [$0] } ?? []) + reports
+        let overlays = held.filter { !$0.leaving }
+        let question = self.question.flatMap { $0.leaving ? nil : $0 }
+        let reports = self.reports.filter { !$0.leaving }
         for entry in overlays {
             if let (screen, _, _) = island.overlayContext(screen: entry.screen) { entry.screen = screen }
         }
@@ -90,6 +101,7 @@ final class IslandOverlayController: NSObject {
     private final class Entry {
         weak var panel: NSPanel?
         var screen: NSScreen?
+        var leaving = false
         init(_ panel: NSPanel, screen: NSScreen?) {
             self.panel = panel
             self.screen = screen

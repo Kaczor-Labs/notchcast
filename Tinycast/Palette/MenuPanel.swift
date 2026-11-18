@@ -96,7 +96,7 @@ final class MenuPanelController {
             corner: corner, parent: parent, metrics: core.settings.interfaceSize.metrics,
             force: true)
         leaving = false
-        rising = corner == .bottomLeading || corner == .bottomTrailing
+        rising = corner.rises(placed: panel.frame, parent: parent.frame)
         let attach = { if panel.parent == nil { parent.addChildWindow(panel, ordered: .above) } }
         if panel.isVisible {
             panel.glassStay()

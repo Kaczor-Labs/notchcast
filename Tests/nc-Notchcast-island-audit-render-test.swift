@@ -170,7 +170,7 @@ struct NotchcastIslandAuditRenderTest {
     static func paintPill(_ rect: CGRect, pill: NSBezierPath) {
         (frosted ? NSColor.white : NSColor(white: 0.18, alpha: 1)).setFill()
         rect.fill()
-        NSColor(frosted ? NotchTheme.Colors.islandGlassTint : NotchTheme.Colors.islandSurface).setFill()
+        NSColor(frosted ? NotchTheme.GlassLayer.bar.tint : NotchTheme.Colors.islandSurface).setFill()
         pill.fill()
     }
 

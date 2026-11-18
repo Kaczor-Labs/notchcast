@@ -13,14 +13,12 @@ extension NotchTheme {
         case sheet
 
         /// The island is one glass, so it thickens to what it holds instead of blurring twice.
-        static func holding(question: Bool, report: Bool) -> GlassLayer {
-            question ? .sheet : report ? .pane : .bar
-        }
+        static func holding(question: Bool) -> GlassLayer { question ? .sheet : .pane }
 
         /// Drawn over the blur only: a tint over sharp content is unreadable.
         var tint: Color {
             switch self {
-            case .bar: NotchTheme.Colors.islandGlassTint
+            case .bar: ObsidianTokens.Glass.glassBar
             case .pane: ObsidianTokens.Glass.glassPane
             case .sheet: ObsidianTokens.Glass.glassSheet
             }
@@ -29,7 +27,7 @@ extension NotchTheme {
         /// Replaces tint and blur together under Reduce Transparency or Increase Contrast, and over other glass.
         var solid: Color {
             switch self {
-            case .bar: NotchTheme.Colors.islandGlassSolid
+            case .bar: ObsidianTokens.Glass.glassBarSolid
             case .pane: ObsidianTokens.Glass.glassPaneSolid
             case .sheet: ObsidianTokens.Glass.glassSheetSolid
             }

@@ -17,6 +17,8 @@ final class IslandController: NSObject {
     private let clip = CAShapeLayer()
     let keyline = CAShapeLayer()
     private(set) var overlays: [CGRect] = []
+    /// What the overlays ask of the glass; the open launcher overrules it and stays bar.
+    private var held = NotchTheme.GlassLayer.pane
     #if DEBUG
     private(set) var samples: [String] = []
     let frames = IslandFrameTrace()
@@ -218,7 +220,7 @@ final class IslandController: NSObject {
         glancing = size != .zero || canvas.expansion != nil || level != nil || notice != nil
         let rests = showsRest && !onFullScreenSpace
         canvas.covered = size != .zero
-        if overlays.isEmpty, palette != nil { canvas.glass = .bar }
+        if palette != nil { canvas.glass = .bar } else if !overlays.isEmpty { canvas.glass = held }
         surface.batch {
             if size != .zero {
                 if !suspended { backdrop.orderFrontRegardless() }
@@ -302,8 +304,7 @@ final class IslandController: NSObject {
 
     func setOverlays(_ frames: [CGRect], question: Bool = false) {
         overlays = frames
-        // Kept while the island contracts: a moving surface never changes its tint.
-        if !frames.isEmpty { canvas.glass = .holding(question: question, report: true) }
+        held = .holding(question: question)
         closed()
     }
 

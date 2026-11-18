@@ -200,7 +200,7 @@ struct PopoverMenu: View {
 
     private var searchSeparator: some View {
         Rectangle()
-            .fill(onIsland ? NotchTheme.GlassLayer.rule : Theme.Colors.separator)
+            .fill(Theme.Colors.separator)
             .frame(height: hairline)
             .accessibilityHidden(true)
     }
@@ -273,7 +273,7 @@ struct PopoverMenu: View {
     private func rowBoundary(before index: Int) -> some View {
         if index > 0, items[index].startsSection {
             Rectangle()
-                .fill(onIsland ? NotchTheme.GlassLayer.rule : Theme.Colors.separator)
+                .fill(Theme.Colors.separator)
                 .frame(height: hairline)
                 .padding(.horizontal, metrics.spacing.md)
                 // The list inset, so a row sits as far from this hairline as from the search one.
@@ -431,7 +431,7 @@ private struct PopoverMenuRow: View {
                 RoundedRectangle(cornerRadius: metrics.radius.menuRow, style: .continuous)
                     .fill(selected ? Theme.Colors.menuHover : Color.clear)
             )
-            .opacity(item.isEnabled ? 1 : NotchTheme.Opacity.disabled)
+            .opacity(item.isEnabled ? 1 : 0.45)
         }
         .buttonStyle(.plain)
         .environment(\.islandInkLifted, selected)

@@ -168,9 +168,9 @@ struct NotchLookTokensTests {
 
         print("# Frosted text keeps 4.5:1 on its glass over a white wallpaper")
         let white = [1.0, 1.0, 1.0]
-        let body = over(resolved(NotchTheme.Colors.islandGlassTint, frosted: true), white)
+        let body = over(resolved(NotchTheme.GlassLayer.bar.tint, frosted: true), white)
         let menu = over(resolved(NotchTheme.GlassLayer.pane.tint, frosted: true), white)
-        let solid = over(resolved(NotchTheme.Colors.islandGlassSolid, frosted: true), white)
+        let solid = over(resolved(NotchTheme.GlassLayer.bar.solid, frosted: true), white)
         let inks: [(String, Color)] = [
             ("primary", c.textPrimary), ("secondary", c.textSecondary), ("tertiary", c.textTertiary),
             ("keycap", NotchTheme.Colors.keyCapInk), ("menu symbol", c.menuSymbol), ("red", c.destructive),

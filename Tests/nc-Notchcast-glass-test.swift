@@ -8,8 +8,6 @@
 // notchcast-sources: Tinycast/Features/Island/Service/IslandLevelArt.swift
 // notchcast-sources: Tinycast/Features/Island/Service/IslandCanvas.swift
 // notchcast-sources: Tinycast/Features/Island/Service/IslandExpansionArt.swift
-// notchcast-reads: Tinycast/DesignSystem/PopoverMenu.swift Tinycast/Palette/MenuPanel.swift
-// notchcast-reads: Tinycast/Windows/HUD/*.swift Tinycast/Windows/Dialog/*.swift
 // notchcast-reads: Tinycast/Features/Island/Service/IslandPaletteSurface.swift
 // notchcast-reads: Tinycast/Features/Island/Service/IslandFrost.swift
 // notchcast-reads: Tinycast/Features/Notchcast/NotchGlass.swift Tinycast/Features/Notchcast/GlassMotion.swift
@@ -80,11 +78,9 @@ struct NotchcastGlassTest {
         let glass = NotchTheme.GlassLayer.self
         let tokens = ObsidianTokens.Glass.self
 
-        // The island thickens to what it holds: a question over a report over the launcher.
-        check("nothing held is bar", glass.holding(question: false, report: false) == .bar)
-        check("a report is pane", glass.holding(question: false, report: true) == .pane)
-        check("a question is sheet", glass.holding(question: true, report: false) == .sheet)
-        check("a question over a report is sheet", glass.holding(question: true, report: true) == .sheet)
+        // The closed island thickens to what it holds: a question over a report.
+        check("a report is pane", glass.holding(question: false) == .pane)
+        check("a question is sheet", glass.holding(question: true) == .sheet)
 
         // Every value is the generated token, never a copy of it.
         check("pane tint", rgba(glass.pane.tint) == rgba(tokens.glassPane))
@@ -135,11 +131,8 @@ struct NotchcastGlassTest {
             }
         }
 
-        // No literal material or alpha is left on the surfaces: each reads `NotchTheme.GlassLayer`.
-        let surfaces = ["Tinycast/DesignSystem/PopoverMenu.swift", "Tinycast/Palette/MenuPanel.swift",
-                        "Tinycast/Windows/HUD/MessageHUDView.swift", "Tinycast/Windows/HUD/HUDPresenter.swift",
-                        "Tinycast/Windows/Dialog/DialogView.swift", "Tinycast/Windows/Dialog/DialogController.swift",
-                        "Tinycast/Features/Island/Service/IslandPaletteSurface.swift",
+        // No literal material or alpha is left in our own glass files; upstream's files are upstream's to write.
+        let surfaces = ["Tinycast/Features/Island/Service/IslandPaletteSurface.swift",
                         "Tinycast/Features/Island/Service/IslandFrost.swift",
                         "Tinycast/Features/Notchcast/NotchGlass.swift", "Tinycast/Features/Notchcast/GlassMotion.swift"]
         let pattern = #"\.hudWindow|Material\)|opacity: ?[0-9]|\.opacity\([0-9.]+\)|: [01]\.[0-9]+\)|alpha: ?[0-9]"#
