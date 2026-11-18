@@ -62,7 +62,7 @@ runs:
         test "$(plist CFBundleShortVersionString)" = "$VERSION"
         codesign -d --extract-certificates="$RUNNER_TEMP/cert" "$APP"
         LEAF="$(shasum -a 1 "$RUNNER_TEMP/cert0" | awk '{print toupper($1)}')"
-        test "$LEAF" = "$SIGN_SHA1" || { echo "::error::signed by $LEAF, expected $SIGN_SHA1"; exit 1; }
+        test "$LEAF" = "$RELEASE_SIGN_SHA1" || { echo "::error::signed by $LEAF, expected $RELEASE_SIGN_SHA1"; exit 1; }
         for BIN in "$APP/Contents/MacOS/$NAME" "$APP/Contents/Helpers/ClipboardTextHelper" "$APP/Contents/Helpers/FileIndexHelper"; do
           test "$(lipo -archs "$BIN")" = arm64
         done

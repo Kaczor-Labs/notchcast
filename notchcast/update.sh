@@ -1,7 +1,8 @@
 #!/bin/bash
 # Notchcast updater: install the newest snapshot at /Applications/Notchcast.app; install-app.sh restarts the app
 # only if it was running. Runs from launchd (notchcast.update) and from install-launchd.sh (first install).
-# It installs only a build with our bundle id (BUNDLE_ID), the release's version and our leaf certificate (SIGN_SHA1),
+# It installs only a build with our bundle id (BUNDLE_ID), the release's version and our leaf certificate (SIGN_SHA1,
+# pinned in ~/.config/notchcast/private.env by install-launchd.sh; never taken from the tooling copy),
 # and only when nothing is installed yet, the release is newer, or the installed copy is not ours.
 # It replaces only the bundle, keeping one previous app for rollback; settings and data are never touched.
 # The in-app updater stays inert for app.notchcast (ReleaseChannel: development), so this is the update path.
@@ -41,9 +42,15 @@ plist() { /usr/libexec/PlistBuddy -c "Print :$2" "$1/Contents/Info.plist" 2>/dev
 # open issue per kind whose cause marker changes only with a new cause; notchcast-design issues stay open as the to-do.
 # Only where ~/.config/notchcast/private.env defines notchcast_notify (notchcast/README.md, "Private hooks"), so one
 # Mac acts: it is told once per issue and cause.
+SIGN_SHA1=''
 if [ -f "$HOME/.config/notchcast/private.env" ]; then
     # shellcheck disable=SC1091
     source "$HOME/.config/notchcast/private.env"
+fi
+if ! [[ "$SIGN_SHA1" =~ ^[0-9A-F]{40}$ ]]; then
+    log "no SIGN_SHA1 (40 uppercase hex digits) in ~/.config/notchcast/private.env; refusing to install anything."
+    log "Run notchcast/install-launchd.sh from a checkout to pin it, or add the line SIGN_SHA1=<leaf SHA-1> by hand."
+    exit 1
 fi
 alert_issues() {
     declare -F notchcast_notify >/dev/null || return 0
