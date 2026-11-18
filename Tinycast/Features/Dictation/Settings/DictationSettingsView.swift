@@ -63,6 +63,7 @@ struct DictationSettingsView: View {
                         Spacer()
                         ShortcutRecorder(action: .dictation)
                     }
+                    if settings.dictationMode == .globe { NotchcastGlobeHint() }
                     if settings.dictationMode == .pushToTalk {
                         let issue = coordinator.holdShortcutIssue
                         Text(
