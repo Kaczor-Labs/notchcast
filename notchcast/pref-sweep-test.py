@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# script-tests: macos (pref-sweep.py's /usr/bin/defaults)
 """A harness run leaves none of its test preference suites behind, however it ends."""
 import os
 from pathlib import Path
