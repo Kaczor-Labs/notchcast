@@ -1,6 +1,7 @@
 {
   "sourceLanguage" : "en",
   "strings" : {
+    "%@ Already Quit" : {},
     "%@  %@ RPM" : {},
     "%@%% · %@" : {},
     "Anything unsaved in it is lost." : {},

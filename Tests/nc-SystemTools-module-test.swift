@@ -30,6 +30,8 @@ enum SystemToolsModuleTests {
     static func main() async {
         await switchGatesCommands()
         await killByName()
+        await refreshKeepsRowOrder()
+        await selectedProcessGone()
         await forceQuitAsksFirst()
         await networkTestReportsResult()
         await networkTestCancels()
@@ -86,6 +88,56 @@ enum SystemToolsModuleTests {
         check("switching off closes the picker", await until { fake.closes == 2 })
         module.killProcess()
         check("a stopped module opens nothing", fake.pickers == 2)
+    }
+
+    static func refreshKeepsRowOrder() async {
+        let rig = Rig()
+        defer { rig.finish() }
+        let module = await rig.module()
+        fake.readings = [
+            [sample(10, "Calm", cpu: 0), sample(11, "Busy", cpu: 0)],
+            [sample(10, "Calm", cpu: second / 4), sample(11, "Busy", cpu: second / 2)],
+            [sample(10, "Calm", cpu: second), sample(11, "Busy", cpu: second / 2), sample(12, "Fresh", cpu: 0)],
+        ]
+        module.killProcess()
+        guard let session = fake.sessions.last as? KillProcessSession else { return check("the picker opens", false) }
+        await session.refresh()
+        await session.refresh()
+        check("the first CPU figures sort the rows once", session.rows.map(\.sample.pid) == [11, 10])
+        session.selectedPID = 10
+        await session.refresh()
+        check("a refresh keeps the order and puts a new process last", session.rows.map(\.sample.pid) == [11, 10, 12])
+        check("a refresh updates the figures in place", session.rows.map(\.cpuPercent) == [0, 75, 0])
+        check("a refresh keeps the selection", session.selectedPID == 10)
+        session.query = "a"
+        check("a new query sorts again", session.rows.map(\.sample.pid) == [10])
+        session.query = ""
+        check("clearing the query sorts all rows", session.rows.map(\.sample.pid) == [10, 11, 12])
+    }
+
+    static func selectedProcessGone() async {
+        let rig = Rig()
+        defer { rig.finish() }
+        fake.signals = []
+        let module = await rig.module()
+        fake.readings = [
+            [sample(20, "Leaving", cpu: 0), sample(21, "Staying", cpu: 0)],
+            [sample(21, "Staying", cpu: 0)],
+        ]
+        module.killProcess()
+        guard let session = fake.sessions.last as? KillProcessSession else { return check("the picker opens", false) }
+        await session.refresh()
+        check("the first row is selected", session.selectedPID == 20)
+        let closes = fake.closes
+        await session.refresh()
+        check("the selected process gone closes the picker", fake.closes == closes + 1)
+        check("no other row takes the selection", session.selectedPID == 20)
+        let notice = rig.presenter.posts.last
+        check("the notice says it already quit", notice?.text == "Leaving Already Quit" && notice?.isFailure == false)
+        check("nothing is signalled", fake.signals.isEmpty)
+        rig.controller.preferences.set(SystemToolsAddon.switchID, on: false)
+        for _ in 0..<200 { await Task.yield() }
+        check("a picker closed that way is not closed twice", fake.closes == closes + 1)
     }
 
     static func forceQuitAsksFirst() async {
@@ -188,10 +240,11 @@ enum SystemToolsModuleTests {
         let local = folder.appending(path: "sudo_local")
         let writes = Mutex<[URL]>([])
         let outcome = Mutex<(any Error)?>(nil)
+        let garbles = Mutex(false)
         let store = SudoTouchIDStore(files: SudoTouchIDFiles(directory: folder) { text, url in
             writes.withLock { $0.append(url) }
             if let error = outcome.withLock({ $0 }) { throw error }
-            try text.write(to: url, atomically: true, encoding: .utf8)
+            try (garbles.withLock { $0 } ? "# other\n" : text).write(to: url, atomically: true, encoding: .utf8)
         })
         store.refresh()
         check("no sudo_local reads as off", !store.isEnabled && store.isSupported)
@@ -212,6 +265,10 @@ enum SystemToolsModuleTests {
         await store.set(true)
         check("a failed write is reported and the switch reads the file", !store.isEnabled && store.failed)
         outcome.withLock { $0 = nil }
+        garbles.withLock { $0 = true }
+        await store.set(true)
+        check("a file that differs from the text asked for is a failed write", !store.isEnabled && store.failed)
+        garbles.withLock { $0 = false }
         try? FileManager.default.removeItem(at: local)
         try? FileManager.default.createDirectory(at: local, withIntermediateDirectories: true)
         let before = writes.withLock { $0.count }

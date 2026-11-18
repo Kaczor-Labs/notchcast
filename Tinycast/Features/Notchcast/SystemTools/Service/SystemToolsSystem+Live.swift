@@ -42,7 +42,9 @@ extension SystemToolsSystem {
         },
         readWiFiPassword: { network in
             let result = try await SystemToolsProcess.run(
-                "/usr/bin/security", ["find-generic-password", "-D", "AirPort network password", "-a", network, "-w"])
+                "/usr/bin/security",
+                ["find-generic-password", "-D", "AirPort network password", "-a", network, "-w",
+                 "/Library/Keychains/System.keychain"])
             // 44 is errSecItemNotFound; the reply is read from the pipe only, never logged.
             if result.status == 44 { return nil }
             guard result.status == 0 else { throw CocoaError(.fileReadNoPermission) }

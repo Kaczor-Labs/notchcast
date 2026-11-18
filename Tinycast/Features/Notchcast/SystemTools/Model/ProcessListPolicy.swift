@@ -82,6 +82,17 @@ enum ProcessListPolicy {
         }
     }
 
+    /// A refresh keeps the shown order, so no row moves under the pointer; new processes go last.
+    static func refresh(_ shown: [ProcessRow], from rows: [ProcessRow], query: String) -> [ProcessRow] {
+        let matching = arrange(rows, query: query)
+        let byPID = Dictionary(matching.map { ($0.sample.pid, $0) }, uniquingKeysWith: { first, _ in first })
+        let kept = shown.compactMap { old in
+            byPID[old.sample.pid].flatMap { $0.sample.isSameProcess(as: old.sample) ? $0 : nil }
+        }
+        let keptPIDs = Set(kept.map(\.sample.pid))
+        return kept + matching.filter { !keptPIDs.contains($0.sample.pid) }
+    }
+
     /// "12.4% · 640 MB".
     static func detail(_ row: ProcessRow) -> String {
         let cpu = row.cpuPercent.formatted(.number.precision(.fractionLength(1)))

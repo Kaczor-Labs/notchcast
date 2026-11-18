@@ -47,6 +47,7 @@ final class SudoTouchIDStore {
         isBusy = true
         do {
             try await files.write(text, localURL)
+            failed = try readLocal() != text
         } catch is CancellationError {
         } catch {
             failed = true

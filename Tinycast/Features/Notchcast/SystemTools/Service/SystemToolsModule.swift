@@ -34,8 +34,7 @@ final class SystemToolsModule: NotchcastModule {
     func stop() {
         guard isRunning else { return }
         isRunning = false
-        closePicker?()
-        closePicker = nil
+        dismissPicker()
         lookup?.cancel()
         lookup = nil
         guard isTestingNetwork else { return }
@@ -45,7 +44,12 @@ final class SystemToolsModule: NotchcastModule {
 
     func killProcess() {
         guard isRunning else { return }
-        present(KillProcessSession(system: system, context: context))
+        present(KillProcessSession(system: system, context: context) { [weak self] in self?.dismissPicker() })
+    }
+
+    private func dismissPicker() {
+        closePicker?()
+        closePicker = nil
     }
 
     func present(_ picker: any SystemToolsPicking) {

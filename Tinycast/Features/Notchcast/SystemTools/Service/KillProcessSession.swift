@@ -10,18 +10,21 @@ final class KillProcessSession: SystemToolsPicking {
 
     private(set) var rows: [ProcessRow] = []
     var query = "" { didSet { arrange() } }
-    /// By pid, so a refresh that reorders rows never moves Return onto another process.
+    /// By pid, so the one sort on the first CPU figures never moves Return onto another process.
     var selectedPID: Int32?
     @ObservationIgnored private var listed: [ProcessRow] = []
     @ObservationIgnored private var samples: [ProcessSample] = []
     @ObservationIgnored private var sampledAt: UInt64 = 0
     @ObservationIgnored private var reading = 0
+    @ObservationIgnored private var isRanked = false
     @ObservationIgnored private let system: SystemToolsSystem
     @ObservationIgnored private let context: NotchcastContext
+    @ObservationIgnored private let close: @MainActor () -> Void
 
-    init(system: SystemToolsSystem, context: NotchcastContext) {
+    init(system: SystemToolsSystem, context: NotchcastContext, close: @escaping @MainActor () -> Void) {
         self.system = system
         self.context = context
+        self.close = close
     }
 
     var selectedIndex: Int {
@@ -51,7 +54,7 @@ final class KillProcessSession: SystemToolsPicking {
         reading += 1
         let token = reading
         let current = await system.readProcesses()
-        guard token == reading else { return }
+        guard token == reading, !Task.isCancelled else { return }
         let now = system.uptimeNanoseconds()
         let elapsed = samples.isEmpty || now <= sampledAt ? 0 : now - sampledAt
         listed = ProcessListPolicy.rows(
@@ -59,7 +62,23 @@ final class KillProcessSession: SystemToolsPicking {
             processorCount: system.processorCount)
         samples = current
         sampledAt = now
-        arrange()
+        let selected = rows.first { $0.sample.pid == selectedPID }?.sample
+        if let selected, !listed.contains(where: { $0.sample.isSameProcess(as: selected) }) {
+            return closeAfterQuit(of: selected)
+        }
+        guard isRanked else {
+            isRanked = elapsed > 0
+            return arrange()
+        }
+        rows = ProcessListPolicy.refresh(rows, from: listed, query: query)
+        selectFirstIfLost()
+    }
+
+    /// Moving the selection instead would put Return on a process the user never chose.
+    private func closeAfterQuit(of sample: ProcessSample) {
+        close()
+        let text = String(localized: "\(sample.name) Already Quit", table: "NotchcastSystemTools")
+        context.presenter.post(IslandNotice(id: Self.noticeID, symbol: Self.symbol, text: text), onTap: nil)
     }
 
     /// Force Quit asks first; the signal matches the process again, since the answer takes time.
@@ -86,6 +105,10 @@ final class KillProcessSession: SystemToolsPicking {
 
     private func arrange() {
         rows = ProcessListPolicy.arrange(listed, query: query)
+        selectFirstIfLost()
+    }
+
+    private func selectFirstIfLost() {
         if !rows.contains(where: { $0.sample.pid == selectedPID }) { selectedPID = rows.first?.sample.pid }
     }
 }
