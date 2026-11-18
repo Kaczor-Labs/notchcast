@@ -11,6 +11,7 @@ enum NotchcastSettingsSearch {
     static let island = SettingsAnchor(tab: .notchcast(.island), title: LocalizedStringResource("Island", table: "Notchcast"))
     static let showsInCaptures = LocalizedStringResource("Show in screenshots and videos", table: "Notchcast")
     static let outlineWhenOpen = LocalizedStringResource("Outline when open", table: "Notchcast")
+    static let opensOnHover = LocalizedStringResource("Open on hover", table: "Notchcast")
     static let position = LocalizedStringResource("Position on displays without a notch", table: "Notchcast")
     static let lookTitle = LocalizedStringResource("Look", table: "Notchcast")
     static let look = SettingsAnchor(tab: .notchcast(.island), title: lookTitle)
@@ -18,6 +19,7 @@ enum NotchcastSettingsSearch {
     private static let islandRows = [
         SettingsSearchEntry(island, showsInCaptures, keywords: ["screen recording", "screen sharing", "capture", "hide"]),
         SettingsSearchEntry(island, outlineWhenOpen, keywords: ["keyline", "border", "line", "edge"]),
+        SettingsSearchEntry(island, opensOnHover, keywords: ["hover", "pointer", "mouse", "expand"]),
         SettingsSearchEntry(island, position, keywords: ["position", "notch", "menu bar", "top"]),
         SettingsSearchEntry(group: look, lookTitle, keywords: ["frosted", "glass", "black", "blur", "display", "monitor"])]
 

@@ -115,6 +115,9 @@
     "Off hides every Notchcast window: the island, launcher, questions, reports and this Settings window." : {
 
     },
+    "Open on hover" : {
+
+    },
     "Outline when open" : {
 
     },
@@ -125,6 +128,9 @@
 
     },
     "Reset to Default" : {
+
+    },
+    "Resting the pointer on the island opens what it shows." : {
 
     },
     "Search past dictations…" : {

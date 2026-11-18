@@ -26,7 +26,7 @@ enum SyncSettingScope {
             .clipboardEnabled:
             nil
         // The island sits on this Mac's own notch and displays.
-        case .islandShowsInCaptures, .islandOutlineWhenOpen, .islandPosition: nil
+        case .islandShowsInCaptures, .islandOutlineWhenOpen, .islandOpensOnHover, .islandPosition: nil
         case .showInMenuBar: .showInMenuBar
         case .appearance, .animationsEnabled: .appearance
         case .interfaceSize: .interfaceSize
