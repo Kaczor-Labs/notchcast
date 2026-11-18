@@ -1,3 +1,4 @@
+// notchcast-new-switch-ids: scriptCommands
 import SwiftUI
 
 enum ScriptCommandsAddon: NotchcastAddon {
