@@ -40,6 +40,7 @@
 		06BA73AE917A8595DF18E8E1 /* NoteMarkdownParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0C3F123266ED0DA4BC9616B9 /* NoteMarkdownParser.swift */; };
 		07059C7E22C28A9E1E99F1DE /* NoteHeadingMenuView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 31569E535614FE2F82880C09 /* NoteHeadingMenuView.swift */; };
 		07726F26DC68689F8984F467 /* Scrypt.swift in Sources */ = {isa = PBXBuildFile; fileRef = 91D0784E49BC5899A585F285 /* Scrypt.swift */; };
+		080484B74FF02D88F4B34D90 /* NotchcastLauncherHides.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3F199857DE1FAA636DC8D73E /* NotchcastLauncherHides.swift */; };
 		0820C7539E3328338C3C8FBD /* BarButton.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4395BACF833C810961A248F0 /* BarButton.swift */; };
 		08402EEA92AECAF10CBAF2EA /* AIProviderAdvancedSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = C4DB2A5435AD37E95789304B /* AIProviderAdvancedSection.swift */; };
 		086F4B9B1B8CB6E456C5184C /* NotchcastCore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 92908720D41B4994F113BE61 /* NotchcastCore.swift */; };
@@ -1022,6 +1023,7 @@
 		EA89498DA03BDFA3858144BF /* AppActionsMenu.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6C045C66BB654E4CB407A673 /* AppActionsMenu.swift */; };
 		EAF55A2080AAF3AC70D4FB93 /* CustomQuickAction.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5ADCDDCEBA1EBB74810BDFC4 /* CustomQuickAction.swift */; };
 		EAFC40D8851C50EB62198C7E /* InstalledAIManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = AD0BCEEE45732BE94136EEA8 /* InstalledAIManager.swift */; };
+		EB54DE9BD89A479E3C191BE4 /* IslandCaptureSharing.swift in Sources */ = {isa = PBXBuildFile; fileRef = C2DF7E711B8AFDD2AE6B01EE /* IslandCaptureSharing.swift */; };
 		EBABB5835B8A996706D89712 /* SmallCommandsAddon.swift in Sources */ = {isa = PBXBuildFile; fileRef = 343779568337C0860F91E8FE /* SmallCommandsAddon.swift */; };
 		EBCD9420D4503C1DA2D5BF09 /* NotchcastTap.swift in Sources */ = {isa = PBXBuildFile; fileRef = 241B93FCA1A1406BB79C4DC9 /* NotchcastTap.swift */; };
 		EBCDF88CD59A4B6F21F945C6 /* Quicklink.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3AA3385A84985A52E2DA3596 /* Quicklink.swift */; };
@@ -1444,6 +1446,7 @@
 		3E16AEF81320A101E384098E /* KeyShortcut.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeyShortcut.swift; sourceTree = "<group>"; };
 		3E4A7E45F7D1CC5FB8868715 /* SearchScopes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SearchScopes.swift; sourceTree = "<group>"; };
 		3E81B4C409EBB4D3D0DECD47 /* CalcGrowth.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalcGrowth.swift; sourceTree = "<group>"; };
+		3F199857DE1FAA636DC8D73E /* NotchcastLauncherHides.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotchcastLauncherHides.swift; sourceTree = "<group>"; };
 		3F823090D9C909DC38B8B61A /* IslandLayout.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IslandLayout.swift; sourceTree = "<group>"; };
 		3FCA6A3F125163DD10E56564 /* ChatCitations.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatCitations.swift; sourceTree = "<group>"; };
 		3FD57D9B2C6C46B5ADDDE173 /* MCPHTTPTransport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MCPHTTPTransport.swift; sourceTree = "<group>"; };
@@ -2035,6 +2038,7 @@
 		C214E40D42F4812F141C16A8 /* ColorPreview.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ColorPreview.swift; sourceTree = "<group>"; };
 		C299812264148020EEC8904B /* IslandButtonFill.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IslandButtonFill.swift; sourceTree = "<group>"; };
 		C29AD5D3C6AA58E81732515C /* BrightnessSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BrightnessSettingsView.swift; sourceTree = "<group>"; };
+		C2DF7E711B8AFDD2AE6B01EE /* IslandCaptureSharing.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IslandCaptureSharing.swift; sourceTree = "<group>"; };
 		C2EAA357A9F0317320CFAADF /* TerminalLogView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TerminalLogView.swift; sourceTree = "<group>"; };
 		C3C83D437500107168E12647 /* QuickActionSettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuickActionSettings.swift; sourceTree = "<group>"; };
 		C3CAC74EF89303B0B75D5466 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
@@ -3035,6 +3039,7 @@
 				E314B1D8D8F28AF3FB938E75 /* IslandCalendarGlance.swift */,
 				8E3FE185D0301C632A1FCB54 /* IslandCanvas.swift */,
 				82FE942150556875EB7B790E /* IslandCaptureScenes.swift */,
+				C2DF7E711B8AFDD2AE6B01EE /* IslandCaptureSharing.swift */,
 				81103CB16B6B79220DBBFF76 /* IslandController.swift */,
 				5242FC9174E8721BBD5A91FC /* IslandController+Accessibility.swift */,
 				1DF2450D3A4E1B0ABD1BBBBF /* IslandController+Verification.swift */,
@@ -3825,6 +3830,7 @@
 				5620C21165128A51BA51E524 /* NotchcastCommandEntry.swift */,
 				92908720D41B4994F113BE61 /* NotchcastCore.swift */,
 				4773A92DDF288565C27BD567 /* NotchcastDictationBridge.swift */,
+				3F199857DE1FAA636DC8D73E /* NotchcastLauncherHides.swift */,
 				C8DB1A4B304917CDDC4DF3B5 /* NotchcastRegistry.swift */,
 				999FFAF2AFCA0241D02C63A3 /* NotchcastSettingsPane.swift */,
 				58D7094D0F19E6C927625CE6 /* NotchMenuInk.swift */,
@@ -5828,6 +5834,7 @@
 				735F1568735164D38864B10A /* IslandCalendarGlance.swift in Sources */,
 				61F3FA6853B2E29B54F859C8 /* IslandCanvas.swift in Sources */,
 				ECD53244B8DCD421AA5D9CCE /* IslandCaptureScenes.swift in Sources */,
+				EB54DE9BD89A479E3C191BE4 /* IslandCaptureSharing.swift in Sources */,
 				156AAF6C1939C271E46C45EF /* IslandCardStyle.swift in Sources */,
 				5B4762FEEA8774AB115F8B80 /* IslandController+Accessibility.swift in Sources */,
 				589FE6E9FD5E62A16EFF3CE4 /* IslandController+Verification.swift in Sources */,
@@ -6002,6 +6009,7 @@
 				69A46A511381273B00153D07 /* NotchcastHidden.swift in Sources */,
 				0127CD65C4B15EEDB9CC0D76 /* NotchcastIslandPins.swift in Sources */,
 				2A692D2E29D529BF386A4FA3 /* NotchcastIslandSettingsRows.swift in Sources */,
+				080484B74FF02D88F4B34D90 /* NotchcastLauncherHides.swift in Sources */,
 				33FC9B933720A1F2543449AB /* NotchcastLookSection.swift in Sources */,
 				3FAEDC940F5D293347EACA88 /* NotchcastMediaKey.swift in Sources */,
 				8A831B2ED19477B6E2AE3BAE /* NotchcastPane.swift in Sources */,

@@ -9,7 +9,7 @@ cp "$ROOT/notchcast/ci-tests.sh" "$ROOT/notchcast/test-harnesses.sh" "$ROOT/notc
     "$ROOT/notchcast/command-harness-sources.sh" "$ROOT/notchcast/pref-sweep.py" "$WORK/notchcast/"
 mkdir "$WORK/prefs"
 export NOTCHCAST_PREFS_DIR="$WORK/prefs" NOTCHCAST_PREF_SWEEP_STATE="$WORK/pref-sweep"
-printf 'CI_SKIP_TESTS=skip\nUPSTREAM_REPO=upstream/repo\nFORK_REPO=fork/repo\n' > "$WORK/notchcast/config.env"
+printf 'CI_SKIP_TESTS=skip\nUPSTREAM_REPO=upstream/repo\nFORK_REPO=fork/repo\nREVIEW_LABEL=upstream-sync\n' > "$WORK/notchcast/config.env"
 # Upstream's runner as test-harnesses.sh meets it: a finished queue, `ran`, `only`; then what is left to dispatch.
 cat > "$WORK/Scripts/run-tests.sh" <<'RUNNER'
 #!/bin/bash
@@ -100,6 +100,7 @@ case "$*" in
   *"compare/main"*) date -u -v-"${MOVED_AGO:-5}"H +%Y-%m-%dT%H:%M:%SZ;;
   *"commits/upstream"*) date -u -v-"${MOVED_AGO:-5}"H +%Y-%m-%dT%H:%M:%SZ;;
   "issue list"*) echo "${ISSUES:-0}";;
+  "pr list"*"--label upstream-sync"*) echo "${REVIEW:-}";;
   "pr list"*) echo "$PRS";;
   *) echo "unexpected gh: $*" >&2; exit 1;;
 esac
@@ -112,3 +113,11 @@ grep -q 'holds the rebase' kick-log
 [ "$(lag_alerts 13 "$PRS")" = 1 ]
 [ "$(lag_alerts 5 "$none")" = 1 ]
 echo 'PASS: lag alert stays quiet while the Sync holds the rebase for open PRs; speaks once the hold ran out or with no PR'
+export REVIEW=https://github.com/fork/repo/pull/9
+[ "$(lag_alerts 13 "$none")" = 1 ]
+grep -q 'waits for the keeper.s review before Sync moves main onto it: https://github.com/fork/repo/pull/9' "$ALERTS"
+grep -q 'Sync waits for the keeper.s upstream review' kick-log
+bash notchcast/kick.sh > kick-log
+[ "$(wc -l < "$ALERTS" | tr -d ' ')" = 1 ]
+unset REVIEW
+echo 'PASS: an open upstream review PR replaces the lag alert with one review-due alert per upstream commit'

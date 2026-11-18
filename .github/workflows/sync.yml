@@ -31,6 +31,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     # Also replays our commits here, on Linux: a conflict is reported (issue notchcast-sync) without a macOS runner.
+    # Reads the keeper's review of new upstream before any job runs upstream's tree: no review, no rebase (#871).
     # actions: read and statuses: write let it skip testing a main that a green PR build already tested (reuse_pr_build).
     permissions:
       contents: read
@@ -46,6 +47,7 @@ jobs:
       upstream_main: ${{ steps.plan.outputs.upstream_main }}
       main_key: ${{ steps.plan.outputs.main_key }}
       releases: ${{ steps.plan.outputs.releases }}
+      stage: ${{ steps.plan.outputs.stage }}
     steps:
       - uses: actions/checkout@v7
         with:
@@ -57,7 +59,37 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: python3 notchcast/ci.py plan
 
-  # Upstream moved: replay our commits onto it, build, test, and only then move main (lease on what plan saw).
+  # Upstream moved and is not reviewed yet: push its diff to sync/upstream and open or update the review PR (open),
+  # or close that PR once main holds upstream (close). Runs no upstream code; the deploy key can set no status.
+  stage:
+    needs: plan
+    if: needs.plan.outputs.stage != ''
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment: sync
+    permissions:
+      contents: read
+      pull-requests: write
+      issues: write
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ needs.plan.outputs.main }}
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: ./notchcast/actions/deploy-key
+        if: needs.plan.outputs.stage == 'open'
+        with:
+          key: ${{ secrets.DEPLOY_KEY }}
+      - name: Stage the upstream diff for review
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 notchcast/ci.py stage "${{ needs.plan.outputs.stage }}" "${{ needs.plan.outputs.base }}" "${{ needs.plan.outputs.upstream_main }}"
+      - name: Drop the deploy key
+        if: always()
+        run: rm -f "$RUNNER_TEMP/deploy-key"
+
+  # Upstream moved and its review passed: replay our commits onto it, build, test, and only then move main (lease on what plan saw).
   # Nothing to replay but main not tested yet (a push): build and test main as it is, once; nothing is pushed.
   # Either way the tested commit gets a green `notchcast/tested` status.
   # Issues: kind sync for a replay onto new upstream (cause stable across upstream commits), main for main as it is.
@@ -114,17 +146,27 @@ jobs:
         if: needs.plan.outputs.rebase == 'true'
         with:
           key: ${{ secrets.DEPLOY_KEY }}
-      # The only history rewrite in this repo: main moves onto new upstream, guarded by a lease on what plan saw.
+      # The only history rewrite in this repo besides stage's review branches: main moves onto reviewed upstream, guarded
+      # by a lease on what plan saw.
       # The replaced tip is kept under refs/notchcast/synced/ (no branch, tag or workflow trigger), so land.sh can
       # find the fork point of a PR cut before this rewrite.
       # A landing that moved main since plan loses the lease: that is no failure; its push starts the next Sync.
+      # A review of U that is no longer a success (plan read it up to two hours ago) ends the same way, nothing pushed.
       - name: Update main
         id: update
         if: needs.plan.outputs.rebase == 'true'
         working-directory: src
         env:
           OLD: ${{ needs.plan.outputs.main }}
+          UP: ${{ needs.plan.outputs.upstream_main }}
+          GH_TOKEN: ${{ github.token }}
         run: |
+          if ! python3 ../tools/notchcast/ci.py reviewed "$UP"; then
+            rm -f "$RUNNER_TEMP/deploy-key"
+            echo "::notice::main stays: the review of upstream ${UP:0:7} is no longer a success"
+            echo "lost=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
           if ! git -c core.hooksPath=/dev/null push --atomic --force-with-lease="refs/heads/main:$OLD" "$FORK_SSH" \
             HEAD:refs/heads/main "$OLD:refs/notchcast/synced/$OLD"; then
             rm -f "$RUNNER_TEMP/deploy-key"
@@ -197,6 +239,7 @@ jobs:
     environment: sync
     permissions:
       contents: write
+      statuses: read
       issues: write
     strategy:
       fail-fast: false
@@ -224,13 +267,23 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: python3 tools/notchcast/ci.py app-info "$TAG" "$RUNNER_TEMP"
+      # Onto the commit plan cleared, never what the tag names now: upstream can move a tag during the main job.
       - name: Replay our commits onto the tag
         working-directory: src
+        env:
+          COMMIT: ${{ matrix.release.commit }}
         run: |
-          source ../tools/notchcast/config.env
-          git fetch -q "https://github.com/$UPSTREAM_REPO.git" "+refs/heads/main:refs/remotes/upstream/main" "+refs/tags/$TAG:refs/tags/$TAG"
-          python3 ../tools/notchcast/ci.py replay . "refs/tags/$TAG^{commit}"
-          echo "TAG_COMMIT=$(git rev-parse "refs/tags/$TAG^{commit}")" >> "$GITHUB_ENV"
+          python3 ../tools/notchcast/ci.py pin-tag "$TAG" "$COMMIT"
+          python3 ../tools/notchcast/ci.py replay . "$COMMIT"
+          { echo "TAG_COMMIT=$COMMIT"; echo "REPLAYED=$(git rev-parse HEAD)"; } >> "$GITHUB_ENV"
+      # Plan read that commit's own review up to two hours ago; nothing is tested or signed unless it is still a success.
+      - name: Re-read the tag commit's review
+        env:
+          COMMIT: ${{ matrix.release.commit }}
+          BASE: ${{ needs.plan.outputs.base }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if [ "$COMMIT" != "$BASE" ]; then python3 tools/notchcast/ci.py reviewed "$COMMIT"; fi
       - uses: ./tools/notchcast/actions/tests
         with:
           upstream: ${{ env.TAG_COMMIT }}
@@ -245,13 +298,13 @@ jobs:
       - uses: ./tools/notchcast/actions/deploy-key
         with:
           key: ${{ secrets.DEPLOY_KEY }}
-      # Upstream's tag, unchanged. GITHUB_TOKEN cannot push commits that touch workflows; the deploy-key push may
-      # trigger workflows, but the tagged tree's upstream workflows cannot read the secrets (environment `sync`, main only).
+      # The replayed commit that was built, never upstream's tag object: a tag push runs the workflows of the tree it
+      # names, and this tree holds only ours, none of which a tag starts. GITHUB_TOKEN cannot push workflow files.
       - name: Mirror the tag
         working-directory: src
         run: |
           if [ -z "$(git ls-remote "$FORK_SSH" "refs/tags/$TAG")" ]; then
-            git -c core.hooksPath=/dev/null push "$FORK_SSH" "refs/tags/$TAG:refs/tags/$TAG"
+            git -c core.hooksPath=/dev/null push "$FORK_SSH" "$REPLAYED:refs/tags/$TAG"
           fi
           rm -f "$RUNNER_TEMP/deploy-key"
       - name: Publish the release
@@ -263,11 +316,10 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -a; source tools/notchcast/config.env; set +a
-          UPSTREAM="$(git -C src rev-parse "refs/tags/$TAG^{commit}")"
           {
             cat "$RUNNER_TEMP/upstream-notes.md"
             printf '\n\n---\nNotchcast build of %s %s (%s) with our commits from main %s, signed by %s (SHA-1 %s).\n' \
-              "$UPSTREAM_REPO" "$TAG" "${UPSTREAM:0:12}" "${MAIN:0:12}" "$SIGN_IDENTITY" "$RELEASE_SIGN_SHA1"
+              "$UPSTREAM_REPO" "$TAG" "${TAG_COMMIT:0:12}" "${MAIN:0:12}" "$SIGN_IDENTITY" "$RELEASE_SIGN_SHA1"
           } > "$RUNNER_TEMP/notes.md"
           FLAGS=()
           if [ "$PRERELEASE" = "true" ]; then FLAGS+=(--prerelease); fi

@@ -1,7 +1,7 @@
 #if DEBUG
 import AppKit
 
-/// "Show in screenshots and videos" reaches every visible Notchcast window live.
+/// "Show in screenshots and videos" reaches every visible untitled Notchcast window live.
 @MainActor
 enum IslandCaptureScenes {
     static func run(core: AppCore) async {
@@ -55,6 +55,16 @@ enum IslandCaptureScenes {
         await IslandVerification.pause(0.5)
         IslandVerification.require(NSApp.windows.contains { $0 is PalettePanel && $0.isVisible }, "launcher shown")
         requireSharing(.none, menu: nil, "launcher and a report shown while off")
+        let titled = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 240, height: 120), styleMask: [.titled],
+                              backing: .buffered, defer: false)
+        titled.isReleasedWhenClosed = false
+        titled.orderFrontRegardless()
+        await IslandVerification.pause(0.3)
+        await turn(core, true)
+        await turn(core, false)
+        IslandVerification.require(titled.isVisible, "a titled window is shown while off")
+        requireSharing(.none, menu: nil, "a titled window shown while off")
+        titled.close()
         await turn(core, true)
         requireSharing(.readOnly, menu: nil, "turned on at the end")
         UserDefaults.standard.removeObject(forKey: key)
@@ -102,9 +112,10 @@ enum IslandCaptureScenes {
         let backdrops = islandWindows()
         let shown = NSApp.windows.filter { $0.isVisible || $0 === menu }
         let served = shown.map { serverSharing($0.windowNumber) }
+        let wanted = shown.map { Int(($0.styleMask.contains(.titled) ? .readOnly : expected).rawValue) }
         print("SHARING \(label) lifts=\(liftWindows().count) server=\(served.map { $0.map(String.init) ?? "nil" })")
         IslandVerification.require(!backdrops.isEmpty, "\(label): island windows exist")
-        IslandVerification.require(served.allSatisfy { $0 == Int(expected.rawValue) }, "\(label): every visible window")
+        IslandVerification.require(served == wanted, "\(label): every visible window, titled ones always shown")
     }
 
     private static func serverSharing(_ number: Int) -> Int? {
