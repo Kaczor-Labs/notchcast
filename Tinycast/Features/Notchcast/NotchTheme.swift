@@ -59,6 +59,8 @@ enum NotchTheme {
         static let accentInk = ObsidianTokens.Theme.primaryForeground
         /// A rule inside a `keyCapFill` card: the `selection` step, which reads on card and black.
         static let cardRule = Theme.Colors.selection
+        /// Under every command icon, whatever its upstream tint, and the same in both looks.
+        static let iconTileFill = ObsidianTokens.Glass.glassPressed
     }
 }
 

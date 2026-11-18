@@ -47,7 +47,10 @@ class SnapshotTests(unittest.TestCase):
         self.assertIn("    runs-on: ubuntu-latest\n", sections["plan"])
         self.assertIn("    runs-on: ubuntu-latest\n", sections["gate"])
         self.assertIn("run: python3 notchcast/snapshot.py wait", sections["gate"])
-        self.assertIn("    needs: [plan, checks, snapshot, gate]\n", sections["publish"])
+        self.assertIn("    needs: [plan, snapshot, gate]\n", sections["publish"])
+        self.assertEqual(jobs.count("runs-on: xcode-27"), 1, "one macOS job per run")
+        self.assertLess(sections["snapshot"].index("name: Fail when a planned snapshot was skipped"),
+                        sections["snapshot"].index("actions/release"))
         checked = sections["publish"].index("run: python3 notchcast/snapshot.py check")
         self.assertLess(checked, sections["publish"].index("actions/deploy-key"))
         self.assertLess(checked, sections["publish"].index("run: notchcast/publish-snapshot.sh"))

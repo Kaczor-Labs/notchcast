@@ -145,8 +145,12 @@ struct NotchLookTokensTests {
             ("secondaryLabel", NotchTheme.Colors.secondaryLabel, .secondary),
         ]
         for (name, token, value) in black { sameResolved("black \(name)", token, value, frosted: false) }
-        sameResolved("black lifted secondary stays", c.textSecondary, Color.white.opacity(0.72), frosted: false, lifted: true)
-        sameResolved("black lifted tertiary stays", c.textTertiary, Color.white.opacity(0.6), frosted: false, lifted: true)
+        sameResolved("black lifted secondary is primary", c.textSecondary, .white, frosted: false, lifted: true)
+        sameResolved("black lifted tertiary is primary", c.textTertiary, .white, frosted: false, lifted: true)
+        let blackSlab = over(resolved(c.selection, frosted: false), [0, 0, 0])
+        for (name, ink) in [("primary", c.textPrimary), ("secondary", c.textSecondary), ("tertiary", c.textTertiary)] {
+            legible("black lifted \(name) on selection", resolved(ink, frosted: false, lifted: true), on: blackSlab)
+        }
         sameResolved("black lifted destructive stays", c.destructive, .red, frosted: false, lifted: true)
         sameResolved("black lifted secondaryLabel stays", NotchTheme.Colors.secondaryLabel, .secondary,
                      frosted: false, lifted: true)
@@ -205,6 +209,26 @@ struct NotchLookTokensTests {
         }
         let pressed = over(resolved(IslandButtonFill.primary(0.36), frosted: true), body)
         legible("accent ink on pressed primary", resolved(NotchTheme.Colors.accentInk, frosted: true), on: pressed)
+
+        print("# A command tile's white glyph keeps 4.5:1 on the tile on the cursor row")
+        let glass = ObsidianTokens.Glass.self
+        let obsidianGrounds = [
+            ("bar", over(resolved(glass.glassBar, frosted: true), white)),
+            ("pane", over(resolved(glass.glassPane, frosted: true), white)),
+            ("sheet", over(resolved(glass.glassSheet, frosted: true), white)),
+            ("bar solid", over(resolved(glass.glassBarSolid, frosted: true), white)),
+            ("pane solid", over(resolved(glass.glassPaneSolid, frosted: true), white)),
+            ("sheet solid", over(resolved(glass.glassSheetSolid, frosted: true), white)),
+        ]
+        let obsidianCursor = resolved(glass.glassCursor, frosted: true)
+        let cursorRows = [("black", over(resolved(c.selection, frosted: false), [0, 0, 0])),
+                          ("frosted", over(resolved(c.selection, frosted: true), body)),
+                          ("frosted solid", over(resolved(c.selection, frosted: true), solid))]
+            + obsidianGrounds.map { ("OBSIDIAN \($0.0)", over(obsidianCursor, $0.1)) }
+        let tile = resolved(NotchTheme.Colors.iconTileFill, frosted: true)
+        for (name, row) in cursorRows {
+            legible("tile glyph on the \(name) cursor row", resolved(.white, frosted: true), on: over(tile, row))
+        }
 
         print("\n\(passes) passed, \(failures) failed")
         print(failures == 0 ? "PASS nc-NotchLook-tokens" : "FAIL nc-NotchLook-tokens")
