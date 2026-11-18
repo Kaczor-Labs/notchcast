@@ -22,6 +22,7 @@ final class NotchcastController {
 
     let preferences: NotchcastPreferences
     let hub: NotchcastTapHub
+    let transcription: NotchcastTranscriptionRunner
     private(set) var slots: [Slot] = []
     private(set) var enabledCommands: [NotchcastCommand] = []
     var onCommandsChanged: (([NotchcastCommand]) -> Void)?
@@ -37,12 +38,14 @@ final class NotchcastController {
         preferences = NotchcastPreferences(defaults: defaults, switches: addons.flatMap { $0.switches })
         self.hub = hub
         let transcription = NotchcastTranscriptionRunner(dictation: dictation)
+        self.transcription = transcription
         func makeContext(recovery: NotchcastContext? = nil) -> NotchcastContext {
             NotchcastContext(
                 defaults: defaults, preferences: preferences, presenter: presenter, hub: hub,
                 transcription: transcription, now: now,
                 onTapsChanged: { [weak self] in self?.applyTaps() },
-                onCommandsChanged: { [weak self] in self?.commandsChanged() }, recovery: recovery)
+                onCommandsChanged: { [weak self] in if self?.isRunning == true { self?.publishCommands() } },
+                recovery: recovery)
         }
         slots = addons.map { addon in
             let recovery = makeContext()
@@ -93,6 +96,11 @@ final class NotchcastController {
         slots.lazy.compactMap { $0.context.launcherDigit?(digit, query, entryRows) }.first
     }
 
+    /// False when no add-on claims the URL; a running module goes before any recovery.
+    func open(_ url: URL) -> Bool {
+        slots.contains { $0.context.openURL?(url) == true } || slots.contains { $0.recovery.openURL?(url) == true }
+    }
+
     /// The descriptor's commands, then the ones the add-on's running module added.
     func allCommands(of slot: Slot) -> [NotchcastCommand] { slot.addon.commands + slot.context.commands }
 
@@ -132,11 +140,6 @@ final class NotchcastController {
         publishCommands()
     }
 
-    private func commandsChanged() {
-        guard isRunning else { return }
-        publishCommands()
-    }
-
     private func publishCommands() {
         let commands = slots.flatMap(allCommands(of:)).filter { enabled.contains($0.switchID) }
         let shown = launcherCommands(commands).map(\.id)
@@ -146,9 +149,10 @@ final class NotchcastController {
         onCommandsChanged?(commands)
     }
 
-    /// The enabled commands the launcher lists; a hidden one keeps its hotkey.
+    /// The enabled commands the launcher lists; a hidden or unavailable one keeps its hotkey.
     func launcherCommands(_ commands: [NotchcastCommand]) -> [NotchcastCommand] {
-        commands.filter { preferences.showsInLauncher($0.id) }
+        let unavailable = slots.reduce(into: Set<String>()) { $0.formUnion($1.context.unavailableCommands) }
+        return commands.filter { preferences.showsInLauncher($0.id) && !unavailable.contains($0.id) }
     }
 
     /// Hands the hub the full list, so a tap enabled late still runs where it was subscribed.

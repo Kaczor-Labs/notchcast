@@ -39,7 +39,7 @@ The in-app updater stays off in Notchcast. To keep a Mac current, clone this rep
 - **Settings › Notchcast.** One tab per area, each add-on with its own switch; an add-on's tab shows only while that add-on is in the build.
   - **Island**: look, outline when open, open on hover, position on displays without a notch, show in screenshots and videos.
   - **Keyboard & Mouse**: hide with ⌘M, Show Desktop with F3, Quit Protection, trackpad middle click.
-  - **Display & Sound**: brightness keys for every display, volume in the island, stop Apple Music opening on media keys.
+  - **Display & Sound**: brightness keys for every display, volume in the island, stop Apple Music opening on media keys, AirPods and Beats noise control from the launcher.
   - **Capture**: screenshots of an area, window or display.
   - **Launcher Extras**: ⌘1–⌘9 open the first nine results; small commands for passwords, short links and AirDrop.
   - **Downloads**: video, audio, transcripts and webpages from clipboard links, with optional aria2c and transcription into a local folder; Taildrop the Finder selection to another of your devices.
@@ -87,7 +87,7 @@ project.yml                   XcodeGen input; Tinycast.xcodeproj is generated fr
 The dev loop:
 
 - Test locally with `./Scripts/run-tests.sh` (all harnesses, ours included) or `./Scripts/run-tests.sh <harness>`, and `./Scripts/lint.sh`. See [testing.md](/docs/testing.md).
-- Maintainers push a branch with `python3 notchcast/notchcast-ci.py --repo .`, which waits for GitHub's harness verdict on it.
+- The maintainer proves a pushed branch with `python3 notchcast/notchcast-ci.py --repo . --keeper`, which waits for GitHub's harness verdict on it.
 - PRs open as drafts. Maintainers land them only with `notchcast/land.sh <pr>`, which tests the merge onto `main` and squash-merges it.
 - Sync replays our commits onto each new upstream `main` once the maintainer's review of the upstream diff passed, and Snapshot publishes every green `main`. Generated files (`README.md`, the Xcode project) are rebuilt by CI; edit `notchcast/README.public.md` and `project.yml` instead.
 

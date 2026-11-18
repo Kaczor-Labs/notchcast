@@ -1,3 +1,4 @@
+// notchcast-new-switch-ids: taildrop
 import Foundation
 
 enum TaildropAddon: NotchcastAddon {
