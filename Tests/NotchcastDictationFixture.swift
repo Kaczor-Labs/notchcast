@@ -12,16 +12,18 @@ final class FakeDictation: NotchcastTranscribing {
     /// The model store's single guard, held through the async cleanup a cancellation runs.
     private(set) var modelBusy = false
     private(set) var calls: [URL] = []
+    private(set) var languages: [String?] = []
     private(set) var admittedPieces = 0
     private var held: [CheckedContinuation<Void, Never>] = []
     private var willStart: @MainActor () async -> Void = {}
 
     func onUserStart(_ hook: @escaping @MainActor () async -> Void) { willStart = hook }
 
-    func transcribe(_ audioURL: URL, isInterrupted: @escaping @MainActor @Sendable () -> Bool)
-        async throws -> String
-    {
+    func transcribe(
+        _ audioURL: URL, language: String?, isInterrupted: @escaping @MainActor @Sendable () -> Bool
+    ) async throws -> String {
         calls.append(audioURL)
+        languages.append(language)
         modelBusy = true
         defer { modelBusy = false }
         for _ in 0..<pieces {

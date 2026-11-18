@@ -17,8 +17,10 @@ protocol NotchcastTranscribing: Sendable {
     /// Installs what stock Dictation awaits when the user starts, before its microphone opens.
     func onUserStart(_ hook: @escaping @MainActor () async -> Void)
     /// Asks `isInterrupted` before each piece of audio enters the model, and stops when it says so.
-    func transcribe(_ audioURL: URL, isInterrupted: @escaping @MainActor @Sendable () -> Bool)
-        async throws -> String
+    /// A nil `language` keeps the user's own Dictation language.
+    func transcribe(
+        _ audioURL: URL, language: String?, isInterrupted: @escaping @MainActor @Sendable () -> Bool
+    ) async throws -> String
 }
 
 /// One transcription at a time across add-ons, and never alongside the user's own dictation.
@@ -41,7 +43,7 @@ final class NotchcastTranscriptionRunner {
         _ = await running.result
     }
 
-    func transcribe(_ audioURL: URL) async throws -> String {
+    func transcribe(_ audioURL: URL, language: String? = nil) async throws -> String {
         try Task.checkCancellation()
         guard running == nil, !dictation.isDictating else { throw NotchcastTranscribeError.busy }
         let start = userStarts
@@ -49,7 +51,7 @@ final class NotchcastTranscriptionRunner {
         let isInterrupted: @MainActor @Sendable () -> Bool = { [weak self] in
             self?.userStarts != start || dictation.isDictating
         }
-        let task = Task { try await dictation.transcribe(audioURL, isInterrupted: isInterrupted) }
+        let task = Task { try await dictation.transcribe(audioURL, language: language, isInterrupted: isInterrupted) }
         running = task
         defer { running = nil }
         let result = await withTaskCancellationHandler { await task.result } onCancel: { task.cancel() }
