@@ -95,8 +95,6 @@ extension IslandInputScenes {
     static func hover(controller: IslandController) async {
         let point = centre(controller)
         let start = CGPoint(x: point.x - 300, y: point.y - 150)
-        let outline = controller.outlineBounds
-        let frame = controller.backdropWindow.frame
         let windows = visibleWindows()
         let before = helperClicks()
         await move(start)
@@ -107,16 +105,20 @@ extension IslandInputScenes {
         }
         let cursor = NSEvent.mouseLocation
         print("HOVER cursor=\(cursor) pill=\(point) under=\(windowsUnder(cursor).first ?? "nil")")
-        var changed = false
-        for _ in 0..<30 {
-            await IslandVerification.pause(0.05)
-            changed = changed || controller.outlineBounds != outline || controller.backdropWindow.frame != frame
-                || visibleWindows() != windows
-        }
+        await IslandVerification.pause(0.5)
         check(abs(cursor.x - point.x) < 1 && abs(cursor.y - point.y) < 1, "WS hover: cursor rests on the pill")
-        check(!changed, "WS hover leaves the rest pill, its window and the window list unchanged")
-        check(!paletteVisible && menuPanel == nil, "WS hover opens nothing")
+        check(core.island.hover.isOpen, "WS hover opens the island")
+        check(visibleWindows() == windows, "WS hover adds no window")
+        check(!paletteVisible && menuPanel == nil, "WS hover opens neither the launcher nor the menu")
         check(helperClicks() == before, "WS hover sends no click")
+        await click(point, right: true)
+        expectMenu(controller, "WS hover right-click")
+        if let row = menuPanel?.frame { await move(CGPoint(x: row.midX, y: row.maxY - 20)) }
+        await IslandVerification.pause(0.5)
+        check(core.island.hover.isOpen, "WS hover: on a menu row the island stays open")
+        await closeWithEscape("WS hover")
+        await IslandVerification.pause(0.5)
+        check(!core.island.hover.isOpen, "WS hover: Escape on a menu row closes the island without a pointer move")
         await move(start)
     }
 
@@ -132,9 +134,9 @@ extension IslandInputScenes {
         await closeWithEscape("glance")
         await click(point)
         await IslandVerification.pause(0.3)
-        check(paletteVisible && core.palette.mode == .launcher, "WS glance click opens the launcher")
-        check(menuPanel == nil, "WS glance click opens no menu")
-        core.paletteCoordinator.hidePalette(restoreFocus: false)
+        expectMenu(controller, "WS glance click")
+        check(core.island.pillMenu.itemTitles.first == titles.first, "WS glance click leads with Join, never joins")
+        await closeWithEscape("glance click")
     }
 
     static func quit(_ scene: String, controller: IslandController) async {
