@@ -74,7 +74,7 @@ jobs:
     runs-on: xcode-27
     timeout-minutes: 30
     env:
-      NC_AUDIT_RENDERS: /tmp/nc-renders
+      NC_AUDIT_RENDERS: ${{ runner.temp }}/renders
     strategy:
       fail-fast: false
       matrix:
@@ -109,7 +109,7 @@ jobs:
         if: ${{ !cancelled() }}
         with:
           name: renders-${{ matrix.shard }}
-          path: /tmp/nc-renders/960-*
+          path: ${{ runner.temp }}/renders/960-*
           if-no-files-found: ignore
           retention-days: 3
   # TEMP (#960, reverted before the PR): the Debug build and lint a draft PR never gets.
