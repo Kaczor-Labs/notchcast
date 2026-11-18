@@ -60,10 +60,10 @@ enum DisplaySpeaker {
         }
     }
 
-    /// What a reconnected monitor is sent to get its remembered level back.
-    static func restore(_ level: DisplaySpeakerLevel, maximum: UInt16) -> [[UInt8]] {
-        [DisplayDDC.write(.volume, DisplayDDC.deviceValue(level.volume, maximum: maximum)),
-         DisplayDDC.write(.mute, DisplayDDC.muteValue(level.muted))]
+    /// What a reconnected monitor is sent to get its remembered level back; mute only if it answers for it.
+    static func restore(_ level: DisplaySpeakerLevel, maximum: UInt16, hasMute: Bool) -> [[UInt8]] {
+        [DisplayDDC.write(.volume, DisplayDDC.deviceValue(level.volume, maximum: maximum))]
+            + (hasMute ? [DisplayDDC.write(.mute, DisplayDDC.muteValue(level.muted))] : [])
     }
 }
 

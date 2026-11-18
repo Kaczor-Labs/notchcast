@@ -21,6 +21,8 @@ final class DisplaySpeakerController {
     private var returning: Set<String> = []
     /// Monitors that never answered for volume since the displays last changed, so keys skip the wait.
     private var silent: Set<String> = []
+    /// Monitors that answered for volume since start; a missed reply never puts one of them on `silent`.
+    private var answered: Set<String> = []
     private var watchers: [AnyObject] = []
     private var generation = 0
 
@@ -48,6 +50,7 @@ final class DisplaySpeakerController {
         restoring = nil
         returning = []
         silent = []
+        answered = []
     }
 
     /// Nil leaves the key to macOS: the output is not a display's speakers, or the monitor did not answer.
@@ -61,9 +64,10 @@ final class DisplaySpeakerController {
         let outcome = await service.withLink(uuid) { link in Self.apply(command, on: link, remembered: remembered) }
         guard epoch == generation, !Task.isCancelled else { return nil }
         guard case let .applied(level) = outcome else {
-            if outcome == nil || outcome == .silent { silent.insert(uuid) }
+            if outcome == .refused { answered.insert(uuid) } else if !answered.contains(uuid) { silent.insert(uuid) }
             return nil
         }
+        answered.insert(uuid)
         store.remember(level, for: uuid)
         defaults.set(store.data, forKey: Self.storeKey)
         return level
@@ -117,6 +121,7 @@ final class DisplaySpeakerController {
 
     private nonisolated static func restore(_ level: DisplaySpeakerLevel, on link: BrightnessDDCLink) -> Bool {
         guard let volume = link.read(.volume, attempts: 3) else { return false }
-        return DisplaySpeaker.restore(level, maximum: volume.maximum).allSatisfy(link.send)
+        let hasMute = link.read(.mute, attempts: 1) != nil
+        return DisplaySpeaker.restore(level, maximum: volume.maximum, hasMute: hasMute).allSatisfy(link.send)
     }
 }

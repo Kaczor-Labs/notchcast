@@ -82,6 +82,7 @@ final class BrightnessDisplayService: Sendable {
         case .sleep:
             let snapshot = relevel(&state, restoring: true) { $0.withoutExtraDimming() }
             state.written = [:]
+            state.relinquished = []
             return snapshot
         }
     }
@@ -169,7 +170,12 @@ final class BrightnessDisplayService: Sendable {
             case .writeOnlyDDC: BrightnessLevel(old.map { $0.softwareOnly ? 1 : $0.value } ?? 1)
             case .software: BrightnessLevel(old?.softwareOnly == true ? old?.value ?? 1 : 1, softwareOnly: true)
             }
-            if old != nil, !state.online.contains(id.uuid) { level = level.reconnected() }
+            if old != nil, !state.online.contains(id.uuid) {
+                level = level.reconnected()
+                // A display comes back with a fresh curve, which is no sign of another owner.
+                state.written[id.uuid] = nil
+                state.relinquished.remove(id.uuid)
+            }
             level = level.allowing(extraDimming: state.extraDimming)
             entries.append(BrightnessDisplay(id: id, name: names[raw] ?? id.uuid, isBuiltIn: builtIn,
                                              control: control, level: level))
@@ -265,9 +271,11 @@ final class BrightnessDisplayService: Sendable {
     /// A speaker command between brightness transactions, so two never interleave on one monitor.
     @concurrent func withLink<T: Sendable>(_ uuid: String, _ body: @Sendable (BrightnessDDCLink) -> T?) async -> T? {
         state.withLock { state in
-            guard !Task.isCancelled, !closed.load(ordering: .acquiring),
-                  let link = state.channels[uuid]?.link ?? displays.discoverDDC()[uuid] else { return nil }
-            return body(link)
+            guard !Task.isCancelled, !closed.load(ordering: .acquiring) else { return nil }
+            let result = (state.channels[uuid]?.link ?? displays.discoverDDC()[uuid]).flatMap(body)
+            // A quit that timed out on the mutex leaves this transaction to undo the dimming.
+            if closed.load(ordering: .acquiring) { _ = restoreOwed(&state) }
+            return result
         }
     }
 

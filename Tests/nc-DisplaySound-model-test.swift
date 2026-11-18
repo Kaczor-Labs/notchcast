@@ -245,8 +245,11 @@ enum DisplaySoundModelTests {
         check(DisplaySpeaker.plan(.toggleMute, volume: (40, 100), mute: nil,
                                   remembered: DisplaySpeakerLevel(volume: 0.4, muted: false)) == nil,
               "a monitor without mute leaves the key to macOS")
-        check(DisplaySpeaker.restore(DisplaySpeakerLevel(volume: 0.25, muted: true), maximum: 80)
+        let quarter = DisplaySpeakerLevel(volume: 0.25, muted: true)
+        check(DisplaySpeaker.restore(quarter, maximum: 80, hasMute: true)
               == [DisplayDDC.write(.volume, 20), DisplayDDC.write(.mute, 1)], "restore on the monitor's own scale")
+        check(DisplaySpeaker.restore(quarter, maximum: 80, hasMute: false) == [DisplayDDC.write(.volume, 20)],
+              "restore sends no mute value to a monitor without mute")
 
         // The per-display store.
         var store = DisplaySpeakerStore()
