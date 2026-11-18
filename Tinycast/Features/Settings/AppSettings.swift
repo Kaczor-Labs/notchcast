@@ -182,6 +182,10 @@ final class AppSettings {
         didSet { defaults.set(islandOutlineWhenOpen, forKey: Key.islandOutlineWhenOpen.rawValue) }
     }
 
+    var islandOpensOnHover: Bool {
+        didSet { defaults.set(islandOpensOnHover, forKey: Key.islandOpensOnHover.rawValue) }
+    }
+
     /// Only a display without a notch reads it; `IslandCoordinator` rebuilds the pills on change.
     var islandPosition: IslandPosition {
         didSet { defaults.set(islandPosition.rawValue, forKey: Key.islandPosition.rawValue) }
@@ -752,6 +756,7 @@ final class AppSettings {
             || defaults.bool(forKey: Key.automaticallyCheckForUpdates.rawValue)
         islandShowsInCaptures = defaults.object(forKey: Key.islandShowsInCaptures.rawValue) as? Bool ?? true
         islandOutlineWhenOpen = defaults.object(forKey: Key.islandOutlineWhenOpen.rawValue) as? Bool ?? true
+        islandOpensOnHover = defaults.object(forKey: Key.islandOpensOnHover.rawValue) as? Bool ?? true
         islandPosition =
             defaults.string(forKey: Key.islandPosition.rawValue).flatMap(IslandPosition.init) ?? .topEdge
         hyperKey =
