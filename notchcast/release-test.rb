@@ -60,7 +60,7 @@ WORKFLOWS.each do |name, workflow|
     next if job.key?('uses')
     job.fetch('steps').each do |step|
       assert(!TREE_ACTIONS.include?(step['uses']), "#{name} #{id} holds secrets and runs #{step['uses']}")
-      assert(!step['run'].to_s.match?(TREE_CODE), "#{name} #{id} holds secrets and runs tree code in #{step['name'] || step['run'][0, 40]}")
+      assert(!step['run'].to_s.match?(TREE_CODE), "#{name} #{id} holds secrets and runs tree code in #{step['name'] || step['uses'] || step['run'].to_s[0, 40]}")
       assert(step['working-directory'] != 'src' || !step.key?('run') || step['run'].match?(/\Anotchcast\//),
              "#{name} #{id} holds secrets and runs a command in the tree")
     end
