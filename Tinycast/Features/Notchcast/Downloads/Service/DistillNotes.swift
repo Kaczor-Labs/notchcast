@@ -19,6 +19,11 @@ nonisolated struct DistillNotes: Sendable {
         return URL(filePath: path, directoryHint: .isDirectory)
     }
 
+    /// The folder whose dropped files Distill converts: nil while Convert dropped files is off.
+    static func dropFolder(in defaults: UserDefaults) -> URL? {
+        defaults.bool(forKey: convertKey) ? folder(in: defaults) : nil
+    }
+
     /// Takes a name `(2)`, `(3)`, … when it is taken, so no note is ever replaced.
     func write(title: String, source: String, stem: String, body: String) throws -> URL {
         let text = DistillNote.markdown(title: title, source: source, saved: saved, timeZone: timeZone, body: body)
@@ -32,13 +37,25 @@ nonisolated struct DistillNotes: Sendable {
     }
 }
 
+extension DistillDrop {
+    /// Read fresh each time, never through a URL's cached resource values; nil for a symlink.
+    static func stamp(at path: String) -> Stamp? {
+        guard let attributes = try? FileManager.default.attributesOfItem(atPath: path),
+              attributes[.type] as? FileAttributeType == .typeRegular,
+              let file = attributes[.systemFileNumber] as? UInt64, let size = attributes[.size] as? UInt64,
+              let modified = attributes[.modificationDate] as? Date else { return nil }
+        return Stamp(file: file, size: size, modified: modified)
+    }
+}
+
 extension DistillRunner {
     /// Turns a file dropped into the Markdown folder into a note there, then moves the file to the Trash.
     @concurrent
-    func convert(_ file: URL, notes: DistillNotes, times: Bool, context: DownloadRunContext) async throws -> URL {
-        let values = try file.resourceValues(forKeys: [.isRegularFileKey, .isSymbolicLinkKey])
-        guard values.isRegularFile == true, values.isSymbolicLink != true,
-              let kind = DistillDrop.kind(of: file.lastPathComponent) else { throw DistillFailure.unsupported }
+    func convert(
+        _ file: URL, stamp: DistillDrop.Stamp?, notes: DistillNotes, times: Bool, context: DownloadRunContext
+    ) async throws -> URL {
+        try await claim(file, stamp: stamp)
+        guard let kind = DistillDrop.kind(of: file.lastPathComponent) else { throw DistillFailure.unsupported }
         let body: String
         switch kind {
         case .pdf:
@@ -55,8 +72,20 @@ extension DistillRunner {
         }
         let stem = file.deletingPathExtension().lastPathComponent
         let note = try notes.write(title: stem, source: file.lastPathComponent, stem: stem, body: body)
+        try await claim(file, stamp: stamp)
         try notes.trash(file)
         return note
+    }
+
+    /// Convert must still be on with the file in that folder, and the file must be the one queued, unchanged.
+    @concurrent
+    private func claim(_ file: URL, stamp: DistillDrop.Stamp?) async throws {
+        let path = file.path(percentEncoded: false)
+        guard let folder = await dropFolder(), DistillDrop.isDirectlyInside(path, folder) else {
+            throw CancellationError()
+        }
+        guard let current = DistillDrop.stamp(at: path) else { throw DistillFailure.unsupported }
+        guard current == stamp else { throw DistillFailure.changed }
     }
 
     @concurrent

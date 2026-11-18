@@ -161,7 +161,8 @@ final class DownloadsModule: NotchcastModule {
             onBusy: { [weak queue] in queue?.hold(DistillRunner.kind) },
             notes: { [context] in
                 DistillNotes.folder(in: context.defaults).map { DistillNotes(folder: $0, saved: context.now()) }
-            }))
+            },
+            dropFolder: { [context] in DistillNotes.dropFolder(in: context.defaults) }))
         drops.start()
     }
 

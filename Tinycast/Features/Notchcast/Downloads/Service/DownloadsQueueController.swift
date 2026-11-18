@@ -82,9 +82,9 @@ final class DownloadsQueueController {
     }
 
     /// Adds links to the loaded queue and reports a failed write now, before a stop can hide it.
-    func accept(kind: String, sources: [String], held: Bool = false) -> Bool {
+    func accept(kind: String, sources: [String], options: Data? = nil, held: Bool = false) -> Bool {
         guard let queue else { return false }
-        queue.enqueue(kind: kind, sources: sources, held: held)
+        queue.enqueue(kind: kind, sources: sources, options: options, held: held)
         if let problem = queue.persistenceError {
             reportedPersistenceError = problem
             report(problem)

@@ -64,31 +64,58 @@ struct DownloadsNotesTest {
     private static func drops() {
         let now = Date(timeIntervalSince1970: 1_000_000)
         let old = now.addingTimeInterval(-60)
-        func entry(_ name: String, regular: Bool = true, link: Bool = false, modified: Date? = nil) -> DistillDrop.Entry {
-            .init(path: "/notes/" + name, isRegularFile: regular, isSymbolicLink: link, modified: modified ?? old)
+        let stamp = DistillDrop.Stamp(file: 7, size: 10, modified: old)
+        func entry(_ name: String, missing: Bool = false, as other: DistillDrop.Stamp? = nil) -> DistillDrop.Entry {
+            .init(path: "/notes/" + name, stamp: missing ? nil : other ?? stamp)
         }
         func job(_ name: String, _ state: DownloadState) -> DownloadJob {
             DownloadJob(id: name, kind: "distill", source: "/notes/" + name, title: name, state: state, created: old)
         }
         let entries = [
             entry("b.pdf"), entry("a.html"), entry("talk.MP3"), entry("note.md"), entry(".hidden.pdf"),
-            entry(".A1B2.partial"), entry("half.pdf.crdownload"), entry("linked.pdf", regular: false, link: true),
-            entry("folder.pdf", regular: false), entry("fresh.m4a", modified: now.addingTimeInterval(-2)),
+            entry(".A1B2.partial"), entry("half.pdf.crdownload"), entry("linked.pdf", missing: true),
+            entry("no-date.pdf", missing: true),
             entry("queued.pdf"), entry("failed.pdf"), entry("done.pdf"), entry("readme.txt"),
         ]
         let jobs = [job("queued.pdf", .waiting), job("failed.pdf", .failed), job("done.pdf", .done)]
-        let plan = DistillDrop.plan(entries, jobs: jobs, now: now, retryFailed: false)
-        expect(plan.sources == ["/notes/a.html", "/notes/b.pdf", "/notes/done.pdf", "/notes/talk.MP3"],
-               "PDF, HTML and audio convert in name order; Markdown, hidden, partial, symlinked, queued and "
-               + "failed files do not: \(plan.sources)")
-        expect(plan.recheck == now.addingTimeInterval(3), "a file still arriving is looked at again once it settles")
-        let retry = DistillDrop.plan(entries, jobs: jobs, now: now, retryFailed: true)
-        expect(retry.sources.contains("/notes/failed.pdf") && !retry.sources.contains("/notes/queued.pdf"),
-               "Run Distill retries a failed file, never one already queued")
-        expect(DistillDrop.plan(entries, jobs: [], now: now.addingTimeInterval(10), retryFailed: false).recheck == nil,
-               "nothing settling, nothing to look at again")
+        let first = DistillDrop.plan(entries, jobs: jobs, seen: [:], now: now, retryFailed: false)
+        expect(first.ready.isEmpty && first.recheck == now.addingTimeInterval(5),
+               "an old modification date alone is not settled: the first look only remembers")
+        let early = DistillDrop.plan(entries, jobs: jobs, seen: first.seen, now: now.addingTimeInterval(4),
+                                     retryFailed: false)
+        expect(early.ready.isEmpty && early.recheck == now.addingTimeInterval(5), "a look under 5 s on is too soon")
+        let second = DistillDrop.plan(entries, jobs: jobs, seen: first.seen, now: now.addingTimeInterval(5),
+                                      retryFailed: false)
+        let sources = second.ready.map(\.path)
+        expect(sources == ["/notes/a.html", "/notes/b.pdf", "/notes/done.pdf", "/notes/talk.MP3"]
+               && second.ready.allSatisfy { $0.stamp == stamp },
+               "PDF, HTML and audio unchanged across two looks convert in name order with their stamp; Markdown, "
+               + "hidden, partial, symlinked, dateless, queued and failed files do not: \(sources)")
+        expect(second.recheck == nil, "nothing settling, nothing to look at again")
+        let grown = DistillDrop.Stamp(file: 7, size: 11, modified: old)
+        let growing = DistillDrop.plan([entry("b.pdf", as: grown)], jobs: [], seen: first.seen,
+                                       now: now.addingTimeInterval(5), retryFailed: false)
+        expect(growing.ready.isEmpty && growing.seen["/notes/b.pdf"]?.since == now.addingTimeInterval(5),
+               "a file whose size changed between looks starts settling again")
+        let retry = DistillDrop.plan(entries, jobs: jobs, seen: first.seen, now: now.addingTimeInterval(5),
+                                     retryFailed: true)
+        expect(retry.ready.map(\.path).contains("/notes/failed.pdf") && !retry.ready.map(\.path).contains("/notes/queued.pdf"),
+               "Run Distill retries a settled failed file at once, never one already queued")
         expect(DistillDrop.kind(of: "x.HTM") == .html && DistillDrop.kind(of: "x.md") == nil
                && DistillDrop.kind(of: "x.mov") == .media, "kinds follow the extension, any case")
+
+        let folder = URL(filePath: "/notes/", directoryHint: .isDirectory)
+        expect(DistillDrop.isDirectlyInside("/notes/./a.pdf", folder)
+               && !DistillDrop.isDirectlyInside("/notes/sub/a.pdf", folder)
+               && !DistillDrop.isDirectlyInside("/notes-old/a.pdf", folder),
+               "only a file directly in the folder belongs to it, never a string prefix")
+        var pending = [job("a.pdf", .waiting), job("b.pdf", .held), job("c.pdf", .running), job("d.pdf", .failed)]
+        pending.append(DownloadJob(id: "link", kind: "distill", source: "https://example.com", title: "", created: old))
+        pending.append(DownloadJob(id: "other", kind: "audio", source: "/notes/e.mp3", title: "", created: old))
+        expect(DistillDrop.orphans(pending, kind: "distill", folder: folder).isEmpty, "the same folder keeps its jobs")
+        expect(DistillDrop.orphans(pending, kind: "distill", folder: URL(filePath: "/elsewhere/")) == ["a.pdf", "b.pdf", "c.pdf"]
+               && DistillDrop.orphans(pending, kind: "distill", folder: nil) == ["a.pdf", "b.pdf", "c.pdf"],
+               "a new folder or Convert off cancels every unfinished dropped file, never a link")
     }
 
     private static func naming(_ root: URL) throws {
@@ -151,11 +178,12 @@ struct DownloadsNotesTest {
         let context = DownloadRunContext(destination: root.appending(path: "drops/Raw", directoryHint: .isDirectory),
                                          tools: FakeTools())
         let busy = Counter()
-        let runner = runner(root, notes: notes, busy: busy)
+        let watched = Watched(folder)
+        let runner = runner(root, notes: notes, busy: busy, watched: watched)
 
         let page = folder.appending(path: "page.html")
         try Data("<html><body><h1>Head</h1><p>Body text</p></body></html>".utf8).write(to: page)
-        let pageNote = try await runner.run(job(page.path), context: context)
+        let pageNote = try await runner.run(dropped(page), context: context)
         expect(pageNote == folder.appending(path: "page.md"), "an HTML file becomes a note beside where it was")
         let text = try String(contentsOf: folder.appending(path: "page.md"), encoding: .utf8)
         expect(text.hasPrefix("---\ntitle: \"page\"\nsource: \"page.html\"\nsaved: 2025-11-18\n---\n\n")
@@ -166,33 +194,96 @@ struct DownloadsNotesTest {
 
         let audio = folder.appending(path: "talk.mp3")
         try Data("audio".utf8).write(to: audio)
-        _ = try await runner.run(job(audio.path), context: context)
+        _ = try await runner.run(dropped(audio), context: context)
         try expect(String(contentsOf: folder.appending(path: "talk.md"), encoding: .utf8).hasSuffix("\n\nhello\nhello\n"),
                    "an audio file becomes its transcript")
 
         let linked = folder.appending(path: "linked.html")
         try FileManager.default.createSymbolicLink(at: linked, withDestinationURL: bin.appending(path: "page.html"))
         await expectFailure(.unsupported, "a symlink is never converted") {
-            _ = try await runner.run(job(linked.path), context: context)
+            _ = try await runner.run(dropped(linked), context: context)
         }
         await expectFailure(.noFolder, "a dropped file with no Markdown folder set fails plainly") {
-            _ = try await Self.runner(root, notes: nil).run(job(audio.path), context: context)
+            _ = try await Self.runner(root, notes: nil).run(dropped(audio), context: context)
         }
+
+        let empty = folder.appending(path: "empty.html")
+        try Data("<html><body></body></html>".utf8).write(to: empty)
+        await expectFailure(.unreadable, "an HTML file with no text fails unreadable") {
+            _ = try await runner.run(dropped(empty), context: context)
+        }
+        expect(FileManager.default.fileExists(atPath: empty.path)
+               && !FileManager.default.fileExists(atPath: folder.appending(path: "empty.md").path),
+               "an empty file stays in the folder and gets no note")
+
+        try await stayingPut(folder, notes: notes, watched: watched, context: context, root: root)
 
         let quiet = folder.appending(path: "quiet.mp3")
         try Data("audio".utf8).write(to: quiet)
-        let refused = Self.runner(root, notes: notes, busy: busy, transcribe: { _ in throw NotchcastTranscribeError.busy })
-        await expectFailure(.busy, "busy fails the file") { _ = try await refused.run(job(quiet.path), context: context) }
+        let refused = Self.runner(root, notes: notes, busy: busy, watched: watched,
+                                  transcribe: { _ in throw NotchcastTranscribeError.busy })
+        await expectFailure(.busy, "busy fails the file") { _ = try await refused.run(dropped(quiet), context: context) }
         expect(busy.count == 1 && FileManager.default.fileExists(atPath: quiet.path),
                "busy ends the run and keeps the file for Run Distill")
     }
 
+    /// A queued file is converted and trashed only while Convert is on, in its folder, unchanged since queued.
+    private static func stayingPut(
+        _ folder: URL, notes: DistillNotes, watched: Watched, context: DownloadRunContext, root: URL
+    ) async throws {
+        let report = folder.appending(path: "report.html")
+        try Data("<p>Report</p>".utf8).write(to: report)
+        let job = dropped(report)
+        for (target, reason) in [(folder.deletingLastPathComponent(), "the folder changed"), (nil, "Convert is off")] {
+            watched.folder = target
+            await expectCancelled("\(reason) before the run: nothing converts") {
+                _ = try await runner(root, notes: notes, watched: watched).run(job, context: context)
+            }
+            expect(FileManager.default.fileExists(atPath: report.path)
+                   && !FileManager.default.fileExists(atPath: folder.appending(path: "report.md").path),
+                   "\(reason): the file stays and gets no note")
+        }
+        watched.folder = folder
+
+        let talk = folder.appending(path: "moved.mp3")
+        try Data("audio".utf8).write(to: talk)
+        let switching = runner(root, notes: notes, watched: watched, transcribe: { _ in
+            watched.folder = nil
+            return "hello"
+        })
+        await expectCancelled("Convert going off mid-run stops the trash") {
+            _ = try await switching.run(dropped(talk), context: context)
+        }
+        expect(FileManager.default.fileExists(atPath: talk.path), "a file whose folder changed mid-run stays")
+        watched.folder = folder
+
+        let replaced = folder.appending(path: "replaced.mp3")
+        try Data("audio".utf8).write(to: replaced)
+        let replacing = runner(root, notes: notes, watched: watched, transcribe: { _ in
+            try Data("a newer, longer recording".utf8).write(to: replaced)
+            return "hello"
+        })
+        await expectFailure(.changed, "a file replaced during transcription is not trashed") {
+            _ = try await replacing.run(dropped(replaced), context: context)
+        }
+        try expect(String(contentsOf: replaced, encoding: .utf8) == "a newer, longer recording",
+                   "the newer file stays where it is")
+    }
+
     private static func runner(
-        _ root: URL, notes: DistillNotes?, busy: Counter = Counter(),
+        _ root: URL, notes: DistillNotes?, busy: Counter = Counter(), watched: Watched? = nil,
         transcribe: @escaping DistillRunner.Transcribe = { _ in "hello" }
     ) -> DistillRunner {
         DistillRunner(workDirectory: root.appending(path: "work", directoryHint: .isDirectory), transcribe: transcribe,
-                      timestamps: { false }, onBusy: { busy.count += 1 }, notes: { notes })
+                      timestamps: { false }, onBusy: { busy.count += 1 }, notes: { notes },
+                      dropFolder: { watched?.folder ?? notes?.folder })
+    }
+
+    /// A dropped file's job as the watcher queues it: its path and the stamp it had when it settled.
+    private static func dropped(_ file: URL) -> DownloadJob {
+        var job = Self.job(file.path(percentEncoded: false))
+        job.encodedOptions = DistillDrop.stamp(at: job.source).flatMap { try? DownloadJob.encode($0) }
+        return job
     }
 
     private static func job(_ source: String) -> DownloadJob {
@@ -210,6 +301,15 @@ struct DownloadsNotesTest {
         }
     }
 
+    private static func expectCancelled(_ message: String, _ body: () async throws -> Void) async {
+        do {
+            try await body()
+            preconditionFailure(message + ": it succeeded")
+        } catch {
+            expect(error is CancellationError, message + ": \(error)")
+        }
+    }
+
     private static func expect(_ value: @autoclosure () throws -> Bool, _ message: String) rethrows {
         let held = try value()
         precondition(held, message)
@@ -219,6 +319,14 @@ struct DownloadsNotesTest {
 @MainActor
 private final class Counter {
     var count = 0
+}
+
+/// The folder Convert dropped files watches as the runner reads it; nil is Convert off.
+@MainActor
+private final class Watched {
+    var folder: URL?
+
+    init(_ folder: URL?) { self.folder = folder }
 }
 
 /// Stands in for yt-dlp and ffmpeg: metadata, one audio file, then two chunks.

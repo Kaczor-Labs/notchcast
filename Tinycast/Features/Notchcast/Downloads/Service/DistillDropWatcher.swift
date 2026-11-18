@@ -11,6 +11,8 @@ final class DistillDropWatcher {
     private var stream: FileSystemWatcher?
     private var observer: NotificationToken?
     private var recheck: Task<Void, Never>?
+    private var scan: Task<Void, Never>?
+    private var seen: [String: DistillDrop.Sighting] = [:]
 
     init(defaults: UserDefaults, now: @escaping @MainActor () -> Date, distill: DownloadsQueueController) {
         self.defaults = defaults
@@ -37,19 +39,28 @@ final class DistillDropWatcher {
     /// Run Distill passes `retryFailed`, so only it tries a failed file again.
     func rescan(retryFailed: Bool = false, then done: @escaping @MainActor (_ added: Int) -> Void = { _ in }) {
         guard let folder else { return done(0) }
-        Task { [weak self] in
+        let previous = scan
+        scan = Task { [weak self] in
+            await previous?.value
             let entries = await Self.entries(in: folder)
-            guard let self, self.folder == folder, let queue = distill.queue else { return done(0) }
-            let plan = DistillDrop.plan(entries, jobs: queue.jobs, now: now(), retryFailed: retryFailed)
-            if !plan.sources.isEmpty { _ = distill.accept(kind: DistillRunner.kind, sources: plan.sources) }
+            guard !Task.isCancelled, let self, self.folder == folder, let queue = distill.queue else { return done(0) }
+            let plan = DistillDrop.plan(entries, jobs: queue.jobs, seen: seen, now: now(), retryFailed: retryFailed)
+            seen = plan.seen
+            for entry in plan.ready {
+                _ = distill.accept(kind: DistillRunner.kind, sources: [entry.path],
+                                   options: try? DownloadJob.encode(entry.stamp))
+            }
             schedule(plan.recheck)
-            done(plan.sources.count)
+            done(plan.ready.count)
         }
     }
 
     /// Any change in the suite lands here; only a new folder, or the option going off, restarts the watch.
     private func follow() {
-        let wanted = defaults.bool(forKey: DistillNotes.convertKey) ? DistillNotes.folder(in: defaults) : nil
+        let wanted = DistillNotes.dropFolder(in: defaults)
+        if let queue = distill.queue {
+            for id in DistillDrop.orphans(queue.jobs, kind: DistillRunner.kind, folder: wanted) { queue.cancel(id) }
+        }
         guard wanted != folder else { return }
         watch(wanted)
     }
@@ -57,14 +68,21 @@ final class DistillDropWatcher {
     private func watch(_ target: URL?) {
         folder = target
         stream = nil
-        recheck?.cancel()
+        seen = [:]
+        for task in [recheck, scan] { task?.cancel() }
         recheck = nil
+        scan = nil
         guard let target else { return }
         stream = FileSystemWatcher(
             paths: [target.path(percentEncoded: false)], since: FSEventStreamEventId(kFSEventStreamEventIdSinceNow),
             queue: .main
         ) { [weak self] _ in
             Task { @MainActor [weak self] in self?.rescan() }
+        }
+        // Unwatched, the folder stays unset so the next change in the suite tries again.
+        guard stream != nil else {
+            folder = nil
+            return
         }
         rescan()
     }
@@ -82,13 +100,11 @@ final class DistillDropWatcher {
 
     @concurrent
     private static func entries(in folder: URL) async -> [DistillDrop.Entry] {
-        let keys: [URLResourceKey] = [.isRegularFileKey, .isSymbolicLinkKey, .contentModificationDateKey]
-        let urls = (try? FileManager.default.contentsOfDirectory(at: folder, includingPropertiesForKeys: keys)) ?? []
-        return urls.compactMap { url in
-            guard let values = try? url.resourceValues(forKeys: Set(keys)) else { return nil }
-            return DistillDrop.Entry(
-                path: url.path(percentEncoded: false), isRegularFile: values.isRegularFile == true,
-                isSymbolicLink: values.isSymbolicLink == true, modified: values.contentModificationDate ?? .distantPast)
+        let root = folder.path(percentEncoded: false)
+        let names = (try? FileManager.default.contentsOfDirectory(atPath: root)) ?? []
+        return names.map { name in
+            let path = URL(filePath: root).appending(path: name).path(percentEncoded: false)
+            return DistillDrop.Entry(path: path, stamp: DistillDrop.stamp(at: path))
         }
     }
 }

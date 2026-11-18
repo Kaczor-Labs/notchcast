@@ -175,6 +175,9 @@
     "The file could not be read." : {
 
     },
+    "The file changed while Distill read it." : {
+
+    },
     "Choose a Markdown folder for Distill first." : {
 
     },

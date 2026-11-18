@@ -15,6 +15,8 @@ nonisolated struct DistillRunner: DownloadRunner {
     let onBusy: @MainActor @Sendable () -> Void
     /// The Markdown folder as the job begins; nil keeps every output in the Distill folder only.
     var notes: @MainActor @Sendable () -> DistillNotes? = { nil }
+    /// Read again before a dropped file is converted and before it is trashed, so a change in between stops it.
+    var dropFolder: @MainActor @Sendable () -> URL? = { nil }
     var kind: String { Self.kind }
     // A web link needs no tool, so a media link reports a missing one when it runs.
     let tools: [DownloadTool] = []
@@ -25,7 +27,10 @@ nonisolated struct DistillRunner: DownloadRunner {
         if job.source.hasPrefix("/") {
             guard let notes else { throw DistillFailure.noFolder }
             let file = URL(filePath: job.source)
-            return try await endingOnBusy { try await convert(file, notes: notes, times: times, context: context) }
+            let stamp = try job.options(DistillDrop.Stamp.self)
+            return try await endingOnBusy {
+                try await convert(file, stamp: stamp, notes: notes, times: times, context: context)
+            }
         }
         guard let url = URL(string: job.source), YtDlpAudio.isMedia(url) else {
             let page = try await WebpageRunner().run(job, context: context)
@@ -92,7 +97,7 @@ nonisolated struct DistillRunner: DownloadRunner {
 }
 
 enum DistillFailure: LocalizedError, Equatable {
-    case busy, unavailable, unreadableAudio, empty, unsupported, unreadable, noFolder
+    case busy, unavailable, unreadableAudio, empty, unsupported, unreadable, changed, noFolder
     case failed(String)
 
     init(_ error: NotchcastTranscribeError) {
@@ -114,6 +119,7 @@ enum DistillFailure: LocalizedError, Equatable {
         case .empty: String(localized: "No speech was found.", table: "NotchcastDownloads")
         case .unsupported: String(localized: "Distill cannot convert this file.", table: "NotchcastDownloads")
         case .unreadable: String(localized: "The file could not be read.", table: "NotchcastDownloads")
+        case .changed: String(localized: "The file changed while Distill read it.", table: "NotchcastDownloads")
         case .noFolder: String(localized: "Choose a Markdown folder for Distill first.", table: "NotchcastDownloads")
         case .failed(let detail): detail
         }
