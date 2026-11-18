@@ -277,7 +277,7 @@ struct DownloadsNotesTest {
     ) -> DistillRunner {
         DistillRunner(workDirectory: root.appending(path: "work", directoryHint: .isDirectory), transcribe: transcribe,
                       timestamps: { false }, onBusy: { busy.count += 1 }, notes: { notes },
-                      dropFolder: { watched?.folder ?? notes?.folder })
+                      dropFolder: { if let watched { watched.folder } else { notes?.folder } })
     }
 
     /// A dropped file's job as the watcher queues it: its path and the stamp it had when it settled.
