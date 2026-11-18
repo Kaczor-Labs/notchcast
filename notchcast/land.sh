@@ -27,11 +27,22 @@ selector="$(cd "$(dirname "$0")" && pwd)/changed-harnesses.sh"
 cd "$(git rev-parse --show-toplevel)"
 source "$(dirname "$0")/merge.sh"
 delete_head() {
-    local name=$1 expected=$2 fork=${3:-false} remote local_head
+    local name=$1 expected=$2 fork=${3:-false} remote local_head stacked pr kept=
     [ "$fork" = false ] || return 0
     remote=$(git ls-remote origin "refs/heads/$name") || { echo 'WARN: cannot read origin head' >&2; return 0; }
     if [ "${remote%%[[:space:]]*}" = "$expected" ]; then
-        git push origin --delete "$name" || echo "WARN: could not delete origin/$name" >&2
+        # GitHub closes every open PR based on a deleted branch, so each moves to main first.
+        stacked=$(gh pr list -R "$FORK_REPO" --base "$name" --state open --limit 1000 --json number --jq '.[].number') \
+            || { echo "WARN: kept origin/$name: cannot list PRs based on it" >&2; kept=1; }
+        for pr in $stacked; do
+            if gh pr edit "$pr" -R "$FORK_REPO" --base main >/dev/null; then
+                echo "retargeted #$pr from $name to main"
+            else
+                echo "WARN: kept origin/$name: PR #$pr still targets it" >&2
+                kept=1
+            fi
+        done
+        [ -n "$kept" ] || git push origin --delete "$name" || echo "WARN: could not delete origin/$name" >&2
     fi
     local_head=$(git rev-parse --verify "refs/heads/$name" 2>/dev/null) || return 0
     if [ "$local_head" = "$expected" ]; then

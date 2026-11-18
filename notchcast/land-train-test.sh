@@ -14,7 +14,15 @@ cat > "$scratch/bin/gh" <<'STUB'
 #!/bin/bash
 case "$*" in
     # The real --jq filter over every fixture PR.
-    'pr list '*) jq -s 'map(select(.state == "OPEN"))' "$FIXTURE"/pr-*.json | jq -r "${*: -1}" ;;
+    'pr list '*)
+        base=$*
+        base=${base#*--base }
+        jq -s --arg base "${base%% *}" 'map(select(.state == "OPEN" and .baseRefName == $base))' "$FIXTURE"/pr-*.json | jq -r "${*: -1}" ;;
+    # Logs the base it leaves and whether origin still had that branch.
+    'pr edit '*'--base main')
+        was=$(jq -r .baseRefName "$FIXTURE/pr-$3.json")
+        echo "$3 $was $(git -C "$FIXTURE/origin.git" for-each-ref "refs/heads/$was" | wc -l | tr -d ' ')" >> "$FIXTURE/retargeted"
+        jq '.baseRefName = "main"' "$FIXTURE/pr-$3.json" > "$FIXTURE/pr.json" && mv "$FIXTURE/pr.json" "$FIXTURE/pr-$3.json" ;;
     'pr comment '*)
         echo "$3 ${*: -1}" >> "$FIXTURE/comments"
         jq --arg body "${*: -1}" '.comments += [{body: $body}]' "$FIXTURE/pr-$3.json" > "$FIXTURE/pr.json" && mv "$FIXTURE/pr.json" "$FIXTURE/pr-$3.json" ;;
@@ -186,6 +194,17 @@ grep -q "^1 Landed on main as $(origin rev-parse main~1) .* onto $base\.$" "$FIX
 [ -z "$(origin for-each-ref refs/heads/pr-b refs/heads/pr-c)" ] || fail 'landed heads were not deleted'
 [ ! -e "$FIXTURE/hold" ] || fail 'the train left its hold behind'
 echo 'PASS: a 2-PR train lands one squash per PR after one harness pass over the union of their selections'
+
+# #2 is stacked on #1's branch: GitHub would close it when that branch is deleted.
+fixture
+open_pr 1 pr-b 'Add B' src/b.txt
+open_pr 2 pr-c 'Add C' src/c.txt
+jq '.baseRefName = "pr-b"' "$FIXTURE/pr-2.json" > "$FIXTURE/pr.json" && mv "$FIXTURE/pr.json" "$FIXTURE/pr-2.json"
+land 1
+[ "$status" -eq 0 ] && grep -q '^retargeted #2 from pr-b to main$' "$FIXTURE/output" || fail 'landing #1 did not say it moved the PR stacked on its branch'
+[ "$(cat "$FIXTURE/retargeted")" = '2 pr-b 1' ] && [ -z "$(origin for-each-ref refs/heads/pr-b)" ] \
+    && [ "$(jq -r '.state + " " + .baseRefName' "$FIXTURE/pr-2.json")" = 'OPEN main' ] || fail 'the stacked PR was not moved to main before its base was deleted'
+echo 'PASS: a PR stacked on a landed branch is moved to main, and said so, before that branch is deleted'
 
 fixture
 open_pr 1 pr-one 'Add one' src/shared.txt
