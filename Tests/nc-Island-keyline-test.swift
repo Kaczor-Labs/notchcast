@@ -7,7 +7,6 @@
 // notchcast-sources: Tinycast/Features/Island/Service/IslandNoticeArt.swift
 // notchcast-sources: Tinycast/Features/Island/Service/IslandLevelArt.swift
 // notchcast-sources: Tinycast/Features/Island/Service/IslandCanvas.swift
-// notchcast-sources: Tinycast/Features/Island/Model/IslandGlassShade.swift
 // notchcast-sources: Tinycast/Features/Island/Service/IslandExpansionArt.swift
 import AppKit
 
@@ -106,9 +105,9 @@ struct IslandKeylineTest {
         let pillLeft = Int(rest.minX) * scale
         let edge = Int((0.12 * 255).rounded())
         let tint = pillRow[pillLeft + 4]
-        precondition(abs(Int(tint[3]) - Int((0.88 * 255).rounded())) <= 1, "Frosted fills the graphite tint: \(tint)")
-        precondition(tint[0...2] == [24, 25, 28], "The tint is graphite, not black: \(tint)")
-        precondition(gray(pillRow[pillLeft]) - 24 >= edge && gray(pillRow[pillLeft + 1]) - 24 >= edge,
+        precondition(Int(tint[3]) >= Int((0.88 * 255).rounded()) && tint[3] < 255, "Frosted fills the graphite tint: \(tint)")
+        precondition(tint[0] > 0 && tint[0] < tint[1] && tint[1] < tint[2], "The shaded tint is graphite, not black: \(tint)")
+        precondition(gray(pillRow[pillLeft]) - Int(tint[0]) >= edge && gray(pillRow[pillLeft + 1]) - Int(tint[0]) >= edge,
                      "The Frosted edge is one point, two device pixels: \(pillRow[pillLeft]) \(pillRow[pillLeft + 1])")
         precondition(gray(pillRow[pillLeft + 2]) == Int(tint[0]), "The edge stays inside its point")
         pill.solidGlass = true

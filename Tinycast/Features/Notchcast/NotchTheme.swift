@@ -76,6 +76,13 @@ extension NotchTheme {
         static let separator = Color(.sRGB, white: 1, opacity: 0.10)
         static let controlFill = Color(.sRGB, white: 1, opacity: 0.07)
         static let controlEdge = Color(.sRGB, white: 1, opacity: 0.14)
+        /// Black over the tint, top edge to bottom: the glass darkens toward the notch.
+        static let shade: [(location: Double, color: Color)] = [
+            (0, ObsidianTokens.Glass.glassShadeTop),
+            (ObsidianTokens.Glass.glassShadeMidStop, ObsidianTokens.Glass.glassShadeMid),
+            (1, ObsidianTokens.Glass.glassShadeMid.opacity(0)),
+        ]
+        static let desaturate = ObsidianTokens.Glass.glassDesaturate
         /// The one accent: the dialog's primary, progress, switches and the focus edge.
         static let accent = ObsidianTokens.Theme.accent
         static let destructive = ink(0xFF827A)

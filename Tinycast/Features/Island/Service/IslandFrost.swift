@@ -8,8 +8,6 @@ final class IslandFrost {
     private let clip = IslandInertView()
     private let blur = IslandBlurView()
     private let mute = IslandMuteView()
-    private let preferences = UserDefaults(
-        suiteName: NotchcastPreferences.suiteName(bundleID: Bundle.main.bundleIdentifier ?? ""))
     private let mask = CAShapeLayer()
     private let lift = IslandLiftWindow()
     private var liftShape: (CGPath, NotchTheme.Shadow)?
@@ -57,8 +55,6 @@ final class IslandFrost {
         canvas.solidGlass = NSWorkspace.shared.accessibilityDisplayShouldReduceTransparency
             || NSWorkspace.shared.accessibilityDisplayShouldIncreaseContrast
         clip.isHidden = canvas.solidGlass
-        canvas.shade = IslandGlassShade.current(preferences)
-        mute.layer?.opacity = Float(canvas.shade.mute)
         mask.path = canvas.outline
         if lift.frame != backdrop.frame { lift.setFrame(backdrop.frame, display: false) }
         if lift.parent == nil, backdrop.isVisible { backdrop.addChildWindow(lift, ordered: .below) }
@@ -96,7 +92,7 @@ private final class IslandMuteView: NSView {
         let layer = CALayer()
         layer.backgroundColor = CGColor(gray: 0.5, alpha: 1)
         layer.compositingFilter = "saturationBlendMode"
-        layer.opacity = 0
+        layer.opacity = Float(NotchTheme.Frosted.desaturate)
         self.layer = layer
         wantsLayer = true
     }

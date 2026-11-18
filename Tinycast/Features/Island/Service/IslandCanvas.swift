@@ -23,7 +23,6 @@ final class IslandCanvas: NSView {
     private var replay: ((IslandCanvas) -> Void)?
     /// Frosted under Reduce Transparency or Increase Contrast paints its glass solid.
     var solidGlass = false
-    var shade = IslandGlassShade.off { didSet { if shade != oldValue { needsDisplay = true } } }
     var restingKeyline = 0.0
     /// How far past the rest pill the outline has grown, so the line fades with the island, never pops.
     var keylineStrength: Double {
@@ -50,8 +49,8 @@ final class IslandCanvas: NSView {
     /// Frosted darkens toward the notch: black over the tint, under the edge and the art.
     private func drawShade(in context: CGContext, outline: CGPath) {
         let box = outline.boundingBoxOfPath
-        let stops = shade.stops
-        let colors = stops.map { CGColor(srgbRed: 0, green: 0, blue: 0, alpha: $0.alpha) } as CFArray
+        let stops = NotchTheme.Frosted.shade
+        let colors = stops.map { NSColor($0.color).cgColor } as CFArray
         guard let gradient = CGGradient(colorsSpace: CGColorSpace(name: CGColorSpace.sRGB), colors: colors,
                                         locations: stops.map { CGFloat($0.location) }) else { return }
         context.saveGState()
@@ -76,7 +75,7 @@ final class IslandCanvas: NSView {
         context.addPath(outline)
         context.setFillColor(NSColor(surface).cgColor)
         context.fillPath()
-        if look == .frosted, !solidGlass, shade != .off { drawShade(in: context, outline: outline) }
+        if look == .frosted, !solidGlass { drawShade(in: context, outline: outline) }
         #if DEBUG
         if look == .frosted, let notch = IslandController.simulatedNotch {
             context.setFillColor(NSColor.black.cgColor)
