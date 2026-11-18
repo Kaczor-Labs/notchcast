@@ -1,63 +1,112 @@
-<h1 align="center">
-  <a href="https://tinycast.dev"><img src="docs/images/icon.png" alt="Tinycast app icon" width="128" height="128"></a><br>
-  Tinycast
-</h1>
+<!-- Generated: the root README.md is a copy of notchcast/README.public.md made by `notchcast/ci.py regenerate`.
+     Edit notchcast/README.public.md. Links use repository-root paths (/LICENSE) so they work in both places. -->
 
-<p align="center">
-  A native macOS launcher for everyday productivity. Lightweight and open source.
-</p>
+# Notchcast
 
-<p align="center">
-  <a href="https://tinycast.dev"><strong>Website</strong></a> ·
-  <a href="#install"><strong>Install</strong></a> ·
-  <a href="https://tinycast.dev/docs/"><strong>Docs</strong></a> ·
-  <a href="https://tinycast.dev/support"><strong>Support</strong></a>
-</p>
+[![Release](https://img.shields.io/github/v/release/kaczordodgers/notchcast)](https://github.com/kaczordodgers/notchcast/releases/latest)
+[![Sync](https://github.com/kaczordodgers/notchcast/actions/workflows/sync.yml/badge.svg)](https://github.com/kaczordodgers/notchcast/actions/workflows/sync.yml)
+[![License: AGPL-3.0](https://img.shields.io/badge/license-AGPL--3.0-blue)](/LICENSE)
+![macOS 26+](https://img.shields.io/badge/macOS-26%2B-lightgrey)
 
-<p align="center">
-  <a href="https://github.com/abue-ammar/tinycast/releases/latest"><picture><source media="(prefers-color-scheme: dark)" srcset="https://shieldcn.dev/github/release/abue-ammar/tinycast.svg?variant=ghost&amp;font=geist-mono&amp;mode=dark&amp;label=RELEASE&amp;logo=lu:Tag&amp;valueColor=60A5FA" /><img alt="Latest release" src="https://shieldcn.dev/github/release/abue-ammar/tinycast.svg?variant=ghost&amp;font=geist-mono&amp;mode=light&amp;label=RELEASE&amp;logo=lu:Tag&amp;valueColor=2563EB" /></picture></a>
-  <a href="https://github.com/abue-ammar/tinycast/releases"><picture><source media="(prefers-color-scheme: dark)" srcset="https://shieldcn.dev/github/downloads/abue-ammar/tinycast.svg?variant=ghost&amp;font=geist-mono&amp;mode=dark&amp;label=DOWNLOADS&amp;logo=lu:CloudDownload&amp;valueColor=A78BFA" /><img alt="Total downloads" src="https://shieldcn.dev/github/downloads/abue-ammar/tinycast.svg?variant=ghost&amp;font=geist-mono&amp;mode=light&amp;label=DOWNLOADS&amp;logo=lu:CloudDownload&amp;valueColor=7C3AED" /></picture></a>
-  <a href="https://github.com/abue-ammar/tinycast/actions/workflows/release.yml"><picture><source media="(prefers-color-scheme: dark)" srcset="https://shieldcn.dev/github/ci/abue-ammar/tinycast.svg?variant=ghost&amp;font=geist-mono&amp;mode=dark&amp;workflow=release.yml&amp;label=BUILD&amp;logo=lu:Hammer&amp;valueColor=4ADE80" /><img alt="Release build status" src="https://shieldcn.dev/github/ci/abue-ammar/tinycast.svg?variant=ghost&amp;font=geist-mono&amp;mode=light&amp;workflow=release.yml&amp;label=BUILD&amp;logo=lu:Hammer&amp;valueColor=16A34A" /></picture></a>
-  <a href="https://discord.gg/v2Eeb4QQy3"><picture><source media="(prefers-color-scheme: dark)" srcset="https://shieldcn.dev/badge/DISCORD-JOIN.svg?variant=ghost&amp;font=geist-mono&amp;mode=dark&amp;logo=discord&amp;valueColor=A5B4FC" /><img alt="Join the Tinycast Discord" src="https://shieldcn.dev/badge/DISCORD-JOIN.svg?variant=ghost&amp;font=geist-mono&amp;mode=light&amp;logo=discord&amp;valueColor=5865F2" /></picture></a>
-  <br>
-  <picture><source media="(prefers-color-scheme: dark)" srcset="https://shieldcn.dev/badge/MACOS-26%2B.svg?variant=ghost&amp;font=geist-mono&amp;mode=dark&amp;logo=apple" /><img alt="macOS 26 or later" src="https://shieldcn.dev/badge/MACOS-26%2B.svg?variant=ghost&amp;font=geist-mono&amp;mode=light&amp;logo=apple" /></picture>
-  <picture><source media="(prefers-color-scheme: dark)" srcset="https://shieldcn.dev/badge/SWIFT-6.svg?variant=ghost&amp;font=geist-mono&amp;mode=dark&amp;logo=swift&amp;valueColor=FB923C" /><img alt="Swift 6" src="https://shieldcn.dev/badge/SWIFT-6.svg?variant=ghost&amp;font=geist-mono&amp;mode=light&amp;logo=swift&amp;valueColor=EA580C" /></picture>
-  <a href="LICENSE"><picture><source media="(prefers-color-scheme: dark)" srcset="https://shieldcn.dev/badge/LICENSE-AGPL--3.0.svg?variant=ghost&amp;font=geist-mono&amp;mode=dark&amp;logo=lu:Scale" /><img alt="License: AGPL-3.0" src="https://shieldcn.dev/badge/LICENSE-AGPL--3.0.svg?variant=ghost&amp;font=geist-mono&amp;mode=light&amp;logo=lu:Scale" /></picture></a>
-</p>
+Notchcast is a macOS launcher that lives in an island at the top of your screen, around the notch or where a notch would be. It is [Tinycast](https://github.com/abue-ammar/tinycast) by Abue Ammar, the native launcher with clipboard history, hotkeys, snippets, window management and system tools, plus our own commits on top: the island that replaces Tinycast's floating palette and menu-bar icons, and a set of add-ons for keyboard, display, sound, capture and downloads. Every upstream change is replayed under our commits once its review passed, so Notchcast stays current with Tinycast.
 
-<p align="center">
-  <img src="docs/screenshot.jpg" alt="Tinycast command palette">
-</p>
+**Status:** in use; a snapshot is published from every green `main`.
 
-Built with SwiftUI and AppKit. No dependencies, no Electron, no telemetry. It runs your Raycast
-extensions, too.
-
-[Explore all features →](https://tinycast.dev/#features)
-
-For anything private, feel free to email [hello@tinycast.dev](mailto:hello@tinycast.dev).
+[Download](https://github.com/kaczordodgers/notchcast/releases) · [Use it](#use-it) · [Contribute](#where-things-are)
 
 ## Install
 
-On an Apple silicon Mac with macOS 26 or newer:
+You need macOS 26 or later on Apple silicon.
+
+1. Open [Releases](https://github.com/kaczordodgers/notchcast/releases) and download `Notchcast-<version>.dmg` from the newest `snapshot` pre-release. Snapshots are built from every green `main`; the releases without `snapshot` rebuild each upstream Tinycast release with our commits.
+2. Drag Notchcast to Applications.
+3. Builds are signed with our own self-signed certificate and are not notarized, so remove the quarantine flag once: `xattr -dr com.apple.quarantine /Applications/Notchcast.app`
+4. Open Notchcast and grant Accessibility when asked. Turn on **Launch at login** in Settings › General if you want it at every login.
+
+Notchcast has its own bundle id (`app.notchcast`), URL scheme (`notchcast://`) and data, so it runs beside Tinycast.
+
+## Update
+
+The in-app updater stays off in Notchcast. To keep a Mac current, clone this repo and run `/bin/bash notchcast/install-launchd.sh update` once (needs the `gh` CLI logged in). Every 30 minutes it installs the newest snapshot into `/Applications`, after it checks the bundle id, version and our signing certificate. It keeps one previous copy for rollback, restarts Notchcast only if it was running, and never touches settings or data. The script itself does not update: after pulling this repo, run the same command again to update it. Turn off **Automatically check for updates** in Notchcast's settings to pause it. Without the script, download a newer snapshot by hand and repeat steps 2 and 3. Details: [Installing on a Mac](/notchcast/README.md#installing-on-a-mac).
+
+## Use it
+
+<!-- features:start -->
+
+- **The island.** At rest it is a small pill at the top of the screen. Click it, or press your global shortcut, and it opens into the launcher. Right-click it for Settings and Quit. When your calendar has a meeting coming up, the pill shows its title and a countdown, and grows for a moment when it is time to join. Notices, add-on status and the volume level also show in the island.
+- **The launcher.** Everything Tinycast does: app and command search, clipboard history, snippets, quicklinks, calculator with units and currencies, emoji, file and menu-bar search, window management, layouts and rooms, notes, calendar, dictionary, Quick AI and AI chat, custom commands and deeplinks. Feature docs: [docs/features](/docs/features).
+- **Look per display.** Each display's island is Black or Frosted (glass). A display you never set is Black when it has a notch and Frosted when it has none. Change it in Settings › Notchcast › Island.
+- **Settings › Notchcast.** One tab per area, each add-on with its own switch; an add-on's tab shows only while that add-on is in the build.
+  - **Island**: look, outline when open, position on displays without a notch, show in screenshots and videos.
+  - **Keyboard & Mouse**: hide with ⌘M, Show Desktop with F3, Quit Protection, trackpad middle click.
+  - **Display & Sound**: brightness keys for every display, volume in the island, stop Apple Music opening on media keys.
+  - **Capture**: screenshots of an area, window or display.
+  - **Launcher Extras**: ⌘1–⌘9 open the first nine results; small commands for passwords, short links and AirDrop.
+  - **Downloads**: video, audio, transcripts and webpages from clipboard links, with optional aria2c and transcription into a local folder.
+  - **Mac Tweaks**: turn off iPhone auto backups.
+- **Add-on commands** are ordinary launcher commands: search them, and give them an alias, a hotkey or Show in launcher on the command's row in its Notchcast tab.
+
+Notchcast is English only and Dark only.
+
+Settings can be mirrored to `~/.config/app.notchcast/settings.json`; see [settings-file.md](/docs/features/settings-file.md).
+
+<!-- features:end -->
+
+## Dev builds
+
+You need Xcode 27 and [XcodeGen](https://github.com/yonaskolb/XcodeGen).
 
 ```sh
-brew install --cask tinycast
-brew install --cask tinycast@beta
+git clone https://github.com/kaczordodgers/notchcast.git
+cd notchcast
+xcodegen generate
+xcodebuild -project Tinycast.xcodeproj -scheme Tinycast -configuration Debug build
 ```
 
-- **DMG:** notarized, download from [Releases](https://github.com/abue-ammar/tinycast/releases). Drag `Tinycast.app` to `/Applications`.
-- **Intel Mac:** install from [Homebrew tap](https://github.com/abue-ammar/homebrew-tinycast).
+A Debug build is a separate app: `Notchcast Dev.app`, bundle id `app.notchcast.dev`, with its own settings, data and permissions, and its name in the menus, About and dialogs. It never replaces or collides with the installed Notchcast. A copy built with its own suffix, such as `app.notchcast.dev.mytask`, names itself `Notchcast Dev mytask` ([fork-strings.md](/notchcast/docs/fork-strings.md#channel-name)). Debug builds sign ad-hoc, so each rebuild loses its Accessibility grant; [signing.md §1](/docs/signing.md) sets up a local identity that keeps it. More: [development.md](/docs/development.md).
 
-## Support
+## Where things are
 
-Tinycast is free and stays free. If it earns a place on your Mac, consider supporting its
-development. Thank you!
+The Xcode project, target and source folders use the name `Tinycast`.
 
-<p align="center">
-  <a href="https://tinycast.dev/support"><picture><source media="(prefers-color-scheme: dark)" srcset="https://shieldcn.dev/badge/SUPPORT-CARD.svg?variant=outline&amp;size=lg&amp;font=geist-mono&amp;mode=dark&amp;logo=lu:CircleDollarSign&amp;logoColor=A78BFA&amp;valueColor=A78BFA" /><img alt="Support by card payment" src="https://shieldcn.dev/badge/SUPPORT-CARD.svg?variant=outline&amp;size=lg&amp;font=geist-mono&amp;mode=light&amp;logo=lu:CircleDollarSign&amp;logoColor=7C3AED&amp;valueColor=7C3AED" /></picture></a>
-  <a href="https://tinycast.dev/support?method=crypto"><picture><source media="(prefers-color-scheme: dark)" srcset="https://shieldcn.dev/badge/SUPPORT-CRYPTO.svg?variant=outline&amp;size=lg&amp;font=geist-mono&amp;mode=dark&amp;logo=lu:Bitcoin&amp;logoColor=FBBF24&amp;valueColor=FBBF24" /><img alt="Support with crypto" src="https://shieldcn.dev/badge/SUPPORT-CRYPTO.svg?variant=outline&amp;size=lg&amp;font=geist-mono&amp;mode=light&amp;logo=lu:Bitcoin&amp;logoColor=B45309&amp;valueColor=B45309" /></picture></a>
-</p>
+```text
+Tinycast/                     app sources
+  Features/<Name>/            upstream features, one folder each
+  Features/Island/            the island: engine, shell, meeting glance
+  Features/Notchcast/         our add-ons, one folder each, plus Core and Hidden
+  Features/Notchcast/NotchcastRegistry.swift   one line per add-on
+Tests/                        standalone harnesses, no XCTest; ours are nc-<Folder>-*.swift and notchcast-*.swift
+Scripts/                      upstream's build, test and lint scripts
+docs/                         upstream's developer and feature docs
+notchcast/                    fork tooling: sync, CI, landing, checks, install and update
+notchcast/docs/               fork docs
+.github/workflows/            CI: PR, Sync, Snapshot, Main harnesses, Design, Leaks, CodeQL
+project.yml                   XcodeGen input; Tinycast.xcodeproj is generated from it
+```
+
+The dev loop:
+
+- Test locally with `./Scripts/run-tests.sh` (all harnesses, ours included) or `./Scripts/run-tests.sh <harness>`, and `./Scripts/lint.sh`. See [testing.md](/docs/testing.md).
+- Maintainers push a branch with `python3 notchcast/notchcast-ci.py --repo .`, which waits for GitHub's harness verdict on it.
+- PRs open as drafts. Maintainers land them only with `notchcast/land.sh <pr>`, which tests the merge onto `main` and squash-merges it.
+- Sync replays our commits onto each new upstream `main` once the maintainer's review of the upstream diff passed, and Snapshot publishes every green `main`. Generated files (`README.md`, the Xcode project) are rebuilt by CI; edit `notchcast/README.public.md` and `project.yml` instead.
+
+Read before you change things:
+
+| Doc | For |
+| --- | --- |
+| [AGENTS.md](/AGENTS.md) | agents: rules, posture, definition of done |
+| [notchcast/README.md](/notchcast/README.md) | maintainers: sync, CI, landing, releases, installing on a Mac |
+| [addons.md](/notchcast/docs/addons.md) | writing an add-on: one folder, one registry line |
+| [island-shell.md](/notchcast/docs/island-shell.md) | how the island works |
+| [design-system.md](/notchcast/docs/design-system.md) | Notchcast's look; upstream's is [ui.md](/docs/ui.md) |
+| [hotspots.md](/notchcast/docs/hotspots.md) | upstream files to avoid touching |
+| [architecture.md](/docs/architecture.md), [standards.md](/docs/standards.md) | upstream's wiring and Swift rules |
+
+Contributing: [CONTRIBUTING.md](/.github/CONTRIBUTING.md). Security reports: [SECURITY.md](/.github/SECURITY.md). Bugs go in [our issues](https://github.com/kaczordodgers/notchcast/issues), not upstream's.
 
 ## License
 
-Tinycast is licensed under the [AGPL-3.0 license](LICENSE).
+GNU Affero General Public License v3.0 or later, the same as Tinycast. See [LICENSE](/LICENSE). Tinycast is Copyright (C) 2026 Abue Ammar; Notchcast's changes are released under the same license.
+
+Notchcast is a modified version of [Tinycast](https://github.com/abue-ammar/tinycast) by Abue Ammar, as the AGPL (section 5a) requires us to state: our changes are the commits on top of upstream `main`, and [notchcast/README.md](/notchcast/README.md) describes how they are kept and rebuilt. Third-party material and its licences are listed in [NOTICE.md](/NOTICE.md); code our add-ons borrow is listed in [borrowed.md](/notchcast/licenses/borrowed.md).
