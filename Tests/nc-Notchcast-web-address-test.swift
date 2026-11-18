@@ -52,7 +52,26 @@ enum NotchcastWebAddressTests {
         check("the row's own Hide removes it", row("x.com") == nil)
         store.setKindEnabled(true, for: .command)
         check("its own Hide holds with Commands on", row("x.com") == nil)
-        if failures > 0 { print("FAILED \(failures)/10"); exit(1) }
+        // #1062: a forced kind reads off whatever is stored, and forcing writes nothing.
+        let pane = AppEntry(
+            id: "pane", name: "Displays", url: URL(fileURLWithPath: "/"), bundleID: "com.apple.Displays",
+            kind: .systemSettings)
+        store.setItemVisible(true, forKey: CommandID.openInBrowser.rawValue)
+        store.setKindEnabled(false, for: .command)
+        check("nothing ships forced", NotchcastHiddenCommands.kinds.isEmpty)
+        check("unforced, System Settings is on as stored", store.isVisible(pane))
+        NotchcastHiddenCommands.kinds = [.systemSettings, .command]
+        store.setKindEnabled(true, for: .systemSettings)
+        check("a forced kind reads off after being switched on", !store.isKindEnabled(.systemSettings))
+        check("a forced kind lists none of its entries", !store.isVisible(pane))
+        check("a forced kind refuses its hotkey", !store.allowsHotKey(.settingsPane(bundleID: "com.apple.Displays")))
+        check("a kind that is not forced keeps its stored value", store.isKindEnabled(.application))
+        check("Commands forced off still offers the typed address its row", row("x.com") != nil)
+        check("forcing leaves the stored kinds as they were",
+              defaults.stringArray(forKey: "hiddenLauncherKinds") == ["command"])
+        NotchcastHiddenCommands.kinds = []
+        check("unforced again, the stored values decide", store.isVisible(pane) && !store.isKindEnabled(.command))
+        if failures > 0 { print("FAILED \(failures)/19"); exit(1) }
         print("PASSED")
     }
 }

@@ -7,6 +7,10 @@ if [[ " $* " == *" Tinycast/Features/Settings/SettingsTab.swift "* && " $* " != 
     set -- "$@" Tinycast/Features/Notchcast/Core/Model/NotchcastPane.swift
     [[ " $* " == *" Tinycast/Features/Notchcast/Core/Model/NotchcastCategory.swift "* ]] || set -- "$@" Tinycast/Features/Notchcast/Core/Model/NotchcastCategory.swift
 fi
+# The hidden commands and forced kinds (notchcast/docs/hidden.md) are read by AppIndex and VisibilityStore.
+if [[ " $* " == *" Tinycast/Features/Launcher/Service/AppIndex.swift "* || " $* " == *" Tinycast/Features/Launcher/Service/VisibilityStore.swift "* ]]; then
+    [[ " $* " == *" Tinycast/Features/Notchcast/Hidden/NotchcastHiddenCommands.swift "* ]] || set -- "$@" Tinycast/Features/Notchcast/Hidden/NotchcastHiddenCommands.swift
+fi
 # Notchcast's search rows sit beside the catalog, with the two descriptor types they read.
 if [[ " $* " == *" Tinycast/Features/Settings/SettingsSearchCatalog.swift "* && " $* " != *" Tinycast/Features/Notchcast/Core/UI/NotchcastSettingsSearch.swift "* ]]; then
     set -- "$@" Tinycast/Features/Notchcast/Core/UI/NotchcastSettingsSearch.swift
