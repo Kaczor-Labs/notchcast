@@ -54,6 +54,11 @@ final class Fake {
     var sessions: [any SystemToolsPicking] = []
     var addresses: [LocalAddress] = []
     var publicReply: Data?
+    var locationAccess = LocationAccess.off
+    /// What the user answers to the Location prompt.
+    var locationAnswer = LocationAccess.off
+    var locationAsks = 0
+    var currentNetwork: String?
     var savedNetworks: [String] = []
     /// A network absent here has no saved password; "fail" makes the read throw.
     var passwords: [String: String] = [:]
@@ -103,6 +108,13 @@ let system = SystemToolsSystem(
         guard let reply = await MainActor.run(body: { fake.publicReply }) else { throw URLError(.notConnectedToInternet) }
         return reply
     },
+    locationAccess: { fake.locationAccess },
+    requestLocationAccess: {
+        fake.locationAsks += 1
+        fake.locationAccess = fake.locationAnswer
+        return fake.locationAnswer
+    },
+    currentWiFiNetwork: { fake.currentNetwork },
     savedWiFiNetworks: { await MainActor.run { fake.savedNetworks } },
     readWiFiPassword: { network in
         let password = await MainActor.run {

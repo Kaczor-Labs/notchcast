@@ -31,6 +31,7 @@ enum SystemToolsNetworkTests {
         await localAddress()
         await publicAddress()
         await wifiPassword()
+        await currentWiFiPassword()
         await switchingOffDropsALookup()
         print("\(checks) system tools network checks; \(failures) failures")
         if failures > 0 { exit(1) }
@@ -91,6 +92,8 @@ enum SystemToolsNetworkTests {
             return check("saved networks open the picker", false)
         }
         check("the picker lists the saved networks in order", session.pickerRows.map(\.title) == ["Home", "Office", "Cafe"])
+        check("Location off never asks", fake.locationAsks == 0)
+        check("the picker says Location is off (\(session.header))", session.header.contains("Location"))
         session.query = "OFF"
         check("typing filters the networks", session.networks == ["Office"])
         session.activate(0, option: false)
@@ -108,6 +111,54 @@ enum SystemToolsNetworkTests {
         check("the island shows it long enough to read",
               shown?.text.contains("hunter2") == true && shown?.seconds == SystemToolsModule.resultSeconds)
         fake.copies = []
+        fake.passwordReads = []
+        fake.passwords = [:]
+        fake.savedNetworks = []
+    }
+
+    static func currentWiFiPassword() async {
+        let rig = Rig()
+        defer { rig.finish() }
+        let module = await rig.module()
+        fake.savedNetworks = ["Home", "Office"]
+        fake.passwords = ["Home": "hunter2", "Office": "s3cret"]
+        fake.currentNetwork = "Office"
+
+        fake.locationAccess = .allowed
+        module.copyWiFiPassword()
+        check("with Location on the current network's password is copied concealed",
+              await until { fake.copies.last.map { $0.text == "s3cret" && $0.concealed } == true })
+        check("the current network needs no picker and no prompt", fake.pickers == 0 && fake.locationAsks == 0)
+        check("only the current network is read", fake.passwordReads == ["Office"])
+        check("the island names the network", rig.presenter.posts.last?.text.contains("Office") == true)
+
+        fake.copies = []
+        fake.locationAccess = .undecided
+        fake.locationAnswer = .allowed
+        module.copyWiFiPassword()
+        check("an undecided Location asks, then copies", await until { fake.copies.last?.text == "s3cret" })
+        check("it asks once and opens no picker", fake.locationAsks == 1 && fake.pickers == 0)
+
+        fake.copies = []
+        fake.locationAccess = .undecided
+        fake.locationAnswer = .off
+        module.copyWiFiPassword()
+        check("a refused Location opens the picker", await until { fake.pickers == 1 })
+        check("a refused Location was asked and copies nothing", fake.locationAsks == 2 && fake.copies.isEmpty)
+        check("the picker says why", (fake.sessions.last as? WiFiNetworkSession)?.header.contains("Location") == true)
+
+        fake.locationAccess = .allowed
+        fake.currentNetwork = nil
+        module.copyWiFiPassword()
+        check("off Wi-Fi opens the picker", await until { fake.pickers == 2 })
+        check("off Wi-Fi blames nothing on Location",
+              (fake.sessions.last as? WiFiNetworkSession)?.header.contains("Location") == false)
+
+        fake.locationAccess = .off
+        fake.locationAnswer = .off
+        fake.locationAsks = 0
+        fake.pickers = 0
+        fake.sessions = []
         fake.passwordReads = []
         fake.passwords = [:]
         fake.savedNetworks = []

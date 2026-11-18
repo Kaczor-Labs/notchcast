@@ -25,7 +25,7 @@ protocol SystemToolsPicking: AnyObject {
     func activate(_ index: Int, option: Bool)
 }
 
-/// The saved Wi-Fi networks; choosing one asks macOS for its password.
+/// The saved Wi-Fi networks, the fallback list; choosing one asks macOS for its password.
 @MainActor
 @Observable
 final class WiFiNetworkSession: SystemToolsPicking {
@@ -35,16 +35,22 @@ final class WiFiNetworkSession: SystemToolsPicking {
     var query = "" { didSet { networks = NetworkInfoPolicy.filter(saved, query: query) } }
     var selectedIndex = 0
     @ObservationIgnored private let saved: [String]
+    @ObservationIgnored private let locationOff: Bool
     @ObservationIgnored private let choose: @MainActor (String) -> Void
 
-    init(saved: [String], choose: @escaping @MainActor (String) -> Void) {
+    init(saved: [String], locationOff: Bool, choose: @escaping @MainActor (String) -> Void) {
         self.saved = saved
+        self.locationOff = locationOff
         networks = saved
         self.choose = choose
     }
 
     var title: String { String(localized: "Copy Wi-Fi Password", table: "NotchcastSystemTools") }
-    var header: String { String(localized: "↩ Copy Password", table: "NotchcastSystemTools") }
+    var header: String {
+        locationOff
+            ? String(localized: "Location Is Off, So Choose a Network", table: "NotchcastSystemTools")
+            : String(localized: "↩ Copy Password", table: "NotchcastSystemTools")
+    }
     var placeholder: String { String(localized: "Search Wi-Fi Networks…", table: "NotchcastSystemTools") }
     var pickerRows: [SystemToolsPickerRow] { networks.map { SystemToolsPickerRow(title: $0, symbol: Self.symbol) } }
     var refreshInterval: Duration? { nil }

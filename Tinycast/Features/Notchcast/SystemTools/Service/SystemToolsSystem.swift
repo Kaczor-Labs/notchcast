@@ -1,5 +1,10 @@
 import Foundation
 
+/// Whether macOS lets Notchcast read the current Wi-Fi network's name.
+enum LocationAccess: Sendable {
+    case undecided, allowed, off
+}
+
 /// The system side, injected so a harness touches nothing real; `.live` is in `+Live`.
 struct SystemToolsSystem: Sendable {
     let ownPID: Int32
@@ -16,6 +21,11 @@ struct SystemToolsSystem: Sendable {
     let localAddresses: @MainActor @Sendable () -> [LocalAddress]
     /// The lookup service's reply body; the one request this add-on makes, and only on command.
     let fetchPublicAddress: @Sendable () async throws -> Data
+    let locationAccess: @MainActor @Sendable () -> LocationAccess
+    /// macOS's own Location prompt; called only while the access is undecided.
+    let requestLocationAccess: @MainActor @Sendable () async -> LocationAccess
+    /// The network this Mac is on; macOS answers nil without Location access.
+    let currentWiFiNetwork: @MainActor @Sendable () -> String?
     let savedWiFiNetworks: @Sendable () async throws -> [String]
     /// macOS asks the user first; nil when no password is saved for that network.
     let readWiFiPassword: @Sendable (_ network: String) async throws -> String?

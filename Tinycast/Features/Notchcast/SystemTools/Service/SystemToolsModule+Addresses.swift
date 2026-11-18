@@ -44,17 +44,26 @@ extension SystemToolsModule {
         }
     }
 
+    /// The current network's password at once; the saved networks when macOS hides its name.
     func copyWiFiPassword() {
         guard isRunning else { return }
-        let load = system.savedWiFiNetworks
+        let system = system
         lookup?.cancel()
         lookup = Task { [weak self] in
-            let saved = (try? await load()) ?? []
+            var access = system.locationAccess()
+            if access == .undecided { access = await system.requestLocationAccess() }
             guard !Task.isCancelled, let self, isRunning else { return }
+            if access == .allowed, let network = system.currentWiFiNetwork(), !network.isEmpty {
+                return readPassword(of: network)
+            }
+            let saved = (try? await system.savedWiFiNetworks()) ?? []
+            guard !Task.isCancelled, isRunning else { return }
             guard !saved.isEmpty else {
                 return postWiFi(String(localized: "No Saved Wi-Fi Networks", table: "NotchcastSystemTools"), failure: true)
             }
-            let session = WiFiNetworkSession(saved: saved) { [weak self] in self?.readPassword(of: $0) }
+            let session = WiFiNetworkSession(saved: saved, locationOff: access != .allowed) { [weak self] in
+                self?.readPassword(of: $0)
+            }
             present(session)
         }
     }

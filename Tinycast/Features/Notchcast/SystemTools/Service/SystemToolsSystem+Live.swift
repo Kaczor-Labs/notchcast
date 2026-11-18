@@ -1,4 +1,5 @@
 import AppKit
+import CoreWLAN
 import Darwin
 
 extension SystemToolsSystem {
@@ -28,6 +29,9 @@ extension SystemToolsSystem {
             guard (response as? HTTPURLResponse)?.statusCode == 200 else { throw URLError(.badServerResponse) }
             return data
         },
+        locationAccess: { WiFiLocationAccess.current },
+        requestLocationAccess: { await WiFiLocationAccess().ask() },
+        currentWiFiNetwork: { CWWiFiClient.shared().interface()?.ssid() },
         savedWiFiNetworks: {
             let tool = "/usr/sbin/networksetup"
             let ports = try await SystemToolsProcess.run(tool, ["-listallhardwareports"])
