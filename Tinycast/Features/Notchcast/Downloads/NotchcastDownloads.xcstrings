@@ -1,6 +1,96 @@
 {
   "sourceLanguage" : "en",
   "strings" : {
+    "Cancel All Torrents" : {
+
+    },
+    "Cancel" : {
+
+    },
+    "Dismiss" : {
+
+    },
+    "Download Torrent from Clipboard" : {
+
+    },
+    "Finding peers" : {
+
+    },
+    "Finished" : {
+
+    },
+    "Keep sharing until ratio 1.0" : {
+
+    },
+    "No peers found in 10 minutes." : {
+
+    },
+    "No usable torrent link or file was found." : {
+
+    },
+    "Not found" : {
+
+    },
+    "Open Torrent File…" : {
+
+    },
+    "Sharing" : {
+
+    },
+    "Show in Finder" : {
+
+    },
+    "The torrent engine is not running." : {
+
+    },
+    "This torrent is already running." : {
+
+    },
+    "Torrents need aria2c. Install it with: brew install aria2" : {
+
+    },
+    "Torrents" : {
+
+    },
+    "Try Again" : {
+
+    },
+    "%@ finished. Show in Finder" : {
+
+    },
+    "%@ left" : {
+
+    },
+    "%lld torrents" : {
+
+    },
+    "%@ · Finding peers" : {
+
+    },
+    "%@ · Sharing" : {
+
+    },
+    "aria2c could not start." : {
+
+    },
+    "aria2c not found" : {
+
+    },
+    "aria2c stopped this download." : {
+
+    },
+    "aria2c stopped." : {
+
+    },
+    "aria2c" : {
+
+    },
+    "Download magnet links and torrent files to ~/Downloads with aria2c." : {
+
+    },
+    "Upload as much as you downloaded before stopping. Off stops sharing once complete." : {
+
+    },
     "%@ is not installed. Install it with: %@" : {
       "localizations" : {
         "en" : {
