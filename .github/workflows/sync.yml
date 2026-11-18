@@ -239,6 +239,7 @@ jobs:
     environment: sync
     permissions:
       contents: write
+      statuses: read
       issues: write
     strategy:
       fail-fast: false
@@ -275,6 +276,14 @@ jobs:
           python3 ../tools/notchcast/ci.py pin-tag "$TAG" "$COMMIT"
           python3 ../tools/notchcast/ci.py replay . "$COMMIT"
           { echo "TAG_COMMIT=$COMMIT"; echo "REPLAYED=$(git rev-parse HEAD)"; } >> "$GITHUB_ENV"
+      # Plan read that commit's own review up to two hours ago; nothing is tested or signed unless it is still a success.
+      - name: Re-read the tag commit's review
+        env:
+          COMMIT: ${{ matrix.release.commit }}
+          BASE: ${{ needs.plan.outputs.base }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if [ "$COMMIT" != "$BASE" ]; then python3 tools/notchcast/ci.py reviewed "$COMMIT"; fi
       - uses: ./tools/notchcast/actions/tests
         with:
           upstream: ${{ env.TAG_COMMIT }}

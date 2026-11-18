@@ -6,6 +6,7 @@ import os
 import subprocess
 import sys
 import tempfile
+import textwrap
 import unittest
 from pathlib import Path
 from unittest import mock
@@ -18,6 +19,7 @@ CONTEXT, OWNER, BOT = "test/review", "fork", "github-actions[bot]"
 CFG = {"UPSTREAM_REPO": "up/stream", "FORK_REPO": "fork/repo", "TESTED_CONTEXT": "test/tested",
        "REVIEW_CONTEXT": CONTEXT, "REVIEW_LABEL": "upstream-sync", "BASELINE_TAG": "v0.0.1"}
 REAL_RUN = CI.run
+ROOT = Path(__file__).resolve().parent.parent
 
 
 def status(state, creator=OWNER, context=CONTEXT):
@@ -176,6 +178,38 @@ class PlanReviewGateTests(unittest.TestCase):
         update = workflow.split("- name: Update main", 1)[1].split("- name:", 1)[0]
         self.assertLess(update.index('ci.py reviewed "$UP"'), update.index("push --atomic"))
         self.assertIn("UP: ${{ needs.plan.outputs.upstream_main }}", update)
+
+    def test_release_rereads_a_side_commit_review_before_tests_and_signing(self):
+        self.statuses = {self.u1: [status("success")]}
+        result = self.plan()
+        self.assertEqual((result["base"], result["commits"]), (self.u0, {"v0.0.1": self.u0, "v0.0.2": self.u1}))
+        job = (ROOT / ".github/workflows/sync.yml").read_text().split("\n  release:\n", 1)[1]
+        self.assertIn("statuses: read", job.split("steps:", 1)[0])
+        step = job.split("- name: Re-read the tag commit's review", 1)[1].split("\n      - ", 1)[0]
+        self.assertLess(job.index("ci.py pin-tag"), job.index("Re-read the tag commit's review"))
+        self.assertLess(job.index("Re-read the tag commit's review"), job.index("actions/tests"))
+        self.assertIn("COMMIT: ${{ matrix.release.commit }}", step)
+        self.assertIn("BASE: ${{ needs.plan.outputs.base }}", step)
+        script = textwrap.dedent(step.split("run: |\n", 1)[1])
+        cfg, root = CI.config(), Path(self.scratch.name)
+        owner = cfg["FORK_REPO"].split("/")[0]
+        (root / "tools").symlink_to(ROOT)
+        (root / "bin").mkdir()
+        (root / "bin/gh").write_text(f'#!/bin/sh\necho "$*" >> {root}/gh-calls\ncat {root}/statuses.json\n')
+        (root / "bin/gh").chmod(0o755)
+
+        def release_step(commit, statuses):
+            (root / "gh-calls").unlink(missing_ok=True)
+            (root / "statuses.json").write_text(json.dumps([[{"context": cfg["REVIEW_CONTEXT"], "state": state,
+                                                               "creator": {"login": owner}} for state in statuses]]))
+            env = dict(os.environ, PATH=f"{root}/bin:{os.environ['PATH']}", COMMIT=commit, BASE=self.u0)
+            done = subprocess.run(["bash", "-e", "-c", script], cwd=root, env=env, capture_output=True, text=True)
+            return done.returncode, (root / "gh-calls").exists()
+
+        self.assertEqual(release_step(self.u1, ["success"]), (0, True))
+        self.assertEqual(release_step(self.u1, ["failure", "success"])[0], 1)
+        self.assertEqual(release_step(self.u1, [])[0], 1)
+        self.assertEqual(release_step(self.u0, ["failure"]), (0, False))
 
     def test_review_pr_closes_once_main_holds_upstream(self):
         self.git(self.up, "update-ref", "refs/heads/main", self.u0)
