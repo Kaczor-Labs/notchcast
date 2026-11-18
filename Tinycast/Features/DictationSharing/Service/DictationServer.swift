@@ -42,7 +42,7 @@ final class DictationServer {
     @ObservationIgnored private let settings: AppSettings
     @ObservationIgnored private let coordinator: DictationCoordinator
     @ObservationIgnored private let runner: NotchcastTranscriptionRunner
-    @ObservationIgnored private let queue = DictationServerQueue(capacity: maximumConnections)
+    @ObservationIgnored private let queue = DictationServerQueue(capacity: DictationServer.maximumConnections)
     @ObservationIgnored private let tokens = KeychainSecretStore.dictationServer
     @ObservationIgnored private var watcher: Task<Void, Never>?
     @ObservationIgnored private var listening: Task<Void, Never>?

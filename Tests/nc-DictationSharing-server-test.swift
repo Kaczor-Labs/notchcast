@@ -218,9 +218,9 @@ struct DictationServerTest {
     }
 
     static func encodesResponses() {
-        let busy = String(decoding: DictationServerResponse.busy.encoded, as: UTF8.self)
+        let busy = String(bytes: DictationServerResponse.busy.encoded, encoding: .utf8) ?? ""
         check("busy is 503 with Retry-After", busy.hasPrefix("HTTP/1.1 503 ") && busy.contains("\r\nRetry-After: 5\r\n"))
-        let denied = String(decoding: DictationServerResponse.unauthorized.encoded, as: UTF8.self)
+        let denied = String(bytes: DictationServerResponse.unauthorized.encoded, encoding: .utf8) ?? ""
         check("401 names the scheme", denied.contains("\r\nWWW-Authenticate: Bearer\r\n"))
         check("401 never echoes the token", !denied.contains(token))
         let json = DictationServerResponse.transcript("Cześć \"x\"", format: .json)
@@ -228,7 +228,7 @@ struct DictationServerTest {
               (try? JSONSerialization.jsonObject(with: json.body)) as? [String: String] == ["text": "Cześć \"x\""])
         let text = DictationServerResponse.transcript("hi", format: .text)
         check("text is plain", text.body == Data("hi".utf8) && text.contentType.hasPrefix("text/plain"))
-        let encoded = String(decoding: text.encoded, as: UTF8.self)
+        let encoded = String(bytes: text.encoded, encoding: .utf8) ?? ""
         check("length and close are declared", encoded.contains("Content-Length: 2\r\n") && encoded.contains("Connection: close"))
         let models = (try? JSONSerialization.jsonObject(with: DictationServerResponse.models(["parakeet-redux"]).body))
             as? [String: Any]
