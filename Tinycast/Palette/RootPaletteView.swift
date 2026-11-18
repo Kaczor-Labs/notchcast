@@ -1051,6 +1051,7 @@ struct RootPaletteView: View {
         MenuCircleButton {
             if openMenu == .app { closeMenus() } else { open(.app, highlighting: 0) }
         }
+        .notchcastHidden()
     }
 
     private func actionGroup(
