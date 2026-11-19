@@ -114,7 +114,8 @@ extension ScreenshotSystem {
                 fake.closes += 1
                 fake.pick(nil)
             }
-        }
+        },
+        edit: { _, _, _ in fatalError("editing is off by default; nc-Screenshots-editor-test covers it") }
     )
 }
 
@@ -159,6 +160,7 @@ final class Rig {
 
 let area = "command:nc-screenshot-area"
 let display = "command:nc-screenshot-display"
+let editLast = "command:nc-edit-last-screenshot"
 let text = "command:nc-capture-text"
 
 func drain() async { try? await Task.sleep(for: .milliseconds(120)) }
@@ -168,6 +170,11 @@ func files(in folder: URL) -> [String] {
 }
 
 func isPNG(_ data: Data?) -> Bool { data?.prefix(4) == Data([0x89, 0x50, 0x4E, 0x47]) }
+
+func pngDPI(_ data: Data?) -> Double? {
+    data.flatMap { CGImageSourceCreateWithData($0 as CFData, nil) }
+        .flatMap { CGImageSourceCopyPropertiesAtIndex($0, 0, nil) as? [CFString: Any] }?[kCGImagePropertyDPIWidth] as? Double
+}
 
 func pngWidth(_ data: Data?) -> Int? {
     data.flatMap { CGImageSourceCreateWithData($0 as CFData, nil) }
@@ -185,11 +192,12 @@ enum ScreenshotsModuleTests {
         let presenter = rig.presenter
 
         precondition(ScreenshotsAddon.switches.map(\.id) == ["screenshot"], "v1 switch id")
-        precondition(ScreenshotsAddon.commands.map(\.id) == [area, display, text], "frozen command ids")
+        precondition(ScreenshotsAddon.commands.map(\.id) == [area, display, editLast, text], "frozen command ids")
         precondition(ScreenshotsAddon.commands.map { "hotkey." + $0.id }
                      == ["hotkey.command:nc-screenshot-area", "hotkey.command:nc-screenshot-display",
-                         "hotkey.command:nc-capture-text"], "each stored binding names its command")
-        precondition(rig.controller.enabledCommands.map(\.id) == [area, display, text], "on by default")
+                         "hotkey.command:nc-edit-last-screenshot", "hotkey.command:nc-capture-text"],
+                     "each stored binding names its command")
+        precondition(rig.controller.enabledCommands.map(\.id) == [area, display, editLast, text], "on by default")
 
         fake.holdFreeze = true
         precondition(rig.controller.run(entryID: area), "the area binding resolves")
@@ -221,6 +229,8 @@ enum ScreenshotsModuleTests {
         fake.pick(.rect(CGRect(x: 10, y: 10, width: 20, height: 10)))
         await drain()
         precondition(fake.clipboard.count == 1 && isPNG(fake.clipboard.last), "clipboard by default")
+        precondition(pngDPI(fake.clipboard.last).map { abs($0 - 144) < 1 } == true,
+                     "an unedited Retina capture says 144 dpi, like an edited one")
         precondition(files(in: desktopFolder).isEmpty && presenter.posts.isEmpty, "no file by default")
 
         precondition(rig.controller.run(entryID: area))
@@ -232,6 +242,8 @@ enum ScreenshotsModuleTests {
         await drain()
         precondition(fake.clipboard.count == 2 && pngWidth(fake.clipboard.last) == 30,
                      "a click saves the frozen window, even after it changed or closed")
+        precondition(pngDPI(fake.clipboard.last).map { abs($0 - 72) < 1 } != false,
+                     "a window's scale is its own pixels per point, not its display's")
         fake.windowWidth = 30
 
         rig.fire(area)

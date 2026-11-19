@@ -16,7 +16,7 @@ Each section states one normative rule per element with its token, and one refer
 | Questions (dialogs) | + 4 | `DialogController`, `DialogView` |
 | Update flow (pill, notice, Try Again) | footer, notice, dialog | `UpdatePill`, `IslandLiveState`, `UpdateCoordinator` |
 
-Off the island and out of scope: the Settings window (stock, native macOS, §11), Notes, Camera, AI chat panels, Dictation and every other stock floating panel, which keep upstream's content → `panelScrim` → `GlassEffectView` recipe from `docs/ui.md`. `Features/Extensions/` is never touched. A view shared between a palette screen and an out-of-scope panel (`ChatTranscriptView`, `AIEmptyState`, `ChatSuggestionChips`) follows the island rules everywhere it is used; the panel's own `AIChat*` files keep upstream's recipe.
+Off the island and out of scope: the Settings window (stock, native macOS, §11), Notes, Camera, AI chat panels, Dictation, Screenshots' Capture Editor and every other stock floating panel, which keep upstream's content → `panelScrim` → `GlassEffectView` recipe from `docs/ui.md`. `Features/Extensions/` is never touched. A view shared between a palette screen and an out-of-scope panel (`ChatTranscriptView`, `AIEmptyState`, `ChatSuggestionChips`) follows the island rules everywhere it is used; the panel's own `AIChat*` files keep upstream's recipe.
 
 Reference: HIG Live Activities, "Live Activities in the Dynamic Island use a black opaque background."
 
@@ -175,7 +175,7 @@ Reference: mac-design, "Use the system first. Add custom design only where the s
 
 | Element | Rule | Token |
 | --- | --- | --- |
-| Anything an add-on shows | Only the island's values, posted through `context.presenter` (`IslandPresenting`: `showLevel`, `post(_:onTap:)`, `end(notice:)`, `setStatus`, `setMenuRows`) as `IslandLevel`, `IslandNotice`, `IslandStatus` (text cut to 4 characters) and `IslandMenuRow`; the engine draws them with §1–§10. A failure it posts (`isFailure`) follows the §10 failure rule. An add-on opens no window, panel or hosting view of its own. Exempt: the Screenshots selection overlay, a capture tool over the whole screen, not an island surface. | none; `IslandPresenting` |
+| Anything an add-on shows | Only the island's values, posted through `context.presenter` (`IslandPresenting`: `showLevel`, `post(_:onTap:)`, `end(notice:)`, `setStatus`, `setMenuRows`) as `IslandLevel`, `IslandNotice`, `IslandStatus` (text cut to 4 characters) and `IslandMenuRow`; the engine draws them with §1–§10. A failure it posts (`isFailure`) follows the §10 failure rule. An add-on opens no window, panel or hosting view of its own. Exempt: a capture add-on's own tool surfaces, which are not island surfaces: (a) a selection overlay over the whole screen (Screenshots, Screen Recording): borderless, clear, no shadow, only `dialogDimming` and `dropTarget`; (b) an editor for the capture (Screenshots' Capture Editor, Screen Recording's trimmer): a stock floating panel under the scope paragraph's recipe. | none; `IslandPresenting` |
 
 Hook A16.
 
