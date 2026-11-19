@@ -17,5 +17,6 @@ enum NotchcastRegistry {
         PastePlainTextAddon.self,
         ColorPickerAddon.self,
         CopyPathAddon.self,
+        FinderToolsAddon.self,
     ]
 }
