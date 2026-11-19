@@ -284,6 +284,11 @@ def plan():
     elif main_key in failed:
         print(f"main: {main_key} already failed; waiting for upstream or main to change")
         rebase = False
+    elif dropped := upstream_dropped(main, upstream_main):
+        rebase = False
+        cause = f"upstream rewrote its history: {dropped[:10]}, merged by an earlier sync, is gone from it"
+        issue_open("sync", f"Sync blocked: upstream {upstream_main[:7]} + main {main[:7]}", cause)
+        print(f"::warning::{cause} (see the notchcast-sync issue)")
     else:
         print(f"main: rebase {main[:10]} onto upstream {upstream_main[:10]}")
         # The replay alone, here on Linux, before a macOS runner is spent on it.
@@ -609,8 +614,21 @@ def replay(tree, onto, check=False):
     print(run("git", "log", "--format=%h %an | %cn | %s", f"{onto}..HEAD", cwd=tree))
 
 
+def upstream_dropped(main, upstream, cwd=None):
+    """An upstream commit an earlier sync merged that upstream no longer has, or None. Merging past it would keep
+    upstream's dropped commits in main for good, where the leaks checks read them as ours."""
+    for merge_commit in run("git", "rev-list", "--merges", main, f"^{upstream}", cwd=cwd).split():
+        if run("git", "show", "-s", "--format=%s", merge_commit, cwd=cwd).startswith(SYNC_MERGE):
+            side = run("git", "rev-parse", f"{merge_commit}^2", cwd=cwd)
+            if subprocess.run(["git", "merge-base", "--is-ancestor", side, upstream], cwd=cwd).returncode:
+                return side
+    return None
+
+
 def merge(tree, main, upstream):
     """Commit tree's HEAD (main replayed onto upstream) as a merge of main and upstream and check it out."""
+    if dropped := upstream_dropped(main, upstream, cwd=tree):
+        sys.exit(f"refused: upstream rewrote its history ({dropped[:10]} is gone from it); decide by hand")
     name, email = AUTHOR.removesuffix(">").split(" <")
     commit = run("git", "commit-tree", "HEAD^{tree}", "-p", main, "-p", upstream,
                  "-m", f"{SYNC_MERGE} {upstream[:10]}", cwd=tree,

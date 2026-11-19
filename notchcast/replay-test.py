@@ -106,6 +106,13 @@ class SyncMergeTests(unittest.TestCase):
             self.assertEqual((root / "ours").read_text(), "first\nsecond\n")
             self.assertEqual(git("merge-base", "--is-ancestor", first, main), "")
             self.assertEqual(len(git("rev-list", "--merges", main).split()), 2)
+            self.assertIsNone(CI.upstream_dropped(main, upstream, cwd=root))
+            git("checkout", "-q", "--detach", base)
+            rewritten = commit("upstream", "rewritten\n", "upstream rewritten")
+            self.assertEqual(CI.upstream_dropped(main, rewritten, cwd=root), upstream)
+            with self.assertRaises(SystemExit) as caught:
+                CI.merge(root, main, rewritten)
+            self.assertIn("upstream rewrote its history", str(caught.exception.code))
 
     def test_forward_refuses_a_rewrite_and_names_the_way_through(self):
         with tempfile.TemporaryDirectory() as directory:
