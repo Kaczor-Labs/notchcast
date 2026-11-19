@@ -28,13 +28,17 @@ sync_wait_tests() (
                 else echo '{"jobs":[{"name":"plan","status":"completed","conclusion":"success"},{"name":"main","status":"in_progress"}]}'; fi ;;
             planned) if [ "$sleeps" -eq 0 ]; then echo '{"jobs":[{"name":"plan","status":"completed","conclusion":"success"}]}'
                 else echo '{"jobs":[{"name":"plan","status":"completed","conclusion":"success"},{"name":"replay","status":"completed"}]}'; fi ;;
+            push-pending) if [ "$sleeps" -eq 0 ]; then echo '{"jobs":[{"name":"replay","status":"completed","conclusion":"success"}]}'
+                else echo '{"jobs":[{"name":"replay","status":"completed","conclusion":"success"},{"name":"replay push","status":"completed"}]}'; fi ;;
+            pushing) if [ "$sleeps" -eq 0 ]; then echo '{"jobs":[{"name":"replay","status":"completed","conclusion":"success"},{"name":"replay push","status":"in_progress"}]}'
+                else echo '{"jobs":[{"name":"replay","status":"completed","conclusion":"success"},{"name":"replay push","status":"completed"}]}'; fi ;;
             *) echo '{"jobs":[{"name":"replay","status":"in_progress"}]}' ;;
         esac | jq "${@: -1}"
     }
-    for scenario in none main gone plan-queued planning planned; do
+    for scenario in none main gone plan-queued planning planned push-pending pushing; do
         sleeps=0
         wait_for_sync
-        case "$scenario" in gone|planning|planned) [ "$sleeps" -eq 1 ] ;; *) [ "$sleeps" -eq 0 ] ;; esac
+        case "$scenario" in gone|planning|planned|push-pending|pushing) [ "$sleeps" -eq 1 ] ;; *) [ "$sleeps" -eq 0 ] ;; esac
         echo "PASS: Sync $scenario"
     done
     for scenario in forever queued; do

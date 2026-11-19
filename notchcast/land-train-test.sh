@@ -77,7 +77,7 @@ esac
 STUB
 printf '#!/bin/sh\nexit 0\n' > "$scratch/bin/swiftc"
 chmod +x "$scratch/bin/gh" "$scratch/bin/swiftc"
-cp "$root"/notchcast/{land.sh,train.sh,merge.sh,local-build-status.sh,drift-gates.sh,sync-wait.sh,hold.sh,config.env,fork-point.sh,land-tooling.txt,ci.py,app-proof.py,app-proofs.json} "$seed/notchcast/"
+cp "$root"/notchcast/{land.sh,train.sh,merge.sh,merge-words.py,local-build-status.sh,drift-gates.sh,sync-wait.sh,hold.sh,config.env,fork-point.sh,land-tooling.txt,ci.py,app-proof.py,app-proofs.json} "$seed/notchcast/"
 for name in check-drift.py check-drift-test.py; do
     printf '#!/usr/bin/env python3\n' > "$seed/notchcast/$name"
 done
@@ -140,7 +140,9 @@ echo 'red-with: src/d.txt' > "$seed/Tests/d-test.swift"
 echo 'red-under-load: 2' > "$seed/Tests/load-test.swift"
 echo 'red-under-load: 4' > "$seed/Tests/heavy-test.swift"
 echo base > "$seed/src/shared.txt"
-echo '# fixture' > "$seed/.gitattributes"
+printf '%s merge=notchcast-words\n' notchcast/config.env notchcast/docs/addons.md > "$seed/.gitattributes"
+mkdir "$seed/notchcast/docs"
+echo '| Launcher | F1 One | F9 Nine |' > "$seed/notchcast/docs/addons.md"
 : > "$seed/Tinycast/Features/Notchcast/Core/NotchcastFeature.swift"
 export HOME="$scratch/home" PATH="$scratch/bin:$PATH" NOTCHCAST_LAND_TOOLS=test
 # The fixture's harnesses are stubs, so every train here lands as on a Mac, which runs each one.
@@ -442,6 +444,31 @@ HEAD_CHECKS=failure land --train-run "$train_sha" 1 2
     || fail "the train run landed '$(landed)'"
 [ -z "$(origin for-each-ref refs/heads/train/)" ] || fail 'the landed train branch was not deleted'
 echo 'PASS: a green train run lands its labelled draft PRs, red on their own heads, as the exact tree it tested, and deletes its branch'
+
+# A train built on a running train's tip (NOTCHCAST_TRAIN_ONTO) is covered once that train has landed, not before.
+fixture
+open_pr 1 pr-b 'Add B' src/b.txt
+open_pr 2 pr-c 'Add C' src/c.txt
+train 1
+first=$train_sha
+NOTCHCAST_TRAIN_ONTO=$base train 2
+[ "$status" -eq 1 ] && grep -q "^REFUSED: NOTCHCAST_TRAIN_ONTO ${base:0:8} is the tip of no train branch of origin" "$FIXTURE/train-output" \
+    || fail 'a train was built on a commit that is no train tip'
+NOTCHCAST_TRAIN_ONTO=$first train 2
+[ "$status" -eq 0 ] && [ -n "$train_sha" ] && [ "$(origin rev-parse "$train_sha^1")" = "$first" ] \
+    && grep -q -- "--ref train/2 .*base=$first" "$FIXTURE/dispatched" && grep -q "^GREEN train/2 .* on train tip ${first:0:8}:" "$FIXTURE/train-output" \
+    || { cat "$FIXTURE/train-output"; fail 'the second train was not built on the first train tip'; }
+second=$train_sha
+printf '%s\n' "$first" "$second" > "$FIXTURE/green"
+HEAD_CHECKS=failure land --train-run "$second" 2
+[ "$status" -eq 1 ] && grep -q "is built on ${first:0:8}, not current main" "$FIXTURE/output" && untouched \
+    || fail 'a train built on another landed before that one'
+HEAD_CHECKS=failure land --train-run "$first" 1
+[ "$status" -eq 0 ] || fail 'the first train did not land'
+HEAD_CHECKS=failure land --train-run "$second" 2
+[ "$status" -eq 0 ] && [ "$(landed)" = 'Notchcast: Add B (#1)|Notchcast: Add C (#2)' ] \
+    && [ "$(origin rev-parse 'main^{tree}')" = "$(origin rev-parse "$second^{tree}")" ] || fail "the train built on a train landed '$(landed)'"
+echo 'PASS: a train built on a running train tip lands after that train, as the tree it tested, and never before'
 
 # While the repository variable names a runner the train's Mac job goes there, and land.sh judges that run's record.
 fixture
@@ -799,6 +826,47 @@ land --train-run "$train_sha" 1 2
     || fail 'a red runner-skipped harness on a train run dropped a PR and landed the rest'
 [ -n "$(origin rev-parse --verify -q refs/heads/train/1-2)" ] || fail 'a refused train lost its branch'
 echo 'PASS: a red pass on a train run bisects to its breaking PR and lands no part of the train'
+
+# list_pr <number> <name>: a PR that adds its harness to HOSTED_ONLY_TESTS and its item to the first addons.md cell.
+list_pr() {
+    open_pr "$1" "pr-$2" "Add $2" "src/$2.txt"
+    git switch --quiet "pr-$2"
+    sed "s/^HOSTED_ONLY_TESTS=\"hosted-test/& nc-$2-test/" notchcast/config.env > "$FIXTURE/edit" && cat "$FIXTURE/edit" > notchcast/config.env
+    reword "F1 One" "F1 One, F$1 $2"
+    jq '.body = "Drift tooling: fixture list"' "$FIXTURE/pr-$1.json" > "$FIXTURE/pr.json" && mv "$FIXTURE/pr.json" "$FIXTURE/pr-$1.json"
+    repush "$1" "pr-$2"
+}
+# reword <from> <to>: commits the addons.md row with one text replaced.
+reword() {
+    sed "s/$1/$2/" notchcast/docs/addons.md > "$FIXTURE/edit" && cat "$FIXTURE/edit" > notchcast/docs/addons.md
+    git commit --quiet -am "Reword $1"
+}
+fixture
+list_pr 1 timers
+list_pr 2 scripts
+train 1 2
+[ "$status" -eq 0 ] && [ -n "$train_sha" ] || { cat "$FIXTURE/train-output"; echo 'FAIL: two PRs that each add a name to the same lines did not fit one train'; exit 1; }
+echo "$train_sha" > "$FIXTURE/green"
+land --train-run "$train_sha" 1 2
+[ "$status" -eq 0 ] && [ "$(landed)" = 'Notchcast: Add timers (#1)|Notchcast: Add scripts (#2)' ] || fail "the word-merged train landed '$(landed)'"
+[ "$(origin show main:notchcast/config.env | grep '^HOSTED_ONLY_TESTS=' | tail -1)" = 'HOSTED_ONLY_TESTS="hosted-test nc-timers-test nc-scripts-test"' ] \
+    && [ "$(origin show main:notchcast/docs/addons.md)" = '| Launcher | F1 One, F1 timers, F2 scripts | F9 Nine |' ] \
+    || fail "the landed lists are '$(origin show main:notchcast/config.env | grep '^HOSTED_ONLY_TESTS=' | tail -1)' and '$(origin show main:notchcast/docs/addons.md)'"
+echo 'PASS: two PRs that each add a name to one config.env list and one addons.md cell land in one train, both names kept'
+
+fixture
+list_pr 1 timers
+for number in 2 3; do
+    open_pr "$number" "pr-nine-$number" "Rename nine $number" "src/nine-$number.txt"
+    git switch --quiet "pr-nine-$number"
+    reword 'F9 Nine' "F9 Nine$number"
+    repush "$number" "pr-nine-$number"
+done
+land 1 2 3
+[ "$status" -eq 0 ] && grep -q 'REFUSED: merge conflict: notchcast/docs/addons.md' "$FIXTURE/output" && grep -q 'DROPPED #3' "$FIXTURE/output" \
+    || fail 'two PRs that change the same word did not conflict'
+[ "$(origin show main:notchcast/docs/addons.md)" = '| Launcher | F1 One, F1 timers | F9 Nine2 |' ] || fail "the row landed as '$(origin show main:notchcast/docs/addons.md)'"
+echo 'PASS: a PR that changes a word an earlier PR of the train changed still conflicts and is dropped'
 
 # Last: a killed lander can leave children behind.
 for signal in TERM HUP; do

@@ -16,9 +16,13 @@ final class NotchcastCore {
         let hub = NotchcastTapHub(
             syntheticTag: Paster.tinycastEventTag, isTrusted: { AXIsProcessTrusted() },
             makeSession: NotchcastTapThread.start)
+        let history = core.clipboardManager
         controller = NotchcastController(
             addons: addons, defaults: defaults, hub: hub, dictation: NotchcastDictationBridge(core: core),
-            presenter: core.islandPresenter)
+            clipboard: NotchcastClipboardMutation(
+                prepare: { history.prepareForTinycastPasteboardMutation() },
+                synchronize: { history.synchronizeAfterTinycastPasteboardMutation(changeCount: $0) }),
+            settingsBackup: NotchcastSettingsBackupBridge(core: core), presenter: core.islandPresenter)
         dictationServer = DictationServer(
             defaults: defaults, settings: core.settings, coordinator: core.dictationCoordinator,
             runner: controller.transcription)
