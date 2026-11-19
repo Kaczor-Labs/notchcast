@@ -20,6 +20,19 @@ check_defect_tests() {
     grep -Eq '^Tests/[^/]+-test\.swift$|^notchcast/(.*/)?[^/]+-test\.[^/]+$' <<< "$changed" \
         || refuse 'defect fix needs a changed test or No test: <reason>'
 }
+# The squash commit message of PR $pr, from pr_title, pr_body and the drift_signoff merge_onto set.
+squash_message() {
+    local title=$pr_title
+    [[ "$title" == Notchcast:* ]] || title="Notchcast: $title"
+    printf '%s (#%s)\n' "$title" "$pr"
+    if printf '%s\n' "$title" | grep -Eiq '^(notchcast: )?fix '; then
+        printf '\n'
+        grep -E '^No test: [^[:space:]].*' <<< "$pr_body" || true
+    fi
+    if [ -n "$drift_signoff" ]; then printf '\n%s\n' "$drift_signoff"; fi
+}
+# Refuses the commit message in file $1 when it names something private.
+check_message() { "$merge_tools/check-identity.sh" message "$1" || refuse 'commit message names something private'; }
 drift_fixtures_changed() {
     local changed
     changed=$(git diff --name-only "$1" HEAD -- 'notchcast/check-drift*' notchcast/bin/swiftgraph.py notchcast/config.env) \
