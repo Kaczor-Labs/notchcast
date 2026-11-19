@@ -5,11 +5,14 @@ root="$(git rev-parse --show-toplevel)"
 # A stale upstream puts its own commits in the range, and those authors are not ours.
 git fetch -q upstream main || true
 python3 "$root/notchcast/check-drift.py" --gates 1,2,3 || echo 'WARN: drift gates fail; land.sh will refuse' >&2
-while read -r _local_ref local_sha _remote_ref _remote_sha; do
+while read -r _local_ref local_sha remote_ref remote_sha; do
     if [[ "$local_sha" =~ ^0+$ ]]; then
         continue
     fi
-    "$root/notchcast/merge-main-check.sh" "$local_sha" "$_remote_ref" "$_remote_sha"
+    if [ "$remote_ref" = refs/heads/main ] && [[ ! "$remote_sha" =~ ^0+$ ]]; then
+        python3 "$root/notchcast/ci.py" forward "$remote_sha" "$local_sha"
+    fi
+    "$root/notchcast/merge-main-check.sh" "$local_sha" "$remote_ref" "$remote_sha"
     if [ "$(git cat-file -t "$local_sha")" = tag ]; then
         "$root/notchcast/check-identity.sh" tag "$local_sha"
     fi
