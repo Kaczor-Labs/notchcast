@@ -101,7 +101,8 @@ private enum MatchStyleMenu {
             return false
         }
         guard (read(item, kAXEnabledAttribute) as? NSNumber)?.boolValue != false else { return false }
-        return AXUIElementPerformAction(item, kAXPressAction as CFString) == .success
+        // cannotComplete is a timed-out press that may still paste; a fallback would paste twice.
+        return [.success, .cannotComplete].contains(AXUIElementPerformAction(item, kAXPressAction as CFString))
     }
 
     private static func find(in element: AXUIElement, depth: Int, visited: inout Int) -> AXUIElement? {
