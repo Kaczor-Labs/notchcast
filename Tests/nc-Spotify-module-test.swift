@@ -55,7 +55,18 @@ final class FakeSpotify {
     var event: (@MainActor (SoloistEvent) -> Void)?
     var closed: (@MainActor () -> Void)?
     var sent: [SoloistCommand] = []
-    var wakes: [(date: Date, fire: @MainActor () -> Void)] = []
+    var wakes: [(date: Date, fire: @MainActor () -> Void, id: Int)] = []
+    var wakeCount = 0
+    var cancelledWakes: Set<Int> = []
+    var keySaves = true
+    /// The launch spawns Soloist, then finds no socket.
+    var launchDies = false
+    var spawnWaits = false
+    var beforeSpawn: CheckedContinuation<Void, Never>?
+    /// A cancelled redirect keeps its port until the harness ends it.
+    var redirectLingers = false
+    var sendWaits = false
+    var pendingSend: CheckedContinuation<Void, Never>?
     var nowPlaying: [String] = []
     var remote: (@MainActor (SpotifyRemoteCommand) -> Void)?
     var requests: [String] = []
@@ -74,7 +85,7 @@ final class FakeSpotify {
         SpotifySystem(
             now: { [self] in now },
             soloistKey: { [self] in key },
-            setSoloistKey: { [self] in key = $0 },
+            setSoloistKey: { [self] in if keySaves { key = $0 } },
             tokens: { [self] in tokens },
             setTokens: { [self] in tokens = $0 },
             installedBuild: { [self] in build },
@@ -87,7 +98,9 @@ final class FakeSpotify {
                 if launchFails { throw SoloistLaunchError.noSocket }
                 self.exited = exited
                 self.rejected = rejected
+                if spawnWaits { await withCheckedContinuation { beforeSpawn = $0 } }
                 spawned { [self] in stops += 1 }
+                if launchDies { throw SoloistLaunchError.noSocket }
                 if launchHangs {
                     try await withTaskCancellationHandler {
                         try await withCheckedThrowingContinuation { hang = $0 }
@@ -106,18 +119,17 @@ final class FakeSpotify {
                 return SoloistLink(send: { [self] in sent.append($0) }, close: {})
             },
             wake: { [self] date, fire in
-                wakes.append((date, fire))
-                return {}
+                wakeCount += 1
+                let id = wakeCount
+                wakes.append((date, fire, id))
+                return { [self] in cancelledWakes.insert(id) }
             },
             nowPlaying: SpotifyNowPlayingSink(
                 update: { [self] playback, _ in nowPlaying.append(playback?.track?.title ?? "none") },
                 commands: { [self] in remote = $0 }),
             web: SpotifyWebTransport(
                 send: { request in
-                    let (status, body) = await MainActor.run {
-                        FakeSpotify.shared.requests.append("\(request.httpMethod ?? "") \(request.url?.path ?? "")")
-                        return FakeSpotify.shared.answers.isEmpty ? (200, "[]") : FakeSpotify.shared.answers.removeFirst()
-                    }
+                    let (status, body) = await FakeSpotify.answer(request)
                     return .init(status: status, body: Data(body.utf8), retryAfter: nil)
                 },
                 listen: { _, _, state in
@@ -131,6 +143,7 @@ final class FakeSpotify {
                             } onCancel: {
                                 Task { @MainActor in
                                     FakeSpotify.shared.redirectCancelled = true
+                                    guard !FakeSpotify.shared.redirectLingers else { return }
                                     FakeSpotify.shared.pendingRedirect?.resume(throwing: SpotifyAuthError.cancelled)
                                     FakeSpotify.shared.pendingRedirect = nil
                                 }
@@ -142,6 +155,12 @@ final class FakeSpotify {
                 opened.append($0)
                 signInLog.append("open")
             })
+    }
+
+    static func answer(_ request: URLRequest) async -> (Int, String) {
+        shared.requests.append("\(request.httpMethod ?? "") \(request.url?.path ?? "")")
+        if shared.sendWaits { await withCheckedContinuation { shared.pendingSend = $0 } }
+        return shared.answers.isEmpty ? (200, "[]") : shared.answers.removeFirst()
     }
 }
 
@@ -170,6 +189,7 @@ struct SpotifyModuleTests {
         await web()
         await player()
         await ownership()
+        await guards()
         print("Spotify module: Soloist supervised, volume restored, expiry warned once, library signed in")
     }
 
@@ -445,6 +465,79 @@ struct SpotifyModuleTests {
         fake.answers = [(200, #"{"access_token":"B","expires_in":3600,"refresh_token":"R2"}"#), (200, "[true]")]
         _ = try? await old.isSaved("spotify:track:1")
         check(fake.tokens == nil && !module.isSignedIn, "the old id's refresh never lands under the new id")
+        module.stop()
+    }
+
+    /// The unreadable key, the retry a late exit report used to cancel, and three guards on work in flight.
+    @MainActor
+    static func guards() async {
+        let fake = FakeSpotify()
+        let (module, _) = make(fake, defaults: scratch())
+        module.start()
+        await settle()
+        let key = fake.key ?? ""
+        fake.key = nil
+        fake.exited?(.killed(9))
+        fake.now = fake.wakes.last!.date
+        fake.wakes.removeLast().fire()
+        await settle()
+        check(module.phase == .needsKey && !module.hasKey && fake.launches == 1, "a key that cannot be read asks for one")
+        fake.keySaves = false
+        try? module.setKey(key)
+        await settle()
+        check(module.phase == .needsKey && !module.hasKey, "and so does a key the Keychain did not keep")
+        module.stop()
+
+        fake.keySaves = true
+        fake.key = key
+        fake.launchDies = true
+        var stops = fake.stops
+        module.start()
+        await settle()
+        guard case .waiting = module.phase, let retry = fake.wakes.last else { return check(false, "waits to retry") }
+        check(fake.stops == stops + 1, "a Soloist that opened no socket is stopped")
+        fake.exited?(.exited(1))
+        check(!fake.cancelledWakes.contains(retry.id), "its late exit report leaves the retry standing")
+        fake.launchDies = false
+        fake.now = retry.date
+        retry.fire()
+        await settle()
+        check(module.phase == .running, "so it starts again")
+        module.stop()
+
+        fake.spawnWaits = true
+        module.start()
+        await settle()
+        module.stop()
+        stops = fake.stops
+        fake.spawnWaits = false
+        fake.beforeSpawn?.resume()
+        await settle()
+        check(fake.stops == stops + 1 && module.phase == .stopped, "a Soloist spawned after off is stopped at once")
+
+        module.start()
+        await settle()
+        module.setClientID("client")
+        fake.redirectHangs = true
+        fake.redirectLingers = true
+        Task { await module.signIn() }
+        await settle()
+        Task { await module.signIn() }
+        await settle()
+        check(fake.redirectCancelled && fake.signInLog == ["bound", "open"], "a second sign-in waits for the port")
+        fake.redirectHangs = false
+        fake.redirectLingers = false
+        fake.sendWaits = true
+        fake.pendingRedirect?.resume(throwing: SpotifyAuthError.cancelled)
+        await settle()
+        check(fake.signInLog == ["bound", "open", "cancel", "bound", "open", "cancel"], "and binds once it is free")
+        check(fake.requests.last == "POST /api/token" && module.signingIn, "its code exchange is under way")
+        module.cancelSignIn()
+        fake.sendWaits = false
+        fake.answers = [(200, #"{"access_token":"A","expires_in":3600,"refresh_token":"R"}"#)]
+        fake.pendingSend?.resume()
+        await settle()
+        check(fake.tokens == nil && !module.isSignedIn, "a sign-in cancelled during the exchange saves no tokens")
         module.stop()
     }
 }

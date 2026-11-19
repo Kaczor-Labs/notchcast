@@ -41,6 +41,7 @@ enum SyncSettingScope {
             .hyperKeySecureInputCompatibility, .applications, .systemSettings, .systemActions,
             .builtInCommands, .quicklinkCommands, .aiCommands, .quickActionCommands,
             .dictationShortcut, .fileSearchCommands, .notesCommands, .snippetsCommands,
+            .dictationCommands,
             .navigationCommands, .windowShortcuts, .windowAliases, .windowManagementCommands,
             .clipboardCommands, .emojiCommands, .calendarCommands:
             .hotkeysAndAliases

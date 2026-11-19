@@ -27,6 +27,7 @@ final class AppCore {
     let hotKeys = HotKeyManager()
     @ObservationIgnored private(set) var notchcast: NotchcastCore?
     let dictationAudioDucker = DictationAudioDucker()
+    let dictationExtras = DictationExtrasCoordinator()
     @ObservationIgnored private(set) lazy var dictationModels =
         DictationModelStore(idleRelease: settings.dictationIdleRelease)
     @ObservationIgnored private(set) lazy var hyperKey = HyperKeyManager(
@@ -378,6 +379,7 @@ final class AppCore {
             hotKeys.onDictationPressed = { [weak self] in self?.dictationCoordinator.pressed() }
             hotKeys.onDictationReleased = { [weak self] in self?.dictationCoordinator.released() }
             hotKeys.onDictationCancelled = { [weak self] in self?.dictationCoordinator.cancel() }
+            dictationExtras.start(core: self)
             hotKeys.onRunCommand = { [weak self] id in self?.launcherCoordinator.runCommand(id) }
             hotKeys.onRunCustomCommand = { [weak self] id in
                 self?.customCommandCoordinator.runCustomCommand(id: id)
@@ -648,7 +650,7 @@ final class AppCore {
     private func applyInstalledLaunches() {
         let revisions = aiSettings.launchRevisions
         let enabled =
-            settings.aiEnabled || settings.quickActionsEnabled
+            settings.aiEnabled || settings.quickActionsEnabled || dictationExtras.usesInstalledAI
             ? aiSettings.enabledInstalledProviders : []
         for kind in InstalledAIKind.allCases where appliedLaunchRevisions[kind] != revisions[kind] {
             guard enabled.contains(kind) else { continue }
@@ -665,7 +667,7 @@ final class AppCore {
     @discardableResult
     func applyInstalledAILifecycle() -> Task<Void, Never> {
         let enabledKinds =
-            settings.aiEnabled || settings.quickActionsEnabled
+            settings.aiEnabled || settings.quickActionsEnabled || dictationExtras.usesInstalledAI
             ? aiSettings.enabledInstalledProviders : []
         var tasks: [Task<Void, Never>] = []
         if enabledKinds.contains(.codex) {

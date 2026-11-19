@@ -13,8 +13,8 @@ DIRS=(Tinycast)
 TARGET=HEAD
 [ "${2:-}" = --staged ] && TARGET="$(git write-tree)"
 command -v npx >/dev/null || { echo "design-check: npx (Node 20+) is needed" >&2; exit 1; }
-# npm 11+ refuses git specs unless allowed; older npm ignores the flag.
-CHECK=(npx -y --allow-git=all "$DESIGN_CHECK_SPEC")
+# npm 12+ refuses tarball URL specs unless allowed; older npm ignores the flag.
+CHECK=(npx -y --allow-remote=all "$DESIGN_CHECK_SPEC")
 WORK="$(mktemp -d)"
 trap 'rm -rf "$WORK"' EXIT
 mkdir "$WORK/base" "$WORK/ours"
@@ -23,8 +23,6 @@ git archive -o "$WORK/base.tar" "$BASE" "${DIRS[@]}"
 git archive -o "$WORK/ours.tar" "$TARGET" "${DIRS[@]}"
 tar -xf "$WORK/base.tar" -C "$WORK/base"
 tar -xf "$WORK/ours.tar" -C "$WORK/ours"
-# A hook's GIT_INDEX_FILE would make npm's clone of the git-hosted checker write into our index.
-unset GIT_INDEX_FILE GIT_DIR GIT_WORK_TREE GIT_PREFIX
 # The baseline file lands in the base copy (the checker writes it to its working directory); its exit code is the
 # base's own findings, not ours.
 (cd "$WORK/base" && "${CHECK[@]}" --write-baseline "${DIRS[@]}" >/dev/null) || true

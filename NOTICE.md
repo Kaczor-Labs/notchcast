@@ -390,7 +390,7 @@ SOFTWARE.
 
 ## Spotify in the Island: the Soloist engine and Web API client
 
-The Spotify add-on adapts code from **Aural** by Mihail Antonov, <https://github.com/mihail-antonov/aural> at `bf4b2b2`, which is MIT licensed. Each adapted file under `Tinycast/Features/Notchcast/Spotify/` says so in its header, and `notchcast/licenses/borrowed.md` lists them. Its licence notice:
+The Spotify add-on adapts code from **Aural** by Mihail Antonov, <https://github.com/mihail-antonov/aural> at `bf4b2b2`, which is MIT licensed. Each adapted file under `Tinycast/Features/Notchcast/Spotify/` says so in its header, and `notchcast/licenses/borrowed/Spotify.txt` lists them. Its licence notice:
 
 ```
 MIT License

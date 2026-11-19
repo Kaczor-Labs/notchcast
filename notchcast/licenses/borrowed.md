@@ -1,41 +1,5 @@
 # Borrowed add-on sources
 
-Each add-on file derived from another project is listed here, one line per file, and keeps that project's notice in its own header. An add-on branch appends its own lines and changes no other line; `notchcast/check-addons.py` enforces that in feature mode. Upstream's `NOTICE.md` ships in the app bundle and points here.
+Each add-on file derived from another project keeps that project's notice in its own header and is listed, one line per file, in its add-on's own list `notchcast/licenses/borrowed/<add-on folder>.txt`. An add-on branch writes only its own list, so two add-on PRs never edit one file; `notchcast/check-addons.py` fails an entry written here. Upstream's `NOTICE.md` ships in the app bundle and points here.
 
-Format: `<add-on folder>: <our file> ← <source repo>/<source file> (<licence>)`, with our file relative to `Tinycast/Features/Notchcast/<add-on folder>/`.
-
-MiddleClick: Model/ThreeFingerGesture.swift ← vorssaint/vorssaint-utils@89d2626/Sources/Vorssaint/Services/MiddleClick/MiddleClickSupport.swift (GPL-3.0-or-later)
-MiddleClick: Model/MiddleClickFilter.swift ← vorssaint/vorssaint-utils@89d2626/Sources/Vorssaint/Services/MiddleClick/MiddleClickService.swift (GPL-3.0-or-later)
-MiddleClick: Model/MiddleClickEngine.swift ← vorssaint/vorssaint-utils@89d2626/Sources/Vorssaint/Services/MiddleClick/MiddleClickService.swift (GPL-3.0-or-later)
-MiddleClick: Service/MiddleClickTouchSource.swift ← vorssaint/vorssaint-utils@89d2626/Sources/Vorssaint/Services/MiddleClick/MiddleClickService.swift (GPL-3.0-or-later)
-MiddleClick: Service/MiddleClickModule.swift ← vorssaint/vorssaint-utils@89d2626/Sources/Vorssaint/Services/MiddleClick/MiddleClickService.swift (GPL-3.0-or-later)
-MusicBlock: Model/MusicLaunchTrigger.swift ← vorssaint/vorssaint-utils@89d2626/Sources/Vorssaint/Services/Audio/MusicLaunchBlocker.swift (GPL-3.0-or-later)
-MusicBlock: Model/MusicLaunchPolicy.swift ← vorssaint/vorssaint-utils@89d2626/Sources/Vorssaint/Services/Audio/MusicLaunchSupport.swift (GPL-3.0-or-later)
-MusicBlock: Service/MusicBlockModule.swift ← vorssaint/vorssaint-utils@89d2626/Sources/Vorssaint/Services/Audio/MusicLaunchBlocker.swift (GPL-3.0-or-later)
-Screenshots: Model/ScreenshotGeometry.swift ← vorssaint/vorssaint-utils@89d2626/Sources/Vorssaint/Services/QuickTools/ScreenshotSupport.swift (GPL-3.0-or-later)
-Screenshots: Model/ScreenshotExclusion.swift ← vorssaint/vorssaint-utils@89d2626/Sources/Vorssaint/Services/QuickTools/ScreenshotCapturePolicy.swift (GPL-3.0-or-later)
-Screenshots: Model/ScreenshotExclusion.swift ← vorssaint/vorssaint-utils@89d2626/Sources/Vorssaint/Services/QuickTools/ScreenshotCaptureEngine.swift (GPL-3.0-or-later)
-Screenshots: Service/ScreenshotSystem+Live.swift ← vorssaint/vorssaint-utils@89d2626/Sources/Vorssaint/Services/QuickTools/ScreenshotCaptureEngine.swift (GPL-3.0-or-later)
-Screenshots: UI/ScreenshotSelectionSurface.swift ← vorssaint/vorssaint-utils@89d2626/Sources/Vorssaint/Services/QuickTools/ScreenshotSelectionController.swift (GPL-3.0-or-later)
-DisplaySound: Model/BrightnessRecoveryPolicy.swift ← vorssaint/vorssaint-utils@89d2626/Sources/Vorssaint/Services/Display/BrightnessSupport.swift (GPL-3.0-or-later)
-DisplaySound: Model/BrightnessFunctionKeys.swift ← vorssaint/vorssaint-utils@89d2626/Sources/Vorssaint/Services/Display/BrightnessSupport.swift (GPL-3.0-or-later)
-DisplaySound: Service/BrightnessDisplayService.swift ← vorssaint/vorssaint-utils@89d2626/Sources/Vorssaint/Services/Display/BrightnessService.swift (GPL-3.0-or-later)
-DisplaySound: Service/BrightnessController.swift ← vorssaint/vorssaint-utils@89d2626/Sources/Vorssaint/Services/Display/BrightnessService.swift (GPL-3.0-or-later)
-DisplaySound: UI/BrightnessDisplayRowState.swift ← vorssaint/vorssaint-utils@89d2626/Sources/Vorssaint/Services/Display/BrightnessService.swift (GPL-3.0-or-later)
-Spotify: Model/SoloistWire.swift ← mihail-antonov/aural@bf4b2b2/AuralCore/Sources/AuralCore/Sources/Soloist/SoloistMessages.swift (MIT)
-Spotify: Model/SpotifyPlayback.swift ← mihail-antonov/aural@bf4b2b2/AuralCore/Sources/AuralCore/Player/PlaybackModels.swift (MIT)
-Spotify: Model/SpotifyPlayback.swift ← mihail-antonov/aural@bf4b2b2/AuralCore/Sources/AuralCore/Sources/Soloist/SoloistMapping.swift (MIT)
-Spotify: Model/SoloistBuild.swift ← mihail-antonov/aural@bf4b2b2/AuralCore/Sources/AuralCore/Sources/Soloist/SoloistVersion.swift (MIT)
-Spotify: Model/SoloistBuild.swift ← mihail-antonov/aural@bf4b2b2/AuralCore/Sources/AuralCore/Sources/Soloist/SoloistAPIKey.swift (MIT)
-Spotify: Model/SpotifyAuthorization.swift ← mihail-antonov/aural@bf4b2b2/AuralCore/Sources/AuralCore/Library/SpotifyAuth.swift (MIT)
-Spotify: Model/SpotifyAuthorization.swift ← mihail-antonov/aural@bf4b2b2/AuralCore/Sources/AuralCore/Library/SpotifyTokens.swift (MIT)
-Spotify: Model/SpotifyWebWire.swift ← mihail-antonov/aural@bf4b2b2/AuralCore/Sources/AuralCore/Library/WebAPIWire.swift (MIT)
-Spotify: Model/SpotifyWebWire.swift ← mihail-antonov/aural@bf4b2b2/AuralCore/Sources/AuralCore/Library/LibraryModels.swift (MIT)
-Spotify: Service/SoloistProcess.swift ← mihail-antonov/aural@bf4b2b2/AuralCore/Sources/AuralCore/Sources/Soloist/SoloistProcess.swift (MIT)
-Spotify: Service/SoloistHost.swift ← mihail-antonov/aural@bf4b2b2/AuralCore/Sources/AuralCore/Sources/Soloist/SoloistProcess.swift (MIT)
-Spotify: Service/SoloistInstaller.swift ← mihail-antonov/aural@bf4b2b2/AuralCore/Sources/AuralCore/Sources/Soloist/SoloistInstaller.swift (MIT)
-Spotify: Service/SpotifyLoopback.swift ← mihail-antonov/aural@bf4b2b2/AuralCore/Sources/AuralCore/Library/LoopbackServer.swift (MIT)
-Spotify: Service/SpotifyWeb.swift ← mihail-antonov/aural@bf4b2b2/AuralCore/Sources/AuralCore/Library/WebAPIClient.swift (MIT)
-Spotify: Service/SpotifyWeb.swift ← mihail-antonov/aural@bf4b2b2/AuralCore/Sources/AuralCore/Library/LibraryService.swift (MIT)
-Spotify: Service/SpotifyModule+Commands.swift ← mihail-antonov/aural@bf4b2b2/AuralCore/Sources/AuralCore/Sources/Soloist/SoloistSource.swift (MIT)
-Island: Tinycast/Features/Island/Model/IslandPageSwipe.swift ← vorssaint/vorssaint-utils@89d2626/Sources/Vorssaint/Services/Notch/NotchSectionPaging.swift (GPL-3.0-or-later)
+Format of each line: `<add-on folder>: <our file> ← <source repo>/<source file> (<licence>)`, with our file relative to `Tinycast/Features/Notchcast/<add-on folder>/`. Core code that borrows is listed the same way under `Core` (`Tinycast/Features/Notchcast/Core/`) or `Island` (`Tinycast/Features/Island/`).
