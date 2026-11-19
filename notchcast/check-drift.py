@@ -100,7 +100,7 @@ def jscpd():
 def clone_counts(root, files):
     binary = jscpd()
     with tempfile.TemporaryDirectory(prefix='drift-clones.') as work:
-        work = Path(work)
+        work = Path(work).resolve()  # jscpd names files against real paths; macOS's $TMPDIR is a symlink
         tree, output = work / 'sources', work / 'report'
         tree.mkdir()
         for path, text in files.items():
@@ -123,8 +123,8 @@ def clone_counts(root, files):
             for side in ('firstFile', 'secondFile'):
                 path = Path(clone[side]['name'])
                 if not path.is_absolute():
-                    path = Path.cwd() / path
-                pair.append(path.resolve().relative_to(tree.resolve()).as_posix())
+                    path = binary.parents[2] / path  # relative to where jscpd ran, not to our caller
+                pair.append(path.resolve().relative_to(tree).as_posix())
             if pair[0] != pair[1]:
                 counts[' | '.join(sorted(pair))] += 1
         return dict(counts)
