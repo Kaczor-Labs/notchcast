@@ -1,3 +1,4 @@
+// notchcast-hosted-only
 // notchcast-sources: Tinycast/Platform/Appearance.swift Tinycast/DesignSystem/Theme.swift
 // notchcast-sources: Tinycast/Platform/WindowLevel.swift Tinycast/Platform/NotificationToken.swift
 // notchcast-sources: Tinycast/DesignSystem/Interaction/KeyboardFocus.swift Tinycast/DesignSystem/Interaction/Motion.swift

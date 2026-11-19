@@ -1,3 +1,5 @@
+// notchcast-addon-order: 30
+// notchcast-readme: Keyboard & Mouse: Quit Protection
 import SwiftUI
 
 enum QuitProtectionAddon: NotchcastAddon {

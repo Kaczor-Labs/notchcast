@@ -1,3 +1,5 @@
+// notchcast-addon-order: 10
+// notchcast-readme: Keyboard & Mouse: hide with ⌘M
 import Foundation
 
 enum HideCommandMAddon: NotchcastAddon {

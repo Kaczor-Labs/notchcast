@@ -1,3 +1,5 @@
+// notchcast-addon-order: 40
+// notchcast-readme: Keyboard & Mouse: trackpad middle click
 import Foundation
 
 /// Three-finger taps and presses on a trackpad become middle clicks.
