@@ -62,7 +62,8 @@ final class IslandPageHost {
             controller = resting
         }
         if let wanted {
-            deck.select(wanted)
+            // A pin whose wait ran out never opened, so a plain hover later still opens Home.
+            if AppCore.shared.island.hover.isPinned { deck.select(wanted) }
             self.wanted = nil
         }
         render()
