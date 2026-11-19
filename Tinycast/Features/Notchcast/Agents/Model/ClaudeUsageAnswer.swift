@@ -46,7 +46,8 @@ struct ClaudeUsageAnswer: Decodable, Sendable {
             sevenDay = try? container.decodeIfPresent(Window.self, forKey: .sevenDay)
             sevenDayOpus = try? container.decodeIfPresent(Window.self, forKey: .sevenDayOpus)
             sevenDaySonnet = try? container.decodeIfPresent(Window.self, forKey: .sevenDaySonnet)
-            modelScoped = (try? container.decodeIfPresent([ScopedWindow].self, forKey: .modelScoped)) ?? []
+            modelScoped = ((try? container.decodeIfPresent([Lossy<ScopedWindow>].self, forKey: .modelScoped)) ?? [])
+                .compactMap(\.value)
             spend = try? container.decodeIfPresent(Spend.self, forKey: .spend)
         }
     }
@@ -105,4 +106,11 @@ struct ClaudeUsageAnswer: Decodable, Sendable {
             kind: kind, scope: scope, usedPercent: min(100, max(0, utilization)), resetsAt: resets,
             durationMinutes: minutes)
     }
+}
+
+/// One entry of an undocumented list; a malformed one drops alone.
+struct Lossy<Value: Decodable & Sendable>: Decodable, Sendable {
+    var value: Value?
+
+    init(from decoder: any Decoder) throws { value = try? Value(from: decoder) }
 }

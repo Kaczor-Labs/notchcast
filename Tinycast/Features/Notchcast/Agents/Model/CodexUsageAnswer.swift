@@ -50,9 +50,9 @@ struct CodexUsageAnswer: Decodable, Sendable {
     /// Each model with an allowance of its own has a bucket too; only the main one, `codex`, is kept.
     init(from decoder: any Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
-        let buckets = try? container.decodeIfPresent([String: Snapshot].self, forKey: .rateLimitsByLimitId)
+        let buckets = try? container.decodeIfPresent([String: Lossy<Snapshot>].self, forKey: .rateLimitsByLimitId)
         let single = try? container.decodeIfPresent(Snapshot.self, forKey: .rateLimits)
-        main = buckets?["codex"] ?? single.flatMap { ["", "codex"].contains(($0.limitId ?? "").lowercased()) ? $0 : nil }
+        main = buckets?["codex"]?.value ?? single.flatMap { ["", "codex"].contains(($0.limitId ?? "").lowercased()) ? $0 : nil }
         resetCredits = try? container.decodeIfPresent(Credits.self, forKey: .rateLimitResetCredits)
     }
 

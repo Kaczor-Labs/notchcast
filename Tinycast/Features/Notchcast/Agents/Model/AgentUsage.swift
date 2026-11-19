@@ -27,12 +27,42 @@ enum AgentWindowKind: String, Codable, Sendable, Comparable {
 }
 
 struct AgentWindow: Codable, Equatable, Sendable {
+    /// A year; anything longer is no window.
+    static let longest = 366 * 1440
+
     var kind: AgentWindowKind
     var label: String?
     var scope: String?
     var usedPercent: Double
     var resetsAt: Date?
     var durationMinutes: Int?
+
+    init(
+        kind: AgentWindowKind, label: String? = nil, scope: String? = nil, usedPercent: Double, resetsAt: Date? = nil,
+        durationMinutes: Int? = nil
+    ) {
+        self.kind = kind
+        self.label = label
+        self.scope = scope
+        self.usedPercent = usedPercent
+        self.resetsAt = resetsAt
+        self.durationMinutes = durationMinutes
+    }
+
+    private enum CodingKeys: String, CodingKey { case kind, label, scope, usedPercent, resetsAt, durationMinutes }
+
+    /// The feed comes from another program, so its numbers are held to what a window can be.
+    init(from decoder: any Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        kind = try container.decode(AgentWindowKind.self, forKey: .kind)
+        label = try container.decodeIfPresent(String.self, forKey: .label)
+        scope = try container.decodeIfPresent(String.self, forKey: .scope)
+        let used = try container.decode(Double.self, forKey: .usedPercent)
+        usedPercent = used.isFinite ? min(100, max(0, used)) : 0
+        resetsAt = try container.decodeIfPresent(Date.self, forKey: .resetsAt)
+        durationMinutes = try container.decodeIfPresent(Int.self, forKey: .durationMinutes)
+            .flatMap { (1...Self.longest).contains($0) ? $0 : nil }
+    }
 }
 
 struct AgentExtraUsage: Codable, Equatable, Sendable {

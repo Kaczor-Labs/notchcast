@@ -92,8 +92,8 @@ func claudeDecoder() {
 
     let odd = claudeFixture.replacingOccurrences(of: #""five_hour":null"#, with: #""five_hour":"soon""#)
         .replacingOccurrences(of: #""model_scoped":[{"#, with: #""model_scoped":[7,{"#)
-    check(claude(odd)!.windows.map(\.scope) == [nil],
-          "a field of an unexpected shape drops alone: \(String(describing: claude(odd)?.windows))")
+    check(claude(odd)!.windows.map(\.scope) == [nil, "Fable"],
+          "a field or entry of an unexpected shape drops alone: \(String(describing: claude(odd)?.windows))")
 
     let session = claudeFixture.replacingOccurrences(
         of: #""five_hour":null"#, with: #""five_hour":{"utilization":12.5,"resets_at":"2026-11-19T20:00:00+00:00"}"#)
@@ -134,6 +134,8 @@ func codexDecoder() {
         "a Business allowance as the share left")
     let monthly = #"{"rateLimitsByLimitId":{"codex":{"primary":{"usedPercent":5,"windowDurationMins":43200}}}}"#
     check(codex(monthly)!.windows.first?.kind == .monthly, "a 30-day window is monthly")
+    let oddBucket = #"{"rateLimitsByLimitId":{"codex_other":7,"codex":{"primary":{"usedPercent":5,"windowDurationMins":300}}}}"#
+    check(codex(oddBucket)!.windows.first?.usedPercent == 5, "another model's odd bucket never hides the main one")
     let otherBucket = #"{"rateLimits":{"limitId":"codex_other","primary":{"usedPercent":5,"windowDurationMins":300}}}"#
     check(codex(otherBucket) == nil, "a model's own bucket never stands in for the main one")
     check((try? JSONDecoder().decode(CodexAccountAnswer.self, from: Data(#"{"account":{"type":"chatgpt"}}"#.utf8)))?
@@ -173,6 +175,21 @@ func feed() throws {
     } catch AgentFeedError.unknownVersion(let version) {
         check(version == 2, "the refused version is named")
     }
+
+    let wild = #"""
+        {"version":1,"generatedAt":"2026-11-19T18:00:00Z","machines":[{"name":"VPS","accounts":[
+        {"name":"C6","provider":"claude","checkedAt":"2026-11-19T17:58:00Z","state":"ok","windows":[
+        {"kind":"weekly","usedPercent":1e19,"resetsAt":"2026-11-22T00:00:00Z","durationMinutes":1000000000000},
+        {"kind":"session","usedPercent":-1e19,"resetsAt":"2026-11-19T20:00:00Z","durationMinutes":-5}]}]}]}
+        """#
+    let clamped = try AgentFeed.decode(Data(wild.utf8)).machines[0].accounts[0].windows
+    check(clamped.map(\.usedPercent) == [100, 0] && clamped.allSatisfy { $0.durationMinutes == nil },
+          "the feed's numbers are held to what a window can be: \(clamped)")
+    let board = AgentBoard(
+        machineName: "MBA", local: [], feed: .loaded(try AgentFeed.decode(Data(wild.utf8))), now: now)
+    check(board.columns.count == 1, "a wild feed still builds a board")
+    check(AgentDuration.text(1e300) == AgentDuration.text(.infinity) && AgentDuration.text(.nan) == "1 min",
+          "no duration traps")
     print("feed: ok")
 }
 
@@ -191,6 +208,11 @@ func pace() {
     check(!AgentPace(weekly(100, resetsIn: 3 * day), now: now)!.warns, "a full window no longer warns")
     check(AgentPace(AgentWindow(kind: .other, usedPercent: 50), now: now) == nil, "no length, no pace")
     check(AgentPace(weekly(50, resetsIn: -minute), now: now) == nil, "a renewed window has no pace")
+    let tenth = AgentPace(weekly(20, resetsIn: 0.9 * 7 * day), now: now)!
+    check(tenth.elapsed == 0.1 && tenth.tick == 0.1 && tenth.warns, "a tenth gone ticks and judges")
+    check(!AgentPace(weekly(50, resetsIn: 3.5 * day), now: now)!.warns, "exactly on pace does not warn")
+    let end = AgentPace(weekly(50, resetsIn: 0.02 * 7 * day), now: now)!
+    check(end.elapsed == 0.98 && end.tick == nil, "no tick from 98% on")
     print("pace: ok")
 }
 

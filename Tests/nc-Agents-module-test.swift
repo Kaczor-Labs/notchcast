@@ -129,6 +129,33 @@ func claudeFailures() async throws {
     print("claude failures: ok")
 }
 
+/// A stand-in that ignores SIGTERM and never answers; it names its process first.
+func stubbornCLI(in folder: URL) throws -> URL {
+    let url = folder.appending(path: "claude")
+    try "#!/bin/sh\necho $$ > '\(folder.path)/pid'\ntrap '' TERM\nexec /bin/sleep 30\n"
+        .write(to: url, atomically: true, encoding: .utf8)
+    try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: url.path)
+    return url
+}
+
+func pid(in folder: URL) -> pid_t? {
+    (try? String(contentsOf: folder.appending(path: "pid"), encoding: .utf8))
+        .flatMap { pid_t($0.trimmingCharacters(in: .whitespacesAndNewlines)) }
+}
+
+func isGone(_ pid: pid_t) -> Bool { kill(pid, 0) == -1 && errno == ESRCH }
+
+/// Watches a real process from outside, so it waits on real time; `cap` bounds each wait.
+func eventually(within cap: Duration = .seconds(3), _ condition: () -> Bool) async -> Bool {
+    let clock = ContinuousClock()
+    let until = clock.now + cap
+    while !condition() {
+        guard clock.now < until else { return false }
+        try? await Task.sleep(for: .milliseconds(10))
+    }
+    return true
+}
+
 func conversationEnds() async throws {
     let folder = try scratch()
     let silent = try fakeCLI(in: folder, named: "claude", answers: [])
@@ -136,12 +163,27 @@ func conversationEnds() async throws {
     let late = try await claudeReader(folder, cli: silent, timeout: .milliseconds(300)).read()
     check(late.state == .unavailable, "a CLI that never answers costs the deadline: \(late)")
 
-    let reading = Task { try await claudeReader(folder, cli: silent).read() }
+    let clock = ContinuousClock()
+    let deaf = try scratch()
+    var started = clock.now
+    let held = try await claudeReader(deaf, cli: try stubbornCLI(in: deaf), timeout: .milliseconds(300)).read()
+    check(held.state == .unavailable && clock.now - started < .seconds(2),
+          "the deadline holds against a CLI that ignores SIGTERM: \(clock.now - started)")
+    guard let deafPID = pid(in: deaf) else { fatalError("the stand-in never started") }
+    check(await eventually { isGone(deafPID) }, "and it is killed")
+
+    let cancelled = try scratch()
+    let cli = try stubbornCLI(in: cancelled)
+    let reading = Task { try await claudeReader(cancelled, cli: cli).read() }
+    check(await eventually { pid(in: cancelled) != nil }, "the stand-in starts")
+    started = clock.now
     reading.cancel()
     do {
         _ = try await reading.value
         check(false, "a cancelled read returns no account")
     } catch is CancellationError {}
+    check(clock.now - started < .seconds(2), "cancelling returns without waiting on the child: \(clock.now - started)")
+    check(await eventually { isGone(pid(in: cancelled)!) }, "and the child is killed")
     print("conversation ends: ok")
 }
 

@@ -3,7 +3,7 @@ import Foundation
 enum AgentDuration {
     /// Two units at most, rounded down, never under a minute: "2 d 5 h", "3 h 20 min", "45 min".
     static func text(_ seconds: TimeInterval) -> String {
-        let minutes = max(1, Int((seconds / 60).rounded(.down)))
+        let minutes = Int(min(max(1, (seconds.isNaN ? 0 : seconds) / 60), 1e9).rounded(.down))
         let days = minutes / 1440
         let hours = minutes % 1440 / 60
         let rest = minutes % 60
