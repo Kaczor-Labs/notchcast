@@ -1,5 +1,6 @@
 notchcast/land.sh
 notchcast/merge.sh
+notchcast/merge-words.py
 notchcast/hold.sh
 notchcast/sync-wait.sh
 notchcast/local-build-status.sh

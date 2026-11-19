@@ -151,6 +151,7 @@
 		1FB8ECBAD6F4DD3C01D1E117 /* PasteSequence.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1460DE41607E1352EB9F7427 /* PasteSequence.swift */; };
 		20487975E005F42D20C982A2 /* CalcDateFacts.swift in Sources */ = {isa = PBXBuildFile; fileRef = D95DBC07C508187527E260C3 /* CalcDateFacts.swift */; };
 		208FFC22E116E53E7BF3D147 /* CalcQuantity.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4EF9F16C3F5567240FF03122 /* CalcQuantity.swift */; };
+		216EBB6C24942121D98FC087 /* FinderToolsModule.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1B77B5BE77F2DFFD0587DE6D /* FinderToolsModule.swift */; };
 		21812A1B54A4DFDC88604C16 /* ReleaseChannel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 198E4EC8AECAAD0D90C4BA50 /* ReleaseChannel.swift */; };
 		223A40FF358A8B7980425093 /* ChatSuggestionChips.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4FF03BE6BFAB22681ECD6ADE /* ChatSuggestionChips.swift */; };
 		22420E8A41685143315904F5 /* RaycastImportSelection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7B711492A6DA473E6DC9646C /* RaycastImportSelection.swift */; };
@@ -219,6 +220,7 @@
 		2FF364B8C778BCDBEDC81D1D /* MathAttachmentCell.swift in Sources */ = {isa = PBXBuildFile; fileRef = C01EA2D102571E10CCE4E1B0 /* MathAttachmentCell.swift */; };
 		300172149437918522078245 /* NotchcastDictationBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4773A92DDF288565C27BD567 /* NotchcastDictationBridge.swift */; };
 		303FC5342B61A7862EBC1C32 /* FocusRelease.swift in Sources */ = {isa = PBXBuildFile; fileRef = EA9A0079D05A5D9B21A1CFCE /* FocusRelease.swift */; };
+		308FB81A7AD4774808FA9B17 /* NotchcastHiddenCommands.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8D58F0F2B9389E58AA621E9B /* NotchcastHiddenCommands.swift */; };
 		309320CB6B5424EA558A4823 /* EmojiData.generated.swift in Sources */ = {isa = PBXBuildFile; fileRef = B6BE90FB09366A3518C2D4E5 /* EmojiData.generated.swift */; };
 		309B1313B6B40D1342362492 /* CalcEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7817B7A8760B36FDA43F48FC /* CalcEngine.swift */; };
 		30AAB8E8C6757416E5655D0E /* PillMenuRows.swift in Sources */ = {isa = PBXBuildFile; fileRef = 41764F53F093ECF3E9A59593 /* PillMenuRows.swift */; };
@@ -388,7 +390,9 @@
 		4E6437A257DC61ECC7CD36C1 /* IslandController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 81103CB16B6B79220DBBFF76 /* IslandController.swift */; };
 		4EBFBA1CC7DA9B22C396DBEC /* CommandArgumentsRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1590A8769EF787763DE189B7 /* CommandArgumentsRow.swift */; };
 		4F231B3551269815753B8C4C /* BackupCategory.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6DA4145CFBB855DF1699C744 /* BackupCategory.swift */; };
+		4F5DE0693568B17951FDF80A /* AutoBackupSchedule.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8385851425D90711F76CEFFC /* AutoBackupSchedule.swift */; };
 		4F938D799099931DDA1D1876 /* SectionHeader.swift in Sources */ = {isa = PBXBuildFile; fileRef = ACC8371BCD366F2549E0B01B /* SectionHeader.swift */; };
+		4F9771AA1C57F8FCE42FDB9C /* AutoBackupAddon.swift in Sources */ = {isa = PBXBuildFile; fileRef = C1BE3B9ED796907A4B015357 /* AutoBackupAddon.swift */; };
 		4FC5D2FD1ED7DF2B7B7DFC1F /* ScreenshotSystem.swift in Sources */ = {isa = PBXBuildFile; fileRef = A80A9FA0360976FB787AC8A3 /* ScreenshotSystem.swift */; };
 		50300E827CBD0F54F0360111 /* AIProviderFactory.swift in Sources */ = {isa = PBXBuildFile; fileRef = 85DAEE77ABAC4260C95F9AB5 /* AIProviderFactory.swift */; };
 		507D6A26EA5451465B1BE5AF /* HotKeyAction.swift in Sources */ = {isa = PBXBuildFile; fileRef = 43F3BC11AD77D8A58671F83E /* HotKeyAction.swift */; };
@@ -440,6 +444,7 @@
 		5679661058689EC8FF1C5C11 /* PaletteFilterAction.swift in Sources */ = {isa = PBXBuildFile; fileRef = 621B09CB5CF15517D9FDAB5B /* PaletteFilterAction.swift */; };
 		567BF142060D11190D5A949A /* EventEditorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D72C1822870E1ABA2C56FAA3 /* EventEditorView.swift */; };
 		568B7DA6A6C2D24BABF0867A /* ClipboardTextHelper.swift in Sources */ = {isa = PBXBuildFile; fileRef = 82DB32B7ACED5BE2BEE7451F /* ClipboardTextHelper.swift */; };
+		56B51774FD1F99FA5299E9DF /* NotchcastFinderTools.xcstrings in Resources */ = {isa = PBXBuildFile; fileRef = FF23841289C8E69601DEE89B /* NotchcastFinderTools.xcstrings */; };
 		56E4958BCEF1FED10B4A796E /* UpdateCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 46F3D4D06C13288911E8D135 /* UpdateCoordinator.swift */; };
 		56EB00CB2815CC268829C97B /* AIAttachmentPolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6EBB9959DB6CA493D241080C /* AIAttachmentPolicy.swift */; };
 		56F1BA8E215B7059EF14120B /* CopyPathLinkCleaner.swift in Sources */ = {isa = PBXBuildFile; fileRef = F3D2236992B8C1B20C4B07D3 /* CopyPathLinkCleaner.swift */; };
@@ -552,6 +557,7 @@
 		6D671A452C1A80946D49E69B /* ClipboardEditField.swift in Sources */ = {isa = PBXBuildFile; fileRef = 51903548B005B2EF070C8AE2 /* ClipboardEditField.swift */; };
 		6E6C27BE575CACD8A0070311 /* LauncherSettingsFile.swift in Sources */ = {isa = PBXBuildFile; fileRef = A65369C9F6E1AE2770348BD6 /* LauncherSettingsFile.swift */; };
 		6F076223EA47A68C1490F674 /* FolderPicker.swift in Sources */ = {isa = PBXBuildFile; fileRef = 236934966557373B61455B3C /* FolderPicker.swift */; };
+		6F638E7D94CFC0D1E0876FB4 /* FinderToolsAddon.swift in Sources */ = {isa = PBXBuildFile; fileRef = D5C96643C7B4D44153B95200 /* FinderToolsAddon.swift */; };
 		6F644313A467DB269FDBAED6 /* FilePreviewThumbnail.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4BC0CEDE9677C9C2485586B3 /* FilePreviewThumbnail.swift */; };
 		71AA40FC4B8C57FFDE5F8DFC /* SystemAction.swift in Sources */ = {isa = PBXBuildFile; fileRef = FE72CE02F853ACE956627347 /* SystemAction.swift */; };
 		72134E4BC24625F70ACE322D /* WebpageArticle.swift in Sources */ = {isa = PBXBuildFile; fileRef = C12D3DF84AB760A3CF15C5FA /* WebpageArticle.swift */; };
@@ -596,6 +602,7 @@
 		7A3401FAB95C7E16B62760CA /* WindowSwitchPolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = E250BCD1D425BC3C309FF397 /* WindowSwitchPolicy.swift */; };
 		7A7D20DFBEB49D7C7D9DDEB5 /* RoomPreviewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 676760D8D30526B99A1F97B7 /* RoomPreviewController.swift */; };
 		7AA4C783005A955D6B6A010D /* DownloadRunContext+Distill.swift in Sources */ = {isa = PBXBuildFile; fileRef = D1E951F00A8D60129D4AD7E6 /* DownloadRunContext+Distill.swift */; };
+		7AD08882DC7625BCA8609CB7 /* AutoBackupSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DE6BAA08F5D8DE2A37AD71A1 /* AutoBackupSettingsView.swift */; };
 		7AF6E4F92BBF4D41B9B1E700 /* BackupBundle.swift in Sources */ = {isa = PBXBuildFile; fileRef = 780B32AF98BA3A51D2F0E8B4 /* BackupBundle.swift */; };
 		7B25CD1684D24C164346AA68 /* SnippetEditorScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = F590D5052075C9E121306FEE /* SnippetEditorScreen.swift */; };
 		7B32E6EE86458C854D76B0AF /* RoomWindowSweep.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7D1BD03E0327890BD4E68988 /* RoomWindowSweep.swift */; };
@@ -633,6 +640,7 @@
 		8193B7BA1A0F98173078A1D0 /* AIChatSurfacesState.swift in Sources */ = {isa = PBXBuildFile; fileRef = C94312FFD26A2581BB691F9E /* AIChatSurfacesState.swift */; };
 		81F105BFE02BBA15ADC5980F /* BrightnessDisplay.swift in Sources */ = {isa = PBXBuildFile; fileRef = 26114FA88C136B08EAF91A56 /* BrightnessDisplay.swift */; };
 		821FEEC6D57CA8D81FAD10DE /* WindowLayoutCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8BE58163F028AC3AD537AAC3 /* WindowLayoutCoordinator.swift */; };
+		822772319D721F33EDE08C98 /* NotchcastSettingsBackupBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A0B161E7C8310F3441EF4E9 /* NotchcastSettingsBackupBridge.swift */; };
 		8229CDB4CEEA312758394F1D /* IslandPaletteSurface.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1BE59A120408BCECE26C329 /* IslandPaletteSurface.swift */; };
 		827BC647374905538C3E5DE8 /* ExtensionMenuBarManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = E7D5244DA7C7D17A80F33442 /* ExtensionMenuBarManager.swift */; };
 		82B8F46CBEC0F67F6CCEBDBA /* SyntaxGrammar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 459B988A5AE16F60A4D573AF /* SyntaxGrammar.swift */; };
@@ -766,6 +774,7 @@
 		9DFE7A312D079C7125DB43DE /* AppleShortcutsSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 072DA32B7365FAAB7C38F25C /* AppleShortcutsSettingsView.swift */; };
 		9E4497ECAD183E5C2B49475B /* MeetingDay.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0599199132DAFBE12C59FBD /* MeetingDay.swift */; };
 		9E514EA8EB0408653AC3D1D9 /* BundleSignature.swift in Sources */ = {isa = PBXBuildFile; fileRef = C3E30EFA3197FC5EF1E85C21 /* BundleSignature.swift */; };
+		9E5997058B89D4E30B1858DA /* AutoBackupModule.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2B3364B94E378EB55E1A1975 /* AutoBackupModule.swift */; };
 		9E5B694969D3F99BF7D0D9E1 /* ExtensionImage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 32D20FAFD9F3CC0E5802A966 /* ExtensionImage.swift */; };
 		9E70D827FD1745DDAA2BC921 /* InlineArgumentFields.swift in Sources */ = {isa = PBXBuildFile; fileRef = 23A119A569C07DE20F315212 /* InlineArgumentFields.swift */; };
 		9ECFA0114ED8A7C8B3C46B07 /* NoteLayoutFragmentProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9E9A5FCC71B2F8BB491FDF45 /* NoteLayoutFragmentProvider.swift */; };
@@ -829,6 +838,7 @@
 		ABF71DB1EB6741F10CD834DF /* MenuSnapshotPolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A39D6A1B28175B4E394ED7A /* MenuSnapshotPolicy.swift */; };
 		ABFC92E6F22D8D6715081D9F /* CalendarAccess.swift in Sources */ = {isa = PBXBuildFile; fileRef = D3F82845FDA307DF71676352 /* CalendarAccess.swift */; };
 		AC417E6C0EC58EE665F27F80 /* LauncherMatch.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6C7717F4851345ED38592B1C /* LauncherMatch.swift */; };
+		ACA4D63E24C3A6F3433CF773 /* AutoBackupPreferences.swift in Sources */ = {isa = PBXBuildFile; fileRef = ED6A53635AFF8D9DAD4B8738 /* AutoBackupPreferences.swift */; };
 		ACB45791BFE60896455293B4 /* FileSearchPolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8FC86115B040B8C574EAD0B5 /* FileSearchPolicy.swift */; };
 		ACD8CAE659B1C49EC8652576 /* HotKeyCenter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 26AD346C8FD5F2D4F00FF2B6 /* HotKeyCenter.swift */; };
 		ACE645630E536C93CA102050 /* VolumeHUDView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A90559D7DB9F6F3874CAFCDE /* VolumeHUDView.swift */; };
@@ -923,6 +933,7 @@
 		BF04DEAF1B660EE399B43962 /* UninstallScanner.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9A7F606D7F71B6FC0CC6ABC8 /* UninstallScanner.swift */; };
 		BFA502E8D404DCC231DAF29B /* ExtensionSettingsEditor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2E9D750F4DB7856959BBA83E /* ExtensionSettingsEditor.swift */; };
 		BFA8B1578664272E7CBFF806 /* ExtensionDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2B0D967615846F9C4EC3E44F /* ExtensionDetailView.swift */; };
+		BFB2370BF9C72434465D2C02 /* FinderToolsSystem+Live.swift in Sources */ = {isa = PBXBuildFile; fileRef = 99F1E9D45B359131756BEA1B /* FinderToolsSystem+Live.swift */; };
 		BFC17B1BD5D239E0CCD56DDF /* QuickActionFailure.swift in Sources */ = {isa = PBXBuildFile; fileRef = 53DBA322BA1F117530075F51 /* QuickActionFailure.swift */; };
 		BFD24D218C3CC151A9F85E94 /* ParakeetRecognizer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7C0D8112DC5513C8331D7DAF /* ParakeetRecognizer.swift */; };
 		BFFA3F1DA6CEF6C267648911 /* SyntaxHighlighter.swift in Sources */ = {isa = PBXBuildFile; fileRef = BCF9862B0BB24D73427B676C /* SyntaxHighlighter.swift */; };
@@ -970,6 +981,7 @@
 		CA9C4158D6102028733745F5 /* NoteMarkdownTypography.swift in Sources */ = {isa = PBXBuildFile; fileRef = 99EF603B1761C0EF33EAA15E /* NoteMarkdownTypography.swift */; };
 		CAAD92C659DB6164343F296D /* SmallCommandsModule.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6DD6AE01B31D2A5AAD216106 /* SmallCommandsModule.swift */; };
 		CAE4C44A9D2EC4AC51FD3150 /* UninstallTarget.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7EBAD0766FF9BFC6A4396474 /* UninstallTarget.swift */; };
+		CB1ED71D3B9C9644195F8170 /* FinderToolsFocus.swift in Sources */ = {isa = PBXBuildFile; fileRef = C74ED35CDC7C46C7FCC5F27D /* FinderToolsFocus.swift */; };
 		CB35B7D87CB8FCFF26A7BED4 /* FileSystemWatcher.swift in Sources */ = {isa = PBXBuildFile; fileRef = 992A05290190AFEBA0C525CA /* FileSystemWatcher.swift */; };
 		CB63F246DCA043AD44361466 /* IslandPillScenes.swift in Sources */ = {isa = PBXBuildFile; fileRef = A85328F5C3BBA195271D8424 /* IslandPillScenes.swift */; };
 		CB7CF6A0733F36852DD85E3B /* NoiseControlSystem+Live.swift in Sources */ = {isa = PBXBuildFile; fileRef = 38F544074D40762EA6E578EA /* NoiseControlSystem+Live.swift */; };
@@ -1002,6 +1014,7 @@
 		D07983DDEA61E5F2B8681F01 /* QuicklinkCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 83CD7B0E866AEF486F9EC5E9 /* QuicklinkCoordinator.swift */; };
 		D07F272D0E095B6000D53716 /* NotesCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0F5AFB680B55BBAFF2207F99 /* NotesCoordinator.swift */; };
 		D0964B628AFA1B6E754F064C /* CustomCommandArgumentsAccessory.swift in Sources */ = {isa = PBXBuildFile; fileRef = 37602A3CBE03EB41BF09622A /* CustomCommandArgumentsAccessory.swift */; };
+		D09B590AF760E80B03F25F33 /* FinderToolsPolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = 857BF830DBFE7BCB2B9956B5 /* FinderToolsPolicy.swift */; };
 		D16080B73800FF88758E08B3 /* NoteHeadingMenuWindowController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 67C489BF8A42B4E0E7FFAA8F /* NoteHeadingMenuWindowController.swift */; };
 		D19969C92342E025A16443B5 /* CalcTokenizer.swift in Sources */ = {isa = PBXBuildFile; fileRef = EE1C64977153EF104F583008 /* CalcTokenizer.swift */; };
 		D1F02A377FF12C14CE73B1CB /* ExtensionSearchState.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5C67CBB0BD596D3E74326D2 /* ExtensionSearchState.swift */; };
@@ -1143,6 +1156,7 @@
 		ED4D7E96CAD1DD029E77AC76 /* AudioLevelAccess.swift in Sources */ = {isa = PBXBuildFile; fileRef = 289FD02611953A8B153279BD /* AudioLevelAccess.swift */; };
 		ED62826E3D7CEB357865F9EB /* CalcDimension.swift in Sources */ = {isa = PBXBuildFile; fileRef = 666E0A469BE1984BEF1A9A50 /* CalcDimension.swift */; };
 		ED751C8FC1EFC4E9C07AE98F /* FileSearchFilter.swift in Sources */ = {isa = PBXBuildFile; fileRef = EE21578FB7500CB744855654 /* FileSearchFilter.swift */; };
+		ED85787155236686C97DE5CA /* NotchcastAutoBackup.xcstrings in Resources */ = {isa = PBXBuildFile; fileRef = 2F5838143D9ECB9D527CE5C7 /* NotchcastAutoBackup.xcstrings */; };
 		EDA4423E7070421A066CE245 /* ScreenshotExclusion.swift in Sources */ = {isa = PBXBuildFile; fileRef = 01DDF667686C091024C18445 /* ScreenshotExclusion.swift */; };
 		EDCE9EBFBD7A4B4BACC01E7C /* ColorPickerSystem.swift in Sources */ = {isa = PBXBuildFile; fileRef = 09A4B51B43928B2E25F05120 /* ColorPickerSystem.swift */; };
 		EDD7861202ECC1B0FA3B278E /* FileSearchResult.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7420F642776452B469182D0 /* FileSearchResult.swift */; };
@@ -1162,6 +1176,7 @@
 		F244E0064508C29F74363A8C /* ExecutablePicker.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0DE505A8B3E665C2C1382B48 /* ExecutablePicker.swift */; };
 		F289967F8DE039B6E1C3BE12 /* InterfaceSize.swift in Sources */ = {isa = PBXBuildFile; fileRef = 76C9F1A20CBB32EBB9629A4F /* InterfaceSize.swift */; };
 		F2AD20BFEA34E7553ACABE10 /* FileIndexCrawler.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0333973AAC2B1F4653902175 /* FileIndexCrawler.swift */; };
+		F305BCD1C03534DDD7E98B27 /* FinderToolsSystem.swift in Sources */ = {isa = PBXBuildFile; fileRef = 23F02E37287DDF2659323954 /* FinderToolsSystem.swift */; };
 		F338203B290D5A2897AE6D79 /* QuitProtectionEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 050131FB6AE5A5C38C713EE9 /* QuitProtectionEngine.swift */; };
 		F37AC0478A0A96243E833900 /* MCPCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7CFFF4B2F2BF476AD9B111B9 /* MCPCoordinator.swift */; };
 		F3CFFE33C4FE75EAA85F3ACB /* ChatSyncPayload.swift in Sources */ = {isa = PBXBuildFile; fileRef = FCB9B345A06AC98D205A92DE /* ChatSyncPayload.swift */; };
@@ -1414,6 +1429,7 @@
 		1AA26F487C06DC6F03F78B13 /* ExtensionAppearanceStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExtensionAppearanceStore.swift; sourceTree = "<group>"; };
 		1AE6A34F46D8970090CA0489 /* DictationMel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DictationMel.swift; sourceTree = "<group>"; };
 		1B0D3D33A85AB4BBC74F8463 /* SmallCommandsSystem.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SmallCommandsSystem.swift; sourceTree = "<group>"; };
+		1B77B5BE77F2DFFD0587DE6D /* FinderToolsModule.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FinderToolsModule.swift; sourceTree = "<group>"; };
 		1B865FF16D3C395A8D509B94 /* QuicklinkLauncher.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuicklinkLauncher.swift; sourceTree = "<group>"; };
 		1C8F318681FA5313677A14DA /* InstalledAIProbe.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InstalledAIProbe.swift; sourceTree = "<group>"; };
 		1C9EBF04AD732E84D862A5DB /* NoiseControlModule.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NoiseControlModule.swift; sourceTree = "<group>"; };
@@ -1444,6 +1460,7 @@
 		23591B301A183579098AA019 /* OnboardingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingView.swift; sourceTree = "<group>"; };
 		236934966557373B61455B3C /* FolderPicker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FolderPicker.swift; sourceTree = "<group>"; };
 		23A119A569C07DE20F315212 /* InlineArgumentFields.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InlineArgumentFields.swift; sourceTree = "<group>"; };
+		23F02E37287DDF2659323954 /* FinderToolsSystem.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FinderToolsSystem.swift; sourceTree = "<group>"; };
 		23F7C8CBD0AA75D016DBFC06 /* SettingsPaneScanner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsPaneScanner.swift; sourceTree = "<group>"; };
 		241B93FCA1A1406BB79C4DC9 /* NotchcastTap.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotchcastTap.swift; sourceTree = "<group>"; };
 		24386713685FB65FB46A5516 /* DictationAudioDucker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DictationAudioDucker.swift; sourceTree = "<group>"; };
@@ -1488,6 +1505,7 @@
 		2B1326FAFF548EA6E11AA4F9 /* TorrentOpenFallback.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TorrentOpenFallback.swift; sourceTree = "<group>"; };
 		2B154C9F1BC46B39E2283527 /* RaycastClipboardImport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RaycastClipboardImport.swift; sourceTree = "<group>"; };
 		2B2CB71671625A1F446316A1 /* MessageHUDController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MessageHUDController.swift; sourceTree = "<group>"; };
+		2B3364B94E378EB55E1A1975 /* AutoBackupModule.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AutoBackupModule.swift; sourceTree = "<group>"; };
 		2B629EC3B716FEE881BB0075 /* TinycastApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TinycastApp.swift; sourceTree = "<group>"; };
 		2B82C20CF126F6A1F4156100 /* NotchcastPreferences.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotchcastPreferences.swift; sourceTree = "<group>"; };
 		2BAC1D756594DA0FC63F9033 /* MCPSettingsStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MCPSettingsStore.swift; sourceTree = "<group>"; };
@@ -1509,6 +1527,7 @@
 		2EEFB8DBAE05276AA6ACD37E /* FileIndexHelper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FileIndexHelper.swift; sourceTree = "<group>"; };
 		2EF45D2919B107E18D1A0949 /* ScreenshotsAddon.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScreenshotsAddon.swift; sourceTree = "<group>"; };
 		2F2AB4F8EE7D99E095CD26E9 /* RoomsList.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RoomsList.swift; sourceTree = "<group>"; };
+		2F5838143D9ECB9D527CE5C7 /* NotchcastAutoBackup.xcstrings */ = {isa = PBXFileReference; lastKnownFileType = text.json.xcstrings; path = NotchcastAutoBackup.xcstrings; sourceTree = "<group>"; };
 		2FCD070CDE64691E5F6ED28D /* InputSourceSwitcher.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InputSourceSwitcher.swift; sourceTree = "<group>"; };
 		301BA9123035D6BFB808F763 /* SnippetKeywordListener.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SnippetKeywordListener.swift; sourceTree = "<group>"; };
 		3038540B0C666DD7F68627D8 /* ScreenshotsModule.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScreenshotsModule.swift; sourceTree = "<group>"; };
@@ -1868,6 +1887,7 @@
 		7945C129A685FC29FBA70EE4 /* BackupCategorySelection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackupCategorySelection.swift; sourceTree = "<group>"; };
 		7981158F0C0424F709A09077 /* TorrentMetainfo.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TorrentMetainfo.swift; sourceTree = "<group>"; };
 		79BC68E042182F7068220BB3 /* QuicklinksSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuicklinksSettingsView.swift; sourceTree = "<group>"; };
+		7A0B161E7C8310F3441EF4E9 /* NotchcastSettingsBackupBridge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotchcastSettingsBackupBridge.swift; sourceTree = "<group>"; };
 		7A660CA7A22E900E0EE2B90F /* ExtensionDeepLink.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExtensionDeepLink.swift; sourceTree = "<group>"; };
 		7AADCB9601B7B1BD7B1E5F4A /* SyncFileName.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncFileName.swift; sourceTree = "<group>"; };
 		7B2026232C36997D908716DF /* TorrentManager+Live.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "TorrentManager+Live.swift"; sourceTree = "<group>"; };
@@ -1920,6 +1940,7 @@
 		82C04AC1D7059D73D7505384 /* IslandLevelArt.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IslandLevelArt.swift; sourceTree = "<group>"; };
 		82DB32B7ACED5BE2BEE7451F /* ClipboardTextHelper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClipboardTextHelper.swift; sourceTree = "<group>"; };
 		82FE942150556875EB7B790E /* IslandCaptureScenes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IslandCaptureScenes.swift; sourceTree = "<group>"; };
+		8385851425D90711F76CEFFC /* AutoBackupSchedule.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AutoBackupSchedule.swift; sourceTree = "<group>"; };
 		83B8A0E68E42CACCB1F38094 /* Room.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Room.swift; sourceTree = "<group>"; };
 		83BB8F2CE628925F41B330B5 /* NoteEditPlan.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NoteEditPlan.swift; sourceTree = "<group>"; };
 		83C54F3A609CD1C2CDF304FB /* DoubleTapDetector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DoubleTapDetector.swift; sourceTree = "<group>"; };
@@ -1929,6 +1950,7 @@
 		84A92B985354A04A93714337 /* IslandLatency.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IslandLatency.swift; sourceTree = "<group>"; };
 		84D93A74803104966F150620 /* FormTextArea.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FormTextArea.swift; sourceTree = "<group>"; };
 		856F65245B10433A230194E6 /* QuicklinkListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuicklinkListView.swift; sourceTree = "<group>"; };
+		857BF830DBFE7BCB2B9956B5 /* FinderToolsPolicy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FinderToolsPolicy.swift; sourceTree = "<group>"; };
 		858E08BB313EC330C2D5E50C /* LauncherCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LauncherCoordinator.swift; sourceTree = "<group>"; };
 		85B00A698366E83C7352BC1E /* HotKeyBinding.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HotKeyBinding.swift; sourceTree = "<group>"; };
 		85DAEE77ABAC4260C95F9AB5 /* AIProviderFactory.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIProviderFactory.swift; sourceTree = "<group>"; };
@@ -1962,6 +1984,7 @@
 		8CBD6D8BC6951A482BDF6169 /* SettingsCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsCoordinator.swift; sourceTree = "<group>"; };
 		8CD7591D273A6484DD48018A /* RaycastImportReader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RaycastImportReader.swift; sourceTree = "<group>"; };
 		8D0371F4748011D45C185444 /* TextTranslator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TextTranslator.swift; sourceTree = "<group>"; };
+		8D58F0F2B9389E58AA621E9B /* NotchcastHiddenCommands.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotchcastHiddenCommands.swift; sourceTree = "<group>"; };
 		8D7D18BE38D2CD54CE6AB6DC /* ClipboardTextExtractor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClipboardTextExtractor.swift; sourceTree = "<group>"; };
 		8D828A989EED1A0706386F59 /* ChatPresetStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatPresetStore.swift; sourceTree = "<group>"; };
 		8DA2EC0303BFCB1212E69B54 /* AISettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AISettingsView.swift; sourceTree = "<group>"; };
@@ -2034,6 +2057,7 @@
 		998895A07A571AE5ABA5A6EF /* IslandPresentation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IslandPresentation.swift; sourceTree = "<group>"; };
 		999FFAF2AFCA0241D02C63A3 /* NotchcastSettingsPane.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotchcastSettingsPane.swift; sourceTree = "<group>"; };
 		99EF603B1761C0EF33EAA15E /* NoteMarkdownTypography.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NoteMarkdownTypography.swift; sourceTree = "<group>"; };
+		99F1E9D45B359131756BEA1B /* FinderToolsSystem+Live.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "FinderToolsSystem+Live.swift"; sourceTree = "<group>"; };
 		9A7F606D7F71B6FC0CC6ABC8 /* UninstallScanner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UninstallScanner.swift; sourceTree = "<group>"; };
 		9A83FDF802F06E1C46F9AB84 /* ThreeFingerGesture.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ThreeFingerGesture.swift; sourceTree = "<group>"; };
 		9AAFBFA70EF62B67F7357E0E /* UninstallCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UninstallCoordinator.swift; sourceTree = "<group>"; };
@@ -2229,6 +2253,7 @@
 		C06BD8A507191F2621FCFFC7 /* FormFieldChrome.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FormFieldChrome.swift; sourceTree = "<group>"; };
 		C0BE179B65019C6A91244ACA /* TorrentJob.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TorrentJob.swift; sourceTree = "<group>"; };
 		C12D3DF84AB760A3CF15C5FA /* WebpageArticle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WebpageArticle.swift; sourceTree = "<group>"; };
+		C1BE3B9ED796907A4B015357 /* AutoBackupAddon.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AutoBackupAddon.swift; sourceTree = "<group>"; };
 		C214E40D42F4812F141C16A8 /* ColorPreview.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ColorPreview.swift; sourceTree = "<group>"; };
 		C299812264148020EEC8904B /* IslandButtonFill.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IslandButtonFill.swift; sourceTree = "<group>"; };
 		C29AD5D3C6AA58E81732515C /* BrightnessSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BrightnessSettingsView.swift; sourceTree = "<group>"; };
@@ -2252,6 +2277,7 @@
 		C5941CE8F08FD5986FED12E9 /* QuickActionsSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuickActionsSettingsView.swift; sourceTree = "<group>"; };
 		C5BA06E4CC7E8D40E3285F16 /* KeyCapChip.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeyCapChip.swift; sourceTree = "<group>"; };
 		C5C86E2D70216B50DB53D0A9 /* NotchcastMusicBlock.xcstrings */ = {isa = PBXFileReference; lastKnownFileType = text.json.xcstrings; path = NotchcastMusicBlock.xcstrings; sourceTree = "<group>"; };
+		C74ED35CDC7C46C7FCC5F27D /* FinderToolsFocus.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FinderToolsFocus.swift; sourceTree = "<group>"; };
 		C78835FFFBCD7F8EE3166D32 /* ColorPickerSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ColorPickerSettingsView.swift; sourceTree = "<group>"; };
 		C7B3FC48B58E1005453E7E18 /* Snippet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Snippet.swift; sourceTree = "<group>"; };
 		C7C0F66A568B254D17C11355 /* LocalizedResource.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalizedResource.swift; sourceTree = "<group>"; };
@@ -2332,6 +2358,7 @@
 		D558FDBE73563E4292E388DD /* DictationVolumeSnapshot.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DictationVolumeSnapshot.swift; sourceTree = "<group>"; };
 		D55BFE80A2EE1DD3DA9A2AA9 /* NotchcastTapRouter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotchcastTapRouter.swift; sourceTree = "<group>"; };
 		D5870C37FFC77A9B53CA5764 /* TextDiffEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TextDiffEngine.swift; sourceTree = "<group>"; };
+		D5C96643C7B4D44153B95200 /* FinderToolsAddon.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FinderToolsAddon.swift; sourceTree = "<group>"; };
 		D6260E85D8C8FC8200203474 /* DictationExtrasCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DictationExtrasCoordinator.swift; sourceTree = "<group>"; };
 		D65D1C9A117E443C6DA2BD9E /* WindowLayoutAnchor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WindowLayoutAnchor.swift; sourceTree = "<group>"; };
 		D68722D56122F3EFDA707782 /* RoomsScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RoomsScreen.swift; sourceTree = "<group>"; };
@@ -2370,6 +2397,7 @@
 		DE0EFB95551AD217589092E4 /* DictationDestination.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DictationDestination.swift; sourceTree = "<group>"; };
 		DE1A2CE5E4D5F10346B5F6F3 /* EmojiGridView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EmojiGridView.swift; sourceTree = "<group>"; };
 		DE53876FD9488CF840848570 /* BrightnessDisplayRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BrightnessDisplayRow.swift; sourceTree = "<group>"; };
+		DE6BAA08F5D8DE2A37AD71A1 /* AutoBackupSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AutoBackupSettingsView.swift; sourceTree = "<group>"; };
 		DE8834A3F83970944B61424B /* DisplaySoundRecovery.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DisplaySoundRecovery.swift; sourceTree = "<group>"; };
 		DF0880635E294D9DF55BAADA /* CustomCommand.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CustomCommand.swift; sourceTree = "<group>"; };
 		DF39091EB6490DFCB87753F4 /* IslandOpeningScenes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IslandOpeningScenes.swift; sourceTree = "<group>"; };
@@ -2454,6 +2482,7 @@
 		ECE4D3633895F0E27FE3252D /* NoteInlineScanner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NoteInlineScanner.swift; sourceTree = "<group>"; };
 		ED306EE90911979A1EE72DAF /* LauncherListSyncSource.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LauncherListSyncSource.swift; sourceTree = "<group>"; };
 		ED5AAA98FFF7A4D34D7B490D /* ExtensionBootConfig.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExtensionBootConfig.swift; sourceTree = "<group>"; };
+		ED6A53635AFF8D9DAD4B8738 /* AutoBackupPreferences.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AutoBackupPreferences.swift; sourceTree = "<group>"; };
 		ED866D346B2D97A12AD15CE9 /* DictationSpectrum.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DictationSpectrum.swift; sourceTree = "<group>"; };
 		EDBAD3F666C10A869A4EAADB /* MeetingDetailsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MeetingDetailsView.swift; sourceTree = "<group>"; };
 		EE1C64977153EF104F583008 /* CalcTokenizer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalcTokenizer.swift; sourceTree = "<group>"; };
@@ -2517,6 +2546,7 @@
 		FE72CE02F853ACE956627347 /* SystemAction.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SystemAction.swift; sourceTree = "<group>"; };
 		FE77B495DA3B4C720F009EAA /* IslandCardStyle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IslandCardStyle.swift; sourceTree = "<group>"; };
 		FF16EFEB997492F48AC2FA72 /* DownloadsLinks.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DownloadsLinks.swift; sourceTree = "<group>"; };
+		FF23841289C8E69601DEE89B /* NotchcastFinderTools.xcstrings */ = {isa = PBXFileReference; lastKnownFileType = text.json.xcstrings; path = NotchcastFinderTools.xcstrings; sourceTree = "<group>"; };
 		FF447647B325A119F2B3BCD1 /* UnitCategory.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UnitCategory.swift; sourceTree = "<group>"; };
 		FF65A473A49866F415970880 /* ScreenshotSystem+Live.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ScreenshotSystem+Live.swift"; sourceTree = "<group>"; };
 /* End PBXFileReference section */
@@ -3144,6 +3174,17 @@
 			path = WindowSwitcher;
 			sourceTree = "<group>";
 		};
+		3206C1BD9A966A31B2550E6B /* FinderTools */ = {
+			isa = PBXGroup;
+			children = (
+				F48D29EC51E33F129E514CC4 /* Model */,
+				C525C3C31D08CA09A0E76CA3 /* Service */,
+				D5C96643C7B4D44153B95200 /* FinderToolsAddon.swift */,
+				FF23841289C8E69601DEE89B /* NotchcastFinderTools.xcstrings */,
+			);
+			path = FinderTools;
+			sourceTree = "<group>";
+		};
 		33300F420F06E1CCCD64AFFD /* NumberKeys */ = {
 			isa = PBXGroup;
 			children = (
@@ -3199,6 +3240,14 @@
 				E03A52EBF08AD5C44953DBDC /* FilePreviewStage.swift */,
 			);
 			path = UI;
+			sourceTree = "<group>";
+		};
+		394DACC4459042EFCAEE3A5C /* Model */ = {
+			isa = PBXGroup;
+			children = (
+				8385851425D90711F76CEFFC /* AutoBackupSchedule.swift */,
+			);
+			path = Model;
 			sourceTree = "<group>";
 		};
 		3B3C887C1093082A211134ED /* HotKeys */ = {
@@ -3426,6 +3475,18 @@
 				76460C2D60828CC79F0CE972 /* UpdateReadiness.swift */,
 			);
 			path = Model;
+			sourceTree = "<group>";
+		};
+		530E18FE5D79AF67C0F48278 /* AutoBackup */ = {
+			isa = PBXGroup;
+			children = (
+				394DACC4459042EFCAEE3A5C /* Model */,
+				D709144C37BB313095D6D899 /* Service */,
+				A297BE9D215E135D2F64BF83 /* UI */,
+				C1BE3B9ED796907A4B015357 /* AutoBackupAddon.swift */,
+				2F5838143D9ECB9D527CE5C7 /* NotchcastAutoBackup.xcstrings */,
+			);
+			path = AutoBackup;
 			sourceTree = "<group>";
 		};
 		53144A4917558A2B946CC513 /* HideCommandM */ = {
@@ -3749,6 +3810,7 @@
 			children = (
 				8197A9549574F76C94058F9E /* NotchcastAppProof.swift */,
 				4317298489FCBE72895587BC /* NotchcastHidden.swift */,
+				8D58F0F2B9389E58AA621E9B /* NotchcastHiddenCommands.swift */,
 				AC01BB0E1A2896467013CD44 /* NotchcastIslandPins.swift */,
 			);
 			path = Hidden;
@@ -4204,11 +4266,13 @@
 		8BB8A768C2EEC9A21E3B4D45 /* Notchcast */ = {
 			isa = PBXGroup;
 			children = (
+				530E18FE5D79AF67C0F48278 /* AutoBackup */,
 				BC520B59259BC832EAF744E3 /* ColorPicker */,
 				77629D3D15E8EDE9C9B34BFD /* CopyPath */,
 				93AE5939BC0CDD7EFA84FD2B /* Core */,
 				30ABEEE3B32130A514FF1F0A /* DisplaySound */,
 				A3C3466211DF1BB1E0F85CA7 /* Downloads */,
+				3206C1BD9A966A31B2550E6B /* FinderTools */,
 				654D0F225E36AC9079B0B90B /* Hidden */,
 				53144A4917558A2B946CC513 /* HideCommandM */,
 				2B6E36931ED519C0CB688458 /* IPhoneBackup */,
@@ -4232,6 +4296,7 @@
 				D99B7F24DD2C7D964EA3AFCF /* NotchcastGlobeTrigger.swift */,
 				3F199857DE1FAA636DC8D73E /* NotchcastLauncherHides.swift */,
 				C8DB1A4B304917CDDC4DF3B5 /* NotchcastRegistry.swift */,
+				7A0B161E7C8310F3441EF4E9 /* NotchcastSettingsBackupBridge.swift */,
 				999FFAF2AFCA0241D02C63A3 /* NotchcastSettingsPane.swift */,
 				58D7094D0F19E6C927625CE6 /* NotchMenuInk.swift */,
 				0F4EFA310F3BAE2640DB337F /* NotchTheme.swift */,
@@ -4575,6 +4640,14 @@
 				992A05290190AFEBA0C525CA /* FileSystemWatcher.swift */,
 			);
 			path = Service;
+			sourceTree = "<group>";
+		};
+		A297BE9D215E135D2F64BF83 /* UI */ = {
+			isa = PBXGroup;
+			children = (
+				DE6BAA08F5D8DE2A37AD71A1 /* AutoBackupSettingsView.swift */,
+			);
+			path = UI;
 			sourceTree = "<group>";
 		};
 		A2B4B3539BD46FDC6F2AE4B5 /* Settings */ = {
@@ -5010,6 +5083,16 @@
 			path = Model;
 			sourceTree = "<group>";
 		};
+		C525C3C31D08CA09A0E76CA3 /* Service */ = {
+			isa = PBXGroup;
+			children = (
+				1B77B5BE77F2DFFD0587DE6D /* FinderToolsModule.swift */,
+				23F02E37287DDF2659323954 /* FinderToolsSystem.swift */,
+				99F1E9D45B359131756BEA1B /* FinderToolsSystem+Live.swift */,
+			);
+			path = Service;
+			sourceTree = "<group>";
+		};
 		C672660B1032FDE58BBA07A8 /* Model */ = {
 			isa = PBXGroup;
 			children = (
@@ -5156,6 +5239,15 @@
 				BC0AA95CA13E86370661D01C /* CalendarSettingsView.swift */,
 			);
 			path = Settings;
+			sourceTree = "<group>";
+		};
+		D709144C37BB313095D6D899 /* Service */ = {
+			isa = PBXGroup;
+			children = (
+				2B3364B94E378EB55E1A1975 /* AutoBackupModule.swift */,
+				ED6A53635AFF8D9DAD4B8738 /* AutoBackupPreferences.swift */,
+			);
+			path = Service;
 			sourceTree = "<group>";
 		};
 		D7B582968A4C2A5497B8ECC4 /* Model */ = {
@@ -5548,6 +5640,15 @@
 			path = Settings;
 			sourceTree = "<group>";
 		};
+		F48D29EC51E33F129E514CC4 /* Model */ = {
+			isa = PBXGroup;
+			children = (
+				C74ED35CDC7C46C7FCC5F27D /* FinderToolsFocus.swift */,
+				857BF830DBFE7BCB2B9956B5 /* FinderToolsPolicy.swift */,
+			);
+			path = Model;
+			sourceTree = "<group>";
+		};
 		F582FC7869A272CD878A62D4 /* Settings */ = {
 			isa = PBXGroup;
 			children = (
@@ -5812,10 +5913,12 @@
 				3F6F43462780AF066D8E58C3 /* Localizable.xcstrings in Resources */,
 				6B3A9A37600C941DF38F9171 /* NOTICE.md in Resources */,
 				4B52AFEF9AED73A483ADFCE0 /* Notchcast.xcstrings in Resources */,
+				ED85787155236686C97DE5CA /* NotchcastAutoBackup.xcstrings in Resources */,
 				178EA01B39C047A08D62B356 /* NotchcastColorPicker.xcstrings in Resources */,
 				49A853EC5C35501142E3B94C /* NotchcastCopyPath.xcstrings in Resources */,
 				52C34B4EAD48F2749F368530 /* NotchcastDisplaySound.xcstrings in Resources */,
 				DC75F16A6736CDB3A5BC4BC2 /* NotchcastDownloads.xcstrings in Resources */,
+				56B51774FD1F99FA5299E9DF /* NotchcastFinderTools.xcstrings in Resources */,
 				54B815F8E98570B0EDECB5B9 /* NotchcastHideCommandM.xcstrings in Resources */,
 				02F3924B10FAEC884C34050E /* NotchcastIPhoneBackup.xcstrings in Resources */,
 				116D7B0022194BA26EDD6403 /* NotchcastMiddleClick.xcstrings in Resources */,
@@ -5975,6 +6078,11 @@
 				ED4D7E96CAD1DD029E77AC76 /* AudioLevelAccess.swift in Sources */,
 				F4257D7C29EB78C14D4B3EE0 /* AudioLevelsService.swift in Sources */,
 				42D11D7724720E2F41AE604E /* AudioOutput.swift in Sources */,
+				4F9771AA1C57F8FCE42FDB9C /* AutoBackupAddon.swift in Sources */,
+				9E5997058B89D4E30B1858DA /* AutoBackupModule.swift in Sources */,
+				ACA4D63E24C3A6F3433CF773 /* AutoBackupPreferences.swift in Sources */,
+				4F5DE0693568B17951FDF80A /* AutoBackupSchedule.swift in Sources */,
+				7AD08882DC7625BCA8609CB7 /* AutoBackupSettingsView.swift in Sources */,
 				5BF11E6F921BF8ED5CA10878 /* AutoJoinPolicy.swift in Sources */,
 				A0A247FFDB1EA278C0F6F813 /* BackupActions.swift in Sources */,
 				0FCFCEA4477672D62A3295ED /* BackupApplier.swift in Sources */,
@@ -6398,6 +6506,12 @@
 				24EFA87B2617537B6CAAD52B /* FileSearchSettingsView.swift in Sources */,
 				0CC2291DE8806FDFB478F8A0 /* FileSearchSurface.swift in Sources */,
 				CB35B7D87CB8FCFF26A7BED4 /* FileSystemWatcher.swift in Sources */,
+				6F638E7D94CFC0D1E0876FB4 /* FinderToolsAddon.swift in Sources */,
+				CB1ED71D3B9C9644195F8170 /* FinderToolsFocus.swift in Sources */,
+				216EBB6C24942121D98FC087 /* FinderToolsModule.swift in Sources */,
+				D09B590AF760E80B03F25F33 /* FinderToolsPolicy.swift in Sources */,
+				BFB2370BF9C72434465D2C02 /* FinderToolsSystem+Live.swift in Sources */,
+				F305BCD1C03534DDD7E98B27 /* FinderToolsSystem.swift in Sources */,
 				303FC5342B61A7862EBC1C32 /* FocusRelease.swift in Sources */,
 				6F076223EA47A68C1490F674 /* FolderPicker.swift in Sources */,
 				11A0F91815E5DFE1AB08CC20 /* FormFieldChrome.swift in Sources */,
@@ -6662,6 +6776,7 @@
 				F5B3E3D1D7153903C3B6617A /* NotchcastGlobeHint.swift in Sources */,
 				27453405436A5B9152353467 /* NotchcastGlobeTrigger.swift in Sources */,
 				69A46A511381273B00153D07 /* NotchcastHidden.swift in Sources */,
+				308FB81A7AD4774808FA9B17 /* NotchcastHiddenCommands.swift in Sources */,
 				0127CD65C4B15EEDB9CC0D76 /* NotchcastIslandPins.swift in Sources */,
 				2A692D2E29D529BF386A4FA3 /* NotchcastIslandSettingsRows.swift in Sources */,
 				080484B74FF02D88F4B34D90 /* NotchcastLauncherHides.swift in Sources */,
@@ -6670,6 +6785,7 @@
 				8A831B2ED19477B6E2AE3BAE /* NotchcastPane.swift in Sources */,
 				94BBC5C3EEF42E1283CD2494 /* NotchcastPreferences.swift in Sources */,
 				E469032D52A56911F5CC6AA4 /* NotchcastRegistry.swift in Sources */,
+				822772319D721F33EDE08C98 /* NotchcastSettingsBackupBridge.swift in Sources */,
 				BA1947A80061F19458151D17 /* NotchcastSettingsPane.swift in Sources */,
 				CDD489D3CEE806B071933E86 /* NotchcastSettingsSearch.swift in Sources */,
 				D9553D43E5E40F6F1BBFA802 /* NotchcastSettingsView.swift in Sources */,
