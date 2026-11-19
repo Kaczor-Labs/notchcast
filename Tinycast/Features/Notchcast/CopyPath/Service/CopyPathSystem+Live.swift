@@ -24,81 +24,32 @@ extension CopyPathSystem {
     )
 }
 
-/// Reads Finder and browsers with `core/getd` Apple Events, 5 s each.
+/// Reads Finder and browsers through the core's Apple Event reader, off the caller's actor.
 private nonisolated enum CopyPathAppleEvents {
-    /// One object-specifier hop: a named property, or the first element of a class.
-    struct Hop {
-        let want: NSAppleEventDescriptor
-        let form: NSAppleEventDescriptor
-        let seld: NSAppleEventDescriptor
-
-        static func property(_ name: String) -> Hop {
-            Hop(want: .init(typeCode: code("prop")), form: .init(enumCode: code("prop")), seld: .init(typeCode: code(name)))
-        }
-
-        static func first(_ kind: String) -> Hop {
-            Hop(want: .init(typeCode: code(kind)), form: .init(enumCode: code("indx")), seld: .init(int32: 1))
-        }
-    }
-
     @concurrent
     static func finderSelection() async throws -> [String] {
-        let items = try values(CopyPathResolver.finder, [.property("sele")], denied: .finderAutomation)
-        return try items.flatMap {
-            try values(CopyPathResolver.finder, [.property("pURL")], from: $0, denied: .finderAutomation)
-        }.compactMap(\.stringValue)
+        try NotchcastAppleEvents.finderSelection(refusing: stop(.finderAutomation))
     }
 
     @concurrent
     static func finderFolder() async throws -> String? {
-        let path: [Hop] = [.first("brow"), .property("fvtg"), .property("pURL")]
-        return try values(CopyPathResolver.finder, path, denied: .finderAutomation).first?.stringValue
+        let path: [NotchcastAppleEvents.Hop] = [.first("brow"), .property("fvtg"), .property("pURL")]
+        return try NotchcastAppleEvents.values(CopyPathResolver.finder, path, refusing: stop(.finderAutomation))
+            .first?.stringValue
     }
 
     @concurrent
     static func browserAddress(_ bundleID: String, kind: CopyPathResolver.Browser) async throws -> String? {
-        let path: [Hop] = switch kind {
+        let path: [NotchcastAppleEvents.Hop] = switch kind {
         case .safari: [.first("docu"), .property("pURL")]
         case .chromium: [.first("cwin"), .property("acTa"), .property("URL ")]
         }
-        return try values(bundleID, path, denied: .browserAutomation).first?.stringValue
+        return try NotchcastAppleEvents.values(bundleID, path, refusing: stop(.browserAutomation)).first?.stringValue
     }
 
-    /// The reply's items; `CopyPathStatus` decides which errors read as none and which stop the run.
-    private static func values(
-        _ bundleID: String, _ path: [Hop], from root: NSAppleEventDescriptor = .null(), denied: CopyPathFailure
-    ) throws -> [NSAppleEventDescriptor] {
-        try Task.checkCancellation()
-        let object = path.reduce(Optional(root)) { from, hop in
-            let record = NSAppleEventDescriptor.record()
-            for (key, value) in [("from", from), ("want", hop.want), ("form", hop.form), ("seld", hop.seld)] {
-                guard let value else { return nil }
-                record.setDescriptor(value, forKeyword: code(key))
-            }
-            return record.coerce(toDescriptorType: code("obj "))
-        }
-        guard let object else { return [] }
-        let target = NSAppleEventDescriptor(bundleIdentifier: bundleID)
-        let event = NSAppleEventDescriptor(
-            eventClass: code("core"), eventID: code("getd"), targetDescriptor: target, returnID: -1, transactionID: 0)
-        event.setParam(object, forKeyword: code("----"))
-        let reply: NSAppleEventDescriptor
-        do {
-            reply = try event.sendEvent(options: [.waitForReply, .canInteract], timeout: 5)
-        } catch {
-            _ = try CopyPathStatus.appleEvent((error as NSError).code, denied: denied)
-            return []
-        }
-        try Task.checkCancellation()
-        let status = Int(reply.paramDescriptor(forKeyword: code("errn"))?.int32Value ?? 0)
-        guard try CopyPathStatus.appleEvent(status, denied: denied) else { return [] }
-        guard let answer = reply.paramDescriptor(forKeyword: code("----")) else { return [] }
-        guard answer.descriptorType == code("list") else { return [answer] }
-        return (0..<answer.numberOfItems).compactMap { answer.atIndex($0 + 1) }
-    }
-
-    private static func code(_ text: String) -> UInt32 {
-        text.utf8.reduce(0) { ($0 << 8) | UInt32($1) }
+    /// `CopyPathStatus` decides which failed reads are nothing there and which stop the run.
+    private static func stop(_ denied: CopyPathFailure) -> (Int) throws -> Void {
+        { _ = try CopyPathStatus.appleEvent($0, denied: denied) }
     }
 }
 

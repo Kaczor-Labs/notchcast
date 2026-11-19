@@ -79,46 +79,15 @@ private nonisolated enum TaildropProcess {
     }
 }
 
-/// Finder's selection as file URLs: one `core/getd` Apple Event, then one per item, 5 s each.
+/// Finder's selection through the core's Apple Event reader, off the caller's actor.
 private nonisolated enum TaildropFinder {
     private static let automationDenied = -1743
 
+    /// No Finder, no such object or a timeout all read as nothing selected.
     @concurrent
     static func selection() async throws -> [String] {
-        try property("sele", of: .null()).flatMap { try property("pURL", of: $0) }.compactMap(\.stringValue)
-    }
-
-    /// No Finder, no such object or a timeout all read as nothing selected.
-    private static func property(
-        _ name: String, of container: NSAppleEventDescriptor
-    ) throws -> [NSAppleEventDescriptor] {
-        try Task.checkCancellation()
-        let record = NSAppleEventDescriptor.record()
-        let parts: KeyValuePairs<String, NSAppleEventDescriptor> = [
-            "from": container, "want": .init(typeCode: code("prop")),
-            "form": .init(enumCode: code("prop")), "seld": .init(typeCode: code(name)),
-        ]
-        for (key, part) in parts { record.setDescriptor(part, forKeyword: code(key)) }
-        guard let specifier = record.coerce(toDescriptorType: code("obj ")) else { return [] }
-        let finder = NSAppleEventDescriptor(bundleIdentifier: "com.apple.finder")
-        let get = NSAppleEventDescriptor(
-            eventClass: code("core"), eventID: code("getd"), targetDescriptor: finder, returnID: -1, transactionID: 0)
-        get.setParam(specifier, forKeyword: code("----"))
-        let reply: NSAppleEventDescriptor
-        do {
-            reply = try get.sendEvent(options: [.waitForReply, .canInteract], timeout: 5)
-        } catch {
-            if (error as NSError).code == automationDenied { throw TaildropFailure.finderAutomation }
-            return []
+        try NotchcastAppleEvents.finderSelection { status in
+            if status == automationDenied { throw TaildropFailure.finderAutomation }
         }
-        let status = reply.paramDescriptor(forKeyword: code("errn")).map { Int($0.int32Value) } ?? 0
-        if status == automationDenied { throw TaildropFailure.finderAutomation }
-        guard status == 0, let answer = reply.paramDescriptor(forKeyword: code("----")) else { return [] }
-        guard answer.descriptorType == code("list") else { return [answer] }
-        return (0..<answer.numberOfItems).compactMap { answer.atIndex($0 + 1) }
-    }
-
-    private static func code(_ text: String) -> UInt32 {
-        text.utf8.reduce(0) { ($0 << 8) | UInt32($1) }
     }
 }

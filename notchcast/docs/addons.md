@@ -31,6 +31,8 @@ Every Notchcast feature on top of Tinycast is an add-on. An add-on plugs in with
 
 **Settings backup** goes through the stock format: `context.settingsBackup` (`NotchcastSettingsBackup`) gives the current settings as Backup › Export's settings JSON (capability flags such as `snippetsEnabled` already left out), calls back once on the next change to them, writes them as a settings-only `.tinycast` file atomically, and restores one through the stock import with its confirmation and report. `NotchcastCore` injects `NotchcastSettingsBackupBridge`; harnesses pass a fake, and the default writes nothing.
 
+**Apple Events** to another app go through `NotchcastAppleEvents` (`Core/Service/`): `values(bundleID, path, refusing:)` sends one `core/getd` read, 5 s, and `finderSelection(refusing:)` returns Finder's selection as file URLs. Both are synchronous, so the add-on calls them off the main actor. A failed read hands its status to the add-on's `refusing` closure and reads as empty unless that throws, so each add-on keeps its own failure states. It is in Core because Copy Path and Taildrop both read Finder (§1: two folders never share code).
+
 A switch with none of commands, settings action, taps or a module has no user path and fails the registry harness (v1 shipped 35 such switches).
 
 **Ownership.** There is one `NotchcastCore` instance, created by H1 inside `AppCore.start` and held by `AppCore`; it stops every module and removes the tap when the app terminates. Hook statics in upstream files are `@MainActor`, set once in `start`, and `nil` means stock behaviour. No second actor, no new `MainActor.assumeIsolated`.
