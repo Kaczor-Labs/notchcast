@@ -53,9 +53,19 @@ final class NotchcastCore {
             _ = controller?.run(entryID: entryID)
         }
         launcher.runExtraCommand = { [weak controller, weak core] entryID in
-            guard let controller, controller.enabledCommands.contains(where: { $0.id == entryID }) else { return false }
-            core?.paletteCoordinator.hidePalette(restoreFocus: true)
-            return controller.run(entryID: entryID)
+            guard let controller, let core, controller.enabledCommands.contains(where: { $0.id == entryID })
+            else { return false }
+            // Read before the hide, which clears the palette's typed arguments.
+            let argument = NotchcastArgumentAccessory.value(for: entryID, vm: core.palette)
+            core.paletteCoordinator.hidePalette(restoreFocus: true)
+            return controller.submit(entryID: entryID, argument: argument)
+        }
+        LauncherScreen.extraAccessory = { [weak controller, weak core] entry, focus, onSubmit in
+            guard let core, let title = controller?.enabledCommands.first(where: { $0.id == entry.id })?.argument?.title
+            else { return nil }
+            return NotchcastArgumentAccessory.make(
+                entry: entry, title: title, vm: core.palette, metrics: core.settings.interfaceSize.metrics,
+                focus: focus, onSubmit: onSubmit)
         }
         LauncherScreen.digitRow = { [weak controller] digit, query, entryRows in
             controller?.launcherRow(digit: digit, query: query, entryRows: entryRows)
