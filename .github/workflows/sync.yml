@@ -49,7 +49,7 @@ jobs:
       releases: ${{ steps.plan.outputs.releases }}
       stage: ${{ steps.plan.outputs.stage }}
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           ref: main
           fetch-depth: 0
@@ -72,7 +72,7 @@ jobs:
       pull-requests: write
       issues: write
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           ref: ${{ needs.plan.outputs.main }}
           fetch-depth: 0
@@ -89,9 +89,8 @@ jobs:
         if: always()
         run: rm -f "$RUNNER_TEMP/deploy-key"
 
-  # Upstream moved and its review passed: replay our commits onto it, build, test, and only then move main (lease on what plan saw).
-  # Nothing to replay but main not tested yet (a push): build and test main as it is, once; nothing is pushed.
-  # Either way the tested commit gets a green `notchcast/tested` status.
+  # Upstream moved and its review passed: replay our commits onto it, build and test. Nothing to replay but main not
+  # tested yet (a push): build and test main as it is, once. The tree's code runs here, so no secret and no write token.
   # Issues: kind sync for a replay onto new upstream (cause stable across upstream commits), main for main as it is.
   main:
     name: ${{ needs.plan.outputs.rebase == 'true' && 'replay' || 'main' }}
@@ -99,35 +98,53 @@ jobs:
     if: needs.plan.outputs.rebase == 'true' || needs.plan.outputs.test_main == 'true'
     runs-on: xcode-27
     timeout-minutes: 120
-    environment: sync
     permissions:
       contents: read
-      statuses: write
-      issues: write
+      statuses: read
     outputs:
-      lost: ${{ steps.update.outputs.lost }}
+      head: ${{ steps.replay.outputs.head }}
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           ref: ${{ needs.plan.outputs.main }}
           path: tools
           persist-credentials: false
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           ref: ${{ needs.plan.outputs.main }}
           path: src
           fetch-depth: 0
           persist-credentials: false
+      # Plan read it up to an hour ago; nothing of upstream runs unless it is still a success.
+      - name: Re-read the upstream review
+        if: needs.plan.outputs.rebase == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 tools/notchcast/ci.py reviewed "${{ needs.plan.outputs.upstream_main }}"
       - uses: ./tools/notchcast/actions/xcode
       - uses: ./tools/notchcast/actions/xcodegen
+      # Its head output is fixed before the build and tests run; the push job pushes exactly that commit.
       - name: Replay our commits onto upstream main
+        id: replay
         if: needs.plan.outputs.rebase == 'true'
         working-directory: src
+        env:
+          UP: ${{ needs.plan.outputs.upstream_main }}
         run: |
           source ../tools/notchcast/config.env
           bash ../tools/notchcast/fetch-upstream.sh
-          test "$(git rev-parse refs/remotes/upstream/main)" = "${{ needs.plan.outputs.upstream_main }}" || git fetch -q "https://github.com/$UPSTREAM_REPO.git" "${{ needs.plan.outputs.upstream_main }}"
-          python3 ../tools/notchcast/ci.py replay . "${{ needs.plan.outputs.upstream_main }}"
+          test "$(git rev-parse refs/remotes/upstream/main)" = "$UP" || git fetch -q "https://github.com/$UPSTREAM_REPO.git" "$UP"
+          python3 ../tools/notchcast/ci.py replay . "$UP"
+          mkdir -p "$RUNNER_TEMP/replayed"
+          git bundle create "$RUNNER_TEMP/replayed/replayed.bundle" HEAD "^$UP"
+          echo "head=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        if: needs.plan.outputs.rebase == 'true'
+        with:
+          name: replayed
+          path: ${{ runner.temp }}/replayed
+          if-no-files-found: error
+          retention-days: 1
       - name: Regenerate project before building main
         working-directory: src
         run: '"$XCODEGEN" generate --quiet'
@@ -142,8 +159,61 @@ jobs:
         with:
           # A harness that also fails on this upstream commit is not ours.
           upstream: ${{ needs.plan.outputs.rebase == 'true' && needs.plan.outputs.upstream_main || needs.plan.outputs.base }}
-      - uses: ./tools/notchcast/actions/deploy-key
+
+  # Runs none of the tree's code. After a replay: fetch exactly the commit the main job reported, re-read the review,
+  # and only then take the deploy key and move main. Either way the tested commit gets a green `notchcast/tested` status.
+  push:
+    name: ${{ needs.plan.outputs.rebase == 'true' && 'replay push' || 'main tested' }}
+    needs: [plan, main]
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: sync
+    permissions:
+      contents: read
+      statuses: write
+      issues: write
+    outputs:
+      lost: ${{ steps.review.outputs.lost || steps.update.outputs.lost }}
+    env:
+      REBASE: ${{ needs.plan.outputs.rebase }}
+      OLD: ${{ needs.plan.outputs.main }}
+      UP: ${{ needs.plan.outputs.upstream_main }}
+      HEAD_SHA: ${{ needs.plan.outputs.rebase == 'true' && needs.main.outputs.head || needs.plan.outputs.main }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ needs.plan.outputs.main }}
+          path: tools
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
         if: needs.plan.outputs.rebase == 'true'
+        with:
+          name: replayed
+          path: ${{ runner.temp }}/replayed
+      - name: Fetch the replayed commits
+        if: needs.plan.outputs.rebase == 'true'
+        working-directory: tools
+        run: |
+          source notchcast/config.env
+          [[ "$HEAD_SHA" =~ ^[0-9a-f]{40}$ ]] || { echo "::error::the main job reported no replayed commit"; exit 1; }
+          git fetch -q "https://github.com/$UPSTREAM_REPO.git" "$UP"
+          git fetch -q "$RUNNER_TEMP/replayed/replayed.bundle" HEAD
+          test "$(git rev-parse FETCH_HEAD)" = "$HEAD_SHA" \
+            || { echo "::error::the replayed bundle is not the commit the main job reported"; exit 1; }
+      # A review of U that is no longer a success (plan read it up to two hours ago) ends the run, nothing pushed.
+      - name: Re-read the upstream review
+        id: review
+        if: needs.plan.outputs.rebase == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if ! python3 tools/notchcast/ci.py reviewed "$UP"; then
+            echo "::notice::main stays: the review of upstream ${UP:0:7} is no longer a success"
+            echo "lost=true" >> "$GITHUB_OUTPUT"
+          fi
+      - uses: ./tools/notchcast/actions/deploy-key
+        if: needs.plan.outputs.rebase == 'true' && steps.review.outputs.lost != 'true'
         with:
           key: ${{ secrets.DEPLOY_KEY }}
       # The only history rewrite in this repo besides stage's review branches: main moves onto reviewed upstream, guarded
@@ -151,72 +221,81 @@ jobs:
       # The replaced tip is kept under refs/notchcast/synced/ (no branch, tag or workflow trigger), so land.sh can
       # find the fork point of a PR cut before this rewrite.
       # A landing that moved main since plan loses the lease: that is no failure; its push starts the next Sync.
-      # A review of U that is no longer a success (plan read it up to two hours ago) ends the same way, nothing pushed.
       - name: Update main
         id: update
-        if: needs.plan.outputs.rebase == 'true'
-        working-directory: src
-        env:
-          OLD: ${{ needs.plan.outputs.main }}
-          UP: ${{ needs.plan.outputs.upstream_main }}
-          GH_TOKEN: ${{ github.token }}
+        if: needs.plan.outputs.rebase == 'true' && steps.review.outputs.lost != 'true'
+        working-directory: tools
         run: |
-          if ! python3 ../tools/notchcast/ci.py reviewed "$UP"; then
-            rm -f "$RUNNER_TEMP/deploy-key"
-            echo "::notice::main stays: the review of upstream ${UP:0:7} is no longer a success"
-            echo "lost=true" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
           if ! git -c core.hooksPath=/dev/null push --atomic --force-with-lease="refs/heads/main:$OLD" "$FORK_SSH" \
-            HEAD:refs/heads/main "$OLD:refs/notchcast/synced/$OLD"; then
-            rm -f "$RUNNER_TEMP/deploy-key"
+            "$HEAD_SHA:refs/heads/main" "$OLD:refs/notchcast/synced/$OLD"; then
             NOW="$(git ls-remote "https://github.com/${GITHUB_REPOSITORY}.git" refs/heads/main | cut -f1)"
             [ -n "$NOW" ] && [ "$NOW" != "$OLD" ] || exit 1
-            if [ "$NOW" != "$(git rev-parse HEAD)" ]; then # else our push landed despite the error
+            if [ "$NOW" != "$HEAD_SHA" ]; then # else our push landed despite the error
               echo "::notice::main moved to ${NOW:0:7} during the replay; the next Sync replays onto it"
               echo "lost=true" >> "$GITHUB_OUTPUT"
             fi
           fi
-          rm -f "$RUNNER_TEMP/deploy-key"
+      - name: Drop the deploy key
+        if: always()
+        run: rm -f "$RUNNER_TEMP/deploy-key"
       - name: Mark the commit tested
-        if: steps.update.outputs.lost != 'true'
-        working-directory: src
+        if: steps.review.outputs.lost != 'true' && steps.update.outputs.lost != 'true'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          source ../tools/notchcast/config.env
-          gh api -X POST "repos/$GITHUB_REPOSITORY/statuses/$(git rev-parse HEAD)" -f state=success -f context="$TESTED_CONTEXT" \
+          source tools/notchcast/config.env
+          gh api -X POST "repos/$GITHUB_REPOSITORY/statuses/$HEAD_SHA" -f state=success -f context="$TESTED_CONTEXT" \
             -f description="Debug build and upstream tests green" -f target_url="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID" >/dev/null
       - name: Close resolved issues
-        if: steps.update.outputs.lost != 'true'
+        if: steps.review.outputs.lost != 'true' && steps.update.outputs.lost != 'true'
         continue-on-error: true
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          [ "${{ needs.plan.outputs.rebase }}" != true ] || python3 tools/notchcast/ci.py issue close sync
+          [ "$REBASE" != true ] || python3 tools/notchcast/ci.py issue close sync
           python3 tools/notchcast/ci.py issue close main
       # A failure here loses this sync's notice (main has already moved), so it never fails the run.
       - name: Upstream design-system changes
-        if: needs.plan.outputs.rebase == 'true' && steps.update.outputs.lost != 'true'
+        if: needs.plan.outputs.rebase == 'true' && steps.review.outputs.lost != 'true' && steps.update.outputs.lost != 'true'
         continue-on-error: true
-        working-directory: src
+        working-directory: tools
         env:
           GH_TOKEN: ${{ github.token }}
-        run: python3 ../tools/notchcast/ci.py design-notice . "${{ needs.plan.outputs.base }}" "${{ needs.plan.outputs.upstream_main }}"
+        run: python3 notchcast/ci.py design-notice . "${{ needs.plan.outputs.base }}" "$UP"
+
+  # A red build, test or push: remember the input (refs/notchcast-failed/) and report it. Runs none of the tree's code.
+  failed:
+    needs: [plan, main, push]
+    if: always() && needs.plan.result == 'success' && (needs.main.result == 'failure' || needs.push.result == 'failure')
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment: sync
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ needs.plan.outputs.main }}
+          path: tools
+          persist-credentials: false
       - name: Did main move under us?
         id: raced
-        if: failure() && needs.plan.outputs.rebase == 'true'
+        if: needs.plan.outputs.rebase == 'true'
         run: |
           NOW="$(git ls-remote "https://github.com/${GITHUB_REPOSITORY}.git" refs/heads/main | cut -f1)"
           echo "moved=$([ "$NOW" != "${{ needs.plan.outputs.main }}" ] && echo true || echo false)" >> "$GITHUB_OUTPUT"
       - name: Remember the failure
-        if: failure() && (needs.plan.outputs.rebase != 'true' || steps.raced.outputs.moved == 'false')
+        if: needs.plan.outputs.rebase != 'true' || steps.raced.outputs.moved == 'false'
         uses: ./tools/notchcast/actions/remember-failure
         with:
           key: ${{ needs.plan.outputs.rebase == 'true' && needs.plan.outputs.main_key || format('test-{0}', needs.plan.outputs.main) }}
           deploy-key: ${{ secrets.DEPLOY_KEY }}
+      - name: Drop the deploy key
+        if: always()
+        run: rm -f "$RUNNER_TEMP/deploy-key"
       - name: Report the failure
-        if: failure() && (needs.plan.outputs.rebase != 'true' || steps.raced.outputs.moved == 'false')
+        if: needs.plan.outputs.rebase != 'true' || steps.raced.outputs.moved == 'false'
         env:
           GH_TOKEN: ${{ github.token }}
           MAIN: ${{ needs.plan.outputs.main }}
@@ -229,14 +308,14 @@ jobs:
             python3 tools/notchcast/ci.py issue open main "main ${MAIN:0:7} fails its build or tests" "test-$MAIN"
           fi
 
+  # One upstream release per call (sync-release.yml): build without secrets, sign, publish.
   release:
-    needs: [plan, main]
+    needs: [plan, main, push]
     # After main: a release is built from the main this run ends with. Skipped main (nothing to rebase) is fine;
     # a lost main lease is not (main moved past plan's main), so the next Sync builds it.
-    if: always() && needs.plan.result == 'success' && needs.main.result != 'failure' && needs.main.outputs.lost != 'true' && needs.plan.outputs.releases != '[]'
-    runs-on: xcode-27
-    timeout-minutes: 120
-    environment: sync
+    if: >-
+      always() && needs.plan.result == 'success' && needs.main.result != 'failure' && needs.push.result != 'failure'
+      && needs.push.outputs.lost != 'true' && needs.plan.outputs.releases != '[]'
     permissions:
       contents: write
       statuses: read
@@ -246,100 +325,12 @@ jobs:
       max-parallel: 1
       matrix:
         release: ${{ fromJSON(needs.plan.outputs.releases) }}
-    env:
-      TAG: ${{ matrix.release.tag }}
-    steps:
-      - uses: actions/checkout@v7
-        with:
-          ref: ${{ needs.plan.outputs.main }}
-          path: tools
-          persist-credentials: false
-      - uses: actions/checkout@v7
-        with:
-          ref: ${{ needs.plan.outputs.main }}
-          path: src
-          fetch-depth: 0
-          persist-credentials: false
-      - uses: ./tools/notchcast/actions/xcode
-      - uses: ./tools/notchcast/actions/xcodegen
-      - name: Read upstream's release
-        id: app
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: python3 tools/notchcast/ci.py app-info "$TAG" "$RUNNER_TEMP"
-      # Onto the commit plan cleared, never what the tag names now: upstream can move a tag during the main job.
-      - name: Replay our commits onto the tag
-        working-directory: src
-        env:
-          COMMIT: ${{ matrix.release.commit }}
-        run: |
-          python3 ../tools/notchcast/ci.py pin-tag "$TAG" "$COMMIT"
-          python3 ../tools/notchcast/ci.py replay . "$COMMIT"
-          { echo "TAG_COMMIT=$COMMIT"; echo "REPLAYED=$(git rev-parse HEAD)"; } >> "$GITHUB_ENV"
-      # Plan read that commit's own review up to two hours ago; nothing is tested or signed unless it is still a success.
-      - name: Re-read the tag commit's review
-        env:
-          COMMIT: ${{ matrix.release.commit }}
-          BASE: ${{ needs.plan.outputs.base }}
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          if [ "$COMMIT" != "$BASE" ]; then python3 tools/notchcast/ci.py reviewed "$COMMIT"; fi
-      - uses: ./tools/notchcast/actions/tests
-        with:
-          upstream: ${{ env.TAG_COMMIT }}
-          # An older tree: its compiled harnesses must not become the newest "all" that main and PRs restore.
-          cache: release-${{ matrix.release.tag }}
-      - uses: ./tools/notchcast/actions/release
-        with:
-          version: ${{ steps.app.outputs.version }}
-          build: ${{ steps.app.outputs.build }}
-          p12-base64: ${{ secrets.SIGNING_P12_BASE64 }}
-          p12-password: ${{ secrets.SIGNING_P12_PASSWORD }}
-      - uses: ./tools/notchcast/actions/deploy-key
-        with:
-          key: ${{ secrets.DEPLOY_KEY }}
-      # The replayed commit that was built, never upstream's tag object: a tag push runs the workflows of the tree it
-      # names, and this tree holds only ours, none of which a tag starts. GITHUB_TOKEN cannot push workflow files.
-      - name: Mirror the tag
-        working-directory: src
-        run: |
-          if [ -z "$(git ls-remote "$FORK_SSH" "refs/tags/$TAG")" ]; then
-            git -c core.hooksPath=/dev/null push "$FORK_SSH" "$REPLAYED:refs/tags/$TAG"
-          fi
-          rm -f "$RUNNER_TEMP/deploy-key"
-      - name: Publish the release
-        env:
-          TITLE: ${{ matrix.release.title }}
-          PRERELEASE: ${{ matrix.release.prerelease }}
-          VERSION: ${{ steps.app.outputs.version }}
-          MAIN: ${{ needs.plan.outputs.main }}
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          set -a; source tools/notchcast/config.env; set +a
-          {
-            cat "$RUNNER_TEMP/upstream-notes.md"
-            printf '\n\n---\nNotchcast build of %s %s (%s) with our commits from main %s, signed by %s (SHA-1 %s).\n' \
-              "$UPSTREAM_REPO" "$TAG" "${TAG_COMMIT:0:12}" "${MAIN:0:12}" "$SIGN_IDENTITY" "$RELEASE_SIGN_SHA1"
-          } > "$RUNNER_TEMP/notes.md"
-          FLAGS=()
-          if [ "$PRERELEASE" = "true" ]; then FLAGS+=(--prerelease); fi
-          gh release create "$TAG" "dist/$APP_NAME-$VERSION.zip" "dist/$APP_NAME-$VERSION.dmg" \
-            -R "$GITHUB_REPOSITORY" --verify-tag --title "$TITLE" --notes-file "$RUNNER_TEMP/notes.md" "${FLAGS[@]}"
-      - name: Close this tag's failure issue
-        continue-on-error: true
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: python3 tools/notchcast/ci.py issue close release "release-$TAG"
-      - name: Remember the failure
-        if: failure()
-        uses: ./tools/notchcast/actions/remember-failure
-        with:
-          key: release-${{ matrix.release.tag }}-${{ needs.plan.outputs.main }}
-          deploy-key: ${{ secrets.DEPLOY_KEY }}
-      - name: Report the failure
-        if: failure()
-        env:
-          GH_TOKEN: ${{ github.token }}
-          MAIN: ${{ needs.plan.outputs.main }}
-        run: |
-          python3 tools/notchcast/ci.py issue open release "Release $TAG failed with main ${MAIN:0:7}" "release-$TAG"
+    uses: ./.github/workflows/sync-release.yml
+    with:
+      tag: ${{ matrix.release.tag }}
+      commit: ${{ matrix.release.commit }}
+      title: ${{ matrix.release.title }}
+      prerelease: ${{ matrix.release.prerelease }}
+      main: ${{ needs.plan.outputs.main }}
+      base: ${{ needs.plan.outputs.base }}
+    secrets: inherit

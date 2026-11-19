@@ -1,0 +1,8 @@
+{
+  "name": "notchcast-jscpd",
+  "private": true,
+  "description": "Drift gate 4's clone checker, pinned with its whole dependency tree (check-drift.py runs npm ci --ignore-scripts).",
+  "dependencies": {
+    "jscpd": "4.0.5"
+  }
+}
