@@ -24,12 +24,14 @@ enum PlainPasteWrite: Equatable, Sendable {
 @MainActor
 protocol PlainPasteBoard: AnyObject {
     var changeCount: Int { get }
-    var hasFileURLs: Bool { get }
+    /// Every type on the board, named without reading any data.
+    var types: [String] { get }
     var string: String? { get }
     /// The type clipboard history skips; it marks the temporary write and nothing else.
     var ownMarker: String { get }
     func rtfText() -> String?
     func rtfdText() -> String?
+    func htmlText() -> String?
     /// Each item's types, in order.
     var itemTypes: [[String]] { get }
     func data(item: Int, type: String) -> Data?
@@ -37,13 +39,12 @@ protocol PlainPasteBoard: AnyObject {
     func write(_ items: [[PlainPasteEntry]], ifChangeCount changeCount: Int) -> PlainPasteWrite
 }
 
-/// Pastes the clipboard's text unformatted, then puts the original back unless something replaced it.
+/// Lends the clipboard's text unformatted, then puts the original back unless something replaced it.
 @MainActor
 final class PlainPasteEngine {
     enum Outcome: Equatable {
         /// The plain text is on the board at `changeCount`; ⌘V goes out only while it still is.
         case plain(changeCount: Int)
-        case passThrough(changeCount: Int)
         /// The board could not be read or written whole, so nothing is pasted.
         case refused
     }
@@ -67,21 +68,15 @@ final class PlainPasteEngine {
     var isRestorePending: Bool { pending != nil }
     var changeCount: Int { board.changeCount }
 
-    /// Plain string first, then RTF, then RTFD; file URLs or no text leave the paste to the app.
-    static func text(
-        hasFileURLs: Bool, string: String?, rtf: () -> String?, rtfd: () -> String?
-    ) -> String? {
-        guard !hasFileURLs else { return nil }
-        if let string, !string.isEmpty { return string }
-        if let rtf = rtf(), !rtf.isEmpty { return rtf }
-        return rtfd().flatMap { $0.isEmpty ? nil : $0 }
+    /// Nil leaves the paste to the app: files, a lone picture, or no text.
+    func text() -> String? {
+        PlainPastePolicy.text(
+            types: board.types, string: { board.string }, rtf: board.rtfText, rtfd: board.rtfdText,
+            html: board.htmlText)
     }
 
     /// Writes the plain text in place of the original; the caller restores any earlier paste first.
-    func paste() -> Outcome {
-        guard let text = Self.text(
-            hasFileURLs: board.hasFileURLs, string: board.string, rtf: board.rtfText, rtfd: board.rtfdText)
-        else { return .passThrough(changeCount: board.changeCount) }
+    func lend(_ text: String) -> Outcome {
         prepareWrite()
         guard let snapshot = snapshot() else { return .refused }
         let temporary = [[
