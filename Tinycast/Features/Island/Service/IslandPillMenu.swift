@@ -157,9 +157,6 @@ final class IslandPillMenu: NSObject {
         case .checkForUpdates:
             return PopoverMenuItem(title: String(localized: "Check for Updates…"),
                 systemImage: CommandID.checkForUpdates.sfSymbol) { [core] in core.updateCoordinator.checkForUpdates() }
-        case .support:
-            return PopoverMenuItem(title: String(localized: "Support \("Tinycast")…"),
-                systemImage: CommandID.support.sfSymbol) { [core] in core.supportCoordinator.showSupport() }
         case .settings:
             return PopoverMenuItem(title: String(localized: "Settings…"), systemImage: CommandID.settings.sfSymbol,
                 shortcut: "⌘,") { [core] in core.settingsCoordinator.showSettings() }

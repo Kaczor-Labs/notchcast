@@ -38,6 +38,9 @@ final class IslandHoverTracker {
         apply(was != hover.isOpen)
     }
 
+    /// A primary click on the island opens and holds it, as Command-P does; a second click keeps it (#1029).
+    func pin() { if !hover.isPinned { togglePin() } }
+
     private func pointerMoved(click: Bool) {
         let next = world.input()
         let was = hover.isOpen
