@@ -253,14 +253,16 @@ generated_only() {
     one=$(cd "$top" && python3 notchcast/ci.py tested-key "$one") && two=$(cd "$top" && python3 notchcast/ci.py tested-key "$two") || return 1
     [ -n "$one" ] && [ "$one" = "$two" ]
 }
-uncovered() { echo "train: ${train_run:0:8} $1; each PR's own head checks decide" >&2; }
+# A train lands only on its own run, the one build of the merged tree; never on each PR's head alone.
+uncovered() { refuse "train ${train_run:0:8} $1, so no build tested the merged tree: run notchcast/train.sh ${train[*]} again"; }
 # Sets covered when $train_run is a green train.sh merge of each PR's current head onto current main, or onto a main
-# that differs from it only in generated files.
+# that differs from it only in generated files; refuses otherwise.
 covered=
 train_covers() {
     local commit i=${#train[@]} pr head parents name verdict required
     git fetch -q origin main '+refs/heads/train/*:refs/remotes/origin/train/*'
-    train_run=$(git rev-parse --verify -q "$train_run^{commit}") || { uncovered 'is not on origin'; return 0; }
+    git rev-parse --verify -q "$train_run^{commit}" > /dev/null || uncovered 'is not on origin'
+    train_run=$(git rev-parse "$train_run^{commit}")
     commit=$train_run
     while [ "$i" -gt 0 ]; do
         i=$((i - 1))
@@ -268,20 +270,20 @@ train_covers() {
         head=$(gh pr view "$pr" -R "$FORK_REPO" --json headRefOid --jq .headRefOid)
         parents=($(git rev-list --no-walk --parents "$commit"))
         [ ${#parents[@]} -eq 3 ] && [ "${parents[2]}" = "$head" ] \
-            || { uncovered "does not merge #$pr's head ${head:0:8} as PR $((i + 1))"; return 0; }
+            || uncovered "does not merge #$pr's head ${head:0:8} as PR $((i + 1))"
         echo "$head" > "$scratch/train-head-$pr"
         commit=${parents[1]}
     done
-    generated_only "$commit" origin/main || { uncovered "is built on ${commit:0:8}, not current main"; return 0; }
+    generated_only "$commit" origin/main || uncovered "is built on ${commit:0:8}, not current main"
     [ "$commit" = "$(git rev-parse origin/main)" ] || echo "train: main moved past ${commit:0:8} only in generated files; the run still proves it"
     for name in build design leaks; do
         verdict=$(check_run "$train_run" "$name")
-        [ "$verdict" = success ] || { uncovered "has $name $verdict"; return 0; }
+        [ "$verdict" = success ] || uncovered "has $name $verdict"
     done
     required=$(python3 notchcast/app-proof.py plan origin/main "$train_run")
     if [ -n "$required" ]; then
         verdict=$(check_run "$train_run" proof)
-        [ "$verdict" = success ] || { uncovered "has real-app proof ($required) $verdict"; return 0; }
+        [ "$verdict" = success ] || uncovered "has real-app proof ($required) $verdict"
     fi
     train_base=$commit
     covered=1
@@ -343,6 +345,8 @@ elif [ "$#" -ge 1 ] && [[ "$*" =~ ^[0-9]+(\ [0-9]+)*$ ]]; then
     if [ -n "$hold_pr" ] && [ "$#" -gt 1 ]; then
         echo "landing is held for #$hold_pr: the train is cut to it" >&2
         train=("$hold_pr")
+        # The train run built the whole batch, not the held PR alone, so that PR's own head checks decide.
+        train_run=
     fi
     hold_owner=${hold_pr:-$1}
     # Before anything lands on top of it: an earlier Linux landing that went red on macOS is still revertible.
@@ -557,6 +561,20 @@ while :; do
         rerun=1
     fi
 done
+# A closed PR never fires its "Closes #N", so landing closes those issues itself.
+close_issues() {
+    local issues issue
+    issues=$(gh pr view "$1" -R "$FORK_REPO" --json closingIssuesReferences \
+        | jq -r --arg url "https://github.com/$FORK_REPO/issues/" '.closingIssuesReferences // [] | .[] | select(.url | startswith($url)) | .number') \
+        || { echo "WARN: cannot read the issues #$1 closes; close them by hand" >&2; return 0; }
+    for issue in $issues; do
+        if gh issue close "$issue" -R "$FORK_REPO" --comment "Landed on main as $2 by notchcast/land.sh (#$1)." >/dev/null; then
+            echo "closed issue #$issue"
+        else
+            echo "WARN: could not close issue #$issue of #$1; close it by hand" >&2
+        fi
+    done
+}
 unclosed=
 parent=$base
 for pr in "${train[@]}"; do
@@ -564,6 +582,7 @@ for pr in "${train[@]}"; do
     commit=$(< "$scratch/commit-$pr")
     if gh pr close "$pr" -R "$FORK_REPO" --comment "Landed on main as $commit by notchcast/land.sh: squash of $head onto $parent."; then
         delete_head "$(jq -r .headRefName <<< "$metadata")" "$head" "$(jq -r .isCrossRepository <<< "$metadata")"
+        close_issues "$pr" "$commit"
     else
         unclosed="$unclosed #$pr"
     fi
