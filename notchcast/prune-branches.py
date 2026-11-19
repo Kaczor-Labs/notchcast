@@ -48,8 +48,9 @@ def main():
                       git('log', '--format=%s', 'upstream/main..origin/main').splitlines()
                       if (match := re.fullmatch(r'Notchcast:.* \(#(\d+)\)', subject))}
     def open_heads():
-        opened = run('gh', 'pr', 'list', '-R', CONFIG['FORK_REPO'], '--state', 'open', '-L', '1000', '--json', 'headRefName')
-        return {pr['headRefName'] for pr in json.loads(opened.stdout)}
+        opened = run('gh', 'pr', 'list', '-R', CONFIG['FORK_REPO'], '--state', 'open', '-L', '1000', '--json', 'headRefName,baseRefName')
+        # GitHub closes every open PR whose base branch is deleted, so a base stays like a head.
+        return {name for pr in json.loads(opened.stdout) for name in (pr['headRefName'], pr.get('baseRefName'))}
 
     open_names = open_heads()
     closed = json.loads(run('gh', 'pr', 'list', '-R', CONFIG['FORK_REPO'], '--state', 'closed', '-L', '1000', '--json',

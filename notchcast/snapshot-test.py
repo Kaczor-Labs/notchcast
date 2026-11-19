@@ -29,7 +29,7 @@ def release(tag, published):
 
 
 class SnapshotTests(unittest.TestCase):
-    def test_workflow_lets_a_push_supersede_and_gates_publish(self):
+    def test_workflow_never_cancels_a_run_and_gates_publish(self):
         root = Path(__file__).resolve().parent.parent
         revision = os.environ.get("SNAPSHOT_WORKFLOW_REF")
         workflow = (subprocess.check_output(
@@ -38,7 +38,7 @@ class SnapshotTests(unittest.TestCase):
         header, jobs = workflow.split("\njobs:\n", 1)
         self.assertEqual(len(re.findall(r"^\s*concurrency:", workflow, re.M)), 1)
         self.assertIn("\nconcurrency:\n  group: snapshot\n"
-                      "  cancel-in-progress: ${{ github.event_name == 'push' }}\n", header + "\n")
+                      "  cancel-in-progress: false\n", header + "\n")
         self.assertNotRegex(jobs, r"(?m)^\s+concurrency:")
         sections = dict(re.findall(r"^  (\w+):\n(.*?)(?=^  \w+:\n|\Z)", jobs, re.M | re.S))
         self.assertNotIn("check", sections)
@@ -48,9 +48,11 @@ class SnapshotTests(unittest.TestCase):
         self.assertIn("    runs-on: ubuntu-latest\n", sections["gate"])
         self.assertIn("run: python3 notchcast/snapshot.py wait", sections["gate"])
         self.assertIn("    needs: [plan, snapshot, gate]\n", sections["publish"])
-        self.assertEqual(jobs.count("runs-on: xcode-27"), 1, "one macOS job per run")
-        self.assertLess(sections["snapshot"].index("name: Fail when a planned snapshot was skipped"),
-                        sections["snapshot"].index("actions/release"))
+        self.assertEqual(jobs.count("runs-on: xcode-27"), 2, "one macOS job runs the tree, one only signs")
+        self.assertLess(sections["build"].index("name: Fail when a planned snapshot was skipped"),
+                        sections["build"].index("actions/release"))
+        self.assertIn("    needs: [plan, build]\n", sections["snapshot"])
+        self.assertNotIn("secrets.", sections["build"])
         checked = sections["publish"].index("run: python3 notchcast/snapshot.py check")
         self.assertLess(checked, sections["publish"].index("actions/deploy-key"))
         self.assertLess(checked, sections["publish"].index("run: notchcast/publish-snapshot.sh"))
@@ -140,19 +142,15 @@ class SnapshotTests(unittest.TestCase):
     def test_automatic_unchanged_skips(self):
         self.assertEqual(self.plan(commit="current-main"), {"skip": "unchanged main current-main"})
 
-    def stale(self, current="current-main", minute=50, tag="v1.0.0.snapshot.20261105125000",
+    def stale(self, minute=50, tag="v1.0.0.snapshot.20261105125000",
               releases=None, skip_gate=False, at=None):
-        return snapshot.stale(releases or self.releases, tag, "current-main", current,
+        return snapshot.stale(releases or self.releases, tag,
                               at or globals()["at"](12, minute), skip_gate)
 
     def test_current_main_at_revision_time_publishes(self):
         self.assertEqual(self.stale(), {})
         self.assertEqual(self.stale(releases=self.releases + [
             {"tagName": "v1.0.0.snapshot.20261105125000", "isDraft": True, "publishedAt": None}]), {})
-
-    def test_moved_main_skips_stale_build(self):
-        self.assertEqual(self.stale(current="newer-main"),
-                         {"skip": "main moved from current-main to newer-main"})
 
     def test_publish_before_revision_time_is_error(self):
         self.assertIn("before its revision time", self.stale(minute=49)["error"])
@@ -211,12 +209,12 @@ class SnapshotTests(unittest.TestCase):
         self.assertEqual(status, 0)
         sleep.assert_called_once_with(1200.0)
 
-    def test_check_skips_moved_main_with_notice(self):
+    def test_check_publishes_a_finished_build_after_main_moved(self):
         status, log, sleep, output = self.run_main(
-            "push", "old", "check", {"TAG": "v1.0.0.snapshot.20261105123000", "MAIN": "older-main"})
+            "push", "old", "check",
+            {"TAG": "v1.0.0.snapshot.20261105123000", "MAIN": "older-main", "SKIP_GATE": "true"})
         self.assertEqual(status, 0)
-        self.assertIn("::notice::Snapshot skipped: main moved from older-main to current-main", log)
-        output.assert_not_called()
+        output.assert_called_once_with(publish="true")
 
 if __name__ == "__main__":
     unittest.main()

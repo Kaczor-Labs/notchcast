@@ -13,9 +13,15 @@ struct ScreenshotSystem: Sendable {
     let freezeWindows: @MainActor @Sendable ([UInt32]) async throws -> [UInt32: CGImage]
     let cursor: @MainActor @Sendable () -> CGPoint
     let writeClipboard: @MainActor @Sendable (Data) -> Bool
+    let writeText: @MainActor @Sendable (String) -> Bool
+    let recognizeText: @Sendable (CGImage) async throws -> [ScreenTextLine]
+    let openScreenRecordingSettings: @MainActor @Sendable () -> Void
     let desktop: @Sendable () throws -> URL
     /// Shows the selection surface; the returned closure closes it, which answers nil.
     let select: @MainActor @Sendable (
         [ScreenshotFrozenDisplay], [ScreenshotWindow], @escaping @MainActor (ScreenshotRequest?) -> Void
     ) -> @MainActor () -> Void
+    /// Opens the editor on a capture and its pixels per point; it answers per Copy, Save or Escape.
+    let edit: @MainActor @Sendable (CGImage, CGFloat, @escaping @MainActor (CaptureEditorOutcome) -> Void)
+        -> @MainActor () -> Void
 }

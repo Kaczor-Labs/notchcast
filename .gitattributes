@@ -1,2 +1,8 @@
 # Every add-on PR appends one line to the add-on list; a union merge keeps both sides instead of conflicting.
 Tinycast/Features/Notchcast/NotchcastRegistry.swift merge=union
+# Add-on PRs add names to one long line; these merge by word (notchcast/githooks/post-checkout registers it).
+notchcast/config.env merge=notchcast-words
+notchcast/docs/addons.md merge=notchcast-words
+notchcast/README.public.md merge=notchcast-words
+# Add-on PRs each append credit lines to the same place; a union merge keeps both.
+notchcast/licenses/borrowed.md merge=union

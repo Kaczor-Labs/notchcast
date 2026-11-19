@@ -1,34 +1,55 @@
 import Foundation
+import Observation
+
+/// Clipboard history's pair around a pasteboard write Notchcast makes itself.
+struct NotchcastClipboardMutation {
+    /// Records a copy the history poller has not read yet, before the write replaces it.
+    let prepare: @MainActor () -> Void
+    /// Baselines the poller on the write's change count, so it never records the write as a copy.
+    let synchronize: @MainActor (_ changeCount: Int) -> Void
+
+    static let none = NotchcastClipboardMutation(prepare: {}, synchronize: { _ in })
+}
 
 /// The only door from an add-on to the app: one per add-on, owned by the controller.
+/// Observable so a settings row sees the module attach, which lands a turn after its switch.
 @MainActor
+@Observable
 final class NotchcastContext {
     let defaults: UserDefaults
     let preferences: NotchcastPreferences
     let presenter: any IslandPresenting
     let now: @MainActor () -> Date
     let surfaces: NotchcastSurfaces
+    let settingsBackup: any NotchcastSettingsBackup
     private let hub: NotchcastTapHub
     private let transcription: NotchcastTranscriptionRunner
     private let onTapsChanged: @MainActor () -> Void
     private let onCommandsChanged: @MainActor () -> Void
+    private let clipboard: NotchcastClipboardMutation
     /// Strong is safe: a recovery context links to nothing, and the controller's slot owns both.
     private let recoveryContext: NotchcastContext?
     private(set) var wantedTaps: [(token: UUID, tap: NotchcastTap)] = []
     private(set) var module: (any NotchcastModule)?
     /// Entry ids the module cannot run right now: the launcher drops them, their hotkeys still run.
     private(set) var unavailableCommands: Set<String> = []
+    /// Commands made at run time, one per user row; they go when the module detaches.
+    private(set) var commands: [NotchcastCommand] = []
     /// Returns true to consume a digit typed in the launcher (Number Keys, hook H9).
     private(set) var launcherDigit: (@MainActor (_ digit: Int, _ query: String, _ entryRows: [Int]) -> Int?)?
     /// Returns true to claim a URL or file opened with the app (a link clicked, a document opened).
     private(set) var openURL: (@MainActor (URL) -> Bool)?
+    /// Notchcast's own yes/no dialog, never `NSAlert`; nil where no app runs, as in harnesses.
+    var confirm: (@MainActor @Sendable (_ title: String, _ message: String?, _ confirmTitle: String) async -> Bool)?
 
     init(
         defaults: UserDefaults, preferences: NotchcastPreferences, presenter: any IslandPresenting,
         hub: NotchcastTapHub, transcription: NotchcastTranscriptionRunner,
         now: @escaping @MainActor () -> Date,
         onTapsChanged: @escaping @MainActor () -> Void, onCommandsChanged: @escaping @MainActor () -> Void = {},
-        recovery: NotchcastContext? = nil, surfaces: NotchcastSurfaces = NotchcastSurfaces()
+        recovery: NotchcastContext? = nil, clipboard: NotchcastClipboardMutation = .none,
+        surfaces: NotchcastSurfaces = NotchcastSurfaces(),
+        settingsBackup: any NotchcastSettingsBackup = NotchcastNoSettingsBackup()
     ) {
         self.defaults = defaults
         self.preferences = preferences
@@ -36,9 +57,11 @@ final class NotchcastContext {
         self.hub = hub
         self.transcription = transcription
         self.now = now
+        self.settingsBackup = settingsBackup
         self.onTapsChanged = onTapsChanged
         self.onCommandsChanged = onCommandsChanged
         self.surfaces = surfaces
+        self.clipboard = clipboard
         recoveryContext = recovery
     }
 
@@ -87,8 +110,20 @@ final class NotchcastContext {
     /// Stock Dictation's text for a file; `.busy` while the user dictates or another one runs.
     func transcribe(_ audioURL: URL) async throws -> String { try await transcription.transcribe(audioURL) }
 
+    /// Call before writing the general pasteboard, so the user's last copy reaches history first.
+    func prepareClipboardMutation() { clipboard.prepare() }
+
+    /// Call with the change count of each own write; a foreign write since then is still recorded.
+    func synchronizeClipboard(changeCount: Int) { clipboard.synchronize(changeCount) }
+
     /// Rereads Accessibility trust after a grant, restarting a tap that could not start.
     func refreshPermission() { hub.refreshPermission() }
+
+    /// Replaces the run-time commands; the launcher and hotkeys pick them up on the same turn.
+    func setCommands(_ commands: [NotchcastCommand]) {
+        self.commands = commands
+        onCommandsChanged()
+    }
 
     func attach(_ module: (any NotchcastModule)?) { self.module = module }
 
@@ -96,6 +131,7 @@ final class NotchcastContext {
     func detach() {
         module = nil
         wantedTaps.removeAll()
+        commands.removeAll()
         launcherDigit = nil
         unavailableCommands = []
         openURL = nil
@@ -110,4 +146,27 @@ struct NotchcastSurfaces {
     /// The user's Interface Size, as `InterfaceMetrics(scale:)` takes it.
     var interfaceScale: () -> Double = { 1 }
     var isFrosted: () -> Bool = { false }
+}
+
+/// The stock settings backup (Backup › Export's file) as the core sees it; `NotchcastCore` injects it.
+@MainActor
+protocol NotchcastSettingsBackup {
+    /// The current settings as their backup JSON; nil once the app is gone.
+    func currentSettings() -> Data?
+    /// Calls `onChange` once, on the next change to anything `currentSettings` reads.
+    func observeSettings(_ onChange: @escaping @MainActor @Sendable () -> Void)
+    /// Writes a settings-only backup file atomically, creating its folder; the IO runs off-main.
+    func write(_ settings: Data, to file: URL) async throws
+    /// The stock import for one backup file: its confirmation, apply and report.
+    func restore(_ file: URL) async
+}
+
+/// Harnesses and an app with no stock backup: nothing to read, nothing written.
+struct NotchcastNoSettingsBackup: NotchcastSettingsBackup {
+    struct Unavailable: Error {}
+
+    func currentSettings() -> Data? { nil }
+    func observeSettings(_ onChange: @escaping @MainActor @Sendable () -> Void) {}
+    func write(_ settings: Data, to file: URL) async throws { throw Unavailable() }
+    func restore(_ file: URL) async {}
 }

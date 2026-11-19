@@ -1,0 +1,2 @@
+Island: Model/IslandPageSwipe.swift ← vorssaint/vorssaint-utils@89d2626/Sources/Vorssaint/Services/Notch/NotchSectionPaging.swift (GPL-3.0-or-later)
+Island: UI/IslandPageCards.swift ← vorssaint/vorssaint-utils@faada18/Sources/Vorssaint/UI/Notch/NotchAgentComponents.swift:77-106 (GPL-3.0-or-later)

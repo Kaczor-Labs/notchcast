@@ -12,10 +12,10 @@ on:
         default: false
 permissions:
   contents: read
-# A push supersedes the run in flight; cron and dispatch queue behind it.
+# A run in flight always finishes; GitHub keeps one pending run, the newest, which plans main afresh.
 concurrency:
   group: snapshot
-  cancel-in-progress: ${{ github.event_name == 'push' }}
+  cancel-in-progress: false
 jobs:
   plan:
     if: github.ref == 'refs/heads/main'
@@ -27,7 +27,7 @@ jobs:
       version: ${{ steps.plan.outputs.version }}
       build: ${{ steps.plan.outputs.build }}
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           ref: main
           fetch-depth: 0
@@ -46,7 +46,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 65
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           ref: ${{ needs.plan.outputs.main }}
           sparse-checkout: notchcast
@@ -55,24 +55,23 @@ jobs:
         env:
           TAG: ${{ needs.plan.outputs.tag }}
         run: python3 notchcast/snapshot.py wait
-  # One macOS job: the harnesses (unless main is green) and lint first, the signed build only after them.
-  snapshot:
+  # The only job that runs the tree: harnesses unless main is green, lint, then the build. No secret.
+  build:
     needs: plan
     if: needs.plan.outputs.tag != ''
     runs-on: xcode-27
     timeout-minutes: 120
-    environment: sync
     permissions:
       contents: read
       statuses: read
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           ref: ${{ needs.plan.outputs.main }}
           path: src
           fetch-depth: 0
           persist-credentials: false
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           ref: ${{ needs.plan.outputs.main }}
           path: tools
@@ -109,7 +108,7 @@ jobs:
         if: steps.tests.outcome == 'success' || steps.tested.outputs.green == 'true'
         working-directory: src
         run: |
-          command -v swiftlint >/dev/null || brew install --quiet swiftlint
+          source ../tools/notchcast/ci-swiftlint.sh
           if ./Scripts/lint.sh; then
             echo "green=true" >> "$GITHUB_OUTPUT"
           else
@@ -127,22 +126,43 @@ jobs:
         with:
           version: ${{ needs.plan.outputs.version }}
           build: ${{ needs.plan.outputs.build }}
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        with:
+          name: snapshot-unsigned
+          path: ${{ runner.temp }}/unsigned
+          if-no-files-found: error
+          retention-days: 1
+  # Holds the certificate and runs none of the tree's code: signs, checks and packages the build job's app.
+  snapshot:
+    needs: [plan, build]
+    runs-on: xcode-27
+    timeout-minutes: 30
+    environment: sync
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ needs.plan.outputs.main }}
+          path: tools
+          sparse-checkout: notchcast
+          persist-credentials: false
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
+        with:
+          name: snapshot-unsigned
+          path: ${{ runner.temp }}/unsigned
+      - uses: ./tools/notchcast/actions/sign
+        with:
+          version: ${{ needs.plan.outputs.version }}
           p12-base64: ${{ secrets.SIGNING_P12_BASE64 }}
           p12-password: ${{ secrets.SIGNING_P12_PASSWORD }}
       - name: Keep the build for the publish job
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: snapshot-dist
           path: dist
           if-no-files-found: error
           retention-days: 1
-      - name: Remove signing material
-        if: always()
-        run: |
-          rm -f "$RUNNER_TEMP/deploy-key" "$RUNNER_TEMP/cert.p12"
-          if [ -f "$RUNNER_TEMP/signing.keychain-db" ]; then
-            security delete-keychain "$RUNNER_TEMP/signing.keychain-db"
-          fi
   # Its own job, so "Re-run failed jobs" after a GitHub 5xx or SSH failure reuses the build above instead of rebuilding.
   publish:
     needs: [plan, snapshot, gate]
@@ -152,33 +172,33 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           ref: ${{ needs.plan.outputs.main }}
-          path: src
+          path: tools
           persist-credentials: false
-      - name: Check main and the gate still hold
+      - name: Check the gate still holds
         id: current
-        working-directory: src
+        working-directory: tools
         env:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ needs.plan.outputs.tag }}
           MAIN: ${{ needs.plan.outputs.main }}
           SKIP_GATE: ${{ inputs.skip_gate }}
         run: python3 notchcast/snapshot.py check
-      - uses: actions/download-artifact@v8
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
         if: steps.current.outputs.publish == 'true'
         with:
           name: snapshot-dist
           path: dist
-      - uses: ./src/notchcast/actions/deploy-key
+      - uses: ./tools/notchcast/actions/deploy-key
         id: key
         if: steps.current.outputs.publish == 'true'
         with:
           key: ${{ secrets.DEPLOY_KEY }}
       - name: Tag and publish snapshot
         if: steps.current.outputs.publish == 'true'
-        working-directory: src
+        working-directory: tools
         env:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ needs.plan.outputs.tag }}
@@ -188,7 +208,7 @@ jobs:
         run: notchcast/publish-snapshot.sh
       - name: Remove an unpublished tag after a cancel
         if: cancelled() && steps.key.outcome == 'success'
-        working-directory: src
+        working-directory: tools
         env:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ needs.plan.outputs.tag }}

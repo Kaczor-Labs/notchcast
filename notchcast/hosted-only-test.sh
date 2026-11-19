@@ -5,7 +5,7 @@ root=$(git rev-parse --show-toplevel)
 scratch=$(mktemp -d)
 trap 'rm -rf "$scratch"' EXIT
 mkdir -p "$scratch/Scripts" "$scratch/notchcast" "$scratch/bin"
-cp "$root/notchcast/test-harnesses.sh" "$scratch/notchcast/"
+cp "$root/notchcast/test-harnesses.sh" "$root/notchcast/harness-tags.sh" "$scratch/notchcast/"
 echo 'HOSTED_ONLY_TESTS="KeychainTests WindowTests"' > "$scratch/notchcast/config.env"
 printf '#!/bin/bash\nexit 0\n' > "$scratch/bin/python3"
 cat > "$scratch/Scripts/run-tests.sh" <<'STUB'
@@ -19,7 +19,7 @@ if [ -n "$only" ]; then echo "ran $only"; else awk '{ print "ran " $2 }' "$QUEUE
 STUB
 chmod +x "$scratch/bin/python3" "$scratch/Scripts/run-tests.sh"
 export PATH="$scratch/bin:$PATH" TMPDIR="$scratch" NOTCHCAST_PLATFORM=Darwin
-unset CI_SKIP_TESTS NOTCHCAST_SHARD NOTCHCAST_ONLY_TESTS RUNNER_ENVIRONMENT NOTCHCAST_ISOLATED_RUNNER
+unset CI_SKIP_TESTS NOTCHCAST_SHARD NOTCHCAST_ONLY_TESTS RUNNER_ENVIRONMENT NOTCHCAST_ISOLATED_RUNNER NOTCHCAST_RUNNER_SKIP_TESTS
 cd "$scratch"
 fail() { cat out; echo "FAIL: $1"; exit 1; }
 # suite <label> [VAR=value]: the whole suite under that environment, both streams in out.
@@ -55,6 +55,23 @@ suite linux NOTCHCAST_PLATFORM=Linux
     && grep -q '^1 mac-only harnesses skipped on Linux .*: WindowTests$' out \
     || fail 'on Linux a linux-ok hosted-only harness was not skipped as hosted-only'
 echo 'PASS: on Linux a harness that is linux-ok and hosted-only is skipped as hosted-only'
+# A self-hosted working runner's own list: skipped by name and aloud; a named run bypasses it, as every filter.
+sed -i.bak '$d' notchcast/config.env
+suite runner-list RUNNER_ENVIRONMENT=self-hosted NOTCHCAST_RUNNER_SKIP_TESTS='PlainTests AbsentTests'
+! grep -q '^ran ' out && [ "$(grep -c 'on this runner' out)" = 1 ] \
+    && grep -qx '::notice::SKIPPED on this runner: PlainTests' out && [ "$(grep -c '^SKIPPED .*: hosted-only: ' out)" = 2 ] \
+    || fail 'a working runner did not skip its own list, one notice per harness'
+env RUNNER_ENVIRONMENT=self-hosted NOTCHCAST_RUNNER_SKIP_TESTS=PlainTests Scripts/run-tests.sh PlainTests > out 2>&1 \
+    && grep -qx 'ran PlainTests' out || fail 'a named run did not bypass the runner list'
+echo 'PASS: a self-hosted working runner skips the harnesses its NOTCHCAST_RUNNER_SKIP_TESTS names, with a notice each'
+# Those prove trees or land PRs, and may skip nothing extra.
+for where in NOTHING=1 RUNNER_ENVIRONMENT=github-hosted 'RUNNER_ENVIRONMENT=self-hosted NOTCHCAST_ISOLATED_RUNNER=1'; do
+    # shellcheck disable=SC2086
+    suite "$where" $where NOTCHCAST_RUNNER_SKIP_TESTS='PlainTests KeychainTests'
+    grep -qx 'ran PlainTests' out && ! grep -q 'on this runner' out || fail "$where honoured NOTCHCAST_RUNNER_SKIP_TESTS"
+    [ "$where" = NOTHING=1 ] || [ "$(grep -c '^ran ' out)" = 3 ] || fail "$where did not run the whole suite beside a runner list"
+done
+echo 'PASS: a GitHub-hosted runner, an isolated one and a local run ignore NOTCHCAST_RUNNER_SKIP_TESTS'
 # Nothing the repository runs may claim to be the isolated runner: only that runner's service environment does.
 setters=$(cd "$root" && git grep -lE 'NOTCHCAST_ISOLATED_RUNNER[]}"]*=' -- . ':!notchcast/hosted-only-test.sh' ':!*.md' || true)
 [ -z "$setters" ] || { echo "FAIL: NOTCHCAST_ISOLATED_RUNNER is set in: $setters"; exit 1; }
