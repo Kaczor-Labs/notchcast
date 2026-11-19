@@ -14,6 +14,8 @@ final class IslandPageHost {
     private var audience = IslandPageAudience()
     private var hovered = false
     private var focus = IslandPageFocus()
+    /// The tab `showPage` asked for, chosen when the pin it waits on opens the island.
+    private var wanted: IslandPageDeck.Tab?
 
     var isOpen: Bool { controller != nil }
 
@@ -50,7 +52,7 @@ final class IslandPageHost {
         hovered = open && resting != nil
         defer { announce() }
         guard open, let resting, !deck.pages.isEmpty else {
-            focus = IslandPageFocus()
+            if !open { focus = IslandPageFocus() }
             close()
             return false
         }
@@ -58,6 +60,11 @@ final class IslandPageHost {
             close()
             deck.open()
             controller = resting
+        }
+        if let wanted {
+            // A pin whose wait ran out never opened, so a plain hover later still opens Home.
+            if AppCore.shared.island.hover.isPinned { deck.select(wanted) }
+            self.wanted = nil
         }
         render()
         keyOnPin()
@@ -97,6 +104,16 @@ final class IslandPageHost {
             panel.orderFrontRegardless()
         }
         announce()
+    }
+
+    func showPage(id: String) {
+        guard deck.page(id) != nil else { return }
+        let tracker = AppCore.shared.island.hover
+        if isOpen, deck.selection == .page(id) { return tracker.dismiss() }
+        wanted = .page(id)
+        guard let controller else { return tracker.pinWhenUncovered() }
+        tracker.pin()
+        hover(true, on: controller)
     }
 
     private func select(_ tab: IslandPageDeck.Tab) {

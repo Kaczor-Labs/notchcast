@@ -13,10 +13,13 @@ protocol IslandPresenting: AnyObject {
     func setPage(_ page: IslandPage?, id: String, onAction: (@MainActor (String) -> Void)?)
     /// `onChange` hears true while `id`'s page data is on show in the open island, false once it is not.
     func watchPages(id: String, onChange: (@MainActor (_ visible: Bool) -> Void)?)
+    /// Opens the island pinned on `id`'s page, for a command or hotkey; again while it shows, closes it.
+    func showPage(id: String)
 }
 
 extension IslandPresenting {
     /// A presenter with no open island, like a harness's recorder, shows no pages.
     func setPage(_ page: IslandPage?, id: String, onAction: (@MainActor (String) -> Void)?) {}
     func watchPages(id: String, onChange: (@MainActor (_ visible: Bool) -> Void)?) {}
+    func showPage(id: String) {}
 }
