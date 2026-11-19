@@ -517,6 +517,7 @@ class ReplayTests(unittest.TestCase):
             write("notchcast/prune-paths.txt",
                   "# one path per line\n\nwebsite/\ndocs/screenshot.png\nREADME.upstream.md\nScripts/gen-emoji.js\n")
             write("feature.swift", "ours\n")
+            write("Tinycast/Features/Notchcast/Core/NotchcastAddon.swift", "protocol NotchcastAddon {}\n")
             write("README.upstream.md", "made by the old regenerate\n")
             commit("ours")
             CI.regenerate(root, base)

@@ -1,3 +1,4 @@
+// notchcast-linux-ok
 // notchcast-sources: Tinycast/Features/Island/Model/IslandLook.swift
 // notchcast-sources: Tinycast/Features/Island/Model/IslandKeyline.swift
 import Foundation

@@ -5,7 +5,7 @@ root=$(git rev-parse --show-toplevel)
 scratch=$(mktemp -d)
 trap 'rm -rf "$scratch"' EXIT
 mkdir -p "$scratch/Scripts" "$scratch/notchcast" "$scratch/bin"
-cp "$root/notchcast/test-harnesses.sh" "$scratch/notchcast/"
+cp "$root/notchcast/test-harnesses.sh" "$root/notchcast/harness-tags.sh" "$scratch/notchcast/"
 echo 'HOSTED_ONLY_TESTS="KeychainTests WindowTests"' > "$scratch/notchcast/config.env"
 printf '#!/bin/bash\nexit 0\n' > "$scratch/bin/python3"
 cat > "$scratch/Scripts/run-tests.sh" <<'STUB'

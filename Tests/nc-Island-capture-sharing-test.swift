@@ -1,3 +1,4 @@
+// notchcast-hosted-only
 // notchcast-sources: Tinycast/Features/Island/Service/IslandCaptureSharing.swift
 import AppKit
 
