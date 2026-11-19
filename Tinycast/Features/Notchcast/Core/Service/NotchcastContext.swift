@@ -1,4 +1,5 @@
 import Foundation
+import Observation
 
 /// Clipboard history's pair around a pasteboard write Notchcast makes itself.
 struct NotchcastClipboardMutation {
@@ -11,7 +12,9 @@ struct NotchcastClipboardMutation {
 }
 
 /// The only door from an add-on to the app: one per add-on, owned by the controller.
+/// Observable so a settings row sees the module attach, which lands a turn after its switch.
 @MainActor
+@Observable
 final class NotchcastContext {
     let defaults: UserDefaults
     let preferences: NotchcastPreferences
@@ -29,6 +32,8 @@ final class NotchcastContext {
     private(set) var module: (any NotchcastModule)?
     /// Entry ids the module cannot run right now: the launcher drops them, their hotkeys still run.
     private(set) var unavailableCommands: Set<String> = []
+    /// Commands made at run time, one per user row; they go when the module detaches.
+    private(set) var commands: [NotchcastCommand] = []
     /// Returns true to consume a digit typed in the launcher (Number Keys, hook H9).
     private(set) var launcherDigit: (@MainActor (_ digit: Int, _ query: String, _ entryRows: [Int]) -> Int?)?
     /// Returns true to claim a URL or file opened with the app (a link clicked, a document opened).
@@ -111,12 +116,19 @@ final class NotchcastContext {
     /// Rereads Accessibility trust after a grant, restarting a tap that could not start.
     func refreshPermission() { hub.refreshPermission() }
 
+    /// Replaces the run-time commands; the launcher and hotkeys pick them up on the same turn.
+    func setCommands(_ commands: [NotchcastCommand]) {
+        self.commands = commands
+        onCommandsChanged()
+    }
+
     func attach(_ module: (any NotchcastModule)?) { self.module = module }
 
     /// Called after the module stopped: everything it claimed goes with it.
     func detach() {
         module = nil
         wantedTaps.removeAll()
+        commands.removeAll()
         launcherDigit = nil
         unavailableCommands = []
         openURL = nil
