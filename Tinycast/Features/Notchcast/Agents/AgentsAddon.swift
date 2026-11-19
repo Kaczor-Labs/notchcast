@@ -3,7 +3,7 @@
 import SwiftUI
 
 /// Every AI plan's usage on one island page (#1128); off by default.
-enum AgentsAddon: NotchcastAddon {
+enum AgentsAddon: NotchcastAddon { // drift: keep the generated NotchcastRegistry lists it
     static let switches = [
         NotchcastSwitch(
             id: AgentsPreferences.switchID,
