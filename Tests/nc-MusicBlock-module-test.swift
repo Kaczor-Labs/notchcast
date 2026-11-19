@@ -1,3 +1,4 @@
+// notchcast-hosted-only
 // notchcast-sources: Tinycast/Features/Notchcast/MusicBlock/*.swift
 // notchcast-sources: Tinycast/Features/Notchcast/MusicBlock/Model/*.swift
 // notchcast-sources: Tinycast/Features/Notchcast/MusicBlock/Service/*.swift

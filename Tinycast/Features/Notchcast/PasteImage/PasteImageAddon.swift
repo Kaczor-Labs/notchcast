@@ -1,3 +1,4 @@
+// notchcast-addon-order: 180
 import Foundation
 
 enum PasteImageAddon: NotchcastAddon {

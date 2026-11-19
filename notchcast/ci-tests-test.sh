@@ -4,7 +4,7 @@ root=$(git rev-parse --show-toplevel)
 scratch=$(mktemp -d)
 trap 'rm -rf "$scratch"' EXIT
 mkdir -p "$scratch/notchcast" "$scratch/Scripts" "$scratch/tmp"
-cp "$root/notchcast/ci-tests.sh" "$root/notchcast/config.env" "$scratch/notchcast/"
+cp "$root/notchcast/ci-tests.sh" "$root/notchcast/config.env" "$root/notchcast/harness-tags.sh" "$scratch/notchcast/"
 cat > "$scratch/Scripts/run-tests.sh" <<'STUB'
 #!/bin/bash
 printf '%s' "${CI_SKIP_TESTS:-}" > "$SKIPS"

@@ -49,7 +49,8 @@ PBXPROJ = "Tinycast.xcodeproj/project.pbxproj"
 RUNTIME_JS = "Tinycast/Resources/RaycastRuntime.generated.js"
 # Rewritten by `regenerate`, never taken from our commits.
 SCHEME = "Tinycast.xcodeproj/xcshareddata/xcschemes/Tinycast.xcscheme"
-GENERATED = [PBXPROJ, SCHEME, RUNTIME_JS, "README.md"]
+REGISTRY = "Tinycast/Features/Notchcast/NotchcastRegistry.swift"
+GENERATED = [PBXPROJ, SCHEME, RUNTIME_JS, "README.md", REGISTRY]
 # Never pruned (notchcast/prune-paths.txt); docs/*.md is kept too.
 KEEP = ["LICENSE", "NOTICE.md", "AGENTS.md", "Tests", "Scripts/raycast-runtime"]
 # Upstream changes here mean notchcast/docs/design-system.md may need a refresh.
@@ -129,12 +130,12 @@ def hold(moved_at, now=None):
 
 
 def tested_key(commit="HEAD", cwd=None):
-    """Tree of commit without the project, scheme and README: CI regenerates or never tests those. The runtime stays in:
-    CI never rebuilds it and harnesses load it."""
+    """Tree of commit without the project, scheme, README and add-on registry: CI regenerates or never tests those.
+    The runtime stays in: CI never rebuilds it and harnesses load it."""
     with tempfile.TemporaryDirectory() as scratch:
         env = {"GIT_INDEX_FILE": f"{scratch}/index"}
         run("git", "read-tree", commit, cwd=cwd, env=env)
-        run("git", "update-index", "--force-remove", "--", PBXPROJ, SCHEME, "README.md", cwd=cwd, env=env)
+        run("git", "update-index", "--force-remove", "--", PBXPROJ, SCHEME, "README.md", REGISTRY, cwd=cwd, env=env)
         return run("git", "write-tree", cwd=cwd, env=env)
 
 
@@ -618,15 +619,15 @@ def pruned(tree):
 
 
 def regenerate(tree, onto):
-    """Write GENERATED in tree: notchcast/README.public.md as README.md and the Xcode project from project.yml ($XCODEGEN); the
-    extension runtime bundle stays upstream's, since Extensions are hidden. Also stage the removal of every path in
-    notchcast/prune-paths.txt (upstream files the app does not need), so the removal rides in the generated-files
-    commit, which a replay never picks and so never conflicts."""
+    """Write GENERATED in tree: README.md and the add-on registry (notchcast/addons.py), the Xcode project from
+    project.yml ($XCODEGEN); the extension runtime bundle stays upstream's, since Extensions are hidden. Also stage
+    the removal of every path in notchcast/prune-paths.txt (upstream files the app does not need), so the removal
+    rides in the generated-files commit, which a replay never picks and so never conflicts."""
     tree = Path(tree)
     paths = pruned(tree)
     if paths:
         run("git", "rm", "-r", "-q", "--ignore-unmatch", "--", *paths, cwd=tree)
-    (tree / "README.md").write_text((tree / "notchcast/README.public.md").read_text())
+    run(sys.executable, str(HERE / "addons.py"), "generate", "--root", str(tree))
     if os.environ.get("XCODEGEN"):
         run(os.environ["XCODEGEN"], "generate", "--quiet", cwd=tree)
     elif subprocess.run(["git", "diff", "--quiet", onto, "HEAD", "--", "project.yml"], cwd=tree).returncode:
