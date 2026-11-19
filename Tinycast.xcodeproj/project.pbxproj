@@ -54,6 +54,7 @@
 		0964D6642A8FB99D9D498A70 /* HyperKeyDiagnostics.swift in Sources */ = {isa = PBXBuildFile; fileRef = 30712AF270CDA8D67F6C5E83 /* HyperKeyDiagnostics.swift */; };
 		0976BBB954D48DE55C6B4263 /* MenuSearchScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = BD8A186797267935E09816C9 /* MenuSearchScreen.swift */; };
 		09C2F66D963E4E07A5A4F346 /* RaycastClipboardImport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2B154C9F1BC46B39E2283527 /* RaycastClipboardImport.swift */; };
+		09EAF4683417027DFEF60627 /* CopyPathShareMenu.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8043237C054DEFAAA2089A47 /* CopyPathShareMenu.swift */; };
 		0A086C5452FD9FCE68AF4E46 /* InputSourceSwitcher.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2FCD070CDE64691E5F6ED28D /* InputSourceSwitcher.swift */; };
 		0A238E823704B904EFFB4F22 /* BundleLocalization.swift in Sources */ = {isa = PBXBuildFile; fileRef = B3085C57A94FFF35FF74EC86 /* BundleLocalization.swift */; };
 		0A6B142F6DCEF83FEFF5EF1F /* CompactShortcutsSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0CD9BD942CF0C95ECEFC41F4 /* CompactShortcutsSection.swift */; };
@@ -716,6 +717,7 @@
 		8A7E994A470408763FA1193A /* ZIPNameEncoding.swift in Sources */ = {isa = PBXBuildFile; fileRef = FAF3D89594DCA7115CA030B6 /* ZIPNameEncoding.swift */; };
 		8A831B2ED19477B6E2AE3BAE /* NotchcastPane.swift in Sources */ = {isa = PBXBuildFile; fileRef = 583CE747E6B71A369A176240 /* NotchcastPane.swift */; };
 		8AD8014549983E7D13EA856D /* DisplayDDC.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7C56FD59FFFAC32EFF293C46 /* DisplayDDC.swift */; };
+		8AEF9DAE278AC39750D43DBA /* CopyPathTabLinks.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA761157F325FB1A79A68974 /* CopyPathTabLinks.swift */; };
 		8B18F59B0EB93ACDB1F16A84 /* QuicklinkEditorScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = AE8E49E5D98087ECB64D286B /* QuicklinkEditorScreen.swift */; };
 		8B1F6FD8806BEC80FAC38592 /* CaptureEditorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 75A384FEB43D7AF4DDAE9F98 /* CaptureEditorView.swift */; };
 		8B265BFDDDDAFCC45B35BDCB /* ExtensionPickerField.swift in Sources */ = {isa = PBXBuildFile; fileRef = 936C0D68CC32D90E590F712C /* ExtensionPickerField.swift */; };
@@ -2018,6 +2020,7 @@
 		7FDB7BD7AB45EAD1A11FFFC4 /* AXWindowAccess.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AXWindowAccess.swift; sourceTree = "<group>"; };
 		802BD2F4CC057228F2528217 /* PalettePlacement.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PalettePlacement.swift; sourceTree = "<group>"; };
 		803CF68AFCD894C7E109A646 /* IslandOverlayController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IslandOverlayController.swift; sourceTree = "<group>"; };
+		8043237C054DEFAAA2089A47 /* CopyPathShareMenu.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CopyPathShareMenu.swift; sourceTree = "<group>"; };
 		8060C53842ABA537EA37F59B /* IslandHoverTracker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IslandHoverTracker.swift; sourceTree = "<group>"; };
 		807BB1D9F61CE1C43170757D /* IslandHoverTracker+Core.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "IslandHoverTracker+Core.swift"; sourceTree = "<group>"; };
 		8088CD8FD5F95E1A2CA4AC42 /* QuickActionPanelController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuickActionPanelController.swift; sourceTree = "<group>"; };
@@ -2496,6 +2499,7 @@
 		DA012FF7ACA29A4271F167E0 /* NotchcastNoiseControl.xcstrings */ = {isa = PBXFileReference; lastKnownFileType = text.json.xcstrings; path = NotchcastNoiseControl.xcstrings; sourceTree = "<group>"; };
 		DA0AD89CB2C805C50D2C80E1 /* AliasStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AliasStore.swift; sourceTree = "<group>"; };
 		DA6189CBEDA83FFB63FF50E7 /* MiddleClickAddon.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MiddleClickAddon.swift; sourceTree = "<group>"; };
+		DA761157F325FB1A79A68974 /* CopyPathTabLinks.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CopyPathTabLinks.swift; sourceTree = "<group>"; };
 		DA8CBA97041AAA96C0B7FF2E /* BackupActions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackupActions.swift; sourceTree = "<group>"; };
 		DACBBA4F593D396201257883 /* CalendarMenuBarItem.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalendarMenuBarItem.swift; sourceTree = "<group>"; };
 		DB02E0EF46285235AD81C181 /* AIBrand.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIBrand.swift; sourceTree = "<group>"; };
@@ -2821,6 +2825,7 @@
 			children = (
 				F3D2236992B8C1B20C4B07D3 /* CopyPathLinkCleaner.swift */,
 				FA1A0F3129AD3E30F9EF3D42 /* CopyPathResolver.swift */,
+				8043237C054DEFAAA2089A47 /* CopyPathShareMenu.swift */,
 				E95D2E56B3328849482A4D47 /* CopyPathStatus.swift */,
 			);
 			path = Model;
@@ -4246,6 +4251,7 @@
 			children = (
 				1825177284BDE6700C359213 /* CopyPathModule.swift */,
 				192C5884384BC7E42C201FFB /* CopyPathSystem+Live.swift */,
+				DA761157F325FB1A79A68974 /* CopyPathTabLinks.swift */,
 			);
 			path = Service;
 			sourceTree = "<group>";
@@ -6631,8 +6637,10 @@
 				56F1BA8E215B7059EF14120B /* CopyPathLinkCleaner.swift in Sources */,
 				3E79E68AC621C18D416AFF49 /* CopyPathModule.swift in Sources */,
 				D880133095AA472447DF1781 /* CopyPathResolver.swift in Sources */,
+				09EAF4683417027DFEF60627 /* CopyPathShareMenu.swift in Sources */,
 				75DCCA52599D040A8F73BC19 /* CopyPathStatus.swift in Sources */,
 				725DDDE3427C7A73B3FAFECA /* CopyPathSystem+Live.swift in Sources */,
+				8AEF9DAE278AC39750D43DBA /* CopyPathTabLinks.swift in Sources */,
 				A024F68213FEB918BEF31255 /* CountryZoneData.generated.swift in Sources */,
 				2EBB42C7EB17F37628765B17 /* CurrencyData.generated.swift in Sources */,
 				5A91C58340D02ED0939BCAE2 /* CurrencyFeed.swift in Sources */,

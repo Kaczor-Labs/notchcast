@@ -20,11 +20,11 @@ func passes(_ status: Int?, ax: Bool = false, denied: CopyPathFailure) throws ->
     return ax ? try CopyPathStatus.accessibility(Int32(status)) : try CopyPathStatus.appleEvent(status, denied: denied)
 }
 
-/// `statuses` is keyed by source: selection, folder, browser, web, focused, main.
+/// `statuses` is keyed by source: selection, folder, browser, web, focused, main, tabs, copy.
 func reader(
     selection: [String] = [], folder: String? = nil, browser: String? = nil, web: String? = nil,
-    document: String? = nil, main: String? = nil, failure: CopyPathFailure? = nil, statuses: [String: Int] = [:],
-    reads: Reads = Reads()
+    document: String? = nil, main: String? = nil, tabs: Int = 1, copy: String? = nil,
+    failure: CopyPathFailure? = nil, statuses: [String: Int] = [:], reads: Reads = Reads()
 ) -> CopyPathReader {
     CopyPathReader(
         finderSelection: {
@@ -51,10 +51,23 @@ func reader(
             if let failure { throw failure }
             let key = window == .focused ? "focused" : "main"
             return try passes(statuses[key], ax: true, denied: .accessibility) ? (window == .focused ? document : main) : nil
+        },
+        selectedTabs: { pid in
+            reads.names.append("tabs \(pid)")
+            return try passes(statuses["tabs"], ax: true, denied: .accessibility) ? tabs : 0
+        },
+        browserCopy: { pid in
+            reads.names.append("copy \(pid)")
+            guard try passes(statuses["copy"], ax: true, denied: .accessibility), let copy else { return nil }
+            return CopyPathBrowserCopy(text: copy, changeCount: 42)
         })
 }
 
 func resolve(_ app: CopyPathApp?, _ reader: CopyPathReader) async throws -> String? {
+    try await CopyPathResolver.resolve(app, home: home, reader: reader)?.text
+}
+
+func resolveCopy(_ app: CopyPathApp?, _ reader: CopyPathReader) async throws -> CopyPathCopy? {
     try await CopyPathResolver.resolve(app, home: home, reader: reader)
 }
 
@@ -113,7 +126,7 @@ func geckoCases() async throws {
     let reads = Reads()
     check(try await resolve(zen, reader(web: link, reads: reads)), "https://example.com/?q=a%2Bb#s",
           "Zen copies its page, cleaned")
-    precondition(reads.names == ["web 14"], "Zen reads its web area by pid, no Apple Event: \(reads.names)")
+    precondition(reads.names == ["web 14", "tabs 14"], "Zen reads its page by pid, no Apple Event: \(reads.names)")
     for bundleID in ["org.mozilla.firefox", "app.zen-browser.zen", "io.gitlab.librewolf-community"] {
         precondition(CopyPathResolver.geckoBrowsers.contains(bundleID), "\(bundleID) is Gecko")
         precondition(CopyPathResolver.browsers[bundleID] == nil, "\(bundleID) is not scripted")
@@ -127,7 +140,7 @@ func geckoCases() async throws {
     let missing = Reads()
     check(try await resolve(zen, reader(web: nil, document: "/home/tester/d", reads: missing)), "~/d",
           "no page falls to the window document")
-    precondition(missing.names == ["web 14", "document 14 focused"], "then AX document: \(missing.names)")
+    precondition(missing.names == ["web 14", "tabs 14", "document 14 focused"], "then AX document: \(missing.names)")
     check(try await resolve(zen, reader(web: "about:newtab")), nil, "a new tab copies nothing")
     let stop = Reads()
     do {
@@ -139,6 +152,105 @@ func geckoCases() async throws {
         _ = try await resolve(zen, reader(statuses: ["web": -25211]))
         preconditionFailure("missing Accessibility must surface")
     } catch CopyPathFailure.accessibility {}
+}
+
+/// Issue #1138: two or more selected Gecko tabs copy the browser's own list, cleaned.
+func selectedTabCases() async throws {
+    let page = "https://example.com/?utm_source=x&a=1"
+    let bench = "https://example.com/?utm_source=x&a=1\nhttps://example.org/?b=2\nhttps://example.net/?c=3"
+    let three = "https://example.com/?a=1\nhttps://example.org/?b=2\nhttps://example.net/?c=3"
+    let reads = Reads()
+    let copied = try await resolveCopy(zen, reader(web: page, tabs: 3, copy: bench, reads: reads))
+    precondition(copied == CopyPathCopy(text: three, links: 3, browserChangeCount: 42), "3 tabs: \(String(describing: copied))")
+    precondition(reads.names == ["web 14", "tabs 14", "copy 14"], "page, count, then the browser's copy: \(reads.names)")
+
+    let one = Reads()
+    let single = try await resolveCopy(zen, reader(web: page, tabs: 1, copy: bench, reads: one))
+    precondition(single == CopyPathCopy(text: "https://example.com/?a=1"), "1 tab is today's copy: \(String(describing: single))")
+    precondition(one.names == ["web 14", "tabs 14"], "1 tab never presses Share: \(one.names)")
+
+    check(try await resolve(zen, reader(web: page, tabs: 3, copy: nil)), "https://example.com/?a=1",
+          "3 selected but no copy falls to the page")
+    let mixed = "https://a.org/?utm_medium=x\r\n\r\nfile:///home/tester/x.html\r\nabout:blank\r\n  https://b.org/  \r\n"
+    let cleaned = try await resolveCopy(zen, reader(web: "https://b.org/", tabs: 3, copy: mixed))
+    precondition(cleaned == CopyPathCopy(text: "https://a.org/\nhttps://b.org/", links: 2, browserChangeCount: 42),
+                 "CRLF, blank and non-web lines drop: \(String(describing: cleaned))")
+    let lone = try await resolveCopy(zen, reader(web: nil, tabs: 3, copy: "https://b.org/\nfile:///x"))
+    precondition(lone == CopyPathCopy(text: "https://b.org/", links: 1, browserChangeCount: 42),
+                 "one web link left is one link: \(String(describing: lone))")
+    check(try await resolve(zen, reader(web: nil, tabs: 2, copy: "https://a.org/\nhttps://b.org/")),
+          "https://a.org/\nhttps://b.org/", "an empty active tab with 2 selected web tabs copies the 2")
+    check(try await resolve(zen, reader(web: nil, tabs: 3, copy: "\n")), nil, "only empty tabs selected: nothing")
+    check(try await resolve(zen, reader(web: page, tabs: 2, copy: bench)), "https://example.com/?a=1",
+          "more links than selected tabs is a stale list: the page wins")
+    check(try await resolve(zen, reader(web: page, tabs: 2, copy: "https://example.org/?b=2\nhttps://example.net/?c=3")),
+          "https://example.com/?a=1", "a list without the active tab is a stale list: the page wins")
+    check(try await resolve(zen, reader(web: "file:///home/tester/x.html", tabs: 2, copy: "https://a.org/\nhttps://b.org/")),
+          "https://a.org/\nhttps://b.org/", "an active local page is no web link and never in the list")
+    check(try await resolve(zen, reader(web: page, tabs: 3, copy: "file:///x\nabout:blank")),
+          "https://example.com/?a=1", "no web link in the copy falls to the page")
+
+    let timedOut = Reads()
+    check(try await resolve(zen, reader(web: page, tabs: 3, copy: bench, statuses: ["tabs": -25204], reads: timedOut)),
+          "https://example.com/?a=1", "a timed-out count still copies today's link")
+    precondition(timedOut.names == ["web 14", "tabs 14"], "a failed count never presses Share: \(timedOut.names)")
+    check(try await resolve(zen, reader(web: page, tabs: 3, copy: bench, statuses: ["copy": -25200])),
+          "https://example.com/?a=1", "a failed menu press still copies today's link")
+    do {
+        _ = try await resolve(zen, reader(web: page, tabs: 3, statuses: ["tabs": -25211]))
+        preconditionFailure("missing Accessibility during the count must surface")
+    } catch CopyPathFailure.accessibility {}
+
+    for app in [chrome, safari, finder, textEdit] {
+        let reads = Reads()
+        _ = try await resolve(app, reader(selection: ["/a"], browser: page, web: page, document: "/d", tabs: 3,
+                                          copy: bench, reads: reads))
+        precondition(!reads.names.contains { $0.hasPrefix("tabs") || $0.hasPrefix("copy") },
+                     "\(app.bundleID ?? "") never counts tabs or presses Share: \(reads.names)")
+    }
+}
+
+/// The bench Zen's File menu, titles and order from its AX dump; keys are Gecko's own shortcuts.
+let zenFileMenu: [CopyPathMenuItem] = [
+    .init(title: "New Tab", commandKey: "T"), .init(title: "New Window", commandKey: "N"),
+    .init(title: "New Blank Window"), .init(title: "New Private Window", commandKey: "P", modifiers: 1),
+    .init(title: "Open File…", commandKey: "O"), .init(title: "Close 3 Tabs", commandKey: "W"),
+    .init(title: "Close Window", commandKey: "W", modifiers: 1), .init(isEnabled: false),
+    .init(title: "Save Page As…", commandKey: "S"), .init(title: "Share", hasSubmenu: true), .init(isEnabled: false),
+    .init(title: "Print…", commandKey: "P"), .init(isEnabled: false), .init(title: "Import From Another Browser…"),
+    .init(isEnabled: false), .init(title: "Work Offline"),
+]
+let zenShareMenu: [CopyPathMenuItem] = [
+    .init(title: "Copy 3 Links"), .init(title: "Create QR Code", isEnabled: false), .init(isEnabled: false),
+    .init(title: "Messages, Mail, and More…"),
+]
+
+func shareMenuCases() {
+    precondition(CopyPathShareMenu.shareByShortcut(zenFileMenu) == 9, "the submenu after ⌘S is Share")
+    precondition(CopyPathShareMenu.copyLinks(zenShareMenu) == 0, "Share's first item is pressed")
+    let before: [CopyPathMenuItem] = [
+        .init(title: "Share", hasSubmenu: true), .init(title: "Save Page As…", commandKey: "S"), .init(title: "Print…"),
+    ]
+    precondition(CopyPathShareMenu.shareByShortcut(before) == nil, "a submenu before Save Page As… is not picked")
+    let shifted: [CopyPathMenuItem] = [.init(title: "Save As…", commandKey: "S", modifiers: 1), .init(hasSubmenu: true)]
+    precondition(CopyPathShareMenu.shareByShortcut(shifted) == nil, "⇧⌘S is not Save Page As…")
+    let lower: [CopyPathMenuItem] = [.init(commandKey: "s"), .init(hasSubmenu: true)]
+    precondition(CopyPathShareMenu.shareByShortcut(lower) == 1, "the key compares case-insensitively")
+    var unbound = zenFileMenu
+    unbound[8].commandKey = nil
+    precondition(CopyPathShareMenu.shareByShortcut(unbound) == nil, "no ⌘S, no neighbour")
+    precondition(CopyPathShareMenu.shareByTitle(unbound) == 9, "no ⌘S falls to the title Share")
+    var neither = unbound
+    neither[9].title = "Partager"
+    precondition(CopyPathShareMenu.shareByShortcut(neither) == nil && CopyPathShareMenu.shareByTitle(neither) == nil,
+                 "neither rule: nothing")
+    let help: [CopyPathMenuItem] = [.init(title: "Share Ideas and Feedback…"), .init(title: "Share")]
+    precondition(CopyPathShareMenu.shareByTitle(help) == nil, "a Share without a submenu is no Share menu")
+    var disabled = zenShareMenu
+    disabled[0].isEnabled = false
+    precondition(CopyPathShareMenu.copyLinks(disabled) == nil, "a disabled first item gives nothing")
+    precondition(CopyPathShareMenu.copyLinks([]) == nil, "an unfilled Share gives nothing yet")
+    precondition(CopyPathShareMenu.copyLinks([.init(title: "More", hasSubmenu: true)]) == nil, "a submenu is no command")
 }
 
 func documentCases() async throws {
@@ -281,11 +393,13 @@ enum CopyPathResolverTests {
         try await finderCases()
         try await browserCases()
         try await geckoCases()
+        try await selectedTabCases()
+        shareMenuCases()
         try await documentCases()
         try await stopCases()
         try statusMapping()
         folding()
         cleaning()
-        print("PASS: copy path resolves Finder, browsers, Gecko pages and documents, stops on timeouts, folds home and cleans links")
+        print("PASS: copy path resolves Finder, browsers, Gecko pages and selected tabs, documents, timeouts, home and links")
     }
 }
