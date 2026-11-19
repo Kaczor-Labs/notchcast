@@ -50,7 +50,7 @@ final class IslandController {
     var glance: String?
 }
 
-/// The page host with `open` standing in for "a page exists": hover then opens it, not the pill.
+/// The page host as shipped decides: a page, or a bare island, opens it instead of the pill.
 @MainActor
 final class IslandPageHost {
     private(set) var deck = IslandPageDeck()
@@ -66,8 +66,8 @@ final class IslandPageHost {
         noticeTap = onTap
     }
     @discardableResult
-    func hover(_ hovered: Bool, on resting: IslandController?) -> Bool {
-        isOpen = hovered && !deck.pages.isEmpty && resting != nil
+    func hover(_ hovered: Bool, on resting: IslandController?, glance: Bool = false) -> Bool {
+        isOpen = hovered && deck.opens(glance: glance) && resting != nil
         return isOpen
     }
 }
@@ -261,6 +261,15 @@ struct AddonNoticeQueueTest {
         check("an owner's watcher reaches the page host", presenter.pages.watched == ["player": true])
         presenter.showPage(id: "player")
         check("a command's showPage reaches the page host", presenter.pages.shown == ["player"])
+        presenter.setStatus(nil, for: "awake", onTap: nil)
+        presenter.setStatus(nil, for: ready.id, onTap: nil)
+        presenter.hoverChanged(true)
+        check("a bare island's hover opens the pages' Home, not the pill (#884)", presenter.pages.isOpen)
+        core.island.resting?.glance = "Standup"
+        presenter.hoverChanged(true)
+        check("with no page a meeting glance keeps its own expansion", !presenter.pages.isOpen)
+        presenter.hoverChanged(false)
+        core.island.resting?.glance = nil
         controller.stop()
         print(failures == 0 ? "PASS AddonNoticeQueueTest" : "FAILED \(failures)")
         exit(failures == 0 ? 0 : 1)

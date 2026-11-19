@@ -97,8 +97,13 @@ final class IslandPresenter: IslandPresenting {
     /// The pointer resting on the island opens the long form of what it shows (#884 H2 to H7).
     func hoverChanged(_ open: Bool) {
         hovered = open
-        pages.hover(open, on: AppCore.shared.island.resting)
+        hoverPages(open)
         noticesChanged()
+    }
+
+    private func hoverPages(_ open: Bool) {
+        let resting = AppCore.shared.island.resting
+        pages.hover(open, on: resting, glance: resting?.glance != nil)
     }
 
     /// Pages take the hover first (#975); with none, the pill's own long form shows as before.
@@ -134,7 +139,7 @@ final class IslandPresenter: IslandPresenting {
 
     /// A rebuild can add or drop the resting pill, which a notice's dwell waits for.
     func restingChanged() {
-        if hovered { pages.hover(true, on: AppCore.shared.island.resting) }
+        if hovered { hoverPages(true) }
         noticesChanged()
     }
 
