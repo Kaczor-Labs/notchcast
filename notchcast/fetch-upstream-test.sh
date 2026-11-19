@@ -37,3 +37,14 @@ run '1 2'
 ! alive || { echo 'FAIL: a capped try left its child running'; exit 1; }
 [ "$status" -ne 0 ] && [ "$(wc -l < "$TRIES")" -eq 2 ] || { cat "$scratch/out"; echo 'FAIL: two stalled fetches did not fail after one retry'; exit 1; }
 echo 'PASS: two stalled fetches fail after one retry'
+# A cancelled caller (a stopped workflow step, Ctrl-C) signals the script's group; the fetch runs in its own group and must die with it.
+: > "$TRIES"
+: > "$CHILDREN"
+HANG=1 NOTCHCAST_FETCH_TIMEOUT=20 perl -e 'setpgrp(0, 0); exec @ARGV' bash "$root/notchcast/fetch-upstream.sh" --no-tags > /dev/null 2>&1 &
+caller=$!
+perl -e 'for (1..100) { exit 0 if -s $ARGV[0]; select(undef, undef, undef, 0.05) } exit 1' "$CHILDREN" || { echo 'FAIL: the stub never started'; exit 1; }
+kill -TERM -- "-$caller"
+wait "$caller" 2>/dev/null || true
+perl -e 'select(undef, undef, undef, 0.3)'
+! alive || { echo 'FAIL: a cancelled fetch left its child running'; exit 1; }
+echo 'PASS: a cancelled fetch takes its process group with it'

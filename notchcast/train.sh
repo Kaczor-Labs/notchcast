@@ -56,7 +56,7 @@ cleanup() {
 trap cleanup EXIT
 # Named, so cleanup reports the signal's status rather than the status of the command it cut short.
 sleeper=
-stop() { [ -z "$sleeper" ] || kill "$sleeper" 2>/dev/null; exit "$1"; }
+stop() { [ -z "$sleeper" ] || kill "$sleeper" 2>/dev/null || true; exit "$1"; }
 trap 'stop 129' HUP
 trap 'stop 130' INT
 trap 'stop 143' TERM
@@ -80,7 +80,7 @@ stack() {
     # The merge runs even for an unlabelled draft, so one pass names every reason a PR would be dropped for.
     set +e
     # land.sh squashes it with this message and refuses a private name in it, so the train refuses it first.
-    (set -e; merge_onto "$1" >&2; pr=$2; squash_message > "$scratch/message"; check_message "$scratch/message")
+    (set -e; merge_onto "$1" >&2; pr=$2; squash_message > "$scratch/message"; check_message "$scratch/message" >&2)
     merged=$?
     set -e
     # land.sh refuses it after the Mac ran, and that loses the whole train.

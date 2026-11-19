@@ -11,6 +11,8 @@ capped() {
         if (!$pid) { setpgrp(0, 0); exec @ARGV or die "exec: $!" }
         setpgrp($pid, $pid);
         $SIG{ALRM} = sub { kill "KILL", -$pid; waitpid($pid, 0); exit 124 };
+        my %stop = (HUP => 129, INT => 130, TERM => 143);  # a cancelled caller takes the group with it too
+        for my $name (keys %stop) { $SIG{$name} = sub { kill "KILL", -$pid; waitpid($pid, 0); exit $stop{$name} } }
         alarm $limit; waitpid($pid, 0); kill "KILL", -$pid;
         exit($? & 127 ? 128 + ($? & 127) : $? >> 8)' "$limit" "$@"
 }
