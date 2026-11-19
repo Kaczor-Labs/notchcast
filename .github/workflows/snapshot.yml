@@ -12,10 +12,10 @@ on:
         default: false
 permissions:
   contents: read
-# A push supersedes the run in flight; cron and dispatch queue behind it.
+# A run in flight always finishes; GitHub keeps one pending run, the newest, which plans main afresh.
 concurrency:
   group: snapshot
-  cancel-in-progress: ${{ github.event_name == 'push' }}
+  cancel-in-progress: false
 jobs:
   plan:
     if: github.ref == 'refs/heads/main'
@@ -177,7 +177,7 @@ jobs:
           ref: ${{ needs.plan.outputs.main }}
           path: tools
           persist-credentials: false
-      - name: Check main and the gate still hold
+      - name: Check the gate still holds
         id: current
         working-directory: tools
         env:
