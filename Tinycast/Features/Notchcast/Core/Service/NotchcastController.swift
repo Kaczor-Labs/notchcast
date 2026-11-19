@@ -87,11 +87,18 @@ final class NotchcastController {
     }
 
     /// False when the id is no enabled add-on command, so the caller falls through to stock.
-    func run(entryID: String) -> Bool {
+    func run(entryID: String) -> Bool { submit(entryID: entryID, argument: "") }
+
+    /// The launcher's run: text typed in the command's inline field goes to its argument.
+    func submit(entryID: String, argument: String) -> Bool {
         guard let command = enabledCommands.first(where: { $0.id == entryID }),
             let slot = slots.first(where: { $0.commands.contains { $0.id == entryID } })
         else { return false }
-        command.run(slot.context)
+        if let run = command.argument?.run, !argument.isEmpty {
+            run(slot.context, argument)
+        } else {
+            command.run(slot.context)
+        }
         return true
     }
 
