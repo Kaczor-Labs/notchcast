@@ -22,8 +22,6 @@ final class Fake {
     var page: String?
     var tabs = 1
     var browserText: String?
-    /// Clipboard-history syncs and our own writes, in order.
-    var events: [String] = []
     var copyWorks = true
     var settings: [CopyPathFailure] = []
     /// Each held read's answer once released, and whether its run had been cancelled by then.
@@ -33,7 +31,7 @@ final class Fake {
         app = CopyPathApp(bundleID: "com.apple.finder", pid: 1)
         selection = ["file:///home/tester/a"]
         failure = nil; hold = false; copies = []; copyWorks = true; settings = []; released = [:]
-        page = nil; tabs = 1; browserText = nil; events = []
+        page = nil; tabs = 1; browserText = nil
     }
 
     /// A held read answers when released, cancelled or not, so only the module's own cancel drops it.
@@ -60,10 +58,9 @@ extension CopyPathSystem {
             webArea: { _ in await fake.page },
             document: { _, _ in nil },
             selectedTabs: { _ in await fake.tabs },
-            browserCopy: { _ in await fake.browserText.map { CopyPathBrowserCopy(text: $0, changeCount: 42) } }),
+            browserCopy: { _ in await fake.browserText }),
         copy: { text in
             guard fake.copyWorks else { return false }
-            fake.events.append("copy")
             fake.copies.append(text)
             return true
         },
@@ -110,7 +107,7 @@ final class Rig {
         let hub = NotchcastTapHub(syntheticTag: 0x54494E59, isTrusted: { true }, makeSession: { FakeSession($0) })
         controller = NotchcastController(
             addons: [CopyPathAddon.self], defaults: defaults, hub: hub, dictation: FakeDictation(),
-            clipboard: NotchcastClipboardMutation(prepare: {}, synchronize: { fake.events.append("sync \($0)") }),
+            clipboard: NotchcastClipboardMutation(prepare: {}, synchronize: { _ in }),
             presenter: presenter)
         controller.start()
     }
@@ -180,7 +177,6 @@ enum CopyPathModuleTests {
         precondition(rig.presenter.posts.last?.symbol == "checkmark", "the same checkmark")
         precondition(fake.copies == ["https://example.com/?a=1\nhttps://example.org/?b=2\nhttps://example.net/?c=3"],
                      "the cleaned lines are copied: \(fake.copies)")
-        precondition(fake.events == ["sync 42", "copy"], "history skips the browser's write first: \(fake.events)")
 
         fake.reset()
         fake.app = zen
@@ -188,8 +184,7 @@ enum CopyPathModuleTests {
         fake.browserText = "https://example.org/"
         await rig.run()
         rig.expect("Copied path", failure: false, "Zen with 1 tab")
-        precondition(fake.copies == ["https://example.com/?a=1"] && fake.events == ["copy"],
-                     "1 tab copies today's link and syncs nothing: \(fake.events)")
+        precondition(fake.copies == ["https://example.com/?a=1"], "1 tab copies today's link: \(fake.copies)")
 
         fake.reset()
         fake.app = nil
