@@ -1,3 +1,4 @@
+// notchcast-addon-order: 190
 // notchcast-new-switch-ids: archives
 import SwiftUI
 
