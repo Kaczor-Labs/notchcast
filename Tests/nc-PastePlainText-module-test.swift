@@ -299,8 +299,11 @@ enum PastePlainTextModuleTests {
 
     @MainActor
     static func matchStyle() {
-        func matches(_ character: String?, _ mask: UInt32?, enabled: Bool = true) -> Bool {
-            PlainPastePolicy.isMatchStyleEquivalent(commandCharacter: character, modifierMask: mask, isEnabled: enabled)
+        func matches(
+            _ character: String?, _ mask: UInt32?, enabled: Bool = true, app: String? = "com.apple.TextEdit"
+        ) -> Bool {
+            PlainPastePolicy.isMatchStyleEquivalent(
+                bundleIdentifier: app, commandCharacter: character, modifierMask: mask, isEnabled: enabled)
         }
         precondition(matches("V", 3) && matches("v", 3), "⌥⇧⌘V, any case, is the app's matching-style paste")
         precondition(!matches("V", 0), "plain ⌘V is the regular paste")
@@ -309,6 +312,9 @@ enum PastePlainTextModuleTests {
         precondition(!matches("V", 3 | 8), "nor one without ⌘")
         precondition(!matches("C", 3) && !matches(nil, 3) && !matches("V", nil), "nor another key or none")
         precondition(!matches("V", 3, enabled: false), "a disabled item is never pressed")
+        precondition(!matches("V", 3, app: "com.apple.finder"),
+                     "a ⌥⇧⌘V item that is not Paste and Match Style, as Finder's Paste Exactly, is not pressed")
+        precondition(matches("V", 3, app: nil), "an app without a bundle ID keeps its matching-style paste")
     }
 
     @MainActor
