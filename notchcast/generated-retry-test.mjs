@@ -7,24 +7,25 @@ const execute = new Function('github', 'context', 'core', `return (async () => {
 const message = 'The job was not acquired by Runner of type hosted even after multiple attempts';
 assert.match(workflow, /run_attempt < 3/);
 assert.match(workflow, /workflow_run.conclusion == 'failure'/);
-for (const [conclusion, steps, annotation, expected] of [
-  ['cancelled', [], message, 1],
-  ['failure', [{started_at: '2026-11-05T12:00:00Z'}], message, 0],
-  ['cancelled', [], 'Cancelled by user', 0],
-  ['cancelled', [{started_at: '2026-11-05T12:00:00Z'}], message, 0],
+for (const [conclusion, steps, annotation, expected, push] of [
+  ['cancelled', [], message, 1, 'skipped'],
+  ['failure', [{started_at: '2026-11-05T12:00:00Z'}], message, 0, 'skipped'],
+  ['cancelled', [], 'Cancelled by user', 0, 'skipped'],
+  ['cancelled', [{started_at: '2026-11-05T12:00:00Z'}], message, 0, 'skipped'],
+  ['cancelled', [], message, 0, 'failure'],
 ]) {
   let retries = 0;
   const job = {name: 'regenerate', conclusion, steps, check_run_url: 'https://api.github.com/repos/o/r/check-runs/123'};
   const listJobs = () => {};
   const listAnnotations = () => {};
   const github = {
-    paginate: async endpoint => endpoint === listJobs ? [job] : [{message: annotation}],
+    paginate: async endpoint => endpoint === listJobs ? [job, {name: 'push', conclusion: push}] : [{message: annotation}],
     rest: {
       actions: {listJobsForWorkflowRunAttempt: listJobs, reRunWorkflow: async () => { retries++; }},
       checks: {listAnnotations},
     },
   };
   await execute(github, {repo: {owner: 'o', repo: 'r'}, payload: {workflow_run: {id: 1, run_attempt: 1}}}, {notice() {}});
-  assert.equal(retries, expected, `${conclusion}: ${annotation}`);
+  assert.equal(retries, expected, `${conclusion}: ${annotation}, push ${push}`);
 }
-console.log('PASS: unallocated job retries; script failure, user cancellation and started jobs do not; attempts capped at three');
+console.log('PASS: unallocated regenerate retries; script failure, user cancellation, started jobs and a run whose push job ran do not; attempts capped at three');
