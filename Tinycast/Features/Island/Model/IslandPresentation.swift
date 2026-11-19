@@ -48,3 +48,84 @@ struct IslandMenuRow: Equatable, Sendable {
     var title: String
     var isChecked = false
 }
+
+/// One topic in the open island, described as data; the island draws it from design-system tokens (#975).
+struct IslandPage: Equatable, Sendable {
+    /// The owner's id, one page per owner; also the tab's identity.
+    var id: String
+    var title: String
+    var symbol: String
+    /// Tabs run in this order; Home lists badged pages first, then this order.
+    var order: Int
+    /// Something waits for the user: a count on the tab, and the Home line moves to the top.
+    var badge = 0
+    /// The page summed up in one Home line.
+    var line: IslandPageLine
+    var blocks: [IslandPageBlock]
+
+    /// What Command-R sends to `onAction`; every page refreshes its data on it.
+    static let refreshAction = "refresh"
+}
+
+/// A Home line: a glyph or artwork, one text with an optional detail, and inline buttons.
+struct IslandPageLine: Equatable, Sendable {
+    var symbol: String?
+    /// Encoded image bytes; drawn instead of the glyph when they decode.
+    var artwork: Data?
+    var text: String
+    var detail: String?
+    var buttons: [IslandPageButton] = []
+}
+
+/// An icon button; `label` is its VoiceOver name and tooltip, `id` what `onAction` receives.
+struct IslandPageButton: Equatable, Sendable {
+    var id: String
+    var symbol: String
+    var label: String
+}
+
+/// The vocabulary a page body is written in; a new kind is drawn once in `IslandPageBlocks`.
+enum IslandPageBlock: Equatable, Sendable {
+    case media(IslandMedia)
+    case row(IslandPageRow)
+    case meter(IslandPageMeter)
+}
+
+/// A playing item: artwork, title, subtitle, a running time and transport buttons.
+struct IslandMedia: Equatable, Sendable {
+    var artwork: Data?
+    var title: String
+    var subtitle: String?
+    var time: IslandMediaTime?
+    var buttons: [IslandPageButton]
+}
+
+/// "At `sampledAt` it was `elapsed` seconds in, moving at `rate`", so the bar runs without updates.
+struct IslandMediaTime: Equatable, Sendable {
+    var elapsed: TimeInterval
+    var duration: TimeInterval
+    var rate: Double
+    var sampledAt: Date
+
+    func elapsed(at now: Date) -> TimeInterval {
+        min(max(elapsed + now.timeIntervalSince(sampledAt) * rate, 0), max(duration, 0))
+    }
+
+    func fraction(at now: Date) -> Double { duration > 0 ? elapsed(at: now) / duration : 0 }
+}
+
+/// A list row; a row with an `id` is a button that sends it to `onAction`.
+struct IslandPageRow: Equatable, Sendable {
+    var id: String?
+    var symbol: String?
+    var title: String
+    var detail: String?
+    var trailing: String?
+}
+
+/// A labelled bar, 0...1, with its value as text.
+struct IslandPageMeter: Equatable, Sendable {
+    var label: String
+    var fraction: Double
+    var value: String
+}

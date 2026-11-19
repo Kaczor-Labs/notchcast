@@ -20,6 +20,8 @@ enum NotchTheme {
         /// The widest a resting glance grows past the notch on one side; menubar spec §3.
         static let islandGlanceWing: CGFloat = 140
         static let islandHeadlineMaxWidth: CGFloat = 320
+        /// The Player page's artwork: two result-row icon slots (#975).
+        static let islandArtwork: CGFloat = 2 * Theme.Size.resultRowIcon
         /// The running-app dot under a launcher row icon (design-system §6).
         static let runningDot: CGFloat = 3
     }
