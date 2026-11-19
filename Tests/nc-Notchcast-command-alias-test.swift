@@ -63,6 +63,7 @@ enum NotchcastCommandAliasTests {
         hotKeys(index.apps.filter { $0.id.hasPrefix("command:nc-") }, defaults: defaults)
         stockCommandsOff(index.apps.filter { $0.id.hasPrefix("command:nc-") }, defaults: defaults)
         await launcherToggle(commands.map { ($0.0, $0.1, $0.2) })
+        hiddenCommands(ranking: ranking, aliases: aliases)
         print("\(checks) add-on command alias checks; \(failures) failures")
         if failures > 0 { exit(1) }
         print("PASSED")
@@ -116,6 +117,22 @@ enum NotchcastCommandAliasTests {
         await hides.adoption?.value
         check("the launcher's Hide turns the command's own switch off", !preferences.showsInLauncher(first.id))
         check("the launcher's Hide leaves no stock hide behind", visibility.isItemVisible(first))
+    }
+
+    /// #1062: a command in the hidden set leaves the launcher and reads disabled, so its hotkey and deeplink go.
+    static func hiddenCommands(ranking: LauncherRankingStore, aliases: AliasStore) {
+        func listed() -> Bool {
+            let index = AppIndex(ranking: ranking, aliases: aliases)
+            index.extraCommandEntries = []
+            return index.apps.contains { $0.id == CommandID.fixture.rawValue }
+        }
+        let index = AppIndex(ranking: ranking, aliases: aliases)
+        check("the shipped hidden-command set is empty", NotchcastHiddenCommands.commands.isEmpty)
+        check("a stock command is listed and enabled while the set is empty", listed() && index.isCommandEnabled(.fixture))
+        NotchcastHiddenCommands.commands = [.fixture]
+        defer { NotchcastHiddenCommands.commands = [] }
+        check("a hidden command is not listed", !listed())
+        check("a hidden command is disabled", !index.isCommandEnabled(.fixture))
     }
 
     /// The stock Commands switch gates stock commands only; Capture Area must survive it being off.
@@ -181,8 +198,12 @@ enum CommandID: String, CaseIterable, Sendable {
     var owner: SettingsTab? { nil }
 }
 enum CommandCatalog {
-    static let all: [AppEntry] = []
-    static func command(for entry: AppEntry) -> CommandID? { nil }
+    static let all = [
+        AppEntry(
+            notchcastCommand: CommandID.fixture.rawValue, name: "Stock Fixture", symbol: "key", keywords: [],
+            owner: .commands)
+    ]
+    static func command(for entry: AppEntry) -> CommandID? { CommandID(rawValue: entry.id) }
 }
 struct OtherEntry<Tag: Sendable>: Sendable {
     var id = UUID()
