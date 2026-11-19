@@ -133,12 +133,12 @@ guard() {
     local tip sha verdict=pending judged= unjudged pr seen
     git fetch -q origin main || refuse 'cannot fetch origin main'
     tip=$(git rev-parse origin/main)
-    unjudged=$(for sha in $(git rev-list -n "${NOTCHCAST_GUARD_DEPTH:-15}" "$tip"); do
+    unjudged=$(for sha in $(git rev-list --first-parent -n "${NOTCHCAST_GUARD_DEPTH:-15}" "$tip"); do
         [ "$(landed_from_of "$sha")" != linux ] || [ "$(followup "$sha")" != none ] || echo "$sha"
     done)
     [ -n "$unjudged" ] || return 0
     # Tip first: each commit takes the verdict of the lowest run at or above it, the first run that tested it.
-    for sha in $(git rev-list "${unjudged##*$'\n'}^..$tip"); do
+    for sha in $(git rev-list --first-parent "${unjudged##*$'\n'}^..$tip"); do
         seen=$(mac_verdict "$sha")
         [ "$seen" = pending ] || { verdict=$seen; judged=$sha; }
         grep -qx "$sha" <<< "$unjudged" || continue
