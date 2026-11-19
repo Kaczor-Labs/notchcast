@@ -11,14 +11,17 @@ extension AgentsSystem {
             home: FileManager.default.homeDirectoryForCurrentUser,
             defaultFeedFolder: AppPaths.applicationSupport().appending(path: "Agents", directoryHint: .isDirectory),
             read: { source in
-                switch source {
-                case .claude(let name, let directory):
-                    try await ClaudeUsageReader(
-                        name: name, launch: ClaudeLaunch(directory: directory),
-                        locate: { await locator.locate("claude") }).read()
-                case .codex:
-                    try await CodexUsageReader(locate: { await locator.locate("codex") }).read()
-                }
+                let command = source.provider
+                let account =
+                    switch source {
+                    case .claude(let name, let directory):
+                        try await ClaudeUsageReader(
+                            name: name, launch: ClaudeLaunch(directory: directory),
+                            locate: { await locator.locate(command) }).read()
+                    case .codex: try await CodexUsageReader(locate: { await locator.locate(command) }).read()
+                    }
+                if account.state == .missing { locator.forget(command) }
+                return account
             },
             readFeed: { await readFeed($0) },
             writeLocal: { await writeLocal($0, $1) },
@@ -40,16 +43,18 @@ extension AgentsSystem {
     }
 }
 
-/// Finding a CLI asks the login shell, so each is found once and kept while it still runs.
+/// Finding a CLI asks the login shell, so each is found once and found again only after a read misses it.
 final class AgentsLocator: Sendable {
     private let found = Mutex<[String: URL]>([:])
 
     func locate(_ command: String) async -> URL? {
-        if let url = found.withLock({ $0[command] }), FileManager.default.isExecutableFile(atPath: url.path) {
-            return url
+        if let url = found.withLock({ $0[command] }) {
+            return FileManager.default.isExecutableFile(atPath: url.path) ? url : nil
         }
         let url = await ExecutableLocator.locate(command)
         found.withLock { $0[command] = url }
         return url
     }
+
+    func forget(_ command: String) { _ = found.withLock { $0.removeValue(forKey: command) } }
 }
