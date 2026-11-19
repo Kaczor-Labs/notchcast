@@ -15,7 +15,9 @@ extension CopyPathSystem {
             finderFolder: { try await CopyPathAppleEvents.finderFolder() },
             browserAddress: { try await CopyPathAppleEvents.browserAddress($0, kind: $1) },
             webArea: { try await CopyPathAccessibility.webArea(pid: $0) },
-            document: { try await CopyPathAccessibility.document(pid: $0, window: $1) }),
+            document: { try await CopyPathAccessibility.document(pid: $0, window: $1) },
+            selectedTabs: { try await CopyPathTabLinks.selectedTabs(pid: $0) },
+            browserCopy: { try await CopyPathTabLinks.browserCopy(pid: $0) }),
         copy: { Paster.copyPlainText($0) },
         openSettings: { failure in
             guard failure != .accessibility else { return Permissions.openAccessibilitySettings() }
