@@ -172,15 +172,21 @@ func selectedTabCases() async throws {
     check(try await resolve(zen, reader(web: page, tabs: 3, copy: nil)), "https://example.com/?a=1",
           "3 selected but no copy falls to the page")
     let mixed = "https://a.org/?utm_medium=x\r\n\r\nfile:///home/tester/x.html\r\nabout:blank\r\n  https://b.org/  \r\n"
-    let cleaned = try await resolveCopy(zen, reader(web: page, tabs: 3, copy: mixed))
+    let cleaned = try await resolveCopy(zen, reader(web: "https://b.org/", tabs: 3, copy: mixed))
     precondition(cleaned == CopyPathCopy(text: "https://a.org/\nhttps://b.org/", links: 2, browserChangeCount: 42),
                  "CRLF, blank and non-web lines drop: \(String(describing: cleaned))")
-    let lone = try await resolveCopy(zen, reader(web: page, tabs: 3, copy: "https://b.org/\nfile:///x"))
+    let lone = try await resolveCopy(zen, reader(web: nil, tabs: 3, copy: "https://b.org/\nfile:///x"))
     precondition(lone == CopyPathCopy(text: "https://b.org/", links: 1, browserChangeCount: 42),
                  "one web link left is one link: \(String(describing: lone))")
     check(try await resolve(zen, reader(web: nil, tabs: 2, copy: "https://a.org/\nhttps://b.org/")),
           "https://a.org/\nhttps://b.org/", "an empty active tab with 2 selected web tabs copies the 2")
     check(try await resolve(zen, reader(web: nil, tabs: 3, copy: "\n")), nil, "only empty tabs selected: nothing")
+    check(try await resolve(zen, reader(web: page, tabs: 2, copy: bench)), "https://example.com/?a=1",
+          "more links than selected tabs is a stale list: the page wins")
+    check(try await resolve(zen, reader(web: page, tabs: 2, copy: "https://example.org/?b=2\nhttps://example.net/?c=3")),
+          "https://example.com/?a=1", "a list without the active tab is a stale list: the page wins")
+    check(try await resolve(zen, reader(web: "file:///home/tester/x.html", tabs: 2, copy: "https://a.org/\nhttps://b.org/")),
+          "https://a.org/\nhttps://b.org/", "an active local page is no web link and never in the list")
     check(try await resolve(zen, reader(web: page, tabs: 3, copy: "file:///x\nabout:blank")),
           "https://example.com/?a=1", "no web link in the copy falls to the page")
 

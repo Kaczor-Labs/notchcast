@@ -76,7 +76,7 @@ nonisolated enum CopyPathResolver {
         guard let app else { return nil }
         if let bundleID = app.bundleID, geckoBrowsers.contains(bundleID) {
             let page = try await reader.webArea(app.pid).flatMap { document($0, home: home) }
-            if let tabs = try await selectedTabLinks(app.pid, reader: reader) { return tabs }
+            if let tabs = try await selectedTabLinks(app.pid, page: page, reader: reader) { return tabs }
             if let page { return CopyPathCopy(text: page) }
         }
         return try await single(app, home: home, reader: reader).map { CopyPathCopy(text: $0) }
@@ -101,15 +101,20 @@ nonisolated enum CopyPathResolver {
     }
 
     /// Two or more selected tabs, copied by the browser and cleaned; any miss is nil, so the page wins.
-    private static func selectedTabLinks(_ pid: Int32, reader: CopyPathReader) async throws -> CopyPathCopy? {
+    private static func selectedTabLinks(
+        _ pid: Int32, page: String?, reader: CopyPathReader
+    ) async throws -> CopyPathCopy? {
         do {
-            guard try await reader.selectedTabs(pid) >= 2 else { return nil }
+            let selected = try await reader.selectedTabs(pid)
+            guard selected >= 2 else { return nil }
             try Task.checkCancellation()
             guard let copy = try await reader.browserCopy(pid) else { return nil }
             let links = copy.text.split(whereSeparator: \.isNewline).compactMap {
                 webLink($0.trimmingCharacters(in: .whitespaces))
             }
-            guard !links.isEmpty else { return nil }
+            // Gecko's active tab is always selected, so a list without it or longer than the selection is stale.
+            guard !links.isEmpty, links.count <= selected, page.flatMap(webLink).map(links.contains) != false
+            else { return nil }
             return CopyPathCopy(text: links.joined(separator: "\n"), links: links.count, browserChangeCount: copy.changeCount)
         } catch let error where error is CopyPathFailure || error is CancellationError {
             throw error
