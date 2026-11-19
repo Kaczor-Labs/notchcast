@@ -15,6 +15,7 @@
 // notchcast-sources: Tinycast/Features/Notchcast/DisplaySound/Service/DisplaySoundRecovery.swift
 // notchcast-sources: Tinycast/Features/Notchcast/DisplaySound/Service/AudioLevelAccess.swift
 // notchcast-sources: Tinycast/Features/Notchcast/DisplaySound/Service/AudioLevelsService.swift
+// notchcast-sources: Tinycast/Features/Notchcast/DisplaySound/Service/DisplaySpeakerController.swift
 // notchcast-sources: Tests/NotchcastDictationFixture.swift
 
 import AppKit
@@ -37,11 +38,30 @@ struct Hardware {
     var settable = true
     var refusesMute = false
     var online = true
+    /// A monitor's speakers on display 10 as VCP 0x62 volume and 0x8D mute; nil, no such monitor.
+    var speaker: [UInt8: UInt16]?
+    var asked: UInt8?
 }
 
 let rack = Mutex(Hardware())
 func hw<T: Sendable>(_ body: (inout Hardware) -> T) -> T { rack.withLock { body(&$0) } }
 let baseline = BrightnessGamma(red: [0, 1], green: [0, 1], blue: [0, 1])
+
+let speakerLink = BrightnessDDCLink(
+    send: { packet in
+        hw { state in
+            if packet[0] == 0x82 { state.asked = packet[2] } else { state.speaker?[packet[2]] = UInt16(packet[4]) }
+            return true
+        }
+    },
+    receive: { _ in
+        hw { state in
+            guard let code = state.asked, let value = state.speaker?[code] else { return nil }
+            var reply: [UInt8] = [0x6E, 0x88, 0x02, 0x00, code, 0x00, 0x00, code == 0x8D ? 2 : 100, 0x00, UInt8(value)]
+            reply.append(reply.reduce(UInt8(0x50), ^))
+            return reply
+        }
+    })
 
 @MainActor
 final class Fake {
@@ -59,13 +79,13 @@ final class Fake {
 extension DisplaySoundSystem {
     static let live = DisplaySoundSystem(
         displays: .init(
-            online: { hw { $0.online ? [9] : [] } },
-            uuid: { _ in "display-9" },
+            online: { hw { ($0.online ? [9] : []) + ($0.speaker == nil ? [] : [10]) } },
+            uuid: { "display-\($0)" },
             isActive: { _ in true },
-            isBuiltIn: { _ in true },
-            readSystem: { _ in hw { $0.system } },
+            isBuiltIn: { $0 == 9 },
+            readSystem: { raw in raw == 9 ? hw { $0.system } : nil },
             writeSystem: { _, value in hw { $0.system = value; return true } },
-            discoverDDC: { [:] },
+            discoverDDC: { hw { $0.speaker } == nil ? [:] : ["DISPLAY-10": speakerLink] },
             readGamma: { _ in hw { $0.gamma } },
             writeGamma: { _, gamma in hw { $0.gamma = gamma; return true } }),
         audio: .init(
@@ -81,9 +101,10 @@ extension DisplaySoundSystem {
                 guard !$0.refusesMute else { return false }
                 $0.muted = value
                 return true
-            } }),
+            } },
+            displayAudioName: { _ in hw { $0.speaker } == nil ? nil : "Desk" }),
         sleep: { try await Task.sleep(for: $0 / 1000) },
-        screenNames: { [9: "Built-in"] },
+        screenNames: { [9: "Built-in", 10: "Desk"] },
         displayContaining: { _, ids in fake.cursorOnDisplay ? ids.first : nil },
         functionKeysAdjustBrightness: { fake.functionKeys },
         replay: { key, _ in fake.replayed.append(key) },
@@ -92,6 +113,7 @@ extension DisplaySoundSystem {
             fake.displayChanged = handler
             return [NSObject()]
         },
+        watchSleep: { _ in [] },
         watchAudio: { _, _ in [] })
 }
 
@@ -193,9 +215,12 @@ func close(_ a: Double?, _ b: Double) -> Bool { a.map { abs($0 - b) < 1e-6 } == 
 enum DisplaySoundModuleTests {
     @MainActor
     static func main() async {
-        precondition(DisplaySoundAddon.switches.map(\.id) == ["displayBrightness", "volumeLevels"], "v1 ids")
-        precondition(DisplaySoundAddon.switches.allSatisfy { $0.defaultEnabled && $0.category == .displaySound
-            && $0.requiredGrants == [.accessibility] }, "both default on, Display & Sound, Accessibility")
+        precondition(DisplaySoundAddon.switches.map(\.id) == ["displayBrightness", "extraDimming", "volumeLevels"],
+                     "v1 ids, extra dimming between them")
+        precondition(DisplaySoundAddon.switches.allSatisfy { $0.defaultEnabled && $0.category == .displaySound },
+                     "all default on, Display & Sound")
+        precondition(DisplaySoundAddon.switches.map(\.requiredGrants) == [[.accessibility], [], [.accessibility]]
+            && DisplaySoundAddon.switches[1].dependencies == ["displayBrightness"], "extra dimming rides brightness")
         precondition(DisplaySoundAddon.settings.map(\.switchID) == ["displayBrightness"], "one settings row")
 
         let rig = await Rig()
@@ -315,6 +340,8 @@ enum DisplaySoundModuleTests {
         rig.finish()
         precondition(rig.hub.subscriberCount == 0, "stop removes every tap")
         await recoveryHandoff()
+        await extraDimmingSwitch()
+        await ddcSpeakers()
         print("nc-DisplaySound-module-test: PASS")
     }
 
@@ -338,5 +365,51 @@ enum DisplaySoundModuleTests {
         await until("finding 1: recovery restores after module teardown") { hw { $0.gamma } == baseline }
         rig.finish()
         print("finding 1 recovery handoff: PASS")
+    }
+
+    @MainActor
+    static func extraDimmingSwitch() async {
+        hw { $0 = Hardware(); $0.system = 0 }
+        fake.functionKeys = true
+        let rig = await Rig()
+        await rig.set(DisplaySoundAddon.extraDimmingID, on: false)
+        let shown = fake.levels.count
+        _ = rig.media(.brightnessDown)
+        _ = rig.media(.brightnessDown, down: false)
+        await until("off: the HUD shows the floor") { fake.levels.count > shown }
+        precondition(fake.levels.last?.range == 0...1 && fake.levels.last?.value == 0, "off: no dimming zone")
+        precondition(hw { $0.gamma } == baseline, "off: the picture is never dimmed")
+        await rig.set(DisplaySoundAddon.extraDimmingID, on: true)
+        _ = rig.media(.brightnessDown)
+        _ = rig.media(.brightnessDown, down: false)
+        await until("on: the keys dim again") { hw { $0.gamma } != baseline }
+        precondition(fake.levels.last?.range == -0.25...1, "on: the HUD shows the dimming zone")
+        await rig.set(DisplaySoundAddon.extraDimmingID, on: false)
+        await until("turning it off gives the curve back") { hw { $0.gamma } == baseline }
+        rig.finish()
+        print("extra dimming switch: PASS")
+    }
+
+    @MainActor
+    static func ddcSpeakers() async {
+        hw { $0 = Hardware(); $0.settable = false; $0.refusesMute = true }
+        fake.replayed = []
+        let rig = await Rig()
+        hw { $0.speaker = [0x62: 50, 0x8D: 2] }
+        _ = rig.media(.volumeUp)
+        _ = rig.media(.volumeUp, down: false)
+        await until("the monitor's volume moved") { hw { $0.speaker?[0x62] } == 56 }
+        await until("the HUD shows it") { fake.levels.last.map { abs($0.value - 0.56) < 1e-4 } == true }
+        precondition(fake.replayed.isEmpty, "a monitor that answers never hands the key back")
+        _ = rig.media(.mute)
+        _ = rig.media(.mute, down: false)
+        await until("mute goes over DDC") { hw { $0.speaker?[0x8D] } == 1 }
+        await until("the HUD shows muted") { fake.levels.last?.value == 0 }
+        hw { $0.speaker = nil }
+        _ = rig.media(.volumeDown)
+        _ = rig.media(.volumeDown, down: false)
+        await until("no monitor speakers: macOS") { fake.replayed == [.volumeDown] }
+        rig.finish()
+        print("DDC speakers: PASS")
     }
 }
