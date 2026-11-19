@@ -943,7 +943,7 @@ fixture
 open_pr 1 pr-b 'Add B' src/b.txt
 open_pr 2 pr-key 'Key' src/k.txt
 git switch --quiet pr-key
-sed 's/"README.md", cwd=cwd/"README.md", "src\/shared.txt", cwd=cwd/' notchcast/ci.py > "$FIXTURE/edit" && cat "$FIXTURE/edit" > notchcast/ci.py
+sed 's/"README.md", /"README.md", "src\/shared.txt", /' notchcast/ci.py > "$FIXTURE/edit" && cat "$FIXTURE/edit" > notchcast/ci.py
 git diff --quiet && fail 'the fixture did not change tested-key'
 git commit --quiet -am 'Change tested-key'
 repush 2 pr-key
