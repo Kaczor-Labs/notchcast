@@ -93,6 +93,10 @@ struct DownloadsQueueTest {
         probe.released.insert("held")
         queue.release("fake")
         try await eventually { queue.jobs.first { $0.id == held.id }?.state == .done }
+        queue.enqueue(kind: "fake", sources: ["twice"], held: true)
+        let repeated = queue.enqueue(kind: "fake", sources: ["twice", "once", "once"], held: true)
+        expect(repeated.map(\.source) == ["once"], "a source still queued, or given twice, is queued once")
+        expect(queue.enqueue(kind: "fake", sources: ["held"], held: true).count == 1, "a finished source queues again")
         await queue.stop()
     }
 

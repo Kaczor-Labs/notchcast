@@ -37,7 +37,7 @@ struct WebpageArticle: Sendable {
         return result.isEmpty ? "article" : result
     }
 
-    private static func quoted(_ text: String) -> String {
+    static func quoted(_ text: String) -> String {
         let encoder = JSONEncoder()
         encoder.outputFormatting = .withoutEscapingSlashes
         guard let data = try? encoder.encode(text), let value = String(data: data, encoding: .utf8) else { return "\"\"" }
