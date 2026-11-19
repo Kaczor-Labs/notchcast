@@ -152,8 +152,10 @@ final class DialogController: NSObject, NSWindowDelegate {
             #endif
             AppCore.shared.island.overlays.placeQuestion(panel)
             // Non-activating like the palette: key focus without pulling the user out.
-            panel.makeKeyAndOrderFront(nil)
-            panel.orderFrontRegardless()
+            panel.glassEnter {
+                panel.makeKeyAndOrderFront(nil)
+                panel.orderFrontRegardless()
+            }
         }
     }
 
@@ -170,7 +172,7 @@ final class DialogController: NSObject, NSWindowDelegate {
         closing?.delegate = nil
         closing?.onKey = nil
         continuation.resume(returning: index)
-        closing?.orderOut(nil)
+        closing?.glassLeave()
     }
 
     private var metrics: InterfaceMetrics { settings.interfaceSize.metrics }

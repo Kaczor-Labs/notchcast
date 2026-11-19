@@ -13,6 +13,7 @@
     ci.py hold <moved_at> [<now>]           PR list JSON on stdin: exit 0 while the rebase hold is on (kick.sh), else 1
     ci.py tested-key [<commit>]             tree of the commit without project, scheme, README: pr.yml names its artifact by it, plan looks main's up
     ci.py tested-run [<commit>]             URL of the green PR build of that tree, or nothing: land.sh skips its harness pass on it
+    ci.py isolated-proof [<commit>]         the green isolated-runner PR build of that tree: its URL, toolchain and excused harnesses, or nothing
 
 Our commits are merge-base(main, upstream main)..main. Replaying cherry-picks them in order without the GENERATED
 files, so those never conflict and never travel in our diffs. Two commits are made afresh instead of picked:
@@ -150,10 +151,11 @@ def tested_run(artifacts, fetch_run, fork_repo):
     return None
 
 
-def tested_build(commit, repo):
-    """The green PR run of our repo that built and tested commit's tree (tested_key), else None."""
+def tested_build(commit, repo, kind=""):
+    """The green PR run of our repo that built and tested commit's tree (tested_key), else None; kind "isolated-" asks
+    for a run whose Mac job was the isolated runner's."""
     key = tested_key(commit)
-    listing = json.loads(run("gh", "api", f"repos/{repo}/actions/artifacts?name=tested-tree-{key}&per_page=100"))
+    listing = json.loads(run("gh", "api", f"repos/{repo}/actions/artifacts?name=tested-tree-{kind}{key}&per_page=100"))
     return tested_run(listing["artifacts"], lambda id: json.loads(run("gh", "api", f"repos/{repo}/actions/runs/{id}")), repo)
 
 
@@ -166,6 +168,25 @@ def tested_build_url(commit="HEAD"):
         return
     if found:
         print(found["html_url"])
+
+
+def isolated_proof(commit="HEAD"):
+    """land.sh: three lines for the isolated-runner build of commit's tree: its URL, its toolchain stamp and the
+    harnesses it excused (red there and on upstream, so proven by it nowhere). Nothing when there is none; any error
+    means none."""
+    try:
+        repo = config()["FORK_REPO"]
+        found = tested_build(commit, repo, "isolated-")
+        if not found:
+            return
+        with tempfile.TemporaryDirectory() as scratch:
+            run("gh", "run", "download", str(found["id"]), "-R", repo, "-n", f"tested-tree-isolated-{tested_key(commit)}", "-D", scratch)
+            with open(f"{scratch}/toolchain") as stamp, open(f"{scratch}/excused") as excused:
+                lines = [found["html_url"], stamp.read().strip(), " ".join(excused.read().split())]
+    except (subprocess.CalledProcessError, OSError, ValueError, KeyError, TypeError, AttributeError) as error:
+        print(f"isolated-proof lookup skipped: {error}", file=sys.stderr)
+        return
+    print("\n".join(lines))
 
 
 def reuse_pr_build(main, cfg):
@@ -597,8 +618,8 @@ def pruned(tree):
 
 
 def regenerate(tree, onto):
-    """Write GENERATED in tree: notchcast/README.public.md as README.md, the Xcode project from project.yml ($XCODEGEN), and the
-    extension runtime bundle when our commits change its sources. Also stage the removal of every path in
+    """Write GENERATED in tree: notchcast/README.public.md as README.md and the Xcode project from project.yml ($XCODEGEN); the
+    extension runtime bundle stays upstream's, since Extensions are hidden. Also stage the removal of every path in
     notchcast/prune-paths.txt (upstream files the app does not need), so the removal rides in the generated-files
     commit, which a replay never picks and so never conflicts."""
     tree = Path(tree)
@@ -610,10 +631,6 @@ def regenerate(tree, onto):
         run(os.environ["XCODEGEN"], "generate", "--quiet", cwd=tree)
     elif subprocess.run(["git", "diff", "--quiet", onto, "HEAD", "--", "project.yml"], cwd=tree).returncode:
         sys.exit("our commits change project.yml; set XCODEGEN to regenerate the project")
-    runtime = tree / "Scripts/raycast-runtime"
-    if subprocess.run(["git", "diff", "--quiet", onto, "HEAD", "--", str(runtime)], cwd=tree).returncode:
-        run("npm", "ci", "--no-audit", "--no-fund", cwd=runtime)
-        run("node", "build.mjs", cwd=runtime)
 
 
 def issue_open(kind, title, cause, details=None):
@@ -692,4 +709,4 @@ if __name__ == "__main__":
     command, args = sys.argv[1], sys.argv[2:]
     {"plan": plan, "replay": replay, "regenerate": regenerate, "app-info": app_info, "issue": issue,
      "design-notice": design_notice, "tested-key": lambda *a: print(tested_key(*a)),
-     "tested-run": tested_build_url, "hold": hold, "stage": stage, "reviewed": reviewed, "pin-tag": pin_tag}[command](*args)
+     "tested-run": tested_build_url, "isolated-proof": isolated_proof, "hold": hold, "stage": stage, "reviewed": reviewed, "pin-tag": pin_tag}[command](*args)

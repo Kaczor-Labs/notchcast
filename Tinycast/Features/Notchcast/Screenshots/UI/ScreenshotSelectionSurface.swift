@@ -110,7 +110,7 @@ struct ScreenshotSelectionView: View {
                     path.addRect(target)
                 }
                 .fill(Theme.Colors.dialogDimming, style: FillStyle(eoFill: true))
-                Path(target).stroke(Theme.Colors.dropTarget, lineWidth: Theme.Size.hairline)
+                Path(target).stroke(Theme.Colors.primaryAction, lineWidth: Theme.Size.hairline)
             }
         }
         .contentShape(Rectangle())

@@ -53,6 +53,12 @@ final class MenuPanel: NSPanel, AnimatedPanel {
         }
     }
 
+    override func makeFirstResponder(_ responder: NSResponder?) -> Bool {
+        guard super.makeFirstResponder(responder) else { return false }
+        let frosted = AppCore.shared.island.frosted(on: parent?.screen)
+        (firstResponder as? NSTextView)?.applyIslandInks(frosted: frosted)
+        return true
+    }
 }
 
 /// Presents one menu at a time in a `MenuPanel` hung off a corner of the palette.
@@ -69,8 +75,13 @@ final class MenuPanelController {
     private weak var parent: NSWindow?
     private var placement: Placement?
     private var frosted = false
+    /// Fading out: still on screen, already closed to its owner.
+    private var leaving = false
+    /// Opened from the palette, so it lies over the island's glass and is solid; the pill menu hangs clear of it.
+    private var overPalette = false
+    private var rising = false
 
-    var isOpen: Bool { panel?.isVisible ?? false }
+    var isOpen: Bool { !leaving && panel?.isVisible ?? false }
 
     func show(
         _ content: AnyView, corner: MenuPanelCorner, parent: NSWindow, core: AppCore,
@@ -78,6 +89,7 @@ final class MenuPanelController {
     ) {
         let panel = ensurePanel(state: core.palette)
         frosted = parent.screen.map { core.island.look(for: $0) == .frosted } ?? false
+        overPalette = parent is PalettePanel
         panel.hasShadow = frosted
         configureCallbacks(
             for: panel, core: core, onKeyDown: onKeyDown, onDismiss: onDismiss)
@@ -89,7 +101,15 @@ final class MenuPanelController {
         layout(
             corner: corner, parent: parent, metrics: core.settings.interfaceSize.metrics,
             force: true)
-        if panel.parent == nil { parent.addChildWindow(panel, ordered: .above) }
+        leaving = false
+        rising = corner.rises(placed: panel.frame, parent: parent.frame)
+        let attach = { if panel.parent == nil { parent.addChildWindow(panel, ordered: .above) } }
+        if panel.isVisible {
+            panel.glassStay()
+            attach()
+        } else {
+            panel.glassEnter(rising: rising, order: attach)
+        }
         panel.makeKey()
         refreshShadow(panel)
     }
@@ -104,7 +124,7 @@ final class MenuPanelController {
     }
 
     private func setContent(_ root: AnyView, in panel: MenuPanel) {
-        let root = AnyView(root.environment(\.islandFrosted, frosted))
+        let root = AnyView(root.environment(\.islandFrosted, frosted).environment(\.islandGlassBelow, overPalette))
         if let hosting {
             hosting.rootView = root
             return
@@ -147,7 +167,12 @@ final class MenuPanelController {
         if panel.isKeyWindow { parent?.makeKey() }
         // A hidden child must detach or AppKit restores it with its parent on the next summon.
         panel.parent?.removeChildWindow(panel)
-        panel.orderOutAnimated { [weak self] in self?.releaseHiddenContent() }
+        guard !leaving else { return }
+        leaving = true
+        panel.glassLeave(rising: rising) { [weak self] in
+            self?.leaving = false
+            self?.releaseHiddenContent()
+        }
     }
 
     private func ensurePanel(state: PaletteState) -> MenuPanel {

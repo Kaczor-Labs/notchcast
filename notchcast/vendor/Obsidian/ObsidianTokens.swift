@@ -1,5 +1,5 @@
 // Generated from tokens/tokens.json by scripts/build-tokens.py. Edit tokens.json, not this file.
-// OBSIDIAN 2.0.1 (CHANGELOG.md).
+// OBSIDIAN 2.1.0 (CHANGELOG.md).
 // OBSIDIAN tokens for macOS (SwiftUI): one nested enum per tokens/<group>.css, constants named after the CSS
 // custom property in camelCase. Where tokens.json gives a mac value it replaces the web one here.
 import SwiftUI
@@ -9,7 +9,7 @@ import AppKit
 
 public enum ObsidianTokens {
     /// The release these values belong to (CHANGELOG.md in the design-system skill).
-    public static let version = "2.0.1"
+    public static let version = "2.1.0"
     /// One CSS box-shadow layer. SwiftUI's .shadow(color:radius:x:y:) takes radius = blur / 2 and has no spread.
     public struct Shadow: Sendable {
         public let color: Color
@@ -293,6 +293,11 @@ public enum ObsidianTokens {
         public static let glassPressed = Color(.sRGB, red: 255.0 / 255, green: 255.0 / 255, blue: 255.0 / 255, opacity: 0.14) // rgb(255 255 255 / 0.14)
         public static let glassCursor = Color(.sRGB, red: 255.0 / 255, green: 255.0 / 255, blue: 255.0 / 255, opacity: 0.16) // rgb(255 255 255 / 0.16)
         public static let glassDestructiveWash = Color(.sRGB, red: 248.0 / 255, green: 113.0 / 255, blue: 113.0 / 255, opacity: 0.2) // rgb(248 113 113 / 0.20)
+        // Shade — Mac only, Frosted only: an expanded surface hanging from the top edge darkens toward that edge and takes less colour from the wallpaper (references/glass.md section 10). Black over the tint down the surface's height: --glass-shade-top at the top edge, --glass-shade-mid at --glass-shade-mid-stop, clear at the bottom edge. Skipped with the blur
+        public static let glassShadeTop = Color(.sRGB, red: 0.0 / 255, green: 0.0 / 255, blue: 0.0 / 255, opacity: 0.5) // rgb(0 0 0 / 0.50)
+        public static let glassShadeMid = Color(.sRGB, red: 0.0 / 255, green: 0.0 / 255, blue: 0.0 / 255, opacity: 0.2) // rgb(0 0 0 / 0.20)
+        public static let glassShadeMidStop: Double = 0.45
+        public static let glassDesaturate: Double = 0.55
         public static let radiusIsland: CGFloat = 26
     }
 }

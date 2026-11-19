@@ -59,7 +59,7 @@ check() {
     main=$("$real_git" -C "$case/repo" rev-parse HEAD)
     other=$("$real_git" -C "$case/repo" rev-parse HEAD~1)
     [ "${PRESET:-}" = other ] && "$real_git" -C "$case/repo" push -q "$case/remote.git" "$other:refs/tags/v1.snapshot.1"
-    [ "${PRESET:-}" = main ] && "$real_git" -C "$case/repo" tag -a pre "$main" -m pre && "$real_git" -C "$case/repo" push -q "$case/remote.git" "refs/tags/pre:refs/tags/v1.snapshot.1"
+    [ "${PRESET:-}" = main ] && "$real_git" -C "$case/repo" -c user.name=t -c user.email=t@t tag -a pre "$main" -m pre && "$real_git" -C "$case/repo" push -q "$case/remote.git" "refs/tags/pre:refs/tags/v1.snapshot.1"
     [ -n "${RELEASE:-}" ] && echo "$RELEASE" > "$case/state/release"
     echo zip > "$case/dist/Notchcast-1.snapshot.1.zip"
     echo dmg > "$case/dist/Notchcast-1.snapshot.1.dmg"

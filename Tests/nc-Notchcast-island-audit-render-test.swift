@@ -27,7 +27,7 @@
 // notchcast-sources: Tinycast/Features/Updates/Service/UpdateFailure.swift
 // notchcast-sources: Tinycast/DesignSystem/Scrolling/SelectionFollowing.swift
 // notchcast-sources: Tinycast/DesignSystem/Scrolling/ScrollIntent.swift Tinycast/DesignSystem/Scrolling/SelectionReveal.swift
-// notchcast-sources: Tinycast/Features/Updates/Service/Quarantine.swift
+// notchcast-sources: Tinycast/Features/Updates/Service/Quarantine.swift Tinycast/DesignSystem/Scrolling/EdgeDissolve.swift
 // notchcast-sources: Tinycast/Features/Updates/Service/BundleSignature.swift
 // notchcast-sources: Tinycast/Features/Updates/Service/ToolRunner.swift
 // notchcast-sources: Tinycast/Features/Updates/Service/UpdateDownloader.swift
@@ -50,6 +50,8 @@ struct NotchcastIslandAuditRenderTest {
         ?? NSTemporaryDirectory() + "nc-island-audit-renders")
     /// `NC_AUDIT_LOOK=frosted` renders Frosted on its glass tint over a white wallpaper.
     static let frosted = ProcessInfo.processInfo.environment["NC_AUDIT_LOOK"] == "frosted"
+    /// `NC_AUDIT_SOLID=1` renders Frosted's no-blur fallback: each thickness's solid, and the menu solid.
+    static let solid = ProcessInfo.processInfo.environment["NC_AUDIT_SOLID"] == "1"
 
     static func write(_ name: String, _ image: CGImage?) {
         guard let image else { preconditionFailure("\(name) did not render") }
@@ -63,10 +65,10 @@ struct NotchcastIslandAuditRenderTest {
     }
 
     /// Every SwiftUI surface sits on the island in its look, the way the island hosts it.
-    static func render(_ name: String, @ViewBuilder _ content: () -> some View) {
+    static func render(_ name: String, glass: NotchTheme.GlassLayer = .bar, @ViewBuilder _ content: () -> some View) {
         let view = content()
             .padding(16)
-            .background(ground(desk: false))
+            .background(ground(desk: false, glass: glass))
             .environment(\.islandFrosted, frosted)
             .environment(\.paletteOnIsland, true)
             .environment(\.colorScheme, .dark)
@@ -82,6 +84,7 @@ struct NotchcastIslandAuditRenderTest {
             .padding(16)
             .frame(width: size.width, height: size.height, alignment: .top)
             .background(ground(desk: desk))
+            .environment(\.islandGlassBelow, solid)
             .environment(\.islandFrosted, frosted)
             .environment(\.paletteOnIsland, true)
             .environment(\.colorScheme, .dark)
@@ -102,40 +105,48 @@ struct NotchcastIslandAuditRenderTest {
         write(name, bitmap.cgImage)
     }
 
-    /// Black is the island black; Frosted its tint over white, or white alone under a floating menu.
-    @ViewBuilder static func ground(desk: Bool) -> some View {
+    /// Black is the island black; Frosted the thickness's fill over white, or white alone under a floating menu.
+    @ViewBuilder static func ground(desk: Bool, glass: NotchTheme.GlassLayer = .bar) -> some View {
         if !frosted {
             NotchTheme.Colors.islandSurface
         } else if desk {
             Color.white
         } else {
-            NotchTheme.Colors.islandGlassTint.background(Color.white)
+            glass.fill(solid: solid).background(Color.white)
         }
     }
 
-    /// Engine art draws in AppKit into the pill's outline, so it renders the way the canvas does.
-    static func renderArt(_ name: String, _ art: some PillArt) {
-        let width = art.layout.leading + art.layout.trailing + 2 * Theme.Spacing.lg
-        let size = CGSize(width: max(width, NotchTheme.Size.islandRest.width), height: 36)
-        let image = NSImage(size: CGSize(width: size.width + 32, height: size.height + 32), flipped: false) { rect in
-            let pill = CGRect(x: 16, y: 16, width: size.width, height: size.height)
-            paintPill(rect, pill: NSBezierPath(roundedRect: pill, xRadius: size.height / 2, yRadius: size.height / 2))
-            art.draw(in: pill)
-            return true
+    /// A report or a question as the island holds it: grown in that thickness from the top edge, with and
+    /// without a 185 × 32 notch.
+    static func renderHeld(_ name: String, _ glass: NotchTheme.GlassLayer, @ViewBuilder _ content: () -> some View) {
+        let renderer = ImageRenderer(content: content().environment(\.islandFrosted, frosted)
+            .environment(\.paletteOnIsland, true).environment(\.colorScheme, .dark))
+        renderer.scale = 2
+        guard let image = renderer.nsImage else { preconditionFailure("\(name) did not render") }
+        let inset = NotchTheme.Spacing.islandInset
+        let notchSize = CGSize(width: 185, height: 32)
+        for notch in [false, true] {
+            let top = notch ? notchSize.height : 0
+            let island = CGSize(width: max(image.size.width + inset * 2, notchSize.width + 2 * Theme.Radius.panel),
+                                height: top + image.size.height + inset * 2)
+            let form = "\(notch ? "notch" : "nonotch")-\(frosted ? "frosted" : "black")\(solid ? "-solid" : "")"
+            writeArt("\(name)-\(form)", size: CGSize(width: island.width + 64, height: island.height + 32)) { rect in
+                (frosted ? NSColor.white : NSColor(white: 0.18, alpha: 1)).setFill()
+                rect.fill()
+                // Taller than the picture, so the top corners fall above the screen's edge.
+                let shape = CGRect(x: 32, y: rect.maxY - island.height, width: island.width,
+                                   height: island.height + Theme.Radius.panel)
+                NSColor(frosted ? glass.fill(solid: solid) : NotchTheme.Colors.islandSurface).setFill()
+                NSBezierPath(roundedRect: shape, xRadius: Theme.Radius.panel, yRadius: Theme.Radius.panel).fill()
+                if notch {
+                    NSColor.black.setFill()
+                    CGRect(x: shape.midX - notchSize.width / 2, y: rect.maxY - notchSize.height,
+                           width: notchSize.width, height: notchSize.height).fill()
+                }
+                image.draw(in: CGRect(x: shape.midX - image.size.width / 2, y: shape.minY + inset,
+                                      width: image.size.width, height: image.size.height))
+            }
         }
-        var proposed = CGRect(origin: .zero, size: image.size)
-        let scaled = NSImage(size: image.size)
-        scaled.addRepresentations(image.representations)
-        write(name, image.cgImage(forProposedRect: &proposed, context: nil,
-                                  hints: [.ctm: AffineTransform(scale: 2)]))
-    }
-
-    /// Black's pill on a grey desk; Frosted's glass tint over a white wallpaper, as the canvas fills it.
-    static func paintPill(_ rect: CGRect, pill: NSBezierPath) {
-        (frosted ? NSColor.white : NSColor(white: 0.18, alpha: 1)).setFill()
-        rect.fill()
-        NSColor(frosted ? NotchTheme.Colors.islandGlassTint : NotchTheme.Colors.islandSurface).setFill()
-        pill.fill()
     }
 
     static func writeArt(_ name: String, size: CGSize, _ draw: @escaping (CGRect) -> Void) {
@@ -145,108 +156,6 @@ struct NotchcastIslandAuditRenderTest {
         }
         var proposed = CGRect(origin: .zero, size: size)
         write(name, image.cgImage(forProposedRect: &proposed, context: nil, hints: [.ctm: AffineTransform(scale: 2)]))
-    }
-
-    /// The notch headline below the hardware, drawn at the bottom of the grown island.
-    static func renderHeadline(_ name: String, _ art: IslandHeadlineArt) {
-        let box = CGRect(x: 16, y: 16, width: art.size.width, height: art.size.height)
-        writeArt(name, size: CGSize(width: box.width + 32, height: box.height + 32)) { rect in
-            paintPill(rect, pill: NSBezierPath(roundedRect: box, xRadius: 16, yRadius: 16))
-            art.draw(in: box)
-        }
-    }
-
-    /// The level band in the report slot: on Frosted it must leave the glass under it unpainted.
-    static func renderBand(_ name: String, _ art: IslandLevelArt) {
-        let band = IslandLevelBand(frame: CGRect(origin: .zero, size: art.bandSize))
-        band.art = art
-        let box = CGRect(x: 16, y: 16, width: art.bandSize.width, height: art.bandSize.height)
-        writeArt(name, size: CGSize(width: box.width + 32, height: box.height + 32)) { rect in
-            paintPill(rect, pill: NSBezierPath(rect: box))
-            let image = NSImage(size: box.size, flipped: false) { _ in
-                band.draw(band.bounds)
-                return true
-            }
-            image.draw(in: box)
-        }
-    }
-
-    /// #884's hover states at the screen's top edge: a 185 × 32 notch, or the 96 × 24 pill without one.
-    static func renderHover(_ meeting: MeetingEvent) {
-        let notchSize = CGSize(width: 185, height: 32)
-        let glance = IslandGlance(meeting, now: Date(timeIntervalSince1970: 0), locale: Locale(identifier: "en_US"))
-        let ready = IslandStatus(id: "update", symbol: "arrow.clockwise.circle", text: nil, label: "Update ready")
-        let download = IslandNotice(id: "dl", symbol: "arrow.down.circle", text: "Lecture 04.mp4",
-                                    progress: IslandProgress(fraction: 0.42, headline: false))
-        func hovered(_ top: IslandNotice?, _ statuses: [IslandStatus] = []) -> IslandNotice {
-            IslandHover.notice(top: top, statuses: statuses, glance: false, level: false, hovered: true)!
-        }
-        /// Draws the island hanging from the top edge, `body` tall below the notch, art in that lower part.
-        func island(_ name: String, width: CGFloat, body: CGFloat, notch: Bool, radius: CGFloat,
-                    notchLeft: CGFloat? = nil, _ draw: @escaping (CGRect) -> Void) {
-            let top = notch ? notchSize.height : 0
-            let size = CGSize(width: max(width, notch ? notchSize.width : NotchTheme.Size.islandRest.width) + 64,
-                              height: top + body + 32)
-            writeArt(name, size: size) { rect in
-                let shape = CGRect(x: 32, y: rect.maxY - top - body, width: size.width - 64, height: top + body)
-                let path = NSBezierPath()
-                path.move(to: CGPoint(x: shape.minX, y: rect.maxY))
-                path.line(to: CGPoint(x: shape.minX, y: shape.minY + radius))
-                path.appendArc(withCenter: CGPoint(x: shape.minX + radius, y: shape.minY + radius), radius: radius,
-                               startAngle: 180, endAngle: 270)
-                path.line(to: CGPoint(x: shape.maxX - radius, y: shape.minY))
-                path.appendArc(withCenter: CGPoint(x: shape.maxX - radius, y: shape.minY + radius), radius: radius,
-                               startAngle: 270, endAngle: 360)
-                path.line(to: CGPoint(x: shape.maxX, y: rect.maxY))
-                path.close()
-                paintPill(rect, pill: notch || body > NotchTheme.Size.islandRest.height ? path
-                          : NSBezierPath(roundedRect: shape, xRadius: body / 2, yRadius: body / 2))
-                if notch {
-                    NSColor.black.setFill()
-                    CGRect(x: shape.minX + (notchLeft ?? (shape.width - notchSize.width) / 2),
-                           y: rect.maxY - notchSize.height,
-                           width: notchSize.width, height: notchSize.height).fill()
-                }
-                draw(notch && body == 0 ? CGRect(x: shape.minX, y: shape.minY, width: shape.width, height: top)
-                     : CGRect(x: shape.minX, y: shape.minY, width: shape.width, height: body))
-            }
-        }
-        /// The compact pill: content hugs the ends, a notch keeps the middle, as the engine sizes the slots.
-        func compactWidth(_ art: some PillArt, notch: Bool) -> CGFloat {
-            let inner = notch ? Theme.Spacing.md : 0
-            return (notch ? notchSize.width : 0) + 2 * (Theme.Spacing.lg + inner) + art.layout.leading
-                + art.layout.trailing
-        }
-        func compact(_ name: String, _ art: some PillArt, notch: Bool) {
-            island(name, width: compactWidth(art, notch: notch), body: notch ? 0 : NotchTheme.Size.islandRest.height,
-                   notch: notch, radius: notch ? 10 : 12,
-                   notchLeft: Theme.Spacing.lg + Theme.Spacing.md + art.layout.leading) { art.draw(in: $0) }
-        }
-        let look = frosted ? "frosted" : "black"
-        for notch in [false, true] {
-            let form = notch ? "notch" : "nonotch"
-            let meetingArt = GlanceArt(glance, notch: notch, frosted: frosted)
-            compact("884-04-meeting-\(form)-\(look)", meetingArt, notch: notch)
-            let expansion = IslandExpansionArt(glance, frosted: frosted)
-            island("884-05-meeting-hover-\(form)-\(look)",
-                   width: max(expansion.size.width, compactWidth(meetingArt, notch: notch)), body: expansion.size.height,
-                   notch: notch, radius: Theme.Radius.panel) { expansion.draw(in: $0) }
-            compact("884-06-status-\(form)-\(look)", IslandStatusArt([ready], notch: notch, frosted: frosted),
-                    notch: notch)
-            compact("884-08-download-\(form)-\(look)", IslandNoticeArt(download, notch: notch, frosted: frosted),
-                    notch: notch)
-            for (step, top, statuses) in [("07-status", nil, [ready]), ("09-download", download, [])] {
-                let notice = hovered(top, statuses)
-                if notch {
-                    let line = IslandHeadlineArt(notice, notch: notchSize.width, frosted: frosted)
-                    island("884-\(step)-hover-\(form)-\(look)", width: line.size.width, body: line.size.height,
-                           notch: true, radius: Theme.Radius.panel) { line.draw(in: $0) }
-                } else {
-                    compact("884-\(step)-hover-\(form)-\(look)",
-                            IslandNoticeArt(notice, notch: false, frosted: frosted), notch: false)
-                }
-            }
-        }
     }
 
     static func main() {
@@ -306,7 +215,7 @@ struct NotchcastIslandAuditRenderTest {
             }
             .frame(width: 520)
         }
-        render("05-message-hud") {
+        render("05-message-hud", glass: .pane) {
             VStack(spacing: 12) {
                 MessageHUDView(message: "Copied to Clipboard", accessory: .tone(.success))
                 MessageHUDView(message: "Could not open the file", accessory: .tone(.danger))
@@ -314,7 +223,7 @@ struct NotchcastIslandAuditRenderTest {
                 MessageHUDView(message: "Downloading…", accessory: .progress, onCancel: {})
             }
         }
-        render("06-dialog-update-failed") {
+        render("06-dialog-update-failed", glass: .sheet) {
             DialogView(
                 request: DialogRequest(
                     title: "Update failed", message: "The download did not finish.",
@@ -323,7 +232,7 @@ struct NotchcastIslandAuditRenderTest {
                     defaultIndex: 1, cancelIndex: 0),
                 width: 290, onChoose: { _ in })
         }
-        render("07-dialog-neutral") {
+        render("07-dialog-neutral", glass: .sheet) {
             DialogView(
                 request: DialogRequest(
                     title: "Quit Safari?", message: "Two windows are open.", symbol: "safari",
@@ -332,7 +241,19 @@ struct NotchcastIslandAuditRenderTest {
                     defaultIndex: 1, cancelIndex: 0),
                 width: 420, onChoose: { _ in })
         }
-        render("08-dialog-chips") {
+        renderHeld("979-hud", .pane) {
+            MessageHUDView(message: "Copied to Clipboard", accessory: .tone(.success))
+        }
+        renderHeld("979-dialog", .sheet) {
+            DialogView(
+                request: DialogRequest(
+                    title: "Quit Safari?", message: "Two windows are open.", symbol: "safari",
+                    actions: [DialogAction(title: "Cancel", role: .cancel),
+                              DialogAction(title: "Quit", role: .destructive)],
+                    defaultIndex: 1, cancelIndex: 0),
+                width: 290, onChoose: { _ in })
+        }
+        render("08-dialog-chips", glass: .sheet) {
             HStack(spacing: 8) {
                 DialogChip(title: "Rest", selected: false, onTap: {})
                 DialogChip(title: "Selected", selected: true, onTap: {})
@@ -380,60 +301,10 @@ struct NotchcastIslandAuditRenderTest {
                 .environment(\.metrics, .standard)
         }
         for notch in [false, true] {
-            let form = notch ? "notch" : "island"
-            renderArt("10-notice-glyph-\(form)", IslandNoticeArt(
-                IslandNotice(id: "a", symbol: "doc.on.clipboard", text: "Copied"), notch: notch, frosted: frosted))
-            renderArt("11-notice-installing-\(form)", IslandNoticeArt(
-                IslandNotice(id: "b", symbol: "arrow.down.circle", text: "Installing",
-                             progress: IslandProgress(fraction: 0.4, headline: false)), notch: notch, frosted: frosted))
-            renderArt("12-notice-failed-\(form)", IslandNoticeArt(
-                IslandNotice(id: "c", symbol: "exclamationmark.arrow.circlepath", text: "Update failed",
-                             isFailure: true, seconds: 4), notch: notch, frosted: frosted))
-            renderArt("13-status-\(form)", IslandStatusArt(
-                [IslandStatus(id: "u", symbol: "arrow.clockwise.circle", text: nil, label: "Update ready")],
-                notch: notch, frosted: frosted))
-            renderArt("14-level-\(form)", IslandLevelArt(
-                IslandLevel(source: "volume", symbol: "speaker.wave.2.fill", label: "Volume", value: 0.6),
-                notch: notch, frosted: frosted))
-            renderArt("14b-level-muted-\(form)", IslandLevelArt(
-                IslandLevel(source: "volume", symbol: "speaker.slash.fill", label: "Volume", value: 0),
-                notch: notch, frosted: frosted))
-            renderArt("14c-level-brightness-\(form)", IslandLevelArt(
-                IslandLevel(source: "brightness", symbol: "sun.max.fill", label: "Brightness", value: 1,
-                            range: -0.25...1), notch: notch, frosted: frosted))
-            renderArt("14d-level-extra-dimming-\(form)", IslandLevelArt(
-                IslandLevel(source: "brightness", symbol: "sun.min.fill", label: "Brightness", value: -0.125,
-                            range: -0.25...1), notch: notch, frosted: frosted))
-            renderArt("14f-level-darkest-\(form)", IslandLevelArt(
-                IslandLevel(source: "brightness", symbol: "sun.min.fill", label: "Brightness", value: -0.25,
-                            range: -0.25...1), notch: notch, frosted: frosted))
-            renderArt("14g-level-system-minimum-\(form)", IslandLevelArt(
-                IslandLevel(source: "brightness", symbol: "sun.max.fill", label: "Brightness", value: 0,
-                            range: -0.25...1), notch: notch, frosted: frosted))
-            renderArt("14h-level-brightness-half-\(form)", IslandLevelArt(
-                IslandLevel(source: "brightness", symbol: "sun.max.fill", label: "Brightness", value: 0.5,
-                            range: -0.25...1), notch: notch, frosted: frosted))
+            renderHosted("26-launcher-footer-\(notch ? "notch" : "island")", size: CGSize(width: 600, height: 300)) {
+                auditLauncherBottom(notch: notch)
+            }
         }
-        renderArt("14e-level-notch-low", IslandLevelArt(
-            IslandLevel(source: "volume", symbol: "speaker.wave.1.fill", label: "Volume", value: 0.31),
-            notch: true, frosted: frosted))
-        renderHeadline("21-headline-failed-notch", IslandHeadlineArt(
-            IslandNotice(id: "d", symbol: "exclamationmark.arrow.circlepath", text: "Update failed",
-                         isFailure: true, seconds: 4), notch: 200, frosted: frosted))
-        let meeting = MeetingEvent(id: "m", title: "Standup", start: Date(timeIntervalSince1970: 600),
-            end: Date(timeIntervalSince1970: 2400), isAllDay: false, isDeclined: false, calendarID: "c",
-            calendarName: "Work", calendarColor: nil, calendarItemID: "i", link: nil)
-        let expansion = IslandExpansionArt(IslandGlance(meeting, now: Date(timeIntervalSince1970: 0),
-            locale: Locale(identifier: "en_US")), frosted: frosted)
-        let room = CGRect(x: 16, y: 16, width: expansion.size.width, height: expansion.size.height)
-        writeArt("25-meeting-expansion-notch", size: CGSize(width: room.width + 32, height: room.height + 32)) { rect in
-            paintPill(rect, pill: NSBezierPath(roundedRect: room, xRadius: 16, yRadius: 16))
-            expansion.draw(in: room)
-        }
-        renderHover(meeting)
-        renderBand("22-level-band", IslandLevelArt(
-            IslandLevel(source: "volume", symbol: "speaker.wave.2.fill", label: "Volume", value: 0.6),
-            notch: false, frosted: frosted))
         print("PASS rendered island audit surfaces to \(folder.path)")
     }
 }
@@ -452,6 +323,50 @@ func auditRow(_ title: String, subtitle: String?, trailing: String, fill: Color)
     .padding(.horizontal, 8)
     .padding(.vertical, 6)
     .background(fill, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+}
+
+/// The launcher's last rows scrolling under the footer, laid out as `RootPaletteView.bottomBar` (#898).
+@MainActor
+func auditLauncherBottom(notch: Bool) -> some View {
+    ScrollView {
+        VStack(spacing: 0) {
+            ForEach(["Terminal", "Toggle Mute", "System Settings", "Generate Password", "TextEdit", "Notes", "Music", "Mail"],
+                    id: \.self) { title in
+                auditRow(title, subtitle: nil, trailing: "Application", fill: .clear)
+            }
+        }
+        .padding(.horizontal, 8)
+    }
+    .edgeDissolve()
+    .safeAreaInset(edge: .bottom, spacing: 0) {
+        HStack(spacing: 0) {
+            Color.clear.frame(width: 36, height: 36).floatingFrosted(in: Circle())
+            Spacer()
+            HStack(spacing: 2) {
+                BarButton(action: {}) {
+                    HStack(spacing: 6) {
+                        Text("Open Application").font(.system(size: 13))
+                        KeyCapChip(text: "↵", style: .outline)
+                    }
+                }
+                BarButton(action: {}) {
+                    HStack(spacing: 6) {
+                        Text("Actions").foregroundStyle(Theme.Colors.textSecondary)
+                        KeyCapChip(text: "⌘", style: .outline)
+                        KeyCapChip(text: "K", style: .outline)
+                    }
+                }
+            }
+            .padding(4)
+            .floatingFrosted(in: Capsule())
+        }
+        .padding(.horizontal, 12)
+        .frame(height: 44)
+    }
+    .overlay(alignment: .top) {
+        if notch { UnevenRoundedRectangle(bottomLeadingRadius: 10, bottomTrailingRadius: 10).fill(.black)
+            .frame(width: 180, height: 16).offset(y: -16) }
+    }
 }
 
 /// Stand-in for the coordinator `UpdatePill` reads, so the pill renders without `AppCore`.

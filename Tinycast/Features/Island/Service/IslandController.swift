@@ -17,6 +17,8 @@ final class IslandController: NSObject {
     private let clip = CAShapeLayer()
     let keyline = CAShapeLayer()
     private(set) var overlays: [CGRect] = []
+    /// What the overlays ask of the glass; the open launcher overrules it and stays bar.
+    private var held = NotchTheme.GlassLayer.pane
     #if DEBUG
     private(set) var samples: [String] = []
     let frames = IslandFrameTrace()
@@ -218,6 +220,7 @@ final class IslandController: NSObject {
         glancing = size != .zero || canvas.expansion != nil || level != nil || notice != nil
         let rests = showsRest && !onFullScreenSpace
         canvas.covered = size != .zero
+        if palette != nil { canvas.glass = .bar } else if !overlays.isEmpty { canvas.glass = held }
         surface.batch {
             if size != .zero {
                 if !suspended { backdrop.orderFrontRegardless() }
@@ -299,8 +302,9 @@ final class IslandController: NSObject {
         if let screen = pending.release(blocked: panel?.isVisible == true || !overlays.isEmpty) { configure(screen) }
     }
 
-    func setOverlays(_ frames: [CGRect]) {
+    func setOverlays(_ frames: [CGRect], question: Bool = false) {
         overlays = frames
+        held = .holding(question: question)
         closed()
     }
 
@@ -336,6 +340,7 @@ final class IslandController: NSObject {
         canvas.restWidth = layout.hasNotch ? layout.notch.width : NotchTheme.Size.islandRest.width
         canvas.restHeight = layout.hasNotch ? layout.notch.height * 2 : NotchTheme.Size.islandRest.height
         canvas.glanceWidth = canvas.glance.map { glanceWidth($0.layout) } ?? 0
+        if overlays.isEmpty, !canvas.covered, source.isIdle { canvas.glass = .bar }
         frost.paint(hasNotch: layout.hasNotch, settled: source.isIdle, reducedMotion: reducedMotion)
         canvas.display()
         clip.path = outline.copy(using: &contentTransform)
