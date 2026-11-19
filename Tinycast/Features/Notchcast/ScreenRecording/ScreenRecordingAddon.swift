@@ -1,3 +1,4 @@
+// notchcast-addon-order: 95
 import SwiftUI
 
 /// Area, window and screen recordings with system audio, trimmed before they are kept.
