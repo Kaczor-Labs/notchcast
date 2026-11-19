@@ -12,7 +12,6 @@ enum NotchcastAppProof {
         setbuf(stdout, nil)
         switch name {
         case "hidden-settings": hiddenSettings()
-        case "number-keys": numberKeys()
         case "addon-launcher": addonLauncher()
         case "icloud-sync-off": iCloudSyncOff()
         default: fail("unknown proof \(name)")
