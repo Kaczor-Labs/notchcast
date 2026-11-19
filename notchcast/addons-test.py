@@ -56,6 +56,12 @@ class AddonsTest(unittest.TestCase):
                          '# App\n- **Settings**\n  <!-- addon-tabs:start -->\n  - **Island**: look, outline, a page.\n'
                          '  - **Capture**: screenshots.\n  <!-- addon-tabs:end -->\nEnd\n')
 
+    def test_a_phrase_ending_in_a_comma_or_semicolon_brings_its_own_join(self):
+        spec = importlib.util.spec_from_file_location('addons', SCRIPT)
+        addons = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(addons)
+        self.assertEqual(addons.joined(['a,', 'with b;', 'c', 'd']), 'a, with b; c, d')
+
     def test_a_missing_order_or_unknown_tab_is_refused(self):
         write(self.root, f'{NC}Gamma/GammaAddon.swift', 'enum GammaAddon: NotchcastAddon {}\n')
         result = self.run_script('registry')
@@ -73,9 +79,9 @@ class AddonsTest(unittest.TestCase):
         addons = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(addons)
         generated = addons.registry_text(addons.declarations(root))
-        # A branch adding an add-on carries main's registry until main regenerates it, so only main's lines are pinned.
-        lines = [line for line in committed.splitlines() if line.endswith('.self,')]
-        self.assertEqual(lines, [line for line in generated.splitlines() if line in lines])
+        # A branch carries main's registry until main regenerates it, so only types on both sides keep one order.
+        old, new = ([line for line in text.splitlines() if line.endswith('.self,')] for text in (committed, generated))
+        self.assertEqual([line for line in old if line in new], [line for line in new if line in old])
         addons.readme_text((root / 'notchcast/README.public.md').read_text(), addons.declarations(root))
 
 

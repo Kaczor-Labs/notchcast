@@ -7,13 +7,14 @@ It rewrites what the branch added to a shared list since it left main into the a
 shared list back as the branch found it, and commits; nothing is pushed or merged. Then: push, and at landing
 merge main as usual: these files no longer conflict.
   NotchcastRegistry.swift line   -> `// notchcast-addon-order: <n>` atop the add-on's file (main's order if main has
-                                    it, else the next free one)
+                                    it, else one between its neighbours in the branch's registry)
   licenses/borrowed.md lines     -> notchcast/licenses/borrowed/<Folder>.txt
   config.env harness-list names  -> `// notchcast-hosted-only` / `-linux-ok` / `-ci-skip` atop the fork harness
   README.public.md tab phrase    -> `// notchcast-readme: <Tab>: <phrase>` in the add-on's file
   docs/addons.md table-row edits -> dropped (printed; the table no longer lists built add-ons)
 """
 import difflib
+import os
 import pathlib
 import re
 import subprocess
@@ -92,27 +93,39 @@ def split_phrase(prefix, phrase):
     return lines + [prefix + part]
 
 
+def place(order_of, branch_list, addon, on_main):
+    """An order between the add-on's neighbours in the branch's registry, so it keeps the place its line had."""
+    at = branch_list.index(addon)
+    before = next((order_of[a] for a in reversed(branch_list[:at]) if a in order_of), 0)
+    after = next((on_main[a] for a in branch_list[at + 1:] if a in on_main and on_main[a] > before), None)
+    if after is None:
+        return max([*order_of.values(), *on_main.values(), 0]) + 10
+    return before + (after - before) // 2 if after - before >= 2 else None
+
+
 def main():
+    os.chdir(git('rev-parse', '--show-toplevel').strip())
     if git('status', '--porcelain').strip():
         sys.exit('commit or drop your changes first: the tree must be clean')
     if not show('origin/main', 'notchcast/addons.py'):
         sys.exit('origin/main has no notchcast/addons.py yet: run `git fetch origin` once #1109 has landed')
     base = git('merge-base', 'HEAD', 'origin/main').strip()
-    if show(base, 'notchcast/addons.py'):
-        sys.exit('this branch already starts from per-add-on declarations; nothing to adopt')
     notes, moved = [], []
     files = addon_files()
     on_main = main_orders()
-    next_order = max(on_main.values(), default=0) + 10
     new_types = [m[1] for m in map(REGISTRY_LINE.match, added(base, REGISTRY)) if m]
-    readme_of = {}
-    for addon in new_types:
+    branch_list = [m[1] for m in map(REGISTRY_LINE.match, pathlib.Path(REGISTRY).read_text().splitlines()) if m] \
+        if new_types else []
+    order_of, readme_of = dict(on_main), {}
+    for addon in [a for a in branch_list if a in new_types]:
         if addon not in files:
             notes.append(f'{REGISTRY}: {addon} is declared in no add-on file; its line is dropped')
             continue
-        order = on_main.get(addon)
+        order = on_main.get(addon) or place(order_of, branch_list, addon, on_main)
         if order is None:
-            order, next_order = next_order, next_order + 10
+            order = max(order_of.values()) + 10
+            notes.append(f'{addon}: no free order between its neighbours; it goes last ({order}), so move it by hand')
+        order_of[addon] = order
         readme_of[addon] = files[addon]
         prepend(files[addon], [f'// notchcast-addon-order: {order}'])
         moved.append(f'{addon}: order {order}')
@@ -120,13 +133,15 @@ def main():
         git('checkout', base, '--', REGISTRY)
 
     lines = [line for line in added(base, BORROWED) if BORROWED_LINE.match(line)]
+    notes += [f'{BORROWED}: could not read "{line}"; add it by hand to notchcast/licenses/borrowed/<Folder>.txt'
+              for line in added(base, BORROWED) if line.strip() and not BORROWED_LINE.match(line)]
     for line in lines:
         target = pathlib.Path(f'notchcast/licenses/borrowed/{BORROWED_LINE.match(line)[1]}.txt')
         target.parent.mkdir(parents=True, exist_ok=True)
         text = target.read_text() if target.exists() else ''
         if line not in text.splitlines():
             target.write_text(text + line + '\n')
-    if lines:
+    if added(base, BORROWED):
         git('checkout', base, '--', BORROWED)
         moved.append(f'{len(lines)} licence lines -> notchcast/licenses/borrowed/')
 

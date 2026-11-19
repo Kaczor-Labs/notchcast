@@ -1,5 +1,5 @@
 // notchcast-addon-order: 60
-// notchcast-readme: Launcher Extras: ⌘1–⌘9 open the first nine results
+// notchcast-readme: Launcher Extras: ⌘1–⌘9 open the first nine results;
 import Foundation
 
 /// F10: while a query is typed, ⌘1–⌘9 run the first nine result rows of any kind, not favourites.

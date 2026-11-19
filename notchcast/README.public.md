@@ -100,7 +100,7 @@ Read before you change things:
 | --- | --- |
 | [AGENTS.md](/AGENTS.md) | agents: rules, posture, definition of done |
 | [notchcast/README.md](/notchcast/README.md) | maintainers: sync, CI, landing, releases, installing on a Mac |
-| [addons.md](/notchcast/docs/addons.md) | writing an add-on: one folder, one registry line |
+| [addons.md](/notchcast/docs/addons.md) | writing an add-on: one folder that declares itself |
 | [island-shell.md](/notchcast/docs/island-shell.md) | how the island works |
 | [design-system.md](/notchcast/docs/design-system.md) | Notchcast's look; upstream's is [ui.md](/docs/ui.md) |
 | [hotspots.md](/notchcast/docs/hotspots.md) | upstream files to avoid touching |

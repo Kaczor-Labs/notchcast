@@ -3,7 +3,8 @@
 
 Each `<Folder>Addon.swift` declares itself at column 0:
   // notchcast-addon-order: <n>              its place in NotchcastRegistry.addons (ties go by type name)
-  // notchcast-readme: <Tab>: <phrase>        optional, repeatable: a phrase on that tab's line in the README
+  // notchcast-readme: <Tab>: <phrase>        optional, repeatable: a phrase on that tab's line in the README,
+                                             joined by ', ', or by a space after one ending in ',' or ';'
 
 Usage:
   addons.py registry [--root R]   write NotchcastRegistry.swift (project.yml's preGenCommand runs it on every xcodegen)
@@ -62,6 +63,14 @@ def registry_text(decls):
             f'{lines}    ]\n}}\n')
 
 
+def joined(parts):
+    """Phrases joined by ', '; one that ends in ',' or ';' brings its own punctuation and takes a space."""
+    text = ''
+    for part in parts:
+        text += part if not text else (' ' if text.endswith((',', ';')) else ', ') + part
+    return text
+
+
 def readme_text(template, decls):
     """README.public.md with every add-on's phrase appended to its tab's line between the addon-tabs markers."""
     if TABS_START not in template and TABS_END not in template:
@@ -87,7 +96,7 @@ def readme_text(template, decls):
         core = match[2].strip().rstrip('.')
         parts = ([core] if core else []) + [text.rstrip('.') for d in decls for tab, text in d[3] if tab == match[1]]
         if parts:
-            out.append(f'  - **{match[1]}**: {", ".join(parts)}.')
+            out.append(f'  - **{match[1]}**: {joined(parts)}.')
     return head + TABS_START + '\n'.join(out) + TABS_END + tail
 
 

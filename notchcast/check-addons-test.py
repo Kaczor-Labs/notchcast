@@ -151,6 +151,37 @@ class CheckAddonsTest(unittest.TestCase):
         code, out = self.check('none')
         self.assertEqual(code, 0, out)
 
+    def test_the_generator_exemption_covers_the_registry_alone(self):
+        readme = (self.root / 'notchcast/README.public.md').read_text()
+        write(self.root, 'notchcast/addons.py', 'print("generator")\n')
+        write(self.root, 'notchcast/README.public.md', readme.replace('  - **Capture**:', '  - **Capture**: screenshots'))
+        self.commit('generator and a phrase')
+        code, out = self.check('none')
+        self.assertEqual(code, 1, out)
+        self.assertIn('a phrase on a tab line', out)
+
+    def test_core_text_on_a_tab_line_stays_editable(self):
+        readme = (self.root / 'notchcast/README.public.md').read_text()
+        write(self.root, 'notchcast/README.public.md', readme.replace('**Island**: look.', '**Island**: look, hide.'))
+        self.commit('core edits the island line')
+        code, out = self.check('none')
+        self.assertEqual(code, 0, out)
+
+    def test_a_second_list_line_or_an_odd_licence_line_still_fails(self):
+        cases = (
+            ('notchcast/config.env', 'CI_SKIP_TESTS="ClipboardTextTests"\nHOSTED_ONLY_TESTS="PasteboardTests"\n'
+             'HOSTED_ONLY_TESTS="$HOSTED_ONLY_TESTS nc-Shots-test"\n', 'names the fork harness nc-Shots-test'),
+            ('notchcast/licenses/borrowed.md', '# Borrowed\n\nLists live in borrowed/.\nShots: A.swift, B.swift ← x/y (MIT)\n',
+             'belongs in notchcast/licenses/borrowed/<Folder>.txt'),
+        )
+        for path, text, needle in cases:
+            git(self.root, 'reset', '-q', '--hard', self.base)
+            write(self.root, path, text)
+            self.commit('hand edit')
+            code, out = self.check('none')
+            self.assertEqual(code, 1, out)
+            self.assertIn(needle, out)
+
     def test_guard_catches_ids_slugs_and_types_outside_the_folder(self):
         self.add_shots()
         self.commit('feature')
@@ -211,6 +242,15 @@ class CheckAddonsTest(unittest.TestCase):
         self.add_shots()
         write(self.root, NC + 'Keep/KeepAddon.swift', '// notchcast-addon-order: 10\nstruct KeepAddon: NotchcastAddon {\n    let x = 1\n}\n')
         self.commit('shots edits keep')
+        code, out = self.check()
+        self.assertEqual(code, 1, out)
+        self.assertIn(f"{NC}Keep/KeepAddon.swift: outside the add-on folders ['Shots']", out)
+
+    def test_renumbering_another_addon_claims_no_folder(self):
+        self.add_keep()
+        self.add_shots()
+        write(self.root, NC + 'Keep/KeepAddon.swift', '// notchcast-addon-order: 40\nstruct KeepAddon: NotchcastAddon {\n}\n')
+        self.commit('shots renumbers keep')
         code, out = self.check()
         self.assertEqual(code, 1, out)
         self.assertIn(f"{NC}Keep/KeepAddon.swift: outside the add-on folders ['Shots']", out)

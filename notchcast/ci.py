@@ -11,7 +11,7 @@
     ci.py issue open <kind> <title> <cause> [<details.md>] | issue close <kind>
     ci.py design-notice <tree> <old upstream> <new upstream>
     ci.py hold <moved_at> [<now>]           PR list JSON on stdin: exit 0 while the rebase hold is on (kick.sh), else 1
-    ci.py tested-key [<commit>]             tree of the commit without project, scheme, README: pr.yml names its artifact by it, plan looks main's up
+    ci.py tested-key [<commit>]             tree of the commit without project, scheme, README, registry: pr.yml names its artifact by it, plan looks main's up
     ci.py tested-run [<commit>]             URL of the green PR build of that tree, or nothing: land.sh skips its harness pass on it
     ci.py isolated-proof [<commit>]         the green isolated-runner PR build of that tree: its URL, toolchain and excused harnesses, or nothing
 

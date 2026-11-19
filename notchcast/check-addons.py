@@ -34,7 +34,7 @@ ORDER_LINE = re.compile(r'^// notchcast-addon-order:')
 GENERATOR = 'notchcast/addons.py'
 README_PUBLIC = 'notchcast/README.public.md'
 TABS = ('<!-- addon-tabs:start -->', '<!-- addon-tabs:end -->')
-TAB_PHRASE = re.compile(r'^  - \*\*.+?\*\*:\s*\S')
+TAB_LINE = re.compile(r'^  - \*\*(.+?)\*\*:(.*)$')
 CONFIG = 'notchcast/config.env'
 HARNESS_TAGS = {'HOSTED_ONLY_TESTS': 'hosted-only', 'LINUX_OK_TESTS': 'linux-ok', 'CI_SKIP_TESTS': 'ci-skip'}
 FORK_HARNESS = re.compile(r'^(?:nc|notchcast)-')
@@ -122,8 +122,10 @@ def added_lines(root, base, head, path):
 
 def ordered_folders(root, base, head, changed):
     """Folders whose add-on file gains its `// notchcast-addon-order:` line: the add-ons the branch adds."""
+    fork = git('merge-base', base, head, root=root).strip()
     return {folder_of(path) for path in changed if folder_of(path) and path.endswith('.swift')
-            and any(ORDER_LINE.match(text) for _, text in added_lines(root, base, head, path))}
+            and any(ORDER_LINE.match(text) for _, text in added_lines(root, base, head, path))
+            and not any(ORDER_LINE.match(line) for line in show(root, fork, path).splitlines())}
 
 
 def borrowed_changes(root, base, head, owned, changed):
@@ -167,25 +169,32 @@ def show(root, ref, path):
 def shared_lists(root, base, head, changed):
     """Fails a hand edit of a list made from the add-ons' own files (notchcast/docs/addons.md §1)."""
     problems = []
-    generator = GENERATOR in changed
-    if REGISTRY in changed and not generator:
+    fork = git('merge-base', base, head, root=root).strip()
+    if REGISTRY in changed and GENERATOR not in changed:
         problems.append(f"{REGISTRY}: generated from each add-on's `// notchcast-addon-order:` line "
                         f'(notchcast/addons.py), never edited; drop the edit: git checkout {base[:12]} -- {REGISTRY}')
     if BORROWED in changed:
-        problems += [f'{BORROWED}: "{text}" belongs in {BORROWED_DIR}{BORROWED_LINE.match(text)[1]}.txt'
-                     for _, text in added_lines(root, base, head, BORROWED) if BORROWED_LINE.match(text)]
-    if README_PUBLIC in changed and not generator:
+        for _, text in added_lines(root, base, head, BORROWED):
+            entry = BORROWED_LINE.match(text)
+            if text.strip() and not text.startswith('#'):
+                problems.append(f'{BORROWED}: "{text}" belongs in {BORROWED_DIR}{entry[1] if entry else "<Folder>"}.txt')
+    if README_PUBLIC in changed:
         readme = show(root, head, README_PUBLIC).splitlines()
         marks = [n for n, line in enumerate(readme, 1) if line.strip() in TABS]
+        # Core text on a tab line (Island) stays core's to edit; a tab left empty in the base is the add-ons'.
+        empty = {m[1] for line in show(root, fork, README_PUBLIC).splitlines() for m in [TAB_LINE.match(line)]
+                 if m and not m[2].strip()}
         for lineno, text in added_lines(root, base, head, README_PUBLIC):
-            if len(marks) == 2 and marks[0] < lineno < marks[1] and TAB_PHRASE.match(text):
+            tab = TAB_LINE.match(text)
+            if len(marks) == 2 and marks[0] < lineno < marks[1] and tab and tab[1] in empty and tab[2].strip():
                 problems.append(f'{README_PUBLIC}:{lineno}: a phrase on a tab line; an add-on states it as '
                                 '`// notchcast-readme: <Tab>: <phrase>` in its own <Folder>Addon.swift')
     # Only names the branch adds: a branch cut before the tags still carries main's old lists until it merges.
-    config, before = show(root, head, CONFIG), show(root, git('merge-base', base, head, root=root).strip(), CONFIG)
+    config, before = show(root, head, CONFIG), show(root, fork, CONFIG)
     for key, tag in HARNESS_TAGS.items():
-        listed, was = (re.search(rf'^{key}="(.*)"$', text, re.M) for text in (config, before))
-        for name in sorted(set(listed[1].split() if listed else []) - set(was[1].split() if was else [])):
+        listed, was = ({name for value in re.findall(rf'^\s*(?:export\s+)?{key}=(.*)$', text, re.M)
+                        for name in value.replace('"', ' ').replace("'", ' ').split()} for text in (config, before))
+        for name in sorted(listed - was):
             if FORK_HARNESS.match(name):
                 problems.append(f'{CONFIG}: {key} names the fork harness {name}; drop it there and give '
                                 f'Tests/{name}.swift a `// notchcast-{tag}` line (notchcast/harness-tags.sh)')
