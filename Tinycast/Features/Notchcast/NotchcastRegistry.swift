@@ -22,5 +22,6 @@ enum NotchcastRegistry {
         PasteImageAddon.self,
         ArchivesAddon.self,
         LowDiskAddon.self,
+        ScriptCommandsAddon.self,
     ]
 }
