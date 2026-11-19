@@ -273,6 +273,36 @@
     },
     "X returned no readable post for this link." : {
 
+    },
+    "Distill cannot convert this file." : {
+
+    },
+    "The file could not be read." : {
+
+    },
+    "The file changed while Distill read it." : {
+
+    },
+    "Choose a Markdown folder for Distill first." : {
+
+    },
+    "Markdown folder" : {
+
+    },
+    "Clear" : {
+
+    },
+    "Choose…" : {
+
+    },
+    "Choose a folder to also save everything Distill makes there as a Markdown note." : {
+
+    },
+    "Convert dropped files" : {
+
+    },
+    "PDF, HTML, audio and video files added to the Markdown folder while this is on become notes. Originals go to the Trash." : {
+
     }
   },
   "version" : "1.0"
