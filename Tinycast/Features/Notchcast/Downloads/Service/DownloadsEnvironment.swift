@@ -10,6 +10,8 @@ extension DownloadsModule.Environment {
             queues: AppPaths.applicationSupport().appending(path: "Notchcast", directoryHint: .isDirectory),
             tools: tools,
             clipboard: { NSPasteboard.general.string(forType: .string) ?? "" },
-            torrents: .live(downloads: downloads, tools: tools))
+            torrents: .live(downloads: downloads, tools: tools),
+            interfaces: BondingInterfaceScanner.scan,
+            remoteBytes: { await DownloadSizeProbe.bytes(of: $0) })
     }
 }
