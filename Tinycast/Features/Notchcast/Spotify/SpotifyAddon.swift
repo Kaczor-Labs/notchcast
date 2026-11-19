@@ -20,6 +20,9 @@ enum SpotifyAddon: NotchcastAddon { // drift: keep the generated NotchcastRegist
     ]
 
     static func makeModule(_ context: NotchcastContext) -> (any NotchcastModule)? {
-        SpotifyModule(context: context, system: .live)
+        let module = SpotifyModule(context: context, system: .live)
+        let page = SpotifyPlayerPage(module: module)
+        module.onPlayback = { _, playback in page.update(playback) }
+        return module
     }
 }
