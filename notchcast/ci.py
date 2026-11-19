@@ -57,7 +57,7 @@ RUNTIME_JS = "Tinycast/Resources/RaycastRuntime.generated.js"
 # Rewritten by `regenerate`, never taken from our commits.
 SCHEME = "Tinycast.xcodeproj/xcshareddata/xcschemes/Tinycast.xcscheme"
 REGISTRY = "Tinycast/Features/Notchcast/NotchcastRegistry.swift"
-GENERATED = [PBXPROJ, SCHEME, RUNTIME_JS, "README.md"]
+GENERATED = [PBXPROJ, SCHEME, RUNTIME_JS, "README.md", REGISTRY]
 # Never pruned (notchcast/prune-paths.txt); docs/*.md is kept too.
 KEEP = ["LICENSE", "NOTICE.md", "AGENTS.md", "Tests", "Scripts/raycast-runtime"]
 # Upstream changes here mean notchcast/docs/design-system.md may need a refresh.
@@ -666,15 +666,15 @@ def pruned(tree):
 
 
 def regenerate(tree, onto):
-    """Write GENERATED in tree: notchcast/README.public.md as README.md and the Xcode project from project.yml ($XCODEGEN); the
-    extension runtime bundle stays upstream's, since Extensions are hidden. Also stage the removal of every path in
-    notchcast/prune-paths.txt (upstream files the app does not need), so the removal rides in the generated-files
-    commit, which a replay never picks and so never conflicts."""
+    """Write GENERATED in tree: README.md and the add-on registry (notchcast/addons.py), the Xcode project from
+    project.yml ($XCODEGEN); the extension runtime bundle stays upstream's, since Extensions are hidden. Also stage
+    the removal of every path in notchcast/prune-paths.txt (upstream files the app does not need), so the removal
+    rides in the generated-files commit, which a replay never picks and so never conflicts."""
     tree = Path(tree)
     paths = pruned(tree)
     if paths:
         run("git", "rm", "-r", "-q", "--ignore-unmatch", "--", *paths, cwd=tree)
-    (tree / "README.md").write_text((tree / "notchcast/README.public.md").read_text())
+    run(sys.executable, str(HERE / "addons.py"), "generate", "--root", str(tree))
     if os.environ.get("XCODEGEN"):
         run(os.environ["XCODEGEN"], "generate", "--quiet", cwd=tree)
     elif subprocess.run(["git", "diff", "--quiet", onto, "HEAD", "--", "project.yml"], cwd=tree).returncode:

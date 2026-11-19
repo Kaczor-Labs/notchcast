@@ -1,3 +1,5 @@
+// notchcast-addon-order: 120
+// notchcast-readme: Display & Sound: AirPods and Beats noise control from the launcher
 // notchcast-new-switch-ids: noiseControl
 import Foundation
 
