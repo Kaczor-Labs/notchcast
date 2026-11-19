@@ -29,10 +29,16 @@ enum PlainPastePolicy {
         return text?.isEmpty == false ? text : nil
     }
 
+    /// Apps whose ⌥⇧⌘V is no text paste: Finder's is Paste Exactly, which makes a clipping file.
+    static let otherEquivalentApps: Set<String> = ["com.apple.finder"]
+
     /// Only ⌥⇧⌘V: ⇧⌘V and ⌃ variants are other edit commands in several apps.
-    static func isMatchStyleEquivalent(commandCharacter: String?, modifierMask: UInt32?, isEnabled: Bool) -> Bool {
+    static func isMatchStyleEquivalent(
+        bundleIdentifier: String?, commandCharacter: String?, modifierMask: UInt32?, isEnabled: Bool
+    ) -> Bool {
         let shiftAndOption: UInt32 = 1 | 2
-        return commandCharacter?.uppercased() == "V" && modifierMask == shiftAndOption && isEnabled
+        return !otherEquivalentApps.contains(bundleIdentifier ?? "") && commandCharacter?.uppercased() == "V"
+            && modifierMask == shiftAndOption && isEnabled
     }
 
     /// Nothing, or one link or media file name, as a browser or a chat copies an image beside it.
