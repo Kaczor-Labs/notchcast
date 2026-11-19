@@ -360,7 +360,17 @@ enum SettingsSearchCatalog {
         .init(.dictationOutput, "Microphone"),
         .init(.dictationOutput, "When finished"),
         .init(.dictationOutput, "Adapt capitalization", keywords: ["uppercase", "lowercase", "sentence"]),
-        .init(.dictationOutput, "Insert while recording", keywords: ["live", "streaming", "chunk", "pause"])
+        .init(.dictationOutput, "Insert while recording", keywords: ["live", "streaming", "chunk", "pause"]),
+        .init(
+            .dictationCleanup, LocalizedStringResource("Clean up text", table: "Notchcast"),
+            keywords: ["ai", "punctuation", "filler"]),
+        .init(
+            .dictationCleanup, LocalizedStringResource("Cleanup model", table: "Notchcast"),
+            keywords: ["claude", "codex"]),
+        .init(.dictationCleanup, LocalizedStringResource("Cleanup prompt", table: "Notchcast")),
+        .init(
+            .dictationHistory, LocalizedStringResource("Keep dictation history", table: "Notchcast"),
+            keywords: ["recover", "lost"])
     ]
 
     private static let fileSearch: [SettingsSearchEntry] = [
