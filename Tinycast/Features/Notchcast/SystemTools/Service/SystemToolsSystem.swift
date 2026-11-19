@@ -27,7 +27,7 @@ struct SystemToolsSystem: Sendable {
     /// The network this Mac is on; macOS answers nil without Location access.
     let currentWiFiNetwork: @MainActor @Sendable () -> String?
     let savedWiFiNetworks: @Sendable () async throws -> [String]
-    /// macOS asks each time unless the user chose Always Allow; nil when that network has no password.
+    /// macOS asks each time unless Always Allow was chosen; nil when the network has no password.
     let readWiFiPassword: @Sendable (_ network: String) async throws -> String?
     /// A concealed copy stays out of clipboard history.
     let copy: @MainActor @Sendable (_ text: String, _ concealed: Bool) -> Bool

@@ -49,7 +49,7 @@ final class SudoTouchIDStore {
         }
         guard isSupported, let text = SudoTouchIDPolicy.change(local, enabled: enabled) else { return }
         isBusy = true
-        // shortcut: an edit made elsewhere while the prompt waits is overwritten; reread as root if seen.
+        // shortcut: an edit made while the prompt waits is overwritten; reread as root if seen.
         do {
             try await files.write(text, localURL)
             failed = try readLocal() != text
