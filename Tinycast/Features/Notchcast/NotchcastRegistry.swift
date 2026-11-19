@@ -13,7 +13,5 @@ enum NotchcastRegistry {
         ScreenshotsAddon.self,
         IPhoneBackupAddon.self,
         DisplaySoundAddon.self,
-        SpotifyAddon.self,
-        DayAddon.self,
     ]
 }

@@ -76,7 +76,7 @@ Settings search finds every switch with no line in the add-on: core installs one
 | Music | Display & Sound | F13 Stop Apple Music on media keys | F49 covers, F52 resume player, F53 now playing, F54 Spotify Connect |
 | Notices | (its add-on adds one) | (none yet) | F14 Event reminders, F72 Timers, F78 Accessory notices, F97 System notices, F15/I1 AI usage |
 | Between Macs | (its add-on adds one) | (none yet) | F71 Shelf, F85 Link health, F26 Command runner |
-| Mac Tweaks | Mac Tweaks | F8 iPhone backup, Day page in the island (#978, [day-page.md](day-page.md)) | F7 Spaces order, F34/F35 Finder tools, F118 and the rest of v1's system tweaks |
+| Mac Tweaks | Mac Tweaks | F8 iPhone backup | F7 Spaces order, F34/F35 Finder tools, F118 and the rest of v1's system tweaks |
 
 A category with no tab shows nowhere, so the first add-on in it lands together with its `NotchcastPane` case; the registry harness fails a switch that lands in no shown tab.
 

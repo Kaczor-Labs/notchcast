@@ -1,3 +1,5 @@
+// notchcast-addon-order: 230
+// notchcast-readme: Mac Tweaks: Day in the Island, a page with the weather, your market quotes and today’s events
 import SwiftUI
 
 /// The Day page in the island (#978): weather, chosen market quotes and today's events; off by default.

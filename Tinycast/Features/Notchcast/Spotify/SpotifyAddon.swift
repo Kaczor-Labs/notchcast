@@ -1,3 +1,4 @@
+// notchcast-addon-order: 165
 import SwiftUI
 
 /// Spotify in the island through Soloist, Spotify's own headless player; off by default.
