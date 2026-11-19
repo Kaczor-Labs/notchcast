@@ -74,10 +74,21 @@ final class IslandPresenter: IslandPresenting {
         if let status { statuses.append(status) }
         AppCore.shared.island.resting?.statuses = statuses
         if hoverOpensPill { AppCore.shared.island.resting?.notice = shownNotice }
+        showOnPages()
     }
 
-    /// A click on the resting pill acts on what it shows; the meeting glance hides status.
-    var tap: (@MainActor () -> Void)? {
+    /// A click on the resting pill opens the pages while any exist, else acts on what the pill shows.
+    var tap: (@MainActor () -> Void)? { pages.deck.opensOnClick ? nil : shownTap }
+
+    /// What the pill shows heads the open page, its tap that row's click, so no page hides it (#1005).
+    private func showOnPages() {
+        pages.show(IslandHover.notice(top: notices.notice, statuses: statuses,
+                                      glance: AppCore.shared.island.resting?.glance != nil, level: false, hovered: true),
+                   onTap: shownTap)
+    }
+
+    /// The shown notice's tap, else none under the meeting glance, else the last status's.
+    private var shownTap: (@MainActor () -> Void)? {
         if let notice = notices.notice { return noticeTaps[notice.id] }
         if AppCore.shared.island.resting?.glance != nil { return nil }
         return statuses.last.flatMap { statusTaps[$0.id] }
@@ -152,6 +163,7 @@ final class IslandPresenter: IslandPresenting {
         let held = unseen || hovered && notices.notice != nil
         if notices.paused != held { notices.pause(held, at: time) }
         core.island.resting?.notice = shownNotice
+        showOnPages()
         if let text = notices.announcement() {
             NSAccessibility.post(element: NSApp as Any, notification: .announcementRequested,
                 userInfo: [.announcement: text, .priority: NSAccessibilityPriorityLevel.high.rawValue])

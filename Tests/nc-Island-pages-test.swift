@@ -28,6 +28,8 @@ struct IslandPagesTest {
         homeOrder()
         selection()
         visibility()
+        notice()
+        focus()
         sizing()
         swipe()
         keys()
@@ -118,6 +120,38 @@ struct IslandPagesTest {
         audience.forget("day")
         precondition(told(true) == ["day=true"], "a watcher registered again while open is told again")
         precondition(told(false) == ["day=false", "player=false", "system=false"], "closing hides them all")
+    }
+
+    /// #1005's rule: a page never hides a notice, and a page is always one click away.
+    static func notice() {
+        precondition(!IslandPageDeck().opensOnClick, "with no page a click still runs the pill's own tap")
+        var three = deck(page("agents", order: 0), page("player", order: 10), page("day", order: 30))
+        precondition(three.opensOnClick, "with a page a bare click opens it, whatever the pill shows")
+        let ready = IslandNotice(id: "update", symbol: "arrow.down.circle", text: "Update ready")
+        three.show(ready, tappable: true)
+        precondition(three.notice == IslandPageRow(id: IslandPageDeck.noticeID, symbol: "arrow.down.circle",
+                                                  title: "Update ready"), "a tappable notice is a button row")
+        three.open()
+        precondition(three.selection == .home && three.notice != nil, "the click opens Home with the notice on it")
+        three.select(.page("day"))
+        three.move(by: -1)
+        precondition(three.notice?.title == "Update ready", "it heads every tab, so no page hides it")
+        three.show(IslandNotice(id: "copied", symbol: nil, text: "Copied"), tappable: false)
+        precondition(three.notice?.id == nil && three.notice?.title == "Copied", "a notice with no tap is a plain row")
+        three.show(nil, tappable: false)
+        precondition(three.notice == nil, "an ended notice leaves the page")
+        var one = deck(page("player", order: 10))
+        one.show(ready, tappable: true)
+        one.open()
+        precondition(one.current?.id == "player" && one.notice != nil, "a lone page carries it too")
+    }
+
+    static func focus() {
+        var focus = IslandPageFocus()
+        precondition(!focus.takesKey(pinned: false), "a hover open takes no key")
+        precondition(focus.takesKey(pinned: true), "the pin's start keys the panel")
+        precondition(!focus.takesKey(pinned: true), "a repost while pinned leaves the keyboard where it is")
+        precondition(!focus.takesKey(pinned: false) && focus.takesKey(pinned: true), "a new pin keys it again")
     }
 
     static func sizing() {

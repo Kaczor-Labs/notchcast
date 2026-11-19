@@ -83,8 +83,15 @@ struct IslandPagesRenderTest {
             if let select { deck.select(select) }
             return deck
         }
+        func noticed(_ deck: IslandPageDeck) -> IslandPageDeck {
+            var deck = deck
+            deck.show(IslandNotice(id: "update", symbol: "arrow.down.circle", text: "Update ready"), tappable: true)
+            return deck
+        }
         return [
             ("1-player", deck([player])),
+            ("1-player-notice", noticed(deck([player]))),
+            ("3-home-notice", noticed(deck([calm, player, system]))),
             ("3-home", deck([calm, player, system])),
             ("3-player", deck([calm, player, system], select: .page(IslandPlayerPage.id))),
             ("5-home", deck([agents, player, system, day, usage])),

@@ -271,9 +271,10 @@ The open island (hover, or a click that pins it) shows pages: one per add-on wit
 
 | Element | Rule | Token |
 | --- | --- | --- |
-| Structure | A tab bar, then the page body. One page with data: no Home and no tab bar, hover opens that page. Two or more: Home first, then pages by `order` (Agents 0, Player 10, System 20, Day 30). A page with no data posts nil and leaves no tab. | `IslandPageDeck` |
+| Structure | A tab bar, then the notice row while one shows, then the page body. One page with data: no Home and no tab bar, hover opens that page. Two or more: Home first, then pages by `order` (Agents 0, Player 10, System 20, Day 30). A page with no data posts nil and leaves no tab. | `IslandPageDeck` |
 | Tab | `BarButton(isSelected:)` with a `SymbolImage` and the title; the selected tab uses the button's selected fill. | `metrics.typography.bar`, `Theme.Typography.menuSymbolSize` |
 | Badge | A count of things waiting for the user, a compact outline keycap after the tab title; badged pages lead Home, tabs never reorder. | `KeyCapChip(.outline, .compact)` |
+| Notice row | What the resting island shows (the live notice, else the last status unless the meeting glance shows) heads the open page on every tab, so a page never hides it; drawn as a `row` block, a button running the notice's or status's own tap when it has one. | `IslandPageDeck.notice`, `IslandPageRowView` |
 | Home line | One row per page: icon or artwork, text, detail, its own icon buttons; the row opens its page. | `metrics.size.resultRowIcon`, `rowTitle`, `rowTrailing`, `Theme.Colors.rowHover` at `metrics.radius.row` |
 | Blocks | `media` (cover, title, artist, time bar, transport), `row` (icon, title, detail, trailing; a button when it has an id), `meter` (label, bar, value). A new kind of content is a new block, drawn once here. | `NotchTheme.Size.islandArtwork`, `metrics.size.volumeTrackHeight`, `Theme.Colors.border` track |
 | Icon button | `BarButton(isCompact: true)` with a `SymbolImage`, an accessibility label and `.tooltip`, Title Case ("Next Track"). | §7 |
@@ -281,12 +282,12 @@ The open island (hover, or a click that pins it) shows pages: one per add-on wit
 | Motion | The outline grows to the page through the engine's spring (`surface.expand`, `contentKey` "page"), as the launcher does; no view animation of its own. | `IslandController.motionSpeed` |
 | Forms | Same page in both forms: it hangs from the island top, below the notch on a notched display, from the pill elsewhere. | §10 |
 | Look | No fill of its own: the backdrop paints Black or Frosted behind the clear page panel; ink resolves through `\.islandFrosted`. | §1, §6 |
-| Keys | A click pins; pinned, ←/→ and 1–9 pick tabs, Esc closes, ⌘R refreshes the page (on Home, every page), ⌘P toggles the pin. A horizontal two-finger swipe turns one tab, and one more for every further 80 points of the same drag. | `IslandPageKey`, `IslandPageSwipe` |
+| Keys | A click on the bare island opens the first tab pinned whenever a page exists, even while a notice or status with its own tap shows (its tap moves to the notice row); a click on a page pins; pinned, ←/→ and 1–9 pick tabs, Esc closes, ⌘R refreshes the page (on Home, every page), ⌘P toggles the pin. A horizontal two-finger swipe turns one tab, and one more for every further 80 points of the same drag. | `IslandPageKey`, `IslandPageSwipe` |
 
 Deviations, numbered for review:
 
 1. The badge is a compact outline keycap, the existing count chip, rather than a new red dot: §6 keeps colour for status, and a count reads without colour.
-2. The cover is 64 points, a new token (§15), because no existing size fits a media cover.
+2. The cover is 64 points at interface scale 1 (`metrics.scaled`), a new token (§15), its radius concentric with the fixed outline (`Theme.Radius.panel` less two `metrics.spacing.md`), because no existing size fits a media cover.
 3. The tab bar shows titles beside glyphs on every page count up to five; past that it would need glyph-only tabs, which nothing posts yet.
 
 Reference: HIG Live Activities, "Present only the most essential content."

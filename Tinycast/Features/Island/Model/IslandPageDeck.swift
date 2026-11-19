@@ -47,6 +47,19 @@ struct IslandPageDeck: Equatable, Sendable {
         pages.filter { $0.badge > 0 } + pages.filter { $0.badge <= 0 }
     }
 
+    /// What the resting island shows heads the open page on every tab, so a page never hides it.
+    private(set) var notice: IslandPageRow?
+
+    /// The notice row's id when it has a tap; the host routes it like a page's action.
+    static let noticeID = "island.notice"
+
+    mutating func show(_ notice: IslandNotice?, tappable: Bool) {
+        self.notice = notice.map { IslandPageRow(id: tappable ? Self.noticeID : nil, symbol: $0.symbol, title: $0.text) }
+    }
+
+    /// With a page, a click on the resting island opens it; the notice's own tap moves to its row.
+    var opensOnClick: Bool { !pages.isEmpty }
+
     /// Hover always opens on the first tab, never where the last visit left off.
     mutating func open() { chosen = nil }
 
@@ -94,6 +107,16 @@ struct IslandPageAudience: Equatable, Sendable {
     }
 
     mutating func forget(_ id: String) { seeing.remove(id) }
+}
+
+/// The panel takes key once a pin begins, never on a repost while pinned (#1005 review, finding 2).
+struct IslandPageFocus: Equatable, Sendable {
+    private var pinned = false
+
+    mutating func takesKey(pinned: Bool) -> Bool {
+        defer { self.pinned = pinned }
+        return pinned && !self.pinned
+    }
 }
 
 /// What a key does on a pinned page: arrows, 1–9 and Escape bare; R and P only with Command.

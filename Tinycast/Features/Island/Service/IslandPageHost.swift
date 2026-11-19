@@ -13,6 +13,7 @@ final class IslandPageHost {
     private var watchers: [String: @MainActor (Bool) -> Void] = [:]
     private var audience = IslandPageAudience()
     private var hovered = false
+    private var focus = IslandPageFocus()
 
     var isOpen: Bool { controller != nil }
 
@@ -30,6 +31,14 @@ final class IslandPageHost {
         announce()
     }
 
+    /// The pill's shown notice or status heads the open page; `onTap` makes that row a button.
+    func show(_ notice: IslandNotice?, onTap: (@MainActor () -> Void)?) {
+        actions[IslandPageDeck.noticeID] = if let onTap { { _ in onTap() } } else { nil }
+        let before = deck
+        deck.show(notice, tappable: onTap != nil)
+        if deck != before, isOpen { render() }
+    }
+
     private func announce() {
         let changes = audience.changes(watchers: watchers.keys.sorted(), open: hovered, deck: deck)
         for (id, visible) in changes { watchers[id]?(visible) }
@@ -41,6 +50,7 @@ final class IslandPageHost {
         hovered = open && resting != nil
         defer { announce() }
         guard open, let resting, !deck.pages.isEmpty else {
+            focus = IslandPageFocus()
             close()
             return false
         }
@@ -50,8 +60,7 @@ final class IslandPageHost {
             controller = resting
         }
         render()
-        // A click on the bare island lands on the island's window, so the page keys need the panel key.
-        if AppCore.shared.island.hover.isPinned { panel?.makeKey() }
+        keyOnPin()
         return true
     }
 
@@ -95,12 +104,20 @@ final class IslandPageHost {
         render()
     }
 
-    private func act(page id: String, action: String) {
+    func act(page id: String, action: String) {
         actions[id]?(action)
     }
 
+    /// A click on the bare island lands on the island's window, so the page keys need the panel key.
+    private func keyOnPin() {
+        if focus.takesKey(pinned: AppCore.shared.island.hover.isPinned) { panel?.makeKey() }
+    }
+
     /// A click pins the island, so the keys work until Escape or a click outside (946 rules).
-    private func clicked() { AppCore.shared.island.hover.pin() }
+    private func clicked() {
+        AppCore.shared.island.hover.pin()
+        keyOnPin()
+    }
 
     private func key(_ event: NSEvent) -> Bool {
         guard let key = IslandPageKey(keyCode: event.keyCode, characters: event.charactersIgnoringModifiers ?? "",
@@ -115,6 +132,7 @@ final class IslandPageHost {
             for page in shown { act(page: page.id, action: IslandPage.refreshAction) }
         }
         if isOpen { render() }
+        keyOnPin()
         return true
     }
 

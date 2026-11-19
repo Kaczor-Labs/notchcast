@@ -91,6 +91,14 @@ struct IslandPageHostTest {
         host.watch(id: "day", onChange: nil)
         host.hover(true, on: resting)
         precondition(heard() == ["agents=true"], "a removed watcher hears nothing more")
+        var tapped = 0
+        host.show(IslandNotice(id: "update", text: "Update ready"), onTap: { tapped += 1 })
+        precondition(host.deck.notice?.id == IslandPageDeck.noticeID, "the presenter's notice reaches the open page")
+        host.act(page: IslandPageDeck.noticeID, action: IslandPageDeck.noticeID)
+        precondition(tapped == 1, "a click on its row runs the notice's own tap")
+        host.show(nil, onTap: nil)
+        host.act(page: IslandPageDeck.noticeID, action: IslandPageDeck.noticeID)
+        precondition(host.deck.notice == nil && tapped == 1, "an ended notice leaves no row and no tap")
         print("PASS IslandPageHostTest")
     }
 }
