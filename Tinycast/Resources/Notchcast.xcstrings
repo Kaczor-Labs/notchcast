@@ -7,6 +7,9 @@
     "A notch always decides where the island sits." : {
 
     },
+    "Agents" : {
+      "shouldTranslate" : false
+    },
     "Apps on this Mac can transcribe audio through a local OpenAI-compatible endpoint." : {
 
     },
