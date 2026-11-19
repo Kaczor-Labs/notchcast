@@ -6,6 +6,8 @@
     ci.py reviewed <upstream>               exit 0 only while the owner's review of that upstream commit is a success
     ci.py pin-tag <tag> <commit>            fetch upstream main and tag; fail unless the tag still peels to commit
     ci.py replay <tree> <onto>              in <tree> (our main, upstream fetched), replay our commits onto <onto>
+    ci.py merge <tree> <main> <upstream>    commit <tree>'s replayed HEAD as a sync merge of main and upstream
+    ci.py forward <old> <new>               exit 0 only when <new> contains main's <old>: main never loses history
     ci.py regenerate <tree> <onto>          rewrite the generated files in <tree> (no commit)
     ci.py app-info <tag>                    name, bundle id, version and build of upstream's release zip
     ci.py issue open <kind> <title> <cause> [<details.md>] | issue close <kind>
@@ -15,7 +17,7 @@
     ci.py tested-run [<commit>]             URL of the green PR build of that tree, or nothing: land.sh skips its harness pass on it
     ci.py isolated-proof [<commit>]         the green isolated-runner PR build of that tree: its URL, toolchain and excused harnesses, or nothing
 
-Our commits are merge-base(main, upstream main)..main. Replaying cherry-picks them in order without the GENERATED
+Our commits are merge-base(main, upstream main)..main without sync merges and their upstream side. Replaying cherry-picks them in order without the GENERATED
 files, so those never conflict and never travel in our diffs. Two commits are made afresh instead of picked:
 "Notchcast: remove upstream workflows" (git rm -r .github/workflows), so upstream workflow edits never conflict and
 new ones never land, and "Notchcast: generated files", always last, which rewrites GENERATED (`regenerate`).
@@ -44,6 +46,8 @@ from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
 REMOVE_WORKFLOWS = "Notchcast: remove upstream workflows"
+# Subject prefix of the merge that moves main onto new upstream: main gains a commit, never loses one.
+SYNC_MERGE = "Notchcast: merge upstream"
 GENERATED_COMMIT = "Notchcast: generated files"
 PBXPROJ = "Tinycast.xcodeproj/project.pbxproj"
 RUNTIME_JS = "Tinycast/Resources/RaycastRuntime.generated.js"
@@ -499,10 +503,13 @@ def replay(tree, onto, check=False):
     main = run("git", "rev-parse", "HEAD", cwd=tree)
     upstream_main = run("git", "rev-parse", "refs/remotes/upstream/main", cwd=tree)
     base = run("git", "merge-base", main, upstream_main, cwd=tree)
-    commits = run("git", "rev-list", "--reverse", "--topo-order", f"{base}..{main}", cwd=tree).split()
-    merges = run("git", "rev-list", "--merges", f"{base}..{main}", cwd=tree)
-    if merges:
-        sys.exit(f"main has merge commits ({merges.split()[0][:10]}…); keep main linear")
+    merges = run("git", "rev-list", "--merges", f"{base}..{main}", cwd=tree).split()
+    foreign = [m for m in merges if not run("git", "show", "-s", "--format=%s", m, cwd=tree).startswith(SYNC_MERGE)]
+    if foreign:
+        sys.exit(f"main has a merge commit that is no sync merge ({foreign[0][:10]}…); PRs land squashed")
+    # A sync merge's second parent is upstream's history, never ours, even if upstream later rewrote it.
+    commits = run("git", "rev-list", "--reverse", "--topo-order", "--no-merges", main, f"^{base}",
+                  *(f"^{m}^2" for m in merges), cwd=tree).split()
     run("git", "checkout", "-q", "--detach", onto, cwd=tree)
     generated_commit = None
     for sha in commits:
@@ -600,6 +607,25 @@ def replay(tree, onto, check=False):
         message = ["-C", generated_commit] if generated_commit else ["-m", GENERATED_COMMIT]
         run("git", "commit", "-q", "--no-verify", "--allow-empty", *message, "--author", AUTHOR, cwd=tree, env=BOT)
     print(run("git", "log", "--format=%h %an | %cn | %s", f"{onto}..HEAD", cwd=tree))
+
+
+def merge(tree, main, upstream):
+    """Commit tree's HEAD (main replayed onto upstream) as a merge of main and upstream and check it out."""
+    name, email = AUTHOR.removesuffix(">").split(" <")
+    commit = run("git", "commit-tree", "HEAD^{tree}", "-p", main, "-p", upstream,
+                 "-m", f"{SYNC_MERGE} {upstream[:10]}", cwd=tree,
+                 env={**BOT, "GIT_AUTHOR_NAME": name, "GIT_AUTHOR_EMAIL": email})
+    run("git", "checkout", "-q", "--detach", commit, cwd=tree)
+    print(commit)
+
+
+def forward(old, new, cwd=None):
+    """Refuse a new main that does not contain the old one: that push would rewrite main's history."""
+    if subprocess.run(["git", "merge-base", "--is-ancestor", old, new], cwd=cwd, capture_output=True).returncode:
+        sys.exit(f"refused: {new[:10]} does not contain main {old[:10]}, so pushing it rewrites main's history. "
+                 "main only moves forward: upstream comes in as a sync merge (ci.py replay, then ci.py merge), "
+                 "everything else lands as a PR through notchcast/land.sh; if main moved, fetch it and build on it. "
+                 "Never force-push main.")
 
 
 def pruned(tree):
@@ -718,6 +744,6 @@ def app_info(tag):
 
 if __name__ == "__main__":
     command, args = sys.argv[1], sys.argv[2:]
-    {"plan": plan, "replay": replay, "regenerate": regenerate, "app-info": app_info, "issue": issue,
+    {"plan": plan, "replay": replay, "merge": merge, "forward": forward, "regenerate": regenerate, "app-info": app_info, "issue": issue,
      "design-notice": design_notice, "tested-key": lambda *a: print(tested_key(*a)),
      "tested-run": tested_build_url, "isolated-proof": isolated_proof, "hold": hold, "stage": stage, "reviewed": reviewed, "pin-tag": pin_tag}[command](*args)
