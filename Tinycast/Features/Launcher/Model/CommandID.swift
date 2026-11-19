@@ -10,6 +10,7 @@ enum CommandID: String, CaseIterable, Codable, Sendable {
     case summarize = "command:summarize"
     case calculatorHistory = "command:calculator-history"
     case clipboardHistory = "command:clipboard-history"
+    case dictationHistory = "command:dictation-history"
     case pasteSequentially = "command:paste-sequentially"
     case searchEmoji = "command:search-emoji"
     case searchFiles = "command:search-files"
@@ -85,6 +86,8 @@ enum CommandID: String, CaseIterable, Codable, Sendable {
         case .summarize: return BuiltInQuickAction.summarize.titleResource
         case .calculatorHistory: return "Calculator History"
         case .clipboardHistory: return "Clipboard History"
+        // ai-design-check-ignore-next-line sentence-case -- a command name is Title Case, as its peers
+        case .dictationHistory: return LocalizedStringResource("Dictation History", table: "Notchcast")
         case .pasteSequentially: return "Paste Sequentially"
         case .searchEmoji: return "Search Emoji & Symbols"
         case .searchFiles: return "Search Files"
@@ -136,6 +139,7 @@ enum CommandID: String, CaseIterable, Codable, Sendable {
         case .summarize: return BuiltInQuickAction.summarize.symbol
         case .calculatorHistory: return "plus.forwardslash.minus"
         case .clipboardHistory: return "list.clipboard.fill"
+        case .dictationHistory: return "waveform"
         case .pasteSequentially: return "arrow.right.doc.on.clipboard"
         case .searchEmoji: return "face.smiling.inverse"
         case .searchFiles: return "doc.text.magnifyingglass"
@@ -195,6 +199,7 @@ enum CommandID: String, CaseIterable, Codable, Sendable {
         case .createWindowLayout, .captureWindowLayout, .switchRoom, .createRoom: return .mint
         case .exportSettings, .importSettings, .importFromRaycast: return .cyan
         case .support: return .pink
+        case .dictationHistory: return .pink
         }
     }
 
