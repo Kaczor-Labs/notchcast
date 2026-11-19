@@ -92,7 +92,7 @@ final class QuitProtectionModule: NotchcastModule {
             },
             reset: { [weak self] in self?.resetSession() }
         ))
-        let workspace = NSWorkspace.shared.notificationCenter
+        let workspace = system.workspaceNotifications()
         let inputSources = DistributedNotificationCenter.default()
         observers = [
             NotificationToken(workspace.addObserver(
@@ -172,9 +172,9 @@ final class QuitProtectionModule: NotchcastModule {
             ticker?.cancel()
             ticker = nil
         } else if ticker == nil {
-            ticker = Task { [weak self] in
+            ticker = Task { [weak self, sleep = system.sleep] in
                 while !Task.isCancelled {
-                    try? await Task.sleep(for: Self.tickInterval)
+                    try? await sleep(Self.tickInterval)
                     guard !Task.isCancelled, let self else { return }
                     self.update(generation: generation)
                 }
