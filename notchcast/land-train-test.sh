@@ -72,6 +72,7 @@ case "$*" in
     'variable set LANDING_HOLD'*) echo "${*: -1}" > "$FIXTURE/hold" ;;
     'variable delete LANDING_HOLD'*) rm -f "$FIXTURE/hold" ;;
     'run list '*) ;;
+    'issue close '*) echo "$3 ${*: -1}" >> "$FIXTURE/issues-closed" ;;
     *) echo "gh stub: unexpected $*" >&2; exit 3 ;;
 esac
 STUB
@@ -210,6 +211,8 @@ STUB
 fixture
 open_pr 1 pr-b 'Add B' src/b.txt
 open_pr 2 pr-c 'Add C' src/c.txt
+jq --arg repo "$FORK_REPO" '.closingIssuesReferences = [{number: 41, url: "https://github.com/\($repo)/issues/41"}, {number: 7, url: "https://github.com/other/repo/issues/7"}]' \
+    "$FIXTURE/pr-1.json" > "$FIXTURE/pr.json" && mv "$FIXTURE/pr.json" "$FIXTURE/pr-1.json"
 union=$( { selection pr-b; selection pr-c; } | sort -u | paste -sd' ' -)
 [ "$union" = 'b-test c-test notchcast-core-test' ] || fail "fixture union is '$union'"
 land 1 2
@@ -223,6 +226,9 @@ land 1 2
 grep -q "^1 Landed on main as $(origin rev-parse main~1) .* onto $base\.$" "$FIXTURE/closed" \
     && grep -q "^2 Landed on main as $(origin rev-parse main) .* onto $(origin rev-parse main~1)\.$" "$FIXTURE/closed" || fail 'close comments'
 [ -z "$(origin for-each-ref refs/heads/pr-b refs/heads/pr-c)" ] || fail 'landed heads were not deleted'
+[ "$(cat "$FIXTURE/issues-closed")" = "41 Landed on main as $(origin rev-parse main~1) by notchcast/land.sh (#1)." ] && grep -q '^closed issue #41$' "$FIXTURE/output" \
+    || fail "landing closed issues '$(cat "$FIXTURE/issues-closed" 2>/dev/null)', not only this repository's #41 that #1 closes"
+echo 'PASS: landing closes the issues of this repository that each PR says it closes'
 [ ! -e "$FIXTURE/hold" ] || fail 'the train left its hold behind'
 echo 'PASS: a 2-PR train lands one squash per PR after one harness pass over the union of their selections'
 
@@ -502,10 +508,10 @@ open_pr 2 pr-c 'Add C' src/c.txt
 open_pr 3 pr-one 'Add one' src/one.txt
 train 1 2
 echo "$train_sha" > "$FIXTURE/green"
-HEAD_CHECKS=failure land --train-run "$train_sha" 1 2 3
-[ "$status" -eq 1 ] && grep -q "does not merge #3's head" "$FIXTURE/output" && grep -q '^REFUSED: [a-z]* is failure on' "$FIXTURE/output" && untouched \
-    || fail 'a train run missing a PR head was not refused by the heads own checks'
-echo 'PASS: a train run missing a PR head covers nothing and the heads own red checks refuse'
+land --train-run "$train_sha" 1 2 3
+[ "$status" -eq 1 ] && grep -q "does not merge #3's head" "$FIXTURE/output" && grep -q '^REFUSED: train .*, so no build tested the merged tree: run notchcast/train.sh 1 2 3 again$' "$FIXTURE/output" && untouched \
+    || fail 'a train run missing a PR head landed on its green heads'
+echo 'PASS: a train run missing a PR head is refused though each head is green, since no build tested the merged tree'
 
 fixture
 open_pr 1 pr-b 'Add B' src/b.txt
@@ -518,10 +524,10 @@ git commit --quiet -am 'Move C'
 git push --quiet origin pr-c pr-c:refs/pull/2/head
 jq --arg head "$(git rev-parse HEAD)" '.headRefOid = $head' "$FIXTURE/pr-2.json" > "$FIXTURE/pr.json" && mv "$FIXTURE/pr.json" "$FIXTURE/pr-2.json"
 git switch --quiet main
-HEAD_CHECKS=failure land --train-run "$train_sha" 1 2
-[ "$status" -eq 1 ] && grep -q "does not merge #2's head" "$FIXTURE/output" && grep -q '^REFUSED: [a-z]* is failure on' "$FIXTURE/output" && untouched \
+land --train-run "$train_sha" 1 2
+[ "$status" -eq 1 ] && grep -q "does not merge #2's head" "$FIXTURE/output" && grep -q '^REFUSED: train .*, so no build tested the merged tree: run notchcast/train.sh 1 2 again$' "$FIXTURE/output" && untouched \
     || fail 'a PR head moved after the train was not refused'
-echo 'PASS: a PR head that moved after the train run is refused as without a train'
+echo 'PASS: a PR head that moved after the train run is refused though each head is green'
 
 fixture
 open_pr 1 pr-b 'Add B' src/b.txt
@@ -533,10 +539,10 @@ git add src/moved.txt
 git commit --quiet -m 'Fixture: main moves'
 git push --quiet origin main
 base=$(git rev-parse HEAD)
-HEAD_CHECKS=failure land --train-run "$train_sha" 1 2
-[ "$status" -eq 1 ] && grep -q 'not current main' "$FIXTURE/output" && grep -q '^REFUSED: [a-z]* is failure on' "$FIXTURE/output" && untouched \
+land --train-run "$train_sha" 1 2
+[ "$status" -eq 1 ] && grep -q 'not current main' "$FIXTURE/output" && grep -q '^REFUSED: train .*, so no build tested the merged tree: run notchcast/train.sh 1 2 again$' "$FIXTURE/output" && untouched \
     || fail 'a train run on a stale base was not refused'
-echo 'PASS: a train run whose base is no longer main is refused as without a train'
+echo 'PASS: a train run whose base is no longer main is refused though each head is green'
 
 # Main moves after the train went green. ci.py tested-key leaves out Tinycast.xcodeproj/project.pbxproj and keeps
 # the Raycast runtime. The commit subject is the same each time, so only the paths it touches can decide.
@@ -554,7 +560,7 @@ for moved in Tinycast.xcodeproj/project.pbxproj src/moved.txt 'Tinycast.xcodepro
     git commit --quiet -m 'Notchcast: generated files'
     git push --quiet origin main
     base=$(git rev-parse HEAD)
-    HEAD_CHECKS=failure land --train-run "$train_sha" 1 2
+    land --train-run "$train_sha" 1 2
     if [ "$moved" = Tinycast.xcodeproj/project.pbxproj ]; then
         [ "$status" -eq 0 ] && grep -q 'only in generated files; the run still proves it' "$FIXTURE/output" \
             && [ "$(landed)" = 'Notchcast: Add B (#1)|Notchcast: Add C (#2)' ] || fail 'a train run did not land after main moved only in generated files'
@@ -562,7 +568,7 @@ for moved in Tinycast.xcodeproj/project.pbxproj src/moved.txt 'Tinycast.xcodepro
             && [ "$(origin diff --no-renames --name-only "$train_sha" main)" = Tinycast.xcodeproj/project.pbxproj ] || fail 'the landing is not the tested tree on the moved main'
         [ ! -s "$PASSES" ] && [ -z "$(origin for-each-ref refs/heads/train/)" ] || fail 'the proven train ran harnesses again or kept its branch'
     else
-        [ "$status" -eq 1 ] && grep -q 'not current main' "$FIXTURE/output" && grep -q '^REFUSED: [a-z]* is failure on' "$FIXTURE/output" && untouched \
+        [ "$status" -eq 1 ] && grep -q 'not current main' "$FIXTURE/output" && grep -q '^REFUSED: train .*, so no build tested the merged tree: run notchcast/train.sh 1 2 again$' "$FIXTURE/output" && untouched \
             || fail "a train run was not refused after main moved in '$moved'"
     fi
 done
@@ -643,10 +649,20 @@ git merge --quiet --ff-only pr-one
 git push --quiet origin main
 base=$(git rev-parse HEAD)
 train 2
-[ "$status" -eq 1 ] && grep -q '^DROPPED #2: conflicts with main; rebase on main$' "$FIXTURE/train-output" \
+[ "$status" -eq 1 ] && grep -q '^DROPPED #2: conflicts with main in src/shared.txt: it waits for one merge round, which the landing owner starts when this PR is next to land; nobody merges main into it before that$' "$FIXTURE/train-output" \
     || { cat "$FIXTURE/train-output"; fail 'a train of one PR that conflicts with main was not dropped'; }
 [ -z "$(origin for-each-ref refs/heads/train/)" ] && [ ! -e "$FIXTURE/dispatched" ] && untouched || fail 'a train with no PR left pushed or dispatched'
 echo 'PASS: a train whose every merge is refused pushes no branch and dispatches nothing'
+
+fixture
+open_pr 1 pr-b 'Add B' src/b.txt
+open_pr 2 pr-c 'Add C' src/c.txt
+draft 1
+train 1 2
+[ "$status" -eq 1 ] && grep -q "^DROPPED #1: dropped from the landing batch: draft #1 has no land label, the lead's sign-off to land it$" "$FIXTURE/train-output" \
+    && grep -q '^GREEN train/2 ' "$FIXTURE/train-output" && ! grep -q -- '--ref train/1-2' "$FIXTURE/dispatched" \
+    || { cat "$FIXTURE/train-output"; fail 'an unlabelled draft reached the train run that land.sh would then refuse whole'; }
+echo 'PASS: an unlabelled draft is dropped before the train is pushed, so it never voids a green run at landing'
 
 # #2 merged #1's branch into its own and went on in #1's file, so its head holds #1's commit; #3 shares nothing.
 tangled() {
@@ -669,7 +685,7 @@ repush() {
 # train.sh $1 is refused, saying #2 holds #1, before anything is pushed, dispatched or commented.
 refused_holder() {
     train $1
-    [ "$status" -eq 1 ] && grep -q '^REFUSED: #2 contains commits of #1, .* so #2 can conflict with main once #1 lands\. Land #1 first, then merge main into #2\.$' "$FIXTURE/train-output" \
+    [ "$status" -eq 1 ] && grep -q '^REFUSED: #2 contains commits of #1, .* so #2 can conflict with main once #1 lands\. Land #1 first; then #2 gets one merge round, which the landing owner starts when it is next to land\.$' "$FIXTURE/train-output" \
         || { cat "$FIXTURE/train-output"; echo "FAIL: train.sh $1, where #2 holds #1's commits$2, was not refused naming #2 as the holder"; exit 1; }
     [ -z "$(origin for-each-ref refs/heads/train/)" ] && [ ! -e "$FIXTURE/dispatched" ] && [ ! -e "$FIXTURE/comments" ] && untouched \
         || { echo "FAIL: the refused train.sh $1 pushed, dispatched or commented"; exit 1; }
@@ -760,8 +776,8 @@ open_pr 1 pr-one 'Add one' src/shared.txt
 open_pr 2 pr-two 'Add two' src/shared.txt
 open_pr 3 pr-c 'Add C' src/c.txt
 queue
-[ "$status" -eq 1 ] && grep -q '^DROPPED #2: conflicts with #1 in the landing batch; rebase on main$' "$FIXTURE/train-output" \
-    && [ "$(cat "$FIXTURE/comments")" = '2 conflicts with #1 in the landing batch; rebase on main' ] || queue_fail 'the later conflicting PR was not dropped and told'
+[ "$status" -eq 1 ] && grep -q '^DROPPED #2: conflicts with #1 in the landing batch in src/shared.txt: it rides a later train, after #1 lands; nobody merges main into it$' "$FIXTURE/train-output" \
+    && [ "$(cat "$FIXTURE/comments")" = '2 conflicts with #1 in the landing batch in src/shared.txt: it rides a later train, after #1 lands; nobody merges main into it' ] || queue_fail 'the later conflicting PR was not dropped and told'
 [ "$(landed)" = 'Notchcast: Add one (#1)|Notchcast: Add C (#3)' ] && [ "$(grep -c -- '--ref train/1-3\( \|$\)' "$FIXTURE/dispatched")" -eq 4 ] \
     && ! grep -q '^2 ' "$FIXTURE/closed" || queue_fail "the conflict batch landed '$(landed)'"
 echo 'PASS: a PR that conflicts with an earlier one in the batch is dropped with a comment naming it, and the rest lands'
@@ -774,11 +790,11 @@ queue
     || queue_fail "the PR that holds another's commits was not left out of the batch"
 [ "$(landed)" = 'Notchcast: Add B (#1)|Notchcast: Add one (#3)' ] && ! grep -q -- '--ref train/1-2' "$FIXTURE/dispatched" && ! grep -q '^2 ' "$FIXTURE/closed" \
     || queue_fail "the tangled batch landed '$(landed)'"
-[ "$(cat "$FIXTURE/comments")" = "2 Left out of the landing batch at its head $(jq -r .headRefOid "$FIXTURE/pr-2.json"): #2 contains commits of #1, and landing squashes each PR, so #2 can conflict with main once #1 lands. Land #1 first, then merge main into #2." ] \
+[ "$(cat "$FIXTURE/comments")" = "2 Left out of the landing batch at its head $(jq -r .headRefOid "$FIXTURE/pr-2.json"): #2 contains commits of #1, and landing squashes each PR, so #2 can conflict with main once #1 lands. Land #1 first; then #2 gets one merge round, which the landing owner starts when it is next to land." ] \
     || queue_fail "two runs on one head of the holder commented '$(cat "$FIXTURE/comments")'"
 base=$(origin rev-parse main)
 train 2
-[ "$status" -eq 1 ] && grep -q '^DROPPED #2: conflicts with main; rebase on main$' "$FIXTURE/train-output" \
+[ "$status" -eq 1 ] && grep -q '^DROPPED #2: conflicts with main in src/b.txt: it waits for one merge round, which the landing owner starts when this PR is next to land; nobody merges main into it before that$' "$FIXTURE/train-output" \
     || queue_fail 'the holder did not conflict with main once the other landed, so the fixture is not #1067'
 echo "PASS: --queue leaves out the PR that holds another's commits, tells it once per head what to do, and lands the rest"
 

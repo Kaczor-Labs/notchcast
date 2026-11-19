@@ -46,8 +46,11 @@ train_branch() { echo "train/$(IFS=-; echo "$*")"; }
 # Merges PR $2 onto $1 and leaves the merge commit in $scratch/tip.
 stack() {
     local metadata
-    metadata=$(gh pr view "$2" -R "$FORK_REPO" --json state,headRefOid,baseRefName,title,body)
+    metadata=$(gh pr view "$2" -R "$FORK_REPO" --json state,isDraft,labels,headRefOid,baseRefName,title,body)
     [ "$(jq -r '.state + " " + .baseRefName' <<< "$metadata")" = 'OPEN main' ] || refuse "#$2 must be open against main"
+    # land.sh refuses it after the Mac ran, and that loses the whole train.
+    jq -e '(.isDraft | not) or any(.labels[]?; .name == "land")' <<< "$metadata" > /dev/null \
+        || refuse "draft #$2 has no land label, the lead's sign-off to land it"
     head=$(jq -r .headRefOid <<< "$metadata")
     pr_title=$(jq -r '.title // ""' <<< "$metadata")
     pr_body=$(jq -r '.body // ""' <<< "$metadata")
@@ -59,7 +62,7 @@ stack() {
 # Merges PRs $2... onto $1 into $tip and sets stacked to the PRs that merged. One that refuses is dropped and told
 # why in a PR comment (a conflict names the earlier PR of the train that touched the file), and the rest goes on.
 build_train() {
-    local pr code reason blocker other commit
+    local pr code reason files other commit
     tip=$1
     stacked=
     : > "$scratch/merges"
@@ -81,13 +84,13 @@ build_train() {
         fi
         reason=$(sed -n 's/^REFUSED: //p' "$scratch/refusal" | tail -1)
         if [[ "$reason" == 'merge conflict: '* ]]; then
-            blocker=main
+            files=${reason#merge conflict: }
+            reason="conflicts with main in $files: it waits for one merge round, which the landing owner starts when this PR is next to land; nobody merges main into it before that"
             while read -r other commit; do
-                git diff --name-only "$commit^1" "$commit" | grep -qxF -f <(tr ' ' '\n' <<< "${reason#merge conflict: }") || continue
-                blocker="#$other in the landing batch"
+                git diff --name-only "$commit^1" "$commit" | grep -qxF -f <(tr ' ' '\n' <<< "$files") || continue
+                reason="conflicts with #$other in the landing batch in $files: it rides a later train, after #$other lands; nobody merges main into it"
                 break
             done < "$scratch/merges"
-            reason="conflicts with $blocker; rebase on main"
         else
             reason="dropped from the landing batch: ${reason:-its merge onto main failed}"
         fi
@@ -215,7 +218,7 @@ for pr in "$@"; do
         fi
         first=$other
         [ "$holder" = "$pr" ] || first=$pr
-        reason="#$holder contains commits of #$first, and landing squashes each PR, so #$holder can conflict with main once #$first lands. Land #$first first, then merge main into #$holder."
+        reason="#$holder contains commits of #$first, and landing squashes each PR, so #$holder can conflict with main once #$first lands. Land #$first first; then #$holder gets one merge round, which the landing owner starts when it is next to land."
         [ -n "$auto" ] || refuse "$reason"
         status=1
         echo "DROPPED #$holder: $reason"
