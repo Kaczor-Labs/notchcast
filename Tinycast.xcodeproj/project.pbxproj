@@ -286,6 +286,7 @@
 		383A577E1A70AF702C474B0F /* ClipDragPayload.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6491D532351DEB940B4FBD1A /* ClipDragPayload.swift */; };
 		3874370DBA63F3E99F8CF4E0 /* IslandInstallReportScenes.swift in Sources */ = {isa = PBXBuildFile; fileRef = C84A27BD2930EB102BD86B19 /* IslandInstallReportScenes.swift */; };
 		3891DA96CC148D13893F4494 /* ShortcutCaptureSession.swift in Sources */ = {isa = PBXBuildFile; fileRef = B235DFF451FF4D52A8E44D00 /* ShortcutCaptureSession.swift */; };
+		38A29B90790C657415863C29 /* IslandCardSlots.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4B099053BE1D72B5AF279305 /* IslandCardSlots.swift */; };
 		390E7A799CBFB1F703906F83 /* DisplaySpeakerController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 69A65837FBEDCA02E6237D98 /* DisplaySpeakerController.swift */; };
 		3917193B62450F226297B3F1 /* SelectionReveal.swift in Sources */ = {isa = PBXBuildFile; fileRef = 648F0F43FEEE537F6451756B /* SelectionReveal.swift */; };
 		394AF7EBEFA5C5413D7D8E9B /* ExtensionListing.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4479345B4ECF587F3BC08093 /* ExtensionListing.swift */; };
@@ -945,6 +946,7 @@
 		B374B57D0E9D902AF877153D /* MCPHTTPTransport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FD57D9B2C6C46B5ADDDE173 /* MCPHTTPTransport.swift */; };
 		B38297E8015D3DD7D920E8C8 /* MusicBlockAddon.swift in Sources */ = {isa = PBXBuildFile; fileRef = E30E06EC732C24610CAB3E1D /* MusicBlockAddon.swift */; };
 		B39142C7900A9A63144D6737 /* MediaLevelKeyPolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = FC7582ABD316FE607F8C7E8C /* MediaLevelKeyPolicy.swift */; };
+		B3A4B62B7BAD5BFAC60B6E13 /* IslandPageCards.swift in Sources */ = {isa = PBXBuildFile; fileRef = 55D89B9686159D727C530272 /* IslandPageCards.swift */; };
 		B40434D581183863A23D7E86 /* DictionaryCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = B7DE05BCC5E8CD91E8B0A26E /* DictionaryCoordinator.swift */; };
 		B47CBC25BC704D2D9489AD29 /* NotchcastAddon.swift in Sources */ = {isa = PBXBuildFile; fileRef = CFB37D725934B5B2FA2EA611 /* NotchcastAddon.swift */; };
 		B525C410AB77F08CCC801368 /* CloudSyncStateStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7F33CF9E73D1E928FF848541 /* CloudSyncStateStore.swift */; };
@@ -1792,6 +1794,7 @@
 		4AA61A2FAF4E49E466DA8F37 /* SettingsTab.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsTab.swift; sourceTree = "<group>"; };
 		4AB00BBB28FEFC0C7A756235 /* RecordSyncSource.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecordSyncSource.swift; sourceTree = "<group>"; };
 		4AEBAA9641BC6C279DB0123C /* CameraPreviewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CameraPreviewController.swift; sourceTree = "<group>"; };
+		4B099053BE1D72B5AF279305 /* IslandCardSlots.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IslandCardSlots.swift; sourceTree = "<group>"; };
 		4B324E12A254BAD39A13EDD9 /* DictationModelDownloader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DictationModelDownloader.swift; sourceTree = "<group>"; };
 		4B567E0859C4F598E4221B95 /* SpotifyPlayback.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpotifyPlayback.swift; sourceTree = "<group>"; };
 		4B5F016905A2D81798B2953F /* EntryShortcutSyncSource.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EntryShortcutSyncSource.swift; sourceTree = "<group>"; };
@@ -1850,6 +1853,7 @@
 		5515DEDA5C7485F4A9C218B5 /* NoteFormattingBar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NoteFormattingBar.swift; sourceTree = "<group>"; };
 		552EF9B38ABA9443D4FDE5E4 /* AIToolRounds.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIToolRounds.swift; sourceTree = "<group>"; };
 		55D38FEA4D5C08A554A7331A /* DownloadProgress.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DownloadProgress.swift; sourceTree = "<group>"; };
+		55D89B9686159D727C530272 /* IslandPageCards.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IslandPageCards.swift; sourceTree = "<group>"; };
 		5620C21165128A51BA51E524 /* NotchcastCommandEntry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotchcastCommandEntry.swift; sourceTree = "<group>"; };
 		564F5DA22079654D3919E131 /* ShowDesktopSystem.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShowDesktopSystem.swift; sourceTree = "<group>"; };
 		568A6735BB1E458244BA784A /* IPhoneBackupPolicy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IPhoneBackupPolicy.swift; sourceTree = "<group>"; };
@@ -5365,6 +5369,7 @@
 			isa = PBXGroup;
 			children = (
 				78336277F626D482D06CB6D8 /* IslandPageBody.swift */,
+				55D89B9686159D727C530272 /* IslandPageCards.swift */,
 				5DCD5B8F5510531F78C26B67 /* IslandPagesView.swift */,
 			);
 			path = UI;
@@ -5447,6 +5452,7 @@
 		C13F1039D58C19AA33EDF661 /* Model */ = {
 			isa = PBXGroup;
 			children = (
+				4B099053BE1D72B5AF279305 /* IslandCardSlots.swift */,
 				A2400546692DB3AB877353FD /* IslandHover.swift */,
 				E7EAEDC588CF6D693BC4E30A /* IslandKeyline.swift */,
 				3F823090D9C909DC38B8B61A /* IslandLayout.swift */,
@@ -7100,6 +7106,7 @@
 				61F3FA6853B2E29B54F859C8 /* IslandCanvas.swift in Sources */,
 				ECD53244B8DCD421AA5D9CCE /* IslandCaptureScenes.swift in Sources */,
 				EB54DE9BD89A479E3C191BE4 /* IslandCaptureSharing.swift in Sources */,
+				38A29B90790C657415863C29 /* IslandCardSlots.swift in Sources */,
 				156AAF6C1939C271E46C45EF /* IslandCardStyle.swift in Sources */,
 				5B4762FEEA8774AB115F8B80 /* IslandController+Accessibility.swift in Sources */,
 				589FE6E9FD5E62A16EFF3CE4 /* IslandController+Verification.swift in Sources */,
@@ -7140,6 +7147,7 @@
 				B9E491ADEA72716622BD8FEC /* IslandOverlayLayout.swift in Sources */,
 				E812D3C096CDA9C5D4A177FC /* IslandOverlayScenes.swift in Sources */,
 				9F96FB04D9270CE554934EA1 /* IslandPageBody.swift in Sources */,
+				B3A4B62B7BAD5BFAC60B6E13 /* IslandPageCards.swift in Sources */,
 				4C206B2913CF191263E47CF7 /* IslandPageDeck.swift in Sources */,
 				1FD6E28FCEAE5D7F1F014CE4 /* IslandPageHost.swift in Sources */,
 				AC16177D59EA0D47B6132986 /* IslandPageSwipe.swift in Sources */,
