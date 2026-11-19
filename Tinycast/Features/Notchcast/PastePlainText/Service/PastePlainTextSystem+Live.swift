@@ -83,7 +83,7 @@ private enum MatchStyleMenu {
     private static let maxDepth = 3
     private static let maxVisited = 600
 
-    /// Processes with no such item, so their menus are not walked on every press; a relaunch retries.
+    /// Processes with no such item, so their menus are not walked on every press; a disabled one retries.
     private static var withoutItem: Set<pid_t> = []
 
     static func press() -> Bool {
@@ -100,6 +100,7 @@ private enum MatchStyleMenu {
             withoutItem.insert(pid)
             return false
         }
+        guard (read(item, kAXEnabledAttribute) as? NSNumber)?.boolValue != false else { return false }
         return AXUIElementPerformAction(item, kAXPressAction as CFString) == .success
     }
 
@@ -110,7 +111,7 @@ private enum MatchStyleMenu {
         if PlainPastePolicy.isMatchStyleEquivalent(
             commandCharacter: read(element, kAXMenuItemCmdCharAttribute) as? String,
             modifierMask: (read(element, kAXMenuItemCmdModifiersAttribute) as? NSNumber)?.uint32Value,
-            isEnabled: (read(element, kAXEnabledAttribute) as? NSNumber)?.boolValue != false) {
+            isEnabled: true) {
             return element
         }
         guard depth < maxDepth else { return nil }
