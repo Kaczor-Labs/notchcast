@@ -48,6 +48,9 @@ HERE = Path(__file__).resolve().parent
 REMOVE_WORKFLOWS = "Notchcast: remove upstream workflows"
 # Subject prefix of the merge that moves main onto new upstream: main gains a commit, never loses one.
 SYNC_MERGE = "Notchcast: merge upstream"
+UPSTREAM_REWRITE_WAY = ("main stays on its current upstream; a person chooses: stay there, or keep upstream's dropped "
+                        "commits in main for good through a PR that lifts this check and allows their authors in "
+                        "check-commit-emails.py")
 GENERATED_COMMIT = "Notchcast: generated files"
 PBXPROJ = "Tinycast.xcodeproj/project.pbxproj"
 RUNTIME_JS = "Tinycast/Resources/RaycastRuntime.generated.js"
@@ -286,7 +289,7 @@ def plan():
         rebase = False
     elif dropped := upstream_dropped(main, upstream_main):
         rebase = False
-        cause = f"upstream rewrote its history: {dropped[:10]}, merged by an earlier sync, is gone from it"
+        cause = f"upstream rewrote its history: {dropped[:10]}, merged by an earlier sync, is gone from it; {UPSTREAM_REWRITE_WAY}"
         issue_open("sync", f"Sync blocked: upstream {upstream_main[:7]} + main {main[:7]}", cause)
         print(f"::warning::{cause} (see the notchcast-sync issue)")
     else:
@@ -628,7 +631,7 @@ def upstream_dropped(main, upstream, cwd=None):
 def merge(tree, main, upstream):
     """Commit tree's HEAD (main replayed onto upstream) as a merge of main and upstream and check it out."""
     if dropped := upstream_dropped(main, upstream, cwd=tree):
-        sys.exit(f"refused: upstream rewrote its history ({dropped[:10]} is gone from it); decide by hand")
+        sys.exit(f"refused: upstream rewrote its history ({dropped[:10]} is gone from it). {UPSTREAM_REWRITE_WAY}")
     name, email = AUTHOR.removesuffix(">").split(" <")
     commit = run("git", "commit-tree", "HEAD^{tree}", "-p", main, "-p", upstream,
                  "-m", f"{SYNC_MERGE} {upstream[:10]}", cwd=tree,
