@@ -47,11 +47,11 @@ final class IslandPresenter: IslandPresenting {
         noticesChanged()
     }
 
-    /// The carded meeting the resting glance shows, or nil once its join window closes.
+    /// The carded meeting the resting glance shows, or nil; a hovered status name gives way to it.
     func meetingChanged(_ occurrence: IslandMeetingExpansion.Occurrence?) {
         self.occurrence = occurrence
         if occurrence != nil, !observing { observePlacement() }
-        updateExpansion()
+        noticesChanged()
     }
 
     func post(_ notice: IslandNotice, onTap: (@MainActor () -> Void)?) {

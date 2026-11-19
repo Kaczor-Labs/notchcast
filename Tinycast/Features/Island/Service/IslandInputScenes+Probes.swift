@@ -134,9 +134,8 @@ extension IslandInputScenes {
         await closeWithEscape("glance")
         await click(point)
         await IslandVerification.pause(0.3)
-        expectMenu(controller, "WS glance click")
-        check(core.island.pillMenu.itemTitles.first == titles.first, "WS glance click leads with Join, never joins")
-        await closeWithEscape("glance click")
+        check(menuPanel == nil && core.island.hover.isOpen, "WS glance click opens the island, never its menu (#1029)")
+        core.island.hover.togglePin()
     }
 
     static func quit(_ scene: String, controller: IslandController) async {
