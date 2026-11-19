@@ -38,7 +38,8 @@ import Observation
 
 /// The dropped-file watcher on a real folder: files already there when Convert goes on, or at launch, are
 /// never queued; one that appears later is queued after it settles; a new folder cancels what was queued;
-/// a change that lands after stop starts nothing. The stand-in runner parks each job and touches no file.
+/// a folder that cannot be listed forgets nothing into "new"; a change that lands after stop starts
+/// nothing. The stand-in runner parks each job and touches no file.
 @main
 @MainActor
 struct DownloadsDropsTest {
@@ -118,12 +119,23 @@ struct DownloadsDropsTest {
         expect(swept == 0 && sources(distill).isEmpty,
                "files in the folder at launch are never queued: \(sources(distill))")
 
+        let away = root.appending(path: "Away", directoryHint: .isDirectory)
+        try FileManager.default.moveItem(at: folder, to: away)
+        _ = await looked(watcher)
+        try FileManager.default.moveItem(at: away, to: folder)
+        _ = await looked(watcher)
+        clock.now += settle * 3
+        _ = await looked(watcher)
+        expect(sources(distill).isEmpty,
+               "a folder that could not be listed and came back holds no new file: \(sources(distill))")
+
         try Data("<p>late</p>".utf8).write(to: folder.appending(path: "late.htm"))
-        let first = await looked(watcher)
-        expect(first == 0, "one look is not enough")
+        _ = await looked(watcher)
+        expect(sources(distill).isEmpty, "one look is not enough")
         clock.now += settle
-        let second = await looked(watcher)
-        expect(second == 1 && sources(distill) == ["late.htm"], "the second look queues it")
+        // The write's own file event may look first and queue it, so the count of one look proves nothing.
+        _ = await looked(watcher)
+        expect(sources(distill) == ["late.htm"], "the second look queues it")
         expect(distill.queue?.jobs.first?.state == .running, "its job is running")
 
         defaults.set(other.path(percentEncoded: false), forKey: DistillNotes.folderKey)

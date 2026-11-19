@@ -26,7 +26,7 @@ nonisolated enum DistillDrop {
     struct Plan: Sendable {
         var ready: [Entry] = []
         var seen: [String: Sighting] = [:]
-        var existing: Set<String> = []
+        var existing: [String: UInt64] = [:]
         var recheck: Date?
     }
 
@@ -47,23 +47,25 @@ nonisolated enum DistillDrop {
     /// Markdown, hidden or partial files, symlinks and files already queued are skipped; a failed one
     /// is retried only when `retryFailed`, so a broken file does not fail again on every change.
     /// `existing` is nil on the first look at a folder, which converts nothing: every file already
-    /// there is left alone for as long as its name stays, so only one that appears later is converted.
+    /// there is left alone for as long as its name or its file id stays, so a rename keeps it and only
+    /// one that appears later is converted.
     static func plan(
-        _ entries: [Entry], jobs: [DownloadJob], seen: [String: Sighting], existing: Set<String>?, now: Date,
+        _ entries: [Entry], jobs: [DownloadJob], seen: [String: Sighting], existing: [String: UInt64]?, now: Date,
         retryFailed: Bool
     ) -> Plan {
         let queued = Set(jobs.filter { !$0.state.isFinished }.map(\.source))
         // A failed job blocks the file it read, never a later file under the same name.
         let failed = Set(jobs.filter { $0.state == .failed }.map { Entry(path: $0.source, stamp: try? $0.options()) })
+        let ids = Set((existing ?? [:]).values)
         var plan = Plan()
         for entry in entries.sorted(by: { $0.path < $1.path }) {
             let name = URL(filePath: entry.path).lastPathComponent
             guard !name.hasPrefix("."), let stamp = entry.stamp, kind(of: name) != nil else { continue }
             let isQueued = queued.contains(entry.path)
             let hasFailed = failed.contains(entry)
-            // A file with a job of its own was dropped while Convert was on, so a restart keeps it.
-            if existing?.contains(entry.path) ?? !(isQueued || hasFailed) {
-                plan.existing.insert(entry.path)
+            // A file an unfinished or failed job names arrived while Convert was on: not one already there.
+            if existing.map({ $0[entry.path] != nil || ids.contains(stamp.file) }) ?? !(isQueued || hasFailed) {
+                plan.existing[entry.path] = stamp.file
                 continue
             }
             let since = seen[entry.path].flatMap { $0.stamp == stamp ? $0.since : nil } ?? now

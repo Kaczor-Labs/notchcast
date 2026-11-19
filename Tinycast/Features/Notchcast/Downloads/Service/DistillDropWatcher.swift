@@ -16,7 +16,7 @@ final class DistillDropWatcher {
     private var recheck: Task<Void, Never>?
     private var scan: Task<Void, Never>?
     private var seen: [String: DistillDrop.Sighting] = [:]
-    private var existing: Set<String>?
+    private var existing: [String: UInt64]?
 
     init(
         defaults: UserDefaults, now: @escaping @MainActor () -> Date, distill: DownloadsQueueController,
@@ -52,6 +52,13 @@ final class DistillDropWatcher {
             await previous?.value
             let entries = await Self.entries(in: folder)
             guard !Task.isCancelled, let self, self.folder == folder, let queue = distill.queue else { return done(0) }
+            // An unlisted folder is not an empty one: forgetting it all makes the next look a first look.
+            guard let entries else {
+                seen = [:]
+                existing = nil
+                schedule(nil)
+                return done(0)
+            }
             let plan = DistillDrop.plan(entries, jobs: queue.jobs, seen: seen, existing: existing, now: now(),
                                         retryFailed: retryFailed)
             seen = plan.seen
@@ -112,9 +119,9 @@ final class DistillDropWatcher {
     }
 
     @concurrent
-    private static func entries(in folder: URL) async -> [DistillDrop.Entry] {
+    private static func entries(in folder: URL) async -> [DistillDrop.Entry]? {
         let root = folder.path(percentEncoded: false)
-        let names = (try? FileManager.default.contentsOfDirectory(atPath: root)) ?? []
+        guard let names = try? FileManager.default.contentsOfDirectory(atPath: root) else { return nil }
         return names.map { name in
             let path = URL(filePath: root).appending(path: name).path(percentEncoded: false)
             return DistillDrop.Entry(path: path, stamp: DistillDrop.stamp(at: path))

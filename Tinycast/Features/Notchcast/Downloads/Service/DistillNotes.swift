@@ -76,8 +76,14 @@ extension DistillRunner {
         }
         let stem = file.deletingPathExtension().lastPathComponent
         let note = try notes.write(title: stem, source: file.lastPathComponent, stem: stem, body: body)
-        try await claim(file, stamp: stamp)
-        try notes.trash(file)
+        do {
+            try await claim(file, stamp: stamp)
+            try notes.trash(file)
+        } catch {
+            // An original that stays would get another numbered note on every later run.
+            try? FileManager.default.removeItem(at: note)
+            throw error
+        }
         return note
     }
 

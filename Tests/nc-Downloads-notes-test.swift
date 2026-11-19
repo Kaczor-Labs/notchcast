@@ -64,13 +64,15 @@ struct DownloadsNotesTest {
     private static func drops() {
         let now = Date(timeIntervalSince1970: 1_000_000)
         let old = now.addingTimeInterval(-60)
-        let stamp = DistillDrop.Stamp(file: 7, size: 10, modified: old)
+        func stamp(_ name: String, size: UInt64 = 10) -> DistillDrop.Stamp {
+            .init(file: name.utf8.reduce(0) { $0 &* 31 &+ UInt64($1) }, size: size, modified: old)
+        }
         func entry(_ name: String, missing: Bool = false, as other: DistillDrop.Stamp? = nil) -> DistillDrop.Entry {
-            .init(path: "/notes/" + name, stamp: missing ? nil : other ?? stamp)
+            .init(path: "/notes/" + name, stamp: missing ? nil : other ?? stamp(name))
         }
         func job(_ name: String, _ state: DownloadState) -> DownloadJob {
             DownloadJob(id: name, kind: "distill", source: "/notes/" + name, title: name, state: state, created: old,
-                        encodedOptions: try? DownloadJob.encode(stamp))
+                        encodedOptions: try? DownloadJob.encode(stamp(name)))
         }
         let entries = [
             entry("b.pdf"), entry("a.html"), entry("talk.MP3"), entry("note.md"), entry(".hidden.pdf"),
@@ -83,7 +85,7 @@ struct DownloadsNotesTest {
         let settled = now.addingTimeInterval(settle)
         func plan(
             _ entries: [DistillDrop.Entry], _ jobs: [DownloadJob], seen: [String: DistillDrop.Sighting] = [:],
-            existing: Set<String>? = [], at time: Date, retryFailed: Bool = false
+            existing: [String: UInt64]? = [:], at time: Date, retryFailed: Bool = false
         ) -> DistillDrop.Plan {
             DistillDrop.plan(entries, jobs: jobs, seen: seen, existing: existing, now: time, retryFailed: retryFailed)
         }
@@ -96,24 +98,24 @@ struct DownloadsNotesTest {
         let second = plan(entries, jobs, seen: first.seen, at: settled)
         let sources = second.ready.map(\.path)
         expect(sources == ["/notes/a.html", "/notes/b.pdf", "/notes/done.pdf", "/notes/talk.MP3"]
-               && second.ready.allSatisfy { $0.stamp == stamp },
+               && second.ready.allSatisfy { $0.stamp == stamp(URL(filePath: $0.path).lastPathComponent) },
                "PDF, HTML, audio and video unchanged across two looks convert in name order with their stamp; Markdown, "
                + "hidden, partial, symlinked, dateless, queued and failed files do not: \(sources)")
         expect(second.recheck == nil, "nothing settling, nothing to look at again")
-        let grown = DistillDrop.Stamp(file: 7, size: 11, modified: old)
+        let grown = stamp("b.pdf", size: 11)
         let growing = plan([entry("b.pdf", as: grown)], [], seen: first.seen, at: settled)
         expect(growing.ready.isEmpty && growing.seen["/notes/b.pdf"]?.since == settled,
                "a file whose size changed between looks starts settling again")
         let retry = plan(entries, jobs, seen: first.seen, at: settled, retryFailed: true)
         expect(retry.ready.map(\.path).contains("/notes/failed.pdf") && !retry.ready.map(\.path).contains("/notes/queued.pdf"),
                "Run Distill retries a settled failed file at once, never one already queued")
-        let other = [entry("failed.pdf", as: grown)]
+        let other = [entry("failed.pdf", as: stamp("failed.pdf", size: 11))]
         let renewed = plan(other, jobs, seen: plan(other, jobs, at: now).seen, at: settled)
         expect(renewed.ready == other, "a failed job blocks the file it read, never a newer file under its name")
 
         let opening = plan(entries, jobs, existing: nil, at: now)
         let found: Set = ["/notes/a.html", "/notes/b.pdf", "/notes/done.pdf", "/notes/talk.MP3"]
-        expect(opening.ready.isEmpty && opening.recheck == nil && opening.existing == found
+        expect(opening.ready.isEmpty && opening.recheck == nil && Set(opening.existing.keys) == found
                && Set(opening.seen.keys) == ["/notes/failed.pdf", "/notes/queued.pdf"],
                "the first look at a folder converts nothing: what is already there is only remembered, "
                + "apart from a file a job of ours already names: \(opening)")
@@ -122,15 +124,21 @@ struct DownloadsNotesTest {
         let later = plan(arrived, jobs, seen: noticed.seen, existing: noticed.existing,
                          at: settled.addingTimeInterval(settle), retryFailed: true)
         expect(noticed.ready.isEmpty && later.ready.map(\.path) == ["/notes/failed.pdf", "/notes/new.pdf"]
-               && later.existing == found,
+               && Set(later.existing.keys) == found,
                "files there at the first look stay untouched however long they sit, Run Distill included; "
                + "one that appears later converts: \(later.ready.map(\.path))")
-        let edited = plan([entry("b.pdf", as: grown)], [], existing: found, at: settled)
-        expect(edited.ready.isEmpty && edited.seen.isEmpty && edited.existing == ["/notes/b.pdf"],
+        let edited = plan([entry("b.pdf", as: grown)], [], existing: opening.existing, at: settled)
+        expect(edited.ready.isEmpty && edited.seen.isEmpty && Set(edited.existing.keys) == ["/notes/b.pdf"],
                "a file already there stays left alone when it is edited, and a name that is gone is forgotten")
         let back = plan([entry("a.html")], [], existing: edited.existing, at: settled)
         expect(back.existing.isEmpty && back.recheck == settled.addingTimeInterval(settle),
                "a name that left the folder and came back is a new file")
+        let renamed = plan([entry("paper.pdf", as: stamp("b.pdf"))], [], existing: opening.existing, at: settled)
+        let kept = plan([entry("paper.pdf", as: stamp("b.pdf"))], [], seen: renamed.seen, existing: renamed.existing,
+                        at: settled.addingTimeInterval(settle))
+        expect(renamed.ready.isEmpty && renamed.seen.isEmpty && renamed.recheck == nil && kept.ready.isEmpty
+               && Set(kept.existing.keys) == ["/notes/paper.pdf"],
+               "a file already there stays left alone under a new name: \(renamed)")
         expect(DistillDrop.kind(of: "x.HTM") == .html && DistillDrop.kind(of: "x.md") == nil
                && DistillDrop.kind(of: "x.mov") == .media, "kinds follow the extension, any case")
 
@@ -256,6 +264,22 @@ struct DownloadsNotesTest {
                    && !FileManager.default.fileExists(atPath: folder.appending(path: "legacy.md").path)
                    && !FileManager.default.fileExists(atPath: bin.appending(path: "legacy.html").path),
                    "a file in another encoding stays untouched, out of the Trash, and gets no note")
+
+        let stuck = folder.appending(path: "stuck.html")
+        try Data("<p>Stuck</p>".utf8).write(to: stuck)
+        var trashless = notes
+        trashless.trash = { _ in throw CocoaError(.featureUnsupported) }
+        for _ in 0..<2 {
+            do {
+                _ = try await Self.runner(root, notes: trashless, watched: watched).run(dropped(stuck), context: context)
+                preconditionFailure("a file that cannot be trashed fails")
+            } catch {
+                expect((error as? CocoaError)?.code == .featureUnsupported, "the Trash's own error is the failure: \(error)")
+            }
+        }
+        let left = try FileManager.default.contentsOfDirectory(atPath: folder.path).filter { $0.hasPrefix("stuck") }
+        expect(left == ["stuck.html"],
+                   "a file that cannot be trashed stays and leaves no note behind, however often it is run")
 
         try await stayingPut(folder, notes: notes, watched: watched, context: context, root: root)
 
