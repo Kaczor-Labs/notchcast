@@ -3,11 +3,12 @@
 
 The caller names the mode, or passes --branch to derive it (ci-build.sh does). Core mode (v2/addons-core[-<n>]): the
 upstream paths the branch changes against the base stay within notchcast/addons-budget.env. Feature mode
-(v2/addons-<feature>): the branch owns the folders that declare the types its added registry lines name (or,
-with no added line, the one folder it touches), and every changed path is inside an owned folder, an owned
-Tests/nc-<Folder>-*.swift, a `<Type>.self,` line in the registry, or an appended notchcast/licenses/borrowed.md
-line that starts with an owned folder. Mode none runs only the reference guard,
-which on every branch fails when a line the fork added outside an add-on's folder names that add-on's switch
+(v2/addons-<feature>): the branch owns the folders whose add-on file gains its `// notchcast-addon-order:` line
+(or, with none, the one folder it touches), and every changed path is inside an owned folder, an owned
+Tests/nc-<Folder>-*.swift or an owned notchcast/licenses/borrowed/<Folder>.txt. Every mode runs two guards. The
+shared-list guard fails a hand edit of a list made from the add-ons' own files: the generated registry, an entry
+in notchcast/licenses/borrowed.md, a phrase on a README tab line, a fork harness named in a config.env harness list.
+The reference guard fails when a line the fork added outside an add-on's folder names that add-on's switch
 ids or command slugs, or names one of its top-level non-private types as a code identifier, never in a string or
 comment (registry line and dependency arrays excepted).
 Exit 1 is a contract breach, exit 2 a tooling failure.
@@ -26,7 +27,18 @@ CORE_DIRS = {'Core', 'Hidden'}
 GUARD_EXEMPT = re.compile(r'^Tests/nc-Notchcast-[^/]*\.swift$')
 REGISTRY_LINE = re.compile(r'^\s*(\w+)\.self,\s*$')
 BORROWED = 'notchcast/licenses/borrowed.md'
+BORROWED_DIR = 'notchcast/licenses/borrowed/'
 BORROWED_LINE = re.compile(r'^(\w+): \S+ ← \S+/\S+ \([^)]+\)$')
+# Any entry shape, so a line the strict pattern misses still fails; the header is prose.
+CREDIT_LIKE = re.compile(r'^\s*`?[\w-]+`?:\s')
+ORDER_LINE = re.compile(r'^// notchcast-addon-order:')
+# A branch that changes the generator may rewrite what it generates.
+GENERATOR = 'notchcast/addons.py'
+README_PUBLIC = 'notchcast/README.public.md'
+TABS = ('<!-- addon-tabs:start -->', '<!-- addon-tabs:end -->')
+TAB_LINE = re.compile(r'^  - \*\*(.+?)\*\*:(.*)$')
+CONFIG = 'notchcast/config.env'
+FORK_HARNESS = re.compile(r'(?<![\w./-])((?:nc|notchcast)-[\w+-]*-test)\b')
 SWITCH_ID = re.compile(r'NotchcastSwitch\(\s*id:\s*"([^"]+)"')
 SLUG = re.compile(r'\bslug:\s*"([^"]+)"')
 # Column 0 and no private/fileprivate: only a type another folder could name in code.
@@ -98,55 +110,94 @@ def core_gate(root, base, head, upstream, changed):
     return [f'{line}: over budget; raise notchcast/addons-budget.env with the reason'] if over else [], line
 
 
-def registry_changes(root, base, head):
-    added, problems = [], []
-    for line in git('diff', '-U0', f'{base}...{head}', '--', REGISTRY, root=root).splitlines():
-        if line.startswith(('+++', '---', '@@')) or not line[:1] in '+-':
-            continue
-        match = REGISTRY_LINE.match(line[1:])
-        if not match:
-            problems.append(f'{REGISTRY}: "{line[1:].strip()}" is not a `<Type>.self,` registry line')
-        elif line[0] == '+':
-            added.append(match[1])
-    return added, problems
+def added_lines(root, base, head, path):
+    """(head line number, text) of each line the branch adds to path."""
+    lineno = 0
+    for line in git('diff', '-U0', '--no-color', f'{base}...{head}', '--', path, root=root).splitlines():
+        if line.startswith('@@'):
+            lineno = int(re.search(r'\+(\d+)', line)[1])
+        elif line.startswith('+') and not line.startswith('+++'):
+            yield lineno, line[1:]
+            lineno += 1
 
 
-def borrowed_changes(root, base, head, owned):
+def ordered_folders(root, base, head, changed):
+    """Folders whose add-on file gains its `// notchcast-addon-order:` line: the add-ons the branch adds."""
+    fork = git('merge-base', base, head, root=root).strip()
+    return {folder_of(path) for path in changed if folder_of(path) and path.endswith('.swift')
+            and any(ORDER_LINE.match(text) for _, text in added_lines(root, base, head, path))
+            and not any(ORDER_LINE.match(line) for line in show(root, fork, path).splitlines())}
+
+
+def borrowed_changes(root, base, head, owned, changed):
     problems = []
-    for line in git('diff', '-U0', f'{base}...{head}', '--', BORROWED, root=root).splitlines():
-        if line.startswith(('+++', '---', '@@')) or line[:1] not in ('+', '-'):
+    for path in changed:
+        if not path.startswith(BORROWED_DIR):
             continue
-        match = BORROWED_LINE.match(line[1:])
-        if line[0] == '-':
-            problems.append(f'{BORROWED}: removes "{line[1:].strip()}"; a feature branch only appends its lines')
-        elif not match or match[1] not in owned:
-            problems.append(f'{BORROWED}: "{line[1:].strip()}" is not a '
-                            f'`<owned folder>: <our file> ← <repo>/<file> (<licence>)` line')
+        folder = path[len(BORROWED_DIR):].removesuffix('.txt')
+        if folder not in owned:
+            problems.append(f'{path}: the licence list of {folder}, a folder this branch does not own')
+            continue
+        for _, text in added_lines(root, base, head, path):
+            match = BORROWED_LINE.match(text)
+            if not match or match[1] != folder:
+                problems.append(f'{path}: "{text.strip()}" is not a `{folder}: <our file> ← <repo>/<file> (<licence>)` line')
     return problems
 
 
 def feature_gate(root, base, head, changed):
-    added, problems = registry_changes(root, base, head) if REGISTRY in changed else ([], [])
-    declared = {t: f for f in addon_folders(root) for text in folder_sources(root, f).values()
-                for t in ADDON_DECL.findall(text)}
-    owned = {declared[t] for t in added if t in declared}
-    for t in added:
-        if t not in declared:
-            problems.append(f'{REGISTRY}: {t} is not declared `: NotchcastAddon` in any add-on folder')
+    owned = ordered_folders(root, base, head, changed)
     touched = sorted({f for f in map(folder_of, changed) if f})
-    if not added and len(touched) == 1:
+    if not owned and len(touched) == 1:
         owned = set(touched)
     folders = sorted(owned)
-    if BORROWED in changed:
-        problems += borrowed_changes(root, base, head, owned)
+    problems = borrowed_changes(root, base, head, owned, changed)
     for path in changed:
-        if path in (REGISTRY, BORROWED) or folder_of(path) in owned:
+        if folder_of(path) in owned or path.startswith(BORROWED_DIR):
             continue
         if any(path.startswith(f'Tests/nc-{f}-') and path.endswith('.swift') for f in folders):
             continue
         problems.append(f'{path}: outside the add-on folders {folders or "(none)"}; '
-                        'a feature branch touches only its folders, its tests and one registry line')
+                        'a feature branch touches only its folders, its tests and its licence list')
     return problems, f"feature folders: {', '.join(folders) or '(none)'}"
+
+
+def show(root, ref, path):
+    result = subprocess.run(['git', 'show', f'{ref}:{path}'], cwd=root, capture_output=True, text=True)
+    return result.stdout if result.returncode == 0 else ''
+
+
+def shared_lists(root, base, head, changed):
+    """Fails a hand edit of a list made from the add-ons' own files (notchcast/docs/addons.md §1)."""
+    problems = []
+    fork = git('merge-base', base, head, root=root).strip()
+    if REGISTRY in changed and GENERATOR not in changed:
+        problems.append(f"{REGISTRY}: generated from each add-on's `// notchcast-addon-order:` line "
+                        f'(notchcast/addons.py), never edited; drop the edit: git checkout {base[:12]} -- {REGISTRY}')
+    if BORROWED in changed:
+        for _, text in added_lines(root, base, head, BORROWED):
+            entry = BORROWED_LINE.match(text)
+            if CREDIT_LIKE.match(text) or ('←' in text and '<' not in text):
+                problems.append(f'{BORROWED}: "{text}" belongs in {BORROWED_DIR}{entry[1] if entry else "<Folder>"}.txt')
+    if README_PUBLIC in changed:
+        readme = show(root, head, README_PUBLIC).splitlines()
+        marks = [n for n, line in enumerate(readme, 1) if line.strip() in TABS]
+        # Core text on a tab line (Island) stays core's to edit, and a new tab starts empty; nothing else goes here.
+        cored = {m[1] for line in show(root, fork, README_PUBLIC).splitlines() for m in [TAB_LINE.match(line)]
+                 if m and m[2].strip()}
+        for lineno, text in added_lines(root, base, head, README_PUBLIC):
+            tab = TAB_LINE.match(text)
+            if len(marks) == 2 and marks[0] < lineno < marks[1] and text.strip() \
+                    and not (tab and (tab[1] in cored or not tab[2].strip())):
+                problems.append(f'{README_PUBLIC}:{lineno}: a phrase on a tab line; an add-on states it as '
+                                '`// notchcast-readme: <Tab>: <phrase>` in its own <Folder>Addon.swift')
+    # Only lines the branch adds: a branch cut before the tags still carries main's old lists until it merges.
+    for lineno, text in added_lines(root, base, head, CONFIG):
+        for name in FORK_HARNESS.findall(text):
+            problems.append(f'{CONFIG}:{lineno}: names the fork harness {name}; drop it there and give '
+                            f'Tests/{name}.swift a `// notchcast-hosted-only`, `-linux-ok` or `-ci-skip` line '
+                            '(notchcast/harness-tags.sh)')
+    return problems
 
 
 def fork_added_lines(root, upstream, head):
@@ -277,6 +328,7 @@ def run(root, base, head, upstream, mode):
         problems, summary = feature_gate(root, base, head, changed)
     else:
         problems, summary = [], 'no add-on gate'
+    problems += shared_lists(root, base, head, changed)
     problems += guard(root, upstream, head)
     print(f'add-on gate ({mode}): {summary}')
     return problems

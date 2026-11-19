@@ -1,3 +1,4 @@
+// notchcast-hosted-only
 // notchcast-sources: Tinycast/Features/Island/Service/IslandPaletteSurface.swift Tinycast/Palette/PalettePlacement.swift
 // notchcast-sources: Tinycast/DesignSystem/Theme.swift Tinycast/Platform/Appearance.swift
 import AppKit

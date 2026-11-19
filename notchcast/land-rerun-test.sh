@@ -52,6 +52,7 @@ harnesses() { refuse 'selected harness detects removed API in disjoint file'; }
 load() { :; }
 drop() { refuse "$2"; }
 wait_for_sync() { :; }
+stamp() { :; }
 source "$root/notchcast/hold.sh"
 gh() {
     case "$*" in *headRefOid*) echo "$head"; return ;; esac

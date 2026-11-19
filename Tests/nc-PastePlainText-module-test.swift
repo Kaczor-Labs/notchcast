@@ -1,3 +1,4 @@
+// notchcast-hosted-only
 // notchcast-sources: Tinycast/Features/Notchcast/Core/Model/*.swift Tinycast/Features/Notchcast/Core/Service/*.swift
 // notchcast-sources: Tinycast/Features/Island/Model/IslandPresentation.swift
 // notchcast-sources: Tinycast/Features/Island/Service/IslandPresenting.swift
@@ -28,13 +29,14 @@ final class FakeBoard: PlainPasteBoard {
     var writeFailures = 0
     let ownMarker = "com.tinycast.internal"
 
-    var hasFileURLs: Bool { entry("public.file-url") != nil }
+    var types: [String] { items.flatMap { $0.map(\.type) } }
     var string: String? { entry("public.utf8-plain-text").map { utf8($0) } }
     func rtfText() -> String? {
         rtfReads += 1
         return entry("public.rtf").map { "rtf:" + utf8($0) }
     }
     func rtfdText() -> String? { entry("com.apple.flat-rtfd").map { "rtfd:" + utf8($0) } }
+    func htmlText() -> String? { entry("public.html").map { "html:" + utf8($0) } }
 
     var itemTypes: [[String]] { items.map { $0.map(\.type) } }
 
@@ -94,6 +96,10 @@ final class FakeSystem {
     var timers: [FakeTimer] = []
     var history: [String] = []
     var now = ContinuousClock.now
+    /// Polls that still find the hotkey's keys down.
+    var heldPolls = 0
+    var hasMatchStyle = false
+    var matchStylePresses = 0
 
     var live: [FakeTimer] { timers.filter { !$0.isCancelled } }
 
@@ -122,6 +128,15 @@ extension PastePlainTextSystem {
     static let live = PastePlainTextSystem(
         makeBoard: { fake.board },
         postCommandV: { fake.pastes.append(fake.board.string ?? fake.board.items.first?.first?.type) },
+        modifiersHeld: {
+            guard fake.heldPolls > 0 else { return false }
+            fake.heldPolls -= 1
+            return true
+        },
+        pressMatchStyle: {
+            fake.matchStylePresses += 1
+            return fake.hasMatchStyle
+        },
         now: { fake.now },
         after: { fake.schedule($0, $1) }
     )
@@ -195,6 +210,9 @@ func reset() {
     fake.pastes = []
     fake.timers = []
     fake.history = []
+    fake.heldPolls = 0
+    fake.hasMatchStyle = false
+    fake.matchStylePresses = 0
     trusted = true
 }
 
@@ -208,31 +226,90 @@ enum PastePlainTextModuleTests {
     @MainActor
     static func main() {
         selection()
+        matchStyle()
         engine()
         snapshotRefusal()
         writeFailure()
         wiring()
+        nativeRoute()
+        heldKeys()
         keystrokeGuard()
         secondPress()
         print("nc-PastePlainText-module-test: OK")
     }
 
+    /// Vorssaint's case table: files and lone pictures paste as themselves, never as their names.
     @MainActor
     static func selection() {
-        let none: () -> String? = { nil }
-        precondition(PlainPasteEngine.text(hasFileURLs: false, string: "a", rtf: { "b" }, rtfd: { "c" }) == "a",
-                     "the plain string wins")
-        precondition(PlainPasteEngine.text(hasFileURLs: false, string: nil, rtf: { "b" }, rtfd: { "c" }) == "b",
-                     "RTF when no string")
-        precondition(PlainPasteEngine.text(hasFileURLs: false, string: "", rtf: none, rtfd: { "c" }) == "c",
-                     "RTFD when neither string nor RTF")
-        precondition(PlainPasteEngine.text(hasFileURLs: true, string: "a", rtf: none, rtfd: none) == nil,
-                     "file URLs fall back to a normal paste")
-        precondition(PlainPasteEngine.text(hasFileURLs: false, string: nil, rtf: none, rtfd: none) == nil,
-                     "no text falls back to a normal paste")
-        precondition(PlainPasteEngine.text(
-            hasFileURLs: false, string: "a", rtf: { preconditionFailure("RTF read beside a string") }, rtfd: none) == "a",
-                     "RTF is never converted when a string is there")
+        func text(_ types: [String], string: String? = nil, rtf: String? = nil, html: String? = nil,
+                  reads: inout [String]) -> String? {
+            var log: [String] = []
+            defer { reads = log }
+            return PlainPastePolicy.text(
+                types: types, string: { log.append("string"); return string },
+                rtf: { log.append("rtf"); return rtf }, rtfd: { log.append("rtfd"); return nil },
+                html: { log.append("html"); return html })
+        }
+        var reads: [String] = []
+        let fileTypes = ["public.file-url", "NSFilenamesPboardType", "NSFileContentsPboardType",
+                         "com.apple.NSFilePromiseItemMetaData", "Apple files promise pasteboard type",
+                         "com.apple.pasteboard.promised-file-url"]
+        let mediaTypes = ["public.png", "public.tiff", "public.jpeg", "public.heic", "public.mpeg-4", "public.video",
+                          "com.apple.quicktime-movie", "public.mp3", "com.adobe.pdf"]
+        for type in fileTypes + mediaTypes {
+            for fallback in [nil, "https://example.com/image.png", "IMG_1234.HEIC", "data:image/png;base64,AAAA", "  \n"] {
+                let types = [type] + (fallback == nil ? [] : ["public.utf8-plain-text"])
+                precondition(text(types, string: fallback, reads: &reads) == nil,
+                             "\(type), text=\(fallback ?? "none"): pastes as itself")
+                precondition(reads.allSatisfy { $0 == "string" } && (!fileTypes.contains(type) || reads.isEmpty),
+                             "\(type): media is never converted and files are never read")
+            }
+        }
+        let table = "Item\tQty\nA\t1"
+        for (copied, extras) in [(table, ["com.adobe.pdf", "public.tiff"]), (table, ["public.png"]),
+                                 ("Total", ["com.adobe.pdf"]), ("Total:", ["public.tiff"]), ("1.2.3", ["com.adobe.pdf"]),
+                                 ("example.com", ["com.adobe.pdf"]), ("2.4GHz", ["public.tiff"]),
+                                 ("john@example.com", ["com.adobe.pdf"]),
+                                 ("https://example.com/report", ["com.adobe.pdf", "public.rtf"]),
+                                 ("photo.png", ["public.tiff", "public.rtf"])] {
+            let types = ["public.utf8-plain-text", "public.html"] + extras
+            precondition(text(types, string: copied, html: "<td>x</td>", reads: &reads) == copied && reads == ["string"],
+                         "\(copied) with \(extras): text with a picture of itself still pastes plain")
+        }
+        precondition(text(["public.utf8-plain-text", "public.file-url"], string: table, reads: &reads) == nil,
+                     "a file copy pastes the file even when it carries text")
+        precondition(text([], reads: &reads) == nil, "an empty clipboard forwards a normal paste")
+        precondition(text(["public.utf8-plain-text"], string: "", rtf: "b", reads: &reads) == nil,
+                     "an empty string forwards a normal paste")
+        precondition(text(["public.utf8-plain-text"], string: "a", rtf: "b", reads: &reads) == "a" && reads == ["string"],
+                     "the plain string wins and RTF is never converted beside it")
+        precondition(text(["public.rtf"], rtf: "b", html: "c", reads: &reads) == "b", "RTF when no string")
+        precondition(text(["public.html"], html: "c", reads: &reads) == "c" && reads == ["string", "rtf", "rtfd", "html"],
+                     "HTML last")
+
+        for fallback in ["", " \n", "https://example.com/a.png", "data:image/png;base64,AAAA",
+                         "blob:https://example.com/1", "IMG_1234.HEIC", "photo.jpeg", "clip.mp4", "scan.pdf"] {
+            precondition(PlainPastePolicy.isMediaTextFallback(fallback), "'\(fallback)' is what a lone picture carries")
+        }
+        for copied in ["Total", "Total:", "1.2.3", "3.14", "e.g.", table, "see https://example.com", "two words",
+                       "U.S.", "example.com", "2.4GHz", "12.5kg", "config.yaml", "john@example.com"] {
+            precondition(!PlainPastePolicy.isMediaTextFallback(copied), "'\(copied)' is copied text")
+        }
+    }
+
+    @MainActor
+    static func matchStyle() {
+        func matches(_ key: String?, _ mask: UInt32?, enabled: Bool = true, app: String? = "com.apple.TextEdit") -> Bool {
+            PlainPastePolicy.isMatchStyleEquivalent(
+                bundleIdentifier: app, commandCharacter: key, modifierMask: mask, isEnabled: enabled)
+        }
+        precondition(matches("V", 3) && matches("v", 3) && matches("V", 3, app: nil),
+                     "⌥⇧⌘V, any case, is the app's matching-style paste, also in an app without a bundle ID")
+        precondition(!matches("V", 0) && !matches("V", 1), "plain ⌘V, and ⇧⌘V alone, are other commands in several apps")
+        precondition(!matches("V", 3 | 4) && !matches("V", 3 | 8), "a control variant is not it, nor one without ⌘")
+        precondition(!matches("C", 3) && !matches(nil, 3) && !matches("V", nil), "nor another key or none")
+        precondition(!matches("V", 3, enabled: false), "a disabled item is never pressed")
+        precondition(!matches("V", 3, app: "com.apple.finder"), "Finder's ⌥⇧⌘V is Paste Item Exactly, never pressed")
     }
 
     @MainActor
@@ -243,13 +320,19 @@ enum PastePlainTextModuleTests {
     }
 
     @MainActor
+    static func lend(_ engine: PlainPasteEngine) -> PlainPasteEngine.Outcome {
+        guard let text = engine.text() else { preconditionFailure("the clipboard holds text") }
+        return engine.lend(text)
+    }
+
+    @MainActor
     static func engine() {
         reset()
         let board = fake.board
         let engine = makeEngine()
         let copied = board.copy(styled)
         let original = board.items
-        guard case .plain(let written) = engine.paste() else { preconditionFailure("styled text pastes plain") }
+        guard case .plain(let written) = lend(engine) else { preconditionFailure("styled text pastes plain") }
         precondition(board.items == plainHi, "only the plain text is on the clipboard, marked as our own")
         precondition(fake.history == ["prepare \(copied)", "sync \(written)"],
                      "history reads the user's copy before the write and is baselined on the write")
@@ -260,7 +343,7 @@ enum PastePlainTextModuleTests {
         engine.restorePending()
         precondition(board.ownWrites == 2, "a repeated restore writes nothing twice")
 
-        guard case .plain = engine.paste() else { preconditionFailure("pastes again") }
+        guard case .plain = lend(engine) else { preconditionFailure("pastes again") }
         board.copy([("public.utf8-plain-text", "New")])
         let entries = fake.history.count
         engine.restorePending()
@@ -268,15 +351,13 @@ enum PastePlainTextModuleTests {
         precondition(fake.history.count == entries, "and history is left to record it")
 
         board.copy([("public.rtf", "R")])
-        guard case .plain = engine.paste() else { preconditionFailure("RTF pastes plain") }
+        guard case .plain = lend(engine) else { preconditionFailure("RTF pastes plain") }
         precondition(board.string == "rtf:R", "the RTF's text is written")
         engine.restorePending()
         precondition(board.items == [[.init(type: "public.rtf", data: Data("R".utf8))]], "the original is back")
 
         board.copy([("public.file-url", "file:///a"), ("public.utf8-plain-text", "a")])
-        let writes = board.ownWrites
-        precondition(engine.paste() == .passThrough(changeCount: board.changeCount), "file URLs send a normal ⌘V")
-        precondition(board.ownWrites == writes && !engine.isRestorePending, "and leave the clipboard alone")
+        precondition(engine.text() == nil, "file URLs are left to a normal ⌘V")
     }
 
     @MainActor
@@ -287,11 +368,11 @@ enum PastePlainTextModuleTests {
         board.copy(styled)
         let original = board.items
         board.nilType = "public.html"
-        precondition(engine.paste() == .refused, "a type with no data refuses the paste")
+        precondition(lend(engine) == .refused, "a type with no data refuses the paste")
         precondition(board.items == original && board.ownWrites == 0, "and the board is untouched")
         board.nilType = nil
         board.bumpsDuringRead = true
-        precondition(engine.paste() == .refused, "a copy made during the read refuses the paste")
+        precondition(lend(engine) == .refused, "a copy made during the read refuses the paste")
         precondition(board.ownWrites == 0 && !engine.isRestorePending, "and nothing is written")
     }
 
@@ -302,14 +383,14 @@ enum PastePlainTextModuleTests {
         let engine = makeEngine()
         board.copy(styled)
         let original = board.items
-        guard case .plain = engine.paste() else { preconditionFailure("pastes plain") }
+        guard case .plain = lend(engine) else { preconditionFailure("pastes plain") }
         board.writeFailures = 1
         engine.restorePending()
         precondition(engine.isRestorePending, "a failed restore keeps the original for one retry")
         engine.restorePending()
         precondition(board.items == original && !engine.isRestorePending, "and the retry puts it back")
 
-        guard case .plain = engine.paste() else { preconditionFailure("pastes plain again") }
+        guard case .plain = lend(engine) else { preconditionFailure("pastes plain again") }
         board.writeFailures = 2
         engine.restorePending()
         engine.restorePending()
@@ -317,7 +398,7 @@ enum PastePlainTextModuleTests {
 
         board.copy(styled)
         board.writeFailures = 1
-        precondition(engine.paste() == .refused, "a failed temporary write refuses the paste")
+        precondition(lend(engine) == .refused, "a failed temporary write refuses the paste")
         precondition(board.items == original && !engine.isRestorePending, "and puts the original back")
         precondition(fake.history.last == "sync \(board.changeCount)", "baselining history on it")
     }
@@ -334,8 +415,12 @@ enum PastePlainTextModuleTests {
         let copied = fake.board.copy(styled)
         let original = fake.board.items
         precondition(rig.run(), "on: the command runs")
-        precondition(fake.pastes.isEmpty && fake.board.items == plainHi, "⌘V waits for focus; the plain text is on")
+        precondition(fake.pastes.isEmpty && fake.board.items == original, "nothing is touched before focus is back")
         precondition(fake.live.map(\.delay) == [.milliseconds(80)], "for 80 ms")
+        fake.fire()
+        precondition(fake.matchStylePresses == 1, "the app's own matching-style paste is tried first")
+        precondition(fake.pastes.isEmpty && fake.board.items == plainHi, "without one, the plain text is lent")
+        precondition(fake.live.map(\.delay) == [.milliseconds(60)], "and ⌘V waits a beat after the keys are up")
         fake.fire()
         precondition(fake.pastes == ["Hi"], "plain text pasted")
         precondition(fake.live.map(\.delay) == [.milliseconds(500)], "the restore waits 0.5 s after ⌘V")
@@ -346,6 +431,7 @@ enum PastePlainTextModuleTests {
 
         rig.run()
         fake.fire()
+        fake.fire()
         rig.controller.stop()
         precondition(fake.board.items == original, "stopping the module finishes a pending restore")
         precondition(fake.live.isEmpty, "and calls off its timers")
@@ -353,11 +439,13 @@ enum PastePlainTextModuleTests {
 
         reset()
         rig = Rig(on: true)
-        fake.board.copy([("public.png", "png")])
+        fake.hasMatchStyle = true
+        fake.board.copy([("public.png", "png"), ("public.utf8-plain-text", "https://example.com/a.png")])
         rig.run()
-        fake.fire()
-        precondition(fake.pastes == ["public.png"] && fake.board.ownWrites == 0, "no text sends a normal ⌘V alone")
-        precondition(fake.live.isEmpty, "with nothing to restore")
+        fake.fireAll()
+        precondition(fake.pastes == ["https://example.com/a.png"] && fake.board.ownWrites == 0,
+                     "a lone picture sends a normal ⌘V alone")
+        precondition(fake.matchStylePresses == 0, "never the matching-style paste, which would paste its link")
         rig.finish()
 
         reset()
@@ -365,6 +453,7 @@ enum PastePlainTextModuleTests {
         fake.board.copy(styled)
         fake.board.nilType = "public.rtf"
         rig.run()
+        fake.fire()
         precondition(fake.live.isEmpty && fake.board.ownWrites == 0, "an unreadable clipboard pastes nothing")
         precondition(rig.presenter.posts.last?.isFailure == true, "and a failure notice says so")
         rig.finish()
@@ -376,6 +465,65 @@ enum PastePlainTextModuleTests {
         rig.run()
         precondition(fake.timers.isEmpty && fake.board.ownWrites == 0, "without Accessibility nothing is touched")
         precondition(rig.presenter.posts.last?.isFailure == true, "and a failure notice says why")
+        rig.finish()
+    }
+
+    /// The app's own ⌥⇧⌘V carries the paste, so the clipboard is never written.
+    @MainActor
+    static func nativeRoute() {
+        reset()
+        let rig = Rig(on: true)
+        fake.hasMatchStyle = true
+        fake.heldPolls = 50
+        fake.board.copy(styled)
+        let original = fake.board.items
+        rig.run()
+        fake.fire()
+        precondition(fake.matchStylePresses == 1 && fake.pastes.isEmpty, "the menu item is pressed, no ⌘V sent")
+        precondition(fake.board.items == original && fake.board.ownWrites == 0 && fake.live.isEmpty,
+                     "the clipboard is never touched and held keys do not matter")
+        precondition(fake.history.isEmpty, "and history sees nothing")
+        rig.finish()
+    }
+
+    /// ⌘V waits until the hotkey's keys are up, so it never lands as another chord.
+    @MainActor
+    static func heldKeys() {
+        reset()
+        var rig = Rig(on: true)
+        fake.board.copy(styled)
+        let original = fake.board.items
+        fake.heldPolls = 3
+        rig.run()
+        fake.fire()
+        for _ in 0..<3 {
+            precondition(fake.live.map(\.delay) == [.milliseconds(15)] && fake.pastes.isEmpty,
+                         "no ⌘V while the keys are held, polled every 15 ms")
+            fake.fire()
+        }
+        precondition(fake.live.map(\.delay) == [.milliseconds(60)] && fake.pastes.isEmpty, "then a beat")
+        fake.fireAll()
+        precondition(fake.pastes == ["Hi"] && fake.board.items == original, "then one paste, original back")
+
+        fake.pastes = []
+        fake.heldPolls = 80
+        rig.run()
+        fake.fireAll()
+        precondition(fake.pastes == ["Hi"], "a slow release past a second still pastes once")
+        rig.finish()
+
+        reset()
+        rig = Rig(on: true)
+        fake.board.copy([("public.file-url", "file:///a")])
+        fake.heldPolls = 2
+        rig.run()
+        fake.fire()
+        fake.fire()
+        fake.fire()
+        precondition(fake.pastes.isEmpty && fake.live.map(\.delay) == [.milliseconds(60)],
+                     "a normal paste waits for the keys too")
+        fake.fire()
+        precondition(fake.pastes == ["public.file-url"] && fake.board.ownWrites == 0, "and touches nothing")
         rig.finish()
     }
 
@@ -396,10 +544,24 @@ enum PastePlainTextModuleTests {
         rig.run()
         fake.now += .seconds(30)
         fake.fire()
-        precondition(fake.pastes.isEmpty, "a delay a sleep stretched sends no ⌘V into whatever is in front")
+        precondition(fake.pastes.isEmpty && fake.live.isEmpty, "a focus delay a sleep stretched sends no ⌘V")
+
+        rig.run()
+        fake.fire()
+        fake.now += .seconds(30)
+        fake.fire()
+        precondition(fake.pastes.isEmpty, "nor does a wait for the keys a sleep stretched")
         precondition(fake.board.items == original, "and the original comes straight back")
 
         rig.run()
+        fake.fire()
+        fake.board.copy([("public.utf8-plain-text", "Mid")])
+        fake.fire()
+        precondition(fake.pastes.isEmpty && fake.board.string == "Mid", "a copy made during the wait is never pasted")
+
+        fake.board.copy(styled)
+        rig.run()
+        fake.fire()
         rig.controller.stop()
         precondition(fake.board.items == original && fake.live.isEmpty, "stop calls off a ⌘V not yet sent")
         fake.board.copy([("public.utf8-plain-text", "Newer")])
@@ -417,12 +579,13 @@ enum PastePlainTextModuleTests {
         let original = fake.board.items
         rig.run()
         fake.fire()
+        fake.fire()
         fake.now += .milliseconds(100)
         rig.run()
         precondition(fake.board.items == plainHi && fake.pastes == ["Hi"], "the first ⌘V's plain text stays put")
         precondition(fake.live.map(\.delay) == [.milliseconds(400)], "until the rest of its settle")
         fake.fire()
-        precondition(fake.board.items == plainHi && fake.live.map(\.delay) == [.milliseconds(80)],
+        precondition(fake.board.items == original && fake.live.map(\.delay) == [.milliseconds(80)],
                      "then the original is restored and pasted plain again")
         fake.fireAll()
         precondition(fake.pastes == ["Hi", "Hi"] && fake.board.items == original, "two pastes, original back")
