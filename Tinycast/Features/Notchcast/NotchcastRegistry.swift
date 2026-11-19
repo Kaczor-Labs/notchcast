@@ -16,6 +16,5 @@ enum NotchcastRegistry {
         NoiseControlAddon.self,
         ColorPickerAddon.self,
         CopyPathAddon.self,
-        SystemToolsAddon.self,
     ]
 }
