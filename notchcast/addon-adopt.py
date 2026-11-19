@@ -4,8 +4,8 @@
 Run in the PR's own checkout, on its branch, with a clean tree:
   git fetch origin && git show origin/main:notchcast/addon-adopt.py | python3 -
 It rewrites what the branch added to a shared list since it left main into the add-on's own files, puts each
-shared list back as the branch found it, and commits; nothing is pushed or merged. Then: push, and at landing
-merge main as usual: these files no longer conflict.
+shared list back as the branch found it, commits, then merges origin/main, whose generator builds the registry
+back with the add-on in it; nothing is pushed. Then check it and push. A merge conflict left is never a list.
   NotchcastRegistry.swift line   -> `// notchcast-addon-order: <n>` atop the add-on's file (main's order if main has
                                     it, else one between its neighbours in the branch's registry)
   licenses/borrowed.md lines     -> notchcast/licenses/borrowed/<Folder>.txt
@@ -214,7 +214,14 @@ def main():
     git('add', '-A')
     git('commit', '-q', '-m', 'Notchcast: declare the add-on in its own files (#1109)\n\n'
         'Moved by notchcast/addon-adopt.py off the shared lists.')
-    print(f'committed {git("rev-parse", "--short", "HEAD").strip()}; check it, then push')
+    print(f'committed {git("rev-parse", "--short", "HEAD").strip()}')
+    # Until main's generator is on the branch, the reset registry would leave the add-on out of the build.
+    if subprocess.run(['git', 'merge', '--no-edit', '-q', 'origin/main']).returncode:
+        conflicts = git('diff', '--name-only', '--diff-filter=U').split()
+        print(f'merging origin/main left conflicts to resolve: {" ".join(conflicts)}; '
+              'resolve them, commit, then push')
+        return 1
+    print('merged origin/main; check it, then push')
     return 0
 
 

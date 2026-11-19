@@ -7,7 +7,7 @@ Each `<Folder>Addon.swift` declares itself at column 0:
                                              joined by ', ', or by a space after one ending in ',' or ';'
 
 Usage:
-  addons.py registry [--root R]   write NotchcastRegistry.swift (project.yml's preGenCommand runs it on every xcodegen)
+  addons.py registry [--root R]   write NotchcastRegistry.swift and check the README lines (project.yml's preGenCommand)
   addons.py generate [--root R]   write the registry and README.md (ci.py regenerate, on main only)
   addons.py next [--root R]       print the order a new add-on takes: the highest one plus 10
 Exit 1 when an add-on's declaration is missing or malformed.
@@ -116,9 +116,11 @@ def main():
         if args.command == 'next':
             print(max((d[0] for d in decls), default=0) + 10)
             return 0
+        template = root / 'notchcast/README.public.md'
+        readme = readme_text(template.read_text(), decls) if template.exists() else None
         write_registry(root, decls)
-        if args.command == 'generate':
-            (root / 'README.md').write_text(readme_text((root / 'notchcast/README.public.md').read_text(), decls))
+        if args.command == 'generate' and readme is not None:
+            (root / 'README.md').write_text(readme)
     except Declaration as error:
         print(f'add-on declarations: {error}', file=sys.stderr)
         return 1

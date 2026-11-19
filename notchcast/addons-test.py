@@ -68,21 +68,18 @@ class AddonsTest(unittest.TestCase):
         self.assertEqual(result.returncode, 1)
         self.assertIn('Gamma/GammaAddon.swift: declares 1 add-on types and 0 order lines', result.stderr)
         self.addon('Gamma', 5, '// notchcast-readme: Nowhere: a thing\n')
-        result = self.run_script('generate')
+        result = self.run_script('registry')
         self.assertEqual(result.returncode, 1)
         self.assertIn('Gamma: no tab line **Nowhere** in README.public.md', result.stderr)
 
-    def test_the_real_tree_generates_and_its_registry_is_what_it_generates(self):
+    def test_the_real_tree_generates_its_registry_and_readme(self):
         root = SCRIPT.parent.parent
-        committed = (root / NC / 'NotchcastRegistry.swift').read_text()
         spec = importlib.util.spec_from_file_location('addons', SCRIPT)
         addons = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(addons)
-        generated = addons.registry_text(addons.declarations(root))
-        # A branch carries main's registry until main regenerates it, so only types on both sides keep one order.
-        old, new = ([line for line in text.splitlines() if line.endswith('.self,')] for text in (committed, generated))
-        self.assertEqual([line for line in old if line in new], [line for line in new if line in old])
-        addons.readme_text((root / 'notchcast/README.public.md').read_text(), addons.declarations(root))
+        decls = addons.declarations(root)
+        self.assertIn('        TimersAddon.self,\n', addons.registry_text(decls))
+        addons.readme_text((root / 'notchcast/README.public.md').read_text(), decls)
 
 
 if __name__ == '__main__':

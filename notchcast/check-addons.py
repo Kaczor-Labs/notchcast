@@ -30,7 +30,7 @@ BORROWED = 'notchcast/licenses/borrowed.md'
 BORROWED_DIR = 'notchcast/licenses/borrowed/'
 BORROWED_LINE = re.compile(r'^(\w+): \S+ ← \S+/\S+ \([^)]+\)$')
 # Any entry shape, so a line the strict pattern misses still fails; the header is prose.
-CREDIT_LIKE = re.compile(r'^\s*[\w-]+:\s')
+CREDIT_LIKE = re.compile(r'^\s*`?[\w-]+`?:\s')
 ORDER_LINE = re.compile(r'^// notchcast-addon-order:')
 # A branch that changes the generator may rewrite what it generates.
 GENERATOR = 'notchcast/addons.py'
@@ -38,8 +38,7 @@ README_PUBLIC = 'notchcast/README.public.md'
 TABS = ('<!-- addon-tabs:start -->', '<!-- addon-tabs:end -->')
 TAB_LINE = re.compile(r'^  - \*\*(.+?)\*\*:(.*)$')
 CONFIG = 'notchcast/config.env'
-HARNESS_TAGS = {'HOSTED_ONLY_TESTS': 'hosted-only', 'LINUX_OK_TESTS': 'linux-ok', 'CI_SKIP_TESTS': 'ci-skip'}
-FORK_HARNESS = re.compile(r'^(?:nc|notchcast)-')
+FORK_HARNESS = re.compile(r'(?<![\w./-])((?:nc|notchcast)-[\w+-]*-test)\b')
 SWITCH_ID = re.compile(r'NotchcastSwitch\(\s*id:\s*"([^"]+)"')
 SLUG = re.compile(r'\bslug:\s*"([^"]+)"')
 # Column 0 and no private/fileprivate: only a type another folder could name in code.
@@ -178,28 +177,26 @@ def shared_lists(root, base, head, changed):
     if BORROWED in changed:
         for _, text in added_lines(root, base, head, BORROWED):
             entry = BORROWED_LINE.match(text)
-            if CREDIT_LIKE.match(text) or (' ← ' in text and '`' not in text):
+            if CREDIT_LIKE.match(text) or ('←' in text and '<' not in text):
                 problems.append(f'{BORROWED}: "{text}" belongs in {BORROWED_DIR}{entry[1] if entry else "<Folder>"}.txt')
     if README_PUBLIC in changed:
         readme = show(root, head, README_PUBLIC).splitlines()
         marks = [n for n, line in enumerate(readme, 1) if line.strip() in TABS]
-        # Core text on a tab line (Island) stays core's to edit; a tab left empty in the base is the add-ons'.
-        empty = {m[1] for line in show(root, fork, README_PUBLIC).splitlines() for m in [TAB_LINE.match(line)]
-                 if m and not m[2].strip()}
+        # Core text on a tab line (Island) stays core's to edit, and a new tab starts empty; nothing else goes here.
+        cored = {m[1] for line in show(root, fork, README_PUBLIC).splitlines() for m in [TAB_LINE.match(line)]
+                 if m and m[2].strip()}
         for lineno, text in added_lines(root, base, head, README_PUBLIC):
             tab = TAB_LINE.match(text)
-            if len(marks) == 2 and marks[0] < lineno < marks[1] and tab and tab[1] in empty and tab[2].strip():
+            if len(marks) == 2 and marks[0] < lineno < marks[1] and text.strip() \
+                    and not (tab and (tab[1] in cored or not tab[2].strip())):
                 problems.append(f'{README_PUBLIC}:{lineno}: a phrase on a tab line; an add-on states it as '
                                 '`// notchcast-readme: <Tab>: <phrase>` in its own <Folder>Addon.swift')
-    # Only names the branch adds: a branch cut before the tags still carries main's old lists until it merges.
-    config, before = show(root, head, CONFIG), show(root, fork, CONFIG)
-    for key, tag in HARNESS_TAGS.items():
-        listed, was = ({name for value in re.findall(rf'^\s*(?:export\s+)?{key}=(.*)$', text, re.M)
-                        for name in value.replace('"', ' ').replace("'", ' ').split()} for text in (config, before))
-        for name in sorted(listed - was):
-            if FORK_HARNESS.match(name):
-                problems.append(f'{CONFIG}: {key} names the fork harness {name}; drop it there and give '
-                                f'Tests/{name}.swift a `// notchcast-{tag}` line (notchcast/harness-tags.sh)')
+    # Only lines the branch adds: a branch cut before the tags still carries main's old lists until it merges.
+    for lineno, text in added_lines(root, base, head, CONFIG):
+        for name in FORK_HARNESS.findall(text):
+            problems.append(f'{CONFIG}:{lineno}: names the fork harness {name}; drop it there and give '
+                            f'Tests/{name}.swift a `// notchcast-hosted-only`, `-linux-ok` or `-ci-skip` line '
+                            '(notchcast/harness-tags.sh)')
     return problems
 
 

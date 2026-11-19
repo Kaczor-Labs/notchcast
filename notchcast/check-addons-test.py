@@ -110,8 +110,8 @@ class CheckAddonsTest(unittest.TestCase):
             ('notchcast/README.public.md', readme.replace('  - **Capture**:', '  - **Capture**: screenshots'),
              'notchcast/README.public.md:4: a phrase on a tab line'),
             ('notchcast/config.env', 'CI_SKIP_TESTS="ClipboardTextTests"\nHOSTED_ONLY_TESTS="PasteboardTests nc-Shots-test"\n',
-             'HOSTED_ONLY_TESTS names the fork harness nc-Shots-test; drop it there and give Tests/nc-Shots-test.swift '
-             'a `// notchcast-hosted-only` line'),
+             'config.env:2: names the fork harness nc-Shots-test; drop it there and give Tests/nc-Shots-test.swift '
+             'a `// notchcast-hosted-only`, `-linux-ok` or `-ci-skip` line'),
         )
         for path, text, needle in cases:
             for mode in ('none', 'feature'):
@@ -168,13 +168,21 @@ class CheckAddonsTest(unittest.TestCase):
         self.assertEqual(code, 0, out)
 
     def test_prose_in_the_licence_header_stays_editable(self):
-        write(self.root, 'notchcast/licenses/borrowed.md', '# Borrowed\n\nLists live in borrowed/, one `A: b ← c/d (MIT)` each.\n')
+        write(self.root, 'notchcast/licenses/borrowed.md', '# Borrowed\n\nLists live in borrowed/, one `<Folder>: <file> ← <repo>/<file> (<licence>)` each.\n')
         self.commit('core rewords the header')
         code, out = self.check('none')
         self.assertEqual(code, 0, out)
 
     def test_a_second_list_line_or_an_odd_licence_line_still_fails(self):
         cases = (
+            ('notchcast/config.env', 'CI_SKIP_TESTS="ClipboardTextTests"\nHOSTED_ONLY_TESTS="PasteboardTests"\n'
+             'EXTRA="nc-Shots-test"\nHOSTED_ONLY_TESTS+=" $EXTRA"\n', 'names the fork harness nc-Shots-test'),
+            ('notchcast/licenses/borrowed.md', '# Borrowed\n\nLists live in borrowed/.\n`Shots`: `A.swift` ← `x/y/A.swift` (MIT)\n',
+             'belongs in notchcast/licenses/borrowed/<Folder>.txt'),
+            ('notchcast/README.public.md', '- **Settings**\n  <!-- addon-tabs:start -->\n  - **Island**: look.\n  - **Capture**:\n'
+             '  - **Brand New**: shots.\n  <!-- addon-tabs:end -->\n', 'README.public.md:5: a phrase on a tab line'),
+            ('notchcast/README.public.md', '- **Settings**\n  <!-- addon-tabs:start -->\n  - **Island**: look.\n  - **Capture**:\n'
+             '  * **Capture**: shots.\n  <!-- addon-tabs:end -->\n', 'README.public.md:5: a phrase on a tab line'),
             ('notchcast/config.env', 'CI_SKIP_TESTS="ClipboardTextTests"\nHOSTED_ONLY_TESTS="PasteboardTests"\n'
              'HOSTED_ONLY_TESTS="$HOSTED_ONLY_TESTS nc-Shots-test"\n', 'names the fork harness nc-Shots-test'),
             ('notchcast/licenses/borrowed.md', '# Borrowed\n\nLists live in borrowed/.\nShots: A.swift, B.swift ← x/y (MIT)\n',

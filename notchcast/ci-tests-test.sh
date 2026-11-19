@@ -29,7 +29,7 @@ risky='NSWindow\(|NSPanel\(|PalettePanel\(|orderFront|becomeKey|makeKey|NSApplic
 unlisted=$(cd "$root/Tests" && grep -lE "$risky" *.swift | sed 's/\.swift$//' \
     | grep -vxF -e NotchcastTapFixtures -e 'ExtensionTests+MenuBar' \
     | grep -vxF -f <(tr ' ' '\n' <<< "$HOSTED_ONLY_TESTS $HIDDEN_TESTS") || true)
-[ -z "$unlisted" ] || { echo "FAIL: not in HOSTED_ONLY_TESTS (notchcast/config.env): $unlisted"; exit 1; }
+[ -z "$unlisted" ] || { echo "FAIL: not hosted-only (a // notchcast-hosted-only line, or HOSTED_ONLY_TESTS in notchcast/config.env): $unlisted"; exit 1; }
 echo 'PASS: every harness that names a window, focus, launch, pasteboard, sound, event or preference API is hosted-only'
 # A harness failing alone too and absent on upstream is written down for the selection check.
 cat > Scripts/run-tests.sh <<'STUB'
