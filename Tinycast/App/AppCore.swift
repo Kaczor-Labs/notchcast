@@ -1053,4 +1053,3 @@ final class AppCore {
         await dialogs.editClipboardText(text)
     }
 }
-
