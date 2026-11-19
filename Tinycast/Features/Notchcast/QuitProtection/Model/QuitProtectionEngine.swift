@@ -1,14 +1,11 @@
 import Foundation
 
 struct QuitProtectionEngine: Sendable {
-    enum Shortcut: String, Sendable { case quit, close }
     enum Mode: String, CaseIterable, Sendable { case doublePress, hold }
 
     struct Configuration: Sendable, Equatable {
         var quitEnabled = true
-        var closeEnabled = false
         var mode: Mode = .hold
-        var exceptions: Set<String> = []
     }
 
     struct Target: Sendable, Equatable {
@@ -20,20 +17,7 @@ struct QuitProtectionEngine: Sendable {
         let code: UInt16
         let commandCharacter: String?
 
-        var shortcut: Shortcut? {
-            if let commandCharacter {
-                return switch commandCharacter.lowercased() {
-                case "q": .quit
-                case "w": .close
-                default: nil
-                }
-            }
-            return switch code {
-            case 12: .quit
-            case 13: .close
-            default: nil
-            }
-        }
+        var isQuit: Bool { commandCharacter.map { $0.lowercased() == "q" } ?? (code == 12) }
     }
 
     struct Modifiers: OptionSet, Sendable {
@@ -56,7 +40,6 @@ struct QuitProtectionEngine: Sendable {
         case pass
         case swallow
         case quit(Target)
-        case close(Target)
     }
 
     static let doublePressInterval: TimeInterval = 0.6
@@ -66,7 +49,6 @@ struct QuitProtectionEngine: Sendable {
 
     private struct Pending: Sendable {
         let key: Key
-        let shortcut: Shortcut
         let target: Target
         let started: TimeInterval
         let mode: Mode
@@ -79,7 +61,7 @@ struct QuitProtectionEngine: Sendable {
     private var pending: Pending?
     private var swallowedKeys: Set<UInt16> = []
     private var lastTimestamp: TimeInterval?
-    /// ⌘ held since ⌘Tab: Q and W then belong to the app switcher, never to the front app.
+    /// ⌘ held since ⌘Tab: Q then belongs to the app switcher, never to the front app.
     private var switching = false
 
     var deadline: TimeInterval? {
@@ -139,23 +121,23 @@ struct QuitProtectionEngine: Sendable {
                 if modifiers.contains(.command) { return .pass }
                 switching = false
             }
-            if key.shortcut == nil { swallowedKeys = [] }
+            if !key.isQuit { swallowedKeys = [] }
             if swallowedKeys.contains(key.code) { return .swallow }
             if key.code == Self.escapeKeyCode, pending != nil {
                 pending = nil
                 swallowedKeys.insert(key.code)
                 return .swallow
             }
-            guard let shortcut = key.shortcut, modifiers == .command, let target,
-                  isEnabled(shortcut, target: target) else { pending = nil; return .pass }
+            guard key.isQuit, modifiers == .command, let target, configuration.quitEnabled
+            else { pending = nil; return .pass }
             guard !isRepeat else { return .swallow }
             swallowedKeys.insert(key.code)
             if let pending, pending.mode == .doublePress, pending.key.code == key.code,
                pending.released, timestamp <= pending.started + Self.doublePressInterval {
                 self.pending = nil
-                return shortcut == .quit ? .quit(target) : .close(target)
+                return .quit(target)
             }
-            pending = Pending(key: key, shortcut: shortcut, target: target, started: timestamp, mode: configuration.mode)
+            pending = Pending(key: key, target: target, started: timestamp, mode: configuration.mode)
             return .swallow
         }
     }
@@ -168,11 +150,6 @@ struct QuitProtectionEngine: Sendable {
         }
         guard timestamp >= deadline else { return .pass }
         self.pending = nil
-        return pending.shortcut == .quit ? .quit(pending.target) : .close(pending.target)
-    }
-
-    private func isEnabled(_ shortcut: Shortcut, target: Target) -> Bool {
-        guard !configuration.exceptions.contains(target.bundleIdentifier) else { return false }
-        return shortcut == .quit ? configuration.quitEnabled : configuration.closeEnabled
+        return .quit(pending.target)
     }
 }
