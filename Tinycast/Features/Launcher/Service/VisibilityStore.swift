@@ -76,6 +76,7 @@ final class VisibilityStore {
 
     func isKindEnabled(_ kind: AppEntry.Kind) -> Bool {
         !disabledKinds.contains(kind.rawValue)
+            && !NotchcastHiddenCommands.kinds.contains(kind)
     }
 
     func setKindEnabled(_ enabled: Bool, for kind: AppEntry.Kind) {
