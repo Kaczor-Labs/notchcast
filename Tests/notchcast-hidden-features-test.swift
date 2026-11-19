@@ -22,20 +22,32 @@ struct HiddenFeaturesTest {
             precondition(SettingsSearchCatalog.entries.contains { $0.tab == tab })
         }
 
-        let hiddenRows = [
-            "Appearance", "Follow the cursor across displays", "Drag to move the launcher", "Language",
-            "Show in menu bar", "Show in Menu Bar", "Calendar in Menu Bar", "Show Upcoming Events",
-            "Only show events with meetings", "Hide when there are no upcoming events", "Hide Current Event",
+        let hiddenRows: [(SettingsTab, [String])] = [
+            (.general, [
+                "Appearance", "Follow the cursor across displays", "Drag to move the launcher", "Language",
+                "Show in menu bar",
+            ]),
+            (.notes, ["Show in Menu Bar"]),
+            (.calendar, [
+                "Calendar in Menu Bar", "Show Upcoming Events", "Only show events with meetings",
+                "Hide when there are no upcoming events", "Hide Current Event",
+            ]),
         ]
-        for title in hiddenRows {
-            precondition(
-                !SettingsSearchCatalog.entries.contains { $0.tab == .general && $0.keywords.contains(title) },
-                "Search omits the hidden row: \(title)")
+        for (tab, titles) in hiddenRows {
+            for title in titles {
+                precondition(
+                    !SettingsSearchCatalog.entries.contains { $0.tab == tab && $0.keywords.contains(title) },
+                    "Search omits the hidden \(tab.slug) row: \(title)")
+            }
         }
+        precondition(
+            NotchcastHidden.hides(tab: .notes, keywords: ["Show in Menu Bar"])
+                && !NotchcastHidden.hides(tab: .general, keywords: ["Show in Menu Bar"]),
+            "A row is hidden only in the tab that lists it")
         precondition(
             SettingsSearchCatalog.entries.contains { $0.tab == .dictation && $0.keywords.contains("Language") },
             "Dictation's own Language row is a separate setting and stays searchable")
-        for title in ["Show animations", "Interface size", "Window mode", "Days to Show"] {
+        for title in ["Show animations", "Interface size", "Window mode", "Days to Show", "Render Markdown"] {
             precondition(
                 SettingsSearchCatalog.entries.contains { $0.keywords.contains(title) },
                 "Search keeps the stock row: \(title)")
