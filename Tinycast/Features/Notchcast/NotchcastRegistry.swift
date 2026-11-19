@@ -18,6 +18,7 @@ enum NotchcastRegistry {
         PastePlainTextAddon.self,
         ColorPickerAddon.self,
         CopyPathAddon.self,
+        SpotifyAddon.self,
         FinderToolsAddon.self,
         PasteImageAddon.self,
         ArchivesAddon.self,
