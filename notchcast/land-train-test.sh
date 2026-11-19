@@ -42,14 +42,17 @@ case "$*" in
         elif grep -qxF "${sha%%/*}" "$FIXTURE/green" 2>/dev/null; then echo success; else echo "${HEAD_CHECKS:-success}"; fi ;;
     'workflow run '*)
         [[ -z "${DISPATCH_FAILS:-}" || "$*" != *"--ref $DISPATCH_FAILS "* ]] || { echo 'HTTP 422' >&2; exit 1; }
+        python3 -c 'import os; print(os.getsid(0))' > "$FIXTURE/sid"
         echo "$*" >> "$FIXTURE/dispatched" ;;
-    'run list '*databaseId,status*) ;;
+    # KILL_TRAIN: the train is stopped while it waits, and again while it scraps.
+    'run list '*databaseId,status*) [ -z "${KILL_TRAIN:-}" ] || kill -TERM "$(cat "$FIXTURE/train-pid")" ;;
     'run list '*headSha,url*)
         branch=$*
         branch=${branch#*-b }
         echo "https://fixture.invalid/red/${branch%% *}" ;;
     # A dispatched train run is red when its branch train/<a>-<b> names a PR in RED_PRS.
     'run list '*workflow_dispatch*)
+        if [ -n "${KILL_TRAIN:-}" ]; then kill -TERM "$(cat "$FIXTURE/train-pid")"; echo pending; exit 0; fi
         branch=$*
         branch=${branch#*-b train/}
         verdict=success
@@ -504,6 +507,13 @@ echo 'PASS: a train stays hosted while no runner with the named label is online'
 origin push --quiet . --delete train/1 2>/dev/null || origin update-ref -d refs/heads/train/1
 rm "$FIXTURE/dispatched"
 MAC_RUNNER=fixture-mac train 1
+[ "$status" -eq 0 ] && grep -q '^workflow run pr.yml .*hosted=true' "$FIXTURE/dispatched" \
+    && grep -q '^train: it selects hosted-only harnesses (hosted-test), which land.sh trusts only from a hosted run' "$FIXTURE/train-output" \
+    && grep -q '^train: train/1 has its Mac job on the hosted runner$' "$FIXTURE/train-output" || { cat "$FIXTURE/train-output"; fail 'a train that selects a hosted-only harness went to the named runner'; }
+echo 'PASS: a train that selects a hosted-only harness runs hosted even while a named runner is online'
+fixture
+open_pr 1 pr-b 'Add B' src/b.txt
+MAC_RUNNER=fixture-mac train 1
 [ "$status" -eq 0 ] && [ -n "$train_sha" ] && grep -q '^workflow run pr.yml ' "$FIXTURE/dispatched" && ! grep -q 'hosted=true' "$FIXTURE/dispatched" \
     && grep -q '^train: train/1 has its Mac job on the isolated runner$' "$FIXTURE/train-output" || fail "with a runner named the train dispatched '$(paste -sd'|' "$FIXTURE/dispatched")'"
 echo "$train_sha" > "$FIXTURE/green"
@@ -511,7 +521,7 @@ ISOLATED='other toolchain|' land --train-run "$train_sha" 1
 [ "$status" -eq 1 ] && grep -q "^REFUSED: the isolated run .* tested this tree with 'other toolchain'" "$FIXTURE/output" && untouched \
     || fail 'a train whose isolated run has another toolchain landed'
 ISOLATED='fixture toolchain|' land --train-run "$train_sha" 1
-[ "$status" -eq 0 ] && [ ! -s "$PASSES" ] && [ "$(landed)" = 'Notchcast: Add H (#1)' ] || fail "a train proven by the isolated runner landed '$(landed)'"
+[ "$status" -eq 0 ] && [ ! -s "$PASSES" ] && [ "$(landed)" = 'Notchcast: Add B (#1)' ] || fail "a train proven by the isolated runner landed '$(landed)'"
 echo 'PASS: a train goes to the named Mac runner unless told hosted, and lands on its isolated run only with the expected toolchain'
 
 fixture
@@ -895,6 +905,52 @@ land 1 2 3
     || fail 'two PRs that change the same word did not conflict'
 [ "$(origin show main:notchcast/docs/addons.md)" = '| Launcher | F1 One, F1 timers | F9 Nine2 |' ] || fail "the row landed as '$(origin show main:notchcast/docs/addons.md)'"
 echo 'PASS: a PR that changes a word an earlier PR of the train changed still conflicts and is dropped'
+
+# A PR that changes ci.py tested-key makes a run land.sh never finds: refused before anything is pushed.
+fixture
+open_pr 1 pr-b 'Add B' src/b.txt
+open_pr 2 pr-key 'Key' src/k.txt
+git switch --quiet pr-key
+sed 's/"README.md", cwd=cwd/"README.md", "src\/shared.txt", cwd=cwd/' notchcast/ci.py > "$FIXTURE/edit" && cat "$FIXTURE/edit" > notchcast/ci.py
+git diff --quiet && fail 'the fixture did not change tested-key'
+git commit --quiet -am 'Change tested-key'
+repush 2 pr-key
+train 1 2
+[ "$status" -eq 1 ] && grep -q "^REFUSED: the train's run would record tree .* so it could never land: #2 changes ci.py tested-key; land that one first, alone" "$FIXTURE/train-output" \
+    && [ ! -e "$FIXTURE/dispatched" ] && [ -z "$(origin for-each-ref refs/heads/train/)" ] || { cat "$FIXTURE/train-output"; fail 'a train whose tested key main cannot compute was pushed'; }
+echo 'PASS: a train with a PR that changes tested-key is refused before the push, naming the PR'
+
+# One pass names every reason a PR is dropped for: an unlabelled draft that also lacks its Drift tooling line.
+fixture
+open_pr 1 pr-b 'Add B' src/b.txt
+open_pr 2 pr-tool 'Tool' notchcast/hold.sh
+draft 2
+train 1 2
+grep -q "^DROPPED #2: dropped from the landing batch: drift tooling or land.sh changed: the PR body needs a line Drift tooling: <reason>; draft #2 has no land label" "$FIXTURE/train-output" \
+    && [ -n "$train_sha" ] || { cat "$FIXTURE/train-output"; fail 'a dropped PR did not get every reason in one pass'; }
+echo 'PASS: a dropped PR is told every reason in one pass, and the rest runs'
+
+# A train stopped while it waits, and stopped again while it scraps, still deletes its branch and says how it ended.
+fixture
+open_pr 1 pr-b 'Add B' src/b.txt
+status=0
+KILL_TRAIN=1 NOTCHCAST_TRAIN_POLL=0 sh -c 'echo $$ > "$FIXTURE/train-pid"; exec bash notchcast/train.sh 1' > "$FIXTURE/train-output" 2>&1 || status=$?
+[ "$status" -eq 143 ] && grep -q '^train: scrapping train/1, which has no verdict' "$FIXTURE/train-output" && grep -q '^train: exit 143$' "$FIXTURE/train-output" \
+    && [ -z "$(origin for-each-ref refs/heads/train/)" ] || { cat "$FIXTURE/train-output"; fail "a train stopped twice left $(origin for-each-ref refs/heads/train/) (exit $status)"; }
+echo 'PASS: a train stopped during its scrap still deletes its branch and ends with its exit line'
+
+# --detach: the train runs in a session of its own, so the shell that started it can go; its log ends with the exit line.
+fixture
+open_pr 1 pr-b 'Add B' src/b.txt
+NOTCHCAST_TRAIN_POLL=0 bash notchcast/train.sh --detach 1 > "$FIXTURE/train-output" 2>&1
+log=$(sed -n 's/^train: detached, log //p' "$FIXTURE/train-output")
+[ -n "$log" ] || fail 'train.sh --detach named no log'
+# Real time: the detached train is no child of this shell; capped at 30 s.
+for _ in $(seq 300); do grep -q '^train: exit ' "$log" 2>/dev/null && break; sleep 0.1; done
+grep -q "^GREEN train/1 " "$log" && grep -q '^train: exit 0$' "$log" || { cat "$log"; fail 'the detached train did not finish green with its exit line'; }
+[ "$(cat "$FIXTURE/sid")" != "$(python3 -c 'import os; print(os.getsid(0))')" ] || fail 'the detached train shares the starting session'
+rm "$log"
+echo 'PASS: train.sh --detach runs the train in its own session and logs it to the end'
 
 # Last: a killed lander can leave children behind.
 for signal in TERM HUP; do

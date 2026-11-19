@@ -2,6 +2,17 @@
 # One CI run for a whole train of PRs, split in halves while red; --queue picks the train and lands what is green.
 # notchcast/README.md has the rules.
 set -euo pipefail
+if [ "${1:-}" = --detach ]; then
+    shift
+    log="$(cd "$(git rev-parse --git-common-dir)" && pwd)/train-$(date +%Y%m%d-%H%M%S).log"
+    # A new session outlives the chat or terminal that started it; the log ends with "train: exit <status>".
+    python3 -c 'import os, sys
+if os.fork(): sys.exit(0)
+os.setsid()
+os.execvp("bash", ["bash", *sys.argv[1:]])' "$0" "$@" > "$log" 2>&1 < /dev/null
+    echo "train: detached, log $log"
+    exit 0
+fi
 [ "$*" = --queue ] || { [ "$#" -ge 1 ] && [[ "$*" =~ ^[0-9]+(\ [0-9]+)*$ ]]; } \
     || { echo 'usage: train.sh <pr> <pr>... | --queue' >&2; exit 2; }
 repeated=$(printf '%s\n' "$@" | sort | uniq -d | paste -sd' ' -)
@@ -19,14 +30,17 @@ unsettled="$scratch/unsettled"
 settle() { grep -v "^$1 " "$unsettled" > "$scratch/settled" || true; mv "$scratch/settled" "$unsettled"; }
 # Cancels the unfinished dispatched runs of branch $1 at $2 and deletes the branch.
 scrap_train() {
+    # The branch goes first: it is what a stop halfway would leave behind for good.
+    git -C "$top" push -q origin --delete "$1" || echo "WARN: could not delete $1" >&2
     gh run list -R "$FORK_REPO" -b "$1" -e workflow_dispatch --json databaseId,status,headSha \
         --jq ".[] | select(.headSha == \"$2\" and .status != \"completed\") | .databaseId" |
         while read -r run; do gh run cancel "$run" -R "$FORK_REPO" >/dev/null || true; done
-    git -C "$top" push -q origin --delete "$1" || echo "WARN: could not delete $1" >&2
     settle "$1"
 }
 cleanup() {
-    local branch sha
+    local code=$? branch sha
+    # A second stop signal must not cut the scrap short.
+    trap '' INT TERM HUP
     cd "$top"
     while read -r branch sha; do
         echo "train: scrapping $branch, which has no verdict" >&2
@@ -34,8 +48,13 @@ cleanup() {
     done < <(cat "$unsettled")
     git worktree remove --force "$scratch/tree" >/dev/null 2>&1 || true
     rm -rf "$scratch"
+    echo "train: exit $code"
 }
 trap cleanup EXIT
+# Named, so cleanup reports the signal's status rather than the status of the command it cut short.
+trap 'exit 129' HUP
+trap 'exit 130' INT
+trap 'exit 143' TERM
 tree_at() {
     cd "$top"
     git worktree remove --force "$scratch/tree" >/dev/null 2>&1 || true
@@ -48,21 +67,26 @@ stack() {
     local metadata
     metadata=$(gh pr view "$2" -R "$FORK_REPO" --json state,isDraft,labels,headRefOid,baseRefName,title,body)
     [ "$(jq -r '.state + " " + .baseRefName' <<< "$metadata")" = 'OPEN main' ] || refuse "#$2 must be open against main"
-    # land.sh refuses it after the Mac ran, and that loses the whole train.
-    jq -e '(.isDraft | not) or any(.labels[]?; .name == "land")' <<< "$metadata" > /dev/null \
-        || refuse "draft #$2 has no land label, the lead's sign-off to land it"
     head=$(jq -r .headRefOid <<< "$metadata")
     pr_title=$(jq -r '.title // ""' <<< "$metadata")
     pr_body=$(jq -r '.body // ""' <<< "$metadata")
     git -C "$top" fetch -q origin "refs/pull/$2/head"
     echo "train: #$2 ${head:0:8} onto ${1:0:8}" >&2
-    merge_onto "$1" >&2
-    git rev-parse HEAD > "$scratch/tip"
+    # The merge runs even for an unlabelled draft, so one pass names every reason a PR would be dropped for.
+    set +e
+    (set -e; merge_onto "$1" >&2)
+    merged=$?
+    set -e
+    # land.sh refuses it after the Mac ran, and that loses the whole train.
+    jq -e '(.isDraft | not) or any(.labels[]?; .name == "land")' <<< "$metadata" > /dev/null \
+        || refuse "draft #$2 has no land label, the lead's sign-off to land it"
+    [ "$merged" -eq 0 ] || exit 1
+    git -C "$scratch/tree" rev-parse HEAD > "$scratch/tip"
 }
 # Merges PRs $2... onto $1 into $tip and sets stacked to the PRs that merged. One that refuses is dropped and told
 # why in a PR comment (a conflict names the earlier PR of the train that touched the file), and the rest goes on.
 build_train() {
-    local pr code reason files other commit
+    local pr code reason files other commit conflict
     tip=$1
     stacked=
     : > "$scratch/merges"
@@ -82,15 +106,16 @@ build_train() {
             stacked="$stacked${stacked:+ }$pr"
             continue
         fi
-        reason=$(sed -n 's/^REFUSED: //p' "$scratch/refusal" | tail -1)
-        if [[ "$reason" == 'merge conflict: '* ]]; then
-            files=${reason#merge conflict: }
-            reason="conflicts with main in $files: it waits for one merge round, which the landing owner starts when this PR is next to land; nobody merges main into it before that"
+        reason=$(sed -n 's/^REFUSED: //p' "$scratch/refusal" | { grep -v '^merge conflict: ' || true; } | paste -sd';' - | sed 's/;/; /g')
+        files=$(sed -n 's/^REFUSED: merge conflict: //p' "$scratch/refusal" | tail -1)
+        if [ -n "$files" ]; then
+            conflict="conflicts with main in $files: it waits for one merge round, which the landing owner starts when this PR is next to land; nobody merges main into it before that"
             while read -r other commit; do
                 git diff --name-only "$commit^1" "$commit" | grep -qxF -f <(tr ' ' '\n' <<< "$files") || continue
-                reason="conflicts with #$other in the landing batch in $files: it rides a later train, after #$other lands; nobody merges main into it"
+                conflict="conflicts with #$other in the landing batch in $files: it rides a later train, after #$other lands; nobody merges main into it"
                 break
             done < "$scratch/merges"
+            reason="$conflict${reason:+; also: $reason}"
         else
             reason="dropped from the landing batch: ${reason:-its merge onto main failed}"
         fi
@@ -108,16 +133,39 @@ if [ "${NOTCHCAST_TRAIN_MAC:-}" != hosted ] && [ -n "$label" ]; then
     online=$(gh api "repos/$FORK_REPO/actions/runners" --jq '.runners[] | select(.status == "online") | .labels[].name' 2>/dev/null || true)
     if grep -qxF "$label" <<< "$online"; then mac=isolated; else echo "train: no runner labelled $label is online, so the Mac job is hosted"; fi
 fi
+# Before the push, for the train just built ($tip on $base, its merges in $scratch/merges): refuses one whose run
+# land.sh could not find, and sets runner, where its Mac job goes, to hosted when only a hosted run proves it.
+preflight() {
+    local main_key tip_key commit pr changers='' hosted_only
+    tree_at "$base"
+    main_key=$(python3 notchcast/ci.py tested-key "$tip")
+    tree_at "$tip"
+    tip_key=$(python3 notchcast/ci.py tested-key HEAD)
+    if [ "$main_key" != "$tip_key" ]; then
+        while read -r pr commit; do
+            git diff --quiet "$commit^1" "$commit" -- notchcast/ci.py || changers="$changers${changers:+ }#$pr"
+        done < "$scratch/merges"
+        refuse "the train's run would record tree ${tip_key:0:8}, but land.sh with main's ci.py looks for ${main_key:0:8}, so it could never land: ${changers:-a PR} changes ci.py tested-key; land that one first, alone (notchcast/land.sh <pr> on its own PR build), then train the rest"
+    fi
+    runner=$mac
+    [ "$mac" = isolated ] || { cd "$top"; return 0; }
+    hosted_only=$(while read -r pr commit; do bash notchcast/changed-harnesses.sh "$commit^1" "$commit"; done < "$scratch/merges" \
+        | grep -xF -f <(tr ' ' '\n' <<< "$HOSTED_ONLY_TESTS") | sort -u | paste -sd' ' - || true)
+    cd "$top"
+    [ -n "$hosted_only" ] || return 0
+    runner=hosted
+    echo "train: it selects hosted-only harnesses ($hosted_only), which land.sh trusts only from a hosted run, so its Mac job is hosted"
+}
 # Pushes $sha as new branch $branch and dispatches its workflows against base $1.
 start_train() {
     local base=$1 file
-    echo "train: $branch has its Mac job on the $mac runner" >&2
+    echo "train: $branch has its Mac job on the $runner runner" >&2
     git push -q origin "$sha:refs/heads/$branch"
     echo "$branch $sha" >> "$unsettled"
     for file in $workflows; do
         if [ "$file" = design.yml ]; then
             gh workflow run "$file" -R "$FORK_REPO" --ref "$branch" >&2
-        elif [ "$file" = pr.yml ] && [ "$mac" = hosted ]; then
+        elif [ "$file" = pr.yml ] && [ "$runner" = hosted ]; then
             gh workflow run "$file" -R "$FORK_REPO" --ref "$branch" -f "base=$base" -f hosted=true >&2
         else
             gh workflow run "$file" -R "$FORK_REPO" --ref "$branch" -f "base=$base" >&2
@@ -255,17 +303,18 @@ while [ ${#queue[@]} -gt 0 ]; do
         branch=$(train_branch $stacked)
         [ -z "$(git ls-remote origin "refs/heads/$branch")" ] \
             || refuse "origin already has $branch; land it or delete it: git push origin --delete $branch"
-        built+=("$branch $tip $stacked")
+        preflight
+        built+=("$branch $tip $runner $stacked")
     done
     queue=()
     [ ${#built[@]} -gt 0 ] || break
     for entry in "${built[@]}"; do
-        read -r branch sha train <<< "$entry"
+        read -r branch sha runner train <<< "$entry"
         start_train "$base"
     done
     landed=
     for entry in "${built[@]}"; do
-        read -r branch sha train <<< "$entry"
+        read -r branch sha runner train <<< "$entry"
         if wait_train "$branch" "$sha"; then
             if [ -n "$landed" ]; then
                 echo "STALE $branch: green on main ${base:0:8}, which #$landed has moved; running it again"
