@@ -105,9 +105,12 @@ private nonisolated enum CopyPathAppleEvents {
     }
 }
 
-/// Reads `AXDocument` or a Gecko page's `AXURL`; the 1 s timeout is per element, never inherited.
-private nonisolated enum CopyPathAccessibility {
+/// Reads `AXDocument` or a Gecko page's `AXURL`; each read's timeout is per element, never inherited.
+nonisolated enum CopyPathAccessibility {
     static let timeout: Float = 1
+    /// The page search's whole budget, both walks and the wait between them; an empty tab walks it all.
+    static let pageBudget = Duration.seconds(2)
+    static let firstActivationWait = Duration.milliseconds(500)
 
     /// A window's elements walked before giving up; a long tab sidebar alone holds hundreds.
     static let maxElements = 2000
@@ -124,47 +127,68 @@ private nonisolated enum CopyPathAccessibility {
     @concurrent
     static func webArea(pid: Int32) async throws -> String? {
         guard AXIsProcessTrusted() else { throw CopyPathFailure.accessibility }
+        let deadline = ContinuousClock.now + pageBudget
         let app = AXUIElementCreateApplication(pid)
         // Gecko builds its tree only once a client asks the application for its role.
         _ = try read(app, kAXRoleAttribute)
-        if let address = try pageAddress(app) { return address }
+        if let address = try pageAddress(app, deadline: deadline) { return address }
         // On first activation the pages arrive from Gecko's content processes a moment later.
-        try await Task.sleep(for: .milliseconds(500))
-        return try pageAddress(app)
+        guard ContinuousClock.now + firstActivationWait < deadline else { return nil }
+        try await Task.sleep(for: firstActivationWait)
+        return try pageAddress(app, deadline: deadline)
     }
 
-    private static func pageAddress(_ app: AXUIElement) throws -> String? {
-        var element = try self.element(app, kAXFocusedUIElementAttribute)
+    /// Nil once `deadline` passes, as if no page were there, so a slow walk still ends the run.
+    private static func pageAddress(_ app: AXUIElement, deadline: ContinuousClock.Instant) throws -> String? {
+        func next() -> Float? { leash(deadline, cap: timeout) }
+        guard let timeout = next() else { return nil }
+        var element = try self.element(app, kAXFocusedUIElementAttribute, timeout: timeout)
         for _ in 0..<maxElements {
-            guard let current = element else { break }
-            if let address = try address(current) { return address }
-            element = try self.element(current, kAXParentAttribute)
+            guard let current = element, let timeout = next() else { break }
+            if let address = try address(current, timeout: timeout) { return address }
+            element = try self.element(current, kAXParentAttribute, timeout: timeout)
         }
-        guard let window = try self.element(app, kAXFocusedWindowAttribute) else { return nil }
+        guard let timeout = next(), let window = try self.element(app, kAXFocusedWindowAttribute, timeout: timeout)
+        else { return nil }
         var queue = [window]
         var index = 0
         while index < queue.count, index < maxElements {
-            if let address = try address(queue[index]) { return address }
-            queue += try read(queue[index], kAXChildrenAttribute) as? [AXUIElement] ?? []
+            guard let timeout = next() else { return nil }
+            if let address = try address(queue[index], timeout: timeout) { return address }
+            queue += try children(queue[index], timeout: timeout)
             index += 1
         }
         return nil
     }
 
     /// A page's `AXURL`; Gecko's window and panels are `chrome:` or `moz-extension:` web areas too.
-    private static func address(_ element: AXUIElement) throws -> String? {
-        guard try read(element, kAXRoleAttribute) as? String == "AXWebArea",
-            let url = try read(element, kAXURLAttribute) as? URL,
+    private static func address(_ element: AXUIElement, timeout: Float) throws -> String? {
+        guard try read(element, kAXRoleAttribute, timeout: timeout) as? String == "AXWebArea",
+            let url = try read(element, kAXURLAttribute, timeout: timeout) as? URL,
             ["http", "https", "file"].contains(url.scheme?.lowercased() ?? "") else { return nil }
         return url.absoluteString
     }
 
-    private static func element(_ element: AXUIElement, _ attribute: String) throws -> AXUIElement? {
-        guard let value = try read(element, attribute), CFGetTypeID(value) == AXUIElementGetTypeID() else { return nil }
+    /// The AX timeout for the next read: at most `cap`, never past `deadline`; nil once it has passed.
+    static func leash(_ deadline: ContinuousClock.Instant, cap: Float) -> Float? {
+        let left = ContinuousClock.now.duration(to: deadline)
+        guard left > .zero else { return nil }
+        return min(cap, Float(left.components.seconds) + Float(left.components.attoseconds) / 1e18)
+    }
+
+    static func children(_ element: AXUIElement, timeout: Float) throws -> [AXUIElement] {
+        guard let value = try read(element, kAXChildrenAttribute, timeout: timeout),
+            CFGetTypeID(value) == CFArrayGetTypeID() else { return [] }
+        return value as? [AXUIElement] ?? []
+    }
+
+    static func element(_ element: AXUIElement, _ attribute: String, timeout: Float = timeout) throws -> AXUIElement? {
+        guard let value = try read(element, attribute, timeout: timeout),
+            CFGetTypeID(value) == AXUIElementGetTypeID() else { return nil }
         return unsafeDowncast(value, to: AXUIElement.self)
     }
 
-    private static func read(_ element: AXUIElement, _ attribute: String) throws -> CFTypeRef? {
+    static func read(_ element: AXUIElement, _ attribute: String, timeout: Float = timeout) throws -> CFTypeRef? {
         try Task.checkCancellation()
         AXUIElementSetMessagingTimeout(element, timeout)
         var value: CFTypeRef?
