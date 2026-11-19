@@ -37,6 +37,8 @@ class Landing(unittest.TestCase):
         self.root = self.fixture.root
         fixtures.write(self.root, 'notchcast/check-drift.py', (ROOT / 'notchcast/check-drift.py').read_text())
         fixtures.write(self.root, 'notchcast/bin/swiftgraph.py', (ROOT / 'notchcast/bin/swiftgraph.py').read_text())
+        for name in ('package.json', 'package-lock.json'):
+            fixtures.write(self.root, f'notchcast/jscpd/{name}', (ROOT / 'notchcast/jscpd' / name).read_text())
 
     def shell(self, script, *args, env=None):
         return subprocess.run(['bash', '-c', 'set -euo pipefail\n'

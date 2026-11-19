@@ -29,13 +29,6 @@ source "$HERE/config.env"
 APP="${NOTCHCAST_APP:-/Applications/$APP_NAME.app}"
 log() { printf '%s %s\n' "$(date +%Y-%m-%dT%H:%M:%S%z)" "$*"; }
 
-leaf_sha1() {
-    local d
-    d="$(mktemp -d)"
-    codesign -d --extract-certificates="$d/c" "$1" 2>/dev/null || { rm -rf "$d"; return 0; }
-    shasum -a 1 "$d/c0" | awk '{print toupper($1)}'
-    rm -rf "$d"
-}
 plist() { /usr/libexec/PlistBuddy -c "Print :$2" "$1/Contents/Info.plist" 2>/dev/null || true; }
 
 # The sync reports through issues on the fork (notchcast/ci.py): notchcast-sync, -main and -release are failures, one
@@ -52,6 +45,8 @@ if ! [[ "$SIGN_SHA1" =~ ^[0-9A-F]{40}$ ]]; then
     log "Run notchcast/install-launchd.sh from a checkout to pin it, or add the line SIGN_SHA1=<leaf SHA-1> by hand."
     exit 1
 fi
+# One call: the bundle's seal and its leaf certificate (SHA-1 pin, as codesign's requirement language hashes it).
+signed_by_us() { codesign --verify --deep --strict -R="certificate leaf = H\"$SIGN_SHA1\"" "$1" 2>/dev/null; }
 alert_issues() {
     declare -F notchcast_notify >/dev/null || return 0
     local seen="$HOME/Library/Application Support/notchcast/alerted-issues" issues key n
@@ -82,7 +77,7 @@ INSTALLED="" OURS=0
 if [ -d "$APP" ]; then
     [ "$(plist "$APP" CFBundleIdentifier)" = "$BUNDLE_ID" ] || { log "$APP is not $BUNDLE_ID; not touching it"; exit 0; }
     INSTALLED="$(plist "$APP" CFBundleShortVersionString)"
-    [ "$(leaf_sha1 "$APP")" = "$SIGN_SHA1" ] && OURS=1
+    signed_by_us "$APP" && OURS=1
 fi
 
 SNAPSHOT='def snapshot: capture("^v?[0-9]+[.][0-9]+[.][0-9]+(-[a-z]+[.][0-9]+)?[.]snapshot[.](?<stamp>[0-9]{14})$").stamp // "";'
@@ -113,10 +108,9 @@ ditto -x -k "$WORK/$APP_NAME-${WANT}.zip" "$WORK/x"
 NEW="$(find "$WORK/x" -maxdepth 1 -name '*.app' | head -1)"
 [ -n "$NEW" ] || { log "no app in the release zip"; exit 1; }
 xattr -dr com.apple.quarantine "$NEW" 2>/dev/null || true
-codesign --verify --deep --strict "$NEW"
+signed_by_us "$NEW" || { log "not signed by $SIGN_IDENTITY ($SIGN_SHA1) or the seal is broken; refusing"; exit 1; }
 [ "$(plist "$NEW" CFBundleIdentifier)" = "$BUNDLE_ID" ] || { log "bundle id mismatch; refusing"; exit 1; }
 [ "$(plist "$NEW" CFBundleShortVersionString)" = "$WANT" ] || { log "version mismatch; refusing"; exit 1; }
-[ "$(leaf_sha1 "$NEW")" = "$SIGN_SHA1" ] || { log "not signed by $SIGN_IDENTITY; refusing"; exit 1; }
 
 STATUS=0
 "$HERE/install-app.sh" "$NEW" || STATUS=$?
