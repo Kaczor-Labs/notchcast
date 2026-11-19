@@ -96,7 +96,7 @@ enum RegistryCheck {
         "tasks", "tasksSync", "todoIsland", "githubSearch", "clearNotifications", "launcherAnswers", "copyPath",
         "smallCommands", "aiUsage", "aiUsageOtherMac", "machLink", "island", "islandExternalDisplays",
         "islandFullScreen", "islandHoverOpen", "islandStatusMessages", "islandLiveActivities", "launcherFromIsland",
-        "launcherNumberKeys", "launcherAliasSpace", "musicNowPlaying", "musicLastPlayer", "musicBlockAppleMusic",
+        "launcherAliasSpace", "musicNowPlaying", "musicLastPlayer", "musicBlockAppleMusic",
         "musicSharpCovers", "spotifyConnect", "microphoneMute", "inUseMarks", "systemMonitor", "fanControl",
         "accessoryBatteries", "accessoryNotices", "monitorAlerts", "lowDiskWarning", "systemNotices",
         "volumeLevels", "audioPriority", "displayBrightness", "quitProtection", "liveTimers", "dayCalendar",

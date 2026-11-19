@@ -102,10 +102,6 @@ final class NotchcastController {
         return true
     }
 
-    func launcherRow(digit: Int, query: String, entryRows: [Int]) -> Int? {
-        slots.lazy.compactMap { $0.context.launcherDigit?(digit, query, entryRows) }.first
-    }
-
     /// False when no add-on claims the URL; a running module goes before any recovery.
     func open(_ url: URL) -> Bool {
         slots.contains { $0.context.openURL?(url) == true } || slots.contains { $0.recovery.openURL?(url) == true }
