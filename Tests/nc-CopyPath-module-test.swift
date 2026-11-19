@@ -51,6 +51,7 @@ extension CopyPathSystem {
             finderSelection: { try await fake.read() },
             finderFolder: { nil },
             browserAddress: { _, _ in nil },
+            webArea: { _ in nil },
             document: { _, _ in nil }),
         copy: { text in
             guard fake.copyWorks else { return false }
