@@ -142,9 +142,8 @@ final class ScreenshotsModule: NotchcastModule {
             return (image, display.scale)
         case .window(let id):
             guard let image = windows[id] else { throw ScreenshotRequest.Failure.targetUnavailable }
-            let center = frames.first { $0.id == id }.map { CGPoint(x: $0.frame.midX, y: $0.frame.midY) }
-            let display = center.flatMap { center in frozen.first { $0.frame.contains(center) } } ?? frozen.first
-            return (image, display?.scale ?? 1)
+            let points = frames.first { $0.id == id }?.frame.width ?? 0
+            return (image, points > 0 ? max(1, (CGFloat(image.width) / points).rounded()) : 1)
         case .display(let id):
             guard let display = frozen.first(where: { $0.id == id }) else {
                 throw ScreenshotRequest.Failure.targetUnavailable

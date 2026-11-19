@@ -242,6 +242,8 @@ enum ScreenshotsModuleTests {
         await drain()
         precondition(fake.clipboard.count == 2 && pngWidth(fake.clipboard.last) == 30,
                      "a click saves the frozen window, even after it changed or closed")
+        precondition(pngDPI(fake.clipboard.last).map { abs($0 - 72) < 1 } != false,
+                     "a window's scale is its own pixels per point, not its display's")
         fake.windowWidth = 30
 
         rig.fire(area)
