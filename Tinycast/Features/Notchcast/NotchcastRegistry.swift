@@ -23,5 +23,6 @@ enum NotchcastRegistry {
         ArchivesAddon.self,
         LowDiskAddon.self,
         ScriptCommandsAddon.self,
+        TimersAddon.self,
     ]
 }
