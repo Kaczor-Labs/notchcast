@@ -102,8 +102,8 @@ enum BackupActions {
         }
     }
 
-    static func runImportCommand(core: AppCore) async {
-        guard let file = chooseBackupFile() else { return }
+    static func runImportCommand(core: AppCore, file: URL? = nil) async {
+        guard let file = file ?? chooseBackupFile() else { return }
         do {
             let (staging, preview) = try await openBackup(at: file)
             defer { staging.discard() }
