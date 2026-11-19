@@ -1,0 +1,244 @@
+# One upstream release mirrored by Sync, called once per tag by sync.yml's release job. See notchcast/README.md.
+# build runs the tree's code with no secret; sign and publish hold the certificate and the deploy key and run none of it.
+name: Sync release
+
+on:
+  workflow_call:
+    inputs:
+      tag:
+        type: string
+        required: true
+      commit:
+        description: The upstream commit plan cleared for the tag
+        type: string
+        required: true
+      title:
+        type: string
+        required: true
+      prerelease:
+        type: boolean
+        required: true
+      main:
+        description: Plan's main, whose commits are replayed and whose notchcast/ tooling runs
+        type: string
+        required: true
+      base:
+        description: merge-base(main, upstream main) as plan saw it
+        type: string
+        required: true
+
+permissions:
+  contents: read
+
+env:
+  FORK_SSH: git@github.com:${{ github.repository }}.git
+  TAG: ${{ inputs.tag }}
+  COMMIT: ${{ inputs.commit }}
+
+jobs:
+  build:
+    runs-on: xcode-27
+    timeout-minutes: 120
+    permissions:
+      contents: read
+      statuses: read
+    outputs:
+      replayed: ${{ steps.replay.outputs.replayed }}
+      version: ${{ steps.app.outputs.version }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ inputs.main }}
+          path: tools
+          persist-credentials: false
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ inputs.main }}
+          path: src
+          fetch-depth: 0
+          persist-credentials: false
+      # Plan read that commit's own review up to an hour ago; nothing of it runs unless it is still a success.
+      - name: Re-read the tag commit's review
+        env:
+          BASE: ${{ inputs.base }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if [ "$COMMIT" != "$BASE" ]; then python3 tools/notchcast/ci.py reviewed "$COMMIT"; fi
+      - uses: ./tools/notchcast/actions/xcode
+      - uses: ./tools/notchcast/actions/xcodegen
+      - name: Read upstream's release
+        id: app
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 tools/notchcast/ci.py app-info "$TAG"
+      # Onto the commit plan cleared, never what the tag names now: upstream can move a tag during the main job.
+      # Its replayed output is fixed before the tests and the build run; publish tags exactly that commit.
+      - name: Replay our commits onto the tag
+        id: replay
+        working-directory: src
+        run: |
+          python3 ../tools/notchcast/ci.py pin-tag "$TAG" "$COMMIT"
+          python3 ../tools/notchcast/ci.py replay . "$COMMIT"
+          mkdir -p "$RUNNER_TEMP/replayed"
+          git bundle create "$RUNNER_TEMP/replayed/replayed.bundle" HEAD "^$COMMIT"
+          echo "replayed=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        with:
+          name: replayed-${{ inputs.tag }}
+          path: ${{ runner.temp }}/replayed
+          if-no-files-found: error
+          retention-days: 1
+      - uses: ./tools/notchcast/actions/tests
+        with:
+          upstream: ${{ inputs.commit }}
+          # An older tree: its compiled harnesses must not become the newest "all" that main and PRs restore.
+          cache: release-${{ inputs.tag }}
+      - uses: ./tools/notchcast/actions/release
+        with:
+          version: ${{ steps.app.outputs.version }}
+          build: ${{ steps.app.outputs.build }}
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        with:
+          name: unsigned-${{ inputs.tag }}
+          path: ${{ runner.temp }}/unsigned
+          if-no-files-found: error
+          retention-days: 1
+
+  sign:
+    needs: build
+    runs-on: xcode-27
+    timeout-minutes: 30
+    environment: sync
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ inputs.main }}
+          path: tools
+          sparse-checkout: notchcast
+          persist-credentials: false
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
+        with:
+          name: unsigned-${{ inputs.tag }}
+          path: ${{ runner.temp }}/unsigned
+      - uses: ./tools/notchcast/actions/sign
+        with:
+          version: ${{ needs.build.outputs.version }}
+          p12-base64: ${{ secrets.SIGNING_P12_BASE64 }}
+          p12-password: ${{ secrets.SIGNING_P12_PASSWORD }}
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        with:
+          name: dist-${{ inputs.tag }}
+          path: dist
+          if-no-files-found: error
+          retention-days: 1
+
+  publish:
+    needs: [build, sign]
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment: sync
+    permissions:
+      contents: write
+      statuses: read
+      issues: write
+    env:
+      REPLAYED: ${{ needs.build.outputs.replayed }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ inputs.main }}
+          path: tools
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
+        with:
+          name: replayed-${{ inputs.tag }}
+          path: ${{ runner.temp }}/replayed
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
+        with:
+          name: dist-${{ inputs.tag }}
+          path: dist
+      - name: Fetch the replayed commits
+        working-directory: tools
+        run: |
+          source notchcast/config.env
+          [[ "$REPLAYED" =~ ^[0-9a-f]{40}$ ]] || { echo "::error::the build job reported no replayed commit"; exit 1; }
+          git fetch -q "https://github.com/$UPSTREAM_REPO.git" "$COMMIT"
+          git fetch -q "$RUNNER_TEMP/replayed/replayed.bundle" HEAD
+          test "$(git rev-parse FETCH_HEAD)" = "$REPLAYED" \
+            || { echo "::error::the replayed bundle is not the commit the build job reported"; exit 1; }
+      - name: Re-read the tag commit's review
+        env:
+          BASE: ${{ inputs.base }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if [ "$COMMIT" != "$BASE" ]; then python3 tools/notchcast/ci.py reviewed "$COMMIT"; fi
+      - uses: ./tools/notchcast/actions/deploy-key
+        with:
+          key: ${{ secrets.DEPLOY_KEY }}
+      # The replayed commit that was built, never upstream's tag object: a tag push runs the workflows of the tree it
+      # names, and this tree holds only ours, none of which a tag starts. GITHUB_TOKEN cannot push workflow files.
+      - name: Mirror the tag
+        working-directory: tools
+        run: |
+          if [ -z "$(git ls-remote "$FORK_SSH" "refs/tags/$TAG")" ]; then
+            git -c core.hooksPath=/dev/null push "$FORK_SSH" "$REPLAYED:refs/tags/$TAG"
+          fi
+      - name: Drop the deploy key
+        if: always()
+        run: rm -f "$RUNNER_TEMP/deploy-key"
+      - name: Publish the release
+        env:
+          TITLE: ${{ inputs.title }}
+          PRERELEASE: ${{ inputs.prerelease }}
+          VERSION: ${{ needs.build.outputs.version }}
+          MAIN: ${{ inputs.main }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -a; source tools/notchcast/config.env; set +a
+          {
+            gh release view "$TAG" -R "$UPSTREAM_REPO" --json body --jq .body
+            printf '\n\n---\nNotchcast build of %s %s (%s) with our commits from main %s, signed by %s (SHA-1 %s).\n' \
+              "$UPSTREAM_REPO" "$TAG" "${COMMIT:0:12}" "${MAIN:0:12}" "$SIGN_IDENTITY" "$RELEASE_SIGN_SHA1"
+          } > "$RUNNER_TEMP/notes.md"
+          FLAGS=()
+          if [ "$PRERELEASE" = "true" ]; then FLAGS+=(--prerelease); fi
+          gh release create "$TAG" "dist/$APP_NAME-$VERSION.zip" "dist/$APP_NAME-$VERSION.dmg" \
+            -R "$GITHUB_REPOSITORY" --verify-tag --title "$TITLE" --notes-file "$RUNNER_TEMP/notes.md" "${FLAGS[@]}"
+      - name: Close this tag's failure issue
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 tools/notchcast/ci.py issue close release "release-$TAG"
+
+  failed:
+    needs: [build, sign, publish]
+    if: always() && contains(needs.*.result, 'failure')
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment: sync
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ inputs.main }}
+          path: tools
+          persist-credentials: false
+      - name: Remember the failure
+        uses: ./tools/notchcast/actions/remember-failure
+        with:
+          key: release-${{ inputs.tag }}-${{ inputs.main }}
+          deploy-key: ${{ secrets.DEPLOY_KEY }}
+      - name: Drop the deploy key
+        if: always()
+        run: rm -f "$RUNNER_TEMP/deploy-key"
+      - name: Report the failure
+        env:
+          GH_TOKEN: ${{ github.token }}
+          MAIN: ${{ inputs.main }}
+        run: |
+          python3 tools/notchcast/ci.py issue open release "Release $TAG failed with main ${MAIN:0:7}" "release-$TAG"

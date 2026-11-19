@@ -1,3 +1,4 @@
+// notchcast-linux-ok
 // notchcast-sources: Tinycast/Features/Island/Model/IslandScreenSelection.swift
 
 @main

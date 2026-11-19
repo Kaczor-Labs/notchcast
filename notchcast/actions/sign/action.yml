@@ -1,0 +1,82 @@
+name: Sign release
+description: >-
+  Sign the app notchcast/actions/release packed ($RUNNER_TEMP/unsigned/<APP_NAME>.zip) with the release identity,
+  check it against the leaf pin and package dist/<APP_NAME>-<version>.zip and .dmg. Runs none of the tree's code.
+inputs:
+  version:
+    description: Marketing version
+    required: true
+  p12-base64:
+    description: Signing certificate
+    required: true
+  p12-password:
+    description: Signing certificate password
+    required: true
+  identity:
+    description: Certificate name; default config.env's SIGN_IDENTITY
+    default: ''
+  sha1:
+    description: Leaf certificate SHA-1 the result must carry; default config.env's RELEASE_SIGN_SHA1
+    default: ''
+runs:
+  using: composite
+  steps:
+    - name: Unpack the built app
+      shell: bash -e {0}
+      run: |
+        source tools/notchcast/config.env
+        rm -rf "$RUNNER_TEMP/signed" && mkdir -p "$RUNNER_TEMP/signed"
+        ditto -x -k "$RUNNER_TEMP/unsigned/$APP_NAME.zip" "$RUNNER_TEMP/signed"
+        test -d "$RUNNER_TEMP/signed/$APP_NAME.app"
+    # The keychain and the decoded certificate are gone when this step ends, whatever happens in it.
+    - name: Sign with the release identity
+      shell: bash -e {0}
+      env:
+        P12_BASE64: ${{ inputs.p12-base64 }}
+        P12_PASSWORD: ${{ inputs.p12-password }}
+        IDENTITY: ${{ inputs.identity }}
+      run: |
+        source tools/notchcast/config.env
+        KEYCHAIN="$RUNNER_TEMP/signing.keychain-db"
+        trap 'security delete-keychain "$KEYCHAIN" 2>/dev/null || true; rm -f "$RUNNER_TEMP/cert.p12"' EXIT
+        KPW="$(openssl rand -base64 24)"
+        printf '%s' "$P12_BASE64" | base64 --decode > "$RUNNER_TEMP/cert.p12"
+        security create-keychain -p "$KPW" "$KEYCHAIN"
+        security set-keychain-settings -lut 21600 "$KEYCHAIN"
+        security unlock-keychain -p "$KPW" "$KEYCHAIN"
+        security import "$RUNNER_TEMP/cert.p12" -k "$KEYCHAIN" -P "$P12_PASSWORD" -T /usr/bin/codesign
+        security set-key-partition-list -S apple-tool:,apple: -s -k "$KPW" "$KEYCHAIN" >/dev/null
+        rm -f "$RUNNER_TEMP/cert.p12"
+        bash tools/notchcast/sign-app.sh "$RUNNER_TEMP/signed/$APP_NAME.app" "${IDENTITY:-$SIGN_IDENTITY}" "$KEYCHAIN"
+    - name: Verify the signed app
+      shell: bash -e {0}
+      env:
+        VERSION: ${{ inputs.version }}
+        SHA1: ${{ inputs.sha1 }}
+      run: |
+        source tools/notchcast/config.env
+        APP="$RUNNER_TEMP/signed/$APP_NAME.app"
+        PIN="${SHA1:-$RELEASE_SIGN_SHA1}"
+        codesign --verify --deep --strict -R="certificate leaf = H\"$PIN\"" "$APP" \
+          || { echo "::error::$APP_NAME.app does not verify as signed by leaf $PIN"; exit 1; }
+        plist() { /usr/libexec/PlistBuddy -c "Print :$1" "$APP/Contents/Info.plist"; }
+        test "$(plist CFBundleIdentifier)" = "$BUNDLE_ID"
+        test "$(plist CFBundleShortVersionString)" = "$VERSION"
+    - name: Package zip and dmg
+      shell: bash -e {0}
+      env:
+        VERSION: ${{ inputs.version }}
+      run: |
+        set -a; source tools/notchcast/config.env; set +a
+        APP="$RUNNER_TEMP/signed/$APP_NAME.app"
+        mkdir -p dist
+        # Only ditto keeps the signature verifiable; the updater expands the zip with ditto.
+        ditto -c -k --keepParent --sequesterRsrc "$APP" "dist/$APP_NAME-$VERSION.zip" \
+          || { echo "::error::ditto could not zip $APP"; exit 1; }
+        STAGE="$(mktemp -d)"
+        cp -R "$APP" "$STAGE/"
+        ln -s /Applications "$STAGE/Applications"
+        # Never mounts a volume, unlike hdiutil create, which failed silently at its unmount (#902).
+        diskutil image create from --format UDZO --volumeName "$APP_NAME" "$STAGE" "dist/$APP_NAME-$VERSION.dmg" >/dev/null \
+          || { echo "::error::diskutil could not build the dmg; its message is above"; exit 1; }
+        ls -l dist

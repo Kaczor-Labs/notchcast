@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Planted breaches for check-addons.py on a scratch repository: budget, feature paths, registry, reference guard."""
+"""Planted breaches for check-addons.py on a scratch repository: budget, feature paths, shared lists, reference guard."""
 from pathlib import Path
 import importlib.util
 import subprocess
@@ -10,7 +10,8 @@ import unittest
 sys.dont_write_bytecode = True
 CHECK = Path(__file__).resolve().parent / 'check-addons.py'
 NC = 'Tinycast/Features/Notchcast/'
-SHOTS = '''struct ShotsAddon: NotchcastAddon {
+SHOTS = '''// notchcast-addon-order: 30
+struct ShotsAddon: NotchcastAddon {
     static let switches = [NotchcastSwitch(id: "shots", title: "", subtitle: "", category: .capture)]
     static let commands = [NotchcastCommand(slug: "shots-area", name: "", symbol: "", switchID: "shots") { _ in }]
 }
@@ -46,7 +47,11 @@ class CheckAddonsTest(unittest.TestCase):
         write(self.root, NC + 'NotchcastRegistry.swift', 'static let addons = [\n]\n')
         write(self.root, NC + 'Core/Service/Core.swift', 'core\n')
         write(self.root, 'notchcast/addons-budget.env', '# budget\nFILES=1\nPLUS=2\nMINUS=0\n')
-        write(self.root, 'notchcast/licenses/borrowed.md', '# Borrowed\n\nKeep: K.swift ← a/b/K.swift (MIT)\n')
+        write(self.root, 'notchcast/licenses/borrowed.md', '# Borrowed\n\nLists live in borrowed/.\n')
+        write(self.root, 'notchcast/licenses/borrowed/Keep.txt', 'Keep: K.swift ← a/b/K.swift (MIT)\n')
+        write(self.root, 'notchcast/config.env', 'CI_SKIP_TESTS="ClipboardTextTests"\nHOSTED_ONLY_TESTS="PasteboardTests"\n')
+        write(self.root, 'notchcast/README.public.md', '- **Settings**\n  <!-- addon-tabs:start -->\n'
+              '  - **Island**: look.\n  - **Capture**:\n  <!-- addon-tabs:end -->\n')
         self.base = self.commit('base')
 
     def tearDown(self):
@@ -65,7 +70,6 @@ class CheckAddonsTest(unittest.TestCase):
 
     def add_shots(self):
         write(self.root, NC + 'Shots/ShotsAddon.swift', SHOTS)
-        write(self.root, NC + 'NotchcastRegistry.swift', 'static let addons = [\n    ShotsAddon.self,\n]\n')
         write(self.root, 'Tests/nc-Shots-test.swift', 'let id = "shots"\n')
 
     def test_core_within_budget_passes_and_over_budget_fails(self):
@@ -96,16 +100,101 @@ class CheckAddonsTest(unittest.TestCase):
         self.assertEqual(code, 1, out)
         self.assertIn('Tinycast/App/AppCore.swift: outside the add-on folders', out)
 
-    def test_registry_line_must_name_an_addon_of_the_branch(self):
+    def test_a_hand_edit_of_a_shared_list_fails_on_every_branch(self):
+        readme = (self.root / 'notchcast/README.public.md').read_text()
+        cases = (
+            (NC + 'NotchcastRegistry.swift', 'static let addons = [\n    ShotsAddon.self,\n]\n',
+             f'{NC}NotchcastRegistry.swift: generated from each add-on'),
+            ('notchcast/licenses/borrowed.md', '# Borrowed\n\nLists live in borrowed/.\nShots: A.swift ← x/y/A.swift (MIT)\n',
+             'belongs in notchcast/licenses/borrowed/Shots.txt'),
+            ('notchcast/README.public.md', readme.replace('  - **Capture**:', '  - **Capture**: screenshots'),
+             'notchcast/README.public.md:4: a phrase on a tab line'),
+            ('notchcast/config.env', 'CI_SKIP_TESTS="ClipboardTextTests"\nHOSTED_ONLY_TESTS="PasteboardTests nc-Shots-test"\n',
+             'config.env:2: names the fork harness nc-Shots-test; drop it there and give Tests/nc-Shots-test.swift '
+             'a `// notchcast-hosted-only`, `-linux-ok` or `-ci-skip` line'),
+        )
+        for path, text, needle in cases:
+            for mode in ('none', 'feature'):
+                git(self.root, 'reset', '-q', '--hard', self.base)
+                self.add_shots()
+                write(self.root, path, text)
+                self.commit('hand edit')
+                code, out = self.check(mode)
+                self.assertEqual(code, 1, out)
+                self.assertIn(needle, out)
+
+    def test_a_fork_harness_name_the_branch_did_not_add_passes(self):
+        write(self.root, 'notchcast/config.env', 'CI_SKIP_TESTS=""\nHOSTED_ONLY_TESTS="PasteboardTests nc-Old-test"\n')
+        self.base = self.commit('main before the tags')
         self.add_shots()
-        write(self.root, NC + 'NotchcastRegistry.swift', 'static let addons = [\n    ShotsAddon.self,\n    Other.self,\n]\n')
+        write(self.root, 'Tests/nc-Shots-test.swift', '// notchcast-hosted-only\nlet id = "shots"\n')
+        self.commit('feature')
+        code, out = self.check('none')
+        self.assertEqual(code, 0, out)
+
+    def test_its_own_files_carry_an_addon_and_a_new_tab_line_is_core(self):
+        self.add_shots()
+        write(self.root, 'notchcast/licenses/borrowed/Shots.txt', 'Shots: A.swift ← x/y/A.swift (MIT)\n')
+        write(self.root, 'Tests/nc-Shots-test.swift', '// notchcast-hosted-only\nlet id = "shots"\n')
         self.commit('feature')
         code, out = self.check()
+        self.assertEqual(code, 0, out)
+        readme = (self.root / 'notchcast/README.public.md').read_text()
+        write(self.root, 'notchcast/README.public.md', readme.replace('  - **Capture**:', '  - **Capture**:\n  - **Power**:'))
+        self.commit('core adds a tab')
+        self.assertEqual(self.check('none')[0], 0)
+
+    def test_a_branch_that_changes_the_generator_may_rewrite_what_it_generates(self):
+        write(self.root, NC + 'NotchcastRegistry.swift', '// Generated\nstatic let addons = [\n]\n')
+        write(self.root, 'notchcast/addons.py', 'print("generator")\n')
+        self.commit('generator')
+        code, out = self.check('none')
+        self.assertEqual(code, 0, out)
+
+    def test_the_generator_exemption_covers_the_registry_alone(self):
+        readme = (self.root / 'notchcast/README.public.md').read_text()
+        write(self.root, 'notchcast/addons.py', 'print("generator")\n')
+        write(self.root, 'notchcast/README.public.md', readme.replace('  - **Capture**:', '  - **Capture**: screenshots'))
+        self.commit('generator and a phrase')
+        code, out = self.check('none')
         self.assertEqual(code, 1, out)
-        self.assertIn('Other is not declared `: NotchcastAddon`', out)
-        write(self.root, NC + 'NotchcastRegistry.swift', 'static let addons = [\n    ShotsAddon.self, extra()\n]\n')
-        self.commit('feature 2')
-        self.assertIn('is not a `<Type>.self,` registry line', self.check()[1])
+        self.assertIn('a phrase on a tab line', out)
+
+    def test_core_text_on_a_tab_line_stays_editable(self):
+        readme = (self.root / 'notchcast/README.public.md').read_text()
+        write(self.root, 'notchcast/README.public.md', readme.replace('**Island**: look.', '**Island**: look, hide.'))
+        self.commit('core edits the island line')
+        code, out = self.check('none')
+        self.assertEqual(code, 0, out)
+
+    def test_prose_in_the_licence_header_stays_editable(self):
+        write(self.root, 'notchcast/licenses/borrowed.md', '# Borrowed\n\nLists live in borrowed/, one `<Folder>: <file> ← <repo>/<file> (<licence>)` each.\n')
+        self.commit('core rewords the header')
+        code, out = self.check('none')
+        self.assertEqual(code, 0, out)
+
+    def test_a_second_list_line_or_an_odd_licence_line_still_fails(self):
+        cases = (
+            ('notchcast/config.env', 'CI_SKIP_TESTS="ClipboardTextTests"\nHOSTED_ONLY_TESTS="PasteboardTests"\n'
+             'EXTRA="nc-Shots-test"\nHOSTED_ONLY_TESTS+=" $EXTRA"\n', 'names the fork harness nc-Shots-test'),
+            ('notchcast/licenses/borrowed.md', '# Borrowed\n\nLists live in borrowed/.\n`Shots`: `A.swift` ← `x/y/A.swift` (MIT)\n',
+             'belongs in notchcast/licenses/borrowed/<Folder>.txt'),
+            ('notchcast/README.public.md', '- **Settings**\n  <!-- addon-tabs:start -->\n  - **Island**: look.\n  - **Capture**:\n'
+             '  - **Brand New**: shots.\n  <!-- addon-tabs:end -->\n', 'README.public.md:5: a phrase on a tab line'),
+            ('notchcast/README.public.md', '- **Settings**\n  <!-- addon-tabs:start -->\n  - **Island**: look.\n  - **Capture**:\n'
+             '  * **Capture**: shots.\n  <!-- addon-tabs:end -->\n', 'README.public.md:5: a phrase on a tab line'),
+            ('notchcast/config.env', 'CI_SKIP_TESTS="ClipboardTextTests"\nHOSTED_ONLY_TESTS="PasteboardTests"\n'
+             'HOSTED_ONLY_TESTS="$HOSTED_ONLY_TESTS nc-Shots-test"\n', 'names the fork harness nc-Shots-test'),
+            ('notchcast/licenses/borrowed.md', '# Borrowed\n\nLists live in borrowed/.\nShots: A.swift, B.swift ← x/y (MIT)\n',
+             'belongs in notchcast/licenses/borrowed/<Folder>.txt'),
+        )
+        for path, text, needle in cases:
+            git(self.root, 'reset', '-q', '--hard', self.base)
+            write(self.root, path, text)
+            self.commit('hand edit')
+            code, out = self.check('none')
+            self.assertEqual(code, 1, out)
+            self.assertIn(needle, out)
 
     def test_guard_catches_ids_slugs_and_types_outside_the_folder(self):
         self.add_shots()
@@ -123,11 +212,9 @@ class CheckAddonsTest(unittest.TestCase):
 
     def test_guard_allows_dependencies_core_harnesses_and_upstream_lines(self):
         self.add_shots()
-        write(self.root, NC + 'Keep/KeepAddon.swift', 'struct KeepAddon: NotchcastAddon {\n'
+        write(self.root, NC + 'Keep/KeepAddon.swift', '// notchcast-addon-order: 40\nstruct KeepAddon: NotchcastAddon {\n'
               '    static let switches = [NotchcastSwitch(id: "keep", title: "", subtitle: "", category: .power, '
               'dependencies: ["shots"])]\n}\n')
-        write(self.root, NC + 'NotchcastRegistry.swift',
-              'static let addons = [\n    ShotsAddon.self,\n    KeepAddon.self,\n]\n')
         write(self.root, 'Tests/nc-Notchcast-registry-test.swift', 'let frozen = ["shots", "keep"]\n')
         self.commit('two features')
         self.base = git(self.root, 'rev-parse', 'HEAD~1')
@@ -160,25 +247,31 @@ class CheckAddonsTest(unittest.TestCase):
         self.assertIn("Tinycast/Features/Onboarding/Ready.swift:1: names Shots's ShotsLimits", out)
 
     def add_keep(self):
-        write(self.root, NC + 'Keep/KeepAddon.swift', 'struct KeepAddon: NotchcastAddon {\n}\n')
-        write(self.root, NC + 'NotchcastRegistry.swift', 'static let addons = [\n    KeepAddon.self,\n]\n')
+        write(self.root, NC + 'Keep/KeepAddon.swift', '// notchcast-addon-order: 10\nstruct KeepAddon: NotchcastAddon {\n}\n')
         self.commit('keep')
         self.base = git(self.root, 'rev-parse', 'HEAD')
 
-    def test_a_feature_owns_only_the_folder_its_registry_line_names(self):
+    def test_a_feature_owns_only_the_folder_its_order_line_names(self):
         self.add_keep()
         self.add_shots()
-        write(self.root, NC + 'NotchcastRegistry.swift',
-              'static let addons = [\n    KeepAddon.self,\n    ShotsAddon.self,\n]\n')
-        write(self.root, NC + 'Keep/KeepAddon.swift', 'struct KeepAddon: NotchcastAddon {\n    let x = 1\n}\n')
+        write(self.root, NC + 'Keep/KeepAddon.swift', '// notchcast-addon-order: 10\nstruct KeepAddon: NotchcastAddon {\n    let x = 1\n}\n')
         self.commit('shots edits keep')
         code, out = self.check()
         self.assertEqual(code, 1, out)
         self.assertIn(f"{NC}Keep/KeepAddon.swift: outside the add-on folders ['Shots']", out)
 
-    def test_an_edit_without_a_registry_line_owns_one_folder(self):
+    def test_renumbering_another_addon_claims_no_folder(self):
         self.add_keep()
-        write(self.root, NC + 'Keep/KeepAddon.swift', 'struct KeepAddon: NotchcastAddon {\n    let x = 1\n}\n')
+        self.add_shots()
+        write(self.root, NC + 'Keep/KeepAddon.swift', '// notchcast-addon-order: 40\nstruct KeepAddon: NotchcastAddon {\n}\n')
+        self.commit('shots renumbers keep')
+        code, out = self.check()
+        self.assertEqual(code, 1, out)
+        self.assertIn(f"{NC}Keep/KeepAddon.swift: outside the add-on folders ['Shots']", out)
+
+    def test_an_edit_without_an_order_line_owns_one_folder(self):
+        self.add_keep()
+        write(self.root, NC + 'Keep/KeepAddon.swift', '// notchcast-addon-order: 10\nstruct KeepAddon: NotchcastAddon {\n    let x = 1\n}\n')
         self.commit('keep fix')
         code, out = self.check()
         self.assertEqual(code, 0, out)
@@ -198,21 +291,20 @@ class CheckAddonsTest(unittest.TestCase):
         self.assertNotIn('upstream touch', out)
         self.assertIn(f'{NC}Core/Service/Core.swift: outside the add-on folders', out)
 
-    def test_a_feature_appends_only_its_own_licence_lines(self):
+    def test_a_feature_writes_only_its_own_licence_list(self):
         self.add_shots()
-        borrowed = self.root / 'notchcast/licenses/borrowed.md'
-        original = borrowed.read_text()
-        write(self.root, 'notchcast/licenses/borrowed.md',
-              original + 'Shots: Shots/Grab.swift ← someone/shots/Sources/Grab.swift (GPL-3.0-or-later)\n')
+        write(self.root, 'notchcast/licenses/borrowed/Shots.txt',
+              'Shots: Shots/Grab.swift ← someone/shots/Sources/Grab.swift (GPL-3.0-or-later)\n')
         self.commit('feature with licence')
         code, out = self.check()
         self.assertEqual(code, 0, out)
-        for text, needle in ((original + 'Keep: X.swift ← a/b/X.swift (MIT)\n', 'is not a `<owned folder>'),
-                             (original + 'Shots: free text\n', 'is not a `<owned folder>'),
-                             (original.replace('Keep: K.swift ← a/b/K.swift (MIT)\n', ''), 'removes "Keep:')):
+        for path, text, needle in (
+                ('notchcast/licenses/borrowed/Keep.txt', 'Keep: X.swift ← a/b/X.swift (MIT)\n', 'the licence list of Keep'),
+                ('notchcast/licenses/borrowed/Shots.txt', 'Shots: free text\n', 'is not a `Shots: <our file>'),
+                ('notchcast/licenses/borrowed/Shots.txt', 'Keep: X.swift ← a/b/X.swift (MIT)\n', 'is not a `Shots: <our file>')):
             git(self.root, 'reset', '-q', '--hard', self.base)
             self.add_shots()
-            write(self.root, 'notchcast/licenses/borrowed.md', text)
+            write(self.root, path, text)
             self.commit('bad licence line')
             code, out = self.check()
             self.assertEqual(code, 1, out)

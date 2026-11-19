@@ -92,7 +92,7 @@ func link(_ raw: UInt32) -> BrightnessDDCLink {
         send: { packet in
             hw { state in
                 guard state.displays[raw]?.accepts == true else { return false }
-                if packet == BrightnessDDC.request() { state.requests += 1 } else {
+                if packet == DisplayDDC.request(.luminance) { state.requests += 1 } else {
                     let value = UInt16(packet[3]) << 8 | UInt16(packet[4])
                     state.ddcWrites.append(value)
                     state.displays[raw]?.ddcValue = value
@@ -171,7 +171,8 @@ let system = DisplaySoundSystem(
             guard !$0.refusesMute else { return false }
             $0.muted = value
             return true
-        } }),
+        } },
+        displayAudioName: { _ in nil }),
     sleep: { duration in
         hw { $0.slept.append(duration) }
         try await Task.sleep(for: duration / 100)
@@ -184,6 +185,7 @@ let system = DisplaySoundSystem(
         watcher = handler
         return [NSObject()]
     },
+    watchSleep: { _ in [] },
     watchAudio: { output, _ in
         hw { $0.watched.append(output) }
         return [NSObject()]
@@ -273,10 +275,10 @@ enum DisplaySoundServiceTests {
         _ = await service.perform(.refresh(names: [:]))
         hw { $0.order = [3] }
         snapshot = await service.perform(.refresh(names: [:]))!
-        check(snapshot.displays[0].level.picture >= BrightnessRecoveryPolicy.reconnectionDimFloor - 1e-9,
-              "reconnected deep dim is lifted to the floor")
-        check(hw { $0.displays[3]?.gamma == baseline.scaled(BrightnessRecoveryPolicy.reconnectionDimFloor) },
-              "the floor scales the kept baseline, not the curve found on return")
+        check(snapshot.displays[0].level == BrightnessLevel(0),
+              "reconnection drops extra dimming")
+        check(hw { $0.displays[3]?.gamma == baseline },
+              "the kept baseline comes back on return")
 
         hw { $0.displays[3]?.replies = false; $0.requests = 0 }
         snapshot = await service.perform(.refresh(names: [:]))!

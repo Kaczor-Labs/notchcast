@@ -15,11 +15,13 @@ WORKFLOW = ROOT / ".github/workflows/pr.yml"
 SCRIPT = ROOT / "notchcast/ready-check.sh"
 # Every step of pr.yml and of the local actions it uses, and how ready-check.sh covers it.
 COVERED = {
+    ("pr.yml:route", "A harness-only run is never a train's"): "dispatched harness-only runs only",
     ("pr.yml:route", "actions/checkout"): "lane planning; no gate",
     ("pr.yml:route", "Lanes the diff needs"): "picks the jobs below; ready-check.sh runs them all",
     ("pr.yml:route", "Harnesses the diff needs"): "shadow selection; reports, gates nothing",
     ("pr.yml:mac", "actions/checkout"): "the shared clone at HEAD",
     ("pr.yml:mac", "./tools/notchcast/actions/xcode"): "ci-build.sh's xcode step",
+    ("pr.yml:mac", "The harness runner's own Xcode"): "dispatched harness-only runs only",
     ("pr.yml:mac", "Runner kind"): "names a self-hosted run; no gate",
     ("pr.yml:mac", "Script tests that need macOS"): "ci-build.sh's script-tests step",
     ("pr.yml:mac", "Shared PR build lane"): "ci-build.sh, unsharded",
@@ -119,10 +121,15 @@ class CoverageTest(unittest.TestCase):
 # The one way to a self-hosted Mac (README Runners): a dispatch, which no fork can start; unset, it is xcode-27.
 GATED_MAC = ("${{ github.event_name == 'workflow_dispatch' && !inputs.hosted && vars.NOTCHCAST_MAC_RUNNER "
              "|| 'xcode-27' }}")
+# pr.yml's mac job also takes the runner label a dispatch names for a harness-only run (README Runners).
+HARNESS_MAC = ("${{ github.event_name == 'workflow_dispatch' && (inputs.harness_runner || !inputs.hosted "
+               "&& vars.NOTCHCAST_MAC_RUNNER) || 'xcode-27' }}")
+HARNESS_ONLY, FULL_RUN = "inputs.harness_runner != ''", "inputs.harness_runner == ''"
 # Only jobs that hold no secret and launch no app; a workflow outside this map is hosted-only.
 GATED_JOBS = {"pr.yml": 1, "main-harnesses.yml": 1}
 # Every macOS job (README Runners): it runs xcodebuild, compiles harnesses, signs or launches the app. Anything else is Linux.
-MAC_JOBS = {"pr.yml": 1, "main-harnesses.yml": 1, "delete-check.yml": 1, "proof.yml": 1, "snapshot.yml": 1, "sync.yml": 2}
+MAC_JOBS = {"pr.yml": 1, "main-harnesses.yml": 1, "delete-check.yml": 1, "proof.yml": 1, "snapshot.yml": 2, "sync.yml": 1,
+            "sync-release.yml": 2, "test-build.yml": 2}
 
 
 class RunnerTest(unittest.TestCase):
@@ -135,9 +142,10 @@ class RunnerTest(unittest.TestCase):
                 match = re.match(r"(\s*)runs-on:(.*)", line)
                 if not match:
                     continue
-                if match[2].strip() == GATED_MAC or match[2].strip() == "xcode-27":
+                gate = HARNESS_MAC if workflow.name == "pr.yml" else GATED_MAC
+                if match[2].strip() == gate or match[2].strip() == "xcode-27":
                     mac[workflow.name] = mac.get(workflow.name, 0) + 1
-                if match[2].strip() == GATED_MAC:
+                if match[2].strip() == gate:
                     gated[workflow.name] = gated.get(workflow.name, 0) + 1
                     continue
                 value = [match[2].split("#")[0]]
@@ -160,7 +168,8 @@ class RunnerTest(unittest.TestCase):
         text = WORKFLOW.read_text()
         self.assertIn("      kind: ${{ steps.runner.outputs.kind }}\n", text)
         self.assertIn("name: tested-tree-${{ needs.mac.outputs.kind == 'isolated' && 'isolated-' || '' }}${{ steps.tree.outputs.key }}\n", text)
-        self.assertEqual(env(found["mac", "Runner kind"]), {"HOSTED": "${{ runner.environment == 'github-hosted' }}"})
+        self.assertEqual(env(found["mac", "Runner kind"]), {"HOSTED": "${{ runner.environment == 'github-hosted' }}",
+                                                            "HARNESS_ONLY": "${{ inputs.harness_runner != '' }}"})
         self.assertIn('if [ "$HOSTED" = true ]; then kind=hosted; elif [ "${NOTCHCAST_ISOLATED_RUNNER:-}" = 1 ]; then kind=isolated; fi',
                       found["mac", "Runner kind"])
         self.assertEqual(field(found["mac", "Script tests that need macOS"], "if"), "steps.runner.outputs.kind != 'working'")
@@ -169,6 +178,54 @@ class RunnerTest(unittest.TestCase):
         # Only Sync's hosted job sets the tested status; a job that may run self-hosted has no way to.
         for name in GATED_JOBS:
             self.assertNotIn("statuses: write", (ROOT / ".github/workflows" / name).read_text(), name)
+
+    def test_only_a_dispatch_reaches_a_named_runner(self):
+        # GitHub's && and || return an operand, as Python's and/or do; an unset input or variable is ''.
+        def runs_on(expression, **values):
+            code = expression[4:-3].replace("&&", "and").replace("||", "or").replace("!", "not ")
+            return eval(re.sub(r"\b(?:github|inputs|vars)\.(\w+)", r"v['\1']", code), {"v": values})
+        for event in ("pull_request", "pull_request_target", "push", "workflow_dispatch"):
+            for label in ("", "notchcast-mba"):
+                for hosted in (False, True):
+                    for variable in ("", "notchcast-mbp"):
+                        values = {"event_name": event, "harness_runner": label, "hosted": hosted, "NOTCHCAST_MAC_RUNNER": variable}
+                        runner = runs_on(HARNESS_MAC, **values)
+                        with self.subTest(values):
+                            if event != "workflow_dispatch":
+                                self.assertEqual(runner, "xcode-27")
+                            elif label:
+                                self.assertEqual(runner, label)
+                            else:
+                                self.assertEqual(runner, runs_on(GATED_MAC, **values), "an empty input changes nothing")
+
+    def test_a_harness_only_run_builds_nothing_and_proves_no_tree(self):
+        found = {(job, signature(text)): text for job, text in steps(WORKFLOW, 6)}
+        text = WORKFLOW.read_text()
+        self.assertEqual(field(found["mac", "./tools/notchcast/actions/xcode"], "if"), FULL_RUN)
+        own = found["mac", "The harness runner's own Xcode"]
+        self.assertEqual((field(own, "if"), env(own)), (HARNESS_ONLY, {"NOTCHCAST_XCODE_FROM_RUNNER": "'1'"}))
+        self.assertEqual(field(found["mac", "Shared PR build lane"], "if"), f"needs.route.outputs.build == 'true' && {FULL_RUN}")
+        # working on any runner: the macOS script tests, the toolchain stamp and the tested-tree record all hang on kind.
+        kind = found["mac", "Runner kind"]
+        self.assertIn('if [ "$HARNESS_ONLY" = true ]; then kind=working;', kind)
+        self.assertLess(kind.index("then kind=working;"), kind.index('echo "kind=$kind"'))
+        self.assertEqual(field(found["mac", "What the isolated runner proved"], "if"),
+                         "steps.runner.outputs.kind == 'isolated' && needs.route.outputs.build == 'true'")
+        tests = found["mac", "./tools/notchcast/actions/tests"]
+        self.assertEqual(field(tests, "if"), f"needs.route.outputs.build == 'true' || {HARNESS_ONLY}")
+        self.assertIn("cache: ${{ inputs.harness_runner == '' && 'pr-0of1' || '' }}", tests)
+        self.assertEqual((ROOT / "notchcast/actions/tests/action.yml").read_text().count("inputs.cache != ''"), 3,
+                         "no cache: the restore, the cache folder and the finish step")
+        # No other job runs, the build check least of all: land.sh reads it, and train.sh a train run's conclusion.
+        for job, lane in (("linux-checks", "build"), ("script-tests", "scripts"), ("linux-harnesses", "build")):
+            self.assertIn(f"  {job}:\n    needs: route\n    if: needs.route.outputs.{lane} == 'true' && {FULL_RUN}\n", text)
+        self.assertIn(f"    if: ${{{{ !cancelled() && {FULL_RUN} && (github.event_name == 'workflow_dispatch' "
+                      "|| !github.event.pull_request.draft) }}\n", text)
+        refusal = found["route", "A harness-only run is never a train's"]
+        self.assertEqual(field(refusal, "if"), f"{HARNESS_ONLY} && startsWith(github.ref, 'refs/heads/train/')")
+        self.assertIn("exit 1", refusal)
+        self.assertRegex(text, r"\nconcurrency:\n  group: .*\$\{\{ inputs\.harness_runner && format\('-\{0\}', "
+                               r"inputs\.harness_runner\) \|\| '' \}\}\n")
 
 
 # Machine git config (init.defaultBranch, signing, url rewrites) never reaches the fixture repos.

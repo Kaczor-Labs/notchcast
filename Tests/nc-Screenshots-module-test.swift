@@ -54,6 +54,16 @@ final class ScreenshotFake {
     var surfaces: [(displays: [UInt32], windows: [UInt32])] = []
     var answer: (@MainActor (ScreenshotRequest?) -> Void)?
     var closes = 0
+    var lines: [ScreenTextLine] = []
+    var recognizedWidths: [Int] = []
+    var textWorks = true
+    var texts: [String] = []
+    var settingsOpened = 0
+
+    func recognize(_ image: CGImage) -> [ScreenTextLine] {
+        recognizedWidths.append(image.width)
+        return lines
+    }
 
     func release() {
         freezeGate?.resume()
@@ -89,6 +99,13 @@ extension ScreenshotSystem {
             fake.clipboard.append(data)
             return true
         },
+        writeText: { text in
+            guard fake.textWorks else { return false }
+            fake.texts.append(text)
+            return true
+        },
+        recognizeText: { image in await fake.recognize(image) },
+        openScreenRecordingSettings: { fake.settingsOpened += 1 },
         desktop: { desktopFolder },
         select: { frozen, windows, completion in
             fake.surfaces.append((frozen.map(\.id), windows.map(\.id)))
@@ -97,7 +114,8 @@ extension ScreenshotSystem {
                 fake.closes += 1
                 fake.pick(nil)
             }
-        }
+        },
+        edit: { _, _, _ in fatalError("editing is off by default; nc-Screenshots-editor-test covers it") }
     )
 }
 
@@ -142,6 +160,8 @@ final class Rig {
 
 let area = "command:nc-screenshot-area"
 let display = "command:nc-screenshot-display"
+let editLast = "command:nc-edit-last-screenshot"
+let text = "command:nc-capture-text"
 
 func drain() async { try? await Task.sleep(for: .milliseconds(120)) }
 
@@ -150,6 +170,11 @@ func files(in folder: URL) -> [String] {
 }
 
 func isPNG(_ data: Data?) -> Bool { data?.prefix(4) == Data([0x89, 0x50, 0x4E, 0x47]) }
+
+func pngDPI(_ data: Data?) -> Double? {
+    data.flatMap { CGImageSourceCreateWithData($0 as CFData, nil) }
+        .flatMap { CGImageSourceCopyPropertiesAtIndex($0, 0, nil) as? [CFString: Any] }?[kCGImagePropertyDPIWidth] as? Double
+}
 
 func pngWidth(_ data: Data?) -> Int? {
     data.flatMap { CGImageSourceCreateWithData($0 as CFData, nil) }
@@ -167,11 +192,12 @@ enum ScreenshotsModuleTests {
         let presenter = rig.presenter
 
         precondition(ScreenshotsAddon.switches.map(\.id) == ["screenshot"], "v1 switch id")
-        precondition(ScreenshotsAddon.commands.map(\.id) == [area, display], "frozen command ids")
+        precondition(ScreenshotsAddon.commands.map(\.id) == [area, display, editLast, text], "frozen command ids")
         precondition(ScreenshotsAddon.commands.map { "hotkey." + $0.id }
-                     == ["hotkey.command:nc-screenshot-area", "hotkey.command:nc-screenshot-display"],
-                     "both stored bindings name these commands")
-        precondition(rig.controller.enabledCommands.map(\.id) == [area, display], "on by default")
+                     == ["hotkey.command:nc-screenshot-area", "hotkey.command:nc-screenshot-display",
+                         "hotkey.command:nc-edit-last-screenshot", "hotkey.command:nc-capture-text"],
+                     "each stored binding names its command")
+        precondition(rig.controller.enabledCommands.map(\.id) == [area, display, editLast, text], "on by default")
 
         fake.holdFreeze = true
         precondition(rig.controller.run(entryID: area), "the area binding resolves")
@@ -203,6 +229,8 @@ enum ScreenshotsModuleTests {
         fake.pick(.rect(CGRect(x: 10, y: 10, width: 20, height: 10)))
         await drain()
         precondition(fake.clipboard.count == 1 && isPNG(fake.clipboard.last), "clipboard by default")
+        precondition(pngDPI(fake.clipboard.last).map { abs($0 - 144) < 1 } == true,
+                     "an unedited Retina capture says 144 dpi, like an edited one")
         precondition(files(in: desktopFolder).isEmpty && presenter.posts.isEmpty, "no file by default")
 
         precondition(rig.controller.run(entryID: area))
@@ -214,6 +242,8 @@ enum ScreenshotsModuleTests {
         await drain()
         precondition(fake.clipboard.count == 2 && pngWidth(fake.clipboard.last) == 30,
                      "a click saves the frozen window, even after it changed or closed")
+        precondition(pngDPI(fake.clipboard.last).map { abs($0 - 72) < 1 } != false,
+                     "a window's scale is its own pixels per point, not its display's")
         fake.windowWidth = 30
 
         rig.fire(area)
@@ -269,12 +299,62 @@ enum ScreenshotsModuleTests {
         precondition(presenter.posts.last?.text == "Could not copy to clipboard.", "clipboard only failure reports")
         fake.clipboardWorks = true
 
+        rig.defaults.set("both", forKey: "notchcast.screenshot.destination")
+        let saved = files(in: chosenFolder)
+        let images = fake.clipboard.count
+        fake.lines = [
+            ScreenTextLine(text: "second", box: CGRect(x: 0.1, y: 0.48, width: 0.5, height: 0.1)),
+            ScreenTextLine(text: "first", box: CGRect(x: 0.1, y: 0.6, width: 0.5, height: 0.1)),
+        ]
+        rig.fire(text)
+        await drain()
+        precondition(fake.freezes.last?.point == nil && fake.surfaces.count == 7, "text reuses the area surface")
+        fake.pick(.rect(CGRect(x: 10, y: 10, width: 20, height: 10)))
+        await drain()
+        precondition(fake.recognizedWidths == [40] && fake.texts == ["first\nsecond"],
+                     "the selected pixels' text is copied in reading order")
+        precondition(presenter.posts.last?.text == "first" && presenter.posts.last?.isFailure == false,
+                     "a notice shows the first line")
+        precondition(files(in: chosenFolder) == saved && fake.clipboard.count == images,
+                     "the image is never saved or copied, whatever the screenshot destination")
+        rig.defaults.set("clipboard", forKey: "notchcast.screenshot.destination")
+
+        fake.lines = []
+        rig.fire(text)
+        await drain()
+        fake.pick(.window(51))
+        await drain()
+        precondition(presenter.posts.last?.text == "No text found in the selected area."
+                     && fake.texts.count == 1, "no text found leaves the clipboard alone")
+
+        let notices = presenter.posts.count
+        rig.fire(text)
+        await drain()
+        fake.pick(nil)
+        await drain()
+        precondition(fake.recognizedWidths.count == 2 && presenter.posts.count == notices, "Esc recognises nothing")
+
+        fake.lines = [ScreenTextLine(text: "kept", box: CGRect(x: 0, y: 0.5, width: 1, height: 0.1))]
+        fake.textWorks = false
+        rig.fire(text)
+        await drain()
+        fake.pick(.display(1))
+        await drain()
+        precondition(presenter.posts.last?.text == "Could not copy to clipboard.", "a failed text copy reports")
+        fake.textWorks = true
+
         fake.granted = false
         let freezes = fake.freezes.count
         rig.fire(area)
         await drain()
         precondition(presenter.posts.last?.text == "Screen Recording access is required." && fake.freezes.count == freezes,
                      "no access, no freeze")
+        precondition(fake.settingsOpened == 0, "a screenshot leaves System Settings closed")
+        rig.fire(text)
+        await drain()
+        precondition(presenter.posts.last?.text == "Screen Recording access is required."
+                     && fake.freezes.count == freezes && fake.settingsOpened == 1,
+                     "text without access opens the Screen Recording pane")
         fake.granted = true
 
         rig.fire(area)

@@ -9,6 +9,9 @@ struct ScreenshotFrozenDisplay: Sendable {
     let id: UInt32
     let frame: CGRect
     let image: CGImage
+
+    /// The capture's pixels per point.
+    var scale: CGFloat { frame.width > 0 ? CGFloat(image.width) / frame.width : 1 }
 }
 
 enum ScreenshotGeometry {

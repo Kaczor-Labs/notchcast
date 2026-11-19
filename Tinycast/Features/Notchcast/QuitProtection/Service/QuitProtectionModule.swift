@@ -8,7 +8,6 @@ final class QuitProtectionModule: NotchcastModule {
 
     private struct Action: Sendable {
         let target: QuitProtectionEngine.Target
-        let shortcut: QuitProtectionEngine.Shortcut
         let keyCode: UInt16
     }
 
@@ -30,8 +29,7 @@ final class QuitProtectionModule: NotchcastModule {
             let decision = engine.consume(event, at: time, target: target)
             switch decision {
             case .pass, .swallow: break
-            case .quit(let target): actions.append(Action(target: target, shortcut: .quit, keyCode: keyCode))
-            case .close(let target): actions.append(Action(target: target, shortcut: .close, keyCode: keyCode))
+            case .quit(let target): actions.append(Action(target: target, keyCode: keyCode))
             }
             return (decision != .pass, !actions.isEmpty || engine.deadline != deadline)
         }
@@ -92,7 +90,7 @@ final class QuitProtectionModule: NotchcastModule {
             },
             reset: { [weak self] in self?.resetSession() }
         ))
-        let workspace = NSWorkspace.shared.notificationCenter
+        let workspace = system.workspaceNotifications()
         let inputSources = DistributedNotificationCenter.default()
         observers = [
             NotificationToken(workspace.addObserver(
@@ -172,9 +170,9 @@ final class QuitProtectionModule: NotchcastModule {
             ticker?.cancel()
             ticker = nil
         } else if ticker == nil {
-            ticker = Task { [weak self] in
+            ticker = Task { [weak self, sleep = system.sleep] in
                 while !Task.isCancelled {
-                    try? await Task.sleep(for: Self.tickInterval)
+                    try? await sleep(Self.tickInterval)
                     guard !Task.isCancelled, let self else { return }
                     self.update(generation: generation)
                 }
@@ -185,7 +183,7 @@ final class QuitProtectionModule: NotchcastModule {
     private func perform(_ action: Action) {
         let pid = action.target.processIdentifier
         guard action.target == system.frontmost() else { return }
-        if action.shortcut == .quit, system.terminate(pid) { return }
+        if system.terminate(pid) { return }
         system.post(pid, action.keyCode)
     }
 }

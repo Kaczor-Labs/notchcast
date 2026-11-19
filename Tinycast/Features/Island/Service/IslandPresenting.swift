@@ -9,4 +9,17 @@ protocol IslandPresenting: AnyObject {
     func end(notice id: String)
     func setStatus(_ status: IslandStatus?, for id: String, onTap: (@MainActor () -> Void)?)
     func setMenuRows(_ rows: [IslandMenuRow], owner: String, onSelect: @escaping @MainActor (String) -> Void)
+    /// An owner's page in the open island, nil once it has no data; `onAction` gets a button or row id.
+    func setPage(_ page: IslandPage?, id: String, onAction: (@MainActor (String) -> Void)?)
+    /// `onChange` hears true while `id`'s page data is on show in the open island, false once it is not.
+    func watchPages(id: String, onChange: (@MainActor (_ visible: Bool) -> Void)?)
+    /// Opens the island pinned on `id`'s page, for a command or hotkey; again while it shows, closes it.
+    func showPage(id: String)
+}
+
+extension IslandPresenting {
+    /// A presenter with no open island, like a harness's recorder, shows no pages.
+    func setPage(_ page: IslandPage?, id: String, onAction: (@MainActor (String) -> Void)?) {}
+    func watchPages(id: String, onChange: (@MainActor (_ visible: Bool) -> Void)?) {}
+    func showPage(id: String) {}
 }

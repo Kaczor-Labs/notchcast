@@ -27,6 +27,8 @@ struct IslandHover: Equatable, Sendable {
     private(set) var isPinned = false
     private var readySince: TimeInterval?
     private var leftAt: TimeInterval?
+    /// Escape closed it under the pointer: hover stays shut until the pointer has left.
+    private var dismissed = false
 
     /// When `tick` next has work to do, or nil when nothing is pending.
     var deadline: TimeInterval? {
@@ -38,6 +40,7 @@ struct IslandHover: Equatable, Sendable {
     @discardableResult
     mutating func update(_ next: Input, at now: TimeInterval) -> Bool {
         input = next
+        if !next.inside { dismissed = false }
         let was = isOpen
         if next.covered {
             close()
@@ -54,6 +57,7 @@ struct IslandHover: Equatable, Sendable {
             }
         } else {
             let ready = next.inside && !next.buttonHeld && !next.menuOpen && !next.moving && next.enabled
+                && !dismissed
             if !ready { readySince = nil } else if readySince == nil { readySince = now }
         }
         return tick(at: now) || was != isOpen
@@ -80,7 +84,10 @@ struct IslandHover: Equatable, Sendable {
     }
 
     /// Escape, a click outside, or the launcher hotkey.
-    mutating func dismiss() { close() }
+    mutating func dismiss() {
+        close()
+        dismissed = input.inside
+    }
 
     private mutating func open() {
         isOpen = true
@@ -101,13 +108,14 @@ enum IslandHoverZone {
     /// Under the menu bar it widens by `side` and reaches `below`; inside it, it keeps to the shape.
     static func contains(_ point: CGPoint, shape: CGRect, menuBarBottom: CGFloat, below: CGFloat,
                          side: CGFloat) -> Bool {
-        if shape.contains(point) { return true }
+        // NSMouseInRect, as NSScreen.underCursor: the pointer's topmost row sits on a rect's maxY.
+        if NSMouseInRect(point, shape, false) { return true }
         let column = CGRect(x: shape.minX, y: min(shape.minY, menuBarBottom), width: shape.width,
                             height: shape.maxY - min(shape.minY, menuBarBottom))
-        if column.contains(point) { return true }
+        if NSMouseInRect(point, column, false) { return true }
         let floor = min(shape.minY, menuBarBottom)
         let band = CGRect(x: shape.minX - side, y: floor - below, width: shape.width + 2 * side, height: below)
-        return band.contains(point)
+        return NSMouseInRect(point, band, false)
     }
 }
 

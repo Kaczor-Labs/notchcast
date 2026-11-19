@@ -15,6 +15,9 @@ final class IslandController: NSObject {
     private(set) weak var panel: PalettePanel?
     private var observer: PanelObserver?
     private let clip = CAShapeLayer()
+    /// An open island page (#975): the outline grows to its panel and masks it, as for the palette.
+    weak var page: NSPanel? { didSet { page?.contentView?.layer?.mask = pageClip; frameChanged() } }
+    private let pageClip = CAShapeLayer()
     let keyline = CAShapeLayer()
     private(set) var overlays: [CGRect] = []
     #if DEBUG
@@ -31,6 +34,7 @@ final class IslandController: NSObject {
     /// Read at `configure`, so a change takes effect when the coordinator reconfigures the screen.
     var position = IslandPosition.topEdge
     var openingTop: CGFloat? { layout?.openingTop }
+    var notchWidth: CGFloat? { layout?.notchWidth }
     func openingX(width: CGFloat) -> CGFloat? { layout?.openingX(width: width) }
     /// AppKit's getter keeps returning `.none` once set, so it also says the window was ever hidden.
     var sharingType: NSWindow.SharingType {
@@ -56,7 +60,6 @@ final class IslandController: NSObject {
         return bounds.offsetBy(dx: backdrop.frame.minX, dy: backdrop.frame.minY).intersection(backdrop.frame)
     }
 
-    func openMenu() { canvas.onMenu?() }
     var glance: IslandGlance? {
         didSet { if glance != oldValue { redraw() } }
     }
@@ -96,7 +99,7 @@ final class IslandController: NSObject {
         canvas.canOpen = { [weak self] in
             guard let self else { return false }
             return self.canOpen?() == true && self.overlays.isEmpty && NSApp.modalWindow == nil
-                && (self.isResting || self.expanded && self.source.isIdle)
+                && self.page == nil && (self.isResting || self.expanded && self.source.isIdle)
         }
         source.didFrame = { [weak self] in self?.paintFrame() }
         source.didSettle = { [weak self] in self?.applyPending(); self?.onSettle?() }
@@ -215,13 +218,16 @@ final class IslandController: NSObject {
             inset: NotchTheme.Spacing.islandInset, gap: Theme.Spacing.xl).surface(overlays)
         let size = CGSize(width: max(palette?.width ?? 0, overlay?.width ?? 0),
                           height: max(palette?.height ?? 0, overlay?.height ?? 0))
-        glancing = size != .zero || canvas.expansion != nil || level != nil || notice != nil
+        glancing = size != .zero || page != nil || canvas.expansion != nil || level != nil || notice != nil
         let rests = showsRest && !onFullScreenSpace
-        canvas.covered = size != .zero
+        canvas.covered = size != .zero || page != nil
         surface.batch {
             if size != .zero {
                 if !suspended { backdrop.orderFrontRegardless() }
                 surface.expand(to: size, contentKey: "palette")
+            } else if showsRest, let page = page?.frame.size {
+                if !suspended { backdrop.orderFrontRegardless() }
+                surface.expand(to: page, contentKey: "page")
             } else if showsRest, let line = canvas.headline {
                 if !suspended { backdrop.orderFrontRegardless() }
                 surface.expand(to: line.size, contentKey: "notice." + line.notice.id)
@@ -340,6 +346,11 @@ final class IslandController: NSObject {
         canvas.display()
         clip.path = outline.copy(using: &contentTransform)
         keyline.path = clip.path
+        if let page {
+            var pageTransform = layout.maskTransform(width: surface.stageWidth, panel: page.frame,
+                                                     flipped: page.contentView?.isFlipped == true)
+            pageClip.path = outline.copy(using: &pageTransform)
+        }
         keyline.lineWidth = 2 * canvas.keylineWidth
         keyline.strokeColor = canvas.keylineColor
         CATransaction.commit()
