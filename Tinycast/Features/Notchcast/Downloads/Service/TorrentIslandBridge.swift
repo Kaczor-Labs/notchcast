@@ -8,19 +8,22 @@ final class TorrentIslandBridge {
     private weak var manager: TorrentManager?
     private let presenter: any IslandPresenting
     private let reveal: @MainActor @Sendable ([URL]) -> Void
+    private let bonded: @MainActor () -> Bool
     private var policy = TorrentIslandPolicy()
     private var showing = false
 
     private init(manager: TorrentManager, presenter: any IslandPresenting,
-                 reveal: @escaping @MainActor @Sendable ([URL]) -> Void) {
+                 reveal: @escaping @MainActor @Sendable ([URL]) -> Void, bonded: @escaping @MainActor () -> Bool) {
+        self.bonded = bonded
         self.manager = manager
         self.presenter = presenter
         self.reveal = reveal
     }
 
     static func track(_ manager: TorrentManager, presenter: any IslandPresenting,
-                      reveal: @escaping @MainActor @Sendable ([URL]) -> Void) {
-        TorrentIslandBridge(manager: manager, presenter: presenter, reveal: reveal).observe()
+                      reveal: @escaping @MainActor @Sendable ([URL]) -> Void,
+                      bonded: @escaping @MainActor () -> Bool = { false }) {
+        TorrentIslandBridge(manager: manager, presenter: presenter, reveal: reveal, bonded: bonded).observe()
     }
 
     /// The onChange closure owns the bridge, so it lives while there is something to observe.
@@ -35,7 +38,9 @@ final class TorrentIslandBridge {
     private func apply(_ update: TorrentIslandPolicy.Update) {
         if let progress = update.progress {
             showing = true
-            presenter.post(IslandNotice(id: Self.progressID, symbol: "arrow.down.circle", text: progress.text,
+            let marked = bonded()
+            presenter.post(IslandNotice(id: Self.progressID, symbol: marked ? BondingPolicy.markSymbol : "arrow.down.circle",
+                                        text: marked ? BondingPolicy.marked(progress.text) : progress.text,
                                         progress: IslandProgress(fraction: progress.fraction)), onTap: nil)
         } else if showing {
             showing = false

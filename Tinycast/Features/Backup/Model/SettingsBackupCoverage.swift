@@ -103,6 +103,14 @@ enum SettingsBackupCoverage {
             "Dictation preferences stay local until backup supports them.",
         AppSettingsKey.dictationIdleRelease.rawValue:
             "Dictation memory use stays a device-local preference.",
+        AppSettingsKey.dictationCleansUp.rawValue:
+            "An import must not switch on sending dictated text to a model.",
+        AppSettingsKey.dictationCleanupPrompt.rawValue:
+            "An import must not change what the cleanup model is told to paste.",
+        AppSettingsKey.dictationCleanupModel.rawValue:
+            "An import must not change which model receives dictated text.",
+        AppSettingsKey.dictationKeepsHistory.rawValue:
+            "Dictation history stays on this Mac, and so does the switch that keeps it.",
         AppSettingsKey.clipboardTextSearchEnabled.rawValue:
             "Background OCR is an opt-in processing choice on this Mac; a backup must not enable it.",
         AppSettingsKey.snippetsEnabled.rawValue:
