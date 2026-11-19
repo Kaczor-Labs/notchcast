@@ -19,9 +19,12 @@ struct DayModelTests {
         quoteParsing()
         refreshClock()
         board()
+        visibility()
+        quoteRound()
         agenda()
         page()
         offlinePage()
+        staleLine()
         print("PASSED")
     }
 
@@ -110,6 +113,7 @@ struct DayModelTests {
 
     static func board() {
         var board = DayBoard()
+        board.isVisible = true
         check(!board.weatherIsDue(now: Fix.now) && !board.quotesAreDue(now: Fix.now), "nothing chosen, nothing asked")
         board.configure(place: Fix.place, symbols: ["AAPL", "BTC-USD"])
         check(board.weatherIsDue(now: Fix.now) && board.quotesAreDue(now: Fix.now), "a new place and list are due")
@@ -137,6 +141,45 @@ struct DayModelTests {
         board.configure(place: DayPlace(name: "Oslo", latitude: 59.9, longitude: 10.7), symbols: ["BTC-USD"])
         check(board.weather == nil && board.weatherClock == DayFeedClock(), "a new place starts weather over")
         check(board.quotes.isEmpty && board.quotesClock == DayFeedClock(), "a dropped symbol takes its quote along")
+    }
+
+    /// Decision 946: fetched only while Home or Day shows; shown again, what is past its interval is due.
+    static func visibility() {
+        var board = DayBoard()
+        board.configure(place: Fix.place, symbols: ["AAPL"])
+        check(!board.weatherIsDue(now: Fix.now) && !board.quotesAreDue(now: Fix.now), "hidden, nothing is due")
+        board.isVisible = true
+        check(board.weatherIsDue(now: Fix.now) && board.quotesAreDue(now: Fix.now), "shown, new feeds are due")
+        board.apply(weather: Fix.forecast, at: Fix.now)
+        board.apply(quotes: ["AAPL": Fix.chart("AAPL", price: 352.79, change: 0.25)], at: Fix.now)
+        board.isVisible = false
+        let back = Fix.now.addingTimeInterval(10 * 60)
+        check(!board.weatherIsDue(now: back.addingTimeInterval(3600)) && !board.quotesAreDue(now: back),
+              "hidden, a feed past its interval still waits")
+        board.isVisible = true
+        check(board.quotesAreDue(now: back) && !board.weatherIsDue(now: back),
+              "shown after 10 minutes: markets are due, weather is still fresh")
+        check(board.weatherIsDue(now: Fix.now.addingTimeInterval(DayBoard.weatherInterval)), "and after 30 so is it")
+    }
+
+    /// A good round replaces every quote; only a round with no good answer keeps the last ones.
+    static func quoteRound() {
+        var board = DayBoard()
+        board.isVisible = true
+        board.configure(place: nil, symbols: ["AAPL", "BTC-USD"])
+        board.apply(quotes: ["AAPL": Fix.chart("AAPL", price: 352.79, change: 0.25),
+                             "BTC-USD": Fix.chart("BTC-USD", price: 63145.62, change: -1.408)], at: Fix.now)
+        let later = Fix.now.addingTimeInterval(DayBoard.quotesInterval)
+        board.apply(quotes: ["AAPL": Fix.unknownSymbol, "BTC-USD": Fix.chart("BTC-USD", price: 64000, change: 1)],
+                    at: later)
+        check(board.quotes.keys.sorted() == ["BTC-USD"] && board.quotes["BTC-USD"]?.price == 64000
+            && !board.quotesClock.isOffline, "a symbol that fails in a good round drops its old price")
+        board.apply(quotes: [:], at: later.addingTimeInterval(DayBoard.quotesInterval))
+        check(board.quotes["BTC-USD"]?.price == 64000 && board.quotesClock.isOffline, "a failed round keeps them")
+        let failed = later.addingTimeInterval(DayBoard.quotesInterval)
+        check(!board.quotesAreDue(now: failed.addingTimeInterval(DayBoard.quotesInterval - 1))
+            && board.quotesAreDue(now: failed.addingTimeInterval(DayBoard.quotesInterval)),
+              "markets retry after their own interval, not every minute")
     }
 
     static func agenda() {
@@ -199,7 +242,7 @@ struct DayModelTests {
         board.events = (0..<7).map { Fix.event("e\($0)", $0 == 0 ? "Design review" : "Event \($0)",
                                               from: 25 * 60 + Double($0) * 600) }
         let busy = DayPage.page(board, now: Fix.now, calendar: Fix.calendar, locale: Fix.locale)
-        check(busy?.line == IslandPageLine(symbol: "calendar", text: "Design review · in 25 min",
+        check(busy?.line == IslandPageLine(symbol: "calendar", text: "in 25 min · Design review",
                                            detail: "9° Mostly Clear", action: DayPage.scheduleAction),
               "the calendar line opens My Schedule: \(String(describing: busy?.line))")
         all = Array(rows(busy).dropFirst(10))
@@ -214,6 +257,24 @@ struct DayModelTests {
         check(rows(page).map(\.title) == ["Today", "Design review"] && page?.line.detail == nil, "events alone")
     }
 
+    /// Home never shows a stale reading as live: a failed feed drops out of the line.
+    static func staleLine() {
+        var board = loaded()
+        let later = Fix.now.addingTimeInterval(DayBoard.weatherInterval)
+        board.apply(weather: nil, at: later)
+        var line = DayPage.page(board, now: later, calendar: Fix.calendar, locale: Fix.locale)?.line
+        check(line == IslandPageLine(symbol: "chart.line.uptrend.xyaxis", text: "AAPL ▲ 0.25%"),
+              "stale weather gives way to a live quote: \(String(describing: line))")
+        board.events = [Fix.event("a", "Design review", from: DayBoard.weatherInterval + 25 * 60)]
+        line = DayPage.page(board, now: later, calendar: Fix.calendar, locale: Fix.locale)?.line
+        check(line?.detail == "AAPL ▲ 0.25%", "and is no event's detail: \(String(describing: line))")
+        board.events = []
+        board.apply(quotes: [:], at: later)
+        line = DayPage.page(board, now: later, calendar: Fix.calendar, locale: Fix.locale)?.line
+        check(line == IslandPageLine(symbol: DayPage.offlineSymbol, text: "Unavailable"),
+              "both stale, Home says so: \(String(describing: line))")
+    }
+
     static func offlinePage() {
         var never = DayBoard()
         never.configure(place: Fix.place, symbols: ["AAPL"])
@@ -221,11 +282,11 @@ struct DayModelTests {
         never.apply(quotes: [:], at: Fix.now)
         let blank = DayPage.page(never, now: Fix.now, calendar: Fix.calendar, locale: Fix.locale)
         check(rows(blank) == [
-            IslandPageRow(symbol: DayPage.offlineSymbol, title: "Weather", detail: "Warsaw", trailing: "Offline"),
-            IslandPageRow(symbol: DayPage.offlineSymbol, title: "Markets", trailing: "Offline"),
+            IslandPageRow(symbol: DayPage.offlineSymbol, title: "Weather", detail: "Warsaw", trailing: "Unavailable"),
+            IslandPageRow(symbol: DayPage.offlineSymbol, title: "Markets", trailing: "Unavailable"),
             IslandPageRow(title: "AAPL", trailing: "–"),
         ], "offline before any answer says so: \(rows(blank))")
-        check(blank?.line == IslandPageLine(symbol: DayPage.offlineSymbol, text: "Offline"), "and so does Home")
+        check(blank?.line == IslandPageLine(symbol: DayPage.offlineSymbol, text: "Unavailable"), "and so does Home")
 
         var board = loaded()
         let later = Fix.now.addingTimeInterval(2 * 3600)

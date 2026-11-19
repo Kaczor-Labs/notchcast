@@ -26,7 +26,7 @@ struct DayBoard: Equatable, Sendable {
     /// Decision 946: weather every 30 minutes, markets every 5.
     static let weatherInterval: TimeInterval = 30 * 60
     static let quotesInterval: TimeInterval = 5 * 60
-    /// Shorter after a failure, so a Mac back online catches up soon.
+    /// Weather is one request, so it may retry sooner after a failure; markets wait their interval.
     static let retryInterval: TimeInterval = 60
 
     var place: DayPlace?
@@ -36,6 +36,8 @@ struct DayBoard: Equatable, Sendable {
     var quotes: [String: DayQuote] = [:]
     var quotesClock = DayFeedClock()
     var events: [DayEvent] = []
+    /// Decision 946: feeds are fetched only while the open island shows Home or the Day page.
+    var isVisible = false
 
     /// A new place or list starts its feed over; nothing of the old one stays on the page.
     mutating func configure(place: DayPlace?, symbols: [String]) {
@@ -52,11 +54,13 @@ struct DayBoard: Equatable, Sendable {
     }
 
     func weatherIsDue(now: Date) -> Bool {
-        place != nil && weatherClock.isDue(now: now, every: Self.weatherInterval, retry: Self.retryInterval)
+        isVisible && place != nil
+            && weatherClock.isDue(now: now, every: Self.weatherInterval, retry: Self.retryInterval)
     }
 
     func quotesAreDue(now: Date) -> Bool {
-        !symbols.isEmpty && quotesClock.isDue(now: now, every: Self.quotesInterval, retry: Self.retryInterval)
+        isVisible && !symbols.isEmpty
+            && quotesClock.isDue(now: now, every: Self.quotesInterval, retry: Self.quotesInterval)
     }
 
     /// An answer that does not parse counts as a failure and keeps the last weather.
@@ -66,14 +70,13 @@ struct DayBoard: Equatable, Sendable {
         weatherClock.record(success: parsed != nil, at: now)
     }
 
-    /// Each symbol keeps its last quote until a new one parses; one good answer means online.
+    /// A symbol that fails in a good round shows a dash; a round with no good answer keeps them all.
     mutating func apply(quotes data: [String: Data], at now: Date) {
-        var parsed = 0
-        for symbol in symbols {
-            guard let quote = data[symbol].flatMap({ DayQuoteFeed.quote(from: $0, symbol: symbol) }) else { continue }
-            quotes[symbol] = quote
-            parsed += 1
+        let parsed = symbols.compactMap { symbol in
+            data[symbol].flatMap { DayQuoteFeed.quote(from: $0, symbol: symbol) }
         }
-        quotesClock.record(success: parsed > 0, at: now)
+        let success = !parsed.isEmpty
+        if success { quotes = Dictionary(parsed.map { ($0.symbol, $0) }, uniquingKeysWith: { $1 }) }
+        quotesClock.record(success: success, at: now)
     }
 }

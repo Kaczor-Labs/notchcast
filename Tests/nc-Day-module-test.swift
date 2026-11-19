@@ -80,6 +80,7 @@ final class FakeWorld {
 final class PageRecorder: IslandPresenting {
     var pages: [IslandPage?] = []
     var action: (@MainActor (String) -> Void)?
+    var watcher: (@MainActor (Bool) -> Void)?
 
     func showLevel(_ level: IslandLevel) { check(false, "the Day add-on shows no level") }
     func end(notice id: String) {}
@@ -99,6 +100,11 @@ final class PageRecorder: IslandPresenting {
         action = onAction
     }
 
+    func watchPages(id: String, onChange: (@MainActor (_ visible: Bool) -> Void)?) {
+        check(id == DayPage.id, "the add-on watches only the Day page")
+        watcher = onChange
+    }
+
     func titles(_ index: Int) -> [String] {
         (pages[index]?.blocks ?? []).compactMap { if case .row(let row) = $0 { row.title } else { nil } }
     }
@@ -109,7 +115,7 @@ final class PageRecorder: IslandPresenting {
     }
 }
 
-/// The module as its hook starts it, on a fake network with an injected clock: cadence, offline, keys, teardown.
+/// The module as its hook starts it, on a fake network with an injected clock: cadence, visibility, keys, teardown.
 @MainActor
 @main
 struct DayModuleTests {
@@ -117,6 +123,7 @@ struct DayModuleTests {
         switchShape()
         await nothingChosen()
         await cadence()
+        await visibility()
         await offline()
         await keys()
         await city()
@@ -166,11 +173,12 @@ struct DayModuleTests {
         }]
         module.start()
         module.start()
+        presenter.watcher?(true)
         await module.loop?.value
         check(world.requests.isEmpty, "with no city and no symbols nothing is fetched")
         check(presenter.pages.count == 1 && presenter.titles(0) == ["Today", "Design review"],
               "no tab while there is nothing, then today's events alone: \(presenter.pages.count)")
-        check(presenter.pages[0]?.line.text == "Design review · in 26 min", "\(presenter.pages[0]?.line.text ?? "")")
+        check(presenter.pages[0]?.line.text == "in 26 min · Design review", "\(presenter.pages[0]?.line.text ?? "")")
         presenter.action?(DayPage.scheduleAction)
         check(world.scheduleOpens == 1, "the calendar line opens My Schedule")
         module.stop()
@@ -186,6 +194,7 @@ struct DayModuleTests {
             { world.note(advance: 1500) }, { world.note() },
         ]
         module.start()
+        presenter.watcher?(true)
         await module.loop?.value
         check(world.seen == [["AAPL", "BTC-USD", "weather"], [], [], ["AAPL", "BTC-USD"],
                              ["AAPL", "BTC-USD", "weather"]],
@@ -197,6 +206,28 @@ struct DayModuleTests {
         module.stop()
     }
 
+    static func visibility() async {
+        let world = FakeWorld()
+        let presenter = PageRecorder()
+        let (module, _) = make(world, presenter)
+        module.start()
+        check(presenter.watcher != nil && module.loop == nil && world.requests.isEmpty,
+              "switched on with the island closed it watches, runs no timer and fetches nothing")
+        world.steps = [{ world.note(advance: 600); presenter.watcher?(false) }]
+        presenter.watcher?(true)
+        await module.loop?.value
+        check(module.loop == nil && world.seen == [["AAPL", "BTC-USD", "weather"]],
+              "shown it fetches at once; hidden its timer stops: \(world.seen)")
+        await module.update()
+        check(world.requests.isEmpty, "hidden, a due feed is not fetched")
+        world.steps = [{ world.note() }]
+        presenter.watcher?(true)
+        await module.loop?.value
+        check(world.seen.last == ["AAPL", "BTC-USD"], "shown again it fetches only what is past its interval")
+        module.stop()
+        check(presenter.watcher == nil, "switching off stops watching")
+    }
+
     static func offline() async {
         let world = FakeWorld()
         let presenter = PageRecorder()
@@ -205,21 +236,23 @@ struct DayModuleTests {
         world.steps = [
             { world.note(advance: 59) },
             { world.note(advance: 1); world.online = true },
+            { world.note(advance: 240) },
             { world.note(advance: 300); world.online = false },
             { world.note() },
         ]
         module.start()
+        presenter.watcher?(true)
         await module.loop?.value
-        check(world.seen == [["AAPL", "weather"], [], ["AAPL", "weather"], ["AAPL"]],
-              "a failure retries after a minute, not sooner: \(world.seen)")
-        check(presenter.trailing(0, "Weather") == "Offline" && presenter.trailing(0, "Markets") == "Offline",
-              "offline with nothing yet says so")
-        check(presenter.trailing(1, "9° Mostly Clear") == nil && presenter.trailing(1, "Markets") == nil,
+        check(world.seen == [["AAPL", "weather"], [], ["weather"], ["AAPL"], ["AAPL"]],
+              "failed weather retries after a minute, failed markets after their 5: \(world.seen)")
+        check(presenter.trailing(0, "Weather") == "Unavailable" && presenter.trailing(0, "Markets") == "Unavailable",
+              "unavailable with nothing yet says so")
+        check(presenter.trailing(2, "9° Mostly Clear") == nil && presenter.trailing(2, "Markets") == nil,
               "back online the values show with no stamp")
         let last = presenter.pages.count - 1
-        check(presenter.trailing(last, "Markets") == "Updated 15:32" && presenter.trailing(last, "AAPL") != "–",
-              "offline again keeps the last quotes and their time: \(presenter.trailing(last, "Markets") ?? "nil")")
-        check(presenter.trailing(last, "9° Mostly Clear") == nil, "weather, not yet due, is not marked offline")
+        check(presenter.trailing(last, "Markets") == "Updated 15:36" && presenter.trailing(last, "AAPL") != "–",
+              "failing again keeps the last quotes and their time: \(presenter.trailing(last, "Markets") ?? "nil")")
+        check(presenter.trailing(last, "9° Mostly Clear") == nil, "weather, not yet due, is not marked stale")
         module.stop()
     }
 
@@ -228,6 +261,7 @@ struct DayModuleTests {
         let presenter = PageRecorder()
         let (module, _) = make(world, presenter, symbols: "AAPL NOPE")
         module.start()
+        presenter.watcher?(true)
         await module.loop?.value
         check(world.take() == ["AAPL", "NOPE", "weather"] && presenter.trailing(0, "NOPE") == "–",
               "an unknown symbol shows a dash beside the others")
@@ -250,6 +284,7 @@ struct DayModuleTests {
         let presenter = PageRecorder()
         let (module, _) = make(world, presenter, place: false, symbols: "")
         module.start()
+        presenter.watcher?(true)
         await module.loop?.value
         world.cityKnown = false
         let missing = await module.setCity("Atlantis")
@@ -271,7 +306,9 @@ struct DayModuleTests {
         let (module, _) = make(world, presenter, symbols: "")
         world.holds = true
         module.start()
-        while world.gate == nil { await Task.yield() }
+        presenter.watcher?(true)
+        for _ in 0..<1000 where world.gate == nil { await Task.yield() }
+        check(world.gate != nil, "the load reached the network")
         let loop = module.loop
         module.stop()
         world.holds = false

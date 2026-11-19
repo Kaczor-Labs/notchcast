@@ -21,32 +21,35 @@ enum DayPage {
                           blocks: blocks.map(IslandPageBlock.row))
     }
 
-    /// The next event, which opens My Schedule; else the weather, else the first quote, which open the page.
+    /// The next event, which opens My Schedule; else live weather, else a live quote, which open the page.
     static func line(_ board: DayBoard, today: [DayEvent], now: Date, calendar: Calendar,
                      locale: Locale) -> IslandPageLine {
-        let sky = board.weather.map { (DayWeatherFeed.symbol($0.current), summary($0.current, locale: locale)) }
-        let quote = board.symbols.lazy.compactMap { board.quotes[$0] }.first.map { quote in
+        let sky = board.weatherClock.isOffline ? nil : board.weather.map {
+            (DayWeatherFeed.symbol($0.current), summary($0.current, locale: locale))
+        }
+        let quotes = board.quotesClock.isOffline ? [] : board.symbols
+        let quote = quotes.lazy.compactMap { board.quotes[$0] }.first.map { quote in
             [quote.symbol, DayQuoteFeed.change(quote, locale: locale) ?? DayQuoteFeed.price(quote, locale: locale)]
                 .joined(separator: " ")
         }
         if let event = DayAgenda.next(today) ?? today.first {
             let when = DayAgenda.when(event, now: now, calendar: calendar, locale: locale)
-            return IslandPageLine(symbol: "calendar", text: "\(event.title) · \(when)", detail: sky?.1 ?? quote,
+            return IslandPageLine(symbol: "calendar", text: "\(when) · \(event.title)", detail: sky?.1 ?? quote,
                                   action: scheduleAction)
         }
         if let sky { return IslandPageLine(symbol: sky.0, text: sky.1, detail: quote) }
         if let quote { return IslandPageLine(symbol: "chart.line.uptrend.xyaxis", text: quote) }
-        return IslandPageLine(symbol: offlineSymbol, text: String(localized: "Offline", table: "NotchcastDay"))
+        return IslandPageLine(symbol: offlineSymbol, text: String(localized: "Unavailable", table: "NotchcastDay"))
     }
 
-    /// Now, then the coming hours; offline it keeps the last reading and says when it was taken.
+    /// Now, then the coming hours; unavailable it keeps the last reading and says when it was taken.
     static func weather(_ board: DayBoard, now: Date, calendar: Calendar, locale: Locale) -> [IslandPageRow] {
         guard let place = board.place else { return [] }
         let offline = board.weatherClock.isOffline
         guard let weather = board.weather else {
             let title = String(localized: "Weather", table: "NotchcastDay")
             return offline ? [IslandPageRow(symbol: offlineSymbol, title: title, detail: place.name,
-                                            trailing: String(localized: "Offline", table: "NotchcastDay"))] : []
+                                            trailing: String(localized: "Unavailable", table: "NotchcastDay"))] : []
         }
         let stamp = offline ? board.weatherClock.succeededAt.map {
             updated($0, calendar: calendar, locale: locale)
@@ -70,7 +73,7 @@ enum DayPage {
         guard !board.symbols.isEmpty, !board.quotes.isEmpty || clock.isOffline else { return [] }
         let state = !clock.isOffline ? nil : clock.succeededAt.map {
             updated($0, calendar: calendar, locale: locale)
-        } ?? String(localized: "Offline", table: "NotchcastDay")
+        } ?? String(localized: "Unavailable", table: "NotchcastDay")
         let header = IslandPageRow(symbol: clock.isOffline && board.quotes.isEmpty ? offlineSymbol
                                        : "chart.line.uptrend.xyaxis",
                                    title: String(localized: "Markets", table: "NotchcastDay"), trailing: state)

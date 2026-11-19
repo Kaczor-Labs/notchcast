@@ -29,6 +29,9 @@ struct DaySettingsView: View {
                 Text("Press Return to apply. Weather comes from Open-Meteo. Quotes use Yahoo Finance symbols, up to 8.",
                      tableName: "NotchcastDay")
                     .foregroundStyle(Theme.Colors.textSecondary)
+                Text("Events come from the Calendar feature and appear once it has calendar access.",
+                     tableName: "NotchcastDay")
+                    .foregroundStyle(Theme.Colors.textSecondary)
             }
         }
         .task { await attach() }

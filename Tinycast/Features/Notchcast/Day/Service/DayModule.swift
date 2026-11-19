@@ -1,6 +1,6 @@
 import Foundation
 
-/// Keeps the Day page current while the switch is on: a minute tick, and a fetch when a feed is due.
+/// Keeps the Day page current while Home or Day shows: a minute tick, and a fetch when a feed is due.
 @MainActor
 final class DayModule: NotchcastModule {
     /// Countdowns ("in 25 min") move by the minute, and no feed is due more often.
@@ -17,6 +17,7 @@ final class DayModule: NotchcastModule {
     private var posted: IslandPage?
     private var run = 0
     private var isLoading = false
+    private var isOn = false
     private(set) var loop: Task<Void, Never>?
     private(set) var refresh: Task<Void, Never>?
 
@@ -36,20 +37,18 @@ final class DayModule: NotchcastModule {
 
     var symbolsText: String { context.defaults.string(forKey: Self.symbolsKey) ?? "" }
 
+    /// Posts what it has at once; the tick runs only while the island shows Home or Day.
     func start() {
-        guard loop == nil else { return }
-        let sleep = sleep
-        loop = Task { [weak self] in
-            while !Task.isCancelled {
-                await self?.update()
-                if self == nil { return }
-                do { try await sleep(Self.tick) } catch { return }
-            }
-        }
+        guard !isOn else { return }
+        isOn = true
+        redraw()
+        context.presenter.watchPages(id: DayPage.id) { [weak self] in self?.setVisible($0) }
     }
 
     func stop() {
-        guard loop != nil else { return }
+        guard isOn else { return }
+        isOn = false
+        context.presenter.watchPages(id: DayPage.id, onChange: nil)
         loop?.cancel()
         loop = nil
         refresh?.cancel()
@@ -59,6 +58,23 @@ final class DayModule: NotchcastModule {
         board = DayBoard()
         posted = nil
         context.presenter.setPage(nil, id: DayPage.id, onAction: nil)
+    }
+
+    /// Shown, it fetches what is older than its interval and ticks; hidden, no timer runs.
+    private func setVisible(_ visible: Bool) {
+        guard isOn, visible != board.isVisible else { return }
+        board.isVisible = visible
+        loop?.cancel()
+        loop = nil
+        guard visible else { return }
+        let sleep = sleep
+        loop = Task { [weak self] in
+            while !Task.isCancelled {
+                await self?.update()
+                if self == nil { return }
+                do { try await sleep(Self.tick) } catch { return }
+            }
+        }
     }
 
     /// Looks the city up and keeps where it is; false when no such place was found. Empty clears it.
@@ -83,9 +99,8 @@ final class DayModule: NotchcastModule {
 
     /// Redraws from what it has, then fetches what is due; `force` is Command-R. One load at a time.
     func update(force: Bool = false) async {
-        guard loop != nil else { return }
-        board.configure(place: place, symbols: DayQuoteFeed.symbols(from: symbolsText))
-        post()
+        guard isOn else { return }
+        redraw()
         let now = context.now()
         let place = board.place
         let symbols = board.symbols
@@ -101,9 +116,16 @@ final class DayModule: NotchcastModule {
         // A load that returns after `stop` belongs to no run; one for an old place or list is dropped.
         guard run == self.run else { return }
         isLoading = false
+        // Hiding the page cancels its load, which is no failure, so it is asked again.
+        if Task.isCancelled { return }
         let done = context.now()
         if wantsWeather, board.place == place { board.apply(weather: weatherData, at: done) }
         if wantsQuotes, board.symbols == symbols { board.apply(quotes: quoteData, at: done) }
+        post()
+    }
+
+    private func redraw() {
+        board.configure(place: place, symbols: DayQuoteFeed.symbols(from: symbolsText))
         post()
     }
 

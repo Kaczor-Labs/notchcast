@@ -9,6 +9,7 @@ enum DayNetwork {
     private static let session: URLSession = {
         let config = URLSessionConfiguration.ephemeral
         config.urlCache = nil
+        config.timeoutIntervalForResource = 30
         return URLSession(configuration: config)
     }()
 
