@@ -301,7 +301,7 @@
     "Convert dropped files" : {
 
     },
-    "PDF, HTML and audio files dropped into the Markdown folder become notes. Originals go to the Trash." : {
+    "PDF, HTML, audio and video files added to the Markdown folder while this is on become notes. Originals go to the Trash." : {
 
     }
   },

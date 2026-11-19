@@ -1,22 +1,30 @@
 import CoreServices
 import Foundation
 
-/// Queues files dropped into the Markdown folder for Distill while Convert dropped files is on.
+/// Queues files that appear in the Markdown folder while Convert dropped files is on, never one already there.
 @MainActor
 final class DistillDropWatcher {
+    typealias Sleep = @Sendable (TimeInterval) async throws -> Void
+
     private let defaults: UserDefaults
     private let now: @MainActor () -> Date
+    private let sleep: Sleep
     private let distill: DownloadsQueueController
-    private var folder: URL?
+    private(set) var folder: URL?
     private var stream: FileSystemWatcher?
     private var observer: NotificationToken?
     private var recheck: Task<Void, Never>?
     private var scan: Task<Void, Never>?
     private var seen: [String: DistillDrop.Sighting] = [:]
+    private var existing: Set<String>?
 
-    init(defaults: UserDefaults, now: @escaping @MainActor () -> Date, distill: DownloadsQueueController) {
+    init(
+        defaults: UserDefaults, now: @escaping @MainActor () -> Date, distill: DownloadsQueueController,
+        sleep: @escaping Sleep = { try await Task.sleep(for: .seconds($0)) }
+    ) {
         self.defaults = defaults
         self.now = now
+        self.sleep = sleep
         self.distill = distill
     }
 
@@ -44,8 +52,10 @@ final class DistillDropWatcher {
             await previous?.value
             let entries = await Self.entries(in: folder)
             guard !Task.isCancelled, let self, self.folder == folder, let queue = distill.queue else { return done(0) }
-            let plan = DistillDrop.plan(entries, jobs: queue.jobs, seen: seen, now: now(), retryFailed: retryFailed)
+            let plan = DistillDrop.plan(entries, jobs: queue.jobs, seen: seen, existing: existing, now: now(),
+                                        retryFailed: retryFailed)
             seen = plan.seen
+            existing = plan.existing
             for entry in plan.ready {
                 _ = distill.accept(kind: DistillRunner.kind, sources: [entry.path],
                                    options: try? DownloadJob.encode(entry.stamp))
@@ -57,6 +67,8 @@ final class DistillDropWatcher {
 
     /// Any change in the suite lands here; only a new folder, or the option going off, restarts the watch.
     private func follow() {
+        // A change queued just before stop arrives after it, and must not start the watch again.
+        guard observer != nil else { return }
         let wanted = DistillNotes.dropFolder(in: defaults)
         if let queue = distill.queue {
             for id in DistillDrop.orphans(queue.jobs, kind: DistillRunner.kind, folder: wanted) { queue.cancel(id) }
@@ -69,6 +81,7 @@ final class DistillDropWatcher {
         folder = target
         stream = nil
         seen = [:]
+        existing = nil
         for task in [recheck, scan] { task?.cancel() }
         recheck = nil
         scan = nil
@@ -92,8 +105,8 @@ final class DistillDropWatcher {
         recheck = nil
         guard let date else { return }
         let delay = max(0, date.timeIntervalSince(now()))
-        recheck = Task { [weak self] in
-            guard (try? await Task.sleep(for: .seconds(delay))) != nil else { return }
+        recheck = Task { [weak self, sleep] in
+            guard (try? await sleep(delay)) != nil else { return }
             self?.rescan()
         }
     }

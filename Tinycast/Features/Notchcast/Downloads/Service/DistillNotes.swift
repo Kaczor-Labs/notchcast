@@ -62,7 +62,11 @@ extension DistillRunner {
             guard let text = PDFDocument(url: file)?.string else { throw DistillFailure.unreadable }
             body = text
         case .html:
-            body = HTMLMarkdown.convert(String(decoding: try Data(contentsOf: file), as: UTF8.self), baseURL: file)
+            // Lossy decoding never fails: another encoding would become a garbled note and lose its original.
+            guard let html = String(data: try Data(contentsOf: file), encoding: .utf8) else {
+                throw DistillFailure.unreadable
+            }
+            body = HTMLMarkdown.convert(html, baseURL: file)
         case .media:
             body = try await mediaText(file, times: times, context: context)
         }
