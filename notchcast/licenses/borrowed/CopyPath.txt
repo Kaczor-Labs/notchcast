@@ -1,0 +1,2 @@
+CopyPath: Service/CopyPathTabLinks.swift ← vorssaint/vorssaint-utils@faada18/Sources/Vorssaint/Services/QuickTools/PastePlainService.swift (GPL-3.0-or-later)
+CopyPath: Service/CopyPathTabLinks.swift ← vorssaint/vorssaint-utils@faada18/Sources/Vorssaint/Services/CommandBar/CommandBarMenus.swift (GPL-3.0-or-later)
