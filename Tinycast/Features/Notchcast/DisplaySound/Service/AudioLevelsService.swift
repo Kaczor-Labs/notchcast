@@ -3,11 +3,6 @@ import Foundation
 /// Volume keys applied through CoreAudio, one at a time; a newer step replaces one still waiting.
 @MainActor
 final class AudioLevelsService {
-    enum Command: Sendable {
-        case step(increasing: Bool, fine: Bool)
-        case toggleMute
-    }
-
     enum Result: Sendable, Equatable {
         case applied(AudioOutput)
         case partiallyApplied(AudioOutput)
@@ -84,7 +79,7 @@ final class AudioLevelsService {
         }
     }
 
-    func apply(_ command: Command) async -> Result {
+    func apply(_ command: VolumeCommand) async -> Result {
         guard isRunning else { return .cancelled }
         if case .step = command, let pendingStep { operations[pendingStep]?.cancel() }
         let current = generation
@@ -125,7 +120,7 @@ final class AudioLevelsService {
 
     @concurrent private static func read(_ access: AudioLevelAccess) async -> AudioOutput? { access.output() }
 
-    @concurrent private static func adjust(_ command: Command, access: AudioLevelAccess,
+    @concurrent private static func adjust(_ command: VolumeCommand, access: AudioLevelAccess,
                                            sleep: @Sendable (Duration) async throws -> Void) async -> Result {
         guard !Task.isCancelled, let initial = access.output() else { return .fallbackToNativeKeys }
         switch command {

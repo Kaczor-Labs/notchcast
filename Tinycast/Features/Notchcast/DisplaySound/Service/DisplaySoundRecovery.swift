@@ -6,7 +6,7 @@ import Foundation
 
 @MainActor
 final class DisplaySoundRecovery: NotchcastModule {
-    private let service: BrightnessDisplayService
+    let service: BrightnessDisplayService
     private let system: DisplaySoundSystem
     private var tail: Task<BrightnessDisplayService.Snapshot?, Never>?
     private var watchers: [AnyObject] = []

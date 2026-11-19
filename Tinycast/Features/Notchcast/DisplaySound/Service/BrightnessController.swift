@@ -26,6 +26,7 @@ final class BrightnessController {
     @ObservationIgnored private var refreshTask: Task<Void, Never>?
     @ObservationIgnored private var settlingAfterWake = false
     @ObservationIgnored private var retries: [String: Task<Void, Never>] = [:]
+    @ObservationIgnored private var extraDimming: Bool?
 
     init(system: DisplaySoundSystem, recovery: DisplaySoundRecovery? = nil) {
         self.system = system
@@ -54,6 +55,7 @@ final class BrightnessController {
         recovery.activate()
         refreshTask?.cancel()
         watchers = system.watchDisplays { [weak self] woke in self?.scheduleRefresh(woke: woke) }
+            + system.watchSleep { [weak self] in self?.relevel(.sleep) }
         refreshTask = Task { [weak self] in await self?.refresh() }
     }
 
@@ -70,7 +72,20 @@ final class BrightnessController {
         for task in operations.values { task.cancel() }
         operations = [:]
         currentDisplays = []
+        extraDimming = nil
         recovery.restore()
+    }
+
+    /// Off takes away the dimming below every backlight at once; on lets the keys reach it again.
+    func allowExtraDimming(_ on: Bool) {
+        guard running, on != extraDimming else { return }
+        extraDimming = on
+        relevel(.extraDimming(on))
+    }
+
+    private func relevel(_ operation: BrightnessDisplayService.Operation) {
+        guard running else { return }
+        Task { [weak self] in _ = await self?.perform(operation) }
     }
 
     func refresh() async {
