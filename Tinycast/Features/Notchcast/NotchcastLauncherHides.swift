@@ -21,7 +21,8 @@ final class NotchcastLauncherHides {
     /// The launcher's own Hide writes the stock store; adopting it turns the command's switch off.
     private func adoptStockHides() {
         let hidden = withObservationTracking {
-            visibility.hiddenItemKeys.intersection(commandIDs)
+            // Every add-on command id has this prefix, run-time ones included.
+            visibility.hiddenItemKeys.filter { $0.hasPrefix("command:nc-") }
         } onChange: { [weak self] in
             // onChange fires inside VisibilityStore's willSet on the main actor, before the hide lands.
             MainActor.assumeIsolated { self?.adoption = Task { self?.adoptStockHides() } }
