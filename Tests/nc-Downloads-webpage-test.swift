@@ -1,3 +1,4 @@
+// notchcast-hosted-only
 // notchcast-sources: Tinycast/Features/Notchcast/Downloads/Model/CaptionText.swift
 // notchcast-sources: Tinycast/Features/Notchcast/Downloads/Model/DownloadJob.swift
 // notchcast-sources: Tinycast/Features/Notchcast/Downloads/Model/DownloadProgress.swift

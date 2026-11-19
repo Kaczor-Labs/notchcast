@@ -1,3 +1,5 @@
+// notchcast-addon-order: 110
+// notchcast-readme: Display & Sound: brightness keys for every display, volume in the island
 // notchcast-new-switch-ids: extraDimming
 import SwiftUI
 

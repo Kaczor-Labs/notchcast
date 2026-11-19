@@ -1,3 +1,5 @@
+// notchcast-addon-order: 140
+// notchcast-readme: Keyboard & Mouse: Paste Plain Text
 import Foundation
 
 enum PastePlainTextAddon: NotchcastAddon {

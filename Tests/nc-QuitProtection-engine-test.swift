@@ -1,3 +1,4 @@
+// notchcast-linux-ok
 // notchcast-sources: Tinycast/Features/Notchcast/QuitProtection/Model/*.swift
 // notchcast-sources: Tinycast/Features/Notchcast/QuitProtection/Service/QuitProtectionStore.swift
 

@@ -1,3 +1,4 @@
+// notchcast-addon-order: 170
 import Foundation
 
 enum FinderToolsAddon: NotchcastAddon {

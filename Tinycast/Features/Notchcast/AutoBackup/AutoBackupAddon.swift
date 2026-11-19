@@ -1,3 +1,4 @@
+// notchcast-addon-order: 130
 import SwiftUI
 
 // notchcast-new-switch-ids: autoBackupSettings
