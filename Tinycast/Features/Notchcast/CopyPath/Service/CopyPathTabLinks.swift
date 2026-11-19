@@ -27,25 +27,32 @@ nonisolated enum CopyPathTabLinks {
         guard AXIsProcessTrusted() else { throw CopyPathFailure.accessibility }
         let deadline = ContinuousClock.now + walkBudget
         let app = AXUIElementCreateApplication(pid)
-        guard let timeout = AX.leash(deadline, cap: 1),
-            let window = try AX.element(app, kAXFocusedWindowAttribute, timeout: timeout) else { return 0 }
-        var queue = [window]
-        var index = 0
-        var selected = 0
-        while index < queue.count, index < maxElements {
-            let current = queue[index]
-            index += 1
-            guard let timeout = AX.leash(deadline, cap: 1) else { return 0 }
-            let role = try AX.read(current, kAXRoleAttribute, timeout: timeout) as? String
-            if role == kAXRadioButtonRole as String,
-                try AX.read(current, kAXSubroleAttribute, timeout: timeout) as? String == "AXTabButton" {
-                if try AX.read(current, kAXValueAttribute, timeout: timeout) as? Int == 1 { selected += 1 }
-                continue
-            }
-            guard role != "AXWebArea" else { continue }
-            queue += try AX.children(current, timeout: timeout)
+        func value(_ element: AXUIElement, _ attribute: String) throws -> CFTypeRef? {
+            try AX.leashed(deadline, cap: 1) { try AX.read(element, attribute, timeout: $0) }
         }
-        return selected
+        do {
+            guard let window = try AX.leashed(deadline, cap: 1, {
+                try AX.element(app, kAXFocusedWindowAttribute, timeout: $0)
+            }) else { return 0 }
+            var queue = [window]
+            var index = 0
+            var selected = 0
+            while index < queue.count, index < maxElements {
+                let current = queue[index]
+                index += 1
+                let role = try value(current, kAXRoleAttribute) as? String
+                if role == kAXRadioButtonRole as String,
+                    try value(current, kAXSubroleAttribute) as? String == "AXTabButton" {
+                    if try value(current, kAXValueAttribute) as? Int == 1 { selected += 1 }
+                    continue
+                }
+                guard role != "AXWebArea" else { continue }
+                queue += try AX.leashed(deadline, cap: 1) { try AX.children(current, timeout: $0) }
+            }
+            return selected
+        } catch is AX.BudgetSpent {
+            return 0
+        }
     }
 
     /// Presses File › Share's first item with no menu opened, then waits for the browser's write.

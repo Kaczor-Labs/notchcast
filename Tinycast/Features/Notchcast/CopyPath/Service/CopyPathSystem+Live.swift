@@ -105,15 +105,20 @@ private nonisolated enum CopyPathAppleEvents {
     }
 }
 
-/// Reads `AXDocument` or a Gecko page's `AXURL`; each read's timeout is per element, never inherited.
+/// Reads `AXDocument` or a Gecko page's `AXURL`; each read's timeout is per element.
 nonisolated enum CopyPathAccessibility {
     static let timeout: Float = 1
-    /// The page search's whole budget, both walks and the wait between them; an empty tab walks it all.
+    /// Both page walks and the wait between them; an empty tab walks it all.
     static let pageBudget = Duration.seconds(2)
     static let firstActivationWait = Duration.milliseconds(500)
+    /// A second walk with less than this left would only end on the budget.
+    static let secondWalkMinimum = Duration.milliseconds(200)
 
     /// A window's elements walked before giving up; a long tab sidebar alone holds hundreds.
     static let maxElements = 2000
+
+    /// A walk out of budget: it ends as if nothing were there, never as Unavailable.
+    struct BudgetSpent: Error {}
 
     @concurrent
     static func document(pid: Int32, window: CopyPathResolver.Window) async throws -> String? {
@@ -133,47 +138,61 @@ nonisolated enum CopyPathAccessibility {
         _ = try read(app, kAXRoleAttribute)
         if let address = try pageAddress(app, deadline: deadline) { return address }
         // On first activation the pages arrive from Gecko's content processes a moment later.
-        guard ContinuousClock.now + firstActivationWait < deadline else { return nil }
+        guard ContinuousClock.now + firstActivationWait + secondWalkMinimum < deadline else { return nil }
         try await Task.sleep(for: firstActivationWait)
         return try pageAddress(app, deadline: deadline)
     }
 
     /// Nil once `deadline` passes, as if no page were there, so a slow walk still ends the run.
     private static func pageAddress(_ app: AXUIElement, deadline: ContinuousClock.Instant) throws -> String? {
-        func next() -> Float? { leash(deadline, cap: timeout) }
-        guard let timeout = next() else { return nil }
-        var element = try self.element(app, kAXFocusedUIElementAttribute, timeout: timeout)
-        for _ in 0..<maxElements {
-            guard let current = element, let timeout = next() else { break }
-            if let address = try address(current, timeout: timeout) { return address }
-            element = try self.element(current, kAXParentAttribute, timeout: timeout)
+        func element(_ of: AXUIElement, _ attribute: String) throws -> AXUIElement? {
+            try leashed(deadline, cap: timeout) { try self.element(of, attribute, timeout: $0) }
         }
-        guard let timeout = next(), let window = try self.element(app, kAXFocusedWindowAttribute, timeout: timeout)
-        else { return nil }
-        var queue = [window]
-        var index = 0
-        while index < queue.count, index < maxElements {
-            guard let timeout = next() else { return nil }
-            if let address = try address(queue[index], timeout: timeout) { return address }
-            queue += try children(queue[index], timeout: timeout)
-            index += 1
+        do {
+            var focus = try element(app, kAXFocusedUIElementAttribute)
+            for _ in 0..<maxElements {
+                guard let current = focus else { break }
+                if let address = try address(current, deadline: deadline) { return address }
+                focus = try element(current, kAXParentAttribute)
+            }
+            guard let window = try element(app, kAXFocusedWindowAttribute) else { return nil }
+            var queue = [window]
+            var index = 0
+            while index < queue.count, index < maxElements {
+                if let address = try address(queue[index], deadline: deadline) { return address }
+                queue += try leashed(deadline, cap: timeout) { try children(queue[index], timeout: $0) }
+                index += 1
+            }
+            return nil
+        } catch is BudgetSpent {
+            return nil
         }
-        return nil
     }
 
     /// A page's `AXURL`; Gecko's window and panels are `chrome:` or `moz-extension:` web areas too.
-    private static func address(_ element: AXUIElement, timeout: Float) throws -> String? {
-        guard try read(element, kAXRoleAttribute, timeout: timeout) as? String == "AXWebArea",
-            let url = try read(element, kAXURLAttribute, timeout: timeout) as? URL,
+    private static func address(_ element: AXUIElement, deadline: ContinuousClock.Instant) throws -> String? {
+        func value(_ attribute: String) throws -> CFTypeRef? {
+            try leashed(deadline, cap: timeout) { try read(element, attribute, timeout: $0) }
+        }
+        guard try value(kAXRoleAttribute) as? String == "AXWebArea",
+            let url = try value(kAXURLAttribute) as? URL,
             ["http", "https", "file"].contains(url.scheme?.lowercased() ?? "") else { return nil }
         return url.absoluteString
     }
 
-    /// The AX timeout for the next read: at most `cap`, never past `deadline`; nil once it has passed.
+    /// The AX timeout for the next read: at most `cap`, never past `deadline`; nil when nearly out.
     static func leash(_ deadline: ContinuousClock.Instant, cap: Float) -> Float? {
-        let left = ContinuousClock.now.duration(to: deadline)
-        guard left > .zero else { return nil }
-        return min(cap, Float(left.components.seconds) + Float(left.components.attoseconds) / 1e18)
+        CopyPathBudget.timeout(left: ContinuousClock.now.duration(to: deadline), cap: cap)
+    }
+
+    /// One read leashed afresh; a clipped read that times out spent the budget rather than hung.
+    static func leashed<T>(_ deadline: ContinuousClock.Instant, cap: Float, _ read: (Float) throws -> T) throws -> T {
+        guard let timeout = leash(deadline, cap: cap) else { throw BudgetSpent() }
+        do {
+            return try read(timeout)
+        } catch is CopyPathUnavailable where timeout < cap {
+            throw BudgetSpent()
+        }
     }
 
     static func children(_ element: AXUIElement, timeout: Float) throws -> [AXUIElement] {

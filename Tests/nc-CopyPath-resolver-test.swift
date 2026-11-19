@@ -356,6 +356,16 @@ func statusMapping() throws {
     }
 }
 
+func budget() {
+    let timeout = CopyPathBudget.timeout
+    precondition(timeout(.seconds(3), 1) == 1, "plenty left: the cap")
+    precondition(timeout(.milliseconds(250), 1) == 0.25, "less than the cap: what is left")
+    precondition(timeout(.milliseconds(10), 1) == 0.01, "the minimum still reads")
+    for left: Duration in [.microseconds(9_999), .microseconds(400), .zero, .milliseconds(-5)] {
+        precondition(timeout(left, 1) == nil, "\(left) left: no read, never AX's 6 s default")
+    }
+}
+
 func folding() {
     let fold = { CopyPathResolver.fold($0, home) }
     check(fold("/home/tester"), "~", "home itself")
@@ -397,8 +407,9 @@ enum CopyPathResolverTests {
         try await documentCases()
         try await stopCases()
         try statusMapping()
+        budget()
         folding()
         cleaning()
-        print("PASS: copy path resolves Finder, browsers, Gecko pages and selected tabs, documents, timeouts, home and links")
+        print("PASS: copy path resolves Finder, browsers, Gecko pages and selected tabs, documents, timeouts, budgets, home and links")
     }
 }
