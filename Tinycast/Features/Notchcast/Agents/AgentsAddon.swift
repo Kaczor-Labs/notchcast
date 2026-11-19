@@ -6,7 +6,7 @@ import SwiftUI
 enum AgentsAddon: NotchcastAddon { // drift: keep the generated NotchcastRegistry lists it
     static let switches = [
         NotchcastSwitch(
-            id: AgentsPreferences.switchID,
+            id: "agentsUsage",
             title: String(localized: "Agents page", table: "NotchcastAgents"),
             subtitle: String(
                 localized: "Shows how much of each Claude and Codex plan is used, on a page in the island.",
@@ -17,13 +17,13 @@ enum AgentsAddon: NotchcastAddon { // drift: keep the generated NotchcastRegistr
     static let commands = [
         NotchcastCommand(
             slug: "open-agents", name: String(localized: "Open Agents", table: "NotchcastAgents"),
-            symbol: AgentPage.symbol, switchID: AgentsPreferences.switchID,
+            symbol: AgentPage.symbol, switchID: "agentsUsage",
             keywords: ["usage", "limits", "claude", "codex", "plan"],
             run: { $0.module(AgentsModule.self)?.open() }),
     ]
 
     static let settings = [
-        NotchcastSettingsRow(switchID: AgentsPreferences.switchID) { AnyView(AgentsSettingsView(context: $0)) },
+        NotchcastSettingsRow(switchID: "agentsUsage") { AnyView(AgentsSettingsView(context: $0)) },
     ]
 
     static func makeModule(_ context: NotchcastContext) -> (any NotchcastModule)? {
