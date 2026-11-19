@@ -41,7 +41,7 @@ final class CopyPathModule: NotchcastModule {
         let app = system.frontApp()
         let (home, reader, operation) = (system.home, system.reader, operation)
         runTask = Task { [weak self] in
-            let result: Result<String?, any Error>
+            let result: Result<CopyPathCopy?, any Error>
             do {
                 result = .success(try await CopyPathResolver.resolve(app, home: home, reader: reader))
             } catch {
@@ -59,13 +59,17 @@ final class CopyPathModule: NotchcastModule {
         operation = UUID()
     }
 
-    private func finish(_ result: Result<String?, any Error>) {
+    private func finish(_ result: Result<CopyPathCopy?, any Error>) {
         switch result {
-        case .success(let text?):
-            guard system.copy(text) else {
+        case .success(let copy?):
+            if let changeCount = copy.browserChangeCount { context.synchronizeClipboard(changeCount: changeCount) }
+            guard system.copy(copy.text) else {
                 return post(String(localized: "Could not copy to clipboard.", table: "NotchcastCopyPath"), failed: true)
             }
-            post(String(localized: "Copied path", table: "NotchcastCopyPath"), failed: false)
+            let count = copy.links
+            post(count > 1
+                ? String(localized: "Copied \(count) links", table: "NotchcastCopyPath")
+                : String(localized: "Copied path", table: "NotchcastCopyPath"), failed: false)
         case .failure(is CancellationError):
             return
         case .failure(let failure as CopyPathFailure):
