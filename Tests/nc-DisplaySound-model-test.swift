@@ -58,10 +58,9 @@ enum DisplaySoundModelTests {
         while level.value < 1 { level = level.stepped(up: true, fine: false); steps += 1 }
         check(steps == 20, "−0.25…1 is twenty 1/16 steps")
 
-        // The reconnection floor.
-        let deep = BrightnessLevel(-0.25)
-        check(close(deep.reconnected().picture, BrightnessRecoveryPolicy.reconnectionDimFloor), "deep dim lifts to floor")
-        check(BrightnessLevel(-0.05).reconnected() == BrightnessLevel(-0.05), "shallow dim is kept")
+        // Reconnection drops extra dimming; software dimming stays above its floor.
+        check(BrightnessLevel(-0.25).reconnected() == BrightnessLevel(0), "deep extra dimming is dropped")
+        check(BrightnessLevel(-0.05).reconnected() == BrightnessLevel(0), "shallow extra dimming is dropped")
         check(BrightnessLevel(0.4).reconnected() == BrightnessLevel(0.4), "an undimmed level is kept")
         let softDeep = BrightnessLevel(0, softwareOnly: true)
         check(close(softDeep.reconnected().picture, 0.25) && softDeep.reconnected().softwareOnly, "software floor")
@@ -77,17 +76,18 @@ enum DisplaySoundModelTests {
         check(gamma.scaled(0.5).red == [0, 0.25, 0.5], "scaled")
 
         // DDC packets and outcomes.
-        check(BrightnessDDC.request() == [0x82, 0x01, 0x10, 0x6E ^ 0x51 ^ 0x82 ^ 0x01 ^ 0x10], "request packet")
-        check(BrightnessDDC.write(50) == [0x84, 0x03, 0x10, 0, 50, 0x6E ^ 0x51 ^ 0x84 ^ 0x03 ^ 0x10 ^ 0 ^ 50],
+        check(DisplayDDC.request(.luminance) == [0x82, 0x01, 0x10, 0x6E ^ 0x51 ^ 0x82 ^ 0x01 ^ 0x10], "request packet")
+        check(DisplayDDC.write(.luminance, 50) == [0x84, 0x03, 0x10, 0, 50, 0x6E ^ 0x51 ^ 0x84 ^ 0x03 ^ 0x10 ^ 0 ^ 50],
               "write packet")
         var reply: [UInt8] = [0x6E, 0x88, 0x02, 0x00, 0x10, 0x00, 0x00, 100, 0x00, 40]
         reply.append(reply.reduce(UInt8(0x50), ^))
-        check(BrightnessDDC.parse(reply)! == (40, 100), "reply parsed")
+        check(DisplayDDC.parse(reply, .luminance)! == (40, 100), "reply parsed")
+        check(DisplayDDC.parse(reply, .volume) == nil, "a reply for another code is not this one")
         var corrupt = reply
         corrupt[9] = 41
-        check(BrightnessDDC.parse(corrupt) == nil, "bad checksum dropped")
-        check(BrightnessDDC.deviceValue(-0.2, maximum: 100) == 0, "extra dimming writes 0")
-        check(BrightnessDDC.deviceValue(0.5, maximum: 80) == 40, "scaled to the monitor's maximum")
+        check(DisplayDDC.parse(corrupt, .luminance) == nil, "bad checksum dropped")
+        check(DisplayDDC.deviceValue(-0.2, maximum: 100) == 0, "extra dimming writes 0")
+        check(DisplayDDC.deviceValue(0.5, maximum: 80) == 40, "scaled to the monitor's maximum")
         check(BrightnessRecoveryPolicy.channelOutcome(writeAccepted: true, reply: nil) == .writeOnly, "write-only")
         check(BrightnessRecoveryPolicy.channelOutcome(writeAccepted: false, reply: nil) == .dead, "dead")
         check(BrightnessRecoveryPolicy.channelOutcome(writeAccepted: false, reply: (1, 2)) == .live(current: 1, maximum: 2),
@@ -179,6 +179,87 @@ enum DisplaySoundModelTests {
         check(AudioOutput(device: 1, volume: 0.5, muted: true).changed(from: before), "mute change")
         check(!AudioOutput(device: 2, volume: 0.6, muted: false).changed(from: before), "a new device is no change")
         check(!before.changed(from: nil), "first read is no change")
+        extraDimming()
+        speakers()
         print("nc-DisplaySound-model-test: PASS")
+    }
+
+    static func extraDimming() {
+        let off = BrightnessLevel(-0.2, extraDimming: false)
+        check(off.value == 0 && off.range == 0...1 && !off.isDimmed, "off: the backlight minimum is the floor")
+        check(off.stepped(up: false, fine: false).value == 0, "off: keys stop at the backlight minimum")
+        check(off.readout == "0%" && BrightnessLevel(1, extraDimming: false).readout == "100%", "off: 0…100 is the backlight")
+        check(!off.stepped(up: true, fine: true).extraDimming, "a step keeps the setting")
+        check(!BrightnessLevel(-0.1).refreshed(hardware: 0.3).allowing(extraDimming: false).extraDimming, "kept")
+        check(BrightnessLevel(-0.1).allowing(extraDimming: false) == off, "turning it off lifts a dimmed level")
+        check(BrightnessLevel(-0.1).withoutExtraDimming() == BrightnessLevel(0), "sleep drops extra dimming")
+        let software = BrightnessLevel(0.3, softwareOnly: true)
+        check(software.withoutExtraDimming() == software, "software dimming is no extra")
+        check(software.allowing(extraDimming: false).value == 0.3, "software dimming ignores the setting")
+        var level = BrightnessLevel(1, extraDimming: false)
+        for _ in 0..<40 { level = level.stepped(up: false, fine: false) }
+        check(level.value == 0 && level.picture == 1, "off: twenty presses down never dim the picture")
+    }
+
+    static func speakers() {
+        // VCP 0x62 volume and 0x8D mute packets, and a reply for each.
+        check(DisplayDDC.request(.volume) == DisplayDDC.seal([0x82, 0x01, 0x62]), "volume request")
+        check(DisplayDDC.request(.mute) == DisplayDDC.seal([0x82, 0x01, 0x8D]), "mute request")
+        check(DisplayDDC.write(.volume, 300) == DisplayDDC.seal([0x84, 0x03, 0x62, 0x01, 0x2C]), "16-bit volume")
+        check(DisplayDDC.write(.mute, DisplayDDC.muteValue(true)) == DisplayDDC.seal([0x84, 0x03, 0x8D, 0, 1]), "mute")
+        check(DisplayDDC.write(.mute, DisplayDDC.muteValue(false)) == DisplayDDC.seal([0x84, 0x03, 0x8D, 0, 2]), "unmute")
+        var reply: [UInt8] = [0x6E, 0x88, 0x02, 0x00, 0x62, 0x00, 0x00, 100, 0x00, 30]
+        reply.append(reply.reduce(UInt8(0x50), ^))
+        check(DisplayDDC.parse(reply, .volume)! == (30, 100), "volume reply parsed")
+        check(DisplayDDC.muted(1) == true && DisplayDDC.muted(2) == false && DisplayDDC.muted(0) == nil, "mute values")
+        check(DisplayDDC.share(30, maximum: 100) == 0.3 && DisplayDDC.share(5, maximum: 0) == 0, "share")
+
+        // Which display's speakers the output is.
+        let dell = DisplaySpeaker.Display(uuid: "A", name: "DELL U2720Q")
+        let lg = DisplaySpeaker.Display(uuid: "B", name: "LG HDR 4K")
+        check(DisplaySpeaker.target(outputName: " dell u2720q", displays: [dell, lg]) == "A", "matched by name")
+        check(DisplaySpeaker.target(outputName: "HDMI", displays: [lg]) == "B", "the only external display")
+        check(DisplaySpeaker.target(outputName: "", displays: [dell]) == "A", "an unnamed output, one display")
+        check(DisplaySpeaker.target(outputName: "HDMI", displays: [dell, lg]) == nil, "two unnamed: system")
+        let twin = DisplaySpeaker.Display(uuid: "C", name: "DELL U2720Q")
+        check(DisplaySpeaker.target(outputName: "DELL U2720Q", displays: [dell, twin]) == nil, "twins: system")
+        check(DisplaySpeaker.target(outputName: "DELL U2720Q", displays: []) == nil, "no display: system")
+
+        // Steps on the monitor's scale, mute and unmute.
+        let up = DisplaySpeaker.plan(.step(increasing: true, fine: false), volume: (50, 100), mute: 2, remembered: nil)!
+        check(up.level == DisplaySpeakerLevel(volume: 0.56, muted: false), "1/16 up on a 0…100 scale: \(up.level)")
+        check(up.packets == [DisplayDDC.write(.volume, 56)], "one volume write")
+        let fine = DisplaySpeaker.plan(.step(increasing: false, fine: true), volume: (50, 100), mute: nil,
+                                       remembered: DisplaySpeakerLevel(volume: 0.5, muted: true))!
+        check(fine.packets == [DisplayDDC.write(.volume, 48)] && fine.level.muted, "1/64 down keeps the remembered mute")
+        let unmute = DisplaySpeaker.plan(.step(increasing: true, fine: false), volume: (10, 10), mute: 1, remembered: nil)!
+        check(unmute.packets == [DisplayDDC.write(.mute, 2)] && unmute.level == DisplaySpeakerLevel(volume: 1, muted: false),
+              "volume up at the top unmutes, writing no volume")
+        let coarse = DisplaySpeaker.plan(.step(increasing: true, fine: true), volume: (5, 10), mute: 2, remembered: nil)!
+        check(coarse.packets == [DisplayDDC.write(.volume, 6)], "a step the scale rounds away moves one unit")
+        let floor = DisplaySpeaker.plan(.step(increasing: false, fine: false), volume: (0, 100), mute: 2, remembered: nil)!
+        check(floor.packets.isEmpty && floor.level.volume == 0, "at 0 nothing is written")
+        let toggled = DisplaySpeaker.plan(.toggleMute, volume: (40, 100), mute: 2, remembered: nil)!
+        check(toggled.packets == [DisplayDDC.write(.mute, 1)] && toggled.level == DisplaySpeakerLevel(volume: 0.4, muted: true),
+              "mute toggles from what the monitor reports")
+        check(DisplaySpeaker.plan(.toggleMute, volume: (40, 100), mute: nil,
+                                  remembered: DisplaySpeakerLevel(volume: 0.4, muted: false)) == nil,
+              "a monitor without mute leaves the key to macOS")
+        let quarter = DisplaySpeakerLevel(volume: 0.25, muted: true)
+        check(DisplaySpeaker.restore(quarter, maximum: 80, hasMute: true)
+              == [DisplayDDC.write(.volume, 20), DisplayDDC.write(.mute, 1)], "restore on the monitor's own scale")
+        check(DisplaySpeaker.restore(quarter, maximum: 80, hasMute: false) == [DisplayDDC.write(.volume, 20)],
+              "restore sends no mute value to a monitor without mute")
+
+        // The per-display store.
+        var store = DisplaySpeakerStore()
+        store.remember(DisplaySpeakerLevel(volume: 0.3, muted: false), for: "A")
+        store.remember(DisplaySpeakerLevel(volume: 0.7, muted: true), for: "B")
+        check(DisplaySpeakerStore(data: store.data) == store, "the store round-trips")
+        check(DisplaySpeakerStore(data: Data("junk".utf8)) == DisplaySpeakerStore(), "an unreadable store starts empty")
+        check(DisplaySpeakerStore(data: nil).levels.isEmpty, "no store starts empty")
+        check(store.returning(from: ["A"], to: ["A", "B", "C"]) == ["B"], "only a returning display with a level")
+        check(store.returning(from: [], to: ["B", "A"]) == ["A", "B"], "in a stable order")
+        check(store.returning(from: ["A", "B"], to: ["A"]).isEmpty, "a display leaving restores nothing")
     }
 }
