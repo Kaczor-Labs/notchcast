@@ -261,7 +261,7 @@ jobs:
             printf '%s\n' "$TOOLCHAIN" > "$RUNNER_TEMP/tested/toolchain"
             printf '%s\n' "$EXCUSED" > "$RUNNER_TEMP/tested/excused"
           fi
-      - uses: actions/upload-artifact@v7
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         if: needs.route.outputs.build == 'true' && needs.mac.outputs.kind != 'working'
         with:
           name: tested-tree-${{ needs.mac.outputs.kind == 'isolated' && 'isolated-' || '' }}${{ steps.tree.outputs.key }}

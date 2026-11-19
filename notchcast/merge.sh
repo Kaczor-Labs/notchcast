@@ -50,15 +50,17 @@ check_drift_tooling() {
 # the new main since ("Update branch") has a plain merge base outside that tip and keeps the plain merge.
 # Merges $head onto $1 in a clean tree and runs the cheap checks; any real conflict is refused.
 merge_onto() {
-    local onto=$1 file revived unmerged
+    local onto=$1 file revived unmerged words
     cd "$top"
+    # merge=notchcast-words files merge by word, with the driver beside this file, never the PR's copy of it.
+    words="merge.notchcast-words.driver=python3 '$merge_tools/merge-words.py' %O %A %B"
     fork=$(bash "$merge_tools/fork-point.sh" "$onto" "$head")
     tree_at "$onto"
     if [ "$fork" = "$(git merge-base "$onto" "$head")" ]; then
-        git -c core.hooksPath=/dev/null merge --no-commit --no-ff "$head" >/dev/null 2>&1 || true
+        git -c "$words" -c core.hooksPath=/dev/null merge --no-commit --no-ff "$head" >/dev/null 2>&1 || true
     else
         echo "merging from ${fork:0:8}, the PR's fork point on main before a Sync rewrite"
-        git merge-recursive "$fork" -- HEAD "$head" >/dev/null 2>&1 || true
+        git -c "$words" merge-recursive "$fork" -- HEAD "$head" >/dev/null 2>&1 || true
         git rev-parse "$head" > "$(git rev-parse --git-path MERGE_HEAD)"
     fi
     # Generated files (ci.py GENERATED) keep main's version, conflicting or not, and main's Generated workflow
