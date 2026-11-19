@@ -122,7 +122,8 @@ GATED_MAC = ("${{ github.event_name == 'workflow_dispatch' && !inputs.hosted && 
 # Only jobs that hold no secret and launch no app; a workflow outside this map is hosted-only.
 GATED_JOBS = {"pr.yml": 1, "main-harnesses.yml": 1}
 # Every macOS job (README Runners): it runs xcodebuild, compiles harnesses, signs or launches the app. Anything else is Linux.
-MAC_JOBS = {"pr.yml": 1, "main-harnesses.yml": 1, "delete-check.yml": 1, "proof.yml": 1, "snapshot.yml": 1, "sync.yml": 2}
+MAC_JOBS = {"pr.yml": 1, "main-harnesses.yml": 1, "delete-check.yml": 1, "proof.yml": 1, "snapshot.yml": 2, "sync.yml": 1,
+            "sync-release.yml": 2}
 
 
 class RunnerTest(unittest.TestCase):
