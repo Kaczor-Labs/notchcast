@@ -53,7 +53,23 @@ class SyncWorkflowTests(unittest.TestCase):
         """Releases run after main and from plan's main; main depends on plan alone, never on a release."""
         self.assertRegex(self.job("main"), r"(?m)^    needs: plan$")
         self.assertNotIn("release", re.search(r"(?m)^    if: (.*)$", self.job("main"))[1])
-        self.assertRegex(self.job("release"), r"(?m)^    needs: \[plan, main\]$")
+        self.assertRegex(self.job("release"), r"(?m)^    needs: \[plan, main, push\]$")
+
+
+class AppInfoTests(unittest.TestCase):
+    INFO = {"CFBundleName": "Tinycast", "CFBundleIdentifier": "com.tinycast.app.beta",
+            "CFBundleShortVersionString": "0.12.10-beta.135", "CFBundleVersion": "135"}
+
+    def test_upstream_values_pass_whole(self):
+        self.assertEqual(CI.app_info_outputs(self.INFO), {"name": "Tinycast", "bundle_id": "com.tinycast.app.beta",
+                                                          "version": "0.12.10-beta.135", "build": "135"})
+
+    def test_a_value_that_could_add_an_output_line_is_refused(self):
+        for key, value in (("CFBundleVersion", "135\nversion=9.9.9"), ("CFBundleName", "Tiny\ncast"),
+                           ("CFBundleIdentifier", "com.x;y"), ("CFBundleShortVersionString", "1.0"),
+                           ("CFBundleVersion", None)):
+            with self.subTest(key=key), self.assertRaises(SystemExit):
+                CI.app_info_outputs(dict(self.INFO, **{key: value}))
 
 
 class TestedKeyTests(unittest.TestCase):
