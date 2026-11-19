@@ -19,6 +19,11 @@ final class Fake {
     var failure: CopyPathFailure?
     var hold = false
     var copies: [String] = []
+    var page: String?
+    var tabs = 1
+    var browserText: String?
+    /// Clipboard-history syncs and our own writes, in order.
+    var events: [String] = []
     var copyWorks = true
     var settings: [CopyPathFailure] = []
     /// Each held read's answer once released, and whether its run had been cancelled by then.
@@ -28,6 +33,7 @@ final class Fake {
         app = CopyPathApp(bundleID: "com.apple.finder", pid: 1)
         selection = ["file:///home/tester/a"]
         failure = nil; hold = false; copies = []; copyWorks = true; settings = []; released = [:]
+        page = nil; tabs = 1; browserText = nil; events = []
     }
 
     /// A held read answers when released, cancelled or not, so only the module's own cancel drops it.
@@ -51,9 +57,13 @@ extension CopyPathSystem {
             finderSelection: { try await fake.read() },
             finderFolder: { nil },
             browserAddress: { _, _ in nil },
-            document: { _, _ in nil }),
+            webArea: { _ in await fake.page },
+            document: { _, _ in nil },
+            selectedTabs: { _ in await fake.tabs },
+            browserCopy: { _ in await fake.browserText.map { CopyPathBrowserCopy(text: $0, changeCount: 42) } }),
         copy: { text in
             guard fake.copyWorks else { return false }
+            fake.events.append("copy")
             fake.copies.append(text)
             return true
         },
@@ -100,6 +110,7 @@ final class Rig {
         let hub = NotchcastTapHub(syntheticTag: 0x54494E59, isTrusted: { true }, makeSession: { FakeSession($0) })
         controller = NotchcastController(
             addons: [CopyPathAddon.self], defaults: defaults, hub: hub, dictation: FakeDictation(),
+            clipboard: NotchcastClipboardMutation(prepare: {}, synchronize: { fake.events.append("sync \($0)") }),
             presenter: presenter)
         controller.start()
     }
@@ -157,6 +168,28 @@ enum CopyPathModuleTests {
         fake.copyWorks = false
         await rig.run()
         rig.expect("Could not copy to clipboard.", failure: true, "pasteboard write fails")
+
+        let zen = CopyPathApp(bundleID: "app.zen-browser.zen", pid: 14)
+        fake.reset()
+        fake.app = zen
+        fake.page = "https://example.com/?utm_source=x&a=1"
+        fake.tabs = 3
+        fake.browserText = "https://example.com/?utm_source=x&a=1\nhttps://example.org/?b=2\nhttps://example.net/?c=3"
+        await rig.run()
+        rig.expect("Copied 3 links", failure: false, "Zen with 3 selected tabs")
+        precondition(rig.presenter.posts.last?.symbol == "checkmark", "the same checkmark")
+        precondition(fake.copies == ["https://example.com/?a=1\nhttps://example.org/?b=2\nhttps://example.net/?c=3"],
+                     "the cleaned lines are copied: \(fake.copies)")
+        precondition(fake.events == ["sync 42", "copy"], "history skips the browser's write first: \(fake.events)")
+
+        fake.reset()
+        fake.app = zen
+        fake.page = "https://example.com/?utm_source=x&a=1"
+        fake.browserText = "https://example.org/"
+        await rig.run()
+        rig.expect("Copied path", failure: false, "Zen with 1 tab")
+        precondition(fake.copies == ["https://example.com/?a=1"] && fake.events == ["copy"],
+                     "1 tab copies today's link and syncs nothing: \(fake.events)")
 
         fake.reset()
         fake.app = nil

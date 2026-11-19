@@ -12,6 +12,7 @@ struct NotchcastClipboardMutation {
 }
 
 /// The only door from an add-on to the app: one per add-on, owned by the controller.
+/// Observable so a settings row sees the module attach, which lands a turn after its switch.
 @MainActor
 @Observable
 final class NotchcastContext {
@@ -31,13 +32,15 @@ final class NotchcastContext {
     private(set) var module: (any NotchcastModule)?
     /// Entry ids the module cannot run right now: the launcher drops them, their hotkeys still run.
     private(set) var unavailableCommands: Set<String> = []
+    /// Commands made at run time, one per user row; they go when the module detaches.
+    private(set) var commands: [NotchcastCommand] = []
     /// Returns true to consume a digit typed in the launcher (Number Keys, hook H9).
     private(set) var launcherDigit: (@MainActor (_ digit: Int, _ query: String, _ entryRows: [Int]) -> Int?)?
     /// Returns true to claim a URL or file opened with the app (a link clicked, a document opened).
     private(set) var openURL: (@MainActor (URL) -> Bool)?
-    /// Commands the running module added to the descriptor's own, such as one per device.
-    private(set) var commands: [NotchcastCommand] = []
     private(set) var launcherShown: (@MainActor () -> Void)?
+    /// Notchcast's own yes/no dialog, never `NSAlert`; nil where no app runs, as in harnesses.
+    var confirm: (@MainActor @Sendable (_ title: String, _ message: String?, _ confirmTitle: String) async -> Bool)?
 
     init(
         defaults: UserDefaults, preferences: NotchcastPreferences, presenter: any IslandPresenting,
@@ -102,12 +105,6 @@ final class NotchcastContext {
         openURL = handler
     }
 
-    /// Replaces the module's own commands; the launcher, hotkeys and Settings follow at once.
-    func setCommands(_ commands: [NotchcastCommand]) {
-        self.commands = commands
-        onCommandsChanged()
-    }
-
     /// Runs each time the launcher opens, so a module can refresh what its commands list.
     func handleLauncherShown(_ handler: (@MainActor () -> Void)?) { launcherShown = handler }
 
@@ -123,16 +120,22 @@ final class NotchcastContext {
     /// Rereads Accessibility trust after a grant, restarting a tap that could not start.
     func refreshPermission() { hub.refreshPermission() }
 
+    /// Replaces the run-time commands; the launcher and hotkeys pick them up on the same turn.
+    func setCommands(_ commands: [NotchcastCommand]) {
+        self.commands = commands
+        onCommandsChanged()
+    }
+
     func attach(_ module: (any NotchcastModule)?) { self.module = module }
 
     /// Called after the module stopped: everything it claimed goes with it.
     func detach() {
         module = nil
         wantedTaps.removeAll()
+        commands.removeAll()
         launcherDigit = nil
         unavailableCommands = []
         openURL = nil
-        commands = []
         launcherShown = nil
     }
 }

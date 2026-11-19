@@ -16,7 +16,7 @@ Each section states one normative rule per element with its token, and one refer
 | Questions (dialogs) | + 4 | `DialogController`, `DialogView` |
 | Update flow (pill, notice, Try Again) | footer, notice, dialog | `UpdatePill`, `IslandLiveState`, `UpdateCoordinator` |
 
-Off the island and out of scope: the Settings window (stock, native macOS, §11), Notes, Camera, AI chat panels, Dictation and every other stock floating panel, which keep upstream's content → `panelScrim` → `GlassEffectView` recipe from `docs/ui.md`. `Features/Extensions/` is never touched. A view shared between a palette screen and an out-of-scope panel (`ChatTranscriptView`, `AIEmptyState`, `ChatSuggestionChips`) follows the island rules everywhere it is used; the panel's own `AIChat*` files keep upstream's recipe.
+Off the island and out of scope: the Settings window (stock, native macOS, §11), Notes, Camera, AI chat panels, Dictation, Screenshots' Capture Editor and every other stock floating panel, which keep upstream's content → `panelScrim` → `GlassEffectView` recipe from `docs/ui.md`. `Features/Extensions/` is never touched. A view shared between a palette screen and an out-of-scope panel (`ChatTranscriptView`, `AIEmptyState`, `ChatSuggestionChips`) follows the island rules everywhere it is used; the panel's own `AIChat*` files keep upstream's recipe.
 
 Reference: HIG Live Activities, "Live Activities in the Dynamic Island use a black opaque background."
 
@@ -72,7 +72,7 @@ Reference: HIG Live Activities, "Use consistent margins and concentric placement
 | Launcher, every state (compact empty, compact with results, expanded) | One width; the island's stage width follows the palette frame and never shrinks to the capsule. Height: `metrics.size.compactHeight` (56) compact, `metrics.size.panelHeight` (475) expanded. | `metrics.size.panelWidth` (750) |
 | Pill at rest | The sensor's size on a notched screen; otherwise the rest size, hung from the screen's top edge (default) or, by `appearance.islandPosition`, centred in or flush with the bottom of the menu bar (3 or 6 pt down on a 30 pt bar). Every island surface opens from that pill's top. | `NotchTheme.Size.islandRest` (96 × 24) |
 | Glance, status, compact notice | The rest pill plus at most one wing per side. | `NotchTheme.Size.islandGlanceWing` (140) |
-| Level art | Its own cell and track, never the rest pill's size; one continuous fill from the bar's left edge, outlined zones included, its width the readout's percent of the bar (brightness: darkest 0% empty, system minimum 20% a fifth, 100% full; volume 0…1 fills the track as before), with no extra marker; the track ends in the value as a whole percent (`IslandLevel.readout`, half away from zero, over the whole bar including the outlined zones, so the darkest extra dimming reads 0%, the system minimum 20% and nothing reads below 0% or above 100%; VoiceOver and the brightness Settings row read the same number), right-aligned in the stock volume HUD's readout width, island glance font, secondary text colour. | `NotchTheme.Size.islandLevelCell`, `islandLevelTrack` (§15), `Theme.Size.volumeReadout`, `NotchTheme.Typography.islandGlanceNSFont`, `Theme.Colors.textSecondary` |
+| Level art | Its own cell and track, never the rest pill's size; one continuous fill from the bar's left edge, outlined zones included, its width the readout's percent of the bar (brightness: darkest 0% empty, system minimum 20% a fifth, 100% full; with Extra dimming off no outlined zone, the system minimum 0%; volume 0…1 fills the track as before), with no extra marker; the track ends in the value as a whole percent (`IslandLevel.readout`, half away from zero, over the whole bar including the outlined zones, so the darkest extra dimming reads 0%, the system minimum 20% and nothing reads below 0% or above 100%; VoiceOver and the brightness Settings row read the same number), right-aligned in the stock volume HUD's readout width, island glance font, secondary text colour. | `NotchTheme.Size.islandLevelCell`, `islandLevelTrack` (§15), `Theme.Size.volumeReadout`, `NotchTheme.Typography.islandGlanceNSFont`, `Theme.Colors.textSecondary` |
 | Menus | A fixed width token per menu; the pill menu and ⌘K use the action width. | `metrics.size.actionMenuWidth` (320), `menuWidth`, `clipboardFilterMenuWidth`, `fileSearchFilterMenuWidth`, `emojiCategoryMenuWidth` |
 | HUD | Hugs its text up to the cap. | `metrics.size.hudMaxWidth` (420) |
 | Dialog | Two sizes only. | `metrics.size.dialogWidth` (420), `metrics.size.dialogCompactWidth` (290) |
@@ -175,7 +175,7 @@ Reference: mac-design, "Use the system first. Add custom design only where the s
 
 | Element | Rule | Token |
 | --- | --- | --- |
-| Anything an add-on shows | Only the island's values, posted through `context.presenter` (`IslandPresenting`: `showLevel`, `post(_:onTap:)`, `end(notice:)`, `setStatus`, `setMenuRows`) as `IslandLevel`, `IslandNotice`, `IslandStatus` (text cut to 4 characters) and `IslandMenuRow`; the engine draws them with §1–§10. A failure it posts (`isFailure`) follows the §10 failure rule. An add-on opens no window, panel or hosting view of its own. Exempt: the Screenshots selection overlay, a capture tool over the whole screen, not an island surface. | none; `IslandPresenting` |
+| Anything an add-on shows | Only the island's values, posted through `context.presenter` (`IslandPresenting`: `showLevel`, `post(_:onTap:)`, `end(notice:)`, `setStatus`, `setMenuRows`) as `IslandLevel`, `IslandNotice`, `IslandStatus` (text cut to 4 characters) and `IslandMenuRow`, and `setPage` for its page in the open island (§17) as an `IslandPage`, with `watchPages` saying when that page's data is on show; the engine draws them with §1–§10 and §17. A failure it posts (`isFailure`) follows the §10 failure rule. An add-on opens no window, panel or hosting view of its own. Exempt: a capture add-on's own tool surfaces, which are not island surfaces: (a) a selection overlay over the whole screen (Screenshots, Screen Recording): borderless, clear, no shadow, only `dialogDimming` and `dropTarget`; (b) an editor for the capture (Screenshots' Capture Editor, Screen Recording's trimmer): a stock floating panel under the scope paragraph's recipe. | none; `IslandPresenting` |
 
 Hook A16.
 
@@ -229,6 +229,7 @@ The island-black branch is fixing the first four, and #8 is closed; the rest are
 | `NotchTheme.Size.islandLevelCell`, `islandLevelTrack` | 24 and 96 | §4 level art | defined (#756): `IslandLevelArt` reads them instead of the rest pill's height and width |
 | `Theme.Typography.indicatorGlyphSize` → `metrics.typography.indicatorGlyph` | 10 | §6 Quicklinks list indicator glyph (`QuicklinkListView`) | defined (#756) |
 | `Theme.Typography.removeGlyphSize` → `metrics.typography.removeGlyph` | 9, semibold | §6 composer chip remove glyph (`ChatComposerChips`) | defined (#756) |
+| `NotchTheme.Size.islandArtwork` | 64 (2 × `Theme.Size.resultRowIcon`) | §17 the Player page's cover | defined (#975): no media size existed; a row icon is too small to read a cover |
 
 The notch expanded form needs one token, `NotchTheme.Size.islandHeadlineMaxWidth` (320): its height is the rest outline plus one headline line, its width the text up to that cap, never narrower than the notch plus two `Theme.Radius.panel` (§10).
 
@@ -263,3 +264,31 @@ Run from the repo root with `bash`, after ``I=$(find Tinycast/Palette Tinycast/F
 | A19 | §1 look on Frosted | `./Scripts/run-tests.sh nc-Notchcast-frosted-guard-test \| grep -c '^FAIL'` (an `islandSurface` fill outside a look branch, an `NSColor(token)` ink) | 0 |
 
 In the table `\|` is a Markdown escape: type a plain `|`.
+
+## 17. Island pages
+
+The open island (hover, or a click that pins it) shows pages: one per add-on with data, posted through `IslandPresenting.setPage` as an `IslandPage` and drawn by the core in `Features/Island/UI/` (decisions 946-1, 946-2, 946-6, 946-12). An add-on describes the page; it never draws one (§12).
+
+| Element | Rule | Token |
+| --- | --- | --- |
+| Structure | A tab bar, then the notice row while one shows, then the page body. One page with data: no Home and no tab bar, hover opens that page. Two or more: Home first, then pages by `order` (Agents 0, Player 10, System 20, Day 30). A page with no data posts nil and leaves no tab. | `IslandPageDeck` |
+| Tab | `BarButton(isSelected:)` with a `SymbolImage` and the title; the selected tab uses the button's selected fill. | `metrics.typography.bar`, `Theme.Typography.menuSymbolSize` |
+| Badge | A count of things waiting for the user, a compact outline keycap after the tab title; badged pages lead Home, tabs never reorder. | `KeyCapChip(.outline, .compact)` |
+| Notice row | What the resting island shows (the live notice, else the last status unless the meeting glance shows) heads the open page on every tab, so a page never hides it; drawn as a `row` block, a button running the notice's or status's own tap when it has one. | `IslandPageDeck.notice`, `IslandPageRowView` |
+| Home line | One row per page: icon or artwork, text, detail, its own icon buttons; the row opens its page. | `metrics.size.resultRowIcon`, `rowTitle`, `rowTrailing`, `Theme.Colors.rowHover` at `metrics.radius.row` |
+| Blocks | `media` (cover, title, artist, time bar, transport), `row` (icon, title, detail, trailing; a button when it has an id), `meter` (label, bar, value). A new kind of content is a new block, drawn once here. | `NotchTheme.Size.islandArtwork`, `metrics.size.volumeTrackHeight`, `Theme.Colors.border` track |
+| Icon button | `BarButton(isCompact: true)` with a `SymbolImage`, an accessibility label and `.tooltip`, Title Case ("Next Track"). | §7 |
+| Size | Each page sizes to its content (`fittingSize`), padded `metrics.spacing.md`; never narrower than the rest pill, on a notch never narrower than the notch plus two `Theme.Radius.panel`, never taller than the island's host canvas below the notch; text lines stop at `islandHeadlineMaxWidth`. | `IslandPageDeck.outline` |
+| Motion | The outline grows to the page through the engine's spring (`surface.expand`, `contentKey` "page"), as the launcher does; no view animation of its own. | `IslandController.motionSpeed` |
+| Forms | Same page in both forms: it hangs from the island top, below the notch on a notched display, from the pill elsewhere. | §10 |
+| Look | No fill of its own: the backdrop paints Black or Frosted behind the clear page panel; ink resolves through `\.islandFrosted`. | §1, §6 |
+| Keys | A click on the bare island opens the first tab pinned whenever a page exists, even while a notice or status with its own tap shows (its tap moves to the notice row); a click on a page pins; pinned, ←/→ and 1–9 pick tabs, Esc closes, ⌘R refreshes the page (on Home, every page), ⌘P toggles the pin. A horizontal two-finger swipe turns one tab, and one more for every further 80 points of the same drag. | `IslandPageKey`, `IslandPageSwipe` |
+
+Deviations, numbered for review:
+
+1. The badge is a compact outline keycap, the existing count chip, rather than a new red dot: §6 keeps colour for status, and a count reads without colour.
+2. The cover is 64 points at interface scale 1 (`metrics.scaled`), a new token (§15), its radius concentric with the fixed outline (`Theme.Radius.panel` less two `metrics.spacing.md`), because no existing size fits a media cover.
+3. The tab bar shows titles beside glyphs on every page count up to five; past that it would need glyph-only tabs, which nothing posts yet.
+
+Reference: HIG Live Activities, "Present only the most essential content."
+

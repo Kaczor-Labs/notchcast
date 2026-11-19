@@ -62,7 +62,7 @@ private struct NotchcastSwitchRows: View {
             }
         }
         if preferences.isEnabled(item.id) {
-            ForEach(controller.slots.flatMap(controller.allCommands(of:)).filter { $0.switchID == item.id }) { command in
+            ForEach(controller.slots.flatMap { $0.addon.commands }.filter { $0.switchID == item.id }) { command in
                 let shown = preferences.showsInLauncher(command.id)
                 SettingsRow(title: command.name, labelOpacity: shown ? 1 : 0.45) {
                     AliasField(key: command.id, name: command.name)

@@ -33,6 +33,8 @@ struct DisplaySoundSystem: Sendable {
         let muted: @Sendable (UInt32) -> Bool?
         let canSetMute: @Sendable (UInt32) -> Bool
         let setMuted: @Sendable (UInt32, Bool) -> Bool
+        /// The device's name when it is a display's HDMI or DisplayPort audio, else nil.
+        let displayAudioName: @Sendable (UInt32) -> String?
     }
 
     let displays: Displays
@@ -44,5 +46,6 @@ struct DisplaySoundSystem: Sendable {
     let replay: @MainActor @Sendable (MediaLevelKey, _ modifiers: UInt64) -> Void
     /// Each returned object keeps its observation alive; dropping it removes the observer.
     let watchDisplays: @MainActor @Sendable (@escaping @MainActor @Sendable (_ woke: Bool) -> Void) -> [AnyObject]
+    let watchSleep: @MainActor @Sendable (@escaping @MainActor @Sendable () -> Void) -> [AnyObject]
     let watchAudio: @MainActor @Sendable (_ output: UInt32?, @escaping @MainActor @Sendable () -> Void) -> [AnyObject]
 }

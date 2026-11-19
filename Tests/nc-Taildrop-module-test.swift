@@ -342,7 +342,7 @@ enum TaildropModuleTests {
         precondition(rig.ids[0] == "command:nc-taildrop-to-studio-mac", "the entry id a hotkey is stored under")
         precondition(rig.controller.enabledCommands.allSatisfy { $0.symbol == "paperplane" }, "one symbol tile")
         precondition(
-            rig.controller.allCommands(of: rig.controller.slots[0]).map(\.id) == rig.ids, "Settings rows list them")
+            rig.controller.slots[0].commands.map(\.id) == rig.ids, "the slot lists them")
 
         // The launcher opening lists again.
         world.set { $0.listing = TaildropOutput(output: listingFixture + "100.64.0.5\tgarden-tablet\n") }

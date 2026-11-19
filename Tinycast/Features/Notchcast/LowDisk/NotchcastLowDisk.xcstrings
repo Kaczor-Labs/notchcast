@@ -1,0 +1,15 @@
+{
+  "sourceLanguage" : "en",
+  "strings" : {
+    "%@ free" : {},
+    "%lld GB" : {},
+    "Check Disk Space" : {},
+    "Couldn’t read disk space" : {},
+    "Low disk space: %@" : {},
+    "Low disk warning" : {},
+    "The island warns once when free space drops below this." : {},
+    "Warn below" : {},
+    "Warns on the island when the startup disk is nearly full." : {}
+  },
+  "version" : "1.0"
+}

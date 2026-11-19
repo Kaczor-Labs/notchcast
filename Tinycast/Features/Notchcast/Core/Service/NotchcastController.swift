@@ -12,6 +12,8 @@ final class NotchcastController {
         let recovery: NotchcastContext
         let declaredTaps: [(token: UUID, tap: NotchcastTap)]
         let settings: [SettingsEntry]
+
+        @MainActor var commands: [NotchcastCommand] { addon.commands + context.commands }
     }
 
     /// An add-on's settings row with an identity fixed at registration, for a stable `ForEach`.
@@ -85,11 +87,18 @@ final class NotchcastController {
     }
 
     /// False when the id is no enabled add-on command, so the caller falls through to stock.
-    func run(entryID: String) -> Bool {
+    func run(entryID: String) -> Bool { submit(entryID: entryID, argument: "") }
+
+    /// The launcher's run: text typed in the command's inline field goes to its argument.
+    func submit(entryID: String, argument: String) -> Bool {
         guard let command = enabledCommands.first(where: { $0.id == entryID }),
-            let slot = slots.first(where: { allCommands(of: $0).contains { $0.id == entryID } })
+            let slot = slots.first(where: { $0.commands.contains { $0.id == entryID } })
         else { return false }
-        command.run(slot.context)
+        if let run = command.argument?.run, !argument.isEmpty {
+            run(slot.context, argument)
+        } else {
+            command.run(slot.context)
+        }
         return true
     }
 
@@ -101,9 +110,6 @@ final class NotchcastController {
     func open(_ url: URL) -> Bool {
         slots.contains { $0.context.openURL?(url) == true } || slots.contains { $0.recovery.openURL?(url) == true }
     }
-
-    /// The descriptor's commands, then the ones the add-on's running module added.
-    func allCommands(of slot: Slot) -> [NotchcastCommand] { slot.addon.commands + slot.context.commands }
 
     func launcherShown() {
         for slot in slots { slot.context.launcherShown?() }
@@ -142,9 +148,11 @@ final class NotchcastController {
     }
 
     private func publishCommands() {
-        let commands = slots.flatMap(allCommands(of:)).filter { enabled.contains($0.switchID) }
+        let commands = slots.flatMap(\.commands).filter { enabled.contains($0.switchID) }
         let shown = launcherCommands(commands).map(\.id)
-        guard commands.map(\.id) != enabledCommands.map(\.id) || shown != launcherIDs else { return }
+        // A renamed run-time command keeps its id, so its name is compared too.
+        let changed = commands.map { [$0.id, $0.name] } != enabledCommands.map { [$0.id, $0.name] }
+        guard changed || shown != launcherIDs else { return }
         enabledCommands = commands
         launcherIDs = shown
         onCommandsChanged?(commands)

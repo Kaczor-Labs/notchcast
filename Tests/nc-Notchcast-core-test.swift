@@ -1,3 +1,4 @@
+// notchcast-hosted-only
 // notchcast-sources: Tinycast/Features/Notchcast/Core/Model/*.swift Tinycast/Features/Notchcast/Core/Service/*.swift
 // notchcast-sources: Tinycast/Features/Island/Model/IslandPresentation.swift Tinycast/Features/Island/Service/IslandPresenting.swift
 // notchcast-sources: Tinycast/Features/Settings/SettingsTab.swift Tinycast/Features/Launcher/Model/CommandID.swift Tinycast/Features/HotKeys/Model/HotKeyAction.swift Tinycast/Features/HotKeys/Model/HotKeyAction+EntryID.swift Tinycast/Features/QuickActions/Model/QuickAction.swift
@@ -546,7 +547,7 @@ struct NotchcastCoreTest {
     static func settingsTabs() {
         check("each tab holds its categories",
               NotchcastPane.allCases.map(\.categories)
-                == [[], [.keyboardMouse], [.displaySound, .music], [.capture], [.launcher], [.filesDownloads],
+                == [[], [.keyboardMouse], [.displaySound, .music], [.capture], [.launcher], [.filesDownloads], [.power],
                    [.macTweaks]])
         check("no category sits in two tabs", NotchcastCategory.allCases.allSatisfy { category in
             NotchcastPane.allCases.filter { $0.categories.contains(category) }.count <= 1
@@ -556,8 +557,8 @@ struct NotchcastCoreTest {
               placed.allSatisfy { NotchcastPane.holding($0).categories.contains($0) })
         check("a category with no tab yet shows nowhere",
               NotchcastPane.shown(registered: [.notices, .betweenMacs]) == [.island])
-        check("iPhone backup lands in its own tab; Power has none",
-              NotchcastPane.shown(registered: [.macTweaks, .power]) == [.island, .macTweaks])
+        check("Low disk warning and iPhone backup land in their own tabs",
+              NotchcastPane.shown(registered: [.macTweaks, .power]) == [.island, .power, .macTweaks])
         check("with no add-on only Island shows", NotchcastPane.shown(registered: []) == [.island])
         check("an add-on tab shows once one of its categories has a switch",
               NotchcastPane.shown(registered: [.music]) == [.island, .displaySound]

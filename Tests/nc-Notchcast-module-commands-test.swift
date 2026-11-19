@@ -56,7 +56,7 @@ struct NotchcastModuleCommandsTest {
         drain()
         precondition(published == [["command:nc-publish-run"]], "a module's own command is published: \(published)")
         precondition(
-            controller.allCommands(of: controller.slots[0]).map(\.name) == ["Published"], "the add-on's rows list it")
+            controller.slots[0].commands.map(\.name) == ["Published"], "the add-on's rows list it")
         precondition(controller.run(entryID: "command:nc-publish-run"), "run(entryID:) finds it")
         precondition(presenter.log == ["post publish Published ran"], "it ran on its own context: \(presenter.log)")
 

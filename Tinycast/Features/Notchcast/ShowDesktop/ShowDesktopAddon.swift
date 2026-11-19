@@ -1,3 +1,5 @@
+// notchcast-addon-order: 20
+// notchcast-readme: Keyboard & Mouse: Show Desktop with F3
 import Foundation
 
 enum ShowDesktopAddon: NotchcastAddon {
