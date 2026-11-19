@@ -95,7 +95,7 @@ private enum MatchStyleMenu {
         AXUIElementSetMessagingTimeout(application, timeout)
         guard let menuBar = element(application, kAXMenuBarAttribute) else { return false }
         var visited = 0
-        guard let item = find(in: menuBar, depth: 0, visited: &visited) else {
+        guard let item = find(in: menuBar, app: app.bundleIdentifier, depth: 0, visited: &visited) else {
             if withoutItem.count >= 64 { withoutItem.removeAll() }
             withoutItem.insert(pid)
             return false
@@ -105,19 +105,19 @@ private enum MatchStyleMenu {
         return [.success, .cannotComplete].contains(AXUIElementPerformAction(item, kAXPressAction as CFString))
     }
 
-    private static func find(in element: AXUIElement, depth: Int, visited: inout Int) -> AXUIElement? {
+    private static func find(in element: AXUIElement, app: String?, depth: Int, visited: inout Int) -> AXUIElement? {
         guard depth <= maxDepth, visited < maxVisited else { return nil }
         visited += 1
         AXUIElementSetMessagingTimeout(element, timeout)
         if PlainPastePolicy.isMatchStyleEquivalent(
-            commandCharacter: read(element, kAXMenuItemCmdCharAttribute) as? String,
+            bundleIdentifier: app, commandCharacter: read(element, kAXMenuItemCmdCharAttribute) as? String,
             modifierMask: (read(element, kAXMenuItemCmdModifiersAttribute) as? NSNumber)?.uint32Value,
             isEnabled: true) {
             return element
         }
         guard depth < maxDepth else { return nil }
         for child in read(element, kAXChildrenAttribute) as? [AXUIElement] ?? [] {
-            if let match = find(in: child, depth: depth + 1, visited: &visited) { return match }
+            if let match = find(in: child, app: app, depth: depth + 1, visited: &visited) { return match }
         }
         return nil
     }
