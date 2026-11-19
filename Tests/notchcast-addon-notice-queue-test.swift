@@ -57,6 +57,8 @@ final class IslandPageHost {
     private(set) var isOpen = false
     private(set) var watched: [String: Bool] = [:]
     private(set) var noticeTap: (@MainActor () -> Void)?
+    private(set) var shown: [String] = []
+    func showPage(id: String) { shown.append(id) }
     func set(_ page: IslandPage?, id: String, onAction: (@MainActor (String) -> Void)?) { deck.set(page, id: id) }
     func watch(id: String, onChange: (@MainActor (Bool) -> Void)?) { watched[id] = onChange != nil }
     func show(_ notice: IslandNotice?, onTap: (@MainActor () -> Void)?) {
@@ -257,6 +259,8 @@ struct AddonNoticeQueueTest {
         presenter.setPage(nil, id: "player", onAction: nil)
         presenter.watchPages(id: "player") { _ in }
         check("an owner's watcher reaches the page host", presenter.pages.watched == ["player": true])
+        presenter.showPage(id: "player")
+        check("a command's showPage reaches the page host", presenter.pages.shown == ["player"])
         controller.stop()
         print(failures == 0 ? "PASS AddonNoticeQueueTest" : "FAILED \(failures)")
         exit(failures == 0 ? 0 : 1)
