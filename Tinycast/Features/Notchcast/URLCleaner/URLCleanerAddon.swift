@@ -1,3 +1,5 @@
+// notchcast-addon-order: 230
+// notchcast-readme: Launcher Extras: clean tracking parameters from copied links (with Clipboard History on)
 import SwiftUI
 
 enum URLCleanerAddon: NotchcastAddon {
