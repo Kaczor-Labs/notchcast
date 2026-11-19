@@ -4,9 +4,11 @@
 // notchcast-sources: Tinycast/Features/Notchcast/Agents/Service/AgentFeedStore.swift
 // notchcast-sources: Tinycast/Features/Notchcast/Agents/Service/ClaudeUsageReader.swift
 // notchcast-sources: Tinycast/Features/Notchcast/Agents/Service/CodexUsageReader.swift
+// notchcast-sources: Tinycast/Features/Notchcast/Agents/Service/AgentsLocator.swift
 // notchcast-sources: Tinycast/Platform/ExecutableLocator.swift Tinycast/Platform/ProcessExit.swift
 
 import Foundation
+import Synchronization
 
 func check(_ condition: Bool, _ message: @autoclosure () -> String) {
     if !condition { fatalError(message()) }
@@ -251,6 +253,28 @@ func feedStore() throws {
     print("feed store: ok")
 }
 
+/// The login shell is asked once per CLI, and again in the same read once the found file is gone (#1152).
+func locator() async throws {
+    let folder = try scratch()
+    let first = try fakeCLI(in: folder, named: "claude", answers: [])
+    let moved = folder.appending(path: "moved")
+    try FileManager.default.createDirectory(at: moved, withIntermediateDirectories: false)
+    let asked = Mutex<[String]>([])
+    let place = Mutex(first)
+    let locator = AgentsLocator { command in
+        asked.withLock { $0.append(command) }
+        return place.withLock { $0 }
+    }
+    check(await locator.locate("claude") == first && asked.withLock { $0 } == ["claude"], "found once")
+    check(await locator.locate("claude") == first && asked.withLock { $0 }.count == 1, "then not asked again")
+    let second = try fakeCLI(in: moved, named: "claude", answers: [])
+    try FileManager.default.removeItem(at: first)
+    place.withLock { $0 = second }
+    check(await locator.locate("claude") == second && asked.withLock { $0 }.count == 2,
+          "a CLI that moved is found again in the same call, never reported missing")
+    print("locator: ok")
+}
+
 @main
 enum AgentsModuleTest {
     @MainActor
@@ -261,6 +285,7 @@ enum AgentsModuleTest {
         try await conversationEnds()
         try await codex()
         try feedStore()
+        try await locator()
         print("nc-Agents-module-test: ok")
     }
 }

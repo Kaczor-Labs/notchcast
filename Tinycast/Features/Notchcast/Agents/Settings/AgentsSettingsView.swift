@@ -7,7 +7,13 @@ struct AgentsSettingsView: View {
     @State private var machineName = ""
     @State private var accounts: [AgentsClaudeAccount] = []
     @State private var feedFolder: String?
+    @FocusState private var focus: Field?
     private static let anchor = NotchcastSettingsSearch.anchor(.agents)
+
+    private enum Field: Hashable {
+        case machine
+        case account(UUID)
+    }
 
     private var preferences: AgentsPreferences { AgentsPreferences(defaults: context.defaults) }
 
@@ -17,7 +23,8 @@ struct AgentsSettingsView: View {
                 Text("This Mac’s name", tableName: "NotchcastAgents")
             }
             .labelsHidden()
-            .onSubmit { save { $0.machineName = machineName } }
+            .focused($focus, equals: .machine)
+            .onSubmit { saveMachineName() }
         } label: {
             SettingsRowTitle(Self.anchor, LocalizedStringResource("This Mac’s name", table: "NotchcastAgents"))
             Text("The title of this Mac’s column.", tableName: "NotchcastAgents")
@@ -33,6 +40,7 @@ struct AgentsSettingsView: View {
                 HStack(spacing: Theme.Spacing.sm) {
                     TextField(text: $account.name) { Text("Name", tableName: "NotchcastAgents") }
                         .labelsHidden()
+                        .focused($focus, equals: .account(account.id))
                         .onSubmit { saveAccounts() }
                     Button { remove(account) } label: { Text("Remove", tableName: "NotchcastAgents") }
                         .accessibilityLabel(Text("Remove \(account.name)", tableName: "NotchcastAgents"))
@@ -60,6 +68,18 @@ struct AgentsSettingsView: View {
             accounts = preferences.claudeAccounts ?? [AgentsPreferences.defaultAccount]
             feedFolder = preferences.feedFolder
         }
+        // A name typed and left by a click elsewhere, or by closing Settings, is kept as Return keeps it.
+        .onChange(of: focus) { left, _ in
+            switch left {
+            case .machine?: saveMachineName()
+            case .account?: saveAccounts()
+            case nil: break
+            }
+        }
+        .onDisappear {
+            if focus == .machine { saveMachineName() }
+            if case .account? = focus { saveAccounts() }
+        }
     }
 
     private static func display(_ path: String) -> String { (path as NSString).abbreviatingWithTildeInPath }
@@ -70,9 +90,14 @@ struct AgentsSettingsView: View {
         context.module(AgentsModule.self)?.settingsChanged()
     }
 
-    /// Names are the cards' titles and the feed's keys, so a blank or repeated one is not kept.
+    private func saveMachineName() {
+        guard machineName != preferences.machineName ?? "" else { return }
+        save { $0.machineName = machineName }
+    }
+
+    /// Names are the cards' titles and the feed's keys, so a blank, repeated or Codex's own one is not kept.
     private func saveAccounts() {
-        var seen = Set<String>()
+        var seen: Set = [AgentsSource.codex.name]
         accounts = accounts.compactMap { account in
             var account = account
             account.name = account.name.trimmingCharacters(in: .whitespaces)

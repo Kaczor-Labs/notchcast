@@ -96,8 +96,8 @@ enum AgentsPageTest {
         // Stopped on the same turn, so its loop never runs: each cycle below is called by hand.
         module.start()
         let watcher = presenter.watcher
-        precondition(watcher != nil && cards().map(\.title) == ["Claude", "Codex"],
-                     "start posts every account at once, before any read: \(cards().map(\.title))")
+        precondition(watcher != nil && cards().map(\.title) == ["Claude"],
+                     "start posts every Claude account at once; Codex waits to be found: \(cards().map(\.title))")
         precondition(cards().allSatisfy { $0.body == .notice(symbol: nil, headline: "Reading…", detail: nil) },
                      "an account not read yet says so")
         module.stop()
@@ -142,7 +142,11 @@ enum AgentsPageTest {
         answer("C1", "claude", used: 100)
         answer("C2", "claude", used: 10)
         await module.cycle()
-        precondition(cards().map(\.title) == ["C2", "C1"] && cards()[1].hollow, "a spent account goes last, hollow")
+        precondition(cards().map(\.title) == ["C1", "C2"] && cards()[0].hollow, "on one Mac a spent account stays put, hollow")
+        answer("Codex", "codex", used: 10)
+        module.refresh()
+        await module.cycle()
+        precondition(cards().map(\.title) == ["C1", "C2", "Codex"], "Codex found is a card, after the Claude accounts")
         module.open()
         precondition(presenter.shown == ["agents"], "Open Agents opens the page")
         print("PASS AgentsPageTest")

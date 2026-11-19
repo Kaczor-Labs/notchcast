@@ -31,21 +31,13 @@ enum AgentPage {
             blocks: blocks)
     }
 
-    /// One machine's cards across the three-wide grid, in order: each column holds a third of the slots.
+    /// One Mac's cards dealt round the grid in Settings order, so a spent or added card moves no other.
     static func flow(_ column: AgentColumn) -> [IslandCardGroup] {
-        let size: (AgentCard) -> Double = { $0.hollow ? 0.5 : 1 }
-        let capacity = max(1, (column.cards.map(size).reduce(0, +) / Double(gridColumns)).rounded(.up))
-        var groups: [IslandCardGroup] = []
-        var filled = 0.0
-        for agent in column.cards {
-            if groups.isEmpty || filled + size(agent) > capacity && groups.count < gridColumns {
-                groups.append(IslandCardGroup(title: groups.isEmpty ? column.title : "", cards: []))
-                filled = 0
-            }
-            groups[groups.count - 1].cards.append(card(agent))
-            filled += size(agent)
+        let count = min(gridColumns, column.cards.count)
+        return (0..<count).map { index in
+            IslandCardGroup(title: index == 0 ? column.title : "",
+                            cards: stride(from: index, to: column.cards.count, by: gridColumns).map { card(column.cards[$0]) })
         }
-        return groups
     }
 
     static func card(_ agent: AgentCard) -> IslandCard {

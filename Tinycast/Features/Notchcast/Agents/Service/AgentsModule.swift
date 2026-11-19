@@ -133,11 +133,11 @@ final class AgentsModule: NotchcastModule {
         }
     }
 
-    /// Codex not installed is no card: it is only looked for, never asked for.
+    /// Codex is only looked for, never asked for: no card until a read finds it installed.
     private var locals: [AgentLocalAccount] {
         preferences.sources(home: system.home).compactMap { source in
             let reading = readings[source.name]
-            if source == .codex, reading?.state == .missing { return nil }
+            if source == .codex, reading == nil || reading?.state == .missing { return nil }
             return AgentLocalAccount(name: source.name, provider: source.provider, reading: reading)
         }
     }

@@ -155,11 +155,12 @@ final class AgentCLIConversation {
         // A stopped conversation already escalates on its own; its caller does not wait for the child.
         guard !handle.isStopped, !Task.isCancelled else { return handle.stop() }
         let process = handle.process
-        if await exits(process, within: Self.exitGrace) { return handle.stop() }
+        // A cancel inside either wait hands the child to `stop`, which still gives it `killGrace`.
+        if await exits(process, within: Self.exitGrace) || Task.isCancelled { return handle.stop() }
         process.terminate()
-        if await exits(process, within: Self.terminateGrace) { return handle.stop() }
+        if await exits(process, within: Self.terminateGrace) || Task.isCancelled { return handle.stop() }
         handle.stop()
-        kill(process.processIdentifier, SIGKILL)
+        if process.isRunning { kill(process.processIdentifier, SIGKILL) }
     }
 
     /// Polls in tens of milliseconds; a cancelled caller stops waiting.

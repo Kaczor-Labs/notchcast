@@ -288,17 +288,19 @@ func boardThisMacOnly() {
         feed: .missing, now: now)
     check(board.columns.map(\.title) == ["MBA"] && board.other.isEmpty, "this Mac only")
     check(board.footnote == "This Mac only: no feed found.", "a missing feed is no error: \(String(describing: board.footnote))")
-    check(board.columns[0].cards.map(\.title) == ["C1", "C2", "Codex"], "spent accounts sink to the end of their column")
-    let card = board.columns[0].cards[0]
-    check(card.tag == "Claude" && !card.hollow && !card.dimmed && card.caption == nil, "a fresh full card")
+    check(board.columns[0].cards.map(\.title) == ["Codex", "C1", "C2"], "one Mac keeps Settings order, spent or not")
+    let card = board.columns[0].cards[1]
+    check(!card.hollow && !card.dimmed && card.caption == nil, "a fresh full card")
+    check(card.spoken?.contains("Weekly · Fable, 78 percent used, resets in 3 days, runs out in 1 day 3 hours") == true,
+          "VoiceOver hears the pace warning: \(String(describing: card.spoken))")
     let rows = meters(card)
     check(rows.map(\.label) == ["Session", "Weekly", "Weekly · Fable"], "session, main weekly, then scoped: \(rows.map(\.label))")
     check(rows[1].thick && !rows[0].thick && !rows[2].thick, "only the main weekly is thick")
     check(rows[2].value == "78%" && rows[2].fraction == 0.78 && rows[2].trailing == "in 3 d", "Fable reads 78%: \(rows[2])")
     check(rows[2].warning && rows[2].note == "Runs out in 1 d 3 h", "78% of a week in 4 days warns: \(rows[2])")
     check(!rows[1].warning && rows[1].note == nil && rows[1].tick != nil, "30% is on pace, with a tick")
-    check(notice(board.columns[0].cards[1]).headline == "Reading…", "an account not read yet")
-    let spentCard = board.columns[0].cards[2]
+    check(notice(board.columns[0].cards[2]).headline == "Reading…", "an account not read yet")
+    let spentCard = board.columns[0].cards[0]
     check(spentCard.hollow && notice(spentCard) == ("hourglass", "Back in 1 d 2 h"), "a spent card: \(spentCard)")
     check(board.homeLine == "C1 · Weekly · Fable runs out in 1 d 3 h", "the warned limit: \(String(describing: board.homeLine))")
     print("board, this Mac only: ok")
@@ -329,7 +331,7 @@ func boardWithFeed() {
     check(missing.hollow && notice(missing) == ("questionmark.app.dashed", "Codex not found"), "a missing CLI")
     let stale = board.columns[1].cards[2]
     check(stale.dimmed && stale.caption == "Updated 25 min ago", "stale after 10 min: \(stale)")
-    check(board.other.map(\.title) == ["Grok"] && board.other[0].tag == "Grok", "shared accounts form the Other row")
+    check(board.other.map(\.title) == ["Grok"] && board.other[0].title == "Grok", "shared accounts form the Other row")
     check(meters(board.other[0])[0].label == "Monthly", "an undated monthly")
     check(board.homeLine == "C1 · Weekly 25%", "no warning: the fullest weekly: \(String(describing: board.homeLine))")
 
@@ -377,6 +379,69 @@ func boardStates() {
     print("board states: ok")
 }
 
+/// What a card says beyond its bars, and the board as the island page (#1128 part 2).
+func cardsAndPage() {
+    var c1 = account("C1", "claude", [weekly(20, resetsIn: 5 * day)])
+    c1.extraUsage = AgentExtraUsage(used: 34, limit: 200, currency: "USD")
+    c1.resetCredits = AgentResetCredits(count: 1, scope: nil, expiresAt: now.addingTimeInterval(day))
+    let full = AgentBoard.card(c1, now: now)
+    let extra = meters(full).last!
+    check(extra.label == "Extra usage" && extra.value == "17%" && extra.trailing == "$34 of $200" && extra.tick == nil,
+          "extra usage against its limit: \(extra)")
+    check(full.credit == "1 reset credit", "a credit in hand")
+    check(full.spoken == "C1. 1 reset credit. Weekly, 20 percent used, resets in 5 days. Extra usage, 17%, $34 of $200",
+          "one sentence per card: \(String(describing: full.spoken))")
+    c1.extraUsage = AgentExtraUsage(used: 1e30, limit: 1, currency: "USD")
+    let huge = meters(AgentBoard.card(c1, now: now)).last!
+    check(huge.value == "100%" && huge.fraction == 1 && huge.trailing == "$1 of $1", "a huge feed number caps: \(huge)")
+    c1.extraUsage = AgentExtraUsage(used: -5, limit: 1e300, currency: "USD")
+    check(meters(AgentBoard.card(c1, now: now)).last!.value == "0%", "a negative one floors")
+    c1.extraUsage = AgentExtraUsage(used: 5, limit: nil, currency: "USD")
+    check(meters(AgentBoard.card(c1, now: now)).count == 1, "no limit, no extra-usage bar")
+    check(AgentBoard.whole(1e30) == 1_000_000 && AgentBoard.whole(.nan) == 0 && AgentBoard.whole(-.infinity) == 0,
+          "no number traps Int")
+    check(AgentBoard.credits(AgentResetCredits(count: 2, scope: "Fable", expiresAt: nil), now: now)
+              == "2 Fable reset credits", "credits by scope")
+    check(AgentBoard.credits(AgentResetCredits(count: 1, scope: nil, expiresAt: now.addingTimeInterval(-minute)), now: now)
+              == nil, "a lapsed credit draws nothing")
+    check(AgentBoard.credits(AgentResetCredits(count: 0, scope: nil, expiresAt: nil), now: now) == nil, "none in hand")
+    let spent = AgentBoard.card(account("Codex", "codex", [weekly(100, resetsIn: 2 * day)]), now: now)
+    check(spent.hollow && spent.detail == "Weekly limit used up", "a spent card names its limit: \(spent)")
+
+    let fresh = { (name: String, used: Double) in
+        AgentLocalAccount(name: name, provider: "claude",
+                          reading: account(name, "claude", [weekly(used, resetsIn: 3 * day)]))
+    }
+    let feed = AgentFeed(generatedAt: now, machines: [
+        AgentMachine(name: "MBP", accounts: [account("C4", "claude", [weekly(100, resetsIn: day)]),
+                                             account("C5", "claude", [weekly(5, resetsIn: day)])])
+    ], shared: [account("Grok", "grok", [AgentWindow(kind: .monthly, usedPercent: 3)])])
+    let two = AgentBoard(machineName: "MBA", local: [fresh("C1", 10)], feed: .loaded(feed), now: now)
+    check(two.columns[1].cards.map(\.title) == ["C5", "C4"], "with two Macs a spent account goes last in its column")
+    let page = AgentPage.page(two)
+    guard case .columns(let groups)? = page.blocks.first, case .cards(let other)? = page.blocks.dropFirst().first else {
+        fatalError("columns, then the Other row: \(page.blocks)")
+    }
+    check(groups.map(\.title) == ["MBA", "MBP"] && groups[1].cards.last?.hollow == true, "a column per Mac")
+    check(other.title == "Other" && other.cards.map(\.title) == ["Grok"], "the shared accounts")
+    check(page.id == "agents" && page.blocks.count == 2, "no footnote with a feed")
+
+    let one = AgentBoard(machineName: "MBA", local: ["C1", "C2", "C3", "C4"].map { fresh($0, $0 == "C2" ? 100 : 10) },
+                         feed: .missing, now: now)
+    guard case .columns(let flowed)? = AgentPage.page(one).blocks.first else { fatalError("one Mac's grid") }
+    let dealt = flowed.map { group in group.cards.map(\IslandCard.title) }
+    check(dealt == [["C1", "C4"], ["C2"], ["C3"]] && flowed.map { $0.title } == ["MBA", "", ""],
+          "one Mac deals its cards round the grid: \(dealt)")
+    check(flowed[1].cards[0].hollow, "C2 spends in place, in its own column")
+    guard case .row(let footnote)? = AgentPage.page(one).blocks.last else { fatalError("the footnote") }
+    check(footnote.title == "This Mac only: no feed found.", "the footnote closes the page")
+
+    let empty = AgentPage.page(AgentBoard(machineName: "MBA", local: [], feed: .missing, now: now))
+    guard case .row(let none)? = empty.blocks.first else { fatalError("the empty state") }
+    check(none.title == "No plans found" && empty.line.text == "No plans found", "no accounts says so")
+    print("cards and page: ok")
+}
+
 func claudeLaunch() {
     let base = ["PATH": "/usr/bin", "CLAUDE_CODE_ENTRYPOINT": "x", "ANTHROPIC_API_KEY": "k", "CLAUDECODE": "1",
                 "DISABLE_TELEMETRY": "1", "CLAUDE_CONFIG_DIR": "/elsewhere", "HOME": "/home/me"]
@@ -412,6 +477,7 @@ enum AgentsModelTest {
         boardThisMacOnly()
         boardWithFeed()
         boardStates()
+        cardsAndPage()
         claudeLaunch()
         print("nc-Agents-model-test: ok")
     }
