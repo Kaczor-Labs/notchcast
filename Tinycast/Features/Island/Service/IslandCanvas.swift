@@ -23,6 +23,8 @@ final class IslandCanvas: NSView {
     private var replay: ((IslandCanvas) -> Void)?
     /// Frosted under Reduce Transparency or Increase Contrast paints its glass solid.
     var solidGlass = false
+    /// Frosted's thickness: the bar, or what the grown island holds (a report is pane, a question sheet).
+    var glass = NotchTheme.GlassLayer.bar
     var restingKeyline = 0.0
     /// How far past the rest pill the outline has grown, so the line fades with the island, never pops.
     var keylineStrength: Double {
@@ -43,7 +45,7 @@ final class IslandCanvas: NSView {
     private var surface: Color {
         switch look {
         case .black: NotchTheme.Colors.islandSurface
-        case .frosted: solidGlass ? NotchTheme.Colors.islandGlassSolid : NotchTheme.Colors.islandGlassTint
+        case .frosted: glass.fill(solid: solidGlass)
         }
     }
     /// Frosted darkens toward the notch: black over the tint, under the edge and the art.

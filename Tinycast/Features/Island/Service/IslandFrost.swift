@@ -22,7 +22,7 @@ final class IslandFrost {
         clip.wantsLayer = true
         clip.layer?.mask = mask
         clip.isHidden = true
-        blur.material = .hudWindow
+        blur.material = NotchTheme.GlassLayer.material
         blur.blendingMode = .behindWindow
         blur.state = .active
         for view in [clip, blur, mute, canvas] { view.autoresizingMask = [.width, .height] }
@@ -90,7 +90,7 @@ private final class IslandMuteView: NSView {
     override init(frame: NSRect) {
         super.init(frame: frame)
         let layer = CALayer()
-        layer.backgroundColor = CGColor(gray: 0.5, alpha: 1)
+        layer.backgroundColor = NSColor.gray.cgColor
         layer.compositingFilter = "saturationBlendMode"
         layer.opacity = Float(NotchTheme.Frosted.desaturate)
         self.layer = layer

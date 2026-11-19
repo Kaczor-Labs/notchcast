@@ -71,7 +71,7 @@ struct IslandGlassShadeTest {
 
     @MainActor static func main() {
         let tokens = ObsidianTokens.Glass.self
-        let glass = over(rgba(NotchTheme.Colors.islandGlassTint), white)
+        let glass = over(rgba(NotchTheme.GlassLayer.bar.tint), white)
         let frosted = column(look: .frosted)
         let (top, bottom) = (frosted[0], frosted[frosted.count - 1])
         let mid = frosted[Int((Double(frosted.count) * tokens.glassShadeMidStop).rounded())]
@@ -97,7 +97,7 @@ struct IslandGlassShadeTest {
         }
 
         let solid = column(look: .frosted, solid: true)
-        precondition(solid.allSatisfy { near($0, rgba(NotchTheme.Colors.islandGlassSolid).rgb) },
+        precondition(solid.allSatisfy { near($0, rgba(NotchTheme.GlassLayer.bar.solid).rgb) },
                      "Reduce Transparency or Increase Contrast paints the solid alone, no shade: \(solid[0])")
         let black = column(look: .black)
         precondition(black.allSatisfy { near($0, [0, 0, 0], 0) }, "Black draws no shade: \(black[0])")

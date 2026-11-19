@@ -78,6 +78,13 @@ final class DialogPanel: NSPanel, AnimatedPanel {
     override var canBecomeKey: Bool { true }
     override var canBecomeMain: Bool { false }
 
+    override func makeFirstResponder(_ responder: NSResponder?) -> Bool {
+        guard super.makeFirstResponder(responder) else { return false }
+        let frosted = AppCore.shared.island.frosted(on: nil)
+        (firstResponder as? NSTextView)?.applyIslandInks(frosted: frosted)
+        return true
+    }
+
     func focusFirstTextField() {
         // SwiftUI builds its text fields on first layout, which may not have run by turning key.
         contentView?.layoutSubtreeIfNeeded()

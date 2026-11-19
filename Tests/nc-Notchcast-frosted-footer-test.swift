@@ -22,7 +22,7 @@ struct NotchcastFrostedFooterTest {
     /// A row label under the footer capsule on the island's look, rendered offscreen in a never-shown window.
     static func render(frosted: Bool, label: Bool) -> NSBitmapImageRep {
         let ground: AnyView = frosted
-            ? AnyView(NotchTheme.Colors.islandGlassTint.background(Color.white))
+            ? AnyView(NotchTheme.GlassLayer.bar.tint.background(Color.white))
             : AnyView(NotchTheme.Colors.islandSurface)
         let view = ZStack {
             Text("Application").font(.system(size: 22, weight: .bold)).foregroundStyle(.white)

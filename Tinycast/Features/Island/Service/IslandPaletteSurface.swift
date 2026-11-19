@@ -6,14 +6,16 @@ extension EnvironmentValues {
     @Entry var paletteOnIsland = false
     /// The palette's display has the Frosted look, so island fills let its glass show.
     @Entry var islandFrosted = false
-    /// Text on a selection slab or a wash, which costs Frosted inks their 4.5:1.
+    /// Text on a selection slab or a wash: muted ink turns primary there, on both looks.
     @Entry var islandInkLifted = false
 }
 
 extension Color {
-    /// This token on the Frosted look; `lifted` is its ink where `islandInkLifted` is set.
-    func frosted(_ value: Color, lifted: Color? = nil) -> Color {
-        Color(IslandLookStyle(black: self, frosted: value, lifted: lifted ?? value))
+    /// This token on the Frosted look; each `lifted` is its look's ink where `islandInkLifted` is set.
+    func frosted(_ value: Color, lifted: Color? = nil, blackLifted: Color? = nil) -> Color {
+        Color(
+            IslandLookStyle(
+                black: self, blackLifted: blackLifted ?? self, frosted: value, lifted: lifted ?? value))
     }
 }
 
@@ -32,14 +34,17 @@ extension Color {
     }
 }
 
-/// Black resolves the token it always was, so nothing outside a Frosted island changes.
+/// Off a slab Black resolves the token it always was, so nothing outside an island row changes.
 private struct IslandLookStyle: ShapeStyle, Hashable {
     let black: Color
+    let blackLifted: Color
     let frosted: Color
     let lifted: Color
 
     func resolve(in environment: EnvironmentValues) -> Color.Resolved {
-        guard environment.islandFrosted else { return black.resolve(in: environment) }
+        guard environment.islandFrosted else {
+            return (environment.islandInkLifted ? blackLifted : black).resolve(in: environment)
+        }
         return (environment.islandInkLifted ? lifted : frosted).resolve(in: environment)
     }
 }
@@ -94,9 +99,9 @@ private struct IslandFloatingGlass<S: Shape>: ViewModifier {
         content.background {
             if onIsland, frosted {
                 if reduceTransparency || contrast == .increased {
-                    shape.fill(NotchTheme.Colors.islandGlassSolid)
+                    shape.fill(NotchTheme.GlassLayer.bar.solid)
                 } else {
-                    IslandRowBlur(shape: shape).overlay(shape.fill(NotchTheme.Colors.islandGlassTint))
+                    IslandRowBlur(shape: shape).overlay(shape.fill(NotchTheme.GlassLayer.bar.tint))
                 }
             }
         }
@@ -116,7 +121,7 @@ private struct IslandRowBlur<S: Shape>: NSViewRepresentable {
 }
 
 extension View {
-    /// A menu's backing: the island black, or Frosted's denser menu glass and edge.
+    /// A menu's backing: the island black, or Frosted's pane glass and edge, solid over the island's own glass.
     func islandMenuBacking(in shape: some Shape) -> some View {
         background { IslandMenuBacking(shape: shape) }
     }
@@ -125,6 +130,7 @@ extension View {
 private struct IslandMenuBacking<S: Shape>: View {
     let shape: S
     @Environment(\.islandFrosted) private var frosted
+    @Environment(\.islandGlassBelow) private var glassBelow
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
     @Environment(\.colorSchemeContrast) private var contrast
 
@@ -133,14 +139,14 @@ private struct IslandMenuBacking<S: Shape>: View {
             shape.fill(NotchTheme.Colors.islandSurface)
         } else {
             Group {
-                if reduceTransparency || contrast == .increased {
-                    shape.fill(NotchTheme.Colors.islandGlassSolid)
+                if glassBelow || reduceTransparency || contrast == .increased {
+                    shape.fill(NotchTheme.GlassLayer.pane.solid)
                 } else {
-                    IslandMenuBlur(shape: shape).overlay(shape.fill(NotchTheme.Frosted.menuTint))
+                    IslandMenuBlur(shape: shape).overlay(shape.fill(NotchTheme.GlassLayer.pane.tint))
                 }
             }
             // The menu clips to its shape, so half of this line is the 1 pt edge inside it.
-            .overlay(shape.stroke(NotchTheme.Colors.islandEdge, lineWidth: 2))
+            .overlay(shape.stroke(NotchTheme.GlassLayer.edge, lineWidth: 2))
         }
     }
 }
@@ -168,7 +174,7 @@ private final class IslandMaskedBlur: NSView {
         super.init(frame: .zero)
         wantsLayer = true
         layer?.mask = mask
-        blur.material = .hudWindow
+        blur.material = NotchTheme.GlassLayer.material
         blur.blendingMode = blending
         blur.state = .active
         blur.autoresizingMask = [.width, .height]

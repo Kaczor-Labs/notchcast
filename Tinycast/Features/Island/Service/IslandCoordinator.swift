@@ -346,6 +346,7 @@ final class IslandCoordinator: NSObject {
         for screen in available { backdrops[screen.islandDisplayID]?.canvas.look = look(for: screen) }
         let palette = active?.canvas.look ?? .black
         if looks.palette != palette { looks.palette = palette }
+        panel?.inksFrosted = palette == .frosted
         (core.islandPresenter as? IslandPresenter)?.looksChanged()
     }
 

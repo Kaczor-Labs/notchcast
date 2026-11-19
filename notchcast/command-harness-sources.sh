@@ -18,6 +18,7 @@ if [[ " $* " == *" Tinycast/DesignSystem/Theme.swift "* || " $* " == *" Tinycast
     [[ " $* " == *" Tinycast/Features/Island/Service/IslandPaletteSurface.swift "* ]] || set -- "$@" Tinycast/Features/Island/Service/IslandPaletteSurface.swift
     [[ " $* " == *" Tinycast/Features/Notchcast/NotchTheme.swift "* ]] || set -- "$@" Tinycast/Features/Notchcast/NotchTheme.swift
     [[ " $* " == *" notchcast/vendor/Obsidian/ObsidianTokens.swift "* ]] || set -- "$@" notchcast/vendor/Obsidian/ObsidianTokens.swift
+    [[ " $* " == *" Tinycast/Features/Notchcast/NotchGlass.swift "* ]] || set -- "$@" Tinycast/Features/Notchcast/NotchGlass.swift
 fi
 # Upstream's icon pack tints Theme and SettingsTab with IconTint, so either brings it along.
 if [[ " $* " == *" Tinycast/DesignSystem/Theme.swift "* || " $* " == *" Tinycast/Features/Settings/SettingsTab.swift "* ]]; then

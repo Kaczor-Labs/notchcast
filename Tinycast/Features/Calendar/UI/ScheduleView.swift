@@ -83,7 +83,7 @@ private struct MeetingRow: View {
                 name: meeting.link?.provider.sfSymbol ?? "calendar", size: metrics.size.resultRowIcon * 0.7
             )
             .frame(width: metrics.size.resultRowIcon, height: metrics.size.resultRowIcon)
-            .foregroundStyle(meeting.isInProgress(now: now) ? Theme.Colors.brand : .secondary)
+            .foregroundStyle(meeting.isInProgress(now: now) ? Theme.Colors.primaryAction : .secondary)
             CalendarBar(color: meeting.calendarColor)
             Text(meeting.title)
                 .font(metrics.typography.rowTitle)

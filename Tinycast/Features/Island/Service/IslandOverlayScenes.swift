@@ -16,6 +16,7 @@ enum IslandOverlayScenes {
         }
         await controller.capture("lifetime-question")
         IslandVerification.require(controller.outlineBounds.height > rest.height, "question grows resting island")
+        IslandVerification.require(controller.canvas.glass == .sheet, "a question on the closed island is sheet glass")
         IslandLatency.key(question, code: 53, characters: "\u{1b}")
         IslandVerification.require(await answer == false, "lifetime question cancelled")
         await IslandVerification.pause(1.2)
@@ -23,17 +24,20 @@ enum IslandOverlayScenes {
             + " overlays=\(controller.overlayCount) paletteVisible=\(panel.isVisible)")
         IslandVerification.require(controller.overlayCount == 0 && abs(controller.outlineBounds.height - rest.height) < 0.1,
                                    "question orderOut contracts island to rest")
+        IslandVerification.require(controller.canvas.glass == .bar, "the island at rest is bar glass again")
         let presenter = HUDPresenter(anchor: .edgeInset(24), dwell: 0.4, screen: { panel.screen })
         presenter.show(MessageHUDView(message: "Lifetime report", accessory: .progress))
         await IslandVerification.pause(0.3)
         await controller.capture("lifetime-report")
         IslandVerification.require(controller.outlineBounds.height > rest.height, "report grows resting island")
+        IslandVerification.require(controller.canvas.glass == .pane, "a report on the closed island is pane glass")
         await IslandVerification.pause(1.4)
         print("LIFETIME report rest=\(rest) actual=\(controller.outlineBounds)"
             + " overlays=\(controller.overlayCount) paletteVisible=\(panel.isVisible)")
         IslandVerification.require(!presenter.isShowing && controller.overlayCount == 0
                                    && abs(controller.outlineBounds.height - rest.height) < 0.1,
                                    "HUD fade contracts island to rest")
+        IslandVerification.require(controller.canvas.glass == .bar, "the island is bar glass once the report is gone")
         await controller.capture("lifetime-rest")
         await IslandVerification.pause(0.2)
         let closing = HUDPanel()
@@ -59,6 +63,7 @@ enum IslandOverlayScenes {
         }
         IslandVerification.require(core.isShowingDialog && question.isKeyWindow, "question flag and native key window")
         await controller.capture("question")
+        IslandVerification.require(controller.canvas.glass == .bar, "a question over the open launcher keeps bar glass")
         await IslandVerification.pause(0.2)
         let second = await core.confirm(title: "Second question", message: nil, symbol: nil, confirmTitle: "Continue")
         IslandVerification.require(!second && core.isShowingDialog, "second question cancels immediately without closing first")
@@ -68,6 +73,7 @@ enum IslandOverlayScenes {
         await IslandVerification.pause(0.2)
         let reports = NSApp.windows.filter { $0 is HUDPanel && $0.isVisible }
         IslandVerification.require(reports.count == 1, "one stock progress HUD")
+        IslandVerification.require(controller.canvas.glass == .bar, "a report over the open launcher keeps bar glass")
         IslandVerification.require(reports.allSatisfy { !$0.frame.intersects(question.frame) }, "report never covers question")
         IslandVerification.require(question.isKeyWindow && core.isShowingDialog && panel.isVisible,
                                    "report preserves question key, flag and open palette")

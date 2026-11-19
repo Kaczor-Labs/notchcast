@@ -27,6 +27,9 @@ final class PalettePanel: NSPanel, AnimatedPanel {
         }
     }
 
+    /// The island sets its display's look here, so a focused text view takes that look's selection ink.
+    var inksFrosted = false
+
     /// Nil until a field takes focus; a non-activating panel can only scope input to this.
     var fieldEditorContext: NSTextInputContext? { fieldEditor?.inputContext }
 
@@ -62,6 +65,7 @@ final class PalettePanel: NSPanel, AnimatedPanel {
         if let view = responder as? NSView, view.refusesKeyboardFocus { return false }
         guard super.makeFirstResponder(responder) else { return false }
         fieldEditor?.insertionPointColor = Self.caretColor
+        fieldEditor?.applyIslandInks(frosted: inksFrosted)
         trackComposition()
         if let context = fieldEditorContext { onFieldEditorFocused?(context) }
         return true

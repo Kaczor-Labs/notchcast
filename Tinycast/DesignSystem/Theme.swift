@@ -468,10 +468,12 @@ enum Theme {
         static let textPrimary = ramp(dark: 1.0, light: 1.0).frosted(NotchTheme.Frosted.textPrimary)
         static let textSecondary = adaptive(
             dark: NSColor(ObsidianTokens.Glass.glassMutedForegroundSecondary), light: .srgbInk(0, alpha: 0.60)
-        ).frosted(NotchTheme.Frosted.textSecondary, lifted: NotchTheme.Frosted.textPrimary)
+        ).frosted(
+            NotchTheme.Frosted.textSecondary, lifted: NotchTheme.Frosted.textPrimary, blackLifted: textPrimary)
         static let textTertiary = adaptive(
             dark: NSColor(ObsidianTokens.Glass.glassMutedForegroundTertiary), light: .srgbInk(0, alpha: 0.42)
-        ).frosted(NotchTheme.Frosted.textTertiary, lifted: NotchTheme.Frosted.textPrimary)
+        ).frosted(
+            NotchTheme.Frosted.textTertiary, lifted: NotchTheme.Frosted.textPrimary, blackLifted: textPrimary)
         static let menuSymbol = ramp(dark: 0.70, light: 0.70).frosted(NotchTheme.Frosted.menuSymbol)
         static let noteText = ramp(dark: 0.90, light: 0.85)
         static let iconPlaceholder = ramp(dark: 0.06, light: 0.06)
@@ -494,7 +496,7 @@ enum Theme {
         /// A room card is a solid window in both appearances, so the desk never shows through.
         static let roomCardFill = adaptive(
             dark: .srgbInk(0.16, alpha: 0.94), light: .srgbInk(0.98, alpha: 0.94))
-        static let roomCardStroke = Color.accentColor
+        static let roomCardStroke = primaryAction
         static let roomCardShadow = adaptive(
             dark: .srgbInk(0, alpha: 0.25), light: .srgbInk(0, alpha: 0.25))
         static let roomCardDot = ramp(dark: 0.25, light: 0.25)
@@ -518,7 +520,7 @@ enum Theme {
         static let composerSendInk = adaptive(dark: .srgbInk(0, alpha: 0.85), light: .srgbInk(1, alpha: 1))
         /// The window's own page, for a card that must hide the transcript it floats over.
         static let windowSurface = Color(nsColor: .windowBackgroundColor)
-        static let dropTarget = Color.accentColor
+        static let dropTarget = primaryAction
         /// Progress tint: the message pill's spinner while the work behind it is still running.
         static let progress = primaryAction
         /// The command output window's page: a flat surface the log sits directly on.

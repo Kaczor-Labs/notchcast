@@ -40,10 +40,6 @@ enum NotchTheme {
         static let islandSurface = Color.black
         /// The open island's inside hairline: IslandShell's 0.1488 panel keyline, rounded; none in Light.
         static let islandKeyline = Theme.Colors.adaptive(dark: .srgbInk(1, alpha: 0.15), light: .clear)
-        /// Frosted's graphite: the lowest alpha that keeps text at 4.5:1 over a bright wallpaper.
-        static let islandGlassTint = Color(.sRGB, red: 24 / 255, green: 25 / 255, blue: 28 / 255, opacity: 0.88)
-        /// Frosted under Reduce Transparency or Increase Contrast: the glass painted solid (brief H2).
-        static let islandGlassSolid = Color(.sRGB, red: 28 / 255, green: 29 / 255, blue: 32 / 255)
         /// Frosted's edge, so the glass reads as an object over a busy wallpaper.
         static let islandEdge = Color(.sRGB, white: 1, opacity: 0.12)
         /// Apart from `rowHover`, so retuning hover never dims a resting keycap.
@@ -59,6 +55,13 @@ enum NotchTheme {
         static let accentInk = ObsidianTokens.Theme.primaryForeground
         /// A rule inside a `keyCapFill` card: the `selection` step, which reads on card and black.
         static let cardRule = Theme.Colors.selection
+        /// Under every command icon, whatever its upstream tint, and the same in both looks.
+        static let iconTileFill = ObsidianTokens.Glass.glassPressed
+        /// Selected text in an AppKit view, in place of the system highlight, which is the system accent.
+        static let textSelection = ObsidianTokens.Theme.selection
+
+        /// Frosted lifts a syntax ink toward white; stock ones drop under 4.5:1 on a card over its glass.
+        static func codeInk(_ ink: Color) -> Color { ink.frosted(ink.mix(with: .white, by: 0.35, in: .device)) }
     }
 }
 
@@ -66,16 +69,16 @@ extension NotchTheme {
     /// Frosted's in-island values: every text ink keeps 4.5:1 on the glass.
     enum Frosted {
         static let textPrimary = ink(0xF2F3F5)
-        static let textSecondary = ink(0xB6B8C1)
-        static let textTertiary = ink(0xADB0B9)
+        static let textSecondary = ObsidianTokens.Glass.glassMutedForegroundSecondary
+        static let textTertiary = ObsidianTokens.Glass.glassMutedForegroundTertiary
         static let keyCapInk = ink(0xE4E6EA)
         static let menuSymbol = ink(0xC3C5CC)
         static let selection = Color(.sRGB, white: 1, opacity: 0.12)
         static let rowHover = Color(.sRGB, white: 1, opacity: 0.06)
         static let menuHover = Color(.sRGB, white: 1, opacity: 0.10)
-        static let separator = Color(.sRGB, white: 1, opacity: 0.10)
+        static let separator = ObsidianTokens.Glass.glassRule
         static let controlFill = Color(.sRGB, white: 1, opacity: 0.07)
-        static let controlEdge = Color(.sRGB, white: 1, opacity: 0.14)
+        static let controlEdge = ObsidianTokens.Glass.glassRule
         /// Black over the tint, top edge to bottom: the glass darkens toward the notch.
         static let shade: [(location: Double, color: Color)] = [
             (0, ObsidianTokens.Glass.glassShadeTop),
@@ -85,12 +88,11 @@ extension NotchTheme {
         static let desaturate = ObsidianTokens.Glass.glassDesaturate
         /// The one accent: the dialog's primary, progress, switches and the focus edge.
         static let accent = ObsidianTokens.Theme.accent
-        static let destructive = ink(0xFF827A)
-        static let destructiveLifted = ink(0xFFB3AE)
+        /// One red on glass, at rest and on a slab; `destructiveLifted` stays for `Theme.swift`'s hook.
+        static let destructive = ObsidianTokens.Glass.glassDestructive
+        static let destructiveLifted = destructive
         static let success = ink(0x86D39B)
         static let warning = ink(0xE8C66A)
-        /// Denser than the island body: a menu sits over the island and the desktop at once.
-        static let menuTint = Color(.sRGB, red: 38 / 255, green: 39 / 255, blue: 43 / 255, opacity: 0.92)
 
         private static func ink(_ hex: Int) -> Color {
             Color(.sRGB, red: Double(hex >> 16 & 0xFF) / 255, green: Double(hex >> 8 & 0xFF) / 255,
@@ -113,5 +115,17 @@ extension NotchTheme {
     /// One dim for a disabled control; stock and island read it, so the value stays upstream's 0.45.
     enum Opacity {
         static let disabled = 0.45
+    }
+}
+
+extension NSTextView {
+    /// AppKit's highlight and link blue are the system accent; the look has one accent, white.
+    func applyIslandInks(frosted: Bool) {
+        let primary = Theme.Colors.textPrimary.islandInk(frosted: frosted)
+        guard !primary.isEqual(selectedTextAttributes[.foregroundColor]) else { return }
+        selectedTextAttributes = [
+            .backgroundColor: NotchTheme.Colors.textSelection.islandInk(frosted: frosted), .foregroundColor: primary]
+        linkTextAttributes = [.foregroundColor: primary, .underlineStyle: NSUnderlineStyle.single.rawValue,
+                              .cursor: NSCursor.pointingHand]
     }
 }
