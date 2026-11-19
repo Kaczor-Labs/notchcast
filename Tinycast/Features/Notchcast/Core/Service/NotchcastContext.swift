@@ -1,4 +1,5 @@
 import Foundation
+import Observation
 
 /// Clipboard history's pair around a pasteboard write Notchcast makes itself.
 struct NotchcastClipboardMutation {
@@ -11,12 +12,15 @@ struct NotchcastClipboardMutation {
 }
 
 /// The only door from an add-on to the app: one per add-on, owned by the controller.
+/// Observable so a settings row sees the module attach, which lands a turn after its switch.
 @MainActor
+@Observable
 final class NotchcastContext {
     let defaults: UserDefaults
     let preferences: NotchcastPreferences
     let presenter: any IslandPresenting
     let now: @MainActor () -> Date
+    let settingsBackup: any NotchcastSettingsBackup
     private let hub: NotchcastTapHub
     private let transcription: NotchcastTranscriptionRunner
     private let onTapsChanged: @MainActor () -> Void
@@ -28,17 +32,22 @@ final class NotchcastContext {
     private(set) var module: (any NotchcastModule)?
     /// Entry ids the module cannot run right now: the launcher drops them, their hotkeys still run.
     private(set) var unavailableCommands: Set<String> = []
+    /// Commands made at run time, one per user row; they go when the module detaches.
+    private(set) var commands: [NotchcastCommand] = []
     /// Returns true to consume a digit typed in the launcher (Number Keys, hook H9).
     private(set) var launcherDigit: (@MainActor (_ digit: Int, _ query: String, _ entryRows: [Int]) -> Int?)?
     /// Returns true to claim a URL or file opened with the app (a link clicked, a document opened).
     private(set) var openURL: (@MainActor (URL) -> Bool)?
+    /// Notchcast's own yes/no dialog, never `NSAlert`; nil where no app runs, as in harnesses.
+    var confirm: (@MainActor @Sendable (_ title: String, _ message: String?, _ confirmTitle: String) async -> Bool)?
 
     init(
         defaults: UserDefaults, preferences: NotchcastPreferences, presenter: any IslandPresenting,
         hub: NotchcastTapHub, transcription: NotchcastTranscriptionRunner,
         now: @escaping @MainActor () -> Date,
         onTapsChanged: @escaping @MainActor () -> Void, onCommandsChanged: @escaping @MainActor () -> Void = {},
-        recovery: NotchcastContext? = nil, clipboard: NotchcastClipboardMutation = .none
+        recovery: NotchcastContext? = nil, clipboard: NotchcastClipboardMutation = .none,
+        settingsBackup: any NotchcastSettingsBackup = NotchcastNoSettingsBackup()
     ) {
         self.defaults = defaults
         self.preferences = preferences
@@ -46,6 +55,7 @@ final class NotchcastContext {
         self.hub = hub
         self.transcription = transcription
         self.now = now
+        self.settingsBackup = settingsBackup
         self.onTapsChanged = onTapsChanged
         self.onCommandsChanged = onCommandsChanged
         self.clipboard = clipboard
@@ -106,14 +116,44 @@ final class NotchcastContext {
     /// Rereads Accessibility trust after a grant, restarting a tap that could not start.
     func refreshPermission() { hub.refreshPermission() }
 
+    /// Replaces the run-time commands; the launcher and hotkeys pick them up on the same turn.
+    func setCommands(_ commands: [NotchcastCommand]) {
+        self.commands = commands
+        onCommandsChanged()
+    }
+
     func attach(_ module: (any NotchcastModule)?) { self.module = module }
 
     /// Called after the module stopped: everything it claimed goes with it.
     func detach() {
         module = nil
         wantedTaps.removeAll()
+        commands.removeAll()
         launcherDigit = nil
         unavailableCommands = []
         openURL = nil
     }
+}
+
+/// The stock settings backup (Backup › Export's file) as the core sees it; `NotchcastCore` injects it.
+@MainActor
+protocol NotchcastSettingsBackup {
+    /// The current settings as their backup JSON; nil once the app is gone.
+    func currentSettings() -> Data?
+    /// Calls `onChange` once, on the next change to anything `currentSettings` reads.
+    func observeSettings(_ onChange: @escaping @MainActor @Sendable () -> Void)
+    /// Writes a settings-only backup file atomically, creating its folder; the IO runs off-main.
+    func write(_ settings: Data, to file: URL) async throws
+    /// The stock import for one backup file: its confirmation, apply and report.
+    func restore(_ file: URL) async
+}
+
+/// Harnesses and an app with no stock backup: nothing to read, nothing written.
+struct NotchcastNoSettingsBackup: NotchcastSettingsBackup {
+    struct Unavailable: Error {}
+
+    func currentSettings() -> Data? { nil }
+    func observeSettings(_ onChange: @escaping @MainActor @Sendable () -> Void) {}
+    func write(_ settings: Data, to file: URL) async throws { throw Unavailable() }
+    func restore(_ file: URL) async {}
 }

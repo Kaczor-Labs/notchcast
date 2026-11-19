@@ -2,6 +2,7 @@
 // notchcast-sources: Tinycast/Features/Island/Model/IslandPresentation.swift
 // notchcast-sources: Tinycast/Features/Island/Service/IslandHoverTracker.swift
 // notchcast-reads: Tinycast/Features/Island/Service/IslandCoordinator.swift
+// notchcast-reads: Tinycast/Features/Island/Service/IslandController.swift
 // notchcast-reads: Tinycast/Features/Island/Service/IslandPillMenu.swift
 // notchcast-reads: Tinycast/Features/Island/Service/IslandHoverTracker+Core.swift
 import CoreGraphics
@@ -27,6 +28,10 @@ struct IslandHoverTest {
         menuEscape()
         monitors()
         pinnedClick()
+        topRowRest()
+        trackedMove()
+        primaryClick()
+        try clickHooks()
         try refreshHooks()
         print("IslandHoverTest passed")
     }
@@ -139,6 +144,7 @@ struct IslandHoverTest {
         precondition(hits(755, 860) && hits(700, 849), "just below the notch counts, no aiming at its edge (H9)")
         precondition(hits(656, 860) && hits(855, 860), "below the menu bar the zone reaches past each end")
         precondition(!hits(655, 890) && !hits(856, 890), "inside the menu bar the items beside the notch stay its own")
+        precondition(hits(755, 900), "the screen's top pixel row over the notch counts (#1000)")
         precondition(!hits(755, 847), "the zone stops 20 points under the menu bar")
         precondition(!hits(652, 860), "and 10 points past each end")
         // A notchless 96 × 24 pill at the top edge of a 30-point menu bar.
@@ -146,6 +152,7 @@ struct IslandHoverTest {
         func pillHits(_ x: CGFloat, _ y: CGFloat) -> Bool {
             IslandHoverZone.contains(CGPoint(x: x, y: y), shape: pill, menuBarBottom: 870, below: 20, side: 10)
         }
+        precondition(pillHits(756, 900), "the top row over a top-edge pill counts (#1000)")
         precondition(pillHits(756, 872), "between the pill and the menu bar's lower edge counts")
         precondition(pillHits(756, 855) && !pillHits(756, 849), "the reach is measured from the menu bar's bottom")
         precondition(!pillHits(700, 880), "beside the pill inside the menu bar does not count")
@@ -222,6 +229,79 @@ struct IslandHoverTest {
         precondition(!tracker.isOpen && world.opens == [true, false], "a click outside dismisses the pin and says so")
     }
 
+    /// The pointer pushed against the top of the screen over the island, then left alone (#1029, #1000).
+    static func topRowRest() {
+        let notch = CGRect(x: 663, y: 868, width: 185, height: 32)
+        let pill = CGRect(x: 708, y: 876, width: 96, height: 24)
+        for (shape, bar) in [(notch, CGFloat(868)), (pill, 870)] {
+            let world = FakeWorld()
+            let tracker = world.tracker()
+            let inside = IslandHoverZone.contains(CGPoint(x: 756, y: 900), shape: shape, menuBarBottom: bar,
+                                                  below: 20, side: 10)
+            world.move(Input(inside: inside))
+            precondition(!tracker.isOpen && world.wakeAt == open, "resting on the top row starts the intent delay")
+            world.advance(to: open)
+            precondition(tracker.isOpen && world.opens == [true], "and the island opens with no further pointer move")
+        }
+    }
+
+    /// The island window's tracking area reports a move the monitors never saw (#1029).
+    static func trackedMove() {
+        let world = FakeWorld()
+        let tracker = world.tracker()
+        world.input = Input(inside: true)
+        tracker.refresh()
+        precondition(world.wakeAt == open, "a tracked move starts the intent delay with no monitor event")
+        world.advance(to: open)
+        precondition(tracker.isOpen && world.opens == [true], "and the island opens")
+        world.input = Input(inside: false)
+        tracker.refresh()
+        world.advance(to: open + close)
+        precondition(!tracker.isOpen, "a tracked exit closes it")
+    }
+
+    /// A primary click opens the island as hover does and holds it, hover on or off (#1029).
+    static func primaryClick() {
+        for enabled in [true, false] {
+            let world = FakeWorld()
+            world.input = Input(inside: true, buttonHeld: true, enabled: enabled)
+            let tracker = world.tracker()
+            tracker.pin()
+            precondition(tracker.isOpen && world.opens == [true], "a click opens the island at once")
+            tracker.pin()
+            precondition(tracker.isOpen && world.opens == [true], "a second click keeps it open")
+            world.move(Input(inside: false, enabled: enabled))
+            world.advance(to: 60)
+            precondition(tracker.isOpen, "a clicked-open island stays after the pointer leaves")
+            world.move(Input(inside: false, enabled: enabled), click: true)
+            precondition(!tracker.isOpen && world.opens == [true, false], "until a click outside")
+        }
+        let world = FakeWorld()
+        world.input = Input(inside: true, covered: true)
+        let tracker = world.tracker()
+        tracker.pin()
+        precondition(!tracker.isOpen, "under the launcher a click opens nothing")
+    }
+
+    /// The wiring the tracker cannot see: which click reaches `pin` and which the menu (#1029).
+    static func clickHooks() throws {
+        let coordinator = try source("IslandCoordinator.swift")
+        guard let start = coordinator.range(of: "backdrop.onOpen = {"),
+              let end = coordinator.range(of: "backdrop.onSettle = ") else {
+            preconditionFailure("the coordinator wires the island's click")
+        }
+        let click = coordinator[start.lowerBound..<end.lowerBound]
+        precondition(click.contains("self?.hover.pin()\n"), "a primary click opens and pins the island")
+        precondition(!click.contains("openMenu") && !click.contains("pillMenu"), "a primary click never shows the island's menu")
+        precondition(coordinator.contains("backdrop.onMenu = { [weak self] pill, window in "
+            + "self?.pillMenu.toggle(below: pill, in: window) }\n"), "a secondary click shows the island's menu")
+        precondition(coordinator.contains("backdrop.canvas.onPointer = { [weak self] in self?.hover.refresh() }\n"),
+                     "the island window's tracking area feeds the hover")
+        let menu = try source("IslandPillMenu.swift")
+        precondition(!menu.contains("Support") && !menu.contains("supportCoordinator"),
+                     "the island's menu has no Support Tinycast row")
+    }
+
     /// Each of these changes an input without a pointer event, so each must ask the tracker again.
     static func refreshHooks() throws {
         let coordinator = try source("IslandCoordinator.swift")
@@ -236,6 +316,22 @@ struct IslandHoverTest {
             preconditionFailure("spaceChanged refreshes the hover")
         }
         precondition(written.upperBound < refreshed.lowerBound, "spaceChanged refreshes after the full-screen write")
+        let visibility = body(coordinator, "private func observeVisibility()")
+        for line in ["_ = core.isShowingDialog\n", "_ = core.settings.islandOpensOnHover\n",
+                     "self.hover.refresh()\n"] {
+            precondition(visibility.contains(line), "observeVisibility keeps \(line.dropLast()) (#1003)")
+        }
+        precondition(coordinator.contains("backdrop.onSettle = { [weak self] in self?.hover.refresh() }\n"),
+                     "a settling island refreshes the hover (#1003)")
+        let settled = try source("IslandController.swift").split(separator: "\n")
+            .filter { $0.contains("didSettle = ") }
+        precondition(settled.count == 1 && settled[0].contains("self?.onSettle?()"), "didSettle calls onSettle (#1003)")
+        let glance = body(coordinator, "private func showGlance(")
+        guard let set = glance.range(of: "controller.glance = "),
+              let synced = glance.range(of: "syncExpansion()\n") else {
+            preconditionFailure("showGlance sets the glance and syncs the presenter")
+        }
+        precondition(set.upperBound < synced.lowerBound, "the presenter reads the glance after it is set (#1001)")
         let core = try source("IslandHoverTracker+Core.swift")
         precondition(core.contains("addLocalMonitorForEvents") && core.contains("&& !(event.window is MenuPanel)"),
                      "a click in an own window counts, except on the island's menu")

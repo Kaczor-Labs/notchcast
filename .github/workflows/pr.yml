@@ -14,6 +14,9 @@ on:
         description: Run the macOS job on hosted xcode-27 even while NOTCHCAST_MAC_RUNNER is set (full proof)
         type: boolean
         default: false
+      harness_runner:
+        description: Runner label for a harness-only macOS job (notchcast-mba); no build, no proof of any tree (README, Runners)
+        default: ''
 
 permissions:
   contents: read
@@ -22,9 +25,10 @@ permissions:
 env:
   NOTCHCAST_HARNESS_SELECT: shadow
 
-# One group per workflow and PR head: a dispatch and a pull_request run on one head never both run.
+# One group per workflow and PR head: a dispatch and a pull_request run on one head never both run. A harness-only
+# run has a group of its own, so it never cancels the head's real run.
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref_name == github.event.repository.default_branch && github.run_id || github.event.pull_request.head.label || format('{0}:{1}', github.repository_owner, github.ref_name) }}
+  group: ${{ github.workflow }}-${{ github.ref_name == github.event.repository.default_branch && github.run_id || github.event.pull_request.head.label || format('{0}:{1}', github.repository_owner, github.ref_name) }}${{ inputs.harness_runner && format('-{0}', inputs.harness_runner) || '' }}
   cancel-in-progress: ${{ github.ref_name != github.event.repository.default_branch }}
 
 jobs:
@@ -40,6 +44,12 @@ jobs:
       harness-selected: ${{ steps.select.outputs.selected }}
       harness-unsure: ${{ steps.select.outputs.unsure }}
     steps:
+      # train.sh reads a train's PR run by its conclusion alone, and a harness-only run builds nothing.
+      - name: A harness-only run is never a train's
+        if: inputs.harness_runner != '' && startsWith(github.ref, 'refs/heads/train/')
+        run: |
+          echo "::error::harness_runner on a train branch: a harness-only run proves no tree"
+          exit 1
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           sparse-checkout: notchcast
@@ -69,10 +79,11 @@ jobs:
           python3 notchcast/harness-select.py plan "${BASE:-$(git merge-base origin/main HEAD)}" HEAD
   # The one macOS job of a run: GitHub runs at most 5 at once for the account, so every lane that needs a Mac runs here in turn.
   # Only a dispatch reaches vars.NOTCHCAST_MAC_RUNNER, a self-hosted Mac: a pull_request, a fork's too, stays hosted.
+  # inputs.harness_runner names the runner of a harness-only job: the harness steps alone, and no other job of the run.
   mac:
     needs: route
-    if: needs.route.outputs.scripts == 'true'
-    runs-on: ${{ github.event_name == 'workflow_dispatch' && !inputs.hosted && vars.NOTCHCAST_MAC_RUNNER || 'xcode-27' }}
+    if: needs.route.outputs.scripts == 'true' || inputs.harness_runner != ''
+    runs-on: ${{ github.event_name == 'workflow_dispatch' && (inputs.harness_runner || !inputs.hosted && vars.NOTCHCAST_MAC_RUNNER) || 'xcode-27' }}
     timeout-minutes: 90
     outputs:
       kind: ${{ steps.runner.outputs.kind }}
@@ -89,15 +100,25 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
       - uses: ./tools/notchcast/actions/xcode
+        if: inputs.harness_runner == ''
+      # A sandboxed runner cannot run xcodebuild: it names its Xcode in DEVELOPER_DIR, and the version file answers.
+      - name: The harness runner's own Xcode
+        if: inputs.harness_runner != ''
+        env:
+          NOTCHCAST_XCODE_FROM_RUNNER: '1'
+        run: bash tools/notchcast/ci-xcode.sh
       # hosted is GitHub's VM and isolated a Mac user of its own (README, Runners): both run everything. working is a
-      # maintainer's own session: its run skips what could touch that Mac and proves no tree.
+      # maintainer's own session: its run skips what could touch that Mac and proves no tree. A harness-only run is
+      # working on any runner: it never builds, so it never records a tree.
       - name: Runner kind
         id: runner
         env:
           HOSTED: ${{ runner.environment == 'github-hosted' }}
+          HARNESS_ONLY: ${{ inputs.harness_runner != '' }}
         run: |
           kind=working
           if [ "$HOSTED" = true ]; then kind=hosted; elif [ "${NOTCHCAST_ISOLATED_RUNNER:-}" = 1 ]; then kind=isolated; fi
+          if [ "$HARNESS_ONLY" = true ]; then kind=working; echo "::notice::SKIPPED on a harness-only run: the build lane, every Linux job, the build check"; fi
           echo "kind=$kind" >> "$GITHUB_OUTPUT"
           [ "$kind" != working ] || echo "::notice::SKIPPED on a working Mac: the macOS script tests, HOSTED_ONLY_TESTS harnesses, the tested-tree record"
       # Runners of one Mac share its temp folder: each job keeps its harness logs in its own. The figures only print.
@@ -115,7 +136,7 @@ jobs:
           bash notchcast/fetch-upstream.sh --no-tags
           python3 notchcast/script-tests.py --all --runner macos
       - name: Shared PR build lane
-        if: needs.route.outputs.build == 'true'
+        if: needs.route.outputs.build == 'true' && inputs.harness_runner == ''
         working-directory: src
         timeout-minutes: 20
         env:
@@ -124,12 +145,13 @@ jobs:
           NOTCHCAST_HARNESSES_SHARDED: '1'
         run: bash ../tools/notchcast/ci-build.sh
       # The whole suite (notchcast/test-harnesses.sh), after the build lane rather than in a job beside it.
+      # A harness-only run compiles every harness itself: the cache's toolchain key asks xcrun, which starts xcodebuild.
       - id: tests
-        if: needs.route.outputs.build == 'true'
+        if: needs.route.outputs.build == 'true' || inputs.harness_runner != ''
         timeout-minutes: 60
         uses: ./tools/notchcast/actions/tests
         with:
-          cache: pr-0of1
+          cache: ${{ inputs.harness_runner == '' && 'pr-0of1' || '' }}
       - name: Failures outside the harness selection
         if: ${{ !cancelled() && needs.route.outputs.build == 'true' }}
         continue-on-error: true
@@ -152,7 +174,7 @@ jobs:
   # ci-build.sh's checks that need no Mac (notchcast/ci-checks.sh), beside mac.
   linux-checks:
     needs: route
-    if: needs.route.outputs.build == 'true'
+    if: needs.route.outputs.build == 'true' && inputs.harness_runner == ''
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -168,7 +190,7 @@ jobs:
   # On Linux, in parallel (notchcast/script-tests.py); a test marked as needing macOS runs in mac instead.
   script-tests:
     needs: route
-    if: needs.route.outputs.scripts == 'true'
+    if: needs.route.outputs.scripts == 'true' && inputs.harness_runner == ''
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -182,7 +204,7 @@ jobs:
   # what a Linux worker runs before a push and land.sh on Linux trusts. mac still runs every harness.
   linux-harnesses:
     needs: route
-    if: needs.route.outputs.build == 'true'
+    if: needs.route.outputs.build == 'true' && inputs.harness_runner == ''
     runs-on: ubuntu-latest
     container: swift:6.4.2-noble@sha256:23d9b28ad97fb1cf1999edc3a0cb265ee915ed42299a9344e7173d5a6d2b05f4
     timeout-minutes: 15
@@ -202,10 +224,11 @@ jobs:
           git config --global --add safe.directory "$GITHUB_WORKSPACE"
           if [ -n "$HARNESS_SELECTED" ] && [ -z "$HARNESS_UNSURE" ]; then export NOTCHCAST_ONLY_TESTS="$HARNESS_SELECTED"; fi
           ./Scripts/run-tests.sh
-  # land.sh reads the check named build: green only when every lane the diff needs is.
+  # land.sh reads the check named build: green only when every lane the diff needs is. A harness-only run has none:
+  # its skipped build check is no proof to land.sh, and a real run's check on that head still counts (merge.sh).
   build:
     needs: [route, mac, linux-checks, linux-harnesses, script-tests]
-    if: ${{ !cancelled() && (github.event_name == 'workflow_dispatch' || !github.event.pull_request.draft) }}
+    if: ${{ !cancelled() && inputs.harness_runner == '' && (github.event_name == 'workflow_dispatch' || !github.event.pull_request.draft) }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -261,7 +284,7 @@ jobs:
             printf '%s\n' "$TOOLCHAIN" > "$RUNNER_TEMP/tested/toolchain"
             printf '%s\n' "$EXCUSED" > "$RUNNER_TEMP/tested/excused"
           fi
-      - uses: actions/upload-artifact@v7
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         if: needs.route.outputs.build == 'true' && needs.mac.outputs.kind != 'working'
         with:
           name: tested-tree-${{ needs.mac.outputs.kind == 'isolated' && 'isolated-' || '' }}${{ steps.tree.outputs.key }}

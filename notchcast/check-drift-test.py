@@ -13,7 +13,6 @@ import unittest
 sys.dont_write_bytecode = True
 ROOT = Path(__file__).resolve().parents[1]
 CHECK = ROOT / 'notchcast/check-drift.py'
-JSCPD_VERSION = re.search(r'^JSCPD_VERSION=(\S+)$', (ROOT / 'notchcast/config.env').read_text(), re.M)[1]
 TODO = 'Tinycast/Features/Todo/DriftProbe.swift'
 LARGE = 'Tinycast/Features/Battery/Fixture.swift'
 LARGE_LINES = 407
@@ -47,7 +46,7 @@ class Gates(unittest.TestCase):
         git(cls.seed, 'add', '.')
         git(cls.seed, 'commit', '-qm', 'Upstream fixture')
         cls.upstream = git(cls.seed, 'rev-parse', 'HEAD')
-        write(cls.seed, 'notchcast/config.env', f'JSCPD_VERSION={JSCPD_VERSION}\n')
+        write(cls.seed, 'notchcast/config.env', '# fixture\n')
         write(cls.seed, 'Tinycast/Features/Katana/KatanaPresetImporter.swift', 'struct KatanaPresetImporter {}\n')
         write(cls.seed, 'Tinycast/Features/Todo/Existing.swift', 'struct TodoExisting {}\n')
         write(cls.seed, 'Tinycast/Features/Treadmill/Existing.swift', 'struct TreadmillExisting {}\n')
@@ -226,12 +225,13 @@ class Gates(unittest.TestCase):
     def test_jscpd_failure_closes_gate(self):
         binary = Path(self.work.name) / 'bin'
         binary.mkdir()
-        write(binary, 'npx', '#!/bin/sh\nprintf "offline fixture\\n" >&2\nexit 19\n')
-        (binary / 'npx').chmod(0o755)
+        # Both the installed jscpd and npm (when the lockfile is not installed yet) run through env's node.
+        write(binary, 'node', '#!/bin/sh\nprintf "offline fixture\\n" >&2\nexit 19\n')
+        (binary / 'node').chmod(0o755)
         env = dict(os.environ, PATH=str(binary) + os.pathsep + os.environ['PATH'])
         result = self.run_check('4', env=env)
         self.assertEqual(result.returncode, 1)
-        self.assertIn('jscpd failed (19)', result.stderr)
+        self.assertRegex(result.stderr, r'jscpd (install )?failed \(19\)')
         print('RED gate 4: unavailable clone checker fails closed (exit 19)')
 
     def test_lower_budget_required(self):
