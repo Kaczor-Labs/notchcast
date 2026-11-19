@@ -280,7 +280,7 @@ struct DayModelTests {
               "both stale, Home says so: \(String(describing: line))")
     }
 
-    /// A reading past its interval and one tick is marked old, as after a failure, until a new answer.
+    /// A reading past its interval and one tick is marked old on the page until a new answer.
     static func agedPage() {
         func markets(_ rows: [IslandPageRow]) -> String? { rows.first { $0.title == "Markets" }?.trailing }
         var board = loaded()
@@ -293,13 +293,13 @@ struct DayModelTests {
         all = rows(page)
         check(all[0].trailing == nil && markets(all) == "Updated 15:31",
               "old quotes carry their time, weather is still fresh: \(all.map(\.trailing))")
-        check(page?.line == IslandPageLine(symbol: "cloud.moon", text: "9° Mostly Clear"),
-              "and leave the Home line: \(String(describing: page?.line))")
+        check(page?.line == IslandPageLine(symbol: "cloud.moon", text: "9° Mostly Clear", detail: "AAPL ▲ 0.25%"),
+              "and stay on the Home line: \(String(describing: page?.line))")
         let allOld = Fix.now.addingTimeInterval(DayBoard.weatherInterval + DayBoard.staleGrace)
         page = DayPage.page(board, now: allOld, calendar: Fix.calendar, locale: Fix.locale)
         check(rows(page)[0].trailing == "Updated 15:31", "old weather carries its time")
-        check(page?.line == IslandPageLine(symbol: DayPage.unavailableSymbol, text: "Unavailable"),
-              "both old, Home says so: \(String(describing: page?.line))")
+        check(page?.line == IslandPageLine(symbol: "cloud.moon", text: "9° Mostly Clear", detail: "AAPL ▲ 0.25%"),
+              "old is not failed: Home keeps both: \(String(describing: page?.line))")
         board.apply(weather: Fix.forecast, at: allOld)
         board.apply(quotes: ["AAPL": Fix.chart("AAPL", price: 352.79, change: 0.25)], at: allOld)
         all = rows(DayPage.page(board, now: allOld, calendar: Fix.calendar, locale: Fix.locale))

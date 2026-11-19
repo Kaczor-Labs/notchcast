@@ -325,7 +325,7 @@ struct DayModuleTests {
         check(presenter.pages == [nil], "a load that returns after the switch went off posts nothing")
     }
 
-    /// Hiding mid-load stops only the timer: the load is recorded and posts, so short visits ask once.
+    /// Hiding mid-load stops only the timer: the load posts, so short visits ask once.
     static func shortVisits() async {
         let world = FakeWorld()
         let presenter = PageRecorder()

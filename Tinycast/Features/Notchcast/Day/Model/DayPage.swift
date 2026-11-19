@@ -21,13 +21,13 @@ enum DayPage {
                           blocks: blocks.map(IslandPageBlock.row))
     }
 
-    /// The next event, opening My Schedule; else fresh weather or a fresh quote, opening the page.
+    /// The next event, opening My Schedule; else weather or a quote unless its last fetch failed.
     static func line(_ board: DayBoard, today: [DayEvent], now: Date, calendar: Calendar,
                      locale: Locale) -> IslandPageLine {
-        let sky = board.weatherIsStale(now: now) ? nil : board.weather.map {
+        let sky = board.weatherClock.isOffline ? nil : board.weather.map {
             (DayWeatherFeed.symbol($0.current), summary($0.current, locale: locale))
         }
-        let quotes = board.quotesAreStale(now: now) ? [] : board.symbols
+        let quotes = board.quotesClock.isOffline ? [] : board.symbols
         let quote = quotes.lazy.compactMap { board.quotes[$0] }.first.map { quote in
             [quote.symbol, DayQuoteFeed.change(quote, locale: locale) ?? DayQuoteFeed.price(quote, locale: locale)]
                 .joined(separator: " ")

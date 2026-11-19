@@ -17,7 +17,7 @@ The Day add-on (`Tinycast/Features/Notchcast/Day/`, switch `dayPage`, "Day in th
 | Page, weather | A row with the glyph, temperature and condition over the city, then one row per coming hour (up to five) with its glyph and temperature. Degrees follow the Mac's region (Fahrenheit in the US). |
 | Page, markets | A "Markets" header, then one row per symbol: price and the change since the previous close with an arrow (▲ ▼), a dash while a symbol has no quote. |
 | Page, today | A "Today" header, then up to five events not yet over (all-day first) with "All day", "Now", "in 25 min" inside the hour before a start, or the start time; more are one counted row. Every row opens My Schedule. |
-| Home line | The event under way or next up, "in 25 min · Design review" (the time first, so a long title cannot cut it off), with the weather as its detail; a click opens My Schedule. With no event today: the weather with the first quote as its detail, and a click opens the page. Only live readings go on the line: a stale feed (its last fetch failed, or its reading is old, below) is left out, and with neither live and no event it says "Unavailable". |
+| Home line | The event under way or next up, "in 25 min · Design review" (the time first, so a long title cannot cut it off), with the weather as its detail; a click opens My Schedule. With no event today: the weather with the first quote as its detail, and a click opens the page. A feed whose last fetch failed is left out (an old reading stays; its age is marked on the page, below), and with neither feed and no event it says "Unavailable". |
 | Closed island | Nothing. |
 
 A section with nothing chosen is left out, and with no section the page posts nil and leaves no tab. Command-R fetches both feeds at once.
