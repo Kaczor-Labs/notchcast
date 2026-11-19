@@ -6,6 +6,8 @@ options:
   createIntermediateGroups: true
   developmentLanguage: en
   groupSortPosition: top
+  # Notchcast: the add-on registry is generated from each add-on's own folder (notchcast/addons.py).
+  preGenCommand: python3 notchcast/addons.py registry
 
 settings:
   base:

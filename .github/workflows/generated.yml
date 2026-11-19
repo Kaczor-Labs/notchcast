@@ -8,6 +8,7 @@ on:
       - Tinycast.xcodeproj/xcshareddata/xcschemes/Tinycast.xcscheme
       - Tinycast/Resources/RaycastRuntime.generated.js
       - README.md
+      - Tinycast/Features/Notchcast/NotchcastRegistry.swift
 
 permissions:
   contents: read

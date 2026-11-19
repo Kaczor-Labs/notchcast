@@ -1,3 +1,5 @@
+// notchcast-addon-order: 100
+// notchcast-readme: Mac Tweaks: turn off iPhone auto backups
 import SwiftUI
 
 enum IPhoneBackupAddon: NotchcastAddon {

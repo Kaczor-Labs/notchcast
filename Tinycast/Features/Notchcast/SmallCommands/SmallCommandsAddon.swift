@@ -1,3 +1,5 @@
+// notchcast-addon-order: 70
+// notchcast-readme: Launcher Extras: small commands for passwords, short links and AirDrop
 import Foundation
 
 enum SmallCommandsAddon: NotchcastAddon {
