@@ -8,11 +8,16 @@ struct DayFeedClock: Equatable, Sendable {
     /// The last request failed, so what shows is older than it looks.
     var isOffline: Bool { attemptedAt != nil && attemptedAt != succeededAt }
 
-    /// Due at first, `interval` after a success and `retry` after a failure; a clock set back is due.
+    /// Due at first, `interval` after a success, `retry` after a failure; a clock set back is due.
     func isDue(now: Date, every interval: TimeInterval, retry: TimeInterval) -> Bool {
         guard let attemptedAt else { return true }
         let age = now.timeIntervalSince(attemptedAt)
         return age < 0 || age >= (isOffline ? retry : interval)
+    }
+
+    /// Older than it looks: the last request failed, or its last answer is `after` seconds old.
+    func isStale(now: Date, after age: TimeInterval) -> Bool {
+        isOffline || succeededAt.map { now.timeIntervalSince($0) >= age } ?? false
     }
 
     mutating func record(success: Bool, at now: Date) {
@@ -28,6 +33,8 @@ struct DayBoard: Equatable, Sendable {
     static let quotesInterval: TimeInterval = 5 * 60
     /// Weather is one request, so it may retry sooner after a failure; markets wait their interval.
     static let retryInterval: TimeInterval = 60
+    /// A shown page asks again within a minute tick, so only a reading past that is marked old.
+    static let staleGrace: TimeInterval = 60
 
     var place: DayPlace?
     var weather: DayWeather?
@@ -63,6 +70,14 @@ struct DayBoard: Equatable, Sendable {
             && quotesClock.isDue(now: now, every: Self.quotesInterval, retry: Self.quotesInterval)
     }
 
+    func weatherIsStale(now: Date) -> Bool {
+        weatherClock.isStale(now: now, after: Self.weatherInterval + Self.staleGrace)
+    }
+
+    func quotesAreStale(now: Date) -> Bool {
+        quotesClock.isStale(now: now, after: Self.quotesInterval + Self.staleGrace)
+    }
+
     /// An answer that does not parse counts as a failure and keeps the last weather.
     mutating func apply(weather data: Data?, at now: Date) {
         let parsed = data.flatMap(DayWeatherFeed.weather(from:))
@@ -70,7 +85,7 @@ struct DayBoard: Equatable, Sendable {
         weatherClock.record(success: parsed != nil, at: now)
     }
 
-    /// A symbol that fails in a good round shows a dash; a round with no good answer keeps them all.
+    /// A symbol that fails in a good round shows a dash; a round with no answer keeps them all.
     mutating func apply(quotes data: [String: Data], at now: Date) {
         let parsed = symbols.compactMap { symbol in
             data[symbol].flatMap { DayQuoteFeed.quote(from: $0, symbol: symbol) }

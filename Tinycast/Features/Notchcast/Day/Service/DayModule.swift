@@ -1,6 +1,6 @@
 import Foundation
 
-/// Keeps the Day page current while Home or Day shows: a minute tick, and a fetch when a feed is due.
+/// Keeps the Day page current while Home or Day shows: a minute tick and a fetch when one is due.
 @MainActor
 final class DayModule: NotchcastModule {
     /// Countdowns ("in 25 min") move by the minute, and no feed is due more often.
@@ -16,10 +16,10 @@ final class DayModule: NotchcastModule {
     private var board = DayBoard()
     private var posted: IslandPage?
     private var run = 0
-    private var isLoading = false
     private var isOn = false
     private(set) var loop: Task<Void, Never>?
     private(set) var refresh: Task<Void, Never>?
+    private(set) var load: Task<Void, Never>?
 
     init(context: NotchcastContext, fetch: @escaping @Sendable (URL) async -> Data? = DayNetwork.body(of:),
          sleep: @escaping @Sendable (Duration) async throws -> Void = { try await Task.sleep(for: $0) },
@@ -53,8 +53,9 @@ final class DayModule: NotchcastModule {
         loop = nil
         refresh?.cancel()
         refresh = nil
+        load?.cancel()
+        load = nil
         run += 1
-        isLoading = false
         board = DayBoard()
         posted = nil
         context.presenter.setPage(nil, id: DayPage.id, onAction: nil)
@@ -77,7 +78,7 @@ final class DayModule: NotchcastModule {
         }
     }
 
-    /// Looks the city up and keeps where it is; false when no such place was found. Empty clears it.
+    /// Looks the city up and keeps it; false when no such place was found. Empty clears it.
     func setCity(_ name: String) async -> Bool {
         guard let url = DayWeatherFeed.searchURL(name) else {
             context.defaults.removeObject(forKey: Self.placeKey)
@@ -97,7 +98,7 @@ final class DayModule: NotchcastModule {
         refresh = Task { [weak self] in await self?.update() }
     }
 
-    /// Redraws from what it has, then fetches what is due; `force` is Command-R. One load at a time.
+    /// Redraws from what it has, then fetches what is due; `force` is Command-R. One load at once.
     func update(force: Bool = false) async {
         guard isOn else { return }
         redraw()
@@ -106,22 +107,24 @@ final class DayModule: NotchcastModule {
         let symbols = board.symbols
         let wantsWeather = place != nil && (force || board.weatherIsDue(now: now))
         let wantsQuotes = !symbols.isEmpty && (force || board.quotesAreDue(now: now))
-        guard wantsWeather || wantsQuotes, !isLoading else { return }
-        isLoading = true
+        guard wantsWeather || wantsQuotes, load == nil else { return }
         let run = run
         let fetch = fetch
-        async let forecast = wantsWeather ? Self.body(place.flatMap(DayWeatherFeed.forecastURL), fetch) : nil
-        async let prices = wantsQuotes ? Self.bodies(symbols, fetch) : [:]
-        let (weatherData, quoteData) = await (forecast, prices)
-        // A load that returns after `stop` belongs to no run; one for an old place or list is dropped.
-        guard run == self.run else { return }
-        isLoading = false
-        // Hiding the page cancels its load, which is no failure, so it is asked again.
-        if Task.isCancelled { return }
-        let done = context.now()
-        if wantsWeather, board.place == place { board.apply(weather: weatherData, at: done) }
-        if wantsQuotes, board.symbols == symbols { board.apply(quotes: quoteData, at: done) }
-        post()
+        // The module owns the load, so hiding the page mid-load still records and shows its answer.
+        let load = Task { [weak self] in
+            async let forecast = wantsWeather ? Self.body(place.flatMap(DayWeatherFeed.forecastURL), fetch) : nil
+            async let prices = wantsQuotes ? Self.bodies(symbols, fetch) : [:]
+            let (weatherData, quoteData) = await (forecast, prices)
+            // A load that returns after `stop` belongs to no run; an old place or list is dropped.
+            guard let self, run == self.run else { return }
+            self.load = nil
+            let done = self.context.now()
+            if wantsWeather, self.board.place == place { self.board.apply(weather: weatherData, at: done) }
+            if wantsQuotes, self.board.symbols == symbols { self.board.apply(quotes: quoteData, at: done) }
+            self.post()
+        }
+        self.load = load
+        await load.value
     }
 
     private func redraw() {

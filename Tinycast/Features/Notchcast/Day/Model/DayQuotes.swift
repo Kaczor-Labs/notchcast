@@ -16,7 +16,7 @@ enum DayQuoteFeed {
     private static let symbolCharacters = CharacterSet(charactersIn: "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789.-=^")
     private static let pathCharacters = CharacterSet(charactersIn: "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789.-")
 
-    /// The user's list, split on commas and spaces: upper case, no repeats, nothing a symbol cannot hold.
+    /// The user's list, split on commas and spaces: upper case, no repeats, valid symbols only.
     static func symbols(from text: String) -> [String] {
         var seen = Set<String>()
         let words = text.uppercased().split { $0 == "," || $0 == ";" || $0.isWhitespace }.map(String.init)

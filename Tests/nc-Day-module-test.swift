@@ -39,13 +39,13 @@ final class FakeWorld {
     var events: [NotchcastEvent] = []
     var scheduleOpens = 0
     var holds = false
-    var gate: CheckedContinuation<Void, Never>?
+    var gates: [CheckedContinuation<Void, Never>] = []
 
     func get(_ url: URL) async -> Data? {
         let host = url.host() ?? ""
         let kind = host.hasPrefix("geocoding") ? "city" : host.hasPrefix("api.open-meteo") ? "weather" : "quote"
         requests.append(kind == "quote" ? url.lastPathComponent : kind)
-        if holds { await withCheckedContinuation { gate = $0 } }
+        if holds { await withCheckedContinuation { gates.append($0) } }
         guard online, url.scheme == "https" else { return nil }
         switch kind {
         case "city": return cityKnown ? DayFixtures.search : DayFixtures.noCity
@@ -62,6 +62,12 @@ final class FakeWorld {
         check(duration == DayModule.tick, "the loop wakes once a minute")
         if steps.isEmpty { throw CancellationError() }
         steps.removeFirst()()
+    }
+
+    func release() {
+        holds = false
+        gates.forEach { $0.resume() }
+        gates = []
     }
 
     func take() -> [String] {
@@ -128,6 +134,7 @@ struct DayModuleTests {
         await keys()
         await city()
         await staleLoad()
+        await shortVisits()
         print("PASSED")
     }
 
@@ -201,8 +208,10 @@ struct DayModuleTests {
               "everything at once, markets every 5 minutes, weather every 30: \(world.seen)")
         check(Array(presenter.titles(0).prefix(2)) == ["9° Mostly Clear", "16"], "the page carries the weather")
         check(presenter.trailing(0, "AAPL") == "352.79  ▲ 0.25%", "and the quotes")
-        check(presenter.pages.count == 2 && presenter.titles(1)[1] == "17",
+        check(presenter.pages.count == 3 && presenter.titles(1)[1] == "17",
               "an unchanged page is not posted again; an hour gone by is: \(presenter.pages.count)")
+        check(presenter.trailing(1, "Markets") == "Updated 15:36" && presenter.trailing(2, "Markets") == nil,
+              "quotes 25 minutes old are marked until the fetch returns")
         module.stop()
     }
 
@@ -307,13 +316,45 @@ struct DayModuleTests {
         world.holds = true
         module.start()
         presenter.watcher?(true)
-        for _ in 0..<1000 where world.gate == nil { await Task.yield() }
-        check(world.gate != nil, "the load reached the network")
-        let loop = module.loop
+        for _ in 0..<1000 where world.gates.isEmpty { await Task.yield() }
+        check(!world.gates.isEmpty, "the load reached the network")
+        let load = module.load
         module.stop()
-        world.holds = false
-        world.gate?.resume()
-        await loop?.value
+        world.release()
+        await load?.value
         check(presenter.pages == [nil], "a load that returns after the switch went off posts nothing")
+    }
+
+    /// Hiding mid-load stops only the timer: the load is recorded and posts, so short visits ask once.
+    static func shortVisits() async {
+        let world = FakeWorld()
+        let presenter = PageRecorder()
+        let (module, _) = make(world, presenter)
+        world.holds = true
+        module.start()
+        presenter.watcher?(true)
+        for _ in 0..<1000 where world.gates.count < 3 { await Task.yield() }
+        check(world.gates.count == 3, "the load reached the network: \(world.gates.count)")
+        for _ in 0..<10 {
+            presenter.watcher?(false)
+            await Task.yield()
+            presenter.watcher?(true)
+            await Task.yield()
+        }
+        presenter.watcher?(false)
+        presenter.watcher?(true)
+        check(world.take() == ["AAPL", "BTC-USD", "weather"], "ten short visits start the requests once")
+        let load = module.load
+        world.release()
+        await load?.value
+        check(module.load == nil && presenter.pages.last != nil
+            && presenter.titles(presenter.pages.count - 1).first == "9° Mostly Clear"
+            && presenter.trailing(presenter.pages.count - 1, "AAPL") == "352.79  ▲ 0.25%",
+              "the load outlives the visits and posts at once")
+        presenter.watcher?(false)
+        presenter.watcher?(true)
+        await module.loop?.value
+        check(world.requests.isEmpty, "its answer is recorded, so showing again asks nothing")
+        module.stop()
     }
 }

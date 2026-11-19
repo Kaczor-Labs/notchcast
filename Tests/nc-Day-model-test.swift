@@ -25,6 +25,7 @@ struct DayModelTests {
         page()
         offlinePage()
         staleLine()
+        agedPage()
         print("PASSED")
     }
 
@@ -109,6 +110,9 @@ struct DayModelTests {
         check(clock.isDue(now: Fix.now.addingTimeInterval(360), every: 300, retry: 60), "then asks again")
         clock.record(success: true, at: Fix.now.addingTimeInterval(360))
         check(!clock.isOffline, "a success ends offline")
+        let fresh = Fix.now.addingTimeInterval(360)
+        check(!clock.isStale(now: fresh.addingTimeInterval(299), after: 300)
+            && clock.isStale(now: fresh.addingTimeInterval(300), after: 300), "an answer goes stale with age")
     }
 
     static func board() {
@@ -261,6 +265,7 @@ struct DayModelTests {
     static func staleLine() {
         var board = loaded()
         let later = Fix.now.addingTimeInterval(DayBoard.weatherInterval)
+        board.apply(quotes: ["AAPL": Fix.chart("AAPL", price: 352.79, change: 0.25)], at: later - 60)
         board.apply(weather: nil, at: later)
         var line = DayPage.page(board, now: later, calendar: Fix.calendar, locale: Fix.locale)?.line
         check(line == IslandPageLine(symbol: "chart.line.uptrend.xyaxis", text: "AAPL ▲ 0.25%"),
@@ -271,8 +276,35 @@ struct DayModelTests {
         board.events = []
         board.apply(quotes: [:], at: later)
         line = DayPage.page(board, now: later, calendar: Fix.calendar, locale: Fix.locale)?.line
-        check(line == IslandPageLine(symbol: DayPage.offlineSymbol, text: "Unavailable"),
+        check(line == IslandPageLine(symbol: DayPage.unavailableSymbol, text: "Unavailable"),
               "both stale, Home says so: \(String(describing: line))")
+    }
+
+    /// A reading past its interval and one tick is marked old, as after a failure, until a new answer.
+    static func agedPage() {
+        func markets(_ rows: [IslandPageRow]) -> String? { rows.first { $0.title == "Markets" }?.trailing }
+        var board = loaded()
+        let fresh = Fix.now.addingTimeInterval(DayBoard.quotesInterval + DayBoard.staleGrace - 1)
+        var all = rows(DayPage.page(board, now: fresh, calendar: Fix.calendar, locale: Fix.locale))
+        check(all[0].trailing == nil && markets(all) == nil,
+              "inside interval and tick nothing is marked: \(all.map(\.trailing))")
+        let marketsOld = fresh.addingTimeInterval(1)
+        var page = DayPage.page(board, now: marketsOld, calendar: Fix.calendar, locale: Fix.locale)
+        all = rows(page)
+        check(all[0].trailing == nil && markets(all) == "Updated 15:31",
+              "old quotes carry their time, weather is still fresh: \(all.map(\.trailing))")
+        check(page?.line == IslandPageLine(symbol: "cloud.moon", text: "9° Mostly Clear"),
+              "and leave the Home line: \(String(describing: page?.line))")
+        let allOld = Fix.now.addingTimeInterval(DayBoard.weatherInterval + DayBoard.staleGrace)
+        page = DayPage.page(board, now: allOld, calendar: Fix.calendar, locale: Fix.locale)
+        check(rows(page)[0].trailing == "Updated 15:31", "old weather carries its time")
+        check(page?.line == IslandPageLine(symbol: DayPage.unavailableSymbol, text: "Unavailable"),
+              "both old, Home says so: \(String(describing: page?.line))")
+        board.apply(weather: Fix.forecast, at: allOld)
+        board.apply(quotes: ["AAPL": Fix.chart("AAPL", price: 352.79, change: 0.25)], at: allOld)
+        all = rows(DayPage.page(board, now: allOld, calendar: Fix.calendar, locale: Fix.locale))
+        check(all[0].trailing == nil && markets(all) == nil,
+              "a new answer clears the marks: \(all.map(\.trailing))")
     }
 
     static func offlinePage() {
@@ -282,11 +314,11 @@ struct DayModelTests {
         never.apply(quotes: [:], at: Fix.now)
         let blank = DayPage.page(never, now: Fix.now, calendar: Fix.calendar, locale: Fix.locale)
         check(rows(blank) == [
-            IslandPageRow(symbol: DayPage.offlineSymbol, title: "Weather", detail: "Warsaw", trailing: "Unavailable"),
-            IslandPageRow(symbol: DayPage.offlineSymbol, title: "Markets", trailing: "Unavailable"),
+            IslandPageRow(symbol: DayPage.unavailableSymbol, title: "Weather", detail: "Warsaw", trailing: "Unavailable"),
+            IslandPageRow(symbol: DayPage.unavailableSymbol, title: "Markets", trailing: "Unavailable"),
             IslandPageRow(title: "AAPL", trailing: "–"),
         ], "offline before any answer says so: \(rows(blank))")
-        check(blank?.line == IslandPageLine(symbol: DayPage.offlineSymbol, text: "Unavailable"), "and so does Home")
+        check(blank?.line == IslandPageLine(symbol: DayPage.unavailableSymbol, text: "Unavailable"), "and so does Home")
 
         var board = loaded()
         let later = Fix.now.addingTimeInterval(2 * 3600)

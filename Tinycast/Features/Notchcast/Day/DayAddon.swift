@@ -3,7 +3,7 @@
 // notchcast-readme: Mac Tweaks: Day in the Island, a page with the weather, your market quotes and today’s events
 import SwiftUI
 
-/// The Day page in the island (#978): weather, chosen market quotes and today's events; off by default.
+/// The Day page in the island (#978): weather, market quotes and today's events; off by default.
 enum DayAddon: NotchcastAddon { // drift: keep the generated NotchcastRegistry lists it
     static let switches = [
         NotchcastSwitch(
