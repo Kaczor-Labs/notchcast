@@ -12,6 +12,8 @@ nonisolated struct CopyPathReader: Sendable {
     let finderSelection: @Sendable () async throws -> [String]
     let finderFolder: @Sendable () async throws -> String?
     let browserAddress: @Sendable (_ bundleID: String, _ kind: CopyPathResolver.Browser) async throws -> String?
+    /// A Gecko browser's front page, its web area's `AXURL`; nil when no page is there.
+    let webArea: @Sendable (_ pid: Int32) async throws -> String?
     /// One window's `AXDocument`; nil when that window or its document is not there.
     let document: @Sendable (_ pid: Int32, _ window: CopyPathResolver.Window) async throws -> String?
 }
@@ -41,6 +43,16 @@ nonisolated enum CopyPathResolver {
         "com.operasoftware.Opera": .chromium,
         "org.chromium.Chromium": .chromium,
     ]
+    /// Firefox and its forks script no tab, so their address is read over Accessibility instead.
+    static let geckoBrowsers: Set<String> = [
+        "org.mozilla.firefox",
+        "org.mozilla.firefoxdeveloperedition",
+        "org.mozilla.nightly",
+        "app.zen-browser.zen",
+        "io.gitlab.librewolf-community",
+        "net.waterfox.waterfox",
+        "one.ablaze.floorp",
+    ]
 
     static func resolve(_ app: CopyPathApp?, home: String, reader: CopyPathReader) async throws -> String? {
         guard let app else { return nil }
@@ -52,6 +64,10 @@ nonisolated enum CopyPathResolver {
         }
         if let bundleID = app.bundleID, let kind = browsers[bundleID],
             let link = try await reader.browserAddress(bundleID, kind).flatMap(webLink) {
+            return link
+        }
+        if let bundleID = app.bundleID, geckoBrowsers.contains(bundleID),
+            let link = try await reader.webArea(app.pid).flatMap({ document($0, home: home) }) {
             return link
         }
         for window in Window.allCases {
