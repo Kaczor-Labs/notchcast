@@ -13,6 +13,8 @@ struct SudoTouchIDFiles: Sendable {
 @Observable
 final class SudoTouchIDStore {
     private(set) var isEnabled = false
+    /// True when `sudo_local` holds a pam_tid line written by hand: shown on, never changed.
+    private(set) var isByHand = false
     /// False when `sudo` no longer includes `sudo_local`, so the rule there would do nothing.
     private(set) var isSupported = true
     private(set) var isBusy = false
@@ -28,7 +30,9 @@ final class SudoTouchIDStore {
     func refresh() {
         let sudo = try? String(contentsOf: files.directory.appending(path: "sudo"), encoding: .utf8)
         isSupported = sudo.map(SudoTouchIDPolicy.includesLocal) ?? false
-        isEnabled = (try? readLocal()).map { SudoTouchIDPolicy.isEnabled(local: $0) } ?? false
+        let state = (try? readLocal()).map { SudoTouchIDPolicy.state(local: $0) } ?? .off
+        isEnabled = state == .on
+        isByHand = state == .byHand
     }
 
     func set(_ enabled: Bool) async {
@@ -45,6 +49,7 @@ final class SudoTouchIDStore {
         }
         guard isSupported, let text = SudoTouchIDPolicy.change(local, enabled: enabled) else { return }
         isBusy = true
+        // shortcut: an edit made elsewhere while the prompt waits is overwritten; reread as root if seen.
         do {
             try await files.write(text, localURL)
             failed = try readLocal() != text

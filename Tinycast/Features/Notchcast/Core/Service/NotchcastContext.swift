@@ -41,6 +41,9 @@ final class NotchcastContext {
     private(set) var openURL: (@MainActor (URL) -> Bool)?
     /// Notchcast's own yes/no dialog, never `NSAlert`; nil where no app runs, as in harnesses.
     var confirm: (@MainActor @Sendable (_ title: String, _ message: String?, _ confirmTitle: String) async -> Bool)?
+    /// The same dialog with a destructive confirm button, for a step that loses something.
+    var confirmDestructive:
+        (@MainActor @Sendable (_ title: String, _ message: String?, _ confirmTitle: String) async -> Bool)?
 
     init(
         defaults: UserDefaults, preferences: NotchcastPreferences, presenter: any IslandPresenting,
@@ -138,11 +141,9 @@ final class NotchcastContext {
     }
 }
 
-/// What the app lends an add-on's own panel; the inert defaults answer no and paint Black.
+/// What the app lends an add-on's own panel; the inert defaults paint Black.
 @MainActor
 struct NotchcastSurfaces {
-    /// A Notchcast question (`DialogController`) with a destructive confirm button.
-    var confirm: (_ title: String, _ message: String?, _ confirmTitle: String) async -> Bool = { _, _, _ in false }
     /// The user's Interface Size, as `InterfaceMetrics(scale:)` takes it.
     var interfaceScale: () -> Double = { 1 }
     var isFrosted: () -> Bool = { false }

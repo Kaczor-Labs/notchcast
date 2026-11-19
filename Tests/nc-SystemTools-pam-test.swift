@@ -72,9 +72,19 @@ enum SystemToolsPamTests {
         await store.set(false)
         check("(c) off again restores the other lines exactly", read() == others + "\n")
 
+        let byHand = others + "\nauth       sufficient     pam_tid.so ignore_ssh  # mine\n"
+        try? byHand.write(to: local, atomically: true, encoding: .utf8)
+        var before = writes.withLock { $0.count }
+        store.refresh()
+        check("(e) a hand-written rule reads as set up by hand", store.isByHand && !store.isEnabled)
+        await store.set(false)
+        await store.set(true)
+        check("(e) off and on leave a hand-written ignore_ssh line byte for byte, with no write",
+              store.isByHand && writes.withLock { $0.count } == before && read() == byHand)
+
         let garbage = Data([0x61, 0x75, 0x74, 0x68, 0x20, 0xFF, 0xFE, 0x0A])
         try? garbage.write(to: local)
-        var before = writes.withLock { $0.count }
+        before = writes.withLock { $0.count }
         await store.set(true)
         check("(d) a sudo_local that is not UTF-8 is an error, not a rewrite", store.failed
               && writes.withLock { $0.count } == before && (try? Data(contentsOf: local)) == garbage)

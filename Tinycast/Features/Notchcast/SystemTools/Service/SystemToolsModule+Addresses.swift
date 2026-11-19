@@ -14,7 +14,7 @@ extension SystemToolsModule {
                                symbol: Self.localSymbol, failure: true)
         }
         let shown = addresses.map(\.label).joined(separator: " · ")
-        let copied = system.copy(addresses.map(\.ip).joined(separator: "\n"), false)
+        let copied = copy(addresses.map(\.ip).joined(separator: "\n"), concealed: false)
         postAddress(
             copied ? String(localized: "Copied \(shown)", table: "NotchcastSystemTools") : shown,
             symbol: Self.localSymbol, failure: false)
@@ -37,7 +37,7 @@ extension SystemToolsModule {
                 return postAddress(String(localized: "Couldn’t Look Up Public IP", table: "NotchcastSystemTools"),
                                    symbol: Self.publicSymbol, failure: true)
             }
-            let copied = system.copy(address, false)
+            let copied = copy(address, concealed: false)
             postAddress(
                 copied ? String(localized: "Copied Public IP \(address)", table: "NotchcastSystemTools") : address,
                 symbol: Self.publicSymbol, failure: false)
@@ -76,7 +76,7 @@ extension SystemToolsModule {
             do { outcome = .success(try await read(network)) } catch { outcome = .failure(error) }
             guard !Task.isCancelled, let self, isRunning else { return }
             switch outcome {
-            case .success(let password?) where system.copy(password, true):
+            case .success(let password?) where copy(password, concealed: true):
                 postWiFi(String(localized: "Copied “\(network)”: \(password)", table: "NotchcastSystemTools"),
                          failure: false, seconds: Self.resultSeconds)
             case .success(nil):
@@ -87,6 +87,12 @@ extension SystemToolsModule {
                          failure: true)
             }
         }
+    }
+
+    /// No `synchronizeClipboard` after: an address belongs in history like any stock copy.
+    private func copy(_ text: String, concealed: Bool) -> Bool {
+        context.prepareClipboardMutation()
+        return system.copy(text, concealed)
     }
 
     private func postAddress(_ text: String, symbol: String, failure: Bool) {

@@ -41,8 +41,8 @@ enum SystemToolsPolicyTests {
         check("sudo that includes sudo_local is supported", Pam.includesLocal(sudo: sudo))
         check("sudo without the include is not",
               !Pam.includesLocal(sudo: sudo.replacingOccurrences(of: "auth       include        sudo_local", with: "")))
-        check("a commented-out rule is off", !Pam.isEnabled(local: template))
-        check("no file is off", !Pam.isEnabled(local: nil))
+        check("a commented-out rule is off", Pam.state(local: template) == .off)
+        check("no file is off", Pam.state(local: nil) == .off)
 
         let fresh = Pam.change(nil, enabled: true)
         check("enabling with no file writes just the rule", fresh == Pam.rule + "\n")
@@ -51,7 +51,7 @@ enum SystemToolsPolicyTests {
         guard let on = Pam.change(template, enabled: true) else { return check("enabling the template changes it", false) }
         check("enabling keeps every template line in place", on.hasPrefix(template))
         check("enabling appends the rule once", on == template + Pam.rule + "\n")
-        check("the result reads as on", Pam.isEnabled(local: on))
+        check("the result reads as on", Pam.state(local: on) == .on)
         check("enabling twice writes nothing the second time", Pam.change(on, enabled: true) == nil)
 
         guard let off = Pam.change(on, enabled: false) else { return check("disabling changes it", false) }
@@ -60,18 +60,22 @@ enum SystemToolsPolicyTests {
 
         let reattach = "auth     optional     /opt/homebrew/lib/pam/pam_reattach.so"
         let other = reattach + "\n" + "auth       sufficient     pam_tid.so ignore_ssh  # mine\n" + "account required pam_x.so"
-        check("a rule with options counts as on", Pam.isEnabled(local: other))
-        let cleaned = Pam.change(other, enabled: false)
-        check("disabling removes only the rule lines",
-              cleaned == reattach + "\n" + "account required pam_x.so")
+        check("a rule with options or a comment is set up by hand", Pam.state(local: other) == .byHand)
+        check("a hand-made rule is never removed or doubled",
+              Pam.change(other, enabled: false) == nil && Pam.change(other, enabled: true) == nil)
+        let both = reattach + "\n" + Pam.rule + "\n" + "auth required pam_tid.so\n"
+        check("a hand-made line beside ours still means by hand, so nothing changes",
+              Pam.state(local: both) == .byHand && Pam.change(both, enabled: false) == nil)
         let noNewline = "auth     optional     pam_reattach.so"
         check("a file without a final newline gets one before the rule",
               Pam.change(noNewline, enabled: true) == noNewline + "\n" + Pam.rule + "\n")
         check("the rule lands after pam_reattach, which must run first",
               Pam.change(noNewline, enabled: true)?.components(separatedBy: "\n").firstIndex(of: Pam.rule) == 1)
-        check("auth required pam_tid.so is not our rule", !Pam.isEnabled(local: "auth required pam_tid.so\n"))
+        check("auth required pam_tid.so is set up by hand", Pam.state(local: "auth required pam_tid.so\n") == .byHand)
+        check("a bracketed control naming pam_tid.so is set up by hand",
+              Pam.state(local: "auth [success=done default=ignore] pam_tid.so\n") == .byHand)
         let spaced = "  auth\tsufficient\tpam_tid.so\n"
-        check("tabs and indentation still read as the rule", Pam.isEnabled(local: spaced))
+        check("tabs and indentation still read as the rule", Pam.state(local: spaced) == .on)
     }
 
     static func sample(

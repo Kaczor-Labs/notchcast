@@ -148,11 +148,11 @@ final class Rig {
         let hub = NotchcastTapHub(syntheticTag: 0x54494E59, isTrusted: { true }, makeSession: { FakeTapSession($0) })
         controller = NotchcastController(
             addons: [SystemToolsAddon.self], defaults: defaults, hub: hub, dictation: FakeDictation(),
-            surfaces: NotchcastSurfaces(confirm: { title, _, _ in
-                fake.questions.append(title)
-                return fake.answer
-            }),
             presenter: presenter)
+        controller.context(forSwitch: SystemToolsAddon.switchID)?.confirmDestructive = { title, _, _ in
+            fake.questions.append(title)
+            return fake.answer
+        }
         controller.start()
     }
 

@@ -10,17 +10,20 @@ struct SudoTouchIDSettingsView: View {
     }
 
     var body: some View {
-        Toggle(isOn: Binding(get: { store.isEnabled }, set: { enabled in Task { await store.set(enabled) } })) {
+        let isOn = Binding(get: { store.isEnabled || store.isByHand }, set: { on in Task { await store.set(on) } })
+        Toggle(isOn: isOn) {
             SettingsRowTitle(Self.anchor, LocalizedStringResource("Touch ID for sudo", table: "NotchcastSystemTools"))
             if !store.isSupported {
                 Text("This Mac’s sudo setup no longer reads sudo_local.", tableName: "NotchcastSystemTools")
+            } else if store.isByHand {
+                Text("Set up by hand in sudo_local. Notchcast leaves it as it is.", tableName: "NotchcastSystemTools")
             } else if store.failed {
-                Text("Couldn’t change it. Nothing was written.", tableName: "NotchcastSystemTools")
+                Text("Couldn’t change it.", tableName: "NotchcastSystemTools")
             } else {
                 Text("Asks for your admin password each time it changes.", tableName: "NotchcastSystemTools")
             }
         }
-        .disabled(store.isBusy || !store.isSupported)
+        .disabled(store.isBusy || !store.isSupported || store.isByHand)
         .onAppear { store.refresh() }
     }
 }

@@ -90,7 +90,8 @@ extension SudoTouchIDFiles {
         do shell script "umask 022 && /usr/bin/printf '%s' " & quoted form of item 3 of argv & " > " & \
         quoted form of staging & " && /usr/sbin/chown root:wheel " & quoted form of staging & \
         " && /bin/chmod 0444 " & quoted form of staging & " && /bin/mv -f " & quoted form of staging & \
-        " " & quoted form of target with prompt (item 1 of argv) with administrator privileges
+        " " & quoted form of target & " || { /bin/rm -f " & quoted form of staging & "; exit 1; }" \
+        with prompt (item 1 of argv) with administrator privileges
         """,
         "-e", "end run",
     ]

@@ -89,7 +89,7 @@ final class KillProcessSession: SystemToolsPicking {
             let title = String(localized: "Force Quit “\(name)”?", table: "NotchcastSystemTools")
             let message = String(localized: "Anything unsaved in it is lost.", table: "NotchcastSystemTools")
             let button = String(localized: "Force Quit", table: "NotchcastSystemTools")
-            guard await context.surfaces.confirm(title, message, button) else { return false }
+            guard let confirm = context.confirmDestructive, await confirm(title, message, button) else { return false }
         }
         let done = system.signal(row.sample, force)
         let text =
