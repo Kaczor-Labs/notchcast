@@ -4,7 +4,7 @@ PR discovery explicitly targets `kaczordodgers/notchcast`. Ancestry and patch-eq
 
 `land.sh` deletes unchanged origin and local heads after closing a PR, and the train branch after a train lands. Before deleting an origin branch it moves every open PR based on it to `main` (GitHub closes a PR whose base is deleted) and prints `retargeted #<pr> from <branch> to main`; if it cannot list those PRs or move one, it keeps the branch and warns with the PR that still targets it. Fork heads and moved tips stay; deletion failures only warn.
 
-`prune-branches.py --remote --local --dry-run --log /path/to/ledger.tsv` reports candidates without changing refs or worktrees. Remove `--dry-run` to prune. The required append-only ledger records each name, tip, kind and path before deletion. Comment discovery covers the most recent 1000 closed PRs; older branches require ancestry or patch equivalence proof.
+`prune-branches.py` keeps every branch that is the head or the base of an open PR (GitHub closes a PR whose base is deleted). `prune-branches.py --remote --local --dry-run --log /path/to/ledger.tsv` reports candidates without changing refs or worktrees. Remove `--dry-run` to prune. The required append-only ledger records each name, tip, kind and path before deletion. Comment discovery covers the most recent 1000 closed PRs; older branches require ancestry or patch equivalence proof.
 
 The optional private key `NOTCHCAST_WORKTREE_ROOTS` belongs in `~/.config/notchcast/private.env`, alongside the optional hooks listed in `notchcast/README.md`. Its value is colon-separated absolute parent directories allowed for worktree removal. Without it, checked-out local branches stay. Dirty, locked and outside-root worktrees always stay.
 
