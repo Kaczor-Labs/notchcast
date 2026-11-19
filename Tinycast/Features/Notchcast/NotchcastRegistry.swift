@@ -21,5 +21,6 @@ enum NotchcastRegistry {
         FinderToolsAddon.self,
         PasteImageAddon.self,
         ArchivesAddon.self,
+        LowDiskAddon.self,
     ]
 }
