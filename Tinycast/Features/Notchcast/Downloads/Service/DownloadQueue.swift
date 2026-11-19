@@ -50,7 +50,7 @@ final class DownloadQueue {
         }
     }
 
-    /// `options` is `DownloadJob.encode` of the runner's `Options`; a held job waits for `release`.
+    /// `options` is `DownloadJob.encode` of the runner's `Options`; held waits for `release`.
     @discardableResult
     func enqueue(
         kind: String, sources: [String], options: Data? = nil, group: String? = nil, held: Bool = false
@@ -58,7 +58,9 @@ final class DownloadQueue {
         let now = clock()
         expire(now: now)
         let available = runners[kind] != nil
-        let added = sources.map {
+        // A source the kind still has unfinished, or one given twice, is queued once.
+        var queued = Set(jobs.filter { $0.kind == kind && !$0.state.isFinished }.map(\.source))
+        let added = sources.filter { queued.insert($0).inserted }.map {
             var job = DownloadJob(id: UUID().uuidString, kind: kind, source: $0, title: $0, group: group,
                                   state: held ? .held : .waiting, created: now, encodedOptions: options)
             if !available {
