@@ -6,6 +6,8 @@ final class ArchivesModule: NotchcastModule {
     static let switchID = "archives"
     static let defaultAppKey = "archivesDefaultApp"
     static let inPlaceKey = "archivesInPlace"
+    /// Set once the archive types were claimed, so a later launch leaves the user's Finder choice alone.
+    private static let claimedKey = "archivesClaimed"
     private static let noticeID = "archives.extracting"
 
     private let context: NotchcastContext
@@ -20,16 +22,21 @@ final class ArchivesModule: NotchcastModule {
 
     func start() {
         jobs = ArchiveJob.decode((try? Data(contentsOf: environment.journal)) ?? Data())
-        environment.routeOpens { [weak self] urls in self?.open(urls) }
-        if context.defaults.bool(forKey: Self.defaultAppKey) { environment.setDefaultApp(true) }
+        context.handleOpenURL { [weak self] url in
+            guard let self, url.isFileURL, ArchiveRoute(fileName: url.lastPathComponent) != nil else { return false }
+            open([url])
+            return true
+        }
+        if context.defaults.bool(forKey: Self.defaultAppKey), !context.defaults.bool(forKey: Self.claimedKey) {
+            setDefaultApp(true)
+        }
         runNext()
     }
 
     /// A switch turned off gives the archive types back; quitting the app keeps them.
     func stop() {
-        environment.routeOpens(nil)
         if !context.isEnabled(Self.switchID), context.defaults.bool(forKey: Self.defaultAppKey) {
-            environment.setDefaultApp(false)
+            setDefaultApp(false)
         }
         current?.task.cancel()
         current = nil
@@ -51,7 +58,10 @@ final class ArchivesModule: NotchcastModule {
 
     func pickAndOpen() { open(environment.pickArchives()) }
 
-    func setDefaultApp(_ on: Bool) { environment.setDefaultApp(on) }
+    func setDefaultApp(_ on: Bool) {
+        context.defaults.set(on, forKey: Self.claimedKey)
+        environment.setDefaultApp(on)
+    }
 
     func cancel(_ id: UUID) {
         if current?.job.id == id {
@@ -101,7 +111,9 @@ final class ArchivesModule: NotchcastModule {
     /// A stop or failure discards or salvages the job; after a module stop it stays to resume.
     private func stopped(_ job: ArchiveJob, failure: ArchiveFailure?, extractor: ArchiveExtractor) async {
         guard current?.job.id == job.id else { return }
-        let salvaged = await extractor.abandon(latest(job))
+        let job = latest(job)
+        // A fresh task: this one is cancelled after a stop, which would refuse `hatchzip restore`.
+        let salvaged = await Task { await extractor.abandon(job) }.value
         finish(job, placed: salvaged, failure: failure, cancelled: failure == nil)
     }
 

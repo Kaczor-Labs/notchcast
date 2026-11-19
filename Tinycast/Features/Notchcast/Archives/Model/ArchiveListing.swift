@@ -5,6 +5,8 @@ nonisolated struct ArchiveEntry: Equatable, Sendable {
     var size: Int64 = 0
     var isDirectory = false
     var isLink = false
+    /// Where a hard link points, inside the extraction folder.
+    var hardLinkTarget: String?
 }
 
 /// What an engine says an archive holds, read before anything is written.
@@ -14,6 +16,8 @@ nonisolated struct ArchiveListing: Equatable, Sendable {
     var expandedSize: Int64
     /// The archive's own size, every volume of a split set, when the engine reports it.
     var archiveSize: Int64?
+    /// The engine's output did not read as one entry per line, so `entries` cannot be trusted.
+    var isMalformed = false
 
     init(entries: [ArchiveEntry], expandedSize: Int64? = nil, archiveSize: Int64? = nil) {
         self.entries = entries
@@ -26,18 +30,36 @@ nonisolated struct ArchiveListing: Equatable, Sendable {
         var entries: [ArchiveEntry] = []
         var expanded: Int64?
         var archive: Int64?
-        for line in output.split(whereSeparator: \.isNewline).map(String.init) {
+        var declared: Int?
+        var isMalformed = false
+        var lines = output.split(omittingEmptySubsequences: false, whereSeparator: \.isNewline).map(String.init)
+        if lines.last?.isEmpty == true { lines.removeLast() }
+        for (index, line) in lines.enumerated() {
+            // A name holding a line break prints as extra lines, which would hide the rest of its path.
+            guard declared == nil else {
+                isMalformed = true
+                break
+            }
             if line.first?.isNumber == true {
                 let parts = line.components(separatedBy: ", ")
-                guard parts.count == 3, parts[1].hasSuffix(" uncompressed") else { continue }
+                guard parts.count == 3, parts[1].hasSuffix(" uncompressed"),
+                    let count = Int(parts[0].prefix(while: \.isNumber))
+                else {
+                    isMalformed = true
+                    break
+                }
+                declared = count
                 expanded = size(String(parts[1].dropLast(" uncompressed".count)))
                 archive = size(parts[2].split(separator: " ").prefix(2).joined(separator: " "))
                 continue
             }
-            guard line.count > 12, line.dropFirst(10).hasPrefix("  ") else { continue }
+            guard line.count > 12, line.dropFirst(10).hasPrefix("  ") else {
+                isMalformed = true
+                break
+            }
             let column = line.prefix(10).trimmingCharacters(in: .whitespaces)
             var path = String(line.dropFirst(12))
-            guard !(column == "Size" && path == "Name") else { continue }
+            if index == 0, column == "Size", path == "Name" { continue }
             var entry = ArchiveEntry(path: path, size: size(column) ?? 0)
             if path.hasSuffix("/") {
                 path.removeLast()
@@ -46,12 +68,15 @@ nonisolated struct ArchiveListing: Equatable, Sendable {
                 path.removeLast(" (symlink)".count)
                 entry.isLink = true
             } else if path.hasSuffix(")"), let link = path.range(of: " (link to ", options: .backwards) {
+                entry.hardLinkTarget = String(path[link.upperBound...].dropLast())
                 path = String(path[..<link.lowerBound])
             }
             entry.path = path
             entries.append(entry)
         }
-        return ArchiveListing(entries: entries, expandedSize: expanded, archiveSize: archive)
+        var listing = ArchiveListing(entries: entries, expandedSize: expanded, archiveSize: archive)
+        listing.isMalformed = isMalformed || declared != entries.count
+        return listing
     }
 
     /// `bsdtar -tv`: mode, links, owner, group, size, month, day, time or year, then the name.
@@ -68,10 +93,16 @@ nonisolated struct ArchiveListing: Equatable, Sendable {
             var name = String(rest.drop(while: \.isWhitespace))
             guard let mode = fields[0].first, !name.isEmpty else { return nil }
             if mode == "l", let arrow = name.range(of: " -> ") { name = String(name[..<arrow.lowerBound]) }
-            if mode != "l", let link = name.range(of: " link to ") { name = String(name[..<link.lowerBound]) }
+            var hardLinkTarget: String?
+            if mode != "l", let link = name.range(of: " link to ") {
+                hardLinkTarget = String(name[link.upperBound...])
+                name = String(name[..<link.lowerBound])
+            }
             let isDirectory = mode == "d"
             if isDirectory, name.hasSuffix("/") { name.removeLast() }
-            return ArchiveEntry(path: name, size: Int64(fields[4]) ?? 0, isDirectory: isDirectory, isLink: mode == "l")
+            return ArchiveEntry(
+                path: name, size: Int64(fields[4]) ?? 0, isDirectory: isDirectory, isLink: mode == "l",
+                hardLinkTarget: hardLinkTarget)
         }
         return ArchiveListing(entries: entries)
     }

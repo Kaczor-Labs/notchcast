@@ -41,7 +41,8 @@ func arguments() {
     let staging = URL(filePath: "/Volumes/Data/Inbox/.notchcast-extract-1")
     let tool = URL(filePath: "/opt/homebrew/bin/hatchzip")
     let extract = { (engine: ArchiveEngine, inPlace: Bool) in
-        ArchiveCommandLine.extract(engine, tool: tool, archive: archive, staging: staging, stem: "My Game", inPlace: inPlace)
+        ArchiveCommandLine.extract(
+            engine, tool: tool, archive: archive, staging: staging, stem: "My Game", inPlace: inPlace, outputBlocks: 77)
     }
     check(extract(.hatchzip, false) == ["extract", archive.path, "-o", staging.path, "-q", "--keep-archive"],
           "keeping is the default and never needs a confirmation")
@@ -49,9 +50,12 @@ func arguments() {
           "in place answers HatchZip's prompt, since no terminal is attached")
     check(extract(.bsdtar, false) == ["-xf", archive.path, "-C", staging.path], "bsdtar extracts into staging")
     check(extract(.unar, false) == ["-o", staging.path, "-D", "-q", archive.path], "unar adds no folder of its own")
-    check(extract(.gzip, false) == ["-c", #"exec "$0" -dc "$1" > "$2""#, tool.path, archive.path,
-                                    staging.appending(path: "My Game").path],
-          "a stream goes through sh as positional arguments, never spliced into the script")
+    check(extract(.gzip, false) == ["-c", #"ulimit -f "$3" && exec "$0" -dc "$1" > "$2""#, tool.path, archive.path,
+                                    staging.appending(path: "My Game").path, "77"],
+          "a stream goes through sh as positional arguments, never spliced into the script, under a size cap")
+    check(ArchiveSafety.outputBlocks(archiveSize: 10_000_000) == 10_000_000_000 / 1024, "the cap is 1000x the archive")
+    check(ArchiveSafety.outputBlocks(archiveSize: 10) == 5_000_000_000 / 1024, "and never under 5 GB")
+    check(ArchiveSafety.outputBlocks(archiveSize: .max) > 0, "a huge size does not wrap the cap")
     check(ArchiveCommandLine.list(.hatchzip, archive: archive) == ["list", archive.path], "hatchzip lists")
     check(ArchiveCommandLine.list(.bsdtar, archive: archive) == ["-tvf", archive.path], "bsdtar lists verbosely")
     check(ArchiveCommandLine.list(.unar, archive: archive) == ["-j", archive.path], "lsar lists as JSON")
@@ -73,9 +77,19 @@ func listings() throws {
                     one/link (symlink)
                     one/hard (link to one/a.txt)
            12.5 KB  top.txt
-        5 entries, 9 B uncompressed, 321 B zip archive
+        6 entries, 9 B uncompressed, 321 B zip archive
         """
     let listing = ArchiveListing.hatchzip(hatchzip)
+    check(!listing.isMalformed, "one line per entry and a matching count read as sound")
+    check(listing.entries[4].hardLinkTarget == "one/a.txt", "a hard link's target is read")
+    let oneEntry = { (extraLine: String) in
+        ArchiveListing.hatchzip(
+            "      Size  Name\n       1 B  a\n\(extraLine)\n1 entry, 1 B uncompressed, 7 B zip archive\n")
+    }
+    check(oneEntry("/../../../evil").isMalformed, "a name with a line break cannot hide the rest of its path")
+    check(oneEntry("       1 B  b").isMalformed, "more lines than the totals line counts is refused")
+    check(oneEntry("1 entry, /../x uncompressed, y").isMalformed, "a second totals line is refused")
+    check(ArchiveListing.hatchzip("").isMalformed, "no totals line is refused")
     check(listing.entries.map(\.path) == ["one/a.txt", "one/sub/b c.txt", "one/sub", "one/link", "one/hard", "top.txt"],
           "hatchzip paths: \(listing.entries.map(\.path))")
     check(listing.entries[2].isDirectory && listing.entries[3].isLink && !listing.entries[4].isLink, "kinds read")
@@ -92,6 +106,7 @@ func listings() throws {
     let tar = ArchiveListing.bsdtar(bsdtar)
     check(tar.entries.map(\.path) == ["one", "one/a b.txt", "one/link", "one/hard"], "bsdtar paths: \(tar.entries.map(\.path))")
     check(tar.entries[0].isDirectory && tar.entries[2].isLink && tar.expandedSize == 1234, "bsdtar kinds and sizes")
+    check(tar.entries[3].hardLinkTarget == "one/a b.txt" && tar.entries[2].hardLinkTarget == nil, "bsdtar hard link target")
 
     let lsar = Data("""
         {"lsarFormatVersion":2,"lsarContents":[{"XADFileName":"Old/Read Me","XADFileSize":42,"XADIsDirectory":0},
@@ -126,6 +141,17 @@ func safety() {
     let split = ArchiveListing(entries: [ArchiveEntry(path: "v")], expandedSize: 6_000_000_000, archiveSize: 100_000_000)
     check(ArchiveSafety.refusal(for: split, archiveSize: 1_000) == nil, "a split set counts every volume")
     check(ArchiveFailure.unsafe(.parentPath("../evil")).message.contains("../evil"), "the refusal names the path")
+    func linked(_ target: String) -> ArchiveRefusal? {
+        ArchiveSafety.refusal(
+            for: ArchiveListing(entries: [ArchiveEntry(path: "a"), ArchiveEntry(path: "hard", hardLinkTarget: target)]),
+            archiveSize: 1000)
+    }
+    check(linked("a") == nil, "a hard link to a file in the archive is fine")
+    check(linked("/etc/passwd") == .absolutePath("/etc/passwd"), "a hard link to an absolute path is refused")
+    check(linked("x/../../secret") == .parentPath("x/../../secret"), "a hard link out of the folder is refused")
+    var malformed = ArchiveListing(entries: [ArchiveEntry(path: "a")])
+    malformed.isMalformed = true
+    check(ArchiveSafety.refusal(for: malformed, archiveSize: 1000) == .unreadableListing, "an unsound listing is refused")
 }
 
 func placement() {
@@ -188,6 +214,17 @@ func zipNames() {
     check(ZIPNameEncoding.directory(tail: Data(end)) == nil, "ZIP64 is left to HatchZip")
 }
 
+/// A property list keeps only the last of two equal keys, which once dropped the torrent types.
+func plistKeys() throws {
+    let plist = URL(filePath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
+        .appending(path: "Tinycast/Info.plist")
+    let keys = try String(contentsOf: plist, encoding: .utf8).split(separator: "\n")
+        .filter { $0.hasPrefix("\t<key>") }.map(String.init)
+    check(keys.count > 10, "the top-level keys are read: \(keys.count)")
+    let repeated = Set(keys.filter { key in keys.count { $0 == key } > 1 })
+    check(repeated.isEmpty, "Info.plist names a top-level key twice, so the first one is lost: \(repeated)")
+}
+
 @main
 enum ArchivesModelTest {
     static func main() throws {
@@ -199,6 +236,7 @@ enum ArchivesModelTest {
         failures()
         journal()
         zipNames()
+        try plistKeys()
         print("nc-Archives-model-test: ok")
     }
 }

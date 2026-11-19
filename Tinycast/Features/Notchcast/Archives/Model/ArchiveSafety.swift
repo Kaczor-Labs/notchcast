@@ -8,6 +8,7 @@ nonisolated enum ArchiveRefusal: Equatable, Sendable {
     case caseCollision(String, String)
     case underLink(String)
     case expansion(Int64)
+    case unreadableListing
 
     var message: String {
         switch self {
@@ -25,6 +26,8 @@ nonisolated enum ArchiveRefusal: Equatable, Sendable {
             String(
                 localized: "Refused: it would expand to \(ByteCountFormatter.string(fromByteCount: bytes, countStyle: .file)).",
                 table: "NotchcastArchives")
+        case .unreadableListing:
+            String(localized: "Refused: its file list cannot be read safely.", table: "NotchcastArchives")
         }
     }
 }
@@ -35,7 +38,13 @@ nonisolated enum ArchiveSafety {
     static let expansionFloor: Int64 = 5_000_000_000
     static let expansionRatio: Int64 = 1000
 
+    /// The most an unlisted single file may write, in the 1024-byte blocks macOS's `ulimit -f` counts.
+    static func outputBlocks(archiveSize: Int64) -> Int64 {
+        max(expansionFloor, expansionRatio.multipliedReportingOverflow(by: archiveSize).partialValue) / 1024
+    }
+
     static func refusal(for listing: ArchiveListing, archiveSize: Int64) -> ArchiveRefusal? {
+        if listing.isMalformed { return .unreadableListing }
         let size = listing.archiveSize ?? archiveSize
         if listing.expandedSize > expansionFloor, listing.expandedSize / max(size, 1) > expansionRatio {
             return .expansion(listing.expandedSize)
@@ -50,6 +59,10 @@ nonisolated enum ArchiveSafety {
             }
             let parts = components(path)
             if parts.contains("..") { return .parentPath(entry.path) }
+            if let target = entry.hardLinkTarget?.replacingOccurrences(of: "\\", with: "/") {
+                if target.hasPrefix("/") { return .absolutePath(target) }
+                if components(target).contains("..") { return .parentPath(target) }
+            }
             for end in parts.indices {
                 let prefix = parts[...end].joined(separator: "/")
                 if end < parts.count - 1, links.contains(prefix) { return .underLink(entry.path) }

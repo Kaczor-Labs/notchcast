@@ -39,7 +39,7 @@ nonisolated struct ArchiveExtractor: Sendable {
         func runEngine(inPlace: Bool) async throws -> ArchiveProcessResult {
             try await run(program, ArchiveCommandLine.extract(
                 route.engine, tool: extractor, archive: job.archive, staging: job.staging, stem: route.stem,
-                inPlace: inPlace))
+                inPlace: inPlace, outputBlocks: ArchiveSafety.outputBlocks(archiveSize: Self.size(job.archive))))
         }
         var result = try await runEngine(inPlace: job.inPlace)
         if route.engine == .hatchzip, !job.inPlace, result.status == ArchiveFailure.hatchzipNoSpace {
@@ -65,11 +65,12 @@ nonisolated struct ArchiveExtractor: Sendable {
         if ArchiveRoute(fileName: job.name)?.engine == .hatchzip, let hatchzip = await locate(ArchiveTool.hatchzip.name) {
             _ = try? await run(hatchzip, ArchiveCommandLine.restore(archive: job.archive, staging: job.staging))
         }
-        guard job.inPlace, let stem = ArchiveRoute(fileName: job.name)?.stem else {
+        // Only HatchZip consumes the archive; another engine's half-written output is never saved work.
+        guard job.inPlace, let route = ArchiveRoute(fileName: job.name), route.engine == .hatchzip else {
             try? FileManager.default.removeItem(at: job.staging)
             return nil
         }
-        return try? place(job, stem: stem)
+        return try? place(job, stem: route.stem)
     }
 
     /// Moves the staged items out by rename, so no byte is copied and nothing is overwritten.

@@ -57,6 +57,8 @@ final class FakeTools: Sendable {
     }
 
     func run(_ tool: URL, _ arguments: [String]) async throws -> ArchiveProcessResult {
+        // As the real `ArchiveProcess.run`, which starts nothing in a task that is already cancelled.
+        try Task.checkCancellation()
         let name = tool.lastPathComponent
         state.withLock { $0.calls.append([name] + arguments) }
         switch (name, arguments.first) {
@@ -123,12 +125,11 @@ final class Record {
     var answer = true
     var reveals: [URL] = []
     var defaultApp: [Bool] = []
-    var routed = false
 }
 
 @MainActor
 final class Rig {
-    let suite = "nc-Archives-test.\(UUID())"
+    let suite: String
     let defaults: UserDefaults
     let folder = FileManager.default.temporaryDirectory.appending(path: "nc-archives-\(UUID())", directoryHint: .isDirectory)
     let presenter = FakePresenter()
@@ -136,12 +137,17 @@ final class Rig {
     let record = Record()
     let controller: NotchcastController
 
-    init(switchOn: Bool = true, journal: [ArchiveJob] = []) throws {
+    init(
+        switchOn: Bool = true, journal: [ArchiveJob] = [], listings: [String: String] = [:],
+        suite: String = "nc-Archives-test.\(UUID())"
+    ) throws {
+        self.suite = suite
         defaults = UserDefaults(suiteName: suite)!
-        defaults.set(switchOn, forKey: "archives")
+        if defaults.object(forKey: "archives") == nil { defaults.set(switchOn, forKey: "archives") }
         try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
         let journalURL = folder.appending(path: "support/archives.json")
         tools = FakeTools(journal: journalURL)
+        tools.state.withLock { $0.listings = listings }
         if !journal.isEmpty {
             try FileManager.default.createDirectory(
                 at: journalURL.deletingLastPathComponent(), withIntermediateDirectories: true)
@@ -151,7 +157,6 @@ final class Rig {
         harnessEnvironment = ArchivesEnvironment(
             journal: journalURL,
             extractor: ArchiveExtractor(locate: { tools.locate($0) }, run: { try await tools.run($0, $1) }),
-            routeOpens: { record.routed = $0 != nil },
             setDefaultApp: { record.defaultApp.append($0) },
             reveal: { record.reveals.append($0) },
             pickArchives: { [] })
@@ -187,10 +192,10 @@ final class Rig {
         ArchiveJob.decode((try? Data(contentsOf: harnessEnvironment!.journal)) ?? Data())
     }
 
-    func finish() {
+    func finish(keepingDefaults: Bool = false) {
         controller.stop()
         try? FileManager.default.removeItem(at: folder)
-        UserDefaults().removePersistentDomain(forName: suite)
+        if !keepingDefaults { UserDefaults().removePersistentDomain(forName: suite) }
     }
 }
 
@@ -205,7 +210,6 @@ let twoFiles = """
 func keepsByDefault() async throws {
     let rig = try Rig()
     defer { rig.finish() }
-    check(rig.record.routed, "the module takes open events while on")
     let archive = rig.archive("Game.zip", listing: twoFiles)
     rig.module!.open([archive])
     await rig.module!.drain()
@@ -326,13 +330,12 @@ func cancelAndResume() async throws {
     rig.defaults.set(true, forKey: "archivesDefaultApp")
     rig.controller.preferences.set("archives", on: false)
     while rig.module != nil { await Task.yield() }
-    check(!rig.record.routed, "switched off, the module no longer takes open events")
     check(rig.record.defaultApp == [false], "switched off, the archive types go back")
     check(rig.journal().map(\.name) == ["Long.zip"], "a switch-off keeps the job to resume")
     let saved = rig.journal()
     rig.finish()
 
-    rig = try Rig(journal: saved)
+    rig = try Rig(journal: saved, listings: ["Long.zip": twoFiles])
     await rig.module!.drain()
     check(FileManager.default.fileExists(atPath: saved[0].archive.deletingLastPathComponent().appending(path: "Long").path),
           "a relaunch resumes the journal")
@@ -347,9 +350,81 @@ func defaultApp() async throws {
     rig.defaults.set(true, forKey: "archivesDefaultApp")
     rig.controller.preferences.set("archives", on: true)
     while rig.module == nil { await Task.yield() }
-    check(rig.record.defaultApp == [true], "with the option on, starting claims the archive types")
+    check(rig.record.defaultApp == [true], "with the option on, switching the add-on on claims the archive types")
     rig.controller.stop()
     check(rig.record.defaultApp == [true], "quitting the app keeps them")
+
+    var relaunch = try Rig(suite: rig.suite)
+    check(relaunch.record.defaultApp.isEmpty, "a launch never claims again, so a Finder choice made since stays")
+    relaunch.module!.setDefaultApp(false)
+    relaunch.module!.setDefaultApp(true)
+    check(relaunch.record.defaultApp == [false, true], "turning the option on claims at that moment")
+    relaunch.finish(keepingDefaults: true)
+    relaunch = try Rig(suite: rig.suite)
+    check(relaunch.record.defaultApp.isEmpty, "and the next launch leaves it alone too")
+    relaunch.finish(keepingDefaults: true)
+}
+
+/// Files opened with the app come through the core's claimers, beside Downloads' `.torrent` one.
+@MainActor
+func opensThroughTheCore() async throws {
+    let rig = try Rig()
+    defer { rig.finish() }
+    check(rig.controller.open(rig.archive("Game.zip", listing: twoFiles)), "an archive opened with the app is claimed")
+    await rig.module!.drain()
+    check(rig.exists("Game/a.txt"), "and extracted: \(rig.visible)")
+    check(!rig.controller.open(rig.archive("film.torrent")), "a .torrent is left for Downloads")
+    check(!rig.controller.open(URL(string: "https://example.com/Game.zip")!), "a web link is not a file to extract")
+    check(rig.presenter.failures.isEmpty, "a file left to another add-on gets no refusal: \(rig.presenter.failures)")
+    rig.controller.preferences.set("archives", on: false)
+    while rig.module != nil { await Task.yield() }
+    check(!rig.controller.open(rig.archive("Late.zip", listing: twoFiles)), "switched off, opens fall through to the system")
+}
+
+/// Only HatchZip consumes its archive, so only its half-done output is kept after a failure.
+func abandonKeepsOnlyHatchZipWork() async throws {
+    let folder = FileManager.default.temporaryDirectory.appending(path: "nc-archives-abandon-\(UUID())")
+    defer { try? FileManager.default.removeItem(at: folder) }
+    let tools = FakeTools(journal: folder.appending(path: "none.json"))
+    let extractor = ArchiveExtractor(locate: { tools.locate($0) }, run: { try await tools.run($0, $1) })
+    func abandoned(_ name: String) async throws -> URL? {
+        let job = ArchiveJob(id: UUID(), archive: folder.appending(path: name), inPlace: true)
+        try FileManager.default.createDirectory(at: job.staging, withIntermediateDirectories: true)
+        try Data("half".utf8).write(to: job.staging.appending(path: "part.bin"))
+        let placed = await extractor.abandon(job)
+        check(!FileManager.default.fileExists(atPath: job.staging.path), "\(name): no staging folder is left")
+        return placed
+    }
+    for name in ["src.tar.zst", "Old.sit", "dump.gz"] {
+        let placed = try await abandoned(name)
+        check(placed == nil, "\(name): a half-written fallback run is dropped: \(String(describing: placed))")
+    }
+    let files = try FileManager.default.contentsOfDirectory(atPath: folder.path)
+    check(files.isEmpty, "nothing was placed beside the untouched archives: \(files)")
+    let kept = try await abandoned("Game.zip")
+    check(kept?.lastPathComponent == "part.bin", "HatchZip's in-place work is kept")
+}
+
+/// The real `sh` and `gzip`: a single compressed file is cut off at the cap instead of filling the disk.
+func capsSingleStreams() async throws {
+    let folder = FileManager.default.temporaryDirectory.appending(path: "nc-archives-cap-\(UUID())")
+    defer { try? FileManager.default.removeItem(at: folder) }
+    try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+    try Data(count: 1_000_000).write(to: folder.appending(path: "zeros"))
+    let gzip = URL(filePath: "/usr/bin/gzip")
+    let packed = try await ArchiveProcess.run(gzip, [folder.appending(path: "zeros").path])
+    check(packed.status == 0, "gzip made the fixture: \(packed.errors)")
+    func unpack(blocks: Int64) async throws -> (status: Int32, size: Int) {
+        let arguments = ArchiveCommandLine.extract(
+            .gzip, tool: gzip, archive: folder.appending(path: "zeros.gz"), staging: folder, stem: "out",
+            inPlace: false, outputBlocks: blocks)
+        let result = try await ArchiveProcess.run(URL(filePath: "/bin/sh"), arguments)
+        return (result.status, try Data(contentsOf: folder.appending(path: "out")).count)
+    }
+    let capped = try await unpack(blocks: 8)
+    check(capped.status != 0 && capped.size == 8 * 1024, "over the cap the tool is stopped at it: \(capped)")
+    let whole = try await unpack(blocks: ArchiveSafety.outputBlocks(archiveSize: 1_000))
+    check(whole.status == 0 && whole.size == 1_000_000, "under the cap it runs as before: \(whole)")
 }
 
 /// The real engine, once, when this Mac has it; otherwise the skip is printed, never a silent pass.
@@ -386,6 +461,9 @@ enum ArchivesModuleTest {
         try await fallbackEngines()
         try await cancelAndResume()
         try await defaultApp()
+        try await opensThroughTheCore()
+        try await abandonKeepsOnlyHatchZipWork()
+        try await capsSingleStreams()
         try await realHatchZip()
         print("nc-Archives-module-test: ok")
     }

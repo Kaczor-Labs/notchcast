@@ -40,9 +40,10 @@ nonisolated enum ArchiveCommandLine {
         }
     }
 
-    /// A single stream runs under `/bin/sh`, with every path a positional argument, never spliced in.
+    /// A single stream runs under `/bin/sh`, paths as positional arguments, its output capped.
     static func extract(
-        _ engine: ArchiveEngine, tool: URL, archive: URL, staging: URL, stem: String, inPlace: Bool
+        _ engine: ArchiveEngine, tool: URL, archive: URL, staging: URL, stem: String, inPlace: Bool,
+        outputBlocks: Int64
     ) -> [String] {
         switch engine {
         case .hatchzip:
@@ -50,7 +51,10 @@ nonisolated enum ArchiveCommandLine {
         case .bsdtar: ["-xf", archive.path, "-C", staging.path]
         case .unar: ["-o", staging.path, "-D", "-q", archive.path]
         case .gzip, .bzip2, .xz, .zstd:
-            ["-c", #"exec "$0" -dc "$1" > "$2""#, tool.path, archive.path, staging.appending(path: stem).path]
+            [
+                "-c", #"ulimit -f "$3" && exec "$0" -dc "$1" > "$2""#, tool.path, archive.path,
+                staging.appending(path: stem).path, String(outputBlocks),
+            ]
         }
     }
 

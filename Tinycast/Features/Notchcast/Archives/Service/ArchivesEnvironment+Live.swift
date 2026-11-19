@@ -6,14 +6,12 @@ extension ArchivesEnvironment {
         filePath: "/System/Library/CoreServices/Applications/Archive Utility.app", directoryHint: .isDirectory)
 
     static func live() -> Self {
-        let opens = ArchiveOpenHandler()
-        return Self(
+        Self(
             journal: AppPaths.applicationSupport()
                 .appending(path: "Notchcast", directoryHint: .isDirectory).appending(path: "archives.json"),
             extractor: ArchiveExtractor(
                 locate: { await ExecutableLocator.locate($0) },
                 run: { try await ArchiveProcess.run($0, $1) }),
-            routeOpens: { opens.route($0) },
             setDefaultApp: { on in Task { await setDefaultApp(on) } },
             reveal: { NSWorkspace.shared.activateFileViewerSelecting([$0]) },
             pickArchives: pickArchives)
