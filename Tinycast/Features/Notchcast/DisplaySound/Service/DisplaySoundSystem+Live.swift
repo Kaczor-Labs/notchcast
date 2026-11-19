@@ -83,7 +83,8 @@ extension DisplaySoundSystem {
                 var value = UInt32(muted ? 1 : 0)
                 return AudioObjectSetPropertyData(device, &address, 0, nil, UInt32(MemoryLayout.size(ofValue: value)),
                                                   &value) == noErr
-            }),
+            },
+            displayAudioName: CoreAudioLevels.displayAudioName),
         sleep: { try await Task.sleep(for: $0) },
         screenNames: {
             Dictionary(NSScreen.screens.compactMap { screen -> (UInt32, String)? in
@@ -119,6 +120,11 @@ extension DisplaySoundSystem {
                     forName: NSWorkspace.screensDidWakeNotification, object: nil, queue: .main
                 ) { _ in MainActor.assumeIsolated { changed(true) } }, center: NSWorkspace.shared.notificationCenter),
             ]
+        },
+        watchSleep: { slept in
+            [NotificationToken(NSWorkspace.shared.notificationCenter.addObserver(
+                forName: NSWorkspace.screensDidSleepNotification, object: nil, queue: .main
+            ) { _ in MainActor.assumeIsolated { slept() } }, center: NSWorkspace.shared.notificationCenter)]
         },
         watchAudio: { output, changed in
             let block: AudioObjectPropertyListenerBlock = { _, _ in
@@ -206,7 +212,7 @@ private final class IOAVLink: Sendable {
             defer { last = .now }
             var packet = packet
             return packet.withUnsafeMutableBytes { buffer in
-                calls.write(service.reference, BrightnessDDC.chip, BrightnessDDC.host, buffer.baseAddress!,
+                calls.write(service.reference, DisplayDDC.chip, DisplayDDC.host, buffer.baseAddress!,
                             UInt32(buffer.count)) == kIOReturnSuccess
             }
         }
@@ -219,7 +225,7 @@ private final class IOAVLink: Sendable {
             defer { last = .now }
             var reply = [UInt8](repeating: 0, count: length)
             let result = reply.withUnsafeMutableBytes { buffer in
-                calls.read(service.reference, BrightnessDDC.chip, BrightnessDDC.host, buffer.baseAddress!,
+                calls.read(service.reference, DisplayDDC.chip, DisplayDDC.host, buffer.baseAddress!,
                            UInt32(buffer.count))
             }
             return result == kIOReturnSuccess ? reply : nil
@@ -294,6 +300,21 @@ private enum CoreAudioLevels {
         guard AudioObjectGetPropertyData(AudioObjectID(kAudioObjectSystemObject), &address, 0, nil, &size, &device)
             == noErr, device != kAudioObjectUnknown else { return nil }
         return device
+    }
+
+    @Sendable static func displayAudioName(_ device: UInt32) -> String? {
+        var address = address(kAudioDevicePropertyTransportType, scope: kAudioObjectPropertyScopeGlobal)
+        var transport: UInt32 = 0
+        var size = UInt32(MemoryLayout.size(ofValue: transport))
+        guard AudioObjectGetPropertyData(device, &address, 0, nil, &size, &transport) == noErr,
+              transport == kAudioDeviceTransportTypeHDMI || transport == kAudioDeviceTransportTypeDisplayPort
+        else { return nil }
+        address = Self.address(kAudioObjectPropertyName, scope: kAudioObjectPropertyScopeGlobal)
+        var name: Unmanaged<CFString>?
+        size = UInt32(MemoryLayout<Unmanaged<CFString>?>.size)
+        guard AudioObjectGetPropertyData(device, &address, 0, nil, &size, &name) == noErr,
+              let name else { return "" }
+        return name.takeRetainedValue() as String
     }
 
     static func isSettable(_ device: UInt32, _ address: AudioObjectPropertyAddress) -> Bool {

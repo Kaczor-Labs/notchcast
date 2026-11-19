@@ -25,6 +25,7 @@ final class DisplaySoundModule: NotchcastModule {
 
     let brightness: BrightnessController
     let audio: AudioLevelsService
+    let speakers: DisplaySpeakerController
     private let context: NotchcastContext
     private let system: DisplaySoundSystem
     private let brightnessTap = TapState()
@@ -38,8 +39,10 @@ final class DisplaySoundModule: NotchcastModule {
     init(context: NotchcastContext, system: DisplaySoundSystem) {
         self.context = context
         self.system = system
-        brightness = BrightnessController(system: system, recovery: DisplaySoundAddon.recovery(context, system: system))
+        let recovery = DisplaySoundAddon.recovery(context, system: system)
+        brightness = BrightnessController(system: system, recovery: recovery)
         audio = AudioLevelsService(system: system)
+        speakers = DisplaySpeakerController(system: system, service: recovery.service, defaults: context.defaults)
     }
 
     isolated deinit { worker?.cancel() }
@@ -72,13 +75,15 @@ final class DisplaySoundModule: NotchcastModule {
         audio.announce = nil
         brightness.stop()
         audio.stop()
+        speakers.stop()
     }
 
     /// Each half runs only while its switch is on: brightness off restores every curve.
     private func follow(_ generation: UUID) {
         guard running, generation == self.generation else { return }
-        let (brightnessOn, volumeOn) = withObservationTracking {
-            (context.isEnabled(DisplaySoundAddon.brightnessID), context.isEnabled(DisplaySoundAddon.volumeID))
+        let (brightnessOn, extraDimmingOn, volumeOn) = withObservationTracking {
+            (context.isEnabled(DisplaySoundAddon.brightnessID), context.isEnabled(DisplaySoundAddon.extraDimmingID),
+             context.isEnabled(DisplaySoundAddon.volumeID))
         } onChange: { [weak self] in
             Task { @MainActor in self?.follow(generation) }
         }
@@ -86,15 +91,18 @@ final class DisplaySoundModule: NotchcastModule {
             let functionKeys = system.functionKeysAdjustBrightness()
             brightnessTap.value.withLock { $0.functionKeysAdjustBrightness = functionKeys }
             brightness.start()
+            brightness.allowExtraDimming(extraDimmingOn)
         } else {
             release(brightnessTap)
             brightness.stop()
         }
         if volumeOn {
             audio.start()
+            speakers.start()
         } else {
             release(volumeTap)
             audio.stop()
+            speakers.stop()
         }
     }
 
@@ -192,12 +200,17 @@ final class DisplaySoundModule: NotchcastModule {
             return
         }
         guard context.isEnabled(DisplaySoundAddon.volumeID), audio.isRunning else { return }
-        let result = await audio.apply(press.key == .mute ? .toggleMute
-            : .step(increasing: press.key.isIncreasing, fine: press.fine))
+        let command: VolumeCommand = press.key == .mute ? .toggleMute
+            : .step(increasing: press.key.isIncreasing, fine: press.fine)
+        let result = await audio.apply(command)
         guard generation == self.generation, context.isEnabled(DisplaySoundAddon.volumeID) else { return }
         switch result {
         case let .applied(output), let .partiallyApplied(output): show(output)
-        case .fallbackToNativeKeys: system.replay(press.key, press.modifiers)
+        case .fallbackToNativeKeys:
+            let level = await speakers.apply(command)
+            guard generation == self.generation, context.isEnabled(DisplaySoundAddon.volumeID) else { return }
+            guard let level else { return system.replay(press.key, press.modifiers) }
+            context.presenter.showLevel(VolumeLevel.island(Float32(level.volume), muted: level.muted))
         case .cancelled: break
         }
     }
