@@ -11,7 +11,7 @@
     ci.py issue open <kind> <title> <cause> [<details.md>] | issue close <kind>
     ci.py design-notice <tree> <old upstream> <new upstream>
     ci.py hold <moved_at> [<now>]           PR list JSON on stdin: exit 0 while the rebase hold is on (kick.sh), else 1
-    ci.py tested-key [<commit>]             tree of the commit without project, scheme, README: pr.yml names its artifact by it, plan looks main's up
+    ci.py tested-key [<commit>]             tree of the commit without project, scheme, README, registry: pr.yml names its artifact by it, plan looks main's up
     ci.py tested-run [<commit>]             URL of the green PR build of that tree, or nothing: land.sh skips its harness pass on it
     ci.py isolated-proof [<commit>]         the green isolated-runner PR build of that tree: its URL, toolchain and excused harnesses, or nothing
 
@@ -49,6 +49,7 @@ PBXPROJ = "Tinycast.xcodeproj/project.pbxproj"
 RUNTIME_JS = "Tinycast/Resources/RaycastRuntime.generated.js"
 # Rewritten by `regenerate`, never taken from our commits.
 SCHEME = "Tinycast.xcodeproj/xcshareddata/xcschemes/Tinycast.xcscheme"
+REGISTRY = "Tinycast/Features/Notchcast/NotchcastRegistry.swift"
 GENERATED = [PBXPROJ, SCHEME, RUNTIME_JS, "README.md"]
 # Never pruned (notchcast/prune-paths.txt); docs/*.md is kept too.
 KEEP = ["LICENSE", "NOTICE.md", "AGENTS.md", "Tests", "Scripts/raycast-runtime"]
@@ -129,12 +130,12 @@ def hold(moved_at, now=None):
 
 
 def tested_key(commit="HEAD", cwd=None):
-    """Tree of commit without the project, scheme and README: CI regenerates or never tests those. The runtime stays in:
-    CI never rebuilds it and harnesses load it."""
+    """Tree of commit without the project, scheme, README and add-on registry: CI regenerates or never tests those.
+    The runtime stays in: CI never rebuilds it and harnesses load it."""
     with tempfile.TemporaryDirectory() as scratch:
         env = {"GIT_INDEX_FILE": f"{scratch}/index"}
         run("git", "read-tree", commit, cwd=cwd, env=env)
-        run("git", "update-index", "--force-remove", "--", PBXPROJ, SCHEME, "README.md", cwd=cwd, env=env)
+        run("git", "update-index", "--force-remove", "--", PBXPROJ, SCHEME, "README.md", REGISTRY, cwd=cwd, env=env)
         return run("git", "write-tree", cwd=cwd, env=env)
 
 
