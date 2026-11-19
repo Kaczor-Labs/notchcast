@@ -22,8 +22,10 @@ struct RecordingSystem: Sendable {
     ) async throws -> any RecordingCapture
     /// Runs `tick` about once a second until the returned closure cancels it.
     let everySecond: @MainActor @Sendable (_ tick: @escaping @MainActor () -> Void) -> @MainActor () -> Void
-    /// A folder of our own where unfinished clips live.
+    /// This run's own folder, where unfinished clips live.
     let workFolder: @Sendable () throws -> URL
+    /// The work folders of runs that ended, never one a running copy still writes to.
+    let abandonedWorkFolders: @Sendable () -> [URL]
     let desktop: @Sendable () throws -> URL
     /// Holds off idle sleep until the returned closure runs.
     let keepAwake: @MainActor @Sendable () -> @MainActor () -> Void

@@ -5,223 +5,12 @@
 // notchcast-sources: Tinycast/Features/Notchcast/ScreenRecording/ScreenRecordingAddon.swift
 // notchcast-sources: Tinycast/Features/Notchcast/ScreenRecording/Model/*.swift
 // notchcast-sources: Tinycast/Features/Notchcast/ScreenRecording/Service/RecordingSystem.swift
+// notchcast-sources: Tinycast/Features/Notchcast/ScreenRecording/Service/RecordingWorkFolder.swift
 // notchcast-sources: Tinycast/Features/Notchcast/ScreenRecording/Service/ScreenRecordingModule.swift
 // notchcast-sources: Tinycast/Features/Notchcast/ScreenRecording/Service/ScreenRecordingRecovery.swift
-// notchcast-sources: Tests/NotchcastDictationFixture.swift
+// notchcast-sources: Tests/NotchcastDictationFixture.swift Tests/nc-ScreenRecording-fixture.swift
 
 import Foundation
-import Synchronization
-import SwiftUI
-
-// The shipped `live` system and settings UI are left out: these stand in, so `makeModule` runs as shipped.
-
-struct ScreenRecordingSettingsView: View {
-    init(defaults: UserDefaults) {}
-    var body: some View { EmptyView() }
-}
-
-let scratch = FileManager.default.temporaryDirectory.appending(path: "nc-ScreenRecording-module-test.\(UUID())")
-let desktop = scratch.appending(path: "Desktop")
-let work = scratch.appending(path: "Work")
-let chosen = scratch.appending(path: "Chosen")
-let firstDate = Date(timeIntervalSince1970: 1_763_290_800)
-
-/// The module names files in this Mac's time zone, as shipped.
-func fileName(_ ext: String, collision: Int = 0) -> String {
-    RecordingFileName.name(date: firstDate, timeZone: .current, fileExtension: ext, collision: collision)
-}
-
-/// What the file-side fakes see and do, off the main actor.
-struct FileSide: Sendable {
-    var passthrough = true
-    var exportFails = false
-    var freeBytes = Int64.max
-    var exports: [(source: URL, trim: RecordingTrim, plan: RecordingExport, to: URL)] = []
-}
-
-let files = Mutex(FileSide())
-
-/// A clip's duration is written in it, so the nonisolated `duration` fake reads it from the file.
-func writeClip(_ url: URL, seconds: TimeInterval) {
-    precondition((try? Data(String(seconds).utf8).write(to: url)) != nil, "the fake clip is written")
-}
-
-@MainActor
-final class FakeCapture: RecordingCapture {
-    var stops = 0
-    var stopFails = false
-
-    func stop() async throws {
-        stops += 1
-        if stopFails { throw RecordingTarget.Failure.captureFailed }
-    }
-}
-
-@MainActor
-final class RecordingFake {
-    var screenGranted = true
-    var micGranted = true
-    var display: UInt32? = 3
-    var selects: [RecordingKind] = []
-    var pick: (@MainActor (RecordingTarget?) -> Void)?
-    var surfaceCloses = 0
-    var starts: [(target: RecordingTarget, options: RecordingOptions, file: URL)] = []
-    var ended: (@MainActor (any Error) -> Void)?
-    var capture = FakeCapture()
-    var recordedSeconds: TimeInterval = 10
-    var tick: (@MainActor () -> Void)?
-    var trimmers: [(clip: URL, duration: TimeInterval)] = []
-    var answer: (@MainActor (RecordingTrimmerAnswer) -> Void)?
-    var trimmerCloses = 0
-    var clipboardWorks = true
-    var clipboard: [URL] = []
-    var revealed: [URL] = []
-    var awake = 0
-    var endsWhileStarting = false
-}
-
-@MainActor let fake = RecordingFake()
-
-extension RecordingSystem {
-    static let live = RecordingSystem(
-        grantScreen: { fake.screenGranted },
-        grantMicrophone: { fake.micGranted },
-        displayUnderCursor: { fake.display },
-        select: { kind, completion in
-            fake.selects.append(kind)
-            fake.pick = completion
-            return {
-                fake.surfaceCloses += 1
-                let pick = fake.pick
-                fake.pick = nil
-                pick?(nil)
-            }
-        },
-        start: { target, options, file, ended in
-            fake.starts.append((target, options, file))
-            fake.ended = ended
-            writeClip(file, seconds: fake.recordedSeconds)
-            fake.capture = FakeCapture()
-            if fake.endsWhileStarting { ended(RecordingTarget.Failure.captureFailed) }
-            return fake.capture
-        },
-        everySecond: { tick in
-            fake.tick = tick
-            return { fake.tick = nil }
-        },
-        workFolder: { work },
-        desktop: { desktop },
-        keepAwake: {
-            fake.awake += 1
-            return { fake.awake -= 1 }
-        },
-        freeBytes: { files.withLock { $0.freeBytes } },
-        duration: { url in
-            Double(String(bytes: try Data(contentsOf: url), encoding: .utf8) ?? "") ?? 0
-        },
-        passthroughWorks: { _, _ in files.withLock { $0.passthrough } },
-        export: { source, trim, plan, destination in
-            if files.withLock({ $0.exportFails }) { throw CocoaError(.fileWriteUnknown) }
-            files.withLock { $0.exports.append((source, trim, plan, destination)) }
-            try Data("exported".utf8).write(to: destination, options: .withoutOverwriting)
-        },
-        trim: { clip, duration, answer in
-            fake.trimmers.append((clip, duration))
-            fake.answer = answer
-            return {
-                fake.trimmerCloses += 1
-                fake.answer = nil
-            }
-        },
-        writeClipboard: { url in
-            guard fake.clipboardWorks else { return false }
-            fake.clipboard.append(url)
-            return true
-        },
-        reveal: { fake.revealed.append($0) }
-    )
-}
-
-@MainActor
-final class FakePresenter: IslandPresenting {
-    var posts: [IslandNotice] = []
-    var taps: [String: @MainActor () -> Void] = [:]
-    var status: IslandStatus?
-    var statusTap: (@MainActor () -> Void)?
-    var rows: [IslandMenuRow] = []
-    var rowSelect: (@MainActor (String) -> Void)?
-
-    func showLevel(_ level: IslandLevel) {}
-    func post(_ notice: IslandNotice, onTap: (@MainActor () -> Void)?) {
-        posts.append(notice)
-        taps[notice.text] = onTap
-    }
-    func end(notice id: String) {}
-    func setStatus(_ status: IslandStatus?, for id: String, onTap: (@MainActor () -> Void)?) {
-        precondition(id == "recording" && (status == nil || status?.id == id), "one status, the add-on's own")
-        self.status = status
-        statusTap = onTap
-    }
-    func setMenuRows(_ rows: [IslandMenuRow], owner: String, onSelect: @escaping @MainActor (String) -> Void) {
-        self.rows = rows
-        rowSelect = onSelect
-    }
-
-    var last: IslandNotice? { posts.last }
-}
-
-@MainActor
-final class TestClock {
-    var now = firstDate
-}
-
-@MainActor
-final class Rig {
-    let suite = "nc-ScreenRecording-test.\(UUID())"
-    let defaults: UserDefaults
-    let presenter = FakePresenter()
-    let clock = TestClock()
-    let controller: NotchcastController
-
-    init() {
-        defaults = UserDefaults(suiteName: suite)!
-        let hub = NotchcastTapHub(syntheticTag: 0x54494E59, isTrusted: { true }, makeSession: { _ in
-            fatalError("Screen Recording declares no tap")
-        })
-        controller = NotchcastController(
-            addons: [ScreenRecordingAddon.self], defaults: defaults, hub: hub, dictation: FakeDictation(),
-            presenter: presenter, now: { [clock] in clock.now })
-        controller.start()
-    }
-
-    /// The controller reconciles on its next main-actor turn; a few yields reach it, no clock involved.
-    func toggle(_ on: Bool) async {
-        controller.preferences.set("recording", on: on)
-        for _ in 0..<20 where (module != nil) != on { await Task.yield() }
-        precondition((module != nil) == on, "the switch reached the module")
-    }
-
-    var module: ScreenRecordingModule? {
-        controller.context(forSwitch: "recording")?.module(ScreenRecordingModule.self)
-    }
-
-    func run(_ slug: String) {
-        precondition(controller.run(entryID: "command:nc-\(slug)"), "\(slug) resolves")
-    }
-
-    func settle() async { await module?.settled() }
-
-    func finish() {
-        controller.stop()
-        UserDefaults().removePersistentDomain(forName: suite)
-    }
-}
-
-func exists(_ url: URL) -> Bool { FileManager.default.fileExists(atPath: url.path(percentEncoded: false)) }
-
-func names(in folder: URL) -> [String] {
-    ((try? FileManager.default.contentsOfDirectory(atPath: folder.path(percentEncoded: false))) ?? []).sorted()
-}
 
 @main
 @MainActor
@@ -235,7 +24,7 @@ enum ScreenRecordingModuleTests {
     }
 
     static func main() async {
-        for folder in [desktop, work, chosen] {
+        for folder in [desktopFolder, work, chosen] {
             precondition((try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)) != nil)
         }
         defer { try? FileManager.default.removeItem(at: scratch) }
@@ -277,7 +66,7 @@ enum ScreenRecordingModuleTests {
         check("with system audio and no microphone by default",
               fake.starts.first.map { $0.options.systemAudio && !$0.options.microphone } == true)
         check("into a MOV in the work folder",
-              fake.starts.first.map { $0.file.deletingLastPathComponent() == work && $0.file.pathExtension == "mov" } == true)
+              isIn(fake.starts.first?.file, try? workFolders.current()) && fake.starts.first?.file.pathExtension == "mov")
         check("the island shows the stop control at 0:00",
               rig.presenter.status?.symbol == "stop.circle" && rig.presenter.status?.text == "0:00"
                 && rig.presenter.status?.label == "Stop Recording")
@@ -302,7 +91,7 @@ enum ScreenRecordingModuleTests {
         fake.answer?(.save(trim))
         await rig.settle()
         let export = files.withLock { $0.exports.last }
-        let saved = desktop.appending(path: fileName("mov"))
+        let saved = desktopFolder.appending(path: fileName("mov"))
         check("Save passes the clip through, cut to 2–8 s",
               export?.source == clip && export?.plan == .passthrough && export?.trim.start == 2
                 && export?.trim.end == 8 && export?.trim.length == 6)
@@ -330,7 +119,7 @@ enum ScreenRecordingModuleTests {
         let export = files.withLock { $0.exports.last }
         check("Copy re-encodes when passthrough cannot", export?.plan == .reencode && export?.trim.end == 5)
         check("Copy writes into the work folder, never the chosen one",
-              export?.to.deletingLastPathComponent() == work && names(in: chosen).isEmpty)
+              isIn(export?.to, try? workFolders.current()) && names(in: chosen).isEmpty)
         check("the copied file is on the clipboard", fake.clipboard.last == export?.to)
         check("a result notice says it was copied", rig.presenter.last?.text == "Recording Copied")
 
@@ -359,8 +148,13 @@ enum ScreenRecordingModuleTests {
         await record(rig, .window(7))
         fake.answer?(.copy(RecordingTrim(duration: 10)))
         await rig.settle()
-        check("a refused clipboard is a failure", rig.presenter.last?.text == "Could not copy to clipboard."
+        let uncopied = "Could not copy, so the recording is on the Desktop."
+        check("a refused clipboard is a failure", rig.presenter.last?.text == uncopied
               && rig.presenter.last?.isFailure == true)
+        rig.presenter.taps[uncopied]?()
+        check("that leaves the export on the Desktop, and the notice's tap shows it",
+              isIn(fake.revealed.last, desktopFolder) && fake.revealed.last.map(exists) == true
+                && fake.revealed.last?.pathExtension == "mp4")
         fake.clipboardWorks = true
 
         files.withLock { $0.exportFails = true }
@@ -374,7 +168,8 @@ enum ScreenRecordingModuleTests {
               !exists(kept) && names(in: chosen).count == 2)
         rig.presenter.taps[rescued]?()
         check("the clip is whole on the Desktop, and the notice's tap shows it",
-              fake.revealed.last.map { $0.pathExtension == "mov" && names(in: desktop).contains($0.lastPathComponent) } == true)
+              fake.revealed.last?.pathExtension == "mov" && isIn(fake.revealed.last, desktopFolder)
+                && fake.revealed.last.map(exists) == true)
         files.withLock { $0.exportFails = false; $0.passthrough = true }
 
         try? FileManager.default.removeItem(at: chosen)
@@ -523,7 +318,7 @@ enum ScreenRecordingModuleTests {
         check("and stops the capture", capture.stops == 1)
         let saved = files.withLock { $0.exports.last }
         check("the clip is saved whole, untrimmed", saved?.source == recording && saved?.plan == .copy
-              && saved?.to.deletingLastPathComponent() == desktop && !exists(recording))
+              && isIn(saved?.to, desktopFolder) && !exists(recording))
         await rig.toggle(true)
 
         rig.run("record-screen")
@@ -551,21 +346,44 @@ enum ScreenRecordingModuleTests {
         fake.pick?(nil)
     }
 
-    /// A quit while recording or trimming leaves the clip in the work folder; the next start moves it out.
+    /// A quit while recording or trimming leaves the clip in that run's folder; the next start moves it out.
     static func recovery() async {
-        let orphan = work.appending(path: "\(UUID().uuidString).mov")
-        let copied = work.appending(path: "Copied.mov")
-        writeClip(orphan, seconds: 10)
+        func folder(_ name: String) -> URL {
+            let url = work.appending(path: name, directoryHint: .isDirectory)
+            precondition((try? FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)) != nil)
+            return url
+        }
+        func clip(in folder: URL, seconds: TimeInterval) -> URL {
+            let url = folder.appending(path: "\(UUID().uuidString).mov")
+            writeClip(url, seconds: seconds)
+            return url
+        }
+        let ended = folder("ended")
+        let orphan = clip(in: ended, seconds: 10)
+        let stub = clip(in: ended, seconds: 0)
+        let copied = ended.appending(path: "Copied.mov")
         writeClip(copied, seconds: 10)
-        let before = names(in: desktop)
+        let quiet = folder("quiet")
+        // A second holder of a folder under the same root is what another running copy of the app is.
+        let otherCopy = RecordingWorkFolder(root: work)
+        guard let theirs = try? otherCopy.current(), let ours = try? workFolders.current() else {
+            return check("both running copies hold a work folder", false)
+        }
+        let live = clip(in: theirs, seconds: 10)
+        let own = clip(in: ours, seconds: 10)
+        let before = names(in: desktopFolder)
         let rig = Rig()
         check("off, the add-on still recovers", rig.module == nil)
         let recovery = rig.controller.context(forSwitch: "recording")?.recovery(ScreenRecordingRecovery.self)
         await recovery?.settled()
-        let moved = names(in: desktop).filter { !before.contains($0) }
-        check("a clip left by the last run moves to the recording folder", !exists(orphan) && moved.count == 1
+        let moved = names(in: desktopFolder).filter { !before.contains($0) }
+        check("a clip left by a run that ended moves to the recording folder", !exists(orphan) && moved.count == 1
               && moved.first?.hasSuffix(".mov") == true)
-        check("a copied export in the work folder stays", exists(copied))
+        check("a clip another running copy is still writing stays where it is", exists(live))
+        check("and so does this run's own", exists(own))
+        check("a stub with nothing recorded is deleted, not recovered", !exists(stub))
+        check("a copied export stays, and its folder with it", exists(copied))
+        check("an ended run's empty folder is removed", !exists(quiet))
         let notice = "Recovered a recording from the last session."
         check("one notice says so", rig.presenter.posts.map(\.text) == [notice])
         rig.presenter.taps[notice]?()

@@ -229,7 +229,17 @@ final class ScreenRecordingModule: NotchcastModule {
                 text: String(localized: "Recording Saved", table: "NotchcastScreenRecording")),
                 onTap: { [system] in system.reveal(destination) })
         } else {
-            guard system.writeClipboard(destination) else { throw RecordingTarget.Failure.clipboardFailed }
+            guard system.writeClipboard(destination) else {
+                let desktop = [(try? system.desktop())].compactMap { $0 }
+                guard let kept = await RecordingRescue.keep(destination, in: desktop, date: date, timeZone: timeZone)
+                else { throw RecordingTarget.Failure.clipboardFailed }
+                context.presenter.post(IslandNotice(
+                    id: Self.islandID, symbol: "record.circle",
+                    text: String(localized: "Could not copy, so the recording is on the Desktop.",
+                                 table: "NotchcastScreenRecording"),
+                    isFailure: true), onTap: { [system] in system.reveal(kept) })
+                return
+            }
             context.presenter.post(IslandNotice(
                 id: Self.islandID, symbol: "checkmark.circle",
                 text: String(localized: "Recording Copied", table: "NotchcastScreenRecording")), onTap: nil)

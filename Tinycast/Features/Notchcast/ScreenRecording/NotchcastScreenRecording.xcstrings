@@ -6,6 +6,7 @@
     "Click a window to record it. Press Escape to cancel." : {},
     "Copy" : {},
     "Could not copy to clipboard." : {},
+    "Could not copy, so the recording is on the Desktop." : {},
     "Could not record the screen." : {},
     "Could not save the recording." : {},
     "Desktop" : {},

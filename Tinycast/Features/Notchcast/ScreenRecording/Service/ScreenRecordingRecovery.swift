@@ -23,7 +23,7 @@ enum RecordingRescue {
     }
 }
 
-/// Runs at every launch whatever the switch says: clips a quit left in the work folder reach the user.
+/// Runs at every launch whatever the switch says: clips a quit left in its work folder reach the user.
 @MainActor
 final class ScreenRecordingRecovery: NotchcastModule {
     private let context: NotchcastContext
@@ -38,24 +38,25 @@ final class ScreenRecordingRecovery: NotchcastModule {
     }
 
     func start() {
-        guard let work = try? system.workFolder(),
-              let found = try? FileManager.default.contentsOfDirectory(at: work, includingPropertiesForKeys: nil)
-        else { return }
-        // A capture's own clip is named by a UUID; a copied export lives here too and stays.
-        let clips = found.filter {
-            $0.pathExtension == "mov" && UUID(uuidString: $0.deletingPathExtension().lastPathComponent) != nil
-        }
-        guard !clips.isEmpty else { return }
+        let abandoned = system.abandonedWorkFolders()
+        guard !abandoned.isEmpty else { return }
+        let clips = abandoned.flatMap(RecordingWorkFolder.clips)
         let chosen = RecordingOptions(context.defaults).folder.map { URL(filePath: $0, directoryHint: .isDirectory) }
         let folders = [chosen, (try? system.desktop())].compactMap { $0 }
         let (date, zone) = (context.now(), timeZone)
         moving = Task {
             var kept: [URL] = []
             for clip in clips {
+                // A quit before the first fragment leaves a stub with nothing in it.
+                guard ((try? await system.duration(clip)) ?? 0) > 0 else {
+                    try? FileManager.default.removeItem(at: clip)
+                    continue
+                }
                 if let url = await RecordingRescue.keep(clip, in: folders, date: date, timeZone: zone) {
                     kept.append(url)
                 }
             }
+            abandoned.forEach(RecordingWorkFolder.removeIfEmpty)
             guard let last = kept.last, !Task.isCancelled else { return }
             context.presenter.post(IslandNotice(
                 id: ScreenRecordingModule.islandID, symbol: "checkmark.circle",

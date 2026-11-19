@@ -31,11 +31,8 @@ extension RecordingSystem {
             }
             return { ticker.cancel() }
         },
-        workFolder: {
-            let folder = FileManager.default.temporaryDirectory.appending(path: "Screen Recordings", directoryHint: .isDirectory)
-            try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
-            return folder
-        },
+        workFolder: { try workFolders.current() },
+        abandonedWorkFolders: { workFolders.abandoned() },
         desktop: {
             try FileManager.default.url(for: .desktopDirectory, in: .userDomainMask, appropriateFor: nil, create: false)
         },
@@ -60,6 +57,10 @@ extension RecordingSystem {
         },
         reveal: { NSWorkspace.shared.activateFileViewerSelecting([$0]) }
     )
+
+    /// Keyed by bundle id, so a Dev build and the installed app never share clips.
+    private static let workFolders = RecordingWorkFolder(root: FileManager.default.temporaryDirectory.appending(
+        path: "\(Bundle.main.bundleIdentifier ?? "notchcast")/Screen Recordings", directoryHint: .isDirectory))
 
     /// An unreadable volume never refuses a recording.
     @concurrent
