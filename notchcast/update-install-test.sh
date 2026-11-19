@@ -5,7 +5,7 @@ HERE="$(cd "$(dirname "$0")" && pwd)"
 WORK="$(mktemp -d)"
 trap 'rm -rf "$WORK"' EXIT
 cp "$HERE/update.sh" "$HERE/config.env" "$WORK/"
-printf '#!/bin/bash\ntouch "$HOME/installed"\n' > "$WORK/install-app.sh"
+printf '#!/bin/bash\n[ "${INSTALL_STATUS:-0}" = 0 ] || exit "$INSTALL_STATUS"\ntouch "$HOME/installed"\n' > "$WORK/install-app.sh"
 chmod +x "$WORK/install-app.sh"
 mkdir -p "$WORK/Fixture.app/Contents"
 printf '%s\n' '<?xml version="1.0"?><plist version="1.0"><dict><key>CFBundleIdentifier</key><string>app.notchcast</string><key>CFBundleShortVersionString</key><string>0.12.8.snapshot.20261107210745</string></dict></plist>' > "$WORK/Fixture.app/Contents/Info.plist"
@@ -26,8 +26,19 @@ gh() {
             printf '%s\n' "$RELEASE_TAGS" | jq -Rn --argjson limit "$limit" '[inputs | {tagName: ., isDraft: false}] | .[:$limit]' | jq -r "$2"
             ;;
         'release download') printf '%s\n' "$3" > "$HOME/downloaded" ;;
-        # RUNS: one green "<id> <title>" per line, newest first; each run's artifact holds Notchcast-<PR_VERSION>.zip.
-        'run list') printf '%s\n' "$RUNS" | jq -Rn '[inputs | select(. != "") | capture("^(?<databaseId>[0-9]+) (?<displayTitle>.*)$")]' | jq -r "${*: -1}" ;;
+        # RUNS: one green "<id> <branch> <title>" per line, newest first; each artifact holds Notchcast-<PR_VERSION>.zip.
+        'run list')
+            local branch=''
+            while [ "$1" != --jq ]; do
+                case "$1" in
+                    -b) branch=$2; shift 2 ;;
+                    *) shift ;;
+                esac
+            done
+            printf '%s\n' "$RUNS" | jq -Rn --arg branch "$branch" '[inputs | select(. != "")
+                | capture("^(?<databaseId>[0-9]+) (?<headBranch>[^ ]+) (?<displayTitle>.*)$")
+                | select($branch == "" or .headBranch == $branch)]' | jq -r "$2"
+            ;;
         'run download')
             [ -n "$PR_VERSION" ] || return 1
             printf '%s\n' "$3" > "$HOME/downloaded"
@@ -110,7 +121,7 @@ echo 'PASS: update.sh refuses without a SIGN_SHA1 in private.env, whatever confi
 # Test builds: --pr=<n> installs the PR's newest green Test build only from its current head, then holds it.
 HEAD_SHA=0123abcd89ef0123456789abcdef0123456789ab
 TEST_VERSION=0.12.8.pr7.0123abcd
-export RELEASE_TAGS="$LATEST" RUNS=$'41 Test build #70\n40 Test build #7\n39 Test build #7' PR_HEAD="$HEAD_SHA"
+export RELEASE_TAGS="$LATEST" RUNS=$'42 pr-branch Test build #7\n41 main Test build #70\n40 main Test build #7\n39 main Test build #7' PR_HEAD="$HEAD_SHA"
 pr_case() {
     local name=$1 status=$2 message=$3 installs=$4
     shift 4
@@ -146,11 +157,11 @@ bench() {
     pr_case "$name" "$@"
 }
 PR_VERSION="$TEST_VERSION" bench pr-dry-run 0 "would install test build $TEST_VERSION" no --pr=7 --dry-run
-grep -qxF 40 "$WORK/pr-dry-run/downloaded" || { echo 'FAIL: --pr took another run than the newest green #7'; exit 1; }
+grep -qxF 40 "$WORK/pr-dry-run/downloaded" || { echo 'FAIL: --pr took another run than the newest green #7 from main'; exit 1; }
 PR_VERSION="$TEST_VERSION" PR_HEAD=fedcba9876543210fedcba9876543210fedcba98 bench pr-head-moved 1 "not PR #7's current head fedcba98" no --pr=7
 PR_VERSION="$TEST_VERSION" SIGNER=1111111111111111111111111111111111111111 bench pr-other-signer 1 'not signed by' no --pr=7
 PR_VERSION="$TEST_VERSION" SIGNER=1111111111111111111111111111111111111111 bench pr-dry-run-other-signer 1 'not signed by' no --pr=7 --dry-run
-PR_VERSION="$TEST_VERSION" RUNS='40 Test build #70' bench pr-no-run 1 'gh workflow run test-build.yml .* -f pr=7' no --pr=7
+PR_VERSION="$TEST_VERSION" RUNS='40 main Test build #70' bench pr-no-run 1 'gh workflow run test-build.yml .* -f pr=7' no --pr=7
 PR_VERSION='' bench pr-no-artifact 1 'no test-build artifact' no --pr=7
 PR_VERSION="$TEST_VERSION" bench pr-install 0 "holding test build $TEST_VERSION" yes --pr=7
 test "$(cat "$WORK/pr-install/Library/Application Support/notchcast/test-build")" = "$TEST_VERSION" \
@@ -166,6 +177,15 @@ test -f "$WORK/restore-dry-run/Library/Application Support/notchcast/test-build"
 PR_VERSION="${LATEST#v}" bench restore 0 "preparing $LATEST" yes --restore
 grep -qxF "$LATEST" "$WORK/restore/downloaded" || { echo 'FAIL: --restore did not take the newest snapshot'; exit 1; }
 test ! -f "$WORK/restore/Library/Application Support/notchcast/test-build" || { echo 'FAIL: --restore kept the hold'; exit 1; }
+# --restore that cannot install the newest snapshot fails, naming --restore --retry when the snapshot was refused.
+REFUSED="$BENCH/Library/Application Support/notchcast/refused-release"
+echo "${LATEST#v}" > "$REFUSED"
+PR_VERSION="${LATEST#v}" bench restore-refused 1 'run update.sh --restore --retry' no --restore
+grep -q "$TEST_VERSION is still installed" "$WORK/restore-refused/log" || { echo 'FAIL: restore-refused did not say what stays'; exit 1; }
+PR_VERSION="${LATEST#v}" bench restore-retry 0 "preparing $LATEST" yes --restore --retry
+rm "$REFUSED"
+PR_VERSION="${LATEST#v}" INSTALL_STATUS=75 bench restore-busy 1 "$TEST_VERSION is still installed" no --restore
+PR_VERSION="${LATEST#v}" RELEASE_TAGS='v0.12.8' bench restore-no-snapshot 1 "$TEST_VERSION is still installed" no --restore
 # A hold for a version no longer installed holds nothing.
 /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString 0.12.8.pr7.99999999" "$BENCH/App.app/Contents/Info.plist"
 PR_VERSION="${LATEST#v}" bench stale-hold 0 "preparing $LATEST" yes

@@ -7,8 +7,8 @@
 # It replaces only the bundle, keeping one previous app for rollback; settings and data are never touched.
 # The in-app updater stays inert for app.notchcast (ReleaseChannel: development), so this is the update path.
 # --install installs even with automatic updates off, e.g. to put one build on every maintainer machine.
-# --pr=<n> installs PR n's newest green Test build (test-build.yml) when it was built from the PR's current head, and
-# holds it: later runs install nothing until --restore, which drops the hold and installs the newest snapshot.
+# --pr=<n> installs PR n's newest green Test build run from main (test-build.yml) when it was built from the PR's current head, and
+# holds it: later runs install nothing until --restore, which drops the hold and installs the newest snapshot or exits 1.
 # Usage: update.sh [--install] [--retry] [--dry-run] [--pr=<n> | --restore] (any order)
 # A newer release installs (and restarts a running app) at once, whether or not the Mac is in use.
 set -euo pipefail
@@ -105,7 +105,7 @@ unpack() {
 HELD="$HOME/Library/Application Support/notchcast/test-build"
 DISPATCH="gh workflow run test-build.yml -R $FORK_REPO --ref main -f pr=$PR"
 if [ -n "$PR" ]; then
-    RUN="$(gh run list -R "$FORK_REPO" -w test-build.yml -s success -L 100 --json databaseId,displayTitle \
+    RUN="$(gh run list -R "$FORK_REPO" -w test-build.yml -b main -s success -L 100 --json databaseId,displayTitle \
         --jq "[.[] | select(.displayTitle == \"Test build #$PR\")][0].databaseId // empty")"
     [ -n "$RUN" ] || { log "no green Test build #$PR; start one with: $DISPATCH"; exit 1; }
     HEAD="$(gh pr view "$PR" -R "$FORK_REPO" --json headRefOid --jq .headRefOid)"
@@ -140,7 +140,9 @@ SNAPSHOT='def snapshot: capture("^v?[0-9]+[.][0-9]+[.][0-9]+(-[a-z]+[.][0-9]+)?[
 TAG="$(gh release list -R "$FORK_REPO" -L 1000 --json tagName,isDraft \
     --jq "$SNAPSHOT [.[] | select(.isDraft | not) | select(.tagName | startswith(\"v\")) | select((.tagName | snapshot) != \"\")]
           | sort_by(.tagName | snapshot) | last | .tagName // empty")"
-[ -n "$TAG" ] || { log "no $FORK_REPO snapshot yet"; exit 0; }
+# --restore either ends on the newest snapshot or exits 1, so a tester never takes a kept test build for main.
+restore_failed() { [ "$RESTORE" = 0 ] || { log "--restore failed: ${INSTALLED:-nothing} is still installed"; exit 1; }; }
+[ -n "$TAG" ] || { log "no $FORK_REPO snapshot yet"; restore_failed; exit 0; }
 WANT="${TAG#v}"
 CMP="$(jq -nr --arg want "$WANT" --arg have "$INSTALLED" "$SNAPSHOT"' if ($want|snapshot) > ($have|snapshot) then "newer" elif ($want|snapshot) == ($have|snapshot) then "same" else "older" end')"
 if [ "$CMP" = older ] || { [ "$CMP" = same ] && [ "$OURS" = 1 ]; }; then
@@ -150,7 +152,8 @@ fi
 # A release that failed its stay-alive check is not installed again until someone passes --retry.
 REFUSED="$HOME/Library/Application Support/notchcast/refused-release"
 if [ "$RETRY" = 0 ] && [ "$(cat "$REFUSED" 2>/dev/null)" = "$WANT" ]; then
-    log "$WANT did not stay alive at its last install; run update.sh --retry to try it again"
+    log "$WANT did not stay alive at its last install; run update.sh $([ "$RESTORE" = 1 ] && echo '--restore ')--retry to try it again"
+    restore_failed
     exit 0
 fi
 log "preparing $TAG over ${INSTALLED:-nothing} ($([ "$OURS" = 1 ] && echo ours || echo "not ours"))"
@@ -161,7 +164,7 @@ unpack "$WORK/$APP_NAME-${WANT}.zip" "$WANT"
 
 STATUS=0
 "$HERE/install-app.sh" "$NEW" || STATUS=$?
-if [ "$STATUS" = 75 ]; then log "another install is running; nothing changed"; exit 0; fi
+if [ "$STATUS" = 75 ]; then log "another install is running; nothing changed"; restore_failed; exit 0; fi
 if [ "$STATUS" != 0 ]; then
     mkdir -p "$(dirname "$REFUSED")"
     echo "$WANT" > "$REFUSED"
