@@ -181,7 +181,7 @@ class PlanReviewGateTests(unittest.TestCase):
         self.assertNotIn("secrets.", build)
         push = jobs.split("\n  push:\n", 1)[1].split("\n  failed:\n", 1)[0]
         self.assertLess(push.index('ci.py reviewed "$UP"'), push.index("actions/deploy-key"))
-        self.assertLess(push.index("actions/deploy-key"), push.index("push --atomic"))
+        self.assertLess(push.index("actions/deploy-key"), push.index('"$HEAD_SHA:refs/heads/main"'))
         self.assertIn("UP: ${{ needs.plan.outputs.upstream_main }}", push)
 
     def test_release_rereads_a_side_commit_review_before_tests_and_signing(self):

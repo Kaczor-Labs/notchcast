@@ -89,7 +89,8 @@ jobs:
         if: always()
         run: rm -f "$RUNNER_TEMP/deploy-key"
 
-  # Upstream moved and its review passed: replay our commits onto it, build and test. Nothing to replay but main not
+  # Upstream moved and its review passed: replay our commits onto it and commit that tree as a merge of main and
+  # upstream, so main only gains a commit; build and test. Nothing to replay but main not
   # tested yet (a push): build and test main as it is, once. The tree's code runs here, so no secret and no write token.
   # Issues: kind sync for a replay onto new upstream (cause stable across upstream commits), main for main as it is.
   main:
@@ -135,6 +136,7 @@ jobs:
           bash ../tools/notchcast/fetch-upstream.sh
           test "$(git rev-parse refs/remotes/upstream/main)" = "$UP" || git fetch -q "https://github.com/$UPSTREAM_REPO.git" "$UP"
           python3 ../tools/notchcast/ci.py replay . "$UP"
+          python3 ../tools/notchcast/ci.py merge . "${{ needs.plan.outputs.main }}" "$UP"
           mkdir -p "$RUNNER_TEMP/replayed"
           git bundle create "$RUNNER_TEMP/replayed/replayed.bundle" HEAD "^$UP"
           echo "head=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
@@ -216,18 +218,16 @@ jobs:
         if: needs.plan.outputs.rebase == 'true' && steps.review.outputs.lost != 'true'
         with:
           key: ${{ secrets.DEPLOY_KEY }}
-      # The only history rewrite in this repo besides stage's review branches: main moves onto reviewed upstream, guarded
-      # by a lease on what plan saw.
-      # The replaced tip is kept under refs/notchcast/synced/ (no branch, tag or workflow trigger), so land.sh can
-      # find the fork point of a PR cut before this rewrite.
-      # A landing that moved main since plan loses the lease: that is no failure; its push starts the next Sync.
+      # main moves onto reviewed upstream by a plain push of the sync merge: never a force-push (ci.py forward refuses
+      # one). A landing that moved main since plan makes the push non-fast-forward: no failure; its push starts the
+      # next Sync.
       - name: Update main
         id: update
         if: needs.plan.outputs.rebase == 'true' && steps.review.outputs.lost != 'true'
         working-directory: tools
         run: |
-          if ! git -c core.hooksPath=/dev/null push --atomic --force-with-lease="refs/heads/main:$OLD" "$FORK_SSH" \
-            "$HEAD_SHA:refs/heads/main" "$OLD:refs/notchcast/synced/$OLD"; then
+          python3 notchcast/ci.py forward "$OLD" "$HEAD_SHA"
+          if ! git -c core.hooksPath=/dev/null push "$FORK_SSH" "$HEAD_SHA:refs/heads/main"; then
             NOW="$(git ls-remote "https://github.com/${GITHUB_REPOSITORY}.git" refs/heads/main | cut -f1)"
             [ -n "$NOW" ] && [ "$NOW" != "$OLD" ] || exit 1
             if [ "$NOW" != "$HEAD_SHA" ]; then # else our push landed despite the error
