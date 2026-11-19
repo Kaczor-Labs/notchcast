@@ -33,6 +33,7 @@ struct IslandHoverTest {
         primaryClick()
         try clickHooks()
         try refreshHooks()
+        pinWhenUncovered()
         print("IslandHoverTest passed")
     }
 
@@ -192,6 +193,30 @@ struct IslandHoverTest {
     }
 
     /// Hover open, click to the menu, onto a row, Escape: closing the menu alone must start the close.
+    /// Open Agents from the launcher (#1128): the pin waits for the launcher to go, but only `pinWait`.
+    static func pinWhenUncovered() {
+        let world = FakeWorld()
+        let tracker = world.tracker()
+        world.input = Input(covered: true)
+        tracker.pinWhenUncovered()
+        precondition(!tracker.isOpen, "a covered island waits")
+        world.now = IslandHoverTracker.pinWait - 0.5
+        world.input = Input()
+        tracker.refresh()
+        precondition(tracker.isOpen && tracker.isPinned && world.opens == [true], "uncovered in time, it pins")
+        let late = FakeWorld()
+        let missed = late.tracker()
+        late.input = Input(covered: true)
+        missed.pinWhenUncovered()
+        late.now = IslandHoverTracker.pinWait + 0.5
+        late.input = Input()
+        missed.refresh()
+        precondition(!missed.isOpen && !missed.isPinned && late.opens.isEmpty, "uncovered too late, it never pins")
+        late.now += 60
+        missed.refresh()
+        precondition(!missed.isPinned, "and the spent wait pins nothing later")
+    }
+
     static func menuEscape() {
         let world = FakeWorld()
         let tracker = world.tracker()

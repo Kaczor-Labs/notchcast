@@ -13,6 +13,8 @@ struct IslandPageBody: View {
                 case .media(let media): IslandMediaView(media: media, act: act)
                 case .row(let row): IslandPageRowView(row: row, act: act)
                 case .meter(let meter): IslandPageMeterView(meter: meter)
+                case .columns(let groups): IslandCardColumnsView(groups: groups)
+                case .cards(let group): IslandCardRowView(group: group)
                 }
             }
         }
