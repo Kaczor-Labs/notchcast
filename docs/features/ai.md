@@ -5,6 +5,7 @@ model from Quick AI's header or the AI Chat composer, and `AIChatCoordinator.pro
 builds that chat's route through `AIProviderFactory` to stream an `AIRequest`.
 Chat is the first consumer and [Quick Actions](quick-actions.md) the second; the provider layer
 depends on neither, and Quick Actions carries its own route rather than borrowing this one.
+[Dictation](dictation.md#cleanup-and-history)'s cleanup is the third, through the same `selection` and `guardrails` overload with its own stored `AIModelSelection`; with none, it picks the installed Claude, else Codex, so it works on a subscription without an API key.
 
 Chat has two surfaces over one history, as Raycast's does. **Quick AI** is the palette screen: Tab
 from the launcher asks what you typed, and the answer appears in place. **AI Chat** is a window:

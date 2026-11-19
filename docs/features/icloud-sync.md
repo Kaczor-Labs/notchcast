@@ -51,7 +51,7 @@ What syncs, and how the pane presents it, follows Raycast's Cloud Sync. The feat
 | ------- | ---------------------------------------------------------------------------- | --------------------------------------------------------------------- |
 | Content | AI Commands & Presets                                                        | chat presets, custom quick actions, the system prompt                 |
 | Content | AI Chat History                                                              | chats without attachments, and the retention setting                  |
-| Content | Dictation                                                                    | `dictation.*` but the model and microphone                            |
+| Content | Dictation                                                                    | `dictation.*` but the model and microphone; cleanup and history stay local |
 | Content | MCP Servers                                                                  | the server list, without credentials or trust                         |
 | Content | Quicklinks · Notes · Snippets                                                | the items; notes and snippets by file name                            |
 | Content | Window Layouts                                                               | custom sizes, layouts and rooms                                       |

@@ -184,6 +184,8 @@ final class LauncherCoordinator {
             paletteCoordinator.togglePalette(mode: .calculatorHistory)
         case .clipboardHistory:
             paletteCoordinator.togglePalette(mode: .clipboard)
+        case .dictationHistory:
+            paletteCoordinator.togglePalette(mode: .dictationHistory)
         case .pasteSequentially:
             core.clipboardCoordinator.pasteNextInSequence()
         case .searchEmoji:
