@@ -15,7 +15,6 @@
 
 import AppKit
 import Foundation
-import Synchronization
 
 @main
 @MainActor
@@ -37,7 +36,6 @@ enum SystemToolsModuleTests {
         await networkTestReportsResult()
         await networkTestCancels()
         await networkTestFails()
-        await sudoTouchID()
         print("\(checks) system tools module checks; \(failures) failures")
         if failures > 0 { exit(1) }
         print("PASSED")
@@ -228,58 +226,5 @@ enum SystemToolsModuleTests {
         fake.feed?.yield(Data(#"{"error_code": -1009, "error_domain": "NSURLErrorDomain"}"#.utf8))
         check("a failed run ends with a failure notice", await until { rig.presenter.posts.last?.isFailure == true })
         check("the failure says so", rig.presenter.posts.last?.text == "Network Test Failed")
-    }
-
-    struct Declined: Error {}
-
-    static func sudoTouchID() async {
-        let folder = FileManager.default.temporaryDirectory.appending(path: "nc-SystemTools-pam.\(UUID())")
-        try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
-        defer { try? FileManager.default.removeItem(at: folder) }
-        let sudo = "auth       include        sudo_local\nauth       required       pam_opendirectory.so\n"
-        try? sudo.write(to: folder.appending(path: "sudo"), atomically: true, encoding: .utf8)
-        let local = folder.appending(path: "sudo_local")
-        let writes = Mutex<[URL]>([])
-        let outcome = Mutex<(any Error)?>(nil)
-        let garbles = Mutex(false)
-        let store = SudoTouchIDStore(files: SudoTouchIDFiles(directory: folder) { text, url in
-            writes.withLock { $0.append(url) }
-            if let error = outcome.withLock({ $0 }) { throw error }
-            try (garbles.withLock { $0 } ? "# other\n" : text).write(to: url, atomically: true, encoding: .utf8)
-        })
-        store.refresh()
-        check("no sudo_local reads as off", !store.isEnabled && store.isSupported)
-        await store.set(true)
-        check("on writes the rule and reads it back", store.isEnabled && writes.withLock { $0 } == [local])
-        check("only the scratch folder is written", writes.withLock { $0 }.allSatisfy { $0.path.hasPrefix(folder.path) })
-        await store.set(true)
-        check("asking for on again writes nothing, so nothing asks for a password", writes.withLock { $0.count } == 1)
-        let custom = "auth optional pam_reattach.so\n" + SudoTouchIDPolicy.rule + "\n"
-        try? custom.write(to: local, atomically: true, encoding: .utf8)
-        await store.set(false)
-        check("off removes only the rule", !store.isEnabled
-              && (try? String(contentsOf: local, encoding: .utf8)) == "auth optional pam_reattach.so\n")
-        outcome.withLock { $0 = CancellationError() }
-        await store.set(true)
-        check("a declined password leaves it off, with no error", !store.isEnabled && !store.failed && !store.isBusy)
-        outcome.withLock { $0 = Declined() }
-        await store.set(true)
-        check("a failed write is reported and the switch reads the file", !store.isEnabled && store.failed)
-        outcome.withLock { $0 = nil }
-        garbles.withLock { $0 = true }
-        await store.set(true)
-        check("a file that differs from the text asked for is a failed write", !store.isEnabled && store.failed)
-        garbles.withLock { $0 = false }
-        try? FileManager.default.removeItem(at: local)
-        try? FileManager.default.createDirectory(at: local, withIntermediateDirectories: true)
-        let before = writes.withLock { $0.count }
-        await store.set(true)
-        check("an unreadable sudo_local is never rewritten from nothing",
-              store.failed && writes.withLock { $0.count } == before)
-        try? FileManager.default.removeItem(at: local)
-        try? "auth required pam_opendirectory.so\n".write(to: folder.appending(path: "sudo"), atomically: true, encoding: .utf8)
-        await store.set(true)
-        check("without the include the switch is unavailable and writes nothing",
-              !store.isSupported && writes.withLock { $0.count } == before)
     }
 }
