@@ -20,6 +20,19 @@ extension ScreenshotSystem {
             NSPasteboard.general.clearContents()
             return NSPasteboard.general.writeObjects([item])
         },
+        writeText: { text in
+            NSPasteboard.general.clearContents()
+            return NSPasteboard.general.setString(text, forType: .string)
+        },
+        recognizeText: { image in
+            try await ScreenTextRecognizer.lines(in: image, preferredLanguages: Locale.preferredLanguages)
+        },
+        openScreenRecordingSettings: {
+            guard let url = URL(
+                string: "x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture")
+            else { return }
+            NSWorkspace.shared.open(url)
+        },
         desktop: {
             try FileManager.default.url(for: .desktopDirectory, in: .userDomainMask, appropriateFor: nil, create: false)
         },

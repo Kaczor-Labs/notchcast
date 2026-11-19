@@ -5,9 +5,10 @@ import UniformTypeIdentifiers
 /// Runs one capture session at a time; a trigger while one is active is ignored.
 @MainActor
 final class ScreenshotsModule: NotchcastModule {
-    enum Scope { case area, display }
+    enum Scope { case area, display, text }
 
     static let switchID = ScreenshotsAddon.switches[0].id
+    static let textSymbol = "text.viewfinder"
     private let context: NotchcastContext
     private let system: ScreenshotSystem
     private let exclusion: ScreenshotExclusion
@@ -38,15 +39,24 @@ final class ScreenshotsModule: NotchcastModule {
 
     func captureDisplay() { begin(.display) }
 
+    func captureText() { begin(.text) }
+
     private func begin(_ scope: Scope) {
         guard running, session == nil else { return }
-        guard system.grantAccess() else { return report(ScreenshotRequest.Failure.permissionDenied) }
+        guard system.grantAccess() else {
+            if scope == .text { system.openScreenRecordingSettings() }
+            return report(ScreenshotRequest.Failure.permissionDenied)
+        }
         let id = UUID()
         operation = id
         session = Task {
             do {
                 if let image = try await image(for: scope) {
-                    try await output(Self.png(image))
+                    if scope == .text {
+                        try await copyText(in: image)
+                    } else {
+                        try await output(Self.png(image))
+                    }
                 }
             } catch {
                 if operation == id, !(error is CancellationError) { report(error) }
@@ -64,7 +74,7 @@ final class ScreenshotsModule: NotchcastModule {
                 throw ScreenshotRequest.Failure.targetUnavailable
             }
             return display.image
-        case .area:
+        case .area, .text:
             let frozen = try await system.freeze(nil, exclusion)
             try Task.checkCancellation()
             let pickable = exclusion.pickable(system.windows())
@@ -121,6 +131,16 @@ final class ScreenshotsModule: NotchcastModule {
         if destination != .file, !system.writeClipboard(data), saved == nil {
             throw ScreenshotRequest.Failure.clipboardFailed
         }
+    }
+
+    /// Only the text leaves: the image stays in memory and is never written to disk.
+    private func copyText(in image: CGImage) async throws {
+        let lines = try await system.recognizeText(image)
+        try Task.checkCancellation()
+        guard let text = ScreenText.join(lines) else { throw ScreenshotRequest.Failure.noText }
+        guard system.writeText(text) else { throw ScreenshotRequest.Failure.clipboardFailed }
+        context.presenter.post(IslandNotice(
+            id: "screenshot.text", symbol: Self.textSymbol, text: ScreenText.firstLine(of: text)), onTap: nil)
     }
 
     private func report(_ error: any Error) {
