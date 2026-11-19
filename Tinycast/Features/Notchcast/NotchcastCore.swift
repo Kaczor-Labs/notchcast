@@ -27,6 +27,12 @@ final class NotchcastCore {
             defaults: defaults, settings: core.settings, coordinator: core.dictationCoordinator,
             runner: controller.transcription)
         NotchcastPane.install(Set(controller.switches.map(\.category)))
+        for context in controller.slots.flatMap({ [$0.context, $0.recovery] }) {
+            context.confirm = { [weak core] title, message, confirmTitle in
+                await core?.confirm(title: title, message: message, symbol: nil, confirmTitle: confirmTitle,
+                                    tone: .neutral, confirmRole: .standard) ?? false
+            }
+        }
         let commands = addons.flatMap { $0.commands }
         NotchcastSettingsSearch.install(
             controller.switches,
