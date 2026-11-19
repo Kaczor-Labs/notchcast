@@ -20,5 +20,10 @@ enum NotchcastRegistry {
         ColorPickerAddon.self,
         CopyPathAddon.self,
         FinderToolsAddon.self,
+        PasteImageAddon.self,
+        ArchivesAddon.self,
+        LowDiskAddon.self,
+        ScriptCommandsAddon.self,
+        TimersAddon.self,
     ]
 }
