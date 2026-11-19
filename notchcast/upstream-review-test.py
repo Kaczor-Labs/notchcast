@@ -175,21 +175,29 @@ class PlanReviewGateTests(unittest.TestCase):
                 self.statuses = {} if statuses is None else {self.u1: statuses}
                 self.assertEqual(self.exit_code(CI.reviewed, self.u1), code)
         workflow = (Path(__file__).parent.parent / ".github/workflows/sync.yml").read_text()
-        update = workflow.split("- name: Update main", 1)[1].split("- name:", 1)[0]
-        self.assertLess(update.index('ci.py reviewed "$UP"'), update.index("push --atomic"))
-        self.assertIn("UP: ${{ needs.plan.outputs.upstream_main }}", update)
+        jobs = workflow.split("\njobs:\n", 1)[1]
+        build = jobs.split("\n  main:\n", 1)[1].split("\n  push:\n", 1)[0]
+        self.assertLess(build.index("ci.py reviewed"), build.index("ci.py replay"))
+        self.assertNotIn("secrets.", build)
+        push = jobs.split("\n  push:\n", 1)[1].split("\n  failed:\n", 1)[0]
+        self.assertLess(push.index('ci.py reviewed "$UP"'), push.index("actions/deploy-key"))
+        self.assertLess(push.index("actions/deploy-key"), push.index('"$HEAD_SHA:refs/heads/main"'))
+        self.assertIn("UP: ${{ needs.plan.outputs.upstream_main }}", push)
 
     def test_release_rereads_a_side_commit_review_before_tests_and_signing(self):
         self.statuses = {self.u1: [status("success")]}
         result = self.plan()
         self.assertEqual((result["base"], result["commits"]), (self.u0, {"v0.0.1": self.u0, "v0.0.2": self.u1}))
-        job = (ROOT / ".github/workflows/sync.yml").read_text().split("\n  release:\n", 1)[1]
+        workflow = (ROOT / ".github/workflows/sync-release.yml").read_text()
+        self.assertIn("\n  COMMIT: ${{ inputs.commit }}\n", workflow.split("\njobs:\n", 1)[0])
+        job = workflow.split("\n  build:\n", 1)[1].split("\n  sign:\n", 1)[0]
         self.assertIn("statuses: read", job.split("steps:", 1)[0])
         step = job.split("- name: Re-read the tag commit's review", 1)[1].split("\n      - ", 1)[0]
-        self.assertLess(job.index("ci.py pin-tag"), job.index("Re-read the tag commit's review"))
+        self.assertLess(job.index("Re-read the tag commit's review"), job.index("ci.py pin-tag"))
         self.assertLess(job.index("Re-read the tag commit's review"), job.index("actions/tests"))
-        self.assertIn("COMMIT: ${{ matrix.release.commit }}", step)
-        self.assertIn("BASE: ${{ needs.plan.outputs.base }}", step)
+        self.assertIn("BASE: ${{ inputs.base }}", step)
+        publish = workflow.split("\n  publish:\n", 1)[1]
+        self.assertLess(publish.index("Re-read the tag commit's review"), publish.index("actions/deploy-key"))
         script = textwrap.dedent(step.split("run: |\n", 1)[1])
         cfg, root = CI.config(), Path(self.scratch.name)
         owner = cfg["FORK_REPO"].split("/")[0]

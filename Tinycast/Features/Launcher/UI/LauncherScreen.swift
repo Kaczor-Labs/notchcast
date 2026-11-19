@@ -3,6 +3,8 @@ import SwiftUI
 /// The root search: favorites, meetings, suggestions, then one section per kind, led by any card.
 struct LauncherScreen: PaletteScreen {
     @MainActor static var digitRow: ((Int, String, [Int]) -> Int?)?
+    @MainActor static var extraAccessory:
+        ((AppEntry, FocusState<String?>.Binding, @escaping () -> Void) -> PaletteHeaderAccessory?)?
     let appIndex: AppIndex
     let favorites: FavoritesStore
     let visibility: VisibilityStore
@@ -193,6 +195,7 @@ struct LauncherScreen: PaletteScreen {
                 metrics: core.settings.interfaceSize.metrics, focus: focus,
                 onSubmit: { activate(at: selection) })
         }
+        if let accessory = Self.extraAccessory?(entry, focus, { activate(at: selection) }) { return accessory }
         return ExtensionArgumentsAccessory.make(
             entry: entry, coordinator: core.extensionCoordinator,
             values: { name in headerFieldBinding(entry: entry, name: name) },

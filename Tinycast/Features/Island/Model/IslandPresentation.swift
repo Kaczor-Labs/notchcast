@@ -48,3 +48,132 @@ struct IslandMenuRow: Equatable, Sendable {
     var title: String
     var isChecked = false
 }
+
+/// One topic in the open island, described as data; the island draws it from design-system tokens (#975).
+struct IslandPage: Equatable, Sendable {
+    /// The owner's id, one page per owner; also the tab's identity.
+    var id: String
+    var title: String
+    var symbol: String
+    /// Tabs run in this order; Home lists badged pages first, then this order.
+    var order: Int
+    /// Something waits for the user: a count on the tab, and the Home line moves to the top.
+    var badge = 0
+    /// The page summed up in one Home line.
+    var line: IslandPageLine
+    var blocks: [IslandPageBlock]
+
+    /// What Command-R sends to `onAction`; every page refreshes its data on it.
+    static let refreshAction = "refresh"
+}
+
+/// A Home line: a glyph or artwork, one text with an optional detail, and inline buttons.
+struct IslandPageLine: Equatable, Sendable {
+    var symbol: String?
+    /// Encoded image bytes; drawn instead of the glyph when they decode.
+    var artwork: Data?
+    var text: String
+    var detail: String?
+    var buttons: [IslandPageButton] = []
+}
+
+/// An icon button; `label` is its VoiceOver name and tooltip, `id` what `onAction` receives.
+struct IslandPageButton: Equatable, Sendable {
+    var id: String
+    var symbol: String
+    var label: String
+}
+
+/// The vocabulary a page body is written in; a new kind is drawn once in `IslandPageBlocks`.
+enum IslandPageBlock: Equatable, Sendable {
+    case media(IslandMedia)
+    case row(IslandPageRow)
+    case meter(IslandPageMeter)
+    /// Titled columns of cards in fixed slots: a full card one slot, a hollow one half (#1128).
+    case columns([IslandCardGroup])
+    /// A titled row of cards, four across, each as tall as the tallest.
+    case cards(IslandCardGroup)
+}
+
+/// A playing item: artwork, title, subtitle, a running time and transport buttons.
+struct IslandMedia: Equatable, Sendable {
+    var artwork: Data?
+    var title: String
+    var subtitle: String?
+    var time: IslandMediaTime?
+    var buttons: [IslandPageButton]
+}
+
+/// "At `sampledAt` it was `elapsed` seconds in, moving at `rate`", so the bar runs without updates.
+struct IslandMediaTime: Equatable, Sendable {
+    var elapsed: TimeInterval
+    var duration: TimeInterval
+    var rate: Double
+    var sampledAt: Date
+
+    func elapsed(at now: Date) -> TimeInterval {
+        min(max(elapsed + now.timeIntervalSince(sampledAt) * rate, 0), max(duration, 0))
+    }
+
+    func fraction(at now: Date) -> Double { duration > 0 ? elapsed(at: now) / duration : 0 }
+}
+
+/// A list row; a row with an `id` is a button that sends it to `onAction`.
+struct IslandPageRow: Equatable, Sendable {
+    var id: String?
+    var symbol: String?
+    var title: String
+    var detail: String?
+    var trailing: String?
+}
+
+/// A labelled bar, 0...1, with its value as text.
+struct IslandPageMeter: Equatable, Sendable {
+    var label: String
+    var fraction: Double
+    var value: String
+}
+
+/// A titled set of cards: one column of a `columns` block, or the row of a `cards` block.
+struct IslandCardGroup: Equatable, Sendable {
+    var title: String
+    var cards: [IslandCard]
+}
+
+/// A card: a title and an optional chip over meters or one notice; a hollow card is an outline.
+struct IslandCard: Equatable, Sendable {
+    enum Body: Equatable, Sendable {
+        case meters([IslandCardMeter])
+        case notice(symbol: String?, headline: String, detail: String?)
+    }
+
+    var title: String
+    var tag: IslandCardTag?
+    var hollow = false
+    var body: Body
+    /// Out of date: the whole card at the disabled opacity.
+    var dimmed = false
+    /// A secondary line under the body, such as how old its numbers are.
+    var caption: String?
+    /// VoiceOver reads the card as one element; nil reads its texts in order.
+    var spoken: String?
+}
+
+struct IslandCardTag: Equatable, Sendable {
+    var symbol: String?
+    var text: String
+}
+
+/// A limit's bar: label, value and trailing text over it, a tick on it, a note under it.
+struct IslandCardMeter: Equatable, Sendable {
+    var label: String
+    var value: String
+    var trailing: String?
+    var fraction: Double
+    /// Where an even pace puts the fill now, 0...1.
+    var tick: Double?
+    var thick = false
+    /// The value, the fill and the note take the warning ink.
+    var warning = false
+    var note: String?
+}
