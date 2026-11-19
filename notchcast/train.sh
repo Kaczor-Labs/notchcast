@@ -149,8 +149,10 @@ preflight() {
     fi
     runner=$mac
     [ "$mac" = isolated ] || { cd "$top"; return 0; }
-    hosted_only=$(while read -r pr commit; do bash notchcast/changed-harnesses.sh "$commit^1" "$commit"; done < "$scratch/merges" \
-        | grep -xF -f <(tr ' ' '\n' <<< "$HOSTED_ONLY_TESTS") | sort -u | paste -sd' ' - || true)
+    hosted_only='(no selection: changed-harnesses.sh failed)'
+    if (while read -r pr commit; do bash notchcast/changed-harnesses.sh "$commit^1" "$commit" || exit 1; done) < "$scratch/merges" > "$scratch/selected"; then
+        hosted_only=$(grep -xF -f <(tr ' ' '\n' <<< "$HOSTED_ONLY_TESTS") "$scratch/selected" | sort -u | paste -sd' ' - || true)
+    fi
     cd "$top"
     [ -n "$hosted_only" ] || return 0
     runner=hosted
