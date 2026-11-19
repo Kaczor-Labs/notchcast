@@ -9,7 +9,7 @@ enum AgentsAddon: NotchcastAddon { // drift: keep the generated NotchcastRegistr
             id: "agentsUsage",
             title: String(localized: "Agents page", table: "NotchcastAgents"),
             subtitle: String(
-                localized: "Shows how much of each Claude and Codex plan is used, on a page in the island.",
+                localized: "Shows how much of each Claude and Codex plan is left, on a page in the island.",
                 table: "NotchcastAgents"),
             category: .agents),
     ]

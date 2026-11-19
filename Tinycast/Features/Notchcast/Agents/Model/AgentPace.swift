@@ -18,8 +18,8 @@ struct AgentPace: Equatable, Sendable {
         usedPercent = window.usedPercent
     }
 
-    /// Too early a share says nothing; too late a tick sits on the bar's end.
-    var tick: Double? { elapsed >= 0.1 && elapsed < 0.98 ? elapsed : nil }
+    /// What an even pace leaves now, as the bar fills with what is left; too early or late, none.
+    var tick: Double? { elapsed >= 0.1 && elapsed < 0.98 ? 1 - elapsed : nil }
 
     var warns: Bool { elapsed >= 0.1 && usedPercent < 100 && usedPercent / (elapsed * 100) > 1 }
 

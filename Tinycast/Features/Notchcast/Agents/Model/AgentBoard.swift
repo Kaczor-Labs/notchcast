@@ -56,7 +56,7 @@ struct AgentBoard: Equatable, Sendable {
 
     var columns: [AgentColumn]
     var other: [AgentCard]
-    /// The warned limit soonest to run out, else the fullest weekly.
+    /// The warned limit soonest to run out, else the weekly with least left.
     var homeLine: String?
     /// Why the other Macs are absent.
     var footnote: String?
@@ -194,17 +194,17 @@ struct AgentBoard: Equatable, Sendable {
         }
     }
 
-    /// Extra usage only with a limit to measure it against: "$34 of $200".
+    /// Extra usage only with a budget to measure it against: "$166 of $200" left.
     private static func extraMeter(_ extra: AgentExtraUsage) -> AgentMeter? {
         guard let limit = extra.limit, limit > 0, limit.isFinite, extra.used.isFinite else { return nil }
         let share = min(max(extra.used / limit, 0), 1)
         let money = Decimal.FormatStyle.Currency(code: extra.currency, locale: Locale(identifier: "en_US"))
             .precision(.fractionLength(0))
-        let used = Decimal(share * limit).formatted(money)
+        let remaining = Decimal((1 - share) * limit).formatted(money)
         let of = Decimal(limit).formatted(money)
         return AgentMeter(
-            label: String(localized: "Extra usage", table: "NotchcastAgents"), value: percent(share * 100),
-            trailing: String(localized: "\(used) of \(of)", table: "NotchcastAgents"), fraction: share,
+            label: String(localized: "Extra usage", table: "NotchcastAgents"), value: percentLeft(share * 100),
+            trailing: String(localized: "\(remaining) of \(of)", table: "NotchcastAgents"), fraction: 1 - share,
             tick: nil, thick: false, warning: false, note: nil)
     }
 
@@ -219,10 +219,10 @@ struct AgentBoard: Equatable, Sendable {
         }
     }
 
-    /// "Weekly, 45 percent used, resets in 5 days 14 hours, runs out in 1 day 17 hours".
+    /// "Weekly, 55 percent left, resets in 5 days 14 hours, runs out in 1 day 17 hours".
     private static func spoken(_ window: AgentWindow, now: Date) -> String {
-        let percent = whole(window.usedPercent)
-        var parts = [label(window), String(localized: "\(percent) percent used", table: "NotchcastAgents")]
+        let percent = left(window.usedPercent)
+        var parts = [label(window), String(localized: "\(percent) percent left", table: "NotchcastAgents")]
         if let resets = window.resetsAt {
             let left = AgentDuration.spoken(resets.timeIntervalSince(now))
             parts.append(String(localized: "resets in \(left)", table: "NotchcastAgents"))
@@ -251,7 +251,12 @@ struct AgentBoard: Equatable, Sendable {
         }
     }
 
-    static func percent(_ used: Double) -> String { "\(whole(used))%" }
+    /// "55% left"; used is floored, so only a spent limit reads 0% left.
+    static func percentLeft(_ used: Double) -> String {
+        String(localized: "\(left(used))% left", table: "NotchcastAgents")
+    }
+
+    static func left(_ used: Double) -> Int { 100 - min(whole(used), 100) }
 
     /// Feed numbers are outside input: a broken or huge one reads 0 or caps rather than trapping `Int`.
     static func whole(_ value: Double) -> Int { value.isFinite ? Int(min(max(value, 0), 1e6).rounded(.down)) : 0 }
@@ -259,9 +264,9 @@ struct AgentBoard: Equatable, Sendable {
     private static func meter(_ window: AgentWindow, now: Date) -> AgentMeter {
         let pace = AgentPace(window, now: now)
         return AgentMeter(
-            label: label(window), value: percent(window.usedPercent),
+            label: label(window), value: percentLeft(window.usedPercent),
             trailing: window.resetsAt.map { AgentDuration.until($0, now: now) },
-            fraction: window.usedPercent / 100, tick: pace?.tick, thick: window.kind == .weekly && window.scope == nil,
+            fraction: 1 - window.usedPercent / 100, tick: pace?.tick, thick: window.kind == .weekly && window.scope == nil,
             warning: pace?.warns ?? false,
             note: pace?.runsOutIn.map {
                 String(localized: "Runs out in \(AgentDuration.text($0))", table: "NotchcastAgents")
@@ -280,7 +285,7 @@ struct AgentBoard: Equatable, Sendable {
         }
         guard let (name, window) = windows.filter({ $0.1.kind == .weekly }).max(by: { $0.1.usedPercent < $1.1.usedPercent })
         else { return nil }
-        return "\(name) · \(label(window)) \(percent(window.usedPercent))"
+        return "\(name) · \(label(window)) \(percentLeft(window.usedPercent))"
     }
 
     private static func footnote(_ feed: AgentFeedRead) -> String? {

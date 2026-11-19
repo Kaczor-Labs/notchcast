@@ -197,7 +197,8 @@ func feed() throws {
 func pace() {
     let half = weekly(60, resetsIn: 3.5 * day)
     let warned = AgentPace(half, now: now)!
-    check(abs(warned.elapsed - 0.5) < 1e-9 && warned.tick == warned.elapsed && warned.warns, "60% at half time warns")
+    check(abs(warned.elapsed - 0.5) < 1e-9 && abs(warned.tick! - 0.5) < 1e-9 && warned.warns,
+          "60% at half time warns, its tick at what an even pace leaves")
     check(abs(warned.runsOutIn! - 40 * 3.5 * day / 60) < 1, "runs out at the pace so far: \(warned.runsOutIn!)")
     check(warned.runsOutIn! < 3.5 * day, "a warned window runs out before it resets")
     let calm = AgentPace(weekly(40, resetsIn: 3.5 * day), now: now)!
@@ -210,7 +211,7 @@ func pace() {
     check(AgentPace(AgentWindow(kind: .other, usedPercent: 50), now: now) == nil, "no length, no pace")
     check(AgentPace(weekly(50, resetsIn: -minute), now: now) == nil, "a renewed window has no pace")
     let tenth = AgentPace(weekly(20, resetsIn: 0.9 * 7 * day), now: now)!
-    check(tenth.elapsed == 0.1 && tenth.tick == 0.1 && tenth.warns, "a tenth gone ticks and judges")
+    check(tenth.elapsed == 0.1 && abs(tenth.tick! - 0.9) < 1e-9 && tenth.warns, "a tenth gone ticks at 90% and judges")
     check(!AgentPace(weekly(50, resetsIn: 3.5 * day), now: now)!.warns, "exactly on pace does not warn")
     let end = AgentPace(weekly(50, resetsIn: 0.02 * 7 * day), now: now)!
     check(end.elapsed == 0.98 && end.tick == nil, "no tick from 98% on")
@@ -291,14 +292,16 @@ func boardThisMacOnly() {
     check(board.columns[0].cards.map(\.title) == ["Codex", "C1", "C2"], "one Mac keeps Settings order, spent or not")
     let card = board.columns[0].cards[1]
     check(!card.hollow && !card.dimmed && card.caption == nil, "a fresh full card")
-    check(card.spoken?.contains("Weekly · Fable, 78 percent used, resets in 3 days, runs out in 1 day 3 hours") == true,
+    check(card.spoken?.contains("Weekly · Fable, 22 percent left, resets in 3 days, runs out in 1 day 3 hours") == true,
           "VoiceOver hears the pace warning: \(String(describing: card.spoken))")
     let rows = meters(card)
     check(rows.map(\.label) == ["Session", "Weekly", "Weekly · Fable"], "session, main weekly, then scoped: \(rows.map(\.label))")
     check(rows[1].thick && !rows[0].thick && !rows[2].thick, "only the main weekly is thick")
-    check(rows[2].value == "78%" && rows[2].fraction == 0.78 && rows[2].trailing == "in 3 d", "Fable reads 78%: \(rows[2])")
-    check(rows[2].warning && rows[2].note == "Runs out in 1 d 3 h", "78% of a week in 4 days warns: \(rows[2])")
-    check(!rows[1].warning && rows[1].note == nil && rows[1].tick != nil, "30% is on pace, with a tick")
+    check(rows[2].value == "22% left" && abs(rows[2].fraction - 0.22) < 1e-9 && rows[2].trailing == "in 3 d",
+          "Fable fills with the 22% left: \(rows[2])")
+    check(rows[2].warning && rows[2].note == "Runs out in 1 d 3 h" && rows[2].fraction < rows[2].tick!,
+          "78% of a week in 4 days warns, its fill short of its tick: \(rows[2])")
+    check(!rows[1].warning && rows[1].note == nil && rows[1].fraction >= rows[1].tick!, "30% is on pace, past its tick")
     check(notice(board.columns[0].cards[2]).headline == "Reading…", "an account not read yet")
     let spentCard = board.columns[0].cards[0]
     check(spentCard.hollow && notice(spentCard) == ("hourglass", "Back in 1 d 2 h"), "a spent card: \(spentCard)")
@@ -326,14 +329,15 @@ func boardWithFeed() {
         feed: .loaded(feed), now: now)
     check(board.columns.map(\.title) == ["MBP", "MBA", "VPS"] && board.footnote == nil, "machines in feed order")
     check(board.columns[1].cards.map(\.title) == ["C1", "Codex", "C3"], "this Mac's accounts, then the feed's own")
-    check(meters(board.columns[1].cards[0])[0].value == "25%", "the feed's fresher copy wins")
+    check(meters(board.columns[1].cards[0])[0].value == "75% left", "the feed's fresher copy wins")
     let missing = board.columns[1].cards[1]
     check(missing.hollow && notice(missing) == ("questionmark.app.dashed", "Codex not found"), "a missing CLI")
     let stale = board.columns[1].cards[2]
     check(stale.dimmed && stale.caption == "Updated 25 min ago", "stale after 10 min: \(stale)")
     check(board.other.map(\.title) == ["Grok"] && board.other[0].title == "Grok", "shared accounts form the Other row")
     check(meters(board.other[0])[0].label == "Monthly", "an undated monthly")
-    check(board.homeLine == "C1 · Weekly 25%", "no warning: the fullest weekly: \(String(describing: board.homeLine))")
+    check(board.homeLine == "C1 · Weekly 75% left",
+          "no warning: the weekly with least left: \(String(describing: board.homeLine))")
 
     let absent = AgentBoard(
         machineName: "Studio", local: [AgentLocalAccount(name: "C9", provider: "claude", reading: nil)],
@@ -349,7 +353,7 @@ func boardStates() {
         account("C1", "claude", [weekly(40, resetsIn: 5 * day)], age: 25 * minute, state: .unavailable), now: now)
     check(failed.dimmed && !failed.hollow && failed.caption == "Couldn’t refresh · updated 25 min ago",
           "a failed refresh keeps its numbers: \(failed)")
-    check(meters(failed)[0].value == "40%", "the last numbers")
+    check(meters(failed)[0].value == "60% left", "the last numbers")
     let recent = AgentBoard.card(
         account("C1", "claude", [weekly(40, resetsIn: 5 * day)], age: 2 * minute, state: .unavailable), now: now)
     check(recent.dimmed && recent.caption == "Couldn’t refresh · updated 2 min ago", "even when recent")
@@ -386,18 +390,20 @@ func cardsAndPage() {
     c1.resetCredits = AgentResetCredits(count: 1, scope: nil, expiresAt: now.addingTimeInterval(day))
     let full = AgentBoard.card(c1, now: now)
     let extra = meters(full).last!
-    check(extra.label == "Extra usage" && extra.value == "17%" && extra.trailing == "$34 of $200" && extra.tick == nil,
-          "extra usage against its limit: \(extra)")
+    check(extra.label == "Extra usage" && extra.value == "83% left" && extra.trailing == "$166 of $200" && extra.tick == nil,
+          "what is left of the extra-usage budget: \(extra)")
     check(full.credit == "1 reset credit", "a credit in hand")
-    check(full.spoken == "C1. 1 reset credit. Weekly, 20 percent used, resets in 5 days. Extra usage, 17%, $34 of $200",
+    check(full.spoken == "C1. 1 reset credit. Weekly, 80 percent left, resets in 5 days. Extra usage, 83% left, $166 of $200",
           "one sentence per card: \(String(describing: full.spoken))")
     c1.extraUsage = AgentExtraUsage(used: 1e30, limit: 1, currency: "USD")
     let huge = meters(AgentBoard.card(c1, now: now)).last!
-    check(huge.value == "100%" && huge.fraction == 1 && huge.trailing == "$1 of $1", "a huge feed number caps: \(huge)")
+    check(huge.value == "0% left" && huge.fraction == 0 && huge.trailing == "$0 of $1", "a huge feed number caps: \(huge)")
     c1.extraUsage = AgentExtraUsage(used: -5, limit: 1e300, currency: "USD")
-    check(meters(AgentBoard.card(c1, now: now)).last!.value == "0%", "a negative one floors")
+    check(meters(AgentBoard.card(c1, now: now)).last!.value == "100% left", "a negative one floors")
     c1.extraUsage = AgentExtraUsage(used: 5, limit: nil, currency: "USD")
     check(meters(AgentBoard.card(c1, now: now)).count == 1, "no limit, no extra-usage bar")
+    check(AgentBoard.percentLeft(100) == "0% left" && AgentBoard.percentLeft(99.5) == "1% left"
+              && AgentBoard.percentLeft(0.2) == "100% left", "only a spent limit reads 0% left")
     check(AgentBoard.whole(1e30) == 1_000_000 && AgentBoard.whole(.nan) == 0 && AgentBoard.whole(-.infinity) == 0,
           "no number traps Int")
     check(AgentBoard.credits(AgentResetCredits(count: 2, scope: "Fable", expiresAt: nil), now: now)

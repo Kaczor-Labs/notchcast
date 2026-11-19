@@ -108,7 +108,7 @@ enum AgentsPageTest {
         await module.cycle()
         precondition(readers.take() == ["Claude", "Codex"], "the first cycle reads each account, one after another")
         precondition(cards().map(\.title) == ["Claude"], "Codex that is not installed is no card")
-        precondition(presenter.page?.line.text == "Claude · Weekly 30%", "the Home line: \(presenter.page!.line.text)")
+        precondition(presenter.page?.line.text == "Claude · Weekly 70% left", "the Home line: \(presenter.page!.line.text)")
         let local = readers.written.withLock { $0.last }
         precondition(local?.machines.map(\.name) == ["Studio"] && local?.machines.first?.accounts.count == 1,
                      "this Mac's readings go to local.json under its name: \(String(describing: local))")
