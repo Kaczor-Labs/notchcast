@@ -1,20 +1,12 @@
 {
   "sourceLanguage" : "en",
   "strings" : {
-    "Add" : {},
-    "Add App…" : {},
     "Confirm by" : {},
-    "Exceptions" : {},
     "Holding ⌘Q" : {},
-    "How you confirm a quit or a close." : {},
-    "Nothing here yet." : {},
+    "How you confirm a quit." : {},
     "Pressing ⌘Q twice" : {},
-    "Protect ⌘W" : {},
     "Quit Protection" : {},
-    "Remove %@" : {},
-    "Same confirmation before closing a window." : {},
-    "Stops an app from quitting on a single slip." : {},
-    "These apps quit and close without asking." : {}
+    "Stops an app from quitting on a single slip." : {}
   },
   "version" : "1.0"
 }
