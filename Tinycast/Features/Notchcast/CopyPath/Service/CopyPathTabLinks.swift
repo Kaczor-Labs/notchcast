@@ -53,13 +53,15 @@ nonisolated enum CopyPathTabLinks {
             AXUIElementPerformAction(press, kAXPressAction as CFString) == .success else { return nil }
         let clock = ContinuousClock()
         let deadline = clock.now + copyWait
-        while NSPasteboard.general.changeCount == before {
-            guard clock.now < deadline else { return nil }
+        while clock.now < deadline {
+            let changeCount = NSPasteboard.general.changeCount
+            // The count moves on the browser's clear, a moment before its text is there.
+            if changeCount != before, let text = NSPasteboard.general.string(forType: .string) {
+                return CopyPathBrowserCopy(text: text, changeCount: changeCount)
+            }
             try await Task.sleep(for: copyPoll)
         }
-        let changeCount = NSPasteboard.general.changeCount
-        guard let text = NSPasteboard.general.string(forType: .string) else { return nil }
-        return CopyPathBrowserCopy(text: text, changeCount: changeCount)
+        return nil
     }
 
     /// The Share item, read fresh from the menu bar: by its ⌘S neighbour in any menu, else by title.
