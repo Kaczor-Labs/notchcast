@@ -13,7 +13,6 @@ concurrency:
   group: test-build-${{ inputs.pr }}
   cancel-in-progress: true
 jobs:
-  # Environment sync admits more than main, so the tooling and this file must be main's.
   plan:
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
