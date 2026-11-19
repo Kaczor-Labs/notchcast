@@ -12,7 +12,8 @@ cd "$scratch/work"
 git config user.name Fixture
 git config user.email fixture@example.invalid
 mkdir notchcast
-echo 'notchcast/config.env merge=notchcast-words' > .gitattributes
+printf '%s\n' 'notchcast/config.env merge=notchcast-words' 'registry.txt merge=union' > .gitattributes
+printf '%s\n' keep old > registry.txt
 echo 'LIST="one two"' > notchcast/config.env
 echo base > shared.txt
 echo readme > README.md
@@ -49,7 +50,7 @@ main_moves other.txt other
 git switch --quiet clean
 git merge --quiet --no-edit origin/main
 verdict clean
-[ "$status" -eq 1 ] && grep -q "^REFUSED: this push merges main into clean ($(git rev-parse --short=8 HEAD)), and clean at .* merges onto main without a conflict; .* Drop the merge: git rebase --onto $(git rev-parse --short=8 HEAD)^1 $(git rev-parse --short=8 HEAD), then push again\." "$scratch/output" \
+[ "$status" -eq 1 ] && grep -q "^REFUSED: this push merges main into clean ($(git rev-parse --short=8 HEAD)), and clean at .* merges onto main without a conflict; .* Drop the merge: git rebase --onto $(git rev-parse --short=8 HEAD)^1 $(git rev-parse --short=8 HEAD), then push again," "$scratch/output" \
     || fail 'a merge of main into a branch that merged cleanly was not refused'
 eval "$(sed -n 's/.*Drop the merge: \(git rebase --onto [^,]*\),.*/\1/p' "$scratch/output") --quiet"
 echo again >> clean.txt
@@ -84,6 +85,39 @@ git commit --quiet --no-edit -a
 verdict real
 [ "$status" -eq 0 ] || fail 'a merge of main that resolves a real conflict was refused'
 echo 'PASS: a merge of main that resolves a real conflict passes'
+
+branch revive registry.txt keep
+main_moves registry.txt "$(printf '%s\n' keep old appended)"
+git switch --quiet revive
+git merge --quiet --no-edit origin/main > /dev/null 2>&1
+printf '%s\n' keep appended > registry.txt
+git commit --quiet -am 'keep the deletion'
+verdict revive
+[ "$status" -eq 0 ] || fail 'a merge of main that fixes a line the union merge revives was refused, though the train refuses that union merge'
+echo 'PASS: a union merge that revives a deleted line counts as a real conflict, as the train judges it'
+
+# Sync rewrites main and keeps the old tip under refs/notchcast/synced/ on origin, which a plain fetch leaves out.
+git switch --quiet --detach origin/main
+rewrite_base=$(git rev-parse HEAD)
+echo old-main > sync.txt
+git add sync.txt
+git commit --quiet -m 'old main'
+old_main=$(git rev-parse HEAD)
+git push --quiet origin HEAD:main
+git fetch --quiet origin
+branch sync sync.txt branch
+git switch --quiet --detach "$rewrite_base"
+echo rewritten > rewrite.txt
+git add rewrite.txt
+git commit --quiet -m 'main after a Sync rewrite'
+git push --quiet --force origin HEAD:main "$old_main:refs/notchcast/synced/$old_main"
+git fetch --quiet origin
+[ -z "$(git for-each-ref refs/notchcast/synced/)" ] || fail 'the fixture clone already has the synced refs'
+git switch --quiet sync
+git merge --quiet --no-edit origin/main
+verdict sync
+[ "$status" -eq 0 ] || fail 'a merge of main into a branch cut before a Sync rewrite, which the train merges from its fork point with a conflict, was refused'
+echo 'PASS: a branch cut before a Sync rewrite is judged from its fork point, with the synced refs fetched'
 
 branch plain plain.txt plain
 echo more >> plain.txt

@@ -345,6 +345,8 @@ elif [ "$#" -ge 1 ] && [[ "$*" =~ ^[0-9]+(\ [0-9]+)*$ ]]; then
     if [ -n "$hold_pr" ] && [ "$#" -gt 1 ]; then
         echo "landing is held for #$hold_pr: the train is cut to it" >&2
         train=("$hold_pr")
+        # The train run built the whole batch, not the held PR alone, so that PR's own head checks decide.
+        train_run=
     fi
     hold_owner=${hold_pr:-$1}
     # Before anything lands on top of it: an earlier Linux landing that went red on macOS is still revertible.

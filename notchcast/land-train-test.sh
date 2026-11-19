@@ -451,6 +451,18 @@ HEAD_CHECKS=failure land --train-run "$train_sha" 1 2
 [ -z "$(origin for-each-ref refs/heads/train/)" ] || fail 'the landed train branch was not deleted'
 echo 'PASS: a green train run lands its labelled draft PRs, red on their own heads, as the exact tree it tested, and deletes its branch'
 
+# A hold cuts a train run to one PR, which the run did not build alone: that PR lands on its own head checks.
+fixture
+open_pr 1 pr-b 'Add B' src/b.txt
+open_pr 2 pr-c 'Add C' src/c.txt
+train 1 2
+echo "$train_sha" > "$FIXTURE/green"
+echo "2 $(($(date +%s) + 600))" > "$FIXTURE/hold"
+land --train-run "$train_sha" 1 2
+[ "$status" -eq 0 ] && grep -q 'landing is held for #2' "$FIXTURE/output" && [ "$(landed)" = 'Notchcast: Add C (#2)' ] \
+    || fail "under a hold for #2 the train run landed '$(landed)'"
+echo 'PASS: under a hold a train run lands only the held PR, on its own head checks'
+
 # A train built on a running train's tip (NOTCHCAST_TRAIN_ONTO) is covered once that train has landed, not before.
 fixture
 open_pr 1 pr-b 'Add B' src/b.txt
