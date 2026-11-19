@@ -1,3 +1,6 @@
+// notchcast-addon-order: 90
+// notchcast-readme: Capture: screenshots of an area, window or display,
+// notchcast-readme: Capture: and an editor to mark one up with arrows, shapes, highlights, text, pixelation and a crop before copying, saving or dragging it out
 import SwiftUI
 
 /// Area, window and display screenshots, and their text, from one frozen selection surface.

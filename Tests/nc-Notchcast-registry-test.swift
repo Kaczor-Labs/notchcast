@@ -19,6 +19,7 @@ struct AddonSource {
     var folderOf: [String: String] = [:]
     var newIDs: [(id: String, folder: String)] = []
     var commanding: Set<String> = []
+    var ordered: Set<String> = []
 
     init(files: [String: String]) {
         for (path, text) in files.sorted(by: { $0.key < $1.key }) {
@@ -45,6 +46,7 @@ struct AddonSource {
             for type in Self.all(#"\b(?:struct|enum|class)\s+(\w+)\b[^{]*\bNotchcastAddon\b"#, in: text) {
                 addonTypes[type] = path
                 folderOf[type] = folder
+                if Self.first(#"(?m)^// notchcast-addon-order: *(\d+)$"#, in: text) != nil { ordered.insert(type) }
             }
         }
     }
@@ -120,7 +122,7 @@ enum RegistryCheck {
     static let frozenSlugs: Set<String> = ["screenshot-area", "screenshot-display"]
 
     /// Problems fail the harness; notes only report (an absent dependency counts as off).
-    static func run(files: [String: String], registry: String, tests: [String: String])
+    static func run(files: [String: String], tests: [String: String])
         -> (problems: [String], notes: [String]) {
         let source = AddonSource(files: files)
         var problems: [String] = []
@@ -170,12 +172,8 @@ enum RegistryCheck {
                 problems.append("\(path): command slug \(slug) renames the shipped slug \(frozen)")
             }
         }
-        let lines = AddonSource.all(#"(?m)^\s*(\w+)\.self,\s*$"#, in: registry)
-        for type in lines where source.addonTypes[type] == nil {
-            problems.append("registry names \(type), which no add-on folder declares `: NotchcastAddon`")
-        }
-        for (type, path) in source.addonTypes where !lines.contains(type) {
-            problems.append("\(path): \(type) has no registry line")
+        for (type, path) in source.addonTypes where !source.ordered.contains(type) {
+            problems.append("\(path): \(type) has no `// notchcast-addon-order: <n>` line, so no registry line")
         }
         for (type, folder) in source.folderOf where source.commanding.contains(folder) {
             let call = "NotchcastCommandIconCheck.run(\(type).self)"
@@ -199,9 +197,8 @@ enum NotchcastRegistryTests {
         }
     }
 
-    static func repoFiles() throws -> (files: [String: String], registry: String, tests: [String: String]) {
+    static func repoFiles() throws -> (files: [String: String], tests: [String: String]) {
         let root = URL(filePath: "Tinycast/Features/Notchcast")
-        let registry = try String(contentsOf: root.appending(path: "NotchcastRegistry.swift"), encoding: .utf8)
         var files: [String: String] = [:]
         let folders = try FileManager.default.contentsOfDirectory(at: root, includingPropertiesForKeys: [.isDirectoryKey])
             .filter { (try? $0.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) == true }
@@ -218,11 +215,12 @@ enum NotchcastRegistryTests {
         where name.hasPrefix("nc-") && name.hasSuffix(".swift") {
             tests[name] = try String(contentsOf: URL(filePath: "Tests/\(name)"), encoding: .utf8)
         }
-        return (files, registry, tests)
+        return (files, tests)
     }
 
     static func main() throws {
         let shots = """
+            // notchcast-addon-order: 10
             enum ShotsAddon: NotchcastAddon {
                 static let switches = [
                     NotchcastSwitch(id: "screenshot", title: String(localized: "Shots (beta)", table: "T"),
@@ -235,59 +233,55 @@ enum NotchcastRegistryTests {
             """
         let icons = ["nc-Shots-command-icons-test.swift": "NotchcastCommandIconCheck.run(ShotsAddon.self)",
                      "nc-Twin-command-icons-test.swift": "NotchcastCommandIconCheck.run(TwinAddon.self)"]
-        let clean = RegistryCheck.run(files: ["Shots/ShotsAddon.swift": shots], registry: "    ShotsAddon.self,\n",
-                                      tests: icons)
+        let clean = RegistryCheck.run(files: ["Shots/ShotsAddon.swift": shots], tests: icons)
         expect(clean.problems.isEmpty, "a well-formed add-on passes: \(clean.problems)")
         expect(clean.notes == ["switch screenshot depends on absentSwitch, which no add-on declares; it counts as off"],
                "an absent dependency is reported, not failed: \(clean.notes)")
 
-        let planted: [(String, String, String)] = [
-            (shots.replacingOccurrences(of: "id: \"screenshot\"", with: "id: \"screenShot\""), "",
+        let planted: [(String, String)] = [
+            (shots.replacingOccurrences(of: "id: \"screenshot\"", with: "id: \"screenShot\""),
              "switch id screenShot is neither a shipped v1 id"),
-            (shots.replacingOccurrences(of: "\"screenshot\"", with: "\"launcherNumberKey\""), "",
+            (shots.replacingOccurrences(of: "\"screenshot\"", with: "\"launcherNumberKey\""),
              "switch id launcherNumberKey is neither a shipped v1 id"),
-            (shots.replacingOccurrences(of: ".music", with: ".nowhere"), "", "has no valid category"),
-            (shots.replacingOccurrences(of: "switchID: \"screenshot\"", with: "switchID: \"other\""), "", "has no user path"),
-            (shots.replacingOccurrences(of: "slug: \"screenshot-area\"", with: "slug: \"screenshotArea\""), "",
+            (shots.replacingOccurrences(of: ".music", with: ".nowhere"), "has no valid category"),
+            (shots.replacingOccurrences(of: "switchID: \"screenshot\"", with: "switchID: \"other\""), "has no user path"),
+            (shots.replacingOccurrences(of: "slug: \"screenshot-area\"", with: "slug: \"screenshotArea\""),
              "not lowercase-kebab"),
-            (shots, "    OtherAddon.self,\n", "registry names OtherAddon"),
-            (shots + "\nstruct SecondAddon: NotchcastAddon {}\n", "    ShotsAddon.self,\n    SecondAddon.self,\n",
-             "declares 2 add-ons"),
-            (shots + shots.replacingOccurrences(of: "ShotsAddon", with: "TwinAddon"), "", "switch id screenshot declared twice"),
-            ("// notchcast-new-switch-ids: screenshot\n" + shots, "", "switch id screenshot is both shipped and new"),
-            ("// notchcast-new-switch-ids: keepAwake\n" + shots, "", "switch id keepAwake is retired"),
-            ("// notchcast-new-switch-ids: screenRuler\n" + shots, "", "declares new switch id screenRuler, which none"),
+            (shots.replacingOccurrences(of: "// notchcast-addon-order: 10\n", with: ""),
+             "ShotsAddon has no `// notchcast-addon-order: <n>` line"),
+            (shots + "\nstruct SecondAddon: NotchcastAddon {}\n", "declares 2 add-ons"),
+            (shots + shots.replacingOccurrences(of: "ShotsAddon", with: "TwinAddon"), "switch id screenshot declared twice"),
+            ("// notchcast-new-switch-ids: screenshot\n" + shots, "switch id screenshot is both shipped and new"),
+            ("// notchcast-new-switch-ids: keepAwake\n" + shots, "switch id keepAwake is retired"),
+            ("// notchcast-new-switch-ids: screenRuler\n" + shots, "declares new switch id screenRuler, which none"),
         ]
-        for (text, registry, needle) in planted {
-            let result = RegistryCheck.run(files: ["Shots/ShotsAddon.swift": text],
-                                           registry: registry.isEmpty ? "    ShotsAddon.self,\n    TwinAddon.self,\n" : registry,
-                                           tests: icons)
+        for (text, needle) in planted {
+            let result = RegistryCheck.run(files: ["Shots/ShotsAddon.swift": text], tests: icons)
             expect(result.problems.contains { $0.contains(needle) }, "planted breach caught (\(needle)): \(result.problems)")
         }
         let twinText = shots.replacingOccurrences(of: "Shots", with: "Twin")
         let twin = RegistryCheck.run(
-            files: ["Shots/ShotsAddon.swift": shots, "Twin/TwinAddon.swift": twinText],
-            registry: "    ShotsAddon.self,\n    TwinAddon.self,\n", tests: icons)
+            files: ["Shots/ShotsAddon.swift": shots, "Twin/TwinAddon.swift": twinText], tests: icons)
         expect(twin.problems.contains("switch id screenshot declared twice: Shots/ShotsAddon.swift, Twin/TwinAddon.swift"),
                "a pinned id in two folders is caught: \(twin.problems)")
         let fresh = shots.replacingOccurrences(of: "\"screenshot\"", with: "\"screenRuler\"")
         let declared = "// notchcast-new-switch-ids: screenRuler\n" + fresh
-        expect(RegistryCheck.run(files: ["Shots/ShotsAddon.swift": declared], registry: "    ShotsAddon.self,\n",
-                                 tests: icons).problems.isEmpty, "an id declared new in its own folder passes")
+        expect(RegistryCheck.run(files: ["Shots/ShotsAddon.swift": declared], tests: icons).problems.isEmpty,
+               "an id declared new in its own folder passes")
         let elsewhere = RegistryCheck.run(
             files: ["Shots/ShotsAddon.swift": fresh, "Twin/TwinIDs.swift": "// notchcast-new-switch-ids: screenRuler\n"],
-            registry: "    ShotsAddon.self,\n", tests: icons).problems
+            tests: icons).problems
         expect(elsewhere.contains { $0.contains("switch id screenRuler is neither a shipped v1 id") },
                "an id declared new by another folder is caught: \(elsewhere)")
-        let unwalked = RegistryCheck.run(files: ["Shots/ShotsAddon.swift": shots], registry: "    ShotsAddon.self,\n",
+        let unwalked = RegistryCheck.run(files: ["Shots/ShotsAddon.swift": shots],
                                          tests: ["nc-Shots-module-test.swift": "", "nc-Other-icons-test.swift":
                                                     "NotchcastCommandIconCheck.run(ShotsAddon.self)"]).problems
         expect(unwalked == ["Shots: ShotsAddon declares commands but no Tests/nc-Shots-*.swift calls "
                             + "NotchcastCommandIconCheck.run(ShotsAddon.self)"],
                "an add-on with commands and no icon harness of its own is caught: \(unwalked)")
 
-        let (files, registry, tests) = try repoFiles()
-        let real = RegistryCheck.run(files: files, registry: registry, tests: tests)
+        let (files, tests) = try repoFiles()
+        let real = RegistryCheck.run(files: files, tests: tests)
         for note in real.notes { print("note: \(note)") }
         expect(real.problems.isEmpty, "the shipped registry is consistent:\n" + real.problems.joined(separator: "\n"))
         let switches = AddonSource(files: files).switches

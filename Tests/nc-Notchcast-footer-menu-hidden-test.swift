@@ -1,3 +1,4 @@
+// notchcast-linux-ok
 // notchcast-sources: -module-name NotchcastFooterMenuHidden
 // notchcast-reads: Tinycast/Palette/RootPaletteView.swift
 import Foundation

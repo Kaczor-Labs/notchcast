@@ -1,3 +1,4 @@
+// notchcast-addon-order: 210
 // notchcast-new-switch-ids: scriptCommands
 import SwiftUI
 

@@ -1,3 +1,4 @@
+// notchcast-hosted-only
 // notchcast-sources: Tinycast/DesignSystem/BarButton.swift Tinycast/DesignSystem/ModalActionButtonStyle.swift
 // notchcast-sources: Tinycast/Windows/Dialog/DialogChip.swift Tinycast/Features/Notchcast/IslandButtonFill.swift
 // notchcast-sources: Tinycast/DesignSystem/Theme.swift Tinycast/Platform/Appearance.swift

@@ -4,7 +4,7 @@ root=$(git rev-parse --show-toplevel)
 scratch=$(mktemp -d)
 trap 'rm -rf "$scratch"' EXIT
 mkdir -p "$scratch/Scripts" "$scratch/notchcast" "$scratch/bin"
-cp "$root/notchcast/test-harnesses.sh" "$root/notchcast/config.env" "$scratch/notchcast/"
+cp "$root/notchcast/test-harnesses.sh" "$root/notchcast/harness-tags.sh" "$root/notchcast/config.env" "$scratch/notchcast/"
 cat > "$scratch/bin/python3" <<'STUB'
 #!/bin/bash
 exit 0
