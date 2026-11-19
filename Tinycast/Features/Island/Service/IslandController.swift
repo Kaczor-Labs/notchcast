@@ -56,7 +56,6 @@ final class IslandController: NSObject {
         return bounds.offsetBy(dx: backdrop.frame.minX, dy: backdrop.frame.minY).intersection(backdrop.frame)
     }
 
-    func openMenu() { canvas.onMenu?() }
     var glance: IslandGlance? {
         didSet { if glance != oldValue { redraw() } }
     }
