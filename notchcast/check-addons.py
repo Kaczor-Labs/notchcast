@@ -29,6 +29,8 @@ REGISTRY_LINE = re.compile(r'^\s*(\w+)\.self,\s*$')
 BORROWED = 'notchcast/licenses/borrowed.md'
 BORROWED_DIR = 'notchcast/licenses/borrowed/'
 BORROWED_LINE = re.compile(r'^(\w+): \S+ ← \S+/\S+ \([^)]+\)$')
+# Any entry shape, so a line the strict pattern misses still fails; the header is prose.
+CREDIT_LIKE = re.compile(r'^\s*[\w-]+:\s')
 ORDER_LINE = re.compile(r'^// notchcast-addon-order:')
 # A branch that changes the generator may rewrite what it generates.
 GENERATOR = 'notchcast/addons.py'
@@ -176,7 +178,7 @@ def shared_lists(root, base, head, changed):
     if BORROWED in changed:
         for _, text in added_lines(root, base, head, BORROWED):
             entry = BORROWED_LINE.match(text)
-            if text.strip() and not text.startswith('#'):
+            if CREDIT_LIKE.match(text) or (' ← ' in text and '`' not in text):
                 problems.append(f'{BORROWED}: "{text}" belongs in {BORROWED_DIR}{entry[1] if entry else "<Folder>"}.txt')
     if README_PUBLIC in changed:
         readme = show(root, head, README_PUBLIC).splitlines()

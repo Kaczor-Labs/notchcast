@@ -167,6 +167,12 @@ class CheckAddonsTest(unittest.TestCase):
         code, out = self.check('none')
         self.assertEqual(code, 0, out)
 
+    def test_prose_in_the_licence_header_stays_editable(self):
+        write(self.root, 'notchcast/licenses/borrowed.md', '# Borrowed\n\nLists live in borrowed/, one `A: b ← c/d (MIT)` each.\n')
+        self.commit('core rewords the header')
+        code, out = self.check('none')
+        self.assertEqual(code, 0, out)
+
     def test_a_second_list_line_or_an_odd_licence_line_still_fails(self):
         cases = (
             ('notchcast/config.env', 'CI_SKIP_TESTS="ClipboardTextTests"\nHOSTED_ONLY_TESTS="PasteboardTests"\n'
