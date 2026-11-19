@@ -121,7 +121,9 @@ struct IslandCardView: View {
             .lineLimit(1)
             switch card.body {
             case .meters(let meters):
-                ForEach(Array(meters.enumerated()), id: \.offset) { _, meter in IslandCardMeterView(meter: meter, narrow: narrow) }
+                ForEach(Array(meters.enumerated()), id: \.offset) { _, meter in
+                    IslandCardMeterView(meter: meter, narrow: narrow)
+                }
             case .notice(let symbol, let headline, let detail):
                 VStack(alignment: .leading, spacing: metrics.spacing.xxs) {
                     HStack(spacing: metrics.spacing.xs) {
