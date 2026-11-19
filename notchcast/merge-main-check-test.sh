@@ -50,9 +50,9 @@ main_moves other.txt other
 git switch --quiet clean
 git merge --quiet --no-edit origin/main
 verdict clean
-[ "$status" -eq 1 ] && grep -q "^REFUSED: this push merges main into clean ($(git rev-parse --short=8 HEAD)), and clean at .* merges onto main without a conflict; .* Drop the merge: git rebase --onto $(git rev-parse --short=8 HEAD)^1 $(git rev-parse --short=8 HEAD), then push again," "$scratch/output" \
+[ "$status" -eq 1 ] && grep -q "^REFUSED: this push merges main into clean ($(git rev-parse --short=8 HEAD)), and clean at .* merges onto main without a conflict; .* To drop the merge, with clean checked out: git rebase --onto $(git rev-parse --short=8 HEAD)^1 $(git rev-parse --short=8 HEAD), then push again," "$scratch/output" \
     || fail 'a merge of main into a branch that merged cleanly was not refused'
-eval "$(sed -n 's/.*Drop the merge: \(git rebase --onto [^,]*\),.*/\1/p' "$scratch/output") --quiet"
+eval "$(sed -n 's/.*checked out: \(git rebase --onto [^,]*\),.*/\1/p' "$scratch/output") --quiet"
 echo again >> clean.txt
 git commit --quiet -am 'more work'
 verdict clean
@@ -118,6 +118,21 @@ git merge --quiet --no-edit origin/main
 verdict sync
 [ "$status" -eq 0 ] || fail 'a merge of main into a branch cut before a Sync rewrite, which the train merges from its fork point with a conflict, was refused'
 echo 'PASS: a branch cut before a Sync rewrite is judged from its fork point, with the synced refs fetched'
+
+# PR A got its merge round (a real conflict with main); PR B, clean against main, then merges A's branch.
+branch stacked stacked.txt b
+branch round round.txt a
+main_moves round.txt main
+git switch --quiet round
+git merge --quiet --no-edit origin/main > /dev/null 2>&1 || true
+echo resolved > round.txt
+git commit --quiet --no-edit -a
+git push --quiet origin round
+git switch --quiet stacked
+git merge --quiet --no-edit origin/round
+verdict stacked
+[ "$status" -eq 0 ] || fail "a branch that merges another PR's branch, which holds that PR's merge round, was refused"
+echo "PASS: a merge of main that arrives inside another PR's branch is not this branch's merge of main"
 
 branch plain plain.txt plain
 echo more >> plain.txt

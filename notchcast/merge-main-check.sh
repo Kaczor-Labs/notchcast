@@ -8,7 +8,8 @@ tools=$(cd "$(dirname "$0")" && pwd)
 main=$(git rev-parse --verify -q refs/remotes/origin/main) || exit 0
 git cat-file -e "$remote_sha^{commit}" 2>/dev/null || exit 0
 merge=
-for commit in $(git rev-list --merges "$remote_sha..$local_sha"); do
+# The branch's own line only: a merge of another PR's branch may carry that PR's merge round.
+for commit in $(git rev-list --merges --first-parent "$remote_sha..$local_sha"); do
     for parent in $(git rev-list --no-walk --parents "$commit" | cut -d' ' -f3-); do
         if git merge-base --is-ancestor "$parent" "$main" && ! git merge-base --is-ancestor "$parent" "$remote_sha"; then merge=$commit; fi
     done
@@ -31,5 +32,5 @@ for file in $(git show "$main:.gitattributes" 2>/dev/null | awk '$2 == "merge=un
     [ -z "$revived" ] || exit 0
 done
 branch=${remote_ref#refs/heads/}
-echo "REFUSED: this push merges main into $branch (${merge:0:8}), and $branch at ${remote_sha:0:8} merges onto main without a conflict; the landing train merges main itself, so nobody merges main into a PR branch. Drop the merge: git rebase --onto ${merge:0:8}^1 ${merge:0:8}, then push again, and again for each older merge of main the next refusal names. A merge that resolves a real conflict with main passes." >&2
+echo "REFUSED: this push merges main into $branch (${merge:0:8}), and $branch at ${remote_sha:0:8} merges onto main without a conflict; the landing train merges main itself, so nobody merges main into a PR branch; a fix that needs main's newer code is committed without the merge, and the train run builds it together with main. To drop the merge, with $branch checked out: git rebase --onto ${merge:0:8}^1 ${merge:0:8}, then push again, and again for each older merge of main the next refusal names. A merge that resolves a real conflict with main passes." >&2
 exit 1
