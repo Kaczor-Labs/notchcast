@@ -9,6 +9,10 @@ protocol PlainPasteTimer {
 struct PastePlainTextSystem: Sendable {
     let makeBoard: @MainActor @Sendable () -> any PlainPasteBoard
     let postCommandV: @MainActor @Sendable () -> Void
+    /// True while ⌘, ⌥, ⇧ or ⌃ is down, so ⌘V waits for the hotkey's keys to come up.
+    let modifiersHeld: @MainActor @Sendable () -> Bool
+    /// Presses the front app's own ⌥⇧⌘V menu item; false when it has none.
+    let pressMatchStyle: @MainActor @Sendable () -> Bool
     let now: @MainActor @Sendable () -> ContinuousClock.Instant
     let after: @MainActor @Sendable (Duration, @escaping @MainActor () -> Void) -> any PlainPasteTimer
 }
