@@ -1,0 +1,10 @@
+{
+  "sourceLanguage" : "en",
+  "strings" : {
+    "Cannot paste image here." : {},
+    "Choose a writable Finder folder and allow Automation access in System Settings." : {},
+    "Paste images as files in Finder" : {},
+    "⌘V in a Finder window saves a copied image there as a PNG file." : {}
+  },
+  "version" : "1.0"
+}
