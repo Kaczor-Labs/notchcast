@@ -58,8 +58,7 @@ func reader(
         },
         browserCopy: { pid in
             reads.names.append("copy \(pid)")
-            guard try passes(statuses["copy"], ax: true, denied: .accessibility), let copy else { return nil }
-            return CopyPathBrowserCopy(text: copy, changeCount: 42)
+            return try passes(statuses["copy"], ax: true, denied: .accessibility) ? copy : nil
         })
 }
 
@@ -161,7 +160,7 @@ func selectedTabCases() async throws {
     let three = "https://example.com/?a=1\nhttps://example.org/?b=2\nhttps://example.net/?c=3"
     let reads = Reads()
     let copied = try await resolveCopy(zen, reader(web: page, tabs: 3, copy: bench, reads: reads))
-    precondition(copied == CopyPathCopy(text: three, links: 3, browserChangeCount: 42), "3 tabs: \(String(describing: copied))")
+    precondition(copied == CopyPathCopy(text: three, links: 3), "3 tabs: \(String(describing: copied))")
     precondition(reads.names == ["web 14", "tabs 14", "copy 14"], "page, count, then the browser's copy: \(reads.names)")
 
     let one = Reads()
@@ -173,10 +172,10 @@ func selectedTabCases() async throws {
           "3 selected but no copy falls to the page")
     let mixed = "https://a.org/?utm_medium=x\r\n\r\nfile:///home/tester/x.html\r\nabout:blank\r\n  https://b.org/  \r\n"
     let cleaned = try await resolveCopy(zen, reader(web: "https://b.org/", tabs: 3, copy: mixed))
-    precondition(cleaned == CopyPathCopy(text: "https://a.org/\nhttps://b.org/", links: 2, browserChangeCount: 42),
+    precondition(cleaned == CopyPathCopy(text: "https://a.org/\nhttps://b.org/", links: 2),
                  "CRLF, blank and non-web lines drop: \(String(describing: cleaned))")
     let lone = try await resolveCopy(zen, reader(web: nil, tabs: 3, copy: "https://b.org/\nfile:///x"))
-    precondition(lone == CopyPathCopy(text: "https://b.org/", links: 1, browserChangeCount: 42),
+    precondition(lone == CopyPathCopy(text: "https://b.org/", links: 1),
                  "one web link left is one link: \(String(describing: lone))")
     check(try await resolve(zen, reader(web: nil, tabs: 2, copy: "https://a.org/\nhttps://b.org/")),
           "https://a.org/\nhttps://b.org/", "an empty active tab with 2 selected web tabs copies the 2")
@@ -357,6 +356,16 @@ func statusMapping() throws {
     }
 }
 
+func budget() {
+    let timeout = CopyPathBudget.timeout
+    precondition(timeout(.seconds(3), 1) == 1, "plenty left: the cap")
+    precondition(timeout(.milliseconds(250), 1) == 0.25, "less than the cap: what is left")
+    precondition(timeout(.milliseconds(10), 1) == 0.01, "the minimum still reads")
+    for left: Duration in [.microseconds(9_999), .microseconds(400), .zero, .milliseconds(-5)] {
+        precondition(timeout(left, 1) == nil, "\(left) left: no read, never AX's 6 s default")
+    }
+}
+
 func folding() {
     let fold = { CopyPathResolver.fold($0, home) }
     check(fold("/home/tester"), "~", "home itself")
@@ -398,8 +407,9 @@ enum CopyPathResolverTests {
         try await documentCases()
         try await stopCases()
         try statusMapping()
+        budget()
         folding()
         cleaning()
-        print("PASS: copy path resolves Finder, browsers, Gecko pages and selected tabs, documents, timeouts, home and links")
+        print("PASS: copy path: Finder, browsers, Gecko pages, selected tabs, documents, timeouts, budgets, links")
     }
 }
