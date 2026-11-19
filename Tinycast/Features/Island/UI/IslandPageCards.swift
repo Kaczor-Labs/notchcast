@@ -113,7 +113,8 @@ struct IslandCardView: View {
         let shape = RoundedRectangle(cornerRadius: metrics.radius.row, style: .continuous)
         VStack(alignment: .leading, spacing: metrics.spacing.sm) {
             HStack(spacing: metrics.spacing.md) {
-                Text(card.title).font(metrics.typography.panelTitle).foregroundStyle(Theme.Colors.textPrimary)
+                Text(card.title).font(metrics.typography.panelTitle)
+                    .foregroundStyle(card.hollow ? Theme.Colors.textSecondary : Theme.Colors.textPrimary)
                 if let tag = card.tag { IslandCardTagView(tag: tag) }
             }
             .lineLimit(1)
@@ -223,12 +224,14 @@ private struct IslandCardBar: View {
         GeometryReader { proxy in
             let width = proxy.size.width
             ZStack(alignment: .leading) {
+                let filled = fraction.isFinite ? min(max(fraction, 0), 1) : 0
                 Capsule().fill(Theme.Colors.border).frame(height: height)
-                Capsule().fill(ink).frame(width: width * min(max(fraction, 0), 1), height: height)
-                if let tick {
+                Capsule().fill(ink).frame(width: max(filled > 0 ? height : 0, width * filled), height: height)
+                // A tick at either end only repeats the bar's own edge, so it shows inside 2–98 %.
+                if let tick, tick.isFinite, tick > 0.02, tick < 0.98 {
                     Rectangle().fill(Theme.Colors.textPrimary)
                         .frame(width: metrics.spacing.xxs, height: tickHeight)
-                        .offset(x: width * min(max(tick, 0), 1) - metrics.spacing.xxs / 2)
+                        .offset(x: width * tick - metrics.spacing.xxs / 2)
                 }
             }
             .frame(height: tickHeight)

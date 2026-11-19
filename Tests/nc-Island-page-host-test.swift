@@ -42,7 +42,10 @@ final class StubIsland {
 final class StubHover {
     var isPinned = false
     var calls: [String] = []
-    func pin() { calls.append("pin") }
+    func pin() {
+        calls.append("pin")
+        isPinned = true
+    }
     func pinWhenUncovered() { calls.append("pinWhenUncovered") }
     func togglePin() {}
     func dismiss() { calls.append("dismiss") }
@@ -117,10 +120,16 @@ struct IslandPageHostTest {
         precondition(hover.calls.isEmpty, "a page nobody posted opens nothing")
         host.showPage(id: "day")
         precondition(hover.calls == ["pinWhenUncovered"], "a closed island pins once the launcher has gone")
+        hover.isPinned = true
         host.hover(true, on: resting)
         precondition(host.deck.selection == .page("day"), "the pin opens on the asked page, not Home")
+        hover.isPinned = false
         host.hover(false, on: resting)
         host.hover(true, on: resting)
         precondition(host.deck.selection == .home, "the ask is spent: the next hover opens Home again")
+        host.hover(false, on: resting)
+        host.showPage(id: "day")
+        host.hover(true, on: resting)
+        precondition(host.deck.selection == .home, "a pin whose wait ran out leaves a plain hover on Home")
     }
 }
