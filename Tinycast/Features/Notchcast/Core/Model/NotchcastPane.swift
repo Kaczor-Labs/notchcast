@@ -3,7 +3,7 @@ import Synchronization
 
 /// The Notchcast sidebar section's tabs, in order; a later add-on adds its tab here.
 enum NotchcastPane: CaseIterable, Sendable {
-    case island, keyboardMouse, displaySound, capture, launcher, downloads, power, macTweaks
+    case island, agents, keyboardMouse, displaySound, capture, launcher, downloads, power, macTweaks
 
     /// Installed by NotchcastCore from the registered switches before Settings can open.
     private static let registered = Mutex<Set<NotchcastCategory>>([])
@@ -27,6 +27,7 @@ enum NotchcastPane: CaseIterable, Sendable {
     var categories: [NotchcastCategory] {
         switch self {
         case .island: []
+        case .agents: [.agents]
         case .keyboardMouse: [.keyboardMouse]
         case .displaySound: [.displaySound, .music]
         case .capture: [.capture]
@@ -41,6 +42,7 @@ enum NotchcastPane: CaseIterable, Sendable {
     var slug: String {
         switch self {
         case .island: "notchcast-island"
+        case .agents: "notchcast-agents"
         case .keyboardMouse: "notchcast-keyboard-mouse"
         case .displaySound: "notchcast-display-sound"
         case .capture: "notchcast-capture"
@@ -54,6 +56,7 @@ enum NotchcastPane: CaseIterable, Sendable {
     var title: String {
         switch self {
         case .island: String(localized: "Island", table: "Notchcast")
+        case .agents: String(localized: "Agents", table: "Notchcast")
         case .keyboardMouse: String(localized: "Keyboard & Mouse", table: "Notchcast")
         case .displaySound: String(localized: "Display & Sound", table: "Notchcast")
         case .capture: String(localized: "Capture", table: "Notchcast")
@@ -67,6 +70,7 @@ enum NotchcastPane: CaseIterable, Sendable {
     var systemImage: String {
         switch self {
         case .island: "capsule.fill"
+        case .agents: "gauge.with.needle"
         case .keyboardMouse: "keyboard"
         case .displaySound: "speaker.wave.2"
         case .capture: "camera.viewfinder"
