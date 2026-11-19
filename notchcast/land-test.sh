@@ -82,6 +82,8 @@ STUB
     git config user.name Fixture
     git config user.email fixture@example.com
     git fetch --quiet "$scratch/repo" refs/remotes/upstream/main:refs/remotes/upstream/main
+    # Guard reads main's last 15 commits: on upstream alone, no real fork commit's Landed-from reaches it.
+    base=$(git commit-tree "$base^{tree}" -p upstream/main -m 'Fixture: guard base')
     # scenario <commits on $base, oldest first: linux|mac>: main is rebuilt, and gh starts with no verdict and no call.
     scenario() {
         local kind number=6

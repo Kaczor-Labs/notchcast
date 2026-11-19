@@ -1,3 +1,4 @@
+// notchcast-addon-order: 160
 import Foundation
 
 enum CopyPathAddon: NotchcastAddon {

@@ -44,7 +44,7 @@ class RebaseHoldTests(unittest.TestCase):
 
 class SyncWorkflowTests(unittest.TestCase):
     def job(self, name):
-        text = (Path(__file__).resolve().parent.parent / ".github/workflows/sync.yml").read_text()
+        text = (Path(__file__).resolve().parent.parent / ".github/workflows/sync.yml").read_text().split("\njobs:\n")[1]
         match = re.search(rf"^  {name}:\n(.*?)(?=^  \S|\Z)", text, re.M | re.S)
         self.assertIsNotNone(match, name)
         return match[1]
@@ -54,6 +54,106 @@ class SyncWorkflowTests(unittest.TestCase):
         self.assertRegex(self.job("main"), r"(?m)^    needs: plan$")
         self.assertNotIn("release", re.search(r"(?m)^    if: (.*)$", self.job("main"))[1])
         self.assertRegex(self.job("release"), r"(?m)^    needs: \[plan, main, push\]$")
+
+
+    def test_main_only_moves_forward(self):
+        """Pushing main is a plain push: no --force and no lease; ci.py forward checks it first."""
+        self.assertIn('ci.py merge . "${{ needs.plan.outputs.main }}" "$UP"', self.job("main"))
+        push = self.job("push")
+        self.assertIn('ci.py forward "$OLD" "$HEAD_SHA"', push)
+        self.assertNotRegex(push, r"push[^\n]*(--force|\s-f\s|\+\S*refs/heads/main)")
+
+
+class SyncMergeTests(unittest.TestCase):
+    """Two syncs in a row: main gains a merge each time, keeps every commit, and still replays."""
+
+    def test_two_syncs_keep_main_history_and_our_commits(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            def git(*args):
+                return CI.run("git", *args, cwd=root)
+            def commit(path, text, message):
+                (root / path).write_text(text)
+                git("add", path)
+                git("commit", "-qm", message)
+                return git("rev-parse", "HEAD")
+            git("init", "-q")
+            git("config", "user.name", "Test")
+            git("config", "user.email", "test@example.com")
+            git("config", "core.hooksPath", "/dev/null")
+            base = commit("upstream", "1\n", "upstream 1")
+            first = commit("ours", "first\n", "Notchcast: first")
+            git("checkout", "-q", "--detach", base)
+            upstream = commit("upstream", "2\n", "upstream 2")
+            main = first
+            for round, ours in ((1, None), (2, "Notchcast: second")):
+                git("checkout", "-q", "--detach", main)
+                if ours:
+                    main = commit("ours", "first\nsecond\n", ours)
+                if round == 2:
+                    git("checkout", "-q", "--detach", upstream)
+                    upstream = commit("upstream", "3\n", "upstream 3")
+                    git("checkout", "-q", "--detach", main)
+                git("update-ref", "refs/remotes/upstream/main", upstream)
+                CI.replay(root, upstream, check=True)
+                CI.merge(root, main, upstream)
+                merged = git("rev-parse", "HEAD")
+                self.assertEqual(git("rev-parse", "HEAD^1", "HEAD^2").split(), [main, upstream])
+                self.assertTrue(git("show", "-s", "--format=%s", merged).startswith(CI.SYNC_MERGE))
+                CI.forward(main, merged, cwd=root)
+                main = merged
+            self.assertEqual((root / "upstream").read_text(), "3\n")
+            self.assertEqual((root / "ours").read_text(), "first\nsecond\n")
+            self.assertEqual(git("merge-base", "--is-ancestor", first, main), "")
+            self.assertEqual(len(git("rev-list", "--merges", main).split()), 2)
+            self.assertIsNone(CI.upstream_dropped(main, upstream, cwd=root))
+            git("checkout", "-q", "--detach", base)
+            rewritten = commit("upstream", "rewritten\n", "upstream rewritten")
+            self.assertEqual(CI.upstream_dropped(main, rewritten, cwd=root), upstream)
+            with self.assertRaises(SystemExit) as caught:
+                CI.merge(root, main, rewritten)
+            self.assertIn("upstream rewrote its history", str(caught.exception.code))
+
+    def test_forward_refuses_a_rewrite_and_names_the_way_through(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            def git(*args):
+                return CI.run("git", *args, cwd=root)
+            git("init", "-q")
+            git("config", "user.name", "Test")
+            git("config", "user.email", "test@example.com")
+            git("commit", "-q", "--allow-empty", "-m", "base")
+            git("commit", "-q", "--allow-empty", "-m", "main")
+            main = git("rev-parse", "HEAD")
+            git("commit", "-q", "--amend", "--allow-empty", "-m", "replayed main")
+            rewritten = git("rev-parse", "HEAD")
+            CI.forward(main, main, cwd=root)
+            with self.assertRaises(SystemExit) as caught:
+                CI.forward(main, rewritten, cwd=root)
+            message = str(caught.exception.code)
+            self.assertIn("rewrites main's history", message)
+            self.assertIn("ci.py merge", message)
+            self.assertIn("Never force-push main", message)
+
+    def test_a_merge_that_is_no_sync_merge_stops_the_replay(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            def git(*args):
+                return CI.run("git", *args, cwd=root)
+            git("init", "-q")
+            git("config", "user.name", "Test")
+            git("config", "user.email", "test@example.com")
+            git("commit", "-q", "--allow-empty", "-m", "upstream")
+            upstream = git("rev-parse", "HEAD")
+            git("commit", "-q", "--allow-empty", "-m", "side")
+            side = git("rev-parse", "HEAD")
+            git("checkout", "-q", "--detach", upstream)
+            git("commit", "-q", "--allow-empty", "-m", "ours")
+            git("merge", "-q", "--no-ff", "-m", "Merge branch side", side)
+            git("update-ref", "refs/remotes/upstream/main", upstream)
+            with self.assertRaises(SystemExit) as caught:
+                CI.replay(root, upstream, check=True)
+            self.assertIn("no sync merge", str(caught.exception.code))
 
 
 class AppInfoTests(unittest.TestCase):
@@ -417,6 +517,7 @@ class ReplayTests(unittest.TestCase):
             write("notchcast/prune-paths.txt",
                   "# one path per line\n\nwebsite/\ndocs/screenshot.png\nREADME.upstream.md\nScripts/gen-emoji.js\n")
             write("feature.swift", "ours\n")
+            write("Tinycast/Features/Notchcast/Core/NotchcastAddon.swift", "protocol NotchcastAddon {}\n")
             write("README.upstream.md", "made by the old regenerate\n")
             commit("ours")
             CI.regenerate(root, base)
