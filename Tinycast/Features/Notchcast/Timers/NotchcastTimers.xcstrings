@@ -1,0 +1,53 @@
+{
+  "sourceLanguage" : "en",
+  "strings" : {
+    "%@ ended at %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@ ended at %2$@"
+          }
+        }
+      }
+    },
+    "%@, %@ left" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@, %2$@ left"
+          }
+        }
+      }
+    },
+    "%lld timers stopped" : {},
+    "Alarm" : {},
+    "Alarm set for %@" : {},
+    "Alarm, %@" : {},
+    "Countdowns and alarms that tick in the island." : {},
+    "Dismiss %@" : {},
+    "No timer running" : {},
+    "Start Timer" : {},
+    "Stop %@ (%@)" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Stop %1$@ (%2$@)"
+          }
+        }
+      }
+    },
+    "Stop Timer" : {},
+    "Time and label" : {},
+    "Timer" : {},
+    "Timer done" : {},
+    "Timer set for %@" : {},
+    "Timer stopped" : {},
+    "Timers" : {},
+    "Timers run up to 99 hours" : {},
+    "Use 25, 1h30m, 90s or 07:30" : {}
+  },
+  "version" : "1.0"
+}
