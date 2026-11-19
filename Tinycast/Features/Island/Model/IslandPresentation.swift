@@ -170,7 +170,7 @@ struct IslandCardMeter: Equatable, Sendable {
     var value: String
     var trailing: String?
     var fraction: Double
-    /// Where an even pace stands now, 0...1.
+    /// Where an even pace puts the fill now, 0...1.
     var tick: Double?
     var thick = false
     /// The value, the fill and the note take the warning ink.

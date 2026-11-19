@@ -285,8 +285,8 @@ struct IslandPagesTest {
             line: IslandPageLine(text: "C4 · Weekly runs out in 1 d 17 h"),
             blocks: [.columns([IslandCardGroup(title: "MBA", cards: [IslandCard(
                 title: "C1", tag: IslandCardTag(symbol: "arrow.counterclockwise", text: "1 reset credit"),
-                body: .meters([IslandCardMeter(label: "Weekly", value: "45%", trailing: "in 5 d 14 h", fraction: 0.45,
-                                               tick: 0.2, thick: true, warning: true, note: "Runs out in 1 d 17 h")]))])]),
+                body: .meters([IslandCardMeter(label: "Weekly", value: "55% left", trailing: "in 5 d 14 h", fraction: 0.55,
+                                               tick: 0.8, thick: true, warning: true, note: "Runs out in 1 d 17 h")]))])]),
                      .cards(IslandCardGroup(title: "Other", cards: [IslandCard(
                          title: "Codex", hollow: true,
                          body: .notice(symbol: "hourglass", headline: "Back in 2 d 19 h", detail: "Weekly limit used up"))]))])
