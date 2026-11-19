@@ -1,0 +1,6 @@
+PastePlainText: Model/PlainPastePolicy.swift ← vorssaint/vorssaint-utils@89d2626/Sources/Vorssaint/Services/QuickTools/PastePlainService.swift (GPL-3.0-or-later)
+PastePlainText: Model/PlainPastePolicy.swift ← vorssaint/vorssaint-utils@89d2626/Sources/Vorssaint/Services/QuickTools/QuickToolsSupport.swift (GPL-3.0-or-later)
+PastePlainText: Service/PastePlainTextModule.swift ← vorssaint/vorssaint-utils@89d2626/Sources/Vorssaint/Services/QuickTools/PastePlainService.swift (GPL-3.0-or-later)
+PastePlainText: Service/PastePlainTextModule.swift ← vorssaint/vorssaint-utils@89d2626/Sources/Vorssaint/Services/TransientPaste.swift (GPL-3.0-or-later)
+PastePlainText: Service/PastePlainTextSystem+Live.swift ← vorssaint/vorssaint-utils@89d2626/Sources/Vorssaint/Services/QuickTools/PastePlainService.swift (GPL-3.0-or-later)
+PastePlainText: Service/PastePlainTextSystem+Live.swift ← vorssaint/vorssaint-utils@89d2626/Sources/Vorssaint/Services/TransientPaste.swift (GPL-3.0-or-later)
