@@ -432,11 +432,13 @@ final class AppIndex {
         CommandCatalog.all.filter {
             guard let command = CommandCatalog.command(for: $0) else { return true }
             return !hiddenCommands.contains(command) && !unlistedCommands.contains(command)
+                && !NotchcastHiddenCommands.commands.contains(command)
         }
     }
 
     func isCommandEnabled(_ command: CommandID) -> Bool {
         !hiddenCommands.contains(command)
+            && !NotchcastHiddenCommands.commands.contains(command)
     }
 
     func setCommandsVisible(_ commands: Set<CommandID>, _ visible: Bool) {

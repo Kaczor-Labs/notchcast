@@ -22,7 +22,7 @@ final class NotchcastCore {
             clipboard: NotchcastClipboardMutation(
                 prepare: { history.prepareForTinycastPasteboardMutation() },
                 synchronize: { history.synchronizeAfterTinycastPasteboardMutation(changeCount: $0) }),
-            presenter: core.islandPresenter)
+            settingsBackup: NotchcastSettingsBackupBridge(core: core), presenter: core.islandPresenter)
         dictationServer = DictationServer(
             defaults: defaults, settings: core.settings, coordinator: core.dictationCoordinator,
             runner: controller.transcription)

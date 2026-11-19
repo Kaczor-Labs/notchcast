@@ -12,9 +12,9 @@ struct IslandPillTest {
     }
 
     static func rows() {
-        let tail: [[PillMenuRow]] = [[.checkForUpdates, .support, .settings], [.quit]]
+        let tail: [[PillMenuRow]] = [[.checkForUpdates, .settings], [.quit]]
         precondition(PillMenuRow.sections(clipboard: false, calendar: false, notes: false, carded: false) == tail,
-                     "Everything off leaves updates, support, settings and quit")
+                     "Everything off leaves updates, settings and quit; upstream's Support row is hidden (#1029)")
         precondition(PillMenuRow.sections(clipboard: false, calendar: false, notes: false, carded: true) == tail,
                      "A carded meeting with Calendar off offers no join")
         precondition(PillMenuRow.sections(clipboard: true, calendar: true, notes: true, carded: true) ==

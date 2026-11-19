@@ -1,5 +1,7 @@
 name: Deploy key
-description: Push over SSH with the repo's write deploy key (GITHUB_TOKEN cannot push commits that touch workflows).
+description: >-
+  Push over SSH with the repo's write deploy key (GITHUB_TOKEN cannot push commits that touch workflows).
+  Every job that uses it ends with an `if: always()` step that deletes $RUNNER_TEMP/deploy-key.
 inputs:
   key:
     required: true
@@ -9,8 +11,10 @@ runs:
     - shell: bash
       env:
         KEY: ${{ inputs.key }}
+      # GitHub's published ed25519 host key (api.github.com/meta), never one learned from the network at run time.
       run: |
         mkdir -p ~/.ssh && chmod 700 ~/.ssh
         printf '%s\n' "$KEY" > "$RUNNER_TEMP/deploy-key" && chmod 600 "$RUNNER_TEMP/deploy-key"
-        ssh-keyscan -t ed25519 github.com >> ~/.ssh/known_hosts 2>/dev/null
-        echo "GIT_SSH_COMMAND=ssh -i $RUNNER_TEMP/deploy-key -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes" >> "$GITHUB_ENV"
+        printf '%s\n' 'github.com ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOMqqnkVzrm0SdG6UOoqKLsabgH5C9okWi0dh2l9GKJl' \
+          > "$RUNNER_TEMP/known_hosts"
+        echo "GIT_SSH_COMMAND=ssh -i $RUNNER_TEMP/deploy-key -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o UserKnownHostsFile=$RUNNER_TEMP/known_hosts" >> "$GITHUB_ENV"
