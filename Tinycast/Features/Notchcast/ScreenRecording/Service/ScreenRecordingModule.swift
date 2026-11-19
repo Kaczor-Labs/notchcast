@@ -100,6 +100,7 @@ final class ScreenRecordingModule: NotchcastModule {
 
     private func begin(_ target: RecordingTarget, _ id: UUID) {
         let options = RecordingOptions(context.defaults)
+        let onEnded: @MainActor (any Error) -> Void = { [weak self] _ in self?.ended(id) }
         capturing = Task {
             var file: URL?
             do {
@@ -112,7 +113,7 @@ final class ScreenRecordingModule: NotchcastModule {
                 guard operation == id else { return }
                 let url = try system.workFolder().appending(path: "\(id.uuidString).mov")
                 file = url
-                let capture = try await system.start(target, options, url) { [weak self] _ in self?.ended(id) }
+                let capture = try await system.start(target, options, url, onEnded)
                 guard operation == id, state.started(at: context.now()) else {
                     try? await capture.stop()
                     try? FileManager.default.removeItem(at: url)
@@ -143,6 +144,7 @@ final class ScreenRecordingModule: NotchcastModule {
         hideRecording()
         guard let id = operation, let capture, let clip else { return state.reset() }
         self.capture = nil
+        let onAnswer: @MainActor (RecordingTrimmerAnswer) -> Void = { [weak self] answer in self?.answer(answer, id) }
         capturing = Task {
             do {
                 var stopFailure: (any Error)?
@@ -150,7 +152,7 @@ final class ScreenRecordingModule: NotchcastModule {
                 let duration = (try? await system.duration(clip)) ?? 0
                 guard duration > 0 else { throw stopFailure ?? RecordingTarget.Failure.emptyRecording }
                 guard operation == id, state.finished() else { return }
-                closeTrimmer = system.trim(clip, duration) { [weak self] answer in self?.answer(answer, id) }
+                closeTrimmer = system.trim(clip, duration, onAnswer)
             } catch {
                 guard operation == id else { return }
                 self.clip = nil
