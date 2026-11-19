@@ -1,3 +1,4 @@
+// notchcast-linux-ok
 // notchcast-sources: Tinycast/Features/Island/Model/IslandPresentation.swift
 // notchcast-sources: Tinycast/Features/Island/Model/IslandNoticeQueue.swift
 import Foundation

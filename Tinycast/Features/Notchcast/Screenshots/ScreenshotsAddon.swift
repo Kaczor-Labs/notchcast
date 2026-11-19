@@ -1,3 +1,6 @@
+// notchcast-addon-order: 90
+// notchcast-readme: Capture: screenshots of an area, window or display,
+// notchcast-readme: Capture: and an editor to mark one up with arrows, shapes, highlights, text, pixelation and a crop before copying, saving or dragging it out
 import SwiftUI
 
 /// Area, window and display screenshots, and their text, from one frozen selection surface.
@@ -22,6 +25,11 @@ enum ScreenshotsAddon: NotchcastAddon {
             slug: "screenshot-display", name: String(localized: "Capture Screen", table: "NotchcastScreenshots"),
             symbol: "camera", switchID: ScreenshotsModule.switchID
         ) { $0.module(ScreenshotsModule.self)?.captureDisplay() },
+        NotchcastCommand(
+            slug: "edit-last-screenshot", name: String(localized: "Edit Last Screenshot", table: "NotchcastScreenshots"),
+            symbol: "pencil.tip.crop.circle", switchID: ScreenshotsModule.switchID,
+            keywords: ["annotate", "markup", "capture editor"]
+        ) { $0.module(ScreenshotsModule.self)?.editLastCapture() },
         NotchcastCommand(
             slug: "capture-text", name: String(localized: "Capture Text", table: "NotchcastScreenshots"),
             symbol: ScreenshotsModule.textSymbol, switchID: ScreenshotsModule.switchID,

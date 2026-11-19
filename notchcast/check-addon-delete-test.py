@@ -32,12 +32,13 @@ class DeleteTest(unittest.TestCase):
         self.tmp = tempfile.TemporaryDirectory()
         self.tree = Path(self.tmp.name)
         write(self.tree, NC + 'NotchcastRegistry.swift', 'static let addons = [\n    ShotsAddon.self,\n    KeepAddon.self,\n]\n')
-        write(self.tree, NC + 'Shots/ShotsAddon.swift', 'struct ShotsAddon: NotchcastAddon {}\n')
-        write(self.tree, NC + 'Keep/KeepAddon.swift', '@MainActor enum KeepAddon: NotchcastAddon {}\n')
+        write(self.tree, NC + 'Shots/ShotsAddon.swift', '// notchcast-addon-order: 10\nstruct ShotsAddon: NotchcastAddon {}\n')
+        write(self.tree, NC + 'Keep/KeepAddon.swift', '// notchcast-addon-order: 20\n@MainActor enum KeepAddon: NotchcastAddon {}\n')
+        write(self.tree, 'notchcast/addons.py', (Path(__file__).resolve().parent / 'addons.py').read_text())
         write(self.tree, 'Tests/nc-Shots-test.swift', '')
         write(self.tree, 'Tests/nc-Shotsy-test.swift', '')
-        write(self.tree, 'notchcast/licenses/borrowed.md', '# Borrowed\n\nShots: A.swift ← x/a.swift (MIT)\n'
-              'Shotsy: B.swift ← x/b.swift (MIT)\nKeep: C.swift ← x/c.swift (MIT)\nShots: D.swift ← x/d.swift (MIT)\n')
+        write(self.tree, 'notchcast/licenses/borrowed/Shots.txt', 'Shots: A.swift ← x/a.swift (MIT)\n')
+        write(self.tree, 'notchcast/licenses/borrowed/Shotsy.txt', 'Shotsy: B.swift ← x/b.swift (MIT)\n')
 
     def tearDown(self):
         self.tmp.cleanup()
@@ -46,19 +47,20 @@ class DeleteTest(unittest.TestCase):
         self.assertEqual(delete.rotate_pick(['A', 'B', 'C'], 'f' * 40), delete.rotate_pick(['A', 'B', 'C'], 'f' * 40))
         self.assertEqual({delete.rotate_pick(['A', 'B'], sha) for sha in ('0' * 40, '1' * 40)}, {'A', 'B'})
 
-    def test_deleting_removes_folder_line_and_its_tests_only(self):
+    def test_deleting_removes_folder_licence_list_and_tests_and_regenerates_the_registry(self):
         delete.delete_folder(self.tree, 'Shots')
         self.assertFalse((self.tree / NC / 'Shots').exists())
-        self.assertEqual((self.tree / NC / 'NotchcastRegistry.swift').read_text(),
-                         'static let addons = [\n    KeepAddon.self,\n]\n')
+        registry = (self.tree / NC / 'NotchcastRegistry.swift').read_text()
+        self.assertIn('        KeepAddon.self,\n    ]', registry)
+        self.assertNotIn('Shots', registry)
         self.assertFalse((self.tree / 'Tests/nc-Shots-test.swift').exists())
         self.assertTrue((self.tree / 'Tests/nc-Shotsy-test.swift').exists())
-        self.assertEqual((self.tree / 'notchcast/licenses/borrowed.md').read_text(),
-                         '# Borrowed\n\nShotsy: B.swift ← x/b.swift (MIT)\nKeep: C.swift ← x/c.swift (MIT)\n')
+        self.assertFalse((self.tree / 'notchcast/licenses/borrowed/Shots.txt').exists())
+        self.assertTrue((self.tree / 'notchcast/licenses/borrowed/Shotsy.txt').exists())
 
-    def test_a_missing_registry_line_is_a_breach(self):
-        write(self.tree, NC + 'NotchcastRegistry.swift', 'static let addons = [\n]\n')
-        with self.assertRaisesRegex(delete.Breach, 'no line for ShotsAddon'):
+    def test_an_addon_left_without_its_order_line_is_a_breach(self):
+        write(self.tree, NC + 'Keep/KeepAddon.swift', '@MainActor enum KeepAddon: NotchcastAddon {}\n')
+        with self.assertRaisesRegex(delete.Breach, 'the registry does not generate without it: .*KeepAddon.swift'):
             delete.delete_folder(self.tree, 'Shots')
 
     def test_an_orphan_string_is_a_breach(self):
@@ -131,21 +133,23 @@ if os.environ.get("CHAD_BUILD_QUEUE_SLOT") or os.environ.get("FAKE_QUEUE_EXIT"):
     sys.exit(int(os.environ.get("FAKE_QUEUE_EXIT", 99)))
 sys.exit(subprocess.run(sys.argv[3:], env=dict(os.environ, CHAD_BUILD_QUEUE_SLOT="1")).returncode)
 """
-BREACH = 'contract breach: Shots: registry has no line for ShotsAddon'
+BREACH = 'contract breach: strings of table NotchcastShots remain'
 TOOLING = 'tooling failure, not a contract breach: '
 
 
 class QueueTest(unittest.TestCase):
-    """A real run with stub build tools: Keep passes, Shots is a breach (no registry line), Empty is tooling."""
+    """A real run with stub build tools: Keep passes, Shots is a breach (an orphan string), Empty is tooling."""
 
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
         root = Path(self.tmp.name)
         self.repo = root / 'repo'
         write(self.repo, NC + 'NotchcastRegistry.swift', 'static let addons = [\n    KeepAddon.self,\n]\n')
-        write(self.repo, NC + 'Keep/KeepAddon.swift', 'struct KeepAddon: NotchcastAddon {}\n')
-        write(self.repo, NC + 'Shots/ShotsAddon.swift', 'struct ShotsAddon: NotchcastAddon {}\n')
+        write(self.repo, NC + 'Keep/KeepAddon.swift', '// notchcast-addon-order: 10\nstruct KeepAddon: NotchcastAddon {}\n')
+        write(self.repo, NC + 'Shots/ShotsAddon.swift', '// notchcast-addon-order: 20\nstruct ShotsAddon: NotchcastAddon {}\n')
+        write(self.repo, 'Tinycast/Features/Island/X.swift', 'String(localized: "Hi", table: "NotchcastShots")\n')
         write(self.repo, NC + 'Empty/Notes.swift', 'struct Notes {}\n')
+        write(self.repo, 'notchcast/addons.py', (Path(__file__).resolve().parent / 'addons.py').read_text())
         write(self.repo, 'notchcast/harness_inputs.py', '')
         write(self.repo, 'Scripts/run-tests.sh', '#!/bin/sh\n')
         (self.repo / 'Scripts/run-tests.sh').chmod(0o755)
