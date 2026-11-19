@@ -75,7 +75,7 @@ Settings search finds every switch with no line in the add-on: core installs one
 | Display & Sound | Display & Sound | F2 Brightness (+extra dimming), F100 Volume in Island | DDC volume/mute, XDR, per-display, F102 Audio priority |
 | Keyboard & Mouse | Keyboard & Mouse | F3 Hide with ⌘M, F4 Middle Click, F5 Quit Protection, F6 Show Desktop with F3, F33 Paste Plain Text | F12 Green button maximizes |
 | Launcher | Launcher Extras | F10 Number Keys, F11 Small Commands | F27 Copy path, F29 GitHub search, F30 Quick Look on Space, F99 URL cleaner |
-| Files & Downloads | Downloads | F64 Downloads, F65 aria2, F62 Distill, F63 Distill Timestamps, Torrents, Wi-Fi and iPhone bonding (one switch under Torrents, one under aria2), Taildrop (#988, [taildrop.md](taildrop.md)) | F59 Distill folder, F60 Convert files, F68 Media tools, F32 Paste image in Finder, F128–F130 Torrents |
+| Files & Downloads | Downloads | F64 Downloads, F65 aria2, F62 Distill, F63 Distill Timestamps, Torrents, Wi-Fi and iPhone bonding (one switch under Torrents, one under aria2) | F59 Distill folder, F60 Convert files, F68 Media tools, F32 Paste image in Finder, F128–F130 Torrents |
 | Power | (its add-on adds one) | (none; F108 Keep Awake and F109 Lid Closed were removed in #836; their switch names `keepAwake` and `lidClosedAwake` are retired, never reuse them, since old settings may still hold them on) | F101 Accessory batteries, F86 Low disk |
 | Music | Display & Sound | F13 Stop Apple Music on media keys | F49 covers, F52 resume player, F53 now playing, F54 Spotify Connect |
 | Notices | (its add-on adds one) | (none yet) | F14 Event reminders, F72 Timers, F78 Accessory notices, F97 System notices, F15/I1 AI usage |

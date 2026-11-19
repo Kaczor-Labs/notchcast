@@ -1,3 +1,5 @@
+// notchcast-addon-order: 165
+// notchcast-readme: Downloads: Taildrop the Finder selection to another of your devices
 // notchcast-new-switch-ids: taildrop
 import Foundation
 
