@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Plan a main snapshot, wait for its gate, or check it is still current, without changing refs.
+"""Plan a main snapshot, wait for its gate, or check the gate before publishing, without changing refs.
 
 The 50-minute gate counts from the latest snapshot's publication, the moment it reaches the Macs.
 """
@@ -44,9 +44,7 @@ def plan(releases, main, commit, now, event, skip_gate=False):
     return {"tag": f"{base}.snapshot.{start:%Y%m%d%H%M%S}"}
 
 
-def stale(releases, tag, main, current, now, skip_gate=False):
-    if current != main:
-        return {"skip": f"main moved from {main} to {current}"}
+def stale(releases, tag, now, skip_gate=False):
     if now < revision(tag):
         return {"error": f"{tag} reached publish before its revision time"}
     latest = latest_snapshot(releases, other_than=tag)
@@ -72,7 +70,7 @@ def main(command=None):
     now = datetime.now(timezone.utc)
     skip_gate = os.environ.get("SKIP_GATE") == "true"
     if command == "check":
-        result = stale(releases, os.environ["TAG"], os.environ["MAIN"], sha, now, skip_gate)
+        result = stale(releases, os.environ["TAG"], now, skip_gate)
     else:
         result = plan(releases, sha, lambda t: run("git", "rev-parse", f"refs/tags/{t}^{{commit}}"),
                       now, os.environ["GITHUB_EVENT_NAME"], skip_gate)
