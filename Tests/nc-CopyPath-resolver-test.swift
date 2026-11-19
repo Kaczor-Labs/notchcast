@@ -7,6 +7,7 @@ let finder = CopyPathApp(bundleID: "com.apple.finder", pid: 10)
 let chrome = CopyPathApp(bundleID: "com.google.Chrome", pid: 11)
 let safari = CopyPathApp(bundleID: "com.apple.Safari", pid: 12)
 let textEdit = CopyPathApp(bundleID: "com.apple.TextEdit", pid: 13)
+let zen = CopyPathApp(bundleID: "app.zen-browser.zen", pid: 14)
 
 /// Records which reads ran, so a test can pin that a step was skipped.
 final class Reads: @unchecked Sendable {
@@ -19,10 +20,11 @@ func passes(_ status: Int?, ax: Bool = false, denied: CopyPathFailure) throws ->
     return ax ? try CopyPathStatus.accessibility(Int32(status)) : try CopyPathStatus.appleEvent(status, denied: denied)
 }
 
-/// `statuses` is keyed by source: selection, folder, browser, focused, main.
+/// `statuses` is keyed by source: selection, folder, browser, web, focused, main.
 func reader(
-    selection: [String] = [], folder: String? = nil, browser: String? = nil, document: String? = nil,
-    main: String? = nil, failure: CopyPathFailure? = nil, statuses: [String: Int] = [:], reads: Reads = Reads()
+    selection: [String] = [], folder: String? = nil, browser: String? = nil, web: String? = nil,
+    document: String? = nil, main: String? = nil, failure: CopyPathFailure? = nil, statuses: [String: Int] = [:],
+    reads: Reads = Reads()
 ) -> CopyPathReader {
     CopyPathReader(
         finderSelection: {
@@ -38,6 +40,11 @@ func reader(
             reads.names.append("browser \(bundleID) \(kind)")
             if let failure { throw failure }
             return try passes(statuses["browser"], denied: .browserAutomation) ? browser : nil
+        },
+        webArea: { pid in
+            reads.names.append("web \(pid)")
+            if let failure { throw failure }
+            return try passes(statuses["web"], ax: true, denied: .accessibility) ? web : nil
         },
         document: { pid, window in
             reads.names.append("document \(pid) \(window)")
@@ -98,6 +105,40 @@ func browserCases() async throws {
         _ = try await resolve(chrome, reader(failure: .browserAutomation))
         preconditionFailure("a refused browser grant must surface")
     } catch CopyPathFailure.browserAutomation {}
+}
+
+/// Issue #1130: Firefox-family browsers script no tab, so their page is read over Accessibility.
+func geckoCases() async throws {
+    let link = "https://example.com/?utm_source=x&q=a%2Bb#s"
+    let reads = Reads()
+    check(try await resolve(zen, reader(web: link, reads: reads)), "https://example.com/?q=a%2Bb#s",
+          "Zen copies its page, cleaned")
+    precondition(reads.names == ["web 14"], "Zen reads its web area by pid, no Apple Event: \(reads.names)")
+    for bundleID in ["org.mozilla.firefox", "app.zen-browser.zen", "io.gitlab.librewolf-community"] {
+        precondition(CopyPathResolver.geckoBrowsers.contains(bundleID), "\(bundleID) is Gecko")
+        precondition(CopyPathResolver.browsers[bundleID] == nil, "\(bundleID) is not scripted")
+    }
+    let chromeReads = Reads()
+    _ = try await resolve(chrome, reader(browser: link, web: link, reads: chromeReads))
+    precondition(chromeReads.names == ["browser com.google.Chrome chromium"],
+                 "Chrome never reads a web area: \(chromeReads.names)")
+    check(try await resolve(zen, reader(web: "file:///home/tester/page.html")), "~/page.html",
+          "a local page copies as a path")
+    let missing = Reads()
+    check(try await resolve(zen, reader(web: nil, document: "/home/tester/d", reads: missing)), "~/d",
+          "no page falls to the window document")
+    precondition(missing.names == ["web 14", "document 14 focused"], "then AX document: \(missing.names)")
+    check(try await resolve(zen, reader(web: "about:newtab")), nil, "a new tab copies nothing")
+    let stop = Reads()
+    do {
+        _ = try await resolve(zen, reader(web: link, document: "/d", statuses: ["web": -25204], reads: stop))
+        preconditionFailure("a page read timeout must report Unavailable")
+    } catch is CopyPathUnavailable {}
+    precondition(stop.names == ["web 14"], "a page timeout never reads the document: \(stop.names)")
+    do {
+        _ = try await resolve(zen, reader(statuses: ["web": -25211]))
+        preconditionFailure("missing Accessibility must surface")
+    } catch CopyPathFailure.accessibility {}
 }
 
 func documentCases() async throws {
@@ -239,11 +280,12 @@ enum CopyPathResolverTests {
     static func main() async throws {
         try await finderCases()
         try await browserCases()
+        try await geckoCases()
         try await documentCases()
         try await stopCases()
         try statusMapping()
         folding()
         cleaning()
-        print("PASS: copy path resolves Finder, browsers and documents, stops on timeouts, folds home and cleans links")
+        print("PASS: copy path resolves Finder, browsers, Gecko pages and documents, stops on timeouts, folds home and cleans links")
     }
 }
