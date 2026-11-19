@@ -219,6 +219,7 @@
 		2FF364B8C778BCDBEDC81D1D /* MathAttachmentCell.swift in Sources */ = {isa = PBXBuildFile; fileRef = C01EA2D102571E10CCE4E1B0 /* MathAttachmentCell.swift */; };
 		300172149437918522078245 /* NotchcastDictationBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4773A92DDF288565C27BD567 /* NotchcastDictationBridge.swift */; };
 		303FC5342B61A7862EBC1C32 /* FocusRelease.swift in Sources */ = {isa = PBXBuildFile; fileRef = EA9A0079D05A5D9B21A1CFCE /* FocusRelease.swift */; };
+		308FB81A7AD4774808FA9B17 /* NotchcastHiddenCommands.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8D58F0F2B9389E58AA621E9B /* NotchcastHiddenCommands.swift */; };
 		309320CB6B5424EA558A4823 /* EmojiData.generated.swift in Sources */ = {isa = PBXBuildFile; fileRef = B6BE90FB09366A3518C2D4E5 /* EmojiData.generated.swift */; };
 		309B1313B6B40D1342362492 /* CalcEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7817B7A8760B36FDA43F48FC /* CalcEngine.swift */; };
 		30AAB8E8C6757416E5655D0E /* PillMenuRows.swift in Sources */ = {isa = PBXBuildFile; fileRef = 41764F53F093ECF3E9A59593 /* PillMenuRows.swift */; };
@@ -1962,6 +1963,7 @@
 		8CBD6D8BC6951A482BDF6169 /* SettingsCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsCoordinator.swift; sourceTree = "<group>"; };
 		8CD7591D273A6484DD48018A /* RaycastImportReader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RaycastImportReader.swift; sourceTree = "<group>"; };
 		8D0371F4748011D45C185444 /* TextTranslator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TextTranslator.swift; sourceTree = "<group>"; };
+		8D58F0F2B9389E58AA621E9B /* NotchcastHiddenCommands.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotchcastHiddenCommands.swift; sourceTree = "<group>"; };
 		8D7D18BE38D2CD54CE6AB6DC /* ClipboardTextExtractor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClipboardTextExtractor.swift; sourceTree = "<group>"; };
 		8D828A989EED1A0706386F59 /* ChatPresetStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatPresetStore.swift; sourceTree = "<group>"; };
 		8DA2EC0303BFCB1212E69B54 /* AISettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AISettingsView.swift; sourceTree = "<group>"; };
@@ -3749,6 +3751,7 @@
 			children = (
 				8197A9549574F76C94058F9E /* NotchcastAppProof.swift */,
 				4317298489FCBE72895587BC /* NotchcastHidden.swift */,
+				8D58F0F2B9389E58AA621E9B /* NotchcastHiddenCommands.swift */,
 				AC01BB0E1A2896467013CD44 /* NotchcastIslandPins.swift */,
 			);
 			path = Hidden;
@@ -6662,6 +6665,7 @@
 				F5B3E3D1D7153903C3B6617A /* NotchcastGlobeHint.swift in Sources */,
 				27453405436A5B9152353467 /* NotchcastGlobeTrigger.swift in Sources */,
 				69A46A511381273B00153D07 /* NotchcastHidden.swift in Sources */,
+				308FB81A7AD4774808FA9B17 /* NotchcastHiddenCommands.swift in Sources */,
 				0127CD65C4B15EEDB9CC0D76 /* NotchcastIslandPins.swift in Sources */,
 				2A692D2E29D529BF386A4FA3 /* NotchcastIslandSettingsRows.swift in Sources */,
 				080484B74FF02D88F4B34D90 /* NotchcastLauncherHides.swift in Sources */,
