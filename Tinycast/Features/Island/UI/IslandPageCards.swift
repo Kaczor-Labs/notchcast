@@ -19,7 +19,7 @@ struct IslandCardColumnsView: View {
             IslandCardLayout(mode: .columns(count), gap: gap) {
                 ForEach(Array(groups.enumerated()), id: \.offset) { column, group in
                     ForEach(Array(group.cards.enumerated()), id: \.offset) { _, card in
-                        IslandCardView(card: card)
+                        IslandCardView(card: card, narrow: count >= IslandCardSlots.rowColumns)
                             .layoutValue(key: IslandCardColumn.self, value: column)
                             .layoutValue(key: IslandCardHollow.self, value: card.hollow)
                     }
@@ -39,7 +39,7 @@ struct IslandCardRowView: View {
         VStack(alignment: .leading, spacing: metrics.spacing.xs) {
             IslandCardHeader(title: group.title)
             IslandCardLayout(mode: .row, gap: metrics.spacing.md) {
-                ForEach(Array(group.cards.enumerated()), id: \.offset) { _, card in IslandCardView(card: card) }
+                ForEach(Array(group.cards.enumerated()), id: \.offset) { _, card in IslandCardView(card: card, narrow: true) }
             }
         }
         .frame(width: IslandCardWidth.content(metrics), alignment: .leading)
@@ -107,6 +107,7 @@ private struct IslandCardHeader: View {
 /// One card: full on the key-cap fill, hollow as an outline; dimmed while its numbers are old.
 struct IslandCardView: View {
     let card: IslandCard
+    var narrow = false
     @Environment(\.metrics) private var metrics
 
     var body: some View {
@@ -120,7 +121,7 @@ struct IslandCardView: View {
             .lineLimit(1)
             switch card.body {
             case .meters(let meters):
-                ForEach(Array(meters.enumerated()), id: \.offset) { _, meter in IslandCardMeterView(meter: meter) }
+                ForEach(Array(meters.enumerated()), id: \.offset) { _, meter in IslandCardMeterView(meter: meter, narrow: narrow) }
             case .notice(let symbol, let headline, let detail):
                 VStack(alignment: .leading, spacing: metrics.spacing.xxs) {
                     HStack(spacing: metrics.spacing.xs) {
@@ -189,6 +190,8 @@ private struct IslandCardTagView: View {
 /// Label, value and trailing text over the bar; the even-pace tick on it; the note under it.
 struct IslandCardMeterView: View {
     let meter: IslandCardMeter
+    /// Four across, "55% left in 2 d 15 h" outgrows one line, so the trailing text drops under the value.
+    var narrow = false
     @Environment(\.metrics) private var metrics
 
     var body: some View {
@@ -198,10 +201,15 @@ struct IslandCardMeterView: View {
                 Text(meter.label).foregroundStyle(Theme.Colors.textPrimary)
                 Spacer(minLength: metrics.spacing.md)
                 Text(meter.value).foregroundStyle(ink)
-                if let trailing = meter.trailing { Text(trailing).foregroundStyle(Theme.Colors.textPrimary) }
+                if !narrow, let trailing = meter.trailing { Text(trailing).foregroundStyle(Theme.Colors.textPrimary) }
             }
             .font(metrics.typography.rowTrailing.monospacedDigit())
             .lineLimit(1)
+            if narrow, let trailing = meter.trailing {
+                Text(trailing).font(metrics.typography.rowTrailing.monospacedDigit())
+                    .foregroundStyle(Theme.Colors.textPrimary).lineLimit(1)
+                    .frame(maxWidth: .infinity, alignment: .trailing)
+            }
             IslandCardBar(fraction: meter.fraction, tick: meter.tick, thick: meter.thick, ink: ink)
             if let note = meter.note {
                 Text(note).font(metrics.typography.rowTrailing.weight(.semibold)).foregroundStyle(ink).lineLimit(1)

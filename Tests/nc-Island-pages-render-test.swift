@@ -108,10 +108,12 @@ struct IslandPagesRenderTest {
 
     /// #1128's approved board (pill-slots, notch-slots), and one Mac alone with no feed.
     static func agentBoards() -> (IslandPage, IslandPage) {
-        func meter(_ label: String, _ used: Int, _ resets: String, tick: Double?, thick: Bool = false,
+        /// Drawn as Agents draws it: what is left, the tick where an even pace leaves the fill.
+        func meter(_ label: String, _ used: Int, _ resets: String, tick gone: Double?, thick: Bool = false,
                    note: String? = nil) -> IslandCardMeter {
-            IslandCardMeter(label: label, value: "\(used)%", trailing: resets, fraction: Double(used) / 100, tick: tick,
-                            thick: thick, warning: note != nil, note: note)
+            IslandCardMeter(label: label, value: "\(100 - used)% left", trailing: resets,
+                            fraction: Double(100 - used) / 100, tick: gone.map { 1 - $0 }, thick: thick,
+                            warning: note != nil, note: note)
         }
         func spent(_ name: String, _ back: String, tag: IslandCardTag? = nil) -> IslandCard {
             IslandCard(title: name, tag: tag, hollow: true,
@@ -121,7 +123,7 @@ struct IslandPagesRenderTest {
         let c1 = IslandCard(title: "C1", tag: credit, body: .meters([
             meter("Session", 22, "in 2 h 10 min", tick: 0.57), meter("Weekly", 15, "in 5 d 14 h", tick: 0.2, thick: true),
             meter("Weekly · Fable", 12, "in 5 d 14 h", tick: 0.2),
-            IslandCardMeter(label: "Extra usage", value: "17%", trailing: "$34 of $200", fraction: 0.17)]))
+            IslandCardMeter(label: "Extra usage", value: "83% left", trailing: "$166 of $200", fraction: 0.83)]))
         let c2 = IslandCard(title: "C2", body: .meters([
             meter("Session", 40, "in 2 h 30 min", tick: 0.5), meter("Weekly", 70, "in 8 h 24 min", tick: 0.95, thick: true),
             meter("Weekly · Fable", 31, "in 8 h 24 min", tick: 0.95)]))
