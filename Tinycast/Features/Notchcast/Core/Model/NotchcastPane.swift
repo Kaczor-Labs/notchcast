@@ -3,7 +3,7 @@ import Synchronization
 
 /// The Notchcast sidebar section's tabs, in order; a later add-on adds its tab here.
 enum NotchcastPane: CaseIterable, Sendable {
-    case island, keyboardMouse, displaySound, capture, launcher, downloads, macTweaks
+    case island, keyboardMouse, displaySound, capture, launcher, downloads, power, macTweaks
 
     /// Installed by NotchcastCore from the registered switches before Settings can open.
     private static let registered = Mutex<Set<NotchcastCategory>>([])
@@ -32,6 +32,7 @@ enum NotchcastPane: CaseIterable, Sendable {
         case .capture: [.capture]
         case .launcher: [.launcher]
         case .downloads: [.filesDownloads]
+        case .power: [.power]
         case .macTweaks: [.macTweaks]
         }
     }
@@ -45,6 +46,7 @@ enum NotchcastPane: CaseIterable, Sendable {
         case .capture: "notchcast-capture"
         case .launcher: "notchcast-launcher"
         case .downloads: "notchcast-downloads"
+        case .power: "notchcast-power"
         case .macTweaks: "notchcast-mac-tweaks"
         }
     }
@@ -57,6 +59,7 @@ enum NotchcastPane: CaseIterable, Sendable {
         case .capture: String(localized: "Capture", table: "Notchcast")
         case .launcher: String(localized: "Launcher Extras", table: "Notchcast")
         case .downloads: String(localized: "Downloads", table: "Notchcast")
+        case .power: String(localized: "Power")
         case .macTweaks: String(localized: "Mac Tweaks", table: "Notchcast")
         }
     }
@@ -69,6 +72,7 @@ enum NotchcastPane: CaseIterable, Sendable {
         case .capture: "camera.viewfinder"
         case .launcher: "plus.magnifyingglass"
         case .downloads: "arrow.down.circle"
+        case .power: "bolt"
         case .macTweaks: "wrench.and.screwdriver"
         }
     }
