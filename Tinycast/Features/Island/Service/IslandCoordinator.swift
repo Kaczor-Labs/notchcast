@@ -54,8 +54,8 @@ final class IslandCoordinator: NSObject {
 
     private func showGlance(_ next: IslandGlance?) {
         restingGlance = next
-        syncExpansion()
         for controller in backdrops.values { controller.glance = controller.showsRest ? next : nil }
+        syncExpansion()
     }
 
     private var screens: [NSScreen] {
@@ -78,12 +78,13 @@ final class IslandCoordinator: NSObject {
             backdrop.showsRest = screen.islandDisplayID == main?.islandDisplayID
             backdrop.outlineWhenOpen = core.settings.islandOutlineWhenOpen
             backdrop.canOpen = { [weak self] in self?.panel?.isVisible != true }
-            // The launcher has its hotkey; a click acts on what the island shows, else opens its menu.
-            backdrop.onOpen = { [weak backdrop] in
+            // The launcher has its hotkey; a click acts on what the island shows, else opens and pins it.
+            backdrop.onOpen = { [weak self, weak backdrop] in
                 if backdrop?.showsRest == true, let tap = presenter?.tap { return tap() }
-                backdrop?.openMenu()
+                self?.hover.pin()
             }
             backdrop.onSettle = { [weak self] in self?.hover.refresh() }
+            backdrop.canvas.onPointer = { [weak self] in self?.hover.refresh() }
             backdrop.onMenu = { [weak self] pill, window in self?.pillMenu.toggle(below: pill, in: window) }
             backdrop.glance = backdrop.showsRest ? restingGlance : nil
             presenter?.restore(backdrop, resting: backdrop.showsRest)
