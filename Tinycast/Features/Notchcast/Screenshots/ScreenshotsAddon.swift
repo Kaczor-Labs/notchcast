@@ -23,6 +23,11 @@ enum ScreenshotsAddon: NotchcastAddon {
             symbol: "camera", switchID: ScreenshotsModule.switchID
         ) { $0.module(ScreenshotsModule.self)?.captureDisplay() },
         NotchcastCommand(
+            slug: "edit-last-screenshot", name: String(localized: "Edit Last Screenshot", table: "NotchcastScreenshots"),
+            symbol: "pencil.tip.crop.circle", switchID: ScreenshotsModule.switchID,
+            keywords: ["annotate", "markup", "capture editor"]
+        ) { $0.module(ScreenshotsModule.self)?.editLastCapture() },
+        NotchcastCommand(
             slug: "capture-text", name: String(localized: "Capture Text", table: "NotchcastScreenshots"),
             symbol: ScreenshotsModule.textSymbol, switchID: ScreenshotsModule.switchID,
             keywords: ["ocr", "copy text", "recognize"]
