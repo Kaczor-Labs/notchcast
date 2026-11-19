@@ -34,8 +34,6 @@ final class NotchcastContext {
     private(set) var unavailableCommands: Set<String> = []
     /// Commands made at run time, one per user row; they go when the module detaches.
     private(set) var commands: [NotchcastCommand] = []
-    /// Returns true to consume a digit typed in the launcher (Number Keys, hook H9).
-    private(set) var launcherDigit: (@MainActor (_ digit: Int, _ query: String, _ entryRows: [Int]) -> Int?)?
     /// Returns true to claim a URL or file opened with the app (a link clicked, a document opened).
     private(set) var openURL: (@MainActor (URL) -> Bool)?
     /// Notchcast's own yes/no dialog, never `NSAlert`; nil where no app runs, as in harnesses.
@@ -95,11 +93,6 @@ final class NotchcastContext {
         onCommandsChanged()
     }
 
-    /// ⌘1–⌘0 ask this first; a returned row index opens that row instead of the favourite.
-    func handleLauncherDigit(_ handler: (@MainActor (_ digit: Int, _ query: String, _ entryRows: [Int]) -> Int?)?) {
-        launcherDigit = handler
-    }
-
     func handleOpenURL(_ handler: (@MainActor (URL) -> Bool)?) {
         openURL = handler
     }
@@ -129,7 +122,6 @@ final class NotchcastContext {
         module = nil
         wantedTaps.removeAll()
         commands.removeAll()
-        launcherDigit = nil
         unavailableCommands = []
         openURL = nil
     }
