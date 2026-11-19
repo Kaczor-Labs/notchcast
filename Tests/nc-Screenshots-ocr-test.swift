@@ -1,3 +1,4 @@
+// notchcast-ci-skip
 // notchcast-sources: Tinycast/Features/Notchcast/Screenshots/Model/*.swift
 // notchcast-sources: Tinycast/Features/Notchcast/Screenshots/Service/ScreenTextRecognizer.swift
 

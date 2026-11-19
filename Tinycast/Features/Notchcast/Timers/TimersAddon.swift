@@ -1,3 +1,4 @@
+// notchcast-addon-order: 220
 import Foundation
 
 /// Countdowns and alarms that tick in the island and ring there when they end.

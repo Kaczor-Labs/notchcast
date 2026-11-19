@@ -1,3 +1,4 @@
+// notchcast-addon-order: 200
 import SwiftUI
 
 enum LowDiskAddon: NotchcastAddon {
