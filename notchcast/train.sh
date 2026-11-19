@@ -2,9 +2,14 @@
 # One CI run for a whole train of PRs, split in halves while red; --queue picks the train and lands what is green.
 # notchcast/README.md has the rules.
 set -euo pipefail
-if [ "${1:-}" = --detach ]; then
-    shift
-    log="$(cd "$(git rev-parse --git-common-dir)" && pwd)/train-$(date +%Y%m%d-%H%M%S).log"
+detach=
+[ "${1:-}" != --detach ] || { detach=1; shift; }
+[ "$*" = --queue ] || { [ "$#" -ge 1 ] && [[ "$*" =~ ^[0-9]+(\ [0-9]+)*$ ]]; } \
+    || { echo 'usage: train.sh [--detach] <pr> <pr>... | [--detach] --queue' >&2; exit 2; }
+repeated=$(printf '%s\n' "$@" | sort | uniq -d | paste -sd' ' -)
+[ -z "$repeated" ] || { echo "REFUSED: PR named more than once: $repeated" >&2; exit 1; }
+if [ -n "$detach" ]; then
+    log="$(cd "$(git rev-parse --git-common-dir)" && pwd)/train-$(date +%Y%m%d-%H%M%S)-$$.log"
     # A new session outlives the chat or terminal that started it; the log ends with "train: exit <status>".
     python3 -c 'import os, sys
 if os.fork(): sys.exit(0)
@@ -13,10 +18,6 @@ os.execvp("bash", ["bash", *sys.argv[1:]])' "$0" "$@" > "$log" 2>&1 < /dev/null
     echo "train: detached, log $log"
     exit 0
 fi
-[ "$*" = --queue ] || { [ "$#" -ge 1 ] && [[ "$*" =~ ^[0-9]+(\ [0-9]+)*$ ]]; } \
-    || { echo 'usage: train.sh <pr> <pr>... | --queue' >&2; exit 2; }
-repeated=$(printf '%s\n' "$@" | sort | uniq -d | paste -sd' ' -)
-[ -z "$repeated" ] || { echo "REFUSED: PR named more than once: $repeated" >&2; exit 1; }
 cd "$(git rev-parse --show-toplevel)"
 top=$(pwd)
 source notchcast/config.env
@@ -34,13 +35,15 @@ scrap_train() {
     git -C "$top" push -q origin --delete "$1" || echo "WARN: could not delete $1" >&2
     gh run list -R "$FORK_REPO" -b "$1" -e workflow_dispatch --json databaseId,status,headSha \
         --jq ".[] | select(.headSha == \"$2\" and .status != \"completed\") | .databaseId" |
-        while read -r run; do gh run cancel "$run" -R "$FORK_REPO" >/dev/null || true; done
+        while read -r run; do gh run cancel "$run" -R "$FORK_REPO" >/dev/null || true; done \
+        || echo "WARN: could not cancel the runs of $1" >&2
     settle "$1"
 }
 cleanup() {
     local code=$? branch sha
-    # A second stop signal must not cut the scrap short.
+    # A second stop signal or a failing step must not cut the scrap short.
     trap '' INT TERM HUP
+    set +e
     cd "$top"
     while read -r branch sha; do
         echo "train: scrapping $branch, which has no verdict" >&2
@@ -52,9 +55,11 @@ cleanup() {
 }
 trap cleanup EXIT
 # Named, so cleanup reports the signal's status rather than the status of the command it cut short.
-trap 'exit 129' HUP
-trap 'exit 130' INT
-trap 'exit 143' TERM
+sleeper=
+stop() { [ -z "$sleeper" ] || kill "$sleeper" 2>/dev/null; exit "$1"; }
+trap 'stop 129' HUP
+trap 'stop 130' INT
+trap 'stop 143' TERM
 tree_at() {
     cd "$top"
     git worktree remove --force "$scratch/tree" >/dev/null 2>&1 || true
@@ -74,7 +79,8 @@ stack() {
     echo "train: #$2 ${head:0:8} onto ${1:0:8}" >&2
     # The merge runs even for an unlabelled draft, so one pass names every reason a PR would be dropped for.
     set +e
-    (set -e; merge_onto "$1" >&2)
+    # land.sh squashes it with this message and refuses a private name in it, so the train refuses it first.
+    (set -e; merge_onto "$1" >&2; pr=$2; squash_message > "$scratch/message"; check_message "$scratch/message")
     merged=$?
     set -e
     # land.sh refuses it after the Mac ran, and that loses the whole train.
@@ -133,14 +139,18 @@ if [ "${NOTCHCAST_TRAIN_MAC:-}" != hosted ] && [ -n "$label" ]; then
     online=$(gh api "repos/$FORK_REPO/actions/runners" --jq '.runners[] | select(.status == "online") | .labels[].name' 2>/dev/null || true)
     if grep -qxF "$label" <<< "$online"; then mac=isolated; else echo "train: no runner labelled $label is online, so the Mac job is hosted"; fi
 fi
+# HOSTED_ONLY_TESTS of the tree in the current directory, every line that sets it.
+hosted_only_list() { sed -n 's/^HOSTED_ONLY_TESTS="\(.*\)"$/\1/p' notchcast/config.env | paste -sd' ' -; }
 # Before the push, for the train just built ($tip on $base, its merges in $scratch/merges): refuses one whose run
 # land.sh could not find, and sets runner, where its Mac job goes, to hosted when only a hosted run proves it.
 preflight() {
-    local main_key tip_key commit pr changers='' hosted_only
+    local main_key tip_key commit pr changers='' hosted_only hosted_list
     tree_at "$base"
     main_key=$(python3 notchcast/ci.py tested-key "$tip")
+    hosted_list=$(hosted_only_list)
     tree_at "$tip"
     tip_key=$(python3 notchcast/ci.py tested-key HEAD)
+    hosted_list="$hosted_list $(hosted_only_list)"
     if [ "$main_key" != "$tip_key" ]; then
         while read -r pr commit; do
             git diff --quiet "$commit^1" "$commit" -- notchcast/ci.py || changers="$changers${changers:+ }#$pr"
@@ -151,7 +161,7 @@ preflight() {
     [ "$mac" = isolated ] || { cd "$top"; return 0; }
     hosted_only='(no selection: changed-harnesses.sh failed)'
     if (while read -r pr commit; do bash notchcast/changed-harnesses.sh "$commit^1" "$commit" || exit 1; done) < "$scratch/merges" > "$scratch/selected"; then
-        hosted_only=$(grep -xF -f <(tr ' ' '\n' <<< "$HOSTED_ONLY_TESTS") "$scratch/selected" | sort -u | paste -sd' ' - || true)
+        hosted_only=$(grep -xF -f <(tr ' ' '\n' <<< "$hosted_list" | grep .) "$scratch/selected" | sort -u | paste -sd' ' - || true)
     fi
     cd "$top"
     [ -n "$hosted_only" ] || return 0
@@ -162,8 +172,8 @@ preflight() {
 start_train() {
     local base=$1 file
     echo "train: $branch has its Mac job on the $runner runner" >&2
-    git push -q origin "$sha:refs/heads/$branch"
     echo "$branch $sha" >> "$unsettled"
+    git push -q origin "$sha:refs/heads/$branch"
     for file in $workflows; do
         if [ "$file" = design.yml ]; then
             gh workflow run "$file" -R "$FORK_REPO" --ref "$branch" >&2
@@ -200,7 +210,11 @@ wait_train() {
             esac
         done
         [ -n "$pending" ] || return 0
-        sleep "$poll"
+        # In the background: bash runs a trap only between foreground commands, and wait returns at a signal.
+        sleep "$poll" &
+        sleeper=$!
+        wait "$sleeper"
+        sleeper=
         waited=$((waited + poll))
     done
 }

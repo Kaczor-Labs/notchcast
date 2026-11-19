@@ -161,16 +161,6 @@ guard() {
 refresh_upstream() {
     git fetch -q upstream main || refuse 'cannot refresh upstream main'
 }
-squash_message() {
-    local title=$pr_title
-    [[ "$title" == Notchcast:* ]] || title="Notchcast: $title"
-    printf '%s (#%s)\n' "$title" "$pr"
-    if printf '%s\n' "$title" | grep -Eiq '^(notchcast: )?fix '; then
-        printf '\n'
-        grep -E '^No test: [^[:space:]].*' <<< "$pr_body" || true
-    fi
-    if [ -n "$drift_signoff" ]; then printf '\n%s\n' "$drift_signoff"; fi
-}
 # Runs "$@" in a subshell with errexit on, so its refuse ends one PR, not the run; leaves the exit code in status.
 attempt() {
     set +e
@@ -368,7 +358,7 @@ squash_onto() {
     load "$2"
     merge_onto "$1"
     squash_message > "$scratch/message"
-    [ "$check" -eq 1 ] || notchcast/check-identity.sh message "$scratch/message" || refuse 'commit message names something private'
+    [ "$check" -eq 1 ] || check_message "$scratch/message"
     cp "$scratch/message" "$scratch/message-$2"
     as_maintainer git commit-tree "HEAD^{tree}" -p "$1" -F "$scratch/message" > "$scratch/commit-$2"
 }

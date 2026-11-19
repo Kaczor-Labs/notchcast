@@ -4,9 +4,17 @@
 set -euo pipefail
 # shellcheck disable=SC1091
 source "$(dirname "${BASH_SOURCE[0]}")/config.env"
-# Each try is capped (perl's alarm survives exec) and retried once: a stalled fetch ate a step.
 limit=${NOTCHCAST_FETCH_TIMEOUT:-90}
-fetch() { perl -e 'alarm shift; exec @ARGV or die "exec: $!"' "$limit" git fetch -q "$@" "https://github.com/$UPSTREAM_REPO.git" "+refs/heads/main:refs/remotes/upstream/main"; }
+# Its own process group, killed whole at the cap: git's https helper holds the socket and our stdout.
+capped() {
+    perl -e 'my $limit = shift; my $pid = fork // die "fork: $!";
+        if (!$pid) { setpgrp(0, 0); exec @ARGV or die "exec: $!" }
+        setpgrp($pid, $pid);
+        $SIG{ALRM} = sub { kill "KILL", -$pid; waitpid($pid, 0); exit 124 };
+        alarm $limit; waitpid($pid, 0); kill "KILL", -$pid;
+        exit($? & 127 ? 128 + ($? & 127) : $? >> 8)' "$limit" "$@"
+}
+fetch() { capped git fetch -q "$@" "https://github.com/$UPSTREAM_REPO.git" "+refs/heads/main:refs/remotes/upstream/main"; }
 fetch "$@" && exit 0
 echo "fetch-upstream: the fetch failed or passed ${limit}s; trying once more" >&2
 fetch "$@"
