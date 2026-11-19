@@ -547,8 +547,8 @@ struct NotchcastCoreTest {
     static func settingsTabs() {
         check("each tab holds its categories",
               NotchcastPane.allCases.map(\.categories)
-                == [[], [.keyboardMouse], [.displaySound, .music], [.capture], [.launcher], [.filesDownloads], [.power],
-                   [.macTweaks]])
+                == [[], [.agents], [.keyboardMouse], [.displaySound, .music], [.capture], [.launcher], [.filesDownloads],
+                   [.power], [.macTweaks]])
         check("no category sits in two tabs", NotchcastCategory.allCases.allSatisfy { category in
             NotchcastPane.allCases.filter { $0.categories.contains(category) }.count <= 1
         })
