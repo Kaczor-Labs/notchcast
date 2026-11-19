@@ -1,5 +1,9 @@
 // notchcast-sources: Tinycast/Features/Notchcast/Agents/Model/*.swift
-// notchcast-sources: Tinycast/Features/Notchcast/Agents/Service/*.swift
+// notchcast-sources: Tinycast/Features/Island/Model/IslandPresentation.swift
+// notchcast-sources: Tinycast/Features/Notchcast/Agents/Service/AgentCLIConversation.swift
+// notchcast-sources: Tinycast/Features/Notchcast/Agents/Service/AgentFeedStore.swift
+// notchcast-sources: Tinycast/Features/Notchcast/Agents/Service/ClaudeUsageReader.swift
+// notchcast-sources: Tinycast/Features/Notchcast/Agents/Service/CodexUsageReader.swift
 // notchcast-sources: Tinycast/Platform/ExecutableLocator.swift Tinycast/Platform/ProcessExit.swift
 
 import Foundation

@@ -46,7 +46,7 @@ extension AgentAccount {
     func backAt(now: Date) -> Date? { spentWindows(now: now).compactMap(\.resetsAt).max() }
 
     /// Claude's session and per-model weeklies leave the plan usable, so only its main weekly spends it.
-    private func spentWindows(now: Date) -> [AgentWindow] {
+    func spentWindows(now: Date) -> [AgentWindow] {
         currentWindows(now: now).filter { window in
             window.usedPercent >= 100 && (provider != "claude" || (window.kind == .weekly && window.scope == nil))
         }

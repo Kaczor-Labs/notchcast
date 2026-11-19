@@ -24,6 +24,12 @@ struct AgentCard: Equatable, Sendable {
     var body: Body
     var dimmed: Bool
     var caption: String?
+    /// Under a notice's headline: which limit spent the account.
+    var detail: String? = nil
+    /// A reset the account holds in hand, as a chip beside its name.
+    var credit: String? = nil
+    /// The card as VoiceOver reads it, in words rather than the screen's short units.
+    var spoken: String? = nil
 }
 
 struct AgentColumn: Equatable, Sendable {
@@ -138,16 +144,19 @@ struct AgentBoard: Equatable, Sendable {
         if let (glyph, headline) = notice {
             return AgentCard(
                 title: account.name, tag: tag, hollow: true, body: .notice(glyph: glyph, headline: headline),
-                dimmed: false, caption: nil)
+                dimmed: false, caption: nil, spoken: "\(account.name). \(headline)")
         }
+        let credit = credits(account.resetCredits)
         if account.isSpent(now: now) {
             let back = account.backAt(now: now).map {
                 String(localized: "Back in \(AgentDuration.text($0.timeIntervalSince(now)))", table: "NotchcastAgents")
             }
+            let headline = back ?? String(localized: "Spent", table: "NotchcastAgents")
+            let detail = spentDetail(account, now: now)
             return AgentCard(
-                title: account.name, tag: tag, hollow: true,
-                body: .notice(glyph: "hourglass", headline: back ?? String(localized: "Spent", table: "NotchcastAgents")),
-                dimmed: false, caption: nil)
+                title: account.name, tag: tag, hollow: true, body: .notice(glyph: "hourglass", headline: headline),
+                dimmed: false, caption: nil, detail: detail, credit: credit,
+                spoken: [account.name, credit, headline, detail].compactMap(\.self).joined(separator: ". "))
         }
         let age = AgentDuration.text(now.timeIntervalSince(account.checkedAt))
         let failed = account.state == .unavailable
@@ -163,9 +172,58 @@ struct AgentBoard: Equatable, Sendable {
         let windows = account.currentWindows(now: now).sorted { lhs, rhs in
             lhs.kind != rhs.kind ? lhs.kind < rhs.kind : lhs.scope == nil && rhs.scope != nil
         }
+        let extra = account.extraUsage.flatMap(extraMeter)
+        let spokenWindows = windows.map { spoken($0, now: now) } + [extra.map { "\($0.label), \($0.value), \($0.trailing ?? "")" }]
         return AgentCard(
-            title: account.name, tag: tag, hollow: false, body: .meters(windows.map { meter($0, now: now) }),
-            dimmed: stale, caption: caption)
+            title: account.name, tag: tag, hollow: false,
+            body: .meters(windows.map { meter($0, now: now) } + [extra].compactMap(\.self)),
+            dimmed: stale, caption: caption, credit: credit,
+            spoken: ([account.name, credit] + spokenWindows + [caption]).compactMap(\.self).joined(separator: ". "))
+    }
+
+    /// "1 reset credit", "2 Fable reset credits"; none in hand draws nothing.
+    static func credits(_ credits: AgentResetCredits?) -> String? {
+        guard let credits, credits.count > 0 else { return nil }
+        let count = credits.count
+        return switch (credits.scope, count == 1) {
+        case (let scope?, true): String(localized: "1 \(scope) reset credit", table: "NotchcastAgents")
+        case (let scope?, false): String(localized: "\(count) \(scope) reset credits", table: "NotchcastAgents")
+        case (nil, true): String(localized: "1 reset credit", table: "NotchcastAgents")
+        case (nil, false): String(localized: "\(count) reset credits", table: "NotchcastAgents")
+        }
+    }
+
+    /// Extra usage only with a limit to measure it against: "$34 of $200".
+    private static func extraMeter(_ extra: AgentExtraUsage) -> AgentMeter? {
+        guard let limit = extra.limit, limit > 0, extra.used.isFinite else { return nil }
+        let money = Decimal.FormatStyle.Currency(code: extra.currency, locale: Locale(identifier: "en_US"))
+            .precision(.fractionLength(0))
+        let used = Decimal(extra.used).formatted(money)
+        let of = Decimal(limit).formatted(money)
+        return AgentMeter(
+            label: String(localized: "Extra usage", table: "NotchcastAgents"), value: percent(extra.used / limit * 100),
+            trailing: String(localized: "\(used) of \(of)", table: "NotchcastAgents"), fraction: min(extra.used / limit, 1),
+            tick: nil, thick: false, warning: false, note: nil)
+    }
+
+    /// Which limit spent it: the one that renews last, as "Back in" counts to it.
+    private static func spentDetail(_ account: AgentAccount, now: Date) -> String {
+        let last = account.spentWindows(now: now).max { ($0.resetsAt ?? .distantPast) < ($1.resetsAt ?? .distantPast) }
+        return switch last?.kind {
+        case .session?: String(localized: "Session limit used up", table: "NotchcastAgents")
+        case .weekly?: String(localized: "Weekly limit used up", table: "NotchcastAgents")
+        case .monthly?: String(localized: "Monthly limit used up", table: "NotchcastAgents")
+        case .other?, nil: String(localized: "Limit used up", table: "NotchcastAgents")
+        }
+    }
+
+    /// "Weekly, 45 percent used, resets in 5 days 14 hours".
+    private static func spoken(_ window: AgentWindow, now: Date) -> String {
+        let percent = Int(window.usedPercent.rounded(.down))
+        let used = String(localized: "\(percent) percent used", table: "NotchcastAgents")
+        guard let resets = window.resetsAt else { return "\(label(window)), \(used)" }
+        let left = AgentDuration.spoken(resets.timeIntervalSince(now))
+        return "\(label(window)), \(used), " + String(localized: "resets in \(left)", table: "NotchcastAgents")
     }
 
     static func label(_ window: AgentWindow) -> String {
