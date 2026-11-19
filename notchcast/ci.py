@@ -7,7 +7,7 @@
     ci.py pin-tag <tag> <commit>            fetch upstream main and tag; fail unless the tag still peels to commit
     ci.py replay <tree> <onto>              in <tree> (our main, upstream fetched), replay our commits onto <onto>
     ci.py regenerate <tree> <onto>          rewrite the generated files in <tree> (no commit)
-    ci.py app-info <tag> <dir>              name, bundle id, version and build of upstream's release zip
+    ci.py app-info <tag>                    name, bundle id, version and build of upstream's release zip
     ci.py issue open <kind> <title> <cause> [<details.md>] | issue close <kind>
     ci.py design-notice <tree> <old upstream> <new upstream>
     ci.py hold <moved_at> [<now>]           PR list JSON on stdin: exit 0 while the rebase hold is on (kick.sh), else 1
@@ -682,7 +682,21 @@ def design_notice(tree, old, new):
               "--body", f"Upstream commits from `{old[:7]}` to `{new[:7]}` that touch the design system:\n\n{commits}\n"))
 
 
-def app_info(tag, out_dir):
+APP_INFO_PATTERNS = {"name": r"[A-Za-z0-9][A-Za-z0-9 ._-]{0,63}", "bundle_id": r"[A-Za-z0-9-]+(\.[A-Za-z0-9-]+)+",
+                     "version": r"[0-9]+\.[0-9]+\.[0-9]+(-[a-z]+\.[0-9]+)?", "build": r"[0-9]+(\.[0-9]+){0,2}"}
+
+
+def app_info_outputs(info):
+    """The job outputs from upstream's Info.plist, each checked whole: a newline would add an output line."""
+    values = {"name": info.get("CFBundleName"), "bundle_id": info.get("CFBundleIdentifier"),
+              "version": info.get("CFBundleShortVersionString"), "build": info.get("CFBundleVersion")}
+    for key, value in values.items():
+        if not isinstance(value, str) or not re.fullmatch(APP_INFO_PATTERNS[key], value):
+            sys.exit(f"upstream zip has an unexpected {key}: {value!r}")
+    return values
+
+
+def app_info(tag):
     """Name, bundle id, version and build from upstream's own thin zip, so our build matches it."""
     cfg = config()
     with tempfile.TemporaryDirectory() as tmp:
@@ -696,13 +710,10 @@ def app_info(tag, out_dir):
         plist_path = next(l for l in listing if l.count("/") == 2 and l.endswith(".app/Contents/Info.plist"))
         info = plistlib.loads(subprocess.run(["unzip", "-p", str(zips[0]), plist_path],
                                              capture_output=True, check=True).stdout)
-    version = info["CFBundleShortVersionString"]
-    if f"v{version}" != tag:
-        sys.exit(f"upstream zip says version {version}, tag is {tag}")
-    body = json.loads(run("gh", "release", "view", tag, "-R", cfg["UPSTREAM_REPO"], "--json", "body"))["body"]
-    Path(out_dir, "upstream-notes.md").write_text(body)
-    output(name=info["CFBundleName"], bundle_id=info["CFBundleIdentifier"], version=version,
-           build=info["CFBundleVersion"])
+    values = app_info_outputs(info)
+    if f"v{values['version']}" != tag:
+        sys.exit(f"upstream zip says version {values['version']}, tag is {tag}")
+    output(**values)
 
 
 if __name__ == "__main__":
