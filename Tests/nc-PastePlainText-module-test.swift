@@ -299,22 +299,17 @@ enum PastePlainTextModuleTests {
 
     @MainActor
     static func matchStyle() {
-        func matches(
-            _ character: String?, _ mask: UInt32?, enabled: Bool = true, app: String? = "com.apple.TextEdit"
-        ) -> Bool {
+        func matches(_ key: String?, _ mask: UInt32?, enabled: Bool = true, app: String? = "com.apple.TextEdit") -> Bool {
             PlainPastePolicy.isMatchStyleEquivalent(
-                bundleIdentifier: app, commandCharacter: character, modifierMask: mask, isEnabled: enabled)
+                bundleIdentifier: app, commandCharacter: key, modifierMask: mask, isEnabled: enabled)
         }
-        precondition(matches("V", 3) && matches("v", 3), "⌥⇧⌘V, any case, is the app's matching-style paste")
-        precondition(!matches("V", 0), "plain ⌘V is the regular paste")
-        precondition(!matches("V", 1), "⇧⌘V alone is another command in several apps")
-        precondition(!matches("V", 3 | 4), "a control variant is not it")
-        precondition(!matches("V", 3 | 8), "nor one without ⌘")
+        precondition(matches("V", 3) && matches("v", 3) && matches("V", 3, app: nil),
+                     "⌥⇧⌘V, any case, is the app's matching-style paste, also in an app without a bundle ID")
+        precondition(!matches("V", 0) && !matches("V", 1), "plain ⌘V, and ⇧⌘V alone, are other commands in several apps")
+        precondition(!matches("V", 3 | 4) && !matches("V", 3 | 8), "a control variant is not it, nor one without ⌘")
         precondition(!matches("C", 3) && !matches(nil, 3) && !matches("V", nil), "nor another key or none")
         precondition(!matches("V", 3, enabled: false), "a disabled item is never pressed")
-        precondition(!matches("V", 3, app: "com.apple.finder"),
-                     "a ⌥⇧⌘V item that is not Paste and Match Style, as Finder's Paste Exactly, is not pressed")
-        precondition(matches("V", 3, app: nil), "an app without a bundle ID keeps its matching-style paste")
+        precondition(!matches("V", 3, app: "com.apple.finder"), "Finder's ⌥⇧⌘V is Paste Item Exactly, never pressed")
     }
 
     @MainActor
