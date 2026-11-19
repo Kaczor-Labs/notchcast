@@ -1,0 +1,30 @@
+{
+  "sourceLanguage" : "en",
+  "strings" : {
+    "%@ not found" : {},
+    "%lld d" : {},
+    "%lld d %lld h" : {},
+    "%lld h" : {},
+    "%lld h %lld min" : {},
+    "%lld min" : {},
+    "Back in %@" : {},
+    "Couldn’t read usage" : {},
+    "Couldn’t refresh · updated %@ ago" : {},
+    "Limit" : {},
+    "Monthly" : {},
+    "Reading…" : {},
+    "Runs out in %@" : {},
+    "Session" : {},
+    "Sign in to %@" : {},
+    "Spent" : {},
+    "This Mac only: feed version %lld is newer than this app." : {},
+    "This Mac only: no feed found." : {},
+    "This Mac only: the feed couldn’t be read." : {},
+    "Update %@" : {},
+    "Updated %@ ago" : {},
+    "Weekly" : {},
+    "in %@" : {},
+    "runs out in %@" : {}
+  },
+  "version" : "1.0"
+}
