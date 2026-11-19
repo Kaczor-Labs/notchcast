@@ -27,6 +27,8 @@ struct IslandHover: Equatable, Sendable {
     private(set) var isPinned = false
     private var readySince: TimeInterval?
     private var leftAt: TimeInterval?
+    /// Escape closed it under the pointer: hover stays shut until the pointer has left.
+    private var dismissed = false
 
     /// When `tick` next has work to do, or nil when nothing is pending.
     var deadline: TimeInterval? {
@@ -38,6 +40,7 @@ struct IslandHover: Equatable, Sendable {
     @discardableResult
     mutating func update(_ next: Input, at now: TimeInterval) -> Bool {
         input = next
+        if !next.inside { dismissed = false }
         let was = isOpen
         if next.covered {
             close()
@@ -54,6 +57,7 @@ struct IslandHover: Equatable, Sendable {
             }
         } else {
             let ready = next.inside && !next.buttonHeld && !next.menuOpen && !next.moving && next.enabled
+                && !dismissed
             if !ready { readySince = nil } else if readySince == nil { readySince = now }
         }
         return tick(at: now) || was != isOpen
@@ -80,7 +84,10 @@ struct IslandHover: Equatable, Sendable {
     }
 
     /// Escape, a click outside, or the launcher hotkey.
-    mutating func dismiss() { close() }
+    mutating func dismiss() {
+        close()
+        dismissed = input.inside
+    }
 
     private mutating func open() {
         isOpen = true

@@ -24,6 +24,7 @@ final class IslandHoverTracker {
     init(world: World) { self.world = world }
 
     var isOpen: Bool { hover.isOpen }
+    var isPinned: Bool { hover.isPinned }
     var isWatching: Bool { !monitors.isEmpty }
 
     func start() { refresh() }
@@ -35,6 +36,13 @@ final class IslandHoverTracker {
     func togglePin() {
         let was = hover.isOpen
         hover.togglePin(at: world.now())
+        apply(was != hover.isOpen)
+    }
+
+    /// Escape on an island page: it closes until the pointer next moves in.
+    func dismiss() {
+        let was = hover.isOpen
+        hover.dismiss()
         apply(was != hover.isOpen)
     }
 
