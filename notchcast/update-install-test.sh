@@ -26,6 +26,14 @@ gh() {
             printf '%s\n' "$RELEASE_TAGS" | jq -Rn --argjson limit "$limit" '[inputs | {tagName: ., isDraft: false}] | .[:$limit]' | jq -r "$2"
             ;;
         'release download') printf '%s\n' "$3" > "$HOME/downloaded" ;;
+        # RUNS: one green "<id> <title>" per line, newest first; each run's artifact holds Notchcast-<PR_VERSION>.zip.
+        'run list') printf '%s\n' "$RUNS" | jq -Rn '[inputs | select(. != "") | capture("^(?<databaseId>[0-9]+) (?<displayTitle>.*)$")]' | jq -r "${*: -1}" ;;
+        'run download')
+            [ -n "$PR_VERSION" ] || return 1
+            printf '%s\n' "$3" > "$HOME/downloaded"
+            touch "${*: -1}/Notchcast-$PR_VERSION.zip"
+            ;;
+        'pr view') jq -nr --arg head "$PR_HEAD" '{headRefOid: $head}' | jq -r "${*: -1}" ;;
     esac
 }
 # Signed by SIGNER: only the one-call check with the requirement that names its leaf passes.
@@ -35,7 +43,7 @@ ditto() { cp -R "$FIXTURE" "$4/New.app"; }
 xattr() { return 0; }
 ioreg() { touch "$HOME/idle-read"; echo '"HIDIdleTime" = 0'; }
 sleep() { touch "$HOME/slept"; }
-export SIGNER
+export SIGNER RUNS='' PR_VERSION='' PR_HEAD=''
 export -f gh codesign ditto xattr ioreg sleep
 run_case() {
     local name=$1 installed=$2 expected=$3
@@ -98,3 +106,67 @@ PIN=none refused_case no-private-env 'no SIGN_SHA1'
 PIN=lowercase-or-missing refused_case no-private-pin 'no SIGN_SHA1'
 test ! -f "$HOME/downloaded" || { echo 'FAIL: no-private-pin downloaded a release'; exit 1; }
 echo 'PASS: update.sh refuses without a SIGN_SHA1 in private.env, whatever config.env says'
+
+# Test builds: --pr=<n> installs the PR's newest green Test build only from its current head, then holds it.
+HEAD_SHA=0123abcd89ef0123456789abcdef0123456789ab
+TEST_VERSION=0.12.8.pr7.0123abcd
+export RELEASE_TAGS="$LATEST" RUNS=$'41 Test build #70\n40 Test build #7\n39 Test build #7' PR_HEAD="$HEAD_SHA"
+pr_case() {
+    local name=$1 status=$2 message=$3 installs=$4
+    shift 4
+    export HOME="$WORK/$name"
+    mkdir -p "$HOME"
+    /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString $PR_VERSION" "$FIXTURE/Contents/Info.plist" 2>/dev/null || true
+    local got=0
+    bash "$WORK/update.sh" "$@" > "$HOME/log" 2>&1 || got=$?
+    test "$got" = "$status" || { echo "FAIL: $name exited $got, wanted $status"; cat "$HOME/log"; exit 1; }
+    grep -q -- "$message" "$HOME/log" || { echo "FAIL: $name did not say '$message'"; cat "$HOME/log"; exit 1; }
+    if [ "$installs" = yes ]; then
+        test -f "$HOME/installed" || { echo "FAIL: $name did not install"; cat "$HOME/log"; exit 1; }
+    else
+        test ! -f "$HOME/installed" || { echo "FAIL: $name installed"; cat "$HOME/log"; exit 1; }
+    fi
+    echo "PASS: $name"
+}
+for args in --pr= --pr=0 --pr=7x "--pr=7 --restore" "--restore --pr=7"; do
+    # shellcheck disable=SC2086
+    PR_VERSION="$TEST_VERSION" pr_case "usage-${args// /_}" 2 Usage no $args
+done
+# Each case runs in a fresh copy of BENCH: a home with the newest snapshot installed and the pin.
+BENCH="$WORK/bench"
+mkdir -p "$BENCH/.config/notchcast"
+echo "SIGN_SHA1=$SIGNER" > "$BENCH/.config/notchcast/private.env"
+cp -R "$FIXTURE" "$BENCH/App.app"
+/usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString ${LATEST#v}" "$BENCH/App.app/Contents/Info.plist"
+bench() {
+    local name=$1
+    shift
+    cp -R "$BENCH" "$WORK/$name"
+    export NOTCHCAST_APP="$WORK/$name/App.app"
+    pr_case "$name" "$@"
+}
+PR_VERSION="$TEST_VERSION" bench pr-dry-run 0 "would install test build $TEST_VERSION" no --pr=7 --dry-run
+grep -qxF 40 "$WORK/pr-dry-run/downloaded" || { echo 'FAIL: --pr took another run than the newest green #7'; exit 1; }
+PR_VERSION="$TEST_VERSION" PR_HEAD=fedcba9876543210fedcba9876543210fedcba98 bench pr-head-moved 1 "not PR #7's current head fedcba98" no --pr=7
+PR_VERSION="$TEST_VERSION" SIGNER=1111111111111111111111111111111111111111 bench pr-other-signer 1 'not signed by' no --pr=7
+PR_VERSION="$TEST_VERSION" SIGNER=1111111111111111111111111111111111111111 bench pr-dry-run-other-signer 1 'not signed by' no --pr=7 --dry-run
+PR_VERSION="$TEST_VERSION" RUNS='40 Test build #70' bench pr-no-run 1 'gh workflow run test-build.yml .* -f pr=7' no --pr=7
+PR_VERSION='' bench pr-no-artifact 1 'no test-build artifact' no --pr=7
+PR_VERSION="$TEST_VERSION" bench pr-install 0 "holding test build $TEST_VERSION" yes --pr=7
+test "$(cat "$WORK/pr-install/Library/Application Support/notchcast/test-build")" = "$TEST_VERSION" \
+    || { echo 'FAIL: pr-install did not record the held version'; exit 1; }
+# What install-app.sh would have left in place: the test build, held.
+BENCH="$WORK/pr-install"
+rm -f "$BENCH/installed" "$BENCH/downloaded"
+/usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString $TEST_VERSION" "$BENCH/App.app/Contents/Info.plist"
+PR_VERSION="$TEST_VERSION" bench held 0 "test build $TEST_VERSION is held" no
+PR_VERSION="$TEST_VERSION" bench held-install 0 "test build $TEST_VERSION is held" no --install
+PR_VERSION="${LATEST#v}" bench restore-dry-run 0 "preparing $LATEST" no --restore --dry-run
+test -f "$WORK/restore-dry-run/Library/Application Support/notchcast/test-build" || { echo 'FAIL: a dry --restore dropped the hold'; exit 1; }
+PR_VERSION="${LATEST#v}" bench restore 0 "preparing $LATEST" yes --restore
+grep -qxF "$LATEST" "$WORK/restore/downloaded" || { echo 'FAIL: --restore did not take the newest snapshot'; exit 1; }
+test ! -f "$WORK/restore/Library/Application Support/notchcast/test-build" || { echo 'FAIL: --restore kept the hold'; exit 1; }
+# A hold for a version no longer installed holds nothing.
+/usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString 0.12.8.pr7.99999999" "$BENCH/App.app/Contents/Info.plist"
+PR_VERSION="${LATEST#v}" bench stale-hold 0 "preparing $LATEST" yes
+echo 'PASS: update.sh --pr installs only a green test build of the current head, signed by us, and --restore ends its hold'
