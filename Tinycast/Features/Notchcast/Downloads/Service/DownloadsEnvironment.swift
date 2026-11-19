@@ -3,10 +3,15 @@ import AppKit
 extension DownloadsModule.Environment {
     /// The real Mac: finished files land in `~/Downloads`.
     static func live(home: URL = FileManager.default.homeDirectoryForCurrentUser) -> Self {
-        Self(
-            downloads: home.appending(path: "Downloads", directoryHint: .isDirectory),
+        let downloads = home.appending(path: "Downloads", directoryHint: .isDirectory)
+        let tools = DownloadToolLookup(home: home)
+        return Self(
+            downloads: downloads,
             queues: AppPaths.applicationSupport().appending(path: "Notchcast", directoryHint: .isDirectory),
-            tools: DownloadToolLookup(home: home),
-            clipboard: { NSPasteboard.general.string(forType: .string) ?? "" })
+            tools: tools,
+            clipboard: { NSPasteboard.general.string(forType: .string) ?? "" },
+            torrents: .live(downloads: downloads, tools: tools),
+            interfaces: BondingInterfaceScanner.scan,
+            remoteBytes: { await DownloadSizeProbe.bytes(of: $0) })
     }
 }

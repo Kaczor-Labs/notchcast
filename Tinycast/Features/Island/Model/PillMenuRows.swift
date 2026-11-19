@@ -4,7 +4,7 @@ import Foundation
 enum PillMenuRow: Equatable, Sendable {
     case join, openInCalendar
     case mySchedule, clipboardHistory, showNotes, createNote, searchNotes
-    case checkForUpdates, support, settings
+    case checkForUpdates, settings
     case quit
 
     static func sections(clipboard: Bool, calendar: Bool, notes: Bool, carded: Bool) -> [[PillMenuRow]] {
@@ -12,7 +12,7 @@ enum PillMenuRow: Equatable, Sendable {
         if clipboard { features.append(.clipboardHistory) }
         if notes { features += [.showNotes, .createNote, .searchNotes] }
         let meeting: [PillMenuRow] = calendar && carded ? [.join, .openInCalendar] : []
-        return [meeting, features, [.checkForUpdates, .support, .settings], [.quit]].filter { !$0.isEmpty }
+        return [meeting, features, [.checkForUpdates, .settings], [.quit]].filter { !$0.isEmpty }
     }
 }
 

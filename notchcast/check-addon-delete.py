@@ -1,15 +1,15 @@
 #!/usr/bin/env python3
 """Delete test for add-ons (notchcast/docs/addons.md §5): the app still builds and passes without one.
 
-For each folder, in a scratch clone of the ref: delete Tinycast/Features/Notchcast/<Folder>/, its registry
-line, its notchcast/licenses/borrowed.md lines and Tests/nc-<Folder>-*.swift, then regenerate the project,
-build Debug and run Scripts/run-tests.sh.
+For each folder, in a scratch clone of the ref: delete Tinycast/Features/Notchcast/<Folder>/, its licence list
+notchcast/licenses/borrowed/<Folder>.txt and Tests/nc-<Folder>-*.swift, then regenerate the registry
+(notchcast/addons.py) and the project, build Debug and run Scripts/run-tests.sh.
 Every surviving fork harness that notchcast/harness_inputs.py resolves in the scratch tree must report a result
 in the run-tests log, so a harness the runner skipped cannot pass as clean.
 Prints PASS per folder, or FAIL with the step and its log. A failure the deletion caused is a contract breach
 (exit 1); one the tools caused (clone, xcodegen, timeout, a build that stopped without a Swift error) is a
 tooling failure (exit 2). ready-check runs --rotate when its branch changes Tinycast/Features/Notchcast/.
---list prints the folders at the ref, one per line, and builds nothing; delete-check.yml runs one job per line.
+--list prints the folders at the ref, one per line, and builds nothing; delete-check.yml runs them in turn in one job.
 The scratch dir holds owner.pid; SIGTERM, SIGINT or SIGHUP stops the running step's process group, removes the
 dir and exits 128+signal, and each run first removes the dirs of dead owners, or pid-less ones over an hour old.
 With NOTCHCAST_BUILD_QUEUE set, in the environment or ~/.config/notchcast/private.env (notchcast/README.md,
@@ -28,14 +28,14 @@ import tempfile
 import time
 
 ROOT_DIR = 'Tinycast/Features/Notchcast/'
-REGISTRY = ROOT_DIR + 'NotchcastRegistry.swift'
-BORROWED = 'notchcast/licenses/borrowed.md'
+BORROWED_DIR = 'notchcast/licenses/borrowed/'
+GENERATOR = 'notchcast/addons.py'
 CORE_DIRS = {'Core', 'Hidden'}
 ADDON_DECL = re.compile(r'\b(?:struct|enum|class)\s+(\w+)\b[^{]*\bNotchcastAddon\b')
 SWIFT_ERROR = re.compile(r'\.swift:\d+:\d+: error:')
 HARNESS_FAIL = re.compile(r'FAIL\S*\s+\S+')
 ANSI = re.compile(r'\x1b\[[0-9;]*m')
-RESULT_LINE = re.compile(r'^\[\d+/\d+\]\s+\S+\s+(\S+)', re.M)
+RESULT_LINE = re.compile(r'^\[\s*\d+/\d+\]\s+\S+\s+(\S+)', re.M)
 LOGS = pathlib.Path.home() / 'Library/Caches/notchcast/addon-delete'
 TIMEOUT = 3600
 SCRATCH_PREFIX = 'notchcast-delete.'
@@ -44,6 +44,9 @@ STALE_AGE = 3600
 STOP_SIGNALS = (signal.SIGINT, signal.SIGTERM, signal.SIGHUP)
 STOP_GRACE = 10
 RUNNING = []
+# A stop signal landing mid-start waits until the step is in RUNNING, or its tree would outlive us.
+STARTING = []
+HELD = []
 SOURCE_HOOK = 'source "$1" >/dev/null; s=$?; printf %s "${NOTCHCAST_BUILD_QUEUE-}"; exit $s'
 
 
@@ -68,34 +71,19 @@ def addon_types(folder_dir):
     return {match for path in folder_dir.rglob('*.swift') for match in ADDON_DECL.findall(path.read_text())}
 
 
-def without_registry_lines(text, types):
-    kept, removed = [], set()
-    for line in text.splitlines(keepends=True):
-        match = re.match(r'^\s*(\w+)\.self,\s*$', line)
-        if match and match[1] in types:
-            removed.add(match[1])
-        else:
-            kept.append(line)
-    return ''.join(kept), removed
-
-
 def delete_folder(tree, folder):
     folder_dir = tree / ROOT_DIR / folder
     types = addon_types(folder_dir)
     if not types:
         raise Tooling(f'{folder}: no type declared `: NotchcastAddon`')
-    registry = tree / REGISTRY
-    text, removed = without_registry_lines(registry.read_text(), types)
-    if removed != types:
-        raise Breach(f"{folder}: registry has no line for {', '.join(sorted(types - removed))}")
-    registry.write_text(text)
     shutil.rmtree(folder_dir)
     for test in (tree / 'Tests').glob(f'nc-{folder}-*.swift'):
         test.unlink()
-    borrowed = tree / BORROWED
-    if borrowed.is_file():
-        lines = borrowed.read_text().splitlines(keepends=True)
-        borrowed.write_text(''.join(line for line in lines if not line.startswith(f'{folder}: ')))
+    (tree / BORROWED_DIR / f'{folder}.txt').unlink(missing_ok=True)
+    generated = subprocess.run([sys.executable, str(tree / GENERATOR), 'registry', '--root', str(tree)],
+                               capture_output=True, text=True)
+    if generated.returncode:
+        raise Breach(f'{folder}: the registry does not generate without it: {generated.stderr.strip()}')
     table = f'Notchcast{folder}'
     orphans = [str(p.relative_to(tree)) for p in (tree / 'Tinycast').rglob('*.swift')
                if f'table: "{table}"' in p.read_text()]
@@ -118,13 +106,18 @@ def stop_group(child):
 
 
 def step(name, command, tree, log, env):
+    STARTING.append(name)
     try:
         with open(log, 'w') as out:
             child = subprocess.Popen(command, cwd=tree, stdout=out, stderr=subprocess.STDOUT, env=env,
                                      start_new_session=True)
+        RUNNING.append(child)
     except OSError as error:
         raise Tooling(f'{name} could not start ({error}); log: {log}')
-    RUNNING.append(child)
+    finally:
+        STARTING.pop()
+        if HELD:
+            signal.raise_signal(HELD[0])
     try:
         code = child.wait(timeout=TIMEOUT)
     except subprocess.TimeoutExpired:
@@ -316,6 +309,9 @@ def main():
     owned = []
 
     def stop(signum, _frame):
+        if STARTING:
+            HELD.append(signum)
+            return
         for each in STOP_SIGNALS:
             signal.signal(each, signal.SIG_IGN)
         for child in RUNNING:

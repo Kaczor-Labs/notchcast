@@ -6,15 +6,18 @@
     ci.py reviewed <upstream>               exit 0 only while the owner's review of that upstream commit is a success
     ci.py pin-tag <tag> <commit>            fetch upstream main and tag; fail unless the tag still peels to commit
     ci.py replay <tree> <onto>              in <tree> (our main, upstream fetched), replay our commits onto <onto>
+    ci.py merge <tree> <main> <upstream>    commit <tree>'s replayed HEAD as a sync merge of main and upstream
+    ci.py forward <old> <new>               exit 0 only when <new> contains main's <old>: main never loses history
     ci.py regenerate <tree> <onto>          rewrite the generated files in <tree> (no commit)
-    ci.py app-info <tag> <dir>              name, bundle id, version and build of upstream's release zip
+    ci.py app-info <tag>                    name, bundle id, version and build of upstream's release zip
     ci.py issue open <kind> <title> <cause> [<details.md>] | issue close <kind>
     ci.py design-notice <tree> <old upstream> <new upstream>
     ci.py hold <moved_at> [<now>]           PR list JSON on stdin: exit 0 while the rebase hold is on (kick.sh), else 1
-    ci.py tested-key [<commit>]             tree of the commit without project, scheme, README: pr.yml names its artifact by it, plan looks main's up
+    ci.py tested-key [<commit>]             tree of the commit without project, scheme, README, registry: pr.yml names its artifact by it, plan looks main's up
     ci.py tested-run [<commit>]             URL of the green PR build of that tree, or nothing: land.sh skips its harness pass on it
+    ci.py isolated-proof [<commit>]         the green isolated-runner PR build of that tree: its URL, toolchain and excused harnesses, or nothing
 
-Our commits are merge-base(main, upstream main)..main. Replaying cherry-picks them in order without the GENERATED
+Our commits are merge-base(main, upstream main)..main without sync merges and their upstream side. Replaying cherry-picks them in order without the GENERATED
 files, so those never conflict and never travel in our diffs. Two commits are made afresh instead of picked:
 "Notchcast: remove upstream workflows" (git rm -r .github/workflows), so upstream workflow edits never conflict and
 new ones never land, and "Notchcast: generated files", always last, which rewrites GENERATED (`regenerate`).
@@ -43,12 +46,18 @@ from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
 REMOVE_WORKFLOWS = "Notchcast: remove upstream workflows"
+# Subject prefix of the merge that moves main onto new upstream: main gains a commit, never loses one.
+SYNC_MERGE = "Notchcast: merge upstream"
+UPSTREAM_REWRITE_WAY = ("main stays on its current upstream; a person chooses: stay there, or keep upstream's dropped "
+                        "commits in main for good through a PR that lifts this check and allows their authors in "
+                        "check-commit-emails.py")
 GENERATED_COMMIT = "Notchcast: generated files"
 PBXPROJ = "Tinycast.xcodeproj/project.pbxproj"
 RUNTIME_JS = "Tinycast/Resources/RaycastRuntime.generated.js"
 # Rewritten by `regenerate`, never taken from our commits.
 SCHEME = "Tinycast.xcodeproj/xcshareddata/xcschemes/Tinycast.xcscheme"
-GENERATED = [PBXPROJ, SCHEME, RUNTIME_JS, "README.md"]
+REGISTRY = "Tinycast/Features/Notchcast/NotchcastRegistry.swift"
+GENERATED = [PBXPROJ, SCHEME, RUNTIME_JS, "README.md", REGISTRY]
 # Never pruned (notchcast/prune-paths.txt); docs/*.md is kept too.
 KEEP = ["LICENSE", "NOTICE.md", "AGENTS.md", "Tests", "Scripts/raycast-runtime"]
 # Upstream changes here mean notchcast/docs/design-system.md may need a refresh.
@@ -128,12 +137,12 @@ def hold(moved_at, now=None):
 
 
 def tested_key(commit="HEAD", cwd=None):
-    """Tree of commit without the project, scheme and README: CI regenerates or never tests those. The runtime stays in:
-    CI never rebuilds it and harnesses load it."""
+    """Tree of commit without the project, scheme, README and add-on registry: CI regenerates or never tests those.
+    The runtime stays in: CI never rebuilds it and harnesses load it."""
     with tempfile.TemporaryDirectory() as scratch:
         env = {"GIT_INDEX_FILE": f"{scratch}/index"}
         run("git", "read-tree", commit, cwd=cwd, env=env)
-        run("git", "update-index", "--force-remove", "--", PBXPROJ, SCHEME, "README.md", cwd=cwd, env=env)
+        run("git", "update-index", "--force-remove", "--", PBXPROJ, SCHEME, "README.md", REGISTRY, cwd=cwd, env=env)
         return run("git", "write-tree", cwd=cwd, env=env)
 
 
@@ -150,10 +159,11 @@ def tested_run(artifacts, fetch_run, fork_repo):
     return None
 
 
-def tested_build(commit, repo):
-    """The green PR run of our repo that built and tested commit's tree (tested_key), else None."""
+def tested_build(commit, repo, kind=""):
+    """The green PR run of our repo that built and tested commit's tree (tested_key), else None; kind "isolated-" asks
+    for a run whose Mac job was the isolated runner's."""
     key = tested_key(commit)
-    listing = json.loads(run("gh", "api", f"repos/{repo}/actions/artifacts?name=tested-tree-{key}&per_page=100"))
+    listing = json.loads(run("gh", "api", f"repos/{repo}/actions/artifacts?name=tested-tree-{kind}{key}&per_page=100"))
     return tested_run(listing["artifacts"], lambda id: json.loads(run("gh", "api", f"repos/{repo}/actions/runs/{id}")), repo)
 
 
@@ -166,6 +176,25 @@ def tested_build_url(commit="HEAD"):
         return
     if found:
         print(found["html_url"])
+
+
+def isolated_proof(commit="HEAD"):
+    """land.sh: three lines for the isolated-runner build of commit's tree: its URL, its toolchain stamp and the
+    harnesses it excused (red there and on upstream, so proven by it nowhere). Nothing when there is none; any error
+    means none."""
+    try:
+        repo = config()["FORK_REPO"]
+        found = tested_build(commit, repo, "isolated-")
+        if not found:
+            return
+        with tempfile.TemporaryDirectory() as scratch:
+            run("gh", "run", "download", str(found["id"]), "-R", repo, "-n", f"tested-tree-isolated-{tested_key(commit)}", "-D", scratch)
+            with open(f"{scratch}/toolchain") as stamp, open(f"{scratch}/excused") as excused:
+                lines = [found["html_url"], stamp.read().strip(), " ".join(excused.read().split())]
+    except (subprocess.CalledProcessError, OSError, ValueError, KeyError, TypeError, AttributeError) as error:
+        print(f"isolated-proof lookup skipped: {error}", file=sys.stderr)
+        return
+    print("\n".join(lines))
 
 
 def reuse_pr_build(main, cfg):
@@ -259,6 +288,11 @@ def plan():
     elif main_key in failed:
         print(f"main: {main_key} already failed; waiting for upstream or main to change")
         rebase = False
+    elif dropped := upstream_dropped(main, upstream_main):
+        rebase = False
+        cause = f"upstream rewrote its history: {dropped[:10]}, merged by an earlier sync, is gone from it; {UPSTREAM_REWRITE_WAY}"
+        issue_open("sync", f"Sync blocked: upstream {upstream_main[:7]} + main {main[:7]}", cause)
+        print(f"::warning::{cause} (see the notchcast-sync issue)")
     else:
         print(f"main: rebase {main[:10]} onto upstream {upstream_main[:10]}")
         # The replay alone, here on Linux, before a macOS runner is spent on it.
@@ -478,10 +512,13 @@ def replay(tree, onto, check=False):
     main = run("git", "rev-parse", "HEAD", cwd=tree)
     upstream_main = run("git", "rev-parse", "refs/remotes/upstream/main", cwd=tree)
     base = run("git", "merge-base", main, upstream_main, cwd=tree)
-    commits = run("git", "rev-list", "--reverse", "--topo-order", f"{base}..{main}", cwd=tree).split()
-    merges = run("git", "rev-list", "--merges", f"{base}..{main}", cwd=tree)
-    if merges:
-        sys.exit(f"main has merge commits ({merges.split()[0][:10]}…); keep main linear")
+    merges = run("git", "rev-list", "--merges", f"{base}..{main}", cwd=tree).split()
+    foreign = [m for m in merges if not run("git", "show", "-s", "--format=%s", m, cwd=tree).startswith(SYNC_MERGE)]
+    if foreign:
+        sys.exit(f"main has a merge commit that is no sync merge ({foreign[0][:10]}…); PRs land squashed")
+    # A sync merge's second parent is upstream's history, never ours, even if upstream later rewrote it.
+    commits = run("git", "rev-list", "--reverse", "--topo-order", "--no-merges", main, f"^{base}",
+                  *(f"^{m}^2" for m in merges), cwd=tree).split()
     run("git", "checkout", "-q", "--detach", onto, cwd=tree)
     generated_commit = None
     for sha in commits:
@@ -581,6 +618,38 @@ def replay(tree, onto, check=False):
     print(run("git", "log", "--format=%h %an | %cn | %s", f"{onto}..HEAD", cwd=tree))
 
 
+def upstream_dropped(main, upstream, cwd=None):
+    """An upstream commit an earlier sync merged that upstream no longer has, or None. Merging past it would keep
+    upstream's dropped commits in main for good, where the leaks checks read them as ours."""
+    for merge_commit in run("git", "rev-list", "--merges", main, f"^{upstream}", cwd=cwd).split():
+        if run("git", "show", "-s", "--format=%s", merge_commit, cwd=cwd).startswith(SYNC_MERGE):
+            side = run("git", "rev-parse", f"{merge_commit}^2", cwd=cwd)
+            if subprocess.run(["git", "merge-base", "--is-ancestor", side, upstream], cwd=cwd).returncode:
+                return side
+    return None
+
+
+def merge(tree, main, upstream):
+    """Commit tree's HEAD (main replayed onto upstream) as a merge of main and upstream and check it out."""
+    if dropped := upstream_dropped(main, upstream, cwd=tree):
+        sys.exit(f"refused: upstream rewrote its history ({dropped[:10]} is gone from it). {UPSTREAM_REWRITE_WAY}")
+    name, email = AUTHOR.removesuffix(">").split(" <")
+    commit = run("git", "commit-tree", "HEAD^{tree}", "-p", main, "-p", upstream,
+                 "-m", f"{SYNC_MERGE} {upstream[:10]}", cwd=tree,
+                 env={**BOT, "GIT_AUTHOR_NAME": name, "GIT_AUTHOR_EMAIL": email})
+    run("git", "checkout", "-q", "--detach", commit, cwd=tree)
+    print(commit)
+
+
+def forward(old, new, cwd=None):
+    """Refuse a new main that does not contain the old one: that push would rewrite main's history."""
+    if subprocess.run(["git", "merge-base", "--is-ancestor", old, new], cwd=cwd, capture_output=True).returncode:
+        sys.exit(f"refused: {new[:10]} does not contain main {old[:10]}, so pushing it rewrites main's history. "
+                 "main only moves forward: upstream comes in as a sync merge (ci.py replay, then ci.py merge), "
+                 "everything else lands as a PR through notchcast/land.sh; if main moved, fetch it and build on it. "
+                 "Never force-push main.")
+
+
 def pruned(tree):
     """Paths in notchcast/prune-paths.txt. None may cover a kept path (license notices, agent and feature docs,
     harnesses, the extension runtime sources)."""
@@ -597,23 +666,19 @@ def pruned(tree):
 
 
 def regenerate(tree, onto):
-    """Write GENERATED in tree: notchcast/README.public.md as README.md, the Xcode project from project.yml ($XCODEGEN), and the
-    extension runtime bundle when our commits change its sources. Also stage the removal of every path in
-    notchcast/prune-paths.txt (upstream files the app does not need), so the removal rides in the generated-files
-    commit, which a replay never picks and so never conflicts."""
+    """Write GENERATED in tree: README.md and the add-on registry (notchcast/addons.py), the Xcode project from
+    project.yml ($XCODEGEN); the extension runtime bundle stays upstream's, since Extensions are hidden. Also stage
+    the removal of every path in notchcast/prune-paths.txt (upstream files the app does not need), so the removal
+    rides in the generated-files commit, which a replay never picks and so never conflicts."""
     tree = Path(tree)
     paths = pruned(tree)
     if paths:
         run("git", "rm", "-r", "-q", "--ignore-unmatch", "--", *paths, cwd=tree)
-    (tree / "README.md").write_text((tree / "notchcast/README.public.md").read_text())
+    run(sys.executable, str(HERE / "addons.py"), "generate", "--root", str(tree))
     if os.environ.get("XCODEGEN"):
         run(os.environ["XCODEGEN"], "generate", "--quiet", cwd=tree)
     elif subprocess.run(["git", "diff", "--quiet", onto, "HEAD", "--", "project.yml"], cwd=tree).returncode:
         sys.exit("our commits change project.yml; set XCODEGEN to regenerate the project")
-    runtime = tree / "Scripts/raycast-runtime"
-    if subprocess.run(["git", "diff", "--quiet", onto, "HEAD", "--", str(runtime)], cwd=tree).returncode:
-        run("npm", "ci", "--no-audit", "--no-fund", cwd=runtime)
-        run("node", "build.mjs", cwd=runtime)
 
 
 def issue_open(kind, title, cause, details=None):
@@ -665,7 +730,21 @@ def design_notice(tree, old, new):
               "--body", f"Upstream commits from `{old[:7]}` to `{new[:7]}` that touch the design system:\n\n{commits}\n"))
 
 
-def app_info(tag, out_dir):
+APP_INFO_PATTERNS = {"name": r"[A-Za-z0-9][A-Za-z0-9 ._-]{0,63}", "bundle_id": r"[A-Za-z0-9-]+(\.[A-Za-z0-9-]+)+",
+                     "version": r"[0-9]+\.[0-9]+\.[0-9]+(-[a-z]+\.[0-9]+)?", "build": r"[0-9]+(\.[0-9]+){0,2}"}
+
+
+def app_info_outputs(info):
+    """The job outputs from upstream's Info.plist, each checked whole: a newline would add an output line."""
+    values = {"name": info.get("CFBundleName"), "bundle_id": info.get("CFBundleIdentifier"),
+              "version": info.get("CFBundleShortVersionString"), "build": info.get("CFBundleVersion")}
+    for key, value in values.items():
+        if not isinstance(value, str) or not re.fullmatch(APP_INFO_PATTERNS[key], value):
+            sys.exit(f"upstream zip has an unexpected {key}: {value!r}")
+    return values
+
+
+def app_info(tag):
     """Name, bundle id, version and build from upstream's own thin zip, so our build matches it."""
     cfg = config()
     with tempfile.TemporaryDirectory() as tmp:
@@ -679,17 +758,14 @@ def app_info(tag, out_dir):
         plist_path = next(l for l in listing if l.count("/") == 2 and l.endswith(".app/Contents/Info.plist"))
         info = plistlib.loads(subprocess.run(["unzip", "-p", str(zips[0]), plist_path],
                                              capture_output=True, check=True).stdout)
-    version = info["CFBundleShortVersionString"]
-    if f"v{version}" != tag:
-        sys.exit(f"upstream zip says version {version}, tag is {tag}")
-    body = json.loads(run("gh", "release", "view", tag, "-R", cfg["UPSTREAM_REPO"], "--json", "body"))["body"]
-    Path(out_dir, "upstream-notes.md").write_text(body)
-    output(name=info["CFBundleName"], bundle_id=info["CFBundleIdentifier"], version=version,
-           build=info["CFBundleVersion"])
+    values = app_info_outputs(info)
+    if f"v{values['version']}" != tag:
+        sys.exit(f"upstream zip says version {values['version']}, tag is {tag}")
+    output(**values)
 
 
 if __name__ == "__main__":
     command, args = sys.argv[1], sys.argv[2:]
-    {"plan": plan, "replay": replay, "regenerate": regenerate, "app-info": app_info, "issue": issue,
+    {"plan": plan, "replay": replay, "merge": merge, "forward": forward, "regenerate": regenerate, "app-info": app_info, "issue": issue,
      "design-notice": design_notice, "tested-key": lambda *a: print(tested_key(*a)),
-     "tested-run": tested_build_url, "hold": hold, "stage": stage, "reviewed": reviewed, "pin-tag": pin_tag}[command](*args)
+     "tested-run": tested_build_url, "isolated-proof": isolated_proof, "hold": hold, "stage": stage, "reviewed": reviewed, "pin-tag": pin_tag}[command](*args)

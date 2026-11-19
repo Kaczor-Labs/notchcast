@@ -7,6 +7,18 @@
     "A notch always decides where the island sits." : {
 
     },
+    "Agents" : {
+      "shouldTranslate" : false
+    },
+    "Apps on this Mac can transcribe audio through a local OpenAI-compatible endpoint." : {
+
+    },
+    "Apps using the current token stop working until they get the new one." : {
+
+    },
+    "Automatic uses %@." : {
+
+    },
     "Between Macs" : {
       "shouldTranslate" : false
     },
@@ -15,6 +27,45 @@
     },
     "Capture" : {
       "shouldTranslate" : false
+    },
+    "Clean up text" : {
+
+    },
+    "Cleanup" : {
+
+    },
+    "Cleanup model" : {
+
+    },
+    "Cleanup prompt" : {
+
+    },
+    "Cleanup took too long, so the raw text was pasted" : {
+
+    },
+    "Cleanup was skipped, so the raw text was pasted" : {
+
+    },
+    "Clear dictation history?" : {
+
+    },
+    "Copy Raw Transcript" : {
+
+    },
+    "Copy Token" : {
+
+    },
+    "Could not listen on port %lld. Another app may be using it." : {
+
+    },
+    "Delete dictation history?" : {
+
+    },
+    "Dictation History" : {
+
+    },
+    "Dictation needs Accessibility access to see the Globe key." : {
+
     },
     "Display & Sound" : {
       "shouldTranslate" : false
@@ -25,20 +76,38 @@
     "Elapsed" : {
 
     },
+    "Escape cancels." : {
+
+    },
+    "Every saved dictation goes. This can't be undone." : {
+
+    },
     "Files & Downloads" : {
       "shouldTranslate" : false
+    },
+    "Fix punctuation, numbers and filler words before pasting. Return pastes it as spoken." : {
+
     },
     "Frosted" : {
 
     },
+    "Globe key" : {
+
+    },
     "Island" : {
       "shouldTranslate" : false
+    },
+    "Keep dictation history" : {
+
     },
     "Keyboard & Mouse" : {
       "shouldTranslate" : false
     },
     "Launcher Extras" : {
       "shouldTranslate" : false
+    },
+    "Listening on this Mac only. Send the token as a Bearer authorization header." : {
+
     },
     "Look" : {
 
@@ -61,8 +130,20 @@
     "Needs Accessibility access" : {
       "shouldTranslate" : false
     },
+    "No dictations yet" : {
+
+    },
+    "No matching dictations" : {
+
+    },
     "Notchcast" : {
       "shouldTranslate" : false
+    },
+    "Notchcast could not read its token from the Keychain." : {
+
+    },
+    "Notchcast could not save a new token in the Keychain." : {
+
     },
     "Notices" : {
       "shouldTranslate" : false
@@ -76,6 +157,9 @@
     "Outline when open" : {
 
     },
+    "Paste Again" : {
+
+    },
     "Pause" : {
 
     },
@@ -85,10 +169,34 @@
     "Player" : {
 
     },
+    "Port" : {
+
+    },
     "Position on displays without a notch" : {
 
     },
+    "Regenerate Token" : {
+
+    },
+    "Regenerate the token?" : {
+
+    },
+    "Reset to Default" : {
+
+    },
     "Resting the pointer on the island opens what it shows." : {
+
+    },
+    "Search past dictations…" : {
+
+    },
+    "Set “Press 🌐 key to” to “Do Nothing” in Keyboard settings so macOS leaves the key to Dictation." : {
+
+    },
+    "Share the dictation model with other apps" : {
+
+    },
+    "Sharing" : {
 
     },
     "Show %@ in the launcher" : {
@@ -97,10 +205,37 @@
     "Show in screenshots and videos" : {
 
     },
+    "Tap or hold the Globe key" : {
+
+    },
+    "Tap to start and tap again to finish, or hold while you speak." : {
+
+    },
+    "The Globe key is also used by %@. Change that shortcut." : {
+
+    },
+    "The last 50 dictations stay on this Mac. Turning this off deletes them." : {
+
+    },
+    "The transcript is sent only to the chosen model. Notchcast keeps no log of it." : {
+
+    },
+    "Token" : {
+
+    },
     "Top edge" : {
 
     },
+    "Turn Off and Delete" : {
+
+    },
+    "Turn on Claude or Codex in AI settings, or choose a model." : {
+
+    },
     "Updated to %@" : {
+
+    },
+    "Used for every cleanup." : {
 
     }
   },

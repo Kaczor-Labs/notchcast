@@ -1,0 +1,124 @@
+# Builds and signs one open PR's head for a hand test; only notchcast/update.sh --pr=<n> installs it (README).
+name: Test build
+run-name: "Test build #${{ inputs.pr }}"
+on:
+  workflow_dispatch:
+    inputs:
+      pr:
+        description: PR number
+        required: true
+permissions:
+  contents: read
+concurrency:
+  group: test-build-${{ inputs.pr }}
+  cancel-in-progress: true
+jobs:
+  plan:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      head: ${{ steps.plan.outputs.head }}
+      main: ${{ steps.plan.outputs.main }}
+      version: ${{ steps.plan.outputs.version }}
+      build: ${{ steps.plan.outputs.build }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Check the PR and the lanes its diff needs
+        id: plan
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR: ${{ inputs.pr }}
+          RUN_NUMBER: ${{ github.run_number }}
+        run: |
+          [[ "$PR" =~ ^[1-9][0-9]*$ ]] || { echo "::error::pr must be a PR number, got '$PR'"; exit 1; }
+          IFS=$'\t' read -r state cross head branch < <(gh pr view "$PR" -R "$GITHUB_REPOSITORY" \
+            --json state,isCrossRepository,headRefOid,headRefName \
+            --jq '[.state, (.isCrossRepository | tostring), .headRefOid, .headRefName] | @tsv')
+          [ "$state" = OPEN ] || { echo "::error::PR #$PR is $state; only an open PR gets a test build"; exit 1; }
+          # A fork's code is never signed with the release identity.
+          [ "$cross" = false ] || { echo "::error::PR #$PR comes from another repository; refusing"; exit 1; }
+          git fetch --no-tags origin "refs/pull/$PR/head"
+          [ "$(git rev-parse FETCH_HEAD)" = "$head" ] || { echo "::error::PR #$PR moved while planning"; exit 1; }
+          case "$branch" in
+            v2/addons-*) build=true ;;
+            *) build=$(python3 notchcast/lanes.py "$(git merge-base HEAD "$head")" "$head" | sed -n 's/^build=//p') ;;
+          esac
+          if [ "$build" != true ]; then
+            echo "::notice::PR #$PR changes nothing the app is built from; no test build"
+            echo "build=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          base=$(gh release list -R "$GITHUB_REPOSITORY" -L 1000 --json tagName,isDraft --jq '[.[] | select(.isDraft | not)
+            | .tagName | capture("^v(?<base>.+)[.]snapshot[.](?<stamp>[0-9]{14})$")] | sort_by(.stamp) | last | .base // empty')
+          [ -n "$base" ] || { echo "::error::no snapshot release to take the version base from"; exit 1; }
+          # Never a snapshot version (update.sh's pattern), so a plain update always knows it for a test build.
+          version="$base.pr$PR.${head:0:8}"
+          echo "::notice::Test build $version of PR #$PR at $head"
+          printf 'build=true\nhead=%s\nversion=%s\nmain=%s\n' "$head" "$version" "$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+  # Runs the PR's tree with no secret, as snapshot.yml's build job.
+  build:
+    needs: plan
+    if: needs.plan.outputs.build == 'true'
+    runs-on: xcode-27
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ needs.plan.outputs.head }}
+          path: src
+          persist-credentials: false
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ needs.plan.outputs.main }}
+          path: tools
+          persist-credentials: false
+      - uses: ./tools/notchcast/actions/xcode
+      - uses: ./tools/notchcast/actions/xcodegen
+      - name: Regenerate project
+        working-directory: src
+        run: '"$XCODEGEN" generate --quiet'
+      - uses: ./tools/notchcast/actions/release
+        with:
+          version: ${{ needs.plan.outputs.version }}
+          build: ${{ github.run_number }}
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        with:
+          name: test-build-unsigned
+          path: ${{ runner.temp }}/unsigned
+          if-no-files-found: error
+          retention-days: 1
+  # Holds the certificate and runs none of the tree's code: signs what build packed.
+  sign:
+    needs: [plan, build]
+    runs-on: xcode-27
+    timeout-minutes: 30
+    environment: sync
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ needs.plan.outputs.main }}
+          path: tools
+          sparse-checkout: notchcast
+          persist-credentials: false
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
+        with:
+          name: test-build-unsigned
+          path: ${{ runner.temp }}/unsigned
+      - uses: ./tools/notchcast/actions/sign
+        with:
+          version: ${{ needs.plan.outputs.version }}
+          p12-base64: ${{ secrets.SIGNING_P12_BASE64 }}
+          p12-password: ${{ secrets.SIGNING_P12_PASSWORD }}
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        with:
+          name: test-build
+          path: dist/*.zip
+          if-no-files-found: error
+          retention-days: 3

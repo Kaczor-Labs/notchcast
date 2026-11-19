@@ -26,6 +26,7 @@ enum ScreenshotsRequestTests {
         precondition(ScreenshotRequest.failureMessage(Failure.invalidRect) == "Capture area is unavailable.")
         precondition(ScreenshotRequest.failureMessage(Failure.targetUnavailable) == "Capture area is unavailable.")
         precondition(ScreenshotRequest.failureMessage(Failure.encodingFailed) == "Could not capture the screen.")
+        precondition(ScreenshotRequest.failureMessage(Failure.noText) == "No text found in the selected area.")
         precondition(ScreenshotRequest.failureMessage(CocoaError(.fileWriteNoPermission)) == "Could not save the screenshot.")
         precondition(ScreenshotRequest.failureMessage(URLError(.badURL)) == "Could not capture the screen.")
 

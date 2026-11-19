@@ -3,9 +3,11 @@
 import argparse
 from collections import Counter, defaultdict
 import contextlib
+import hashlib
 import importlib.util
 import io
 import json
+import os
 from pathlib import Path
 import re
 import shutil
@@ -69,23 +71,47 @@ def sources(root, prefix):
     return {p.relative_to(root).as_posix(): p.read_text() for p in sorted((root / prefix).rglob('*.swift'))}
 
 
+def jscpd():
+    """jscpd from notchcast/jscpd's lockfile (every package's integrity hash), installed once per lockfile."""
+    lock = TOOLS / 'jscpd/package-lock.json'
+    cache = Path(os.environ.get('XDG_CACHE_HOME') or Path.home() / '.cache') / 'notchcast'
+    home = cache / f'jscpd-{hashlib.sha256(lock.read_bytes()).hexdigest()[:16]}'
+    binary = home / 'node_modules/.bin/jscpd'
+    if binary.exists():
+        return binary
+    if not shutil.which('npm'):
+        raise ValueError('gate 4 requires npm (Node 20+); duplicates were not checked')
+    cache.mkdir(parents=True, exist_ok=True)
+    work = tempfile.mkdtemp(prefix='jscpd.', dir=cache)
+    try:
+        for name in ('package.json', 'package-lock.json'):
+            shutil.copy(TOOLS / 'jscpd' / name, work)
+        result = subprocess.run(['npm', 'ci', '--ignore-scripts', '--no-audit', '--no-fund'], cwd=work,
+                                capture_output=True, text=True, timeout=300)
+        if result.returncode:
+            raise ValueError(f'gate 4 jscpd install failed ({result.returncode}): {result.stderr.strip()}')
+        with contextlib.suppress(OSError):  # a concurrent run installed the same lockfile first
+            os.rename(work, home)
+    finally:
+        shutil.rmtree(work, ignore_errors=True)
+    return binary
+
+
 def clone_counts(root, files):
-    version = config(root)['JSCPD_VERSION']
-    if not re.fullmatch(r'4\.\d+\.\d+', version):
-        raise ValueError('JSCPD_VERSION must pin jscpd 4 to an exact version')
-    if not shutil.which('npx'):
-        raise ValueError('gate 4 requires npx (Node 20+); duplicates were not checked')
+    binary = jscpd()
     with tempfile.TemporaryDirectory(prefix='drift-clones.') as work:
-        work = Path(work)
+        work = Path(work).resolve()  # jscpd names files against real paths; macOS's $TMPDIR is a symlink
         tree, output = work / 'sources', work / 'report'
         tree.mkdir()
         for path, text in files.items():
             target = tree / path
             target.parent.mkdir(parents=True, exist_ok=True)
             target.write_text(unwaived(text))
-        result = subprocess.run(['npx', '-y', f'jscpd@{version}', '--min-tokens', '70', '--min-lines', '6',
+        # npx --no runs only the installed jscpd, never fetching; main's fixture breaks npx to prove fail-closed.
+        result = subprocess.run(['npx', '--no', '--', 'jscpd', '--min-tokens', '70', '--min-lines', '6',
                                  '--format', 'swift', '--reporters', 'json', '--silent',
-                                 '--output', str(output), str(tree)], capture_output=True, text=True, timeout=120)
+                                 '--output', str(output), str(tree)], cwd=binary.parents[2],
+                                capture_output=True, text=True, timeout=120)
         if result.returncode:
             raise ValueError(f'gate 4 jscpd failed ({result.returncode}): {result.stderr.strip()}')
         if not (output / 'jscpd-report.json').exists():
@@ -97,8 +123,8 @@ def clone_counts(root, files):
             for side in ('firstFile', 'secondFile'):
                 path = Path(clone[side]['name'])
                 if not path.is_absolute():
-                    path = Path.cwd() / path
-                pair.append(path.resolve().relative_to(tree.resolve()).as_posix())
+                    path = binary.parents[2] / path  # relative to where jscpd ran, not to our caller
+                pair.append(path.resolve().relative_to(tree).as_posix())
             if pair[0] != pair[1]:
                 counts[' | '.join(sorted(pair))] += 1
         return dict(counts)

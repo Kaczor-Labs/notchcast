@@ -1,3 +1,4 @@
+// notchcast-linux-ok
 // notchcast-sources: Tinycast/Features/Notchcast/QuitProtection/Model/*.swift
 // notchcast-sources: Tinycast/Features/Notchcast/QuitProtection/Service/QuitProtectionStore.swift
 
@@ -17,9 +18,6 @@ struct QuitProtectionTests {
     }
 
     @MainActor static func main() {
-        check(QuitProtectionAppName.displayName("My.app.editor.app") == "My.app.editor", "Only trailing suffix removed")
-        check(QuitProtectionAppName.displayName("My.app.editor") == "My.app.editor", "Internal suffix preserved")
-        check(QuitProtectionAppName.displayName("Editor") == "Editor", "Plain name preserved")
         var engine = QuitProtectionEngine(configuration: .init(mode: .doublePress))
         check(engine.consume(.keyDown(q, .command, isRepeat: false), at: 10, target: target) == .swallow,
               "First quit is swallowed")
@@ -48,21 +46,14 @@ struct QuitProtectionTests {
 
         engine.reset()
         check(engine.consume(.keyDown(w, .command, isRepeat: false), at: 30, target: target) == .pass,
-              "Close protection is opt-in")
+              "⌘W is never protected")
         check(engine.consume(.keyDown(q, [.command, .shift], isRepeat: false), at: 31, target: target) == .pass,
               "Modified shortcuts keep native semantics")
         check(engine.consume(.keyDown(q, [], isRepeat: false), at: 32, target: target) == .pass, "Typing passes")
         check(engine.consume(.keyDown(q, .command, isRepeat: false), at: 33, target: nil) == .pass, "Unknown target passes")
-        engine.configuration.exceptions = [target.bundleIdentifier]
-        check(engine.consume(.keyDown(q, .command, isRepeat: false), at: 34, target: target) == .pass, "Exception passes")
-        engine.configuration = .init(quitEnabled: true, closeEnabled: true, mode: .doublePress)
-        check(engine.consume(.keyDown(w, .command, isRepeat: false), at: 35, target: target) == .swallow, "Close starts")
-        _ = engine.consume(.keyUp(w), at: 35.1, target: target)
-        check(engine.consume(.keyDown(w, .command, isRepeat: false), at: 35.2, target: target) == .close(target),
-              "Close returns a close action")
-        check(QuitProtectionEngine.Key(code: 12, commandCharacter: "x").shortcut == nil, "Layout wins over keycode")
-        check(QuitProtectionEngine.Key(code: 14, commandCharacter: "Q").shortcut == .quit, "Command layout table wins")
-        check(QuitProtectionEngine.Key(code: 12, commandCharacter: nil).shortcut == .quit, "No layout uses physical fallback")
+        check(!QuitProtectionEngine.Key(code: 12, commandCharacter: "x").isQuit, "Layout wins over keycode")
+        check(QuitProtectionEngine.Key(code: 14, commandCharacter: "Q").isQuit, "Command layout table wins")
+        check(QuitProtectionEngine.Key(code: 12, commandCharacter: nil).isQuit, "No layout uses physical fallback")
 
         engine.configuration.mode = .hold
         _ = engine.consume(.keyDown(q, .command, isRepeat: false), at: 40, target: target)
@@ -144,12 +135,11 @@ struct QuitProtectionTests {
         defer { defaults.removePersistentDomain(forName: suite) }
         let store = QuitProtectionStore(defaults: defaults)
         check(store.configuration == .init(), "Stored defaults match engine defaults")
-        store.configuration = .init(quitEnabled: false, closeEnabled: true, mode: .hold, exceptions: ["test.app"])
+        store.configuration = .init(quitEnabled: false, mode: .hold)
         check(QuitProtectionStore(defaults: defaults).configuration == store.configuration, "Fork-local preferences round trip")
         check(defaults.object(forKey: "notchcast.quitProtection.mode") == nil, "Unchanged fields are not written")
         store.configuration.mode = .doublePress
         check(defaults.string(forKey: "notchcast.quitProtection.mode") == "doublePress", "v1 mode key and raw value")
-        check(defaults.stringArray(forKey: "notchcast.quitProtection.exceptions") == ["test.app"], "v1 exceptions key")
         print("PASS: \(checks) quit-protection checks; no event tap or app termination")
     }
 }

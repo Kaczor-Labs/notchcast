@@ -7,16 +7,21 @@ if [[ " $* " == *" Tinycast/Features/Settings/SettingsTab.swift "* && " $* " != 
     set -- "$@" Tinycast/Features/Notchcast/Core/Model/NotchcastPane.swift
     [[ " $* " == *" Tinycast/Features/Notchcast/Core/Model/NotchcastCategory.swift "* ]] || set -- "$@" Tinycast/Features/Notchcast/Core/Model/NotchcastCategory.swift
 fi
+# The hidden commands and forced kinds (notchcast/docs/hidden.md) are read by AppIndex and VisibilityStore.
+if [[ " $* " == *" Tinycast/Features/Launcher/Service/AppIndex.swift "* || " $* " == *" Tinycast/Features/Launcher/Service/VisibilityStore.swift "* ]]; then
+    [[ " $* " == *" Tinycast/Features/Notchcast/Hidden/NotchcastHiddenCommands.swift "* ]] || set -- "$@" Tinycast/Features/Notchcast/Hidden/NotchcastHiddenCommands.swift
+fi
 # Notchcast's search rows sit beside the catalog, with the two descriptor types they read.
 if [[ " $* " == *" Tinycast/Features/Settings/SettingsSearchCatalog.swift "* && " $* " != *" Tinycast/Features/Notchcast/Core/UI/NotchcastSettingsSearch.swift "* ]]; then
     set -- "$@" Tinycast/Features/Notchcast/Core/UI/NotchcastSettingsSearch.swift
     [[ " $* " == *" Tinycast/Features/Notchcast/Core/Model/NotchcastSwitch.swift "* ]] || set -- "$@" Tinycast/Features/Notchcast/Core/Model/NotchcastSwitch.swift
     [[ " $* " == *" Tinycast/Features/Notchcast/Core/Model/NotchcastCategory.swift "* ]] || set -- "$@" Tinycast/Features/Notchcast/Core/Model/NotchcastCategory.swift
 fi
-# `frosted(in:)` paints the island's black through the island glass, so Theme brings both along.
+# `frosted(in:)` paints the island's black through the island glass, and Theme reads OBSIDIAN tokens.
 if [[ " $* " == *" Tinycast/DesignSystem/Theme.swift "* || " $* " == *" Tinycast/Features/Island/Service/IslandPaletteSurface.swift "* ]]; then
     [[ " $* " == *" Tinycast/Features/Island/Service/IslandPaletteSurface.swift "* ]] || set -- "$@" Tinycast/Features/Island/Service/IslandPaletteSurface.swift
     [[ " $* " == *" Tinycast/Features/Notchcast/NotchTheme.swift "* ]] || set -- "$@" Tinycast/Features/Notchcast/NotchTheme.swift
+    [[ " $* " == *" notchcast/vendor/Obsidian/ObsidianTokens.swift "* ]] || set -- "$@" notchcast/vendor/Obsidian/ObsidianTokens.swift
 fi
 # Upstream's icon pack tints Theme and SettingsTab with IconTint, so either brings it along.
 if [[ " $* " == *" Tinycast/DesignSystem/Theme.swift "* || " $* " == *" Tinycast/Features/Settings/SettingsTab.swift "* ]]; then

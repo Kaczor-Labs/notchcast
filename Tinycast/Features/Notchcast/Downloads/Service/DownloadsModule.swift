@@ -32,6 +32,12 @@ final class DownloadsModule: NotchcastModule {
         var queues: URL
         var tools: DownloadToolLookup
         var clipboard: @MainActor () -> String
+        /// Nil gives an engine that never starts, so a harness that ignores torrents needs nothing.
+        var torrents: TorrentManager.Environment?
+        /// The Mac's network interfaces, read when a download starts and while it shows the iPhone mark.
+        var interfaces: @MainActor () -> [BondingInterface] = { [] }
+        /// A direct link's size as its server states it; the default never asks.
+        var remoteBytes: @Sendable (String) async -> Int64? = { _ in nil }
         /// Scratch audio for Distill; each run removes its own folder when it ends.
         var work = FileManager.default.temporaryDirectory.appending(path: "Notchcast Distill", directoryHint: .isDirectory)
 
@@ -40,12 +46,18 @@ final class DownloadsModule: NotchcastModule {
 
     nonisolated static let switchID = "downloads"
     nonisolated static let distillSwitchID = "distill"
+    nonisolated static let torrentsSwitchID = "torrents"
+    nonisolated static let keepSharingSwitchID = "torrentsKeepSharing"
+    nonisolated static let torrentsBondingSwitchID = "torrentsUseIPhone"
+    nonisolated static let downloadsBondingSwitchID = "downloadsUseIPhone"
     let downloads: DownloadsQueueController
     let distill: DownloadsQueueController
-    private let context: NotchcastContext
-    private let environment: Environment
-    private var running = false
-    private var active = (downloads: false, distill: false)
+    let torrents: TorrentManager
+    let bonding: BondingState
+    let context: NotchcastContext
+    let environment: Environment
+    private(set) var running = false
+    private var active = (downloads: false, distill: false, torrents: false)
 
     init(context: NotchcastContext, environment: Environment) {
         self.context = context
@@ -60,15 +72,27 @@ final class DownloadsModule: NotchcastModule {
         distill = DownloadsQueueController(
             file: environment.queues.appending(path: "distill.json"), destination: environment.distill,
             maxConcurrent: 1, tools: environment.tools, report: report)
+        let bonding = BondingState(interfaces: environment.interfaces, now: context.now)
+        self.bonding = bonding
         DownloadsIslandBridge.track(downloads, presenter: context.presenter, noticeID: "downloads.progress",
-                                    symbol: "arrow.down.circle")
+                                    symbol: "arrow.down.circle", bonded: bonding.downloadsBonded)
         DownloadsIslandBridge.track(distill, presenter: context.presenter, noticeID: "distill.progress",
                                     symbol: "text.badge.plus")
+        var engine = environment.torrents ?? .init(downloads: environment.downloads)
+        engine.extraArguments = { [preferences = context.preferences] in
+            bonding.startTorrents(enabled: preferences.isEnabled(Self.torrentsBondingSwitchID))
+        }
+        torrents = TorrentManager(
+            environment: engine, now: context.now,
+            keepSharing: { [preferences = context.preferences] in preferences.isEnabled(Self.keepSharingSwitchID) })
+        TorrentIslandBridge.track(torrents, presenter: context.presenter, reveal: torrents.reveal,
+                                  bonded: { bonding.torrentsBonded })
     }
 
     func start() {
         guard !running else { return }
         running = true
+        context.handleOpenURL { [weak self] in self?.open($0) ?? false }
         follow()
     }
 
@@ -77,7 +101,8 @@ final class DownloadsModule: NotchcastModule {
         running = false
         if active.downloads { downloads.stop() }
         if active.distill { distill.stop() }
-        active = (false, false)
+        torrents.stop()
+        active = (false, false, false)
     }
 
     func perform(_ action: Action) {
@@ -129,7 +154,8 @@ final class DownloadsModule: NotchcastModule {
     private func follow() {
         guard running else { return }
         let enabled = withObservationTracking {
-            (downloads: context.isEnabled(Self.switchID), distill: context.isEnabled(Self.distillSwitchID))
+            (downloads: context.isEnabled(Self.switchID), distill: context.isEnabled(Self.distillSwitchID),
+             torrents: context.isEnabled(Self.torrentsSwitchID))
         } onChange: { [weak self] in
             Task { @MainActor [weak self] in self?.follow() }
         }
@@ -138,6 +164,9 @@ final class DownloadsModule: NotchcastModule {
         }
         if enabled.distill != active.distill {
             if enabled.distill { distill.start(configure: configureDistill) } else { distill.stop() }
+        }
+        if enabled.torrents != active.torrents {
+            if enabled.torrents { torrents.start() } else { torrents.stop() }
         }
         active = enabled
     }
@@ -153,10 +182,15 @@ final class DownloadsModule: NotchcastModule {
 
     private func configure(_ queue: DownloadQueue) {
         let preferences = context.preferences
+        let bonding = bonding
+        let wanted: @MainActor @Sendable () -> Bool = { preferences.isEnabled(Self.downloadsBondingSwitchID) }
         for format in [MediaArguments.Format.video, .audio] {
             queue.register(MediaDownloadRunner(format: format, aria2Enabled: {
                 preferences.isEnabled("downloadsAria2")
-            }))
+            }, bonding: .init(
+                isPossible: { wanted() && bonding.isPossible },
+                begin: { bonding.startDownload($0, bytes: $1, enabled: wanted()) },
+                remoteBytes: environment.remoteBytes)))
         }
         queue.register(TranscriptDownloadRunner())
         queue.register(WebpageRunner())

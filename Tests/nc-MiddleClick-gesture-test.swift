@@ -1,3 +1,4 @@
+// notchcast-hosted-only
 // notchcast-sources: Tinycast/Features/Notchcast/MiddleClick/Model/*.swift
 // notchcast-sources: Tinycast/Features/Notchcast/MiddleClick/Service/MiddleClickTouchSource.swift
 import CoreGraphics

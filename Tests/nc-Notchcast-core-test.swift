@@ -1,3 +1,4 @@
+// notchcast-hosted-only
 // notchcast-sources: Tinycast/Features/Notchcast/Core/Model/*.swift Tinycast/Features/Notchcast/Core/Service/*.swift
 // notchcast-sources: Tinycast/Features/Island/Model/IslandPresentation.swift Tinycast/Features/Island/Service/IslandPresenting.swift
 // notchcast-sources: Tinycast/Features/Settings/SettingsTab.swift Tinycast/Features/Launcher/Model/CommandID.swift Tinycast/Features/HotKeys/Model/HotKeyAction.swift Tinycast/Features/HotKeys/Model/HotKeyAction+EntryID.swift Tinycast/Features/QuickActions/Model/QuickAction.swift
@@ -32,9 +33,6 @@ final class ProbeModule: NotchcastModule {
         token = context.subscribe(
             NotchcastTap(switchID: "probeMain", mask: NotchcastTapPolicy.mask(for: .leftMouseDown),
                          handler: .observe { _ in }))
-        context.handleLauncherDigit { digit, query, entryRows in
-            query.isEmpty || digit > entryRows.count ? nil : entryRows[digit - 1]
-        }
     }
 
     func stop() { ProbeLog.events.append("stop") }
@@ -323,7 +321,6 @@ struct NotchcastCoreTest {
         controller.onCommandsChanged = { published.append($0.map(\.id)) }
         controller.start()
         check("nothing runs while off", ProbeLog.events.isEmpty && hub.subscriberCount == 0)
-        check("no digit row while off", controller.launcherRow(digit: 1, query: "sa", entryRows: [2, 5]) == nil)
         check("no commands while off", controller.enabledCommands.isEmpty && !controller.run(entryID: "command:nc-probe-run"))
 
         controller.preferences.set("probeMain", on: true)
@@ -334,8 +331,6 @@ struct NotchcastCoreTest {
         check("its command runs", controller.run(entryID: "command:nc-probe-run"))
         check("the notice reaches the presenter", presenter.log == ["post probe Probe ran"])
         check("an unknown id falls through", !controller.run(entryID: "command:nc-nope"))
-        check("a digit maps to its entry row", controller.launcherRow(digit: 2, query: "sa", entryRows: [2, 5]) == 5)
-        check("a declined digit falls through", controller.launcherRow(digit: 3, query: "sa", entryRows: [2, 5]) == nil)
         check("the context finds its module", controller.context(forSwitch: "probeMain")?.module(ProbeModule.self) != nil)
         let probe = controller.enabledCommands
         controller.preferences.setShowsInLauncher("command:nc-probe-run", false)
@@ -344,18 +339,26 @@ struct NotchcastCoreTest {
                   && controller.run(entryID: "command:nc-probe-run"))
         controller.preferences.setShowsInLauncher("command:nc-probe-run", true)
         check("Show in launcher on lists it again", published.count == 3 && controller.launcherCommands(probe).count == 1)
+        let probeContext = controller.context(forSwitch: "probeMain")
+        probeContext?.setUnavailable(["command:nc-probe-run"])
+        check("a command its module marks unavailable leaves the launcher, keeping its hotkey",
+              published.count == 4 && controller.launcherCommands(probe).isEmpty && controller.enabledCommands.count == 1)
+        probeContext?.setUnavailable(["command:nc-probe-run"])
+        check("marking it unavailable again publishes nothing", published.count == 4)
+        probeContext?.setUnavailable([])
+        check("available again lists it again", published.count == 5 && controller.launcherCommands(probe).count == 1)
 
         controller.preferences.set("probeChild", on: true)
         drain()
         check("a declared tap follows its switch", hub.subscriberCount == 2)
         check("a second switch does not restart the module", ProbeLog.events == ["start"])
 
+        probeContext?.setUnavailable(["command:nc-probe-run"])
         controller.preferences.set("probeMain", on: false)
         drain()
         check("toggling off stops the module", ProbeLog.events == ["start", "stop"])
+        check("a stopped module's unavailable commands are cleared", probeContext?.unavailableCommands.isEmpty == true)
         check("its taps and dependents' taps go", hub.subscriberCount == 0 && !hub.isRunning)
-        check("a stopped module's digit handler is gone",
-              controller.launcherRow(digit: 1, query: "sa", entryRows: [2, 5]) == nil)
         check("its command is withdrawn", published.last == [] && controller.enabledCommands.isEmpty)
         check("a withdrawn command no longer runs", !controller.run(entryID: "command:nc-probe-run"))
 
@@ -536,8 +539,8 @@ struct NotchcastCoreTest {
     static func settingsTabs() {
         check("each tab holds its categories",
               NotchcastPane.allCases.map(\.categories)
-                == [[], [.keyboardMouse], [.displaySound, .music], [.capture], [.launcher], [.filesDownloads],
-                   [.macTweaks]])
+                == [[], [.agents], [.keyboardMouse], [.displaySound, .music], [.capture], [.launcher], [.filesDownloads],
+                   [.power], [.macTweaks]])
         check("no category sits in two tabs", NotchcastCategory.allCases.allSatisfy { category in
             NotchcastPane.allCases.filter { $0.categories.contains(category) }.count <= 1
         })
@@ -546,8 +549,8 @@ struct NotchcastCoreTest {
               placed.allSatisfy { NotchcastPane.holding($0).categories.contains($0) })
         check("a category with no tab yet shows nowhere",
               NotchcastPane.shown(registered: [.notices, .betweenMacs]) == [.island])
-        check("iPhone backup lands in its own tab; Power has none",
-              NotchcastPane.shown(registered: [.macTweaks, .power]) == [.island, .macTweaks])
+        check("Low disk warning and iPhone backup land in their own tabs",
+              NotchcastPane.shown(registered: [.macTweaks, .power]) == [.island, .power, .macTweaks])
         check("with no add-on only Island shows", NotchcastPane.shown(registered: []) == [.island])
         check("an add-on tab shows once one of its categories has a switch",
               NotchcastPane.shown(registered: [.music]) == [.island, .displaySound]

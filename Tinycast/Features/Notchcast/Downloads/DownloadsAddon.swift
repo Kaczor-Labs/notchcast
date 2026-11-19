@@ -1,3 +1,8 @@
+// notchcast-addon-order: 80
+// notchcast-readme: Downloads: video, audio, transcripts and webpages from clipboard links,
+// notchcast-readme: Downloads: with optional aria2c and transcription into a local folder;
+// notchcast-readme: Downloads: big downloads and torrents can use Wi-Fi and a USB-tethered iPhone together
+// notchcast-new-switch-ids: downloadsUseIPhone
 import Foundation
 
 /// Saves copied links as video, audio, transcripts or Markdown, and distils them into one folder.
@@ -17,6 +22,13 @@ enum DownloadsAddon: NotchcastAddon {
                 localized: "Use aria2c for faster media downloads when it is installed.", table: "NotchcastDownloads"),
             category: .filesDownloads, dependencies: ["downloads"]),
         NotchcastSwitch(
+            id: "downloadsUseIPhone",
+            title: String(localized: "Use Wi-Fi and a plugged-in iPhone together", table: "NotchcastDownloads"),
+            subtitle: String(
+                localized: "Downloads over 200 MB use both while the iPhone shares Personal Hotspot over USB.",
+                table: "NotchcastDownloads"),
+            category: .filesDownloads, dependencies: ["downloadsAria2"]),
+        NotchcastSwitch(
             id: "distill",
             title: String(localized: "Distill", table: "NotchcastDownloads"),
             subtitle: String(
@@ -28,6 +40,27 @@ enum DownloadsAddon: NotchcastAddon {
             subtitle: String(
                 localized: "Include approximate chunk timestamps in Distill transcripts.", table: "NotchcastDownloads"),
             category: .filesDownloads, dependencies: ["distill"]),
+        NotchcastSwitch(
+            id: "torrents",
+            title: String(localized: "Torrents", table: "NotchcastDownloads"),
+            subtitle: String(
+                localized: "Download magnet links and torrent files to ~/Downloads with aria2c.",
+                table: "NotchcastDownloads"),
+            category: .filesDownloads),
+        NotchcastSwitch(
+            id: "torrentsKeepSharing",
+            title: String(localized: "Keep sharing until ratio 1.0", table: "NotchcastDownloads"),
+            subtitle: String(
+                localized: "Upload as much as you downloaded before stopping. Off stops sharing once complete.",
+                table: "NotchcastDownloads"),
+            category: .filesDownloads, dependencies: ["torrents"]),
+        NotchcastSwitch(
+            id: "torrentsUseIPhone",
+            title: String(localized: "Use Wi-Fi and a plugged-in iPhone together", table: "NotchcastDownloads"),
+            subtitle: String(
+                localized: "Every torrent uses both while the iPhone shares Personal Hotspot over USB.",
+                table: "NotchcastDownloads"),
+            category: .filesDownloads, dependencies: ["torrents"]),
     ]
 
     static let commands = DownloadsModule.Action.allCases.map { action in
@@ -37,10 +70,46 @@ enum DownloadsAddon: NotchcastAddon {
         ) {
             $0.module(DownloadsModule.self)?.perform(action)
         }
+    } + DownloadsModule.TorrentCommand.allCases.map { command in
+        NotchcastCommand(
+            slug: command.slug, name: command.name, symbol: command.symbol, switchID: DownloadsModule.torrentsSwitchID
+        ) {
+            $0.module(DownloadsModule.self)?.perform(command)
+        }
     }
 
     static func makeModule(_ context: NotchcastContext) -> (any NotchcastModule)? {
         DownloadsModule(context: context, environment: .live())
+    }
+
+    static func makeRecovery(_ context: NotchcastContext) -> (any NotchcastModule)? {
+        TorrentOpenFallback(context: context)
+    }
+}
+
+extension DownloadsModule.TorrentCommand {
+    var slug: String {
+        switch self {
+        case .clipboard: "download-torrent-from-clipboard"
+        case .file: "open-torrent-file"
+        case .cancelAll: "cancel-all-torrents"
+        }
+    }
+
+    var name: String {
+        switch self {
+        case .clipboard: String(localized: "Download Torrent from Clipboard", table: "NotchcastDownloads")
+        case .file: String(localized: "Open Torrent File…", table: "NotchcastDownloads")
+        case .cancelAll: String(localized: "Cancel All Torrents", table: "NotchcastDownloads")
+        }
+    }
+
+    var symbol: String {
+        switch self {
+        case .clipboard: "arrow.down.doc"
+        case .file: "doc.badge.arrow.up"
+        case .cancelAll: "xmark.circle"
+        }
     }
 }
 

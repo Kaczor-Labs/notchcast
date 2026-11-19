@@ -15,6 +15,9 @@ struct IslandPagesView: View {
                     ForEach(deck.tabs, id: \.self) { tab($0) }
                 }
             }
+            if let notice = deck.notice {
+                IslandPageRowView(row: notice) { act(IslandPageDeck.noticeID, $0) }
+            }
             if let page = deck.current {
                 IslandPageBody(blocks: page.blocks) { act(page.id, $0) }
             } else {
@@ -120,7 +123,7 @@ struct IslandPageArtwork: View {
             if let image = artwork.flatMap(NSImage.init(data:)) {
                 Image(nsImage: image)
                     .resizable()
-                    .aspectRatio(contentMode: .fill)
+                    .scaledToFill()
                     .clipShape(RoundedRectangle(cornerRadius: radius ?? metrics.radius.thumbnail, style: .continuous))
                     .accessibilityHidden(true)
             } else if let symbol {

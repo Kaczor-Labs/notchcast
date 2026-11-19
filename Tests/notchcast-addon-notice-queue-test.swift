@@ -1,3 +1,4 @@
+// notchcast-hosted-only
 // notchcast-sources: Tinycast/Features/Notchcast/Core/Model/*.swift
 // notchcast-sources: Tinycast/Features/Notchcast/Core/Service/*.swift
 // notchcast-sources: Tinycast/Features/Island/Model/IslandPresentation.swift
@@ -5,6 +6,7 @@
 // notchcast-sources: Tinycast/Features/Island/Model/IslandMeetingExpansion.swift
 // notchcast-sources: Tinycast/Features/Island/Model/IslandNoticeQueue.swift
 // notchcast-sources: Tinycast/Features/Island/Model/IslandHover.swift
+// notchcast-sources: Tinycast/Features/Island/Model/IslandPageDeck.swift
 // notchcast-sources: Tinycast/Features/Island/Service/IslandPresenting.swift
 // notchcast-sources: Tinycast/Features/Island/Service/IslandPresenter.swift
 // notchcast-sources: Tinycast/Features/Settings/SettingsTab.swift Tinycast/Features/Notchcast/Hidden/NotchcastHidden.swift
@@ -51,12 +53,21 @@ final class IslandController {
 /// The page host with `open` standing in for "a page exists": hover then opens it, not the pill.
 @MainActor
 final class IslandPageHost {
-    var open = false
+    private(set) var deck = IslandPageDeck()
     private(set) var isOpen = false
-    func set(_ page: IslandPage?, id: String, onAction: (@MainActor (String) -> Void)?) { open = page != nil }
+    private(set) var watched: [String: Bool] = [:]
+    private(set) var noticeTap: (@MainActor () -> Void)?
+    private(set) var shown: [String] = []
+    func showPage(id: String) { shown.append(id) }
+    func set(_ page: IslandPage?, id: String, onAction: (@MainActor (String) -> Void)?) { deck.set(page, id: id) }
+    func watch(id: String, onChange: (@MainActor (Bool) -> Void)?) { watched[id] = onChange != nil }
+    func show(_ notice: IslandNotice?, onTap: (@MainActor () -> Void)?) {
+        deck.show(notice, tappable: onTap != nil)
+        noticeTap = onTap
+    }
     @discardableResult
     func hover(_ hovered: Bool, on resting: IslandController?) -> Bool {
-        isOpen = hovered && open && resting != nil
+        isOpen = hovered && !deck.pages.isEmpty && resting != nil
         return isOpen
     }
 }
@@ -220,6 +231,36 @@ struct AddonNoticeQueueTest {
               hovered.notice?.text == "Keeping Awake" && hovered.expanded)
         presenter.hoverChanged(false)
         check("and leaving closes it", hovered.notice == nil && !hovered.expanded)
+        let ready = IslandStatus(id: "update", symbol: "arrow.clockwise.circle", text: nil, label: "Update ready")
+        presenter.setStatus(ready, for: ready.id, onTap: nil)
+        presenter.hoverChanged(true)
+        check("a hovered status shows its name", core.island.resting?.notice?.id == "hover.update")
+        core.island.resting?.glance = "Standup"
+        presenter.meetingChanged(.init(id: "standup", start: Date(timeIntervalSince1970: 0)))
+        check("a meeting glance arriving on a hovered island replaces the status name (#1001)",
+              core.island.resting?.notice == nil && core.island.resting?.expanded == true)
+        presenter.hoverChanged(false)
+        core.island.resting?.glance = nil
+        presenter.meetingChanged(nil)
+        var rang = 0
+        presenter.post(IslandNotice(id: "ring", symbol: "timer", text: "Timer done", seconds: 60), onTap: { rang += 1 })
+        check("with no page a click on the island runs the notice's own tap", presenter.tap != nil)
+        presenter.setPage(IslandPage(id: "player", title: "Player", symbol: "music.note", order: 10,
+                                     line: IslandPageLine(text: "A song"), blocks: []), id: "player", onAction: nil)
+        check("with a page a click opens it instead, so no page is out of reach (#1005)", presenter.tap == nil)
+        check("and the notice heads the open page as a button row",
+              presenter.pages.deck.notice == IslandPageRow(id: IslandPageDeck.noticeID, symbol: "timer",
+                                                           title: "Timer done"))
+        presenter.pages.noticeTap?()
+        check("whose click runs the notice's own tap", rang == 1)
+        presenter.end(notice: "ring")
+        check("once it ends the shown status takes the row, plain with no tap",
+              presenter.pages.deck.notice?.title == "Update ready" && presenter.pages.deck.notice?.id == nil)
+        presenter.setPage(nil, id: "player", onAction: nil)
+        presenter.watchPages(id: "player") { _ in }
+        check("an owner's watcher reaches the page host", presenter.pages.watched == ["player": true])
+        presenter.showPage(id: "player")
+        check("a command's showPage reaches the page host", presenter.pages.shown == ["player"])
         controller.stop()
         print(failures == 0 ? "PASS AddonNoticeQueueTest" : "FAILED \(failures)")
         exit(failures == 0 ? 0 : 1)

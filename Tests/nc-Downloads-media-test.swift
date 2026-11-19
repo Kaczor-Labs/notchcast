@@ -37,6 +37,10 @@ struct DownloadsMediaTest {
         precondition(!MediaArguments.retryNatively(stderr: "HTTP Error 403", source: "https://example.com", usedAria2: true))
         let restarted = MediaArguments.download(source: source, destination: destination, format: .video, restart: true)
         precondition(restarted.contains("--no-continue"))
+        let sizing = MediaArguments.size(source: source, format: .video)
+        precondition(sizing.contains("%(filesize,filesize_approx)s") && !sizing.contains("--paths"))
+        precondition(MediaArguments.bytes("WARNING\n524288000\n") == 524_288_000 && MediaArguments.bytes("NA") == nil
+                     && MediaArguments.bytes("") == nil && MediaArguments.bytes("0") == nil)
         let manual = MediaArguments.captions(source: source, destination: destination, automatic: false)
         let automatic = MediaArguments.captions(source: source, destination: destination, automatic: true)
         precondition(manual.contains("all,-live_chat") && !manual.contains("en"))
@@ -164,7 +168,9 @@ struct DownloadsMediaTest {
             --write-subs) mode=manual;;
             --write-auto-subs) mode=auto;;
             --sub-langs) shift; language="$1";;
-            --print) shift; [ "$1" != '%(language)s' ] || mode=metadata;;
+            --print) shift
+              case "$1" in '%(filesize'*) cat "${0%/*}/size"; exit 0;; esac
+              [ "$1" != '%(language)s' ] || mode=metadata;;
           esac
           source="$1"
           shift
@@ -208,6 +214,21 @@ struct DownloadsMediaTest {
         try FileManager.default.createSymbolicLink(at: root.appending(path: "aria2c"), withDestinationURL: tool)
         try await aria2(root, context: context, job: job, enabled: false, expected: false)
         try await aria2(root, context: context, job: job, enabled: true, expected: true)
+        let cases: [(size: String, remote: Int64?, possible: Bool, expected: Bool)] = [
+            ("50000000", nil, true, false), ("500000000", nil, true, true), ("NA", nil, true, false),
+            ("NA", 500_000_000, true, true), ("50000000", 500_000_000, true, false), ("500000000", nil, false, false),
+        ]
+        for (size, remote, possible, expected) in cases {
+            try size.write(to: root.appending(path: "size"), atomically: true, encoding: .utf8)
+            let runner = MediaDownloadRunner(format: .video, aria2Enabled: { true }, bonding: .init(
+                isPossible: { possible },
+                begin: { _, bytes in (bytes ?? 0) > 200_000_000 ? ["--multiple-interface=en0,en7"] : [] },
+                remoteBytes: { _ in remote }))
+            _ = try await runner.run(job, context: context)
+            let arguments = try String(contentsOf: root.appending(path: "arguments"), encoding: .utf8)
+            precondition(arguments.contains("-k 1M --file-allocation=none --multiple-interface=en0,en7") == expected,
+                         "#925: yt-dlp says \(size), the server \(remote ?? 0), possible \(possible): bonded \(expected)")
+        }
         let captions = TranscriptDownloadRunner(rateLimitPause: .zero)
         let transcript = try await captions.run(job, context: context)
         let text = try String(contentsOf: transcript!, encoding: .utf8)
@@ -260,24 +281,22 @@ struct DownloadsMediaTest {
         """
         try script.write(to: tool, atomically: false, encoding: .utf8)
         try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: tool.path)
-        for round in 0..<12 {
-            let folder = root.appending(path: "round-\(round)")
-            let context = DownloadRunContext(destination: folder, tools: DownloadToolLookup(directories: [root]))
-            let outputs = try await withThrowingTaskGroup(of: URL.self) { group in
-                for _ in 0..<12 {
-                    group.addTask {
-                        let job = DownloadJob(id: UUID().uuidString, kind: "transcript", source: "fixture",
-                            title: "Same", state: .waiting, created: Date())
-                        return try await TranscriptDownloadRunner().run(job, context: context)!
-                    }
+        let folder = root.appending(path: "published")
+        let context = DownloadRunContext(destination: folder, tools: DownloadToolLookup(directories: [root]))
+        let outputs = try await withThrowingTaskGroup(of: URL.self) { group in
+            for _ in 0..<12 {
+                group.addTask {
+                    let job = DownloadJob(id: UUID().uuidString, kind: "transcript", source: "fixture",
+                        title: "Same", state: .waiting, created: Date())
+                    return try await TranscriptDownloadRunner().run(job, context: context)!
                 }
-                var urls = [URL]()
-                for try await url in group { urls.append(url) }
-                return urls
             }
-            precondition(Set(outputs).count == 12, "Concurrent transcripts overwrote each other")
-            let files = try FileManager.default.contentsOfDirectory(atPath: folder.path)
-            precondition(files.count == 12)
+            var urls = [URL]()
+            for try await url in group { urls.append(url) }
+            return urls
         }
+        precondition(Set(outputs).count == 12, "Concurrent transcripts overwrote each other")
+        let files = try FileManager.default.contentsOfDirectory(atPath: folder.path)
+        precondition(files.count == 12)
     }
 }

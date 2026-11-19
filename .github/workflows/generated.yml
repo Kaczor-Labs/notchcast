@@ -8,54 +8,98 @@ on:
       - Tinycast.xcodeproj/xcshareddata/xcschemes/Tinycast.xcscheme
       - Tinycast/Resources/RaycastRuntime.generated.js
       - README.md
+      - Tinycast/Features/Notchcast/NotchcastRegistry.swift
 
 permissions:
-  actions: read
-  contents: write
+  contents: read
 
 concurrency:
   group: generated-main
   cancel-in-progress: false
 
 jobs:
+  # The generators run with a read-only token and no stored credentials.
   regenerate:
-    runs-on: macos-15
+    runs-on: ubuntu-latest
     # Up to 40 min of it waiting out a Sync replay.
     timeout-minutes: 60
+    permissions:
+      actions: read
+      contents: read
+    outputs:
+      base: ${{ steps.generate.outputs.base }}
+      changed: ${{ steps.generate.outputs.changed }}
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           ref: main
           fetch-depth: 0
+          persist-credentials: false
       - uses: ./notchcast/actions/xcodegen
-      - uses: actions/setup-node@v7
-        with:
-          node-version: 22
-      - name: Regenerate and push, retrying if main moved
+      - name: Regenerate
+        id: generate
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           refuse() { echo "$*" >&2; exit 1; }
           source notchcast/sync-wait.sh
-          git config user.name "$MAINTAINER_NAME"
-          git config user.email "$MAINTAINER_EMAIL"
-          for attempt in 1 2 3 4 5; do
-            # Generated pushes cost Sync its main lease too; a rewrite of main restarts this workflow anyway.
-            wait_for_sync
-            git fetch origin main
-            git reset -q --hard origin/main
-            bash notchcast/fetch-upstream.sh
-            python3 notchcast/ci.py regenerate . "$(git merge-base HEAD refs/remotes/upstream/main)"
-            python3 - <<'PY'
+          # Generated pushes cost Sync its main lease too; a rewrite of main restarts this workflow anyway.
+          wait_for_sync
+          git fetch -q origin main
+          git reset -q --hard origin/main
+          bash notchcast/fetch-upstream.sh
+          python3 notchcast/ci.py regenerate . "$(git merge-base HEAD refs/remotes/upstream/main)"
+          python3 - <<'PY'
           import subprocess
           from notchcast.ci import GENERATED
           subprocess.run(["git", "add", "--", *GENERATED], check=True)
           PY
-            git diff --cached --quiet && exit 0
-            git commit -m 'Notchcast: generated files'
-            if git push origin HEAD:main; then exit 0; fi
-            git reset --hard HEAD^
-          done
-          echo 'main kept moving; regeneration will retry on the next source push' >&2
-          exit 1
+          git diff --cached --binary > "$RUNNER_TEMP/generated.patch"
+          echo "base=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+          echo "changed=$([ -s "$RUNNER_TEMP/generated.patch" ] && echo true || echo false)" >> "$GITHUB_OUTPUT"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        if: steps.generate.outputs.changed == 'true'
+        with:
+          name: generated
+          path: ${{ runner.temp }}/generated.patch
+          if-no-files-found: error
+          retention-days: 1
+  # Runs no generator: applies the patch onto the main it was made from and pushes with the write token.
+  push:
+    needs: regenerate
+    if: needs.regenerate.outputs.changed == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 50
+    permissions:
+      actions: read
+      contents: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: main
+          fetch-depth: 0
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
+        with:
+          name: generated
+          path: ${{ runner.temp }}/generated
+      - name: Push the generated files
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BASE: ${{ needs.regenerate.outputs.base }}
+        run: |
+          refuse() { echo "$*" >&2; exit 1; }
+          source notchcast/sync-wait.sh
+          git config user.name "$MAINTAINER_NAME"
+          git config user.email "$MAINTAINER_EMAIL"
+          wait_for_sync
+          git fetch -q origin main
+          if [ "$(git rev-parse origin/main)" != "$BASE" ]; then
+            echo "::notice::main moved since the files were generated; the run its push started regenerates them"
+            exit 0
+          fi
+          git reset -q --hard "$BASE"
+          git apply --index "$RUNNER_TEMP/generated/generated.patch"
+          git commit -q -m 'Notchcast: generated files'
+          git push origin HEAD:main || refuse 'main moved during the push; regeneration will retry on the next source push'

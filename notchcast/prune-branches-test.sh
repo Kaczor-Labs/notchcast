@@ -60,10 +60,11 @@ git commit -qm 'hand-resolved merge'
 [ -z "$(git cherry main merge-only | grep '^+' || true)" ]
 git switch -q main
 unset GIT_AUTHOR_DATE GIT_COMMITTER_DATE
-export GIT_AUTHOR_DATE=$(date -u -v-36H '+%Y-%m-%dT%H:%M:%SZ')
+export GIT_AUTHOR_DATE="@$(($(date +%s) - 36 * 3600)) +0000"
 export GIT_COMMITTER_DATE=$GIT_AUTHOR_DATE
 git commit -q --allow-empty -m age-36-hours
 git branch age-36-hours
+git branch stood-on
 unset GIT_AUTHOR_DATE GIT_COMMITTER_DATE
 git switch -q -c recent
 git commit -q --allow-empty -m recent
@@ -77,7 +78,7 @@ for name in dirty locked clean fail-tree; do git worktree add -q "$scratch/allow
 git worktree add -q "$scratch/outside" outside
 echo dirty > "$scratch/allowed/dirty/untracked"
 git worktree lock "$scratch/allowed/locked"
-printf '#!/bin/bash\n[[ " $* " == *" -R kaczordodgers/notchcast "* ]] || exit 1\ncase "$*" in\n*open*) echo '\''[{"headRefName":"open"}]'\'' ;;\n*) cat "%s/comments.json" ;;\nesac\n' "$scratch" > "$scratch/bin/gh"
+printf '#!/bin/bash\n[[ " $* " == *" -R kaczordodgers/notchcast "* ]] || exit 1\ncase "$*" in\n*open*) echo '\''[{"headRefName":"open","baseRefName":"stood-on"}]'\'' ;;\n*) cat "%s/comments.json" ;;\nesac\n' "$scratch" > "$scratch/bin/gh"
 printf '[{"number":1,"headRefName":"squash","comments":[{"author":{"login":"kaczordodgers"},"body":"Landed on main as %s by land: squash of %s onto base."}]}' "$landed" "$tip" > "$scratch/comments.json"
 number=2
 for name in other-author no-subject upstream-subject wrong-prefix; do
@@ -112,14 +113,15 @@ done
 ! git merge-base --is-ancestor "$landed" origin/main
 grep -q 'Candidate local: squash' "$scratch/dry-output"
 grep -q 'Candidate local: age-36-hours' "$scratch/dry-output"
+! grep -q 'Candidate .*: stood-on$' "$scratch/dry-output"
 ! grep -q 'Candidate .*: recent' "$scratch/dry-output"
 git merge-base --is-ancestor recent-ancestor origin/main
-[ "$(git show -s --format=%ct refs/heads/squash)" -gt "$(date -v-24H +%s)" ]
-[ "$(git show -s --format=%ct recent-ancestor)" -gt "$(date -v-24H +%s)" ]
+[ "$(git show -s --format=%ct refs/heads/squash)" -gt "$(($(date +%s) - 86400))" ]
+[ "$(git show -s --format=%ct recent-ancestor)" -gt "$(($(date +%s) - 86400))" ]
 [ ! -e "$scratch/dry.tsv" ]
 python3 "$script" --remote --local --log "$scratch/log.tsv" --worktree-root "$scratch/allowed" > "$scratch/output"
 cat "$scratch/output"
-for name in main open nc-design-race-one nc-design-v4-one recent recent-ancestor unlanded merge-only dirty locked outside fail-tree fail-branch; do git show-ref --verify --quiet "refs/heads/$name"; done
+for name in main open stood-on nc-design-race-one nc-design-v4-one recent recent-ancestor unlanded merge-only dirty locked outside fail-tree fail-branch; do git show-ref --verify --quiet "refs/heads/$name"; done
 for name in ancestor patch squash clean age-36-hours; do
     ! git show-ref --verify --quiet "refs/heads/$name"
     [ -z "$(git ls-remote origin "refs/heads/$name")" ]

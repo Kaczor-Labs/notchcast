@@ -1,4 +1,5 @@
 #!/bin/bash
+# script-tests: macos (kick.sh's BSD sed -i and date -j)
 # shellcheck disable=SC2016
 set -euo pipefail
 ROOT=$(cd "$(dirname "$0")/.." && pwd)
@@ -6,7 +7,7 @@ WORK=$(mktemp -d "${TMPDIR:-/tmp}/ci-finishes.XXXXXX")
 trap 'rm -rf "$WORK"' EXIT
 mkdir -p "$WORK/notchcast" "$WORK/Scripts" "$WORK/bin" "$WORK/home"
 cp "$ROOT/notchcast/ci-tests.sh" "$ROOT/notchcast/test-harnesses.sh" "$ROOT/notchcast/harness_inputs.py" \
-    "$ROOT/notchcast/command-harness-sources.sh" "$ROOT/notchcast/pref-sweep.py" "$WORK/notchcast/"
+    "$ROOT/notchcast/command-harness-sources.sh" "$ROOT/notchcast/pref-sweep.py" "$ROOT/notchcast/harness-tags.sh" "$WORK/notchcast/"
 mkdir "$WORK/prefs"
 export NOTCHCAST_PREFS_DIR="$WORK/prefs" NOTCHCAST_PREF_SWEEP_STATE="$WORK/pref-sweep"
 printf 'CI_SKIP_TESTS=skip\nUPSTREAM_REPO=upstream/repo\nFORK_REPO=fork/repo\nREVIEW_LABEL=upstream-sync\n' > "$WORK/notchcast/config.env"

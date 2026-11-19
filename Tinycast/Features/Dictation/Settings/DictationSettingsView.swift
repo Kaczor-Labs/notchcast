@@ -62,6 +62,7 @@ struct DictationSettingsView: View {
                         Spacer()
                         ShortcutRecorder(action: .dictation)
                     }
+                    if settings.dictationMode == .globe { NotchcastGlobeHint() }
                     if settings.dictationMode == .pushToTalk {
                         let issue = coordinator.holdShortcutIssue
                         Text(
@@ -192,7 +193,9 @@ struct DictationSettingsView: View {
                         "Press Return to finish dictating or Escape to cancel. Protected fields may refuse insertion."
                     )
                 }
+                DictationExtrasSettingsSections()
 
+                DictationSharingSection()
             }
         }
         .formStyle(.grouped)

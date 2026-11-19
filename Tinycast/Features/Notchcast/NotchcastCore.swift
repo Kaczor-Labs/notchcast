@@ -5,8 +5,10 @@ import Foundation
 @MainActor
 final class NotchcastCore {
     let controller: NotchcastController
+    let dictationServer: DictationServer
     private var trustMonitor: NotchcastTrustMonitor?
     private var launcherHides: NotchcastLauncherHides?
+    private var globeTrigger: NotchcastGlobeTrigger?
 
     init(core: AppCore, addons: [any NotchcastAddon.Type] = NotchcastRegistry.addons) {
         let bundleID = Bundle.main.bundleIdentifier ?? "Notchcast"
@@ -14,9 +16,13 @@ final class NotchcastCore {
         let hub = NotchcastTapHub(
             syntheticTag: Paster.tinycastEventTag, isTrusted: { AXIsProcessTrusted() },
             makeSession: NotchcastTapThread.start)
+        let history = core.clipboardManager
         controller = NotchcastController(
             addons: addons, defaults: defaults, hub: hub, dictation: NotchcastDictationBridge(core: core),
-            presenter: core.islandPresenter,
+            clipboard: NotchcastClipboardMutation(
+                prepare: { history.prepareForTinycastPasteboardMutation() },
+                synchronize: { history.synchronizeAfterTinycastPasteboardMutation(changeCount: $0) }),
+            settingsBackup: NotchcastSettingsBackupBridge(core: core), presenter: core.islandPresenter,
             calendar: NotchcastCalendar(
                 events: { [weak core] in
                     (core?.calendarStore.events ?? []).filter { !$0.isDeclined }.map {
@@ -24,7 +30,16 @@ final class NotchcastCore {
                     }
                 },
                 showSchedule: { [weak core] in core?.calendarCoordinator.showSchedule() }))
+        dictationServer = DictationServer(
+            defaults: defaults, settings: core.settings, coordinator: core.dictationCoordinator,
+            runner: controller.transcription)
         NotchcastPane.install(Set(controller.switches.map(\.category)))
+        for context in controller.slots.flatMap({ [$0.context, $0.recovery] }) {
+            context.confirm = { [weak core] title, message, confirmTitle in
+                await core?.confirm(title: title, message: message, symbol: nil, confirmTitle: confirmTitle,
+                                    tone: .neutral, confirmRole: .standard) ?? false
+            }
+        }
         let commands = addons.flatMap { $0.commands }
         NotchcastSettingsSearch.install(
             controller.switches,
@@ -45,21 +60,32 @@ final class NotchcastCore {
             _ = controller?.run(entryID: entryID)
         }
         launcher.runExtraCommand = { [weak controller, weak core] entryID in
-            guard let controller, controller.enabledCommands.contains(where: { $0.id == entryID }) else { return false }
-            core?.paletteCoordinator.hidePalette(restoreFocus: true)
-            return controller.run(entryID: entryID)
+            guard let controller, let core, controller.enabledCommands.contains(where: { $0.id == entryID })
+            else { return false }
+            // Read before the hide, which clears the palette's typed arguments.
+            let argument = NotchcastArgumentAccessory.value(for: entryID, vm: core.palette)
+            core.paletteCoordinator.hidePalette(restoreFocus: true)
+            return controller.submit(entryID: entryID, argument: argument)
         }
-        LauncherScreen.digitRow = { [weak controller] digit, query, entryRows in
-            controller?.launcherRow(digit: digit, query: query, entryRows: entryRows)
+        LauncherScreen.extraAccessory = { [weak controller, weak core] entry, focus, onSubmit in
+            guard let core, let title = controller?.enabledCommands.first(where: { $0.id == entry.id })?.argument?.title
+            else { return nil }
+            return NotchcastArgumentAccessory.make(
+                entry: entry, title: title, vm: core.palette, metrics: core.settings.interfaceSize.metrics,
+                focus: focus, onSubmit: onSubmit)
         }
         launcherHides = NotchcastLauncherHides(
             visibility: core.visibility, preferences: controller.preferences, commandIDs: Set(commands.map(\.id)))
         trustMonitor = NotchcastTrustMonitor(hub: hub)
+        globeTrigger = NotchcastGlobeTrigger(core: core, hub: hub)
         controller.start()
+        dictationServer.start()
     }
 
     func stop() {
+        dictationServer.stop()
         trustMonitor = nil
+        globeTrigger?.stop()
         controller.stop()
         controller.hub.stop()
     }

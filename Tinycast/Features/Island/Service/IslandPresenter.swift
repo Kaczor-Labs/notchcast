@@ -48,11 +48,11 @@ final class IslandPresenter: IslandPresenting {
         noticesChanged()
     }
 
-    /// The carded meeting the resting glance shows, or nil once its join window closes.
+    /// The carded meeting the resting glance shows, or nil; a hovered status name gives way to it.
     func meetingChanged(_ occurrence: IslandMeetingExpansion.Occurrence?) {
         self.occurrence = occurrence
         if occurrence != nil, !observing { observePlacement() }
-        updateExpansion()
+        noticesChanged()
     }
 
     func post(_ notice: IslandNotice, onTap: (@MainActor () -> Void)?) {
@@ -74,10 +74,21 @@ final class IslandPresenter: IslandPresenting {
         if let status { statuses.append(status) }
         AppCore.shared.island.resting?.statuses = statuses
         if hoverOpensPill { AppCore.shared.island.resting?.notice = shownNotice }
+        showOnPages()
     }
 
-    /// A click on the resting pill acts on what it shows; the meeting glance hides status.
-    var tap: (@MainActor () -> Void)? {
+    /// A click on the resting pill opens the pages while any exist, else acts on what the pill shows.
+    var tap: (@MainActor () -> Void)? { pages.deck.opensOnClick ? nil : shownTap }
+
+    /// What the pill shows heads the open page, its tap that row's click, so no page hides it (#1005).
+    private func showOnPages() {
+        pages.show(IslandHover.notice(top: notices.notice, statuses: statuses,
+                                      glance: AppCore.shared.island.resting?.glance != nil, level: false, hovered: true),
+                   onTap: shownTap)
+    }
+
+    /// The shown notice's tap, else none under the meeting glance, else the last status's.
+    private var shownTap: (@MainActor () -> Void)? {
         if let notice = notices.notice { return noticeTaps[notice.id] }
         if AppCore.shared.island.resting?.glance != nil { return nil }
         return statuses.last.flatMap { statusTaps[$0.id] }
@@ -97,6 +108,12 @@ final class IslandPresenter: IslandPresenting {
         pages.set(page, id: id, onAction: onAction)
         if hovered { hoverChanged(true) }
     }
+
+    func watchPages(id: String, onChange: (@MainActor (_ visible: Bool) -> Void)?) {
+        pages.watch(id: id, onChange: onChange)
+    }
+
+    func showPage(id: String) { pages.showPage(id: id) }
 
     private var shownNotice: IslandNotice? {
         IslandHover.notice(top: notices.notice, statuses: statuses, glance: AppCore.shared.island.resting?.glance != nil,
@@ -148,6 +165,7 @@ final class IslandPresenter: IslandPresenting {
         let held = unseen || hovered && notices.notice != nil
         if notices.paused != held { notices.pause(held, at: time) }
         core.island.resting?.notice = shownNotice
+        showOnPages()
         if let text = notices.announcement() {
             NSAccessibility.post(element: NSApp as Any, notification: .announcementRequested,
                 userInfo: [.announcement: text, .priority: NSAccessibilityPriorityLevel.high.rawValue])

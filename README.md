@@ -37,13 +37,15 @@ The in-app updater stays off in Notchcast. To keep a Mac current, clone this rep
 - **The launcher.** Everything Tinycast does: app and command search, clipboard history, snippets, quicklinks, calculator with units and currencies, emoji, file and menu-bar search, window management, layouts and rooms, notes, calendar, dictionary, Quick AI and AI chat, custom commands and deeplinks. Feature docs: [docs/features](/docs/features).
 - **Look per display.** Each display's island is Black or Frosted (glass). A display you never set is Black when it has a notch and Frosted when it has none. Change it in Settings › Notchcast › Island.
 - **Settings › Notchcast.** One tab per area, each add-on with its own switch; an add-on's tab shows only while that add-on is in the build.
+  <!-- addon-tabs:start -->
   - **Island**: look, outline when open, open on hover, position on displays without a notch, show in screenshots and videos.
-  - **Keyboard & Mouse**: hide with ⌘M, Show Desktop with F3, Quit Protection, trackpad middle click.
-  - **Display & Sound**: brightness keys for every display, volume in the island, stop Apple Music opening on media keys.
-  - **Capture**: screenshots of an area, window or display.
+  - **Keyboard & Mouse**: hide with ⌘M, Show Desktop with F3, Quit Protection, trackpad middle click, Paste Plain Text.
+  - **Display & Sound**: stop Apple Music opening on media keys, brightness keys for every display, volume in the island, AirPods and Beats noise control from the launcher.
+  - **Capture**: screenshots of an area, window or display, and an editor to mark one up with arrows, shapes, highlights, text, pixelation and a crop before copying, saving or dragging it out.
   - **Launcher Extras**: ⌘1–⌘9 open the first nine results; small commands for passwords, short links and AirDrop.
-  - **Downloads**: video, audio, transcripts and webpages from clipboard links, with optional aria2c and transcription into a local folder.
+  - **Downloads**: video, audio, transcripts and webpages from clipboard links, with optional aria2c and transcription into a local folder; big downloads and torrents can use Wi-Fi and a USB-tethered iPhone together.
   - **Mac Tweaks**: turn off iPhone auto backups.
+  <!-- addon-tabs:end -->
 - **Add-on commands** are ordinary launcher commands: search them, and give them an alias, a hotkey or Show in launcher on the command's row in its Notchcast tab.
 
 Notchcast is English only and Dark only.
@@ -87,7 +89,7 @@ project.yml                   XcodeGen input; Tinycast.xcodeproj is generated fr
 The dev loop:
 
 - Test locally with `./Scripts/run-tests.sh` (all harnesses, ours included) or `./Scripts/run-tests.sh <harness>`, and `./Scripts/lint.sh`. See [testing.md](/docs/testing.md).
-- Maintainers push a branch with `python3 notchcast/notchcast-ci.py --repo .`, which waits for GitHub's harness verdict on it.
+- The maintainer proves a pushed branch with `python3 notchcast/notchcast-ci.py --repo . --keeper`, which waits for GitHub's harness verdict on it.
 - PRs open as drafts. Maintainers land them only with `notchcast/land.sh <pr>`, which tests the merge onto `main` and squash-merges it.
 - Sync replays our commits onto each new upstream `main` once the maintainer's review of the upstream diff passed, and Snapshot publishes every green `main`. Generated files (`README.md`, the Xcode project) are rebuilt by CI; edit `notchcast/README.public.md` and `project.yml` instead.
 
@@ -97,7 +99,7 @@ Read before you change things:
 | --- | --- |
 | [AGENTS.md](/AGENTS.md) | agents: rules, posture, definition of done |
 | [notchcast/README.md](/notchcast/README.md) | maintainers: sync, CI, landing, releases, installing on a Mac |
-| [addons.md](/notchcast/docs/addons.md) | writing an add-on: one folder, one registry line |
+| [addons.md](/notchcast/docs/addons.md) | writing an add-on: one folder that declares itself |
 | [island-shell.md](/notchcast/docs/island-shell.md) | how the island works |
 | [design-system.md](/notchcast/docs/design-system.md) | Notchcast's look; upstream's is [ui.md](/docs/ui.md) |
 | [hotspots.md](/notchcast/docs/hotspots.md) | upstream files to avoid touching |

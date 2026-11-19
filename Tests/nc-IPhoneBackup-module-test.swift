@@ -1,3 +1,4 @@
+// notchcast-hosted-only
 // notchcast-sources: Tinycast/Features/Notchcast/Core/Model/*.swift Tinycast/Features/Notchcast/Core/Service/*.swift
 // notchcast-sources: Tinycast/Features/Island/Model/IslandPresentation.swift
 // notchcast-sources: Tinycast/Features/Island/Service/IslandPresenting.swift
@@ -156,7 +157,8 @@ func decoded(_ data: Data?) -> Policy.Journal {
     return journal
 }
 
-func drain() async { try? await Task.sleep(for: .milliseconds(30)) }
+/// Every hop here lands on the main actor, so yielding runs them in order.
+@MainActor func drain() async { for _ in 0..<10 { await Task.yield() } }
 
 @MainActor
 func reset(_ value: Policy.Value?) {
@@ -197,19 +199,22 @@ func removeHostFiles(_ domain: String) {
 func preferenceSource() {
     let domain = "nc-IPhoneBackup-test.\(UUID())"
     let otherRun = hostFolder.appending(path: "nc-IPhoneBackup-test.\(UUID()).other-run.plist")
-    FileManager.default.createFile(atPath: otherRun.path(percentEncoded: false), contents: nil)
+    // A fresh home has no ByHost folder until the first host preference is written.
+    try? FileManager.default.createDirectory(at: hostFolder, withIntermediateDirectories: true)
+    precondition(
+        FileManager.default.createFile(atPath: otherRun.path(percentEncoded: false), contents: nil),
+        "planting another run's file failed")
     let key = Policy.key as CFString
     let system = IPhoneBackupSystem.preferences(domain: domain, journalFolder: scratch)
     CFPreferencesSetValue(key, kCFBooleanTrue, domain as CFString, kCFPreferencesCurrentUser, kCFPreferencesCurrentHost)
     CFPreferencesSynchronize(domain as CFString, kCFPreferencesCurrentUser, kCFPreferencesCurrentHost)
     defer {
-        CFPreferencesSetValue(key, nil, domain as CFString, kCFPreferencesCurrentUser, kCFPreferencesAnyHost)
-        CFPreferencesSynchronize(domain as CFString, kCFPreferencesCurrentUser, kCFPreferencesAnyHost)
-        // cfprefsd can write the host plist again after it is deleted, so removal repeats.
-        for _ in 0..<8 {
-            removeHostFiles(domain)
-            Thread.sleep(forTimeInterval: 0.25)
+        // The daemon forgets both values before the host plist goes, so it has nothing left to write back.
+        for host in [kCFPreferencesCurrentHost, kCFPreferencesAnyHost] {
+            CFPreferencesSetValue(key, nil, domain as CFString, kCFPreferencesCurrentUser, host)
+            CFPreferencesSynchronize(domain as CFString, kCFPreferencesCurrentUser, host)
         }
+        removeHostFiles(domain)
         precondition(FileManager.default.fileExists(atPath: otherRun.path(percentEncoded: false)), "another run's file stays")
         try? FileManager.default.removeItem(at: otherRun)
     }

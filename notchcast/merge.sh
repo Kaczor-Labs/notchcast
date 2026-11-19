@@ -4,6 +4,12 @@
 # shell in a clean tree at that commit.
 merge_tools=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 source "$merge_tools/drift-gates.sh"
+# Check runs on the commit, not the PR's statusCheckRollup: the rollup omits dispatched runs, and a PR
+# GitHub calls conflicting gets no pull_request run at all. Cancelled or skipped runs count only alone.
+check_run() {
+    gh api "repos/$FORK_REPO/commits/$1/check-runs?check_name=$2&filter=all" \
+        --jq '[.check_runs[] | select(.app.slug == "github-actions")] | (map(select(.conclusion != "cancelled" and .conclusion != "skipped")) | max_by([.started_at, .id])) // max_by([.started_at, .id]) | if . == null then "none" elif .status != "completed" then "pending" else .conclusion end'
+}
 check_defect_tests() {
     local onto=$1 candidate=$2 title=$3 body=$4 changed
     title=$(printf '%s' "$title" | tr '[:upper:]' '[:lower:]')
@@ -14,6 +20,19 @@ check_defect_tests() {
     grep -Eq '^Tests/[^/]+-test\.swift$|^notchcast/(.*/)?[^/]+-test\.[^/]+$' <<< "$changed" \
         || refuse 'defect fix needs a changed test or No test: <reason>'
 }
+# The squash commit message of PR $pr, from pr_title, pr_body and the drift_signoff merge_onto set.
+squash_message() {
+    local title=$pr_title
+    [[ "$title" == Notchcast:* ]] || title="Notchcast: $title"
+    printf '%s (#%s)\n' "$title" "$pr"
+    if printf '%s\n' "$title" | grep -Eiq '^(notchcast: )?fix '; then
+        printf '\n'
+        grep -E '^No test: [^[:space:]].*' <<< "$pr_body" || true
+    fi
+    if [ -n "$drift_signoff" ]; then printf '\n%s\n' "$drift_signoff"; fi
+}
+# Refuses the commit message in file $1 when it names something private.
+check_message() { "$merge_tools/check-identity.sh" message "$1" || refuse 'commit message names something private'; }
 drift_fixtures_changed() {
     local changed
     changed=$(git diff --name-only "$1" HEAD -- 'notchcast/check-drift*' notchcast/bin/swiftgraph.py notchcast/config.env) \
@@ -44,15 +63,17 @@ check_drift_tooling() {
 # the new main since ("Update branch") has a plain merge base outside that tip and keeps the plain merge.
 # Merges $head onto $1 in a clean tree and runs the cheap checks; any real conflict is refused.
 merge_onto() {
-    local onto=$1 file revived unmerged
+    local onto=$1 file revived unmerged words
     cd "$top"
+    # merge=notchcast-words files merge by word, with the driver beside this file, never the PR's copy of it.
+    words="merge.notchcast-words.driver=python3 '$merge_tools/merge-words.py' %O %A %B"
     fork=$(bash "$merge_tools/fork-point.sh" "$onto" "$head")
     tree_at "$onto"
     if [ "$fork" = "$(git merge-base "$onto" "$head")" ]; then
-        git -c core.hooksPath=/dev/null merge --no-commit --no-ff "$head" >/dev/null 2>&1 || true
+        git -c "$words" -c core.hooksPath=/dev/null merge --no-commit --no-ff "$head" >/dev/null 2>&1 || true
     else
         echo "merging from ${fork:0:8}, the PR's fork point on main before a Sync rewrite"
-        git merge-recursive "$fork" -- HEAD "$head" >/dev/null 2>&1 || true
+        git -c "$words" merge-recursive "$fork" -- HEAD "$head" >/dev/null 2>&1 || true
         git rev-parse "$head" > "$(git rev-parse --git-path MERGE_HEAD)"
     fi
     # Generated files (ci.py GENERATED) keep main's version, conflicting or not, and main's Generated workflow

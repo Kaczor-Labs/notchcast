@@ -12,6 +12,8 @@ final class NotchcastController {
         let recovery: NotchcastContext
         let declaredTaps: [(token: UUID, tap: NotchcastTap)]
         let settings: [SettingsEntry]
+
+        @MainActor var commands: [NotchcastCommand] { addon.commands + context.commands }
     }
 
     /// An add-on's settings row with an identity fixed at registration, for a stable `ForEach`.
@@ -22,6 +24,7 @@ final class NotchcastController {
 
     let preferences: NotchcastPreferences
     let hub: NotchcastTapHub
+    let transcription: NotchcastTranscriptionRunner
     private(set) var slots: [Slot] = []
     private(set) var enabledCommands: [NotchcastCommand] = []
     var onCommandsChanged: (([NotchcastCommand]) -> Void)?
@@ -31,18 +34,22 @@ final class NotchcastController {
 
     init(
         addons: [any NotchcastAddon.Type], defaults: UserDefaults, hub: NotchcastTapHub,
-        dictation: any NotchcastTranscribing, presenter: any IslandPresenting,
-        now: @escaping @MainActor () -> Date = { Date() },
+        dictation: any NotchcastTranscribing, clipboard: NotchcastClipboardMutation = .none,
+        settingsBackup: any NotchcastSettingsBackup = NotchcastNoSettingsBackup(),
+        presenter: any IslandPresenting, now: @escaping @MainActor () -> Date = { Date() },
         calendar: NotchcastCalendar = NotchcastCalendar()
     ) {
         preferences = NotchcastPreferences(defaults: defaults, switches: addons.flatMap { $0.switches })
         self.hub = hub
         let transcription = NotchcastTranscriptionRunner(dictation: dictation)
+        self.transcription = transcription
         func makeContext(recovery: NotchcastContext? = nil) -> NotchcastContext {
             NotchcastContext(
                 defaults: defaults, preferences: preferences, presenter: presenter, hub: hub,
                 transcription: transcription, now: now,
-                onTapsChanged: { [weak self] in self?.applyTaps() }, recovery: recovery, calendar: calendar)
+                onTapsChanged: { [weak self] in self?.applyTaps() },
+                onCommandsChanged: { [weak self] in if self?.isRunning == true { self?.publishCommands() } },
+                recovery: recovery, clipboard: clipboard, settingsBackup: settingsBackup, calendar: calendar)
         }
         slots = addons.map { addon in
             let recovery = makeContext()
@@ -81,16 +88,24 @@ final class NotchcastController {
     }
 
     /// False when the id is no enabled add-on command, so the caller falls through to stock.
-    func run(entryID: String) -> Bool {
+    func run(entryID: String) -> Bool { submit(entryID: entryID, argument: "") }
+
+    /// The launcher's run: text typed in the command's inline field goes to its argument.
+    func submit(entryID: String, argument: String) -> Bool {
         guard let command = enabledCommands.first(where: { $0.id == entryID }),
-            let slot = slots.first(where: { $0.addon.commands.contains { $0.id == entryID } })
+            let slot = slots.first(where: { $0.commands.contains { $0.id == entryID } })
         else { return false }
-        command.run(slot.context)
+        if let run = command.argument?.run, !argument.isEmpty {
+            run(slot.context, argument)
+        } else {
+            command.run(slot.context)
+        }
         return true
     }
 
-    func launcherRow(digit: Int, query: String, entryRows: [Int]) -> Int? {
-        slots.lazy.compactMap { $0.context.launcherDigit?(digit, query, entryRows) }.first
+    /// False when no add-on claims the URL; a running module goes before any recovery.
+    func open(_ url: URL) -> Bool {
+        slots.contains { $0.context.openURL?(url) == true } || slots.contains { $0.recovery.openURL?(url) == true }
     }
 
     func context(forSwitch id: String) -> NotchcastContext? {
@@ -126,17 +141,20 @@ final class NotchcastController {
     }
 
     private func publishCommands() {
-        let commands = slots.flatMap { $0.addon.commands }.filter { enabled.contains($0.switchID) }
+        let commands = slots.flatMap(\.commands).filter { enabled.contains($0.switchID) }
         let shown = launcherCommands(commands).map(\.id)
-        guard commands.map(\.id) != enabledCommands.map(\.id) || shown != launcherIDs else { return }
+        // A renamed run-time command keeps its id, so its name is compared too.
+        let changed = commands.map { [$0.id, $0.name] } != enabledCommands.map { [$0.id, $0.name] }
+        guard changed || shown != launcherIDs else { return }
         enabledCommands = commands
         launcherIDs = shown
         onCommandsChanged?(commands)
     }
 
-    /// The enabled commands the launcher lists; a hidden one keeps its hotkey.
+    /// The enabled commands the launcher lists; a hidden or unavailable one keeps its hotkey.
     func launcherCommands(_ commands: [NotchcastCommand]) -> [NotchcastCommand] {
-        commands.filter { preferences.showsInLauncher($0.id) }
+        let unavailable = slots.reduce(into: Set<String>()) { $0.formUnion($1.context.unavailableCommands) }
+        return commands.filter { preferences.showsInLauncher($0.id) && !unavailable.contains($0.id) }
     }
 
     /// Hands the hub the full list, so a tap enabled late still runs where it was subscribed.

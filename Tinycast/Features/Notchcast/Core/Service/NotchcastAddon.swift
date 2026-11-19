@@ -37,8 +37,16 @@ struct NotchcastCommand: Identifiable, Sendable {
     let switchID: String
     var keywords: [String] = []
     let run: @MainActor @Sendable (NotchcastContext) -> Void
+    /// An inline launcher field; a hotkey or an empty field still runs `run`.
+    var argument: NotchcastArgument?
 
     var id: String { Self.idPrefix + slug }
+}
+
+/// The one free-text field a command takes in the launcher, handed its typed text.
+struct NotchcastArgument: Sendable {
+    let title: String
+    let run: @MainActor @Sendable (NotchcastContext, String) -> Void
 }
 
 /// An extra settings row shown under its switch, built with the add-on's own context.

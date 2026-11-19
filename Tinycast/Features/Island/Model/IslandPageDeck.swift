@@ -47,6 +47,19 @@ struct IslandPageDeck: Equatable, Sendable {
         pages.filter { $0.badge > 0 } + pages.filter { $0.badge <= 0 }
     }
 
+    /// What the resting island shows heads the open page on every tab, so a page never hides it.
+    private(set) var notice: IslandPageRow?
+
+    /// The notice row's id when it has a tap; the host routes it like a page's action.
+    static let noticeID = "island.notice"
+
+    mutating func show(_ notice: IslandNotice?, tappable: Bool) {
+        self.notice = notice.map { IslandPageRow(id: tappable ? Self.noticeID : nil, symbol: $0.symbol, title: $0.text) }
+    }
+
+    /// With a page, a click on the resting island opens it; the notice's own tap moves to its row.
+    var opensOnClick: Bool { !pages.isEmpty }
+
     /// Hover always opens on the first tab, never where the last visit left off.
     mutating func open() { chosen = nil }
 
@@ -67,12 +80,42 @@ struct IslandPageDeck: Equatable, Sendable {
         chosen = all[min(max(index + step, 0), all.count - 1)]
     }
 
+    /// Whether `id`'s data is on show: on Home, on its own page, or with no page yet, so it can post one.
+    func shows(_ id: String) -> Bool {
+        guard page(id) != nil, case .page(let shown)? = selection else { return true }
+        return shown == id
+    }
+
     /// The island's outline for content of `size`: at least the rest pill, past a notch by one radius a side.
     static func outline(content size: CGSize, rest: CGSize, notch: CGFloat?, radius: CGFloat,
                         maxHeight: CGFloat) -> CGSize {
         let floor = max(rest.width, notch.map { $0 + 2 * radius } ?? 0)
         return CGSize(width: max(size.width, floor).rounded(.up),
                       height: min(max(size.height, rest.height), maxHeight).rounded(.up))
+    }
+}
+
+/// Tells each watcher once when its data comes on show and once when it goes (decision 946, refresh).
+struct IslandPageAudience: Equatable, Sendable {
+    private var seeing: Set<String> = []
+
+    mutating func changes(watchers: [String], open: Bool, deck: IslandPageDeck) -> [(id: String, visible: Bool)] {
+        let next = Set(open ? watchers.filter(deck.shows) : [])
+        let changed = watchers.filter { seeing.contains($0) != next.contains($0) }
+        seeing = next
+        return changed.map { ($0, next.contains($0)) }
+    }
+
+    mutating func forget(_ id: String) { seeing.remove(id) }
+}
+
+/// The panel takes key once a pin begins, never on a repost while pinned (#1005 review, finding 2).
+struct IslandPageFocus: Equatable, Sendable {
+    private var pinned = false
+
+    mutating func takesKey(pinned: Bool) -> Bool {
+        defer { self.pinned = pinned }
+        return pinned && !self.pinned
     }
 }
 

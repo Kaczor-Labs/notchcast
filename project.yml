@@ -6,6 +6,8 @@ options:
   createIntermediateGroups: true
   developmentLanguage: en
   groupSortPosition: top
+  # Notchcast: the add-on registry is generated from each add-on's own folder (notchcast/addons.py).
+  preGenCommand: python3 notchcast/addons.py registry
 
 settings:
   base:
@@ -65,6 +67,8 @@ targets:
       # A folder reference keeps the packs in their own directory, which `EmojiIndex` lists.
       - path: Tinycast/Resources/EmojiKeywords
         type: folder
+      # OBSIDIAN's generated tokens, copied unchanged; Theme reads them.
+      - path: notchcast/vendor/Obsidian/ObsidianTokens.swift
       # The MIT mark's licence asks the notice to travel with the binary, not just the repo.
       - path: NOTICE.md
         buildPhase: resources

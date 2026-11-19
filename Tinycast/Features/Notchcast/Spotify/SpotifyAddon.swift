@@ -1,8 +1,9 @@
+// notchcast-new-switch-ids: spotify
 // notchcast-addon-order: 165
 import SwiftUI
 
 /// Spotify in the island through Soloist, Spotify's own headless player; off by default.
-enum SpotifyAddon: NotchcastAddon {
+enum SpotifyAddon: NotchcastAddon { // drift: keep the generated NotchcastRegistry lists it
     static let switchID = "spotify"
 
     static let switches = [

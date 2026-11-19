@@ -4,7 +4,7 @@ root=$(git rev-parse --show-toplevel)
 scratch=$(mktemp -d)
 trap 'rm -rf "$scratch"' EXIT
 mkdir -p "$scratch/Scripts" "$scratch/notchcast" "$scratch/bin"
-cp "$root/notchcast/test-harnesses.sh" "$root/notchcast/config.env" "$scratch/notchcast/"
+cp "$root/notchcast/test-harnesses.sh" "$root/notchcast/harness-tags.sh" "$root/notchcast/config.env" "$scratch/notchcast/"
 cat > "$scratch/bin/python3" <<'STUB'
 #!/bin/bash
 exit 0
@@ -24,6 +24,8 @@ STUB
 chmod +x "$scratch/Scripts/run-tests.sh"
 export PATH="$scratch/bin:$PATH"
 unset CI_SKIP_TESTS NOTCHCAST_SHARD
+# The fixture names are no real harnesses: the first pass plays a Mac, which runs every harness.
+export NOTCHCAST_PLATFORM=Darwin
 eval "$(sed -n '/^run_harnesses() {$/,/^}$/p' "$root/notchcast/land.sh")"
 refuse() { echo "REFUSED: $*" >&2; exit 1; }
 cd "$scratch"
@@ -32,3 +34,7 @@ run_harnesses selected
 [ -z "$failed" ]
 [ "$before" = "$(shasum Scripts/run-tests.sh)" ]
 echo 'PASS: landing selects its harness through the fork queue without editing the upstream runner'
+printf 'HIDDEN_TESTS=""\nLINUX_OK_TESTS="selected"\n' > notchcast/config.env
+NOTCHCAST_PLATFORM=Linux NOTCHCAST_ONLY_TESTS='selected unrelated' TMPDIR="$scratch/tmp" ./Scripts/run-tests.sh 2> "$scratch/skipped"
+grep -qx '1 mac-only harnesses skipped on Linux (not in LINUX_OK_TESTS, notchcast/config.env): unrelated' "$scratch/skipped"
+echo 'PASS: on Linux the queue keeps only LINUX_OK_TESTS harnesses and names the mac-only ones it skipped'

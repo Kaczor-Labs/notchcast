@@ -22,6 +22,9 @@ enum NotchTheme {
         static let islandHeadlineMaxWidth: CGFloat = 320
         /// The Player page's artwork: two result-row icon slots (#975).
         static let islandArtwork: CGFloat = 2 * Theme.Size.resultRowIcon
+        /// A page card's bars: thin for each limit, thick for the one that decides (#1128).
+        static let islandMeterThin: CGFloat = 3
+        static let islandMeterThick: CGFloat = 6
         /// The running-app dot under a launcher row icon (design-system §6).
         static let runningDot: CGFloat = 3
     }
@@ -57,8 +60,12 @@ enum NotchTheme {
         static let islandPanelFill = islandSurface.frosted(.clear)
         /// Black keeps SwiftUI's `.secondary` grey, so a row that used it renders the same pixels.
         static let secondaryLabel = Color.secondary.frosted(Frosted.textSecondary, lifted: Frosted.textPrimary)
+        /// The near-black label on the solid white accent, in both looks.
+        static let accentInk = ObsidianTokens.Theme.primaryForeground
         /// A rule inside a `keyCapFill` card: the `selection` step, which reads on card and black.
         static let cardRule = Theme.Colors.selection
+        /// A limit used faster than its window passes: OBSIDIAN's yellow, the same in both looks.
+        static let islandWarning = ObsidianTokens.Theme.yellow
     }
 }
 
@@ -77,8 +84,7 @@ extension NotchTheme {
         static let controlFill = Color(.sRGB, white: 1, opacity: 0.07)
         static let controlEdge = Color(.sRGB, white: 1, opacity: 0.14)
         /// The one accent: the dialog's primary, progress, switches and the focus edge.
-        static let accent = textPrimary
-        static let accentInk = ink(0x111214)
+        static let accent = ObsidianTokens.Theme.accent
         static let destructive = ink(0xFF827A)
         static let destructiveLifted = ink(0xFFB3AE)
         static let success = ink(0x86D39B)

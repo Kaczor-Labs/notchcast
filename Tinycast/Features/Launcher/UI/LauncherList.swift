@@ -23,7 +23,6 @@ struct LauncherList: View {
     let onFavoriteActions: (Int) -> Void
     let onDropped: () -> Void
     var files: FileSection?
-    var digitSlots: [String: Character] = [:]
     /// The `Use "…" with` section, always last; nil when nothing is typed.
     var fallbacks: FallbackSection?
     @Environment(RunningAppsMonitor.self) private var runningApps
@@ -184,7 +183,7 @@ struct LauncherList: View {
                                         app: app,
                                         selected: app.id == selectedRowID,
                                         running: runningApps.isRunning(app),
-                                        slot: digitSlots[app.id]
+                                        slot: nil
                                     )
                                     .contentShape(Rectangle())
                                     .onRowTap(drag: drag(for: app)) { onActivate(app) }
@@ -199,7 +198,7 @@ struct LauncherList: View {
                                 case .file(let result, let index):
                                     FileSearchRow(
                                         result: result, selected: row.id == selectedRowID,
-                                        showsLocation: true, slot: digitSlots[row.id]
+                                        showsLocation: true
                                     )
                                     .contentShape(Rectangle())
                                     .onRowTap(drag: result.rowDrag(dropped: onDropped)) {
@@ -210,7 +209,7 @@ struct LauncherList: View {
                                 case .fallback(let app, let index):
                                     AppRow(
                                         app: app, selected: row.id == selectedRowID, running: false,
-                                        slot: digitSlots[row.id]
+                                        slot: nil
                                     )
                                     .contentShape(Rectangle())
                                     .onTapGesture { fallbacks?.onActivate(index) }

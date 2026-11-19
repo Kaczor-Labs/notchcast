@@ -13,6 +13,8 @@ struct IslandPageBody: View {
                 case .media(let media): IslandMediaView(media: media, act: act)
                 case .row(let row): IslandPageRowView(row: row, act: act)
                 case .meter(let meter): IslandPageMeterView(meter: meter)
+                case .columns(let groups): IslandCardColumnsView(groups: groups)
+                case .cards(let group): IslandCardRowView(group: group)
                 }
             }
         }
@@ -28,9 +30,10 @@ struct IslandMediaView: View {
     var body: some View {
         VStack(spacing: metrics.spacing.md) {
             HStack(spacing: metrics.spacing.xl) {
-                // Concentric with the island: 16 points in from its edge (design §3).
-                IslandPageArtwork(symbol: "music.note", artwork: media.artwork, side: NotchTheme.Size.islandArtwork,
-                                  radius: metrics.radius.row - metrics.spacing.md)
+                // Concentric with the island's fixed outline, two `md` insets in from its edge (design §3).
+                IslandPageArtwork(symbol: "music.note", artwork: media.artwork,
+                                  side: metrics.scaled(NotchTheme.Size.islandArtwork),
+                                  radius: Theme.Radius.panel - 2 * metrics.spacing.md)
                 VStack(alignment: .leading, spacing: metrics.spacing.xxs) {
                     Text(media.title).font(metrics.typography.panelTitle).foregroundStyle(Theme.Colors.textPrimary)
                     if let subtitle = media.subtitle {

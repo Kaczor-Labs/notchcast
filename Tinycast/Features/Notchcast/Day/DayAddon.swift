@@ -1,3 +1,4 @@
+// notchcast-new-switch-ids: dayPage
 // notchcast-addon-order: 230
 // notchcast-readme: Mac Tweaks: Day in the Island, a page with the weather, your market quotes and today’s events
 import SwiftUI

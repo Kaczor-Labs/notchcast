@@ -2,7 +2,8 @@ import SwiftUI
 
 /// The root search: favorites, meetings, suggestions, then one section per kind, led by any card.
 struct LauncherScreen: PaletteScreen {
-    @MainActor static var digitRow: ((Int, String, [Int]) -> Int?)?
+    @MainActor static var extraAccessory:
+        ((AppEntry, FocusState<String?>.Binding, @escaping () -> Void) -> PaletteHeaderAccessory?)?
     let appIndex: AppIndex
     let favorites: FavoritesStore
     let visibility: VisibilityStore
@@ -193,6 +194,7 @@ struct LauncherScreen: PaletteScreen {
                 metrics: core.settings.interfaceSize.metrics, focus: focus,
                 onSubmit: { activate(at: selection) })
         }
+        if let accessory = Self.extraAccessory?(entry, focus, { activate(at: selection) }) { return accessory }
         return ExtensionArgumentsAccessory.make(
             entry: entry, coordinator: core.extensionCoordinator,
             values: { name in headerFieldBinding(entry: entry, name: name) },
@@ -333,9 +335,7 @@ struct LauncherScreen: PaletteScreen {
         case .edit: return editItem(at: selection)
         case .copyPath: return copyQuicklink(at: selection)
         case .copyFile: return copyDeepLink(at: selection)
-        case .favoriteSlot(let index):
-            if let row = Self.digitRow?(index + 1, vm.query, numberKeyRows) { activate(at: row); return true }
-            return launchFavorite(at: index)
+        case .favoriteSlot(let index): return launchFavorite(at: index)
         case .copyCalculation: return copyCalculation(at: selection)
         case .openInApp, .showDetails:
             guard let meeting = meeting(at: selection) else { return false }
@@ -549,7 +549,6 @@ struct LauncherScreen: PaletteScreen {
             },
             onDropped: { core.paletteCoordinator.dragLanded() },
             files: fileSection,
-            digitSlots: numberKeySlots,
             fallbacks: fallbackSection
         )
     }

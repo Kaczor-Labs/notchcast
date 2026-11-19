@@ -106,7 +106,10 @@ final class SpotifyModule: NotchcastModule {
     }
 
     private func launch() {
-        guard let key = system.soloistKey() else { return supervise() }
+        guard let key = system.soloistKey() else {
+            hasKey = false
+            return supervise()
+        }
         generation += 1
         let token = generation
         let system = system
@@ -128,6 +131,7 @@ final class SpotifyModule: NotchcastModule {
                 supervise()
             } catch {
                 guard let self, token == generation else { return }
+                halt()
                 retry(supervision.failed(at: now))
             }
         }

@@ -66,6 +66,7 @@ system-wide chord, and HIToolbox's TIS APIs remain the public input-source mecha
 Never break these without an explicit task to do so. Anything feature-specific lives in that
 feature's doc, under its own `## Invariants`.
 
+- **Nothing from v1:** every feature is written fresh on the island base; references are outside projects (Aural, Vorssaint, RemoveMacAI, Peel), never our v1 code or its backup branches (Damian 17 Nov).
 - **`AppCore` is the sole owner.** New long-lived state goes on `AppCore`, wired in `start()`, never a
   competing singleton. Views reach a feature's **coordinator** through `@Environment`, not `AppCore`.
 - **A file under `Features/*/Model/` may not import AppKit or SwiftUI**, and takes every environment
@@ -108,7 +109,9 @@ feature's doc, under its own `## Invariants`.
   `Resources/EmojiKeywords/` come from `node Scripts/gen-emoji.js`, `CurrencyData.generated.swift` from `node Scripts/gen-currencies.js`,
   `CountryZoneData.generated.swift` from `node Scripts/gen-countries.js`, and
   `Resources/RaycastRuntime.generated.js` from `Scripts/raycast-runtime/build.mjs`; the runtime is
-  committed so building the app never needs Node.
+  committed so building the app never needs Node. `notchcast/vendor/Obsidian/ObsidianTokens.swift` is a verbatim copy
+  of the OBSIDIAN design system's generated `swift/ObsidianTokens.swift`
+  (`~/.config/skillshare/skills/design-system/`); refresh it by copying that file over it again.
 - **`DesignSystem/Scrolling/EdgeDissolve.swift` and `ThinScrollbar.swift` are off-limits.** Both are
   tuned by eye against the palette's floating bars, so any edit is a visual regression. Needing to touch
   one to fix a scroll bug means the real fix belongs elsewhere.

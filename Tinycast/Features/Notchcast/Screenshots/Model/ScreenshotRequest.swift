@@ -8,7 +8,7 @@ enum ScreenshotRequest: Equatable, Sendable {
     case display(UInt32)
 
     enum Failure: Error {
-        case permissionDenied, invalidRect, targetUnavailable, encodingFailed, clipboardFailed
+        case permissionDenied, invalidRect, targetUnavailable, encodingFailed, clipboardFailed, nothingToEdit, noText
     }
 
     static func isValid(rect: CGRect) -> Bool {
@@ -25,8 +25,10 @@ enum ScreenshotRequest: Equatable, Sendable {
         case .permissionDenied:
             String(localized: "Screen Recording access is required.", table: "NotchcastScreenshots")
         case .clipboardFailed: String(localized: "Could not copy to clipboard.", table: "NotchcastScreenshots")
+        case .noText: String(localized: "No text found in the selected area.", table: "NotchcastScreenshots")
         case .invalidRect, .targetUnavailable:
             String(localized: "Capture area is unavailable.", table: "NotchcastScreenshots")
+        case .nothingToEdit: String(localized: "No screenshot to edit yet.", table: "NotchcastScreenshots")
         case .encodingFailed, nil: String(localized: "Could not capture the screen.", table: "NotchcastScreenshots")
         }
     }
