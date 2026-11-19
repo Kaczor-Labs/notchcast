@@ -2,7 +2,7 @@
 
 Tinycast is licensed under the GNU Affero General Public License v3 (see [LICENSE](LICENSE)). It
 also redistributes the third-party material recorded below, under the terms stated for each.
-Some Notchcast add-ons derive from GPL-3.0-or-later sources; each such file keeps its notice, and notchcast/licenses/borrowed.md lists them.
+Some Notchcast add-ons derive from GPL-3.0-or-later or MIT sources; each such file keeps its notice, notchcast/licenses/borrowed.md lists them, and notchcast/licenses/ holds each MIT licence text.
 
 ## Dictation model resources
 
@@ -368,6 +368,34 @@ Its licence notice:
 MIT License
 
 Copyright (c) 2026 Noah Dunnagan
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+```
+
+## Spotify in the Island: the Soloist engine and Web API client
+
+The Spotify add-on adapts code from **Aural** by Mihail Antonov, <https://github.com/mihail-antonov/aural> at `bf4b2b2`, which is MIT licensed. Each adapted file under `Tinycast/Features/Notchcast/Spotify/` says so in its header, and `notchcast/licenses/borrowed/Spotify.txt` lists them. Its licence notice:
+
+```
+MIT License
+
+Copyright (c) 2026 Mihail Antonov
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
