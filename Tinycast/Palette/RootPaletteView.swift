@@ -133,6 +133,8 @@ struct RootPaletteView: View {
             return CalculatorHistoryScreen(
                 history: calcHistory, currencyRates: currencyRates, core: core, vm: vm,
                 openActions: openActions)
+        case .dictationHistory:
+            return DictationHistoryScreen(coordinator: core.dictationExtras, vm: vm, openActions: openActions)
         case .extensionCommand:
             return ExtensionCommandScreen(
                 screen: extensionScreen, extensions: extensions, vm: vm, openActions: openActions)

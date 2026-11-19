@@ -59,7 +59,7 @@ writes its own data.
 | ------- | ---------------------------------------------------------------------------- | --------------------------------------------------------------------- |
 | Content | AI Commands & Presets                                                        | chat presets, custom quick actions, the system prompt                 |
 | Content | AI Chat History                                                              | chats without attachments, and the retention setting                  |
-| Content | Dictation                                                                    | `dictation.*` but the model and microphone                            |
+| Content | Dictation                                                                    | `dictation.*` but the model and microphone; cleanup and history stay local |
 | Content | MCP Servers                                                                  | the server list, without credentials or trust                         |
 | Content | Quicklinks · Notes · Snippets                                                | the items; notes and snippets by file name                            |
 | Content | Clipboard Text · Clipboard Images                                            | text by its content, owned images; off until a Mac opts in            |
