@@ -99,7 +99,7 @@ enum RegistryCheck {
         "launcherNumberKeys", "launcherAliasSpace", "musicNowPlaying", "musicLastPlayer", "musicBlockAppleMusic",
         "musicSharpCovers", "spotifyConnect", "microphoneMute", "inUseMarks", "systemMonitor", "fanControl",
         "accessoryBatteries", "accessoryNotices", "monitorAlerts", "lowDiskWarning", "systemNotices",
-        "volumeLevels", "audioPriority", "displayBrightness", "quitProtection", "liveTimers", "dayCalendar",
+        "volumeLevels", "audioPriority", "displayBrightness", "liveTimers", "dayCalendar",
         "dayWeather", "dayMarkets", "agentActions", "agentCLI", "treadmillWalk", "treadmillHistory", "katana",
         "appearance", "cleaningMode", "appUpdates", "macUpdate", "machRemote", "backupStatus", "linkHealth",
         "shelfBetweenMacs", "sendFiles", "updateRemote", "agentSessions", "openBotAgents", "agentThreads",
@@ -117,8 +117,8 @@ enum RegistryCheck {
         "torrentsKeepSharing", "backupRunNow", "backupBrowseRestore", "quickLookSpace", "markdownFiles",
         "plainTextFiles", "editorSpellChecking", "buildStats",
     ]
-    // Removed in #836 yet maybe still on in old prefs, so never declared again.
-    static let retiredIDs: Set<String> = ["keepAwake", "lidClosedAwake"]
+    // Removed in #836 and #1163 yet maybe still on in old prefs, so never declared again.
+    static let retiredIDs: Set<String> = ["keepAwake", "lidClosedAwake", "quitProtection"]
     static let frozenSlugs: Set<String> = ["screenshot-area", "screenshot-display"]
 
     /// Problems fail the harness; notes only report (an absent dependency counts as off).
