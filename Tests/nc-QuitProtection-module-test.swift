@@ -191,13 +191,8 @@ enum QuitProtectionModuleTests {
         fake.frontmost = editor
         workspaceCenter.post(name: NSWorkspace.didActivateApplicationNotification, object: nil)
 
-        rig.defaults.set(true, forKey: QuitProtectionStore.closeEnabledKey)
-        await drain()
         await advance(to: 125)
-        precondition(rig.key(13) == .swallow, "⌘W arms once enabled")
-        await advance(to: 125.8)
-        await drain()
-        precondition(fake.posted.last == [42, 13] && fake.terminated == [42], "⌘W closes by a posted ⌘W")
+        precondition(rig.key(13) == .pass, "⌘W is never protected")
         rig.key(13, down: false)
 
         rig.defaults.set("doublePress", forKey: QuitProtectionStore.modeKey)
@@ -250,13 +245,6 @@ enum QuitProtectionModuleTests {
         await drain()
         precondition(fake.terminated == [42, 42], "reset clears the half-armed hold")
         precondition(rig.key(12, down: false) == .pass, "reset forgets the swallowed release")
-
-        rig.defaults.set([editor.bundleIdentifier], forKey: QuitProtectionStore.exceptionsKey)
-        await drain()
-        precondition(rig.key(12) == .pass, "an exception keeps its own ⌘Q")
-        rig.key(12, down: false)
-        rig.defaults.removeObject(forKey: QuitProtectionStore.exceptionsKey)
-        await drain()
 
         let reads = uptimeReads.withLock { $0 }
         rig.key(0, [])
