@@ -116,7 +116,7 @@ struct IslandPageArtwork: View {
             if let image = artwork.flatMap(NSImage.init(data:)) {
                 Image(nsImage: image)
                     .resizable()
-                    .aspectRatio(contentMode: .fill)
+                    .scaledToFill()
                     .clipShape(RoundedRectangle(cornerRadius: radius ?? metrics.radius.thumbnail, style: .continuous))
                     .accessibilityHidden(true)
             } else if let symbol {
