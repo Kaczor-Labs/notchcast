@@ -93,6 +93,9 @@ extension ScreenshotSystem {
             fake.clipboard.append(data)
             return true
         },
+        writeText: { _ in true },
+        recognizeText: { _ in [] },
+        openScreenRecordingSettings: {},
         desktop: { desktopFolder },
         select: { _, _, completion in
             fake.answer = completion
