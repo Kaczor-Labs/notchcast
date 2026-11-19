@@ -20,6 +20,9 @@ final class IslandHoverTracker {
     private var hover = IslandHover()
     private var monitors: [Any] = []
     private var cancelWake: (@MainActor () -> Void)?
+    /// Until when a command's pin waits for the launcher it ran from to go.
+    private var pinBy: TimeInterval?
+    static let pinWait: TimeInterval = 2
 
     init(world: World) { self.world = world }
 
@@ -49,11 +52,21 @@ final class IslandHoverTracker {
     /// A primary click on the island opens and holds it, as Command-P does; a second click keeps it (#1029).
     func pin() { if !hover.isPinned { togglePin() } }
 
+    /// Pins now, or once the launcher or a question stops covering the island within `pinWait`.
+    func pinWhenUncovered() {
+        pinBy = world.now() + Self.pinWait
+        refresh()
+    }
+
     private func pointerMoved(click: Bool) {
         let next = world.input()
         let was = hover.isOpen
         if click, hover.isPinned, !next.inside { hover.dismiss() }
         hover.update(next, at: world.now())
+        if let by = pinBy, !next.covered || by < world.now() {
+            pinBy = nil
+            if !next.covered, by >= world.now(), !hover.isPinned { hover.togglePin(at: world.now()) }
+        }
         apply(was != hover.isOpen)
     }
 

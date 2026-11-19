@@ -89,6 +89,10 @@ enum IslandPageBlock: Equatable, Sendable {
     case media(IslandMedia)
     case row(IslandPageRow)
     case meter(IslandPageMeter)
+    /// Titled columns of cards in fixed slots: a full card one slot, a hollow one half (#1128).
+    case columns([IslandCardGroup])
+    /// A titled row of cards, four across, each as tall as the tallest.
+    case cards(IslandCardGroup)
 }
 
 /// A playing item: artwork, title, subtitle, a running time and transport buttons.
@@ -128,4 +132,48 @@ struct IslandPageMeter: Equatable, Sendable {
     var label: String
     var fraction: Double
     var value: String
+}
+
+/// A titled set of cards: one column of a `columns` block, or the row of a `cards` block.
+struct IslandCardGroup: Equatable, Sendable {
+    var title: String
+    var cards: [IslandCard]
+}
+
+/// A card: a title and an optional chip over meters or one notice; a hollow card is an outline.
+struct IslandCard: Equatable, Sendable {
+    enum Body: Equatable, Sendable {
+        case meters([IslandCardMeter])
+        case notice(symbol: String?, headline: String, detail: String?)
+    }
+
+    var title: String
+    var tag: IslandCardTag?
+    var hollow = false
+    var body: Body
+    /// Out of date: the whole card at the disabled opacity.
+    var dimmed = false
+    /// A secondary line under the body, such as how old its numbers are.
+    var caption: String?
+    /// VoiceOver reads the card as one element; nil reads its texts in order.
+    var spoken: String?
+}
+
+struct IslandCardTag: Equatable, Sendable {
+    var symbol: String?
+    var text: String
+}
+
+/// A limit's bar: label, value and trailing text over it, a tick on it, a note under it.
+struct IslandCardMeter: Equatable, Sendable {
+    var label: String
+    var value: String
+    var trailing: String?
+    var fraction: Double
+    /// Where an even pace stands now, 0...1.
+    var tick: Double?
+    var thick = false
+    /// The value, the fill and the note take the warning ink.
+    var warning = false
+    var note: String?
 }

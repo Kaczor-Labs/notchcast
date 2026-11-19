@@ -113,6 +113,8 @@ final class IslandPresenter: IslandPresenting {
         pages.watch(id: id, onChange: onChange)
     }
 
+    func showPage(id: String) { pages.showPage(id: id) }
+
     private var shownNotice: IslandNotice? {
         IslandHover.notice(top: notices.notice, statuses: statuses, glance: AppCore.shared.island.resting?.glance != nil,
                            level: dwell.level != nil, hovered: hoverOpensPill)
