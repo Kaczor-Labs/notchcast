@@ -1,5 +1,5 @@
 #!/bin/bash
-# Sourced by config.env and test-harnesses.sh. A fork harness (Tests/nc-*, Tests/notchcast-*) joins HOSTED_ONLY_TESTS,
+# Sourced by config.env. A fork harness (Tests/nc-*, Tests/notchcast-*) joins HOSTED_ONLY_TESTS,
 # LINUX_OK_TESTS or CI_SKIP_TESTS by a column-0 line in its own file, `// notchcast-hosted-only`, `// notchcast-linux-ok`
 # or `// notchcast-ci-skip`, never by its name in config.env, so two PRs never edit one line there. Only a list already
 # set gains names: test-harnesses.sh sees CI_SKIP_TESTS only on a hosted runner.

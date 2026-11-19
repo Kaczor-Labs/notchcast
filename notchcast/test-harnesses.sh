@@ -54,14 +54,18 @@ JS
     fi
 done <<< "$harness_inputs"
 hidden_tests=$(sed -n 's/^HIDDEN_TESTS="\(.*\)"$/\1/p' notchcast/config.env)
-source notchcast/harness-tags.sh
+# A fork harness joins a list by a `// notchcast-<tag>` line in its own file (notchcast/harness-tags.sh).
+harness_list() {
+    sed -n "s/^$1=\"\(.*\)\"\$/\1/p" notchcast/config.env
+    grep -lx "// notchcast-$2" Tests/*.swift 2>/dev/null | sed 's#.*/##; s#\.swift$##' || true
+}
 # Anywhere but a Mac only the LINUX_OK_TESTS harnesses run; NOTCHCAST_PLATFORM lets a test play the other system.
 linux_only=
 case "${NOTCHCAST_PLATFORM:-$(uname -s)}" in
     Darwin) ;;
-    *) linux_only=" $(sed -n 's/^LINUX_OK_TESTS="\(.*\)"$/\1/p' notchcast/config.env) $(harness_tagged linux-ok .) " ;;
+    *) linux_only=" $(harness_list LINUX_OK_TESTS linux-ok | paste -sd' ' -) " ;;
 esac
-hosted_only="$(sed -n 's/^HOSTED_ONLY_TESTS="\(.*\)"$/\1/p' notchcast/config.env) $(harness_tagged hosted-only .)"
+hosted_only=$(harness_list HOSTED_ONLY_TESTS hosted-only | paste -sd' ' -)
 hosted_why='hosted-only: it can reach the keychain, the app'"'"'s data, a permission prompt, a window or focus, so it runs only on a GitHub-hosted or isolated runner (HOSTED_ONLY_TESTS, notchcast/config.env)'
 # An isolated runner says so in its own service environment; nothing in this repository may set that variable.
 if [ "${RUNNER_ENVIRONMENT:-}" = github-hosted ] || [ "${NOTCHCAST_ISOLATED_RUNNER:-}" = 1 ]; then hosted_only=; fi
