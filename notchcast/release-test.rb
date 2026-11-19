@@ -1,5 +1,6 @@
 #!/usr/bin/env ruby
 require 'yaml'
+require 'json'
 require 'open3'
 require 'tmpdir'
 require 'fileutils'
@@ -25,7 +26,7 @@ assert(SIGN.fetch('runs').fetch('steps').none? { |step| step['run'].match?(/xcod
 
 WORKFLOWS = Dir.glob(File.join(ROOT, '.github/workflows/*.yml')).to_h { |path| [File.basename(path, '.yml'), YAML.load_file(path)] }
 uses = ->(job, action) { job.fetch('steps', []).count { |step| step['uses'] == "./tools/notchcast/actions/#{action}" } }
-[%w[snapshot build snapshot], %w[sync-release build sign]].each do |name, build, sign|
+[%w[snapshot build snapshot], %w[sync-release build sign], %w[test-build build sign]].each do |name, build, sign|
   jobs = WORKFLOWS.fetch(name).fetch('jobs')
   assert(uses.(jobs.fetch(build), 'release') == 1, "#{name} #{build} must use the shared release action once")
   assert(uses.(jobs.fetch(sign), 'sign') == 1, "#{name} #{sign} must use the shared sign action once")
@@ -125,6 +126,64 @@ Dir.mktmpdir('release-package-') do |directory|
              "a failed dmg must say why: #{output}")
     end
     puts "PASS package #{expected ? 'builds the zip and dmg' : 'reports a failed dmg'}"
+  end
+end
+# test-build.yml signs a PR's head on demand: only by dispatch, only from main, never a closed or a fork's PR.
+TEST_BUILD = WORKFLOWS.fetch('test-build')
+assert(TEST_BUILD.fetch(true).keys == ['workflow_dispatch'], 'test-build must start only by dispatch')
+test_jobs = TEST_BUILD.fetch('jobs')
+assert(test_jobs.fetch('plan')['if'] == "github.ref == 'refs/heads/main'", 'test-build must run only from main')
+assert(test_jobs.fetch('build')['if'] == "needs.plan.outputs.build == 'true'", 'test-build builds only what lanes.py says')
+assert(test_jobs.fetch('build').fetch('steps').none? { |step| step.to_s.include?('secrets.') }, 'test-build build holds no secret')
+artifact = test_jobs.fetch('sign').fetch('steps').last
+assert(artifact.dig('with', 'name') == 'test-build' && artifact.dig('with', 'path') == 'dist/*.zip' &&
+       artifact.dig('with', 'retention-days') == 3, 'test-build keeps only the zip, for 3 days')
+plan_step = test_jobs.fetch('plan').fetch('steps').find { |step| step['id'] == 'plan' }
+
+Dir.mktmpdir('test-build-plan-') do |directory|
+  FileUtils.mkdir_p(File.join(directory, 'bin'))
+  File.write(File.join(directory, 'bin/gh'), <<~'SH')
+    #!/bin/bash
+    case "$1 $2" in
+      'pr view') json="$PR_JSON" ;;
+      'release list') json='[{"tagName":"v0.12.9","isDraft":false},{"tagName":"v0.12.8.snapshot.20261107210745","isDraft":false},
+        {"tagName":"v0.12.7.snapshot.20261108000000","isDraft":false},{"tagName":"v0.12.9.snapshot.20261109000000","isDraft":true}]' ;;
+    esac
+    printf '%s' "$json" | jq -r "${*: -1}"
+  SH
+  File.write(File.join(directory, 'bin/git'), <<~'SH')
+    #!/bin/bash
+    case "$1 $2" in
+      'rev-parse FETCH_HEAD') echo "$FETCHED" ;;
+      'rev-parse HEAD') echo 1111111111111111111111111111111111111111 ;;
+      merge-base*) echo 2222222222222222222222222222222222222222 ;;
+    esac
+  SH
+  File.write(File.join(directory, 'bin/python3'), "#!/bin/bash\nprintf 'build=%s\\nscripts=true\\n' \"$LANE\"\n")
+  FileUtils.chmod(0755, Dir.glob(File.join(directory, 'bin/*')))
+  script = File.join(directory, 'plan.sh')
+  File.write(script, plan_step.fetch('run'))
+  head = 'abcdef0123456789abcdef0123456789abcdef01'
+  pr = ->(state: 'OPEN', cross: false, branch: 'fix') {
+    {state: state, isCrossRepository: cross, headRefOid: head, headRefName: branch}.to_json
+  }
+  [['open PR that builds the app', '7', pr.(), head, 'true', true, "build=true\nhead=#{head}\nversion=0.12.7.pr7.abcdef01\n"],
+   ['add-on branch, whatever lanes.py says', '7', pr.(branch: 'v2/addons-x'), head, 'false', true, 'build=true'],
+   ['docs-only PR', '7', pr.(), head, 'false', true, "build=false\n"],
+   ['closed PR', '7', pr.(state: 'MERGED'), head, 'true', false, 'is MERGED'],
+   ["a fork's PR", '7', pr.(cross: true), head, 'true', false, 'another repository'],
+   ['head moved while planning', '7', pr.(), '0' * 40, 'true', false, 'moved while planning'],
+   ['not a number', '7; true', pr.(), head, 'true', false, 'must be a PR number']].each do |name, number, json, fetched, lane, ok, want|
+    output_file = File.join(directory, 'output')
+    File.write(output_file, '')
+    env = {'PATH' => "#{directory}/bin:#{ENV.fetch('PATH')}", 'PR' => number, 'PR_JSON' => json, 'FETCHED' => fetched,
+           'LANE' => lane, 'GITHUB_OUTPUT' => output_file, 'GITHUB_REPOSITORY' => 'owner/repo', 'RUN_NUMBER' => '5'}
+    output, status = Open3.capture2e(env, 'bash', '-eo', 'pipefail', script, chdir: directory)
+    written = File.read(output_file)
+    assert(status.success? == ok && (written + output).include?(want), "test-build plan, #{name}: #{output}#{written}")
+    assert(ok || written.empty?, "test-build plan, #{name}: a refusal must plan nothing")
+    assert(!written.match?(/version=.*[.]snapshot[.]/), 'a test build version must never look like a snapshot')
+    puts "PASS test-build plan: #{name}"
   end
 end
 puts 'release action: PASS'

@@ -12,6 +12,7 @@ enum NotchcastCategory: String, CaseIterable, Sendable {
     case notices
     case betweenMacs
     case macTweaks
+    case agents
 
     var title: String {
         switch self {
@@ -25,6 +26,7 @@ enum NotchcastCategory: String, CaseIterable, Sendable {
         case .notices: String(localized: "Notices", table: "Notchcast")
         case .betweenMacs: String(localized: "Between Macs", table: "Notchcast")
         case .macTweaks: String(localized: "Mac Tweaks", table: "Notchcast")
+        case .agents: String(localized: "Agents", table: "Notchcast")
         }
     }
 }

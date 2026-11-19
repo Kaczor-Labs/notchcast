@@ -50,6 +50,12 @@ jobs:
     runs-on: ${{ github.event_name == 'workflow_dispatch' && !inputs.hosted && vars.NOTCHCAST_MAC_RUNNER || 'xcode-27' }}
     timeout-minutes: 120
     steps:
+      - name: Refuse a working Mac
+        if: runner.environment != 'github-hosted'
+        run: |
+          [ "${NOTCHCAST_ISOLATED_RUNNER:-}" = 1 ] && exit 0
+          echo "::error::Proof launches the app: hosted or isolated runner only"
+          exit 1
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           persist-credentials: false

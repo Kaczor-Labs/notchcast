@@ -33,6 +33,7 @@ struct IslandHoverTest {
         primaryClick()
         try clickHooks()
         try refreshHooks()
+        pinWhenUncovered()
         print("IslandHoverTest passed")
     }
 
@@ -132,6 +133,15 @@ struct IslandHoverTest {
         precondition(closed.isOpen && closed.isPinned, "Command-P opens and pins a closed island")
         closed.dismiss()
         precondition(!closed.isOpen && !closed.isPinned, "Escape or a click outside dismisses a pinned island")
+        var escaped = opened()
+        escaped.dismiss()
+        escaped.update(Input(inside: true), at: 30)
+        precondition(escaped.deadline == nil && !escaped.tick(at: 99) && !escaped.isOpen,
+                     "Escape under the pointer stays closed while the pointer stays")
+        escaped.update(Input(inside: false), at: 100)
+        escaped.update(Input(inside: true), at: 101)
+        precondition(escaped.tick(at: 101 + IslandHover.openDelay) && escaped.isOpen,
+                     "and opens again once the pointer has left and come back")
     }
 
     static func zone() {
@@ -183,6 +193,30 @@ struct IslandHoverTest {
     }
 
     /// Hover open, click to the menu, onto a row, Escape: closing the menu alone must start the close.
+    /// Open Agents from the launcher (#1128): the pin waits for the launcher to go, but only `pinWait`.
+    static func pinWhenUncovered() {
+        let world = FakeWorld()
+        let tracker = world.tracker()
+        world.input = Input(covered: true)
+        tracker.pinWhenUncovered()
+        precondition(!tracker.isOpen, "a covered island waits")
+        world.now = IslandHoverTracker.pinWait - 0.5
+        world.input = Input()
+        tracker.refresh()
+        precondition(tracker.isOpen && tracker.isPinned && world.opens == [true], "uncovered in time, it pins")
+        let late = FakeWorld()
+        let missed = late.tracker()
+        late.input = Input(covered: true)
+        missed.pinWhenUncovered()
+        late.now = IslandHoverTracker.pinWait + 0.5
+        late.input = Input()
+        missed.refresh()
+        precondition(!missed.isOpen && !missed.isPinned && late.opens.isEmpty, "uncovered too late, it never pins")
+        late.now += 60
+        missed.refresh()
+        precondition(!missed.isPinned, "and the spent wait pins nothing later")
+    }
+
     static func menuEscape() {
         let world = FakeWorld()
         let tracker = world.tracker()

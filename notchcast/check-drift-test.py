@@ -218,6 +218,16 @@ class Gates(unittest.TestCase):
         write(self.root, 'Tinycast/Features/Treadmill/NearClone.swift', NEAR_CLONE_SOURCE)
         self.red('4', f'clones: {TODO} | Tinycast/Features/Treadmill/NearClone.swift: 1 > 0')
 
+    def test_clone_found_from_a_deep_working_folder(self):
+        """jscpd names files relative to where it ran; read against a deeper caller folder (land.sh under macOS's $TMPDIR) the paths left the tree."""
+        write(self.root, TODO, NEAR_CLONE_SOURCE)
+        write(self.root, 'Tinycast/Features/Treadmill/NearClone.swift', NEAR_CLONE_SOURCE)
+        deep = Path(self.work.name).joinpath(*'abcdefghijkl')
+        deep.mkdir(parents=True)
+        result = subprocess.run([sys.executable, str(CHECK), '--root', str(self.root), '--upstream', self.upstream, '--gates', '4'],
+                                capture_output=True, text=True, cwd=deep)
+        self.assertIn(f'clones: {TODO} | Tinycast/Features/Treadmill/NearClone.swift: 1 > 0', result.stdout + result.stderr)
+
     def test_generated_large_clone(self):
         write(self.root, 'Tinycast/Features/Todo/DriftBig.swift', LARGE_SOURCE)
         self.red('4', 'clones: ')

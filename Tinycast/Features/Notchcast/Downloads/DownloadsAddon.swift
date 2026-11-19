@@ -1,3 +1,7 @@
+// notchcast-addon-order: 80
+// notchcast-readme: Downloads: video, audio, transcripts and webpages from clipboard links,
+// notchcast-readme: Downloads: with optional aria2c and transcription into a local folder;
+// notchcast-readme: Downloads: big downloads and torrents can use Wi-Fi and a USB-tethered iPhone together
 // notchcast-new-switch-ids: downloadsUseIPhone
 import Foundation
 

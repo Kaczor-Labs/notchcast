@@ -1,3 +1,4 @@
+// notchcast-addon-order: 150
 import SwiftUI
 
 /// Pick any colour on screen with the system sampler; its value goes to the clipboard.

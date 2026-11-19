@@ -1,3 +1,4 @@
+// notchcast-hosted-only
 // notchcast-sources: Tinycast/Features/Notchcast/Core/Model/*.swift Tinycast/Features/Notchcast/Core/Service/*.swift
 // notchcast-sources: Tinycast/Features/Island/Model/IslandPresentation.swift Tinycast/Features/Island/Service/IslandPresenting.swift
 // notchcast-sources: Tinycast/Features/Settings/SettingsTab.swift Tinycast/Features/Launcher/Model/CommandID.swift Tinycast/Features/HotKeys/Model/HotKeyAction.swift Tinycast/Features/HotKeys/Model/HotKeyAction+EntryID.swift Tinycast/Features/QuickActions/Model/QuickAction.swift
@@ -546,8 +547,8 @@ struct NotchcastCoreTest {
     static func settingsTabs() {
         check("each tab holds its categories",
               NotchcastPane.allCases.map(\.categories)
-                == [[], [.keyboardMouse], [.displaySound, .music], [.capture], [.launcher], [.filesDownloads], [.power],
-                   [.macTweaks]])
+                == [[], [.agents], [.keyboardMouse], [.displaySound, .music], [.capture], [.launcher], [.filesDownloads],
+                   [.power], [.macTweaks]])
         check("no category sits in two tabs", NotchcastCategory.allCases.allSatisfy { category in
             NotchcastPane.allCases.filter { $0.categories.contains(category) }.count <= 1
         })
