@@ -3,14 +3,21 @@ import SwiftUI
 struct ScreenshotsSettingsView: View {
     @AppStorage private var destination: ScreenshotDestination
     @AppStorage private var folder: String?
+    @AppStorage private var editAfterCapture: Bool
     private static let anchor = NotchcastSettingsSearch.anchor(.capture)
 
     init(defaults: UserDefaults) {
         _destination = AppStorage(wrappedValue: .clipboard, ScreenshotBackupKeys.destination, store: defaults)
         _folder = AppStorage(ScreenshotBackupKeys.folder, store: defaults)
+        _editAfterCapture = AppStorage(wrappedValue: false, ScreenshotsModule.editAfterCaptureKey, store: defaults)
     }
 
     var body: some View {
+        Toggle(isOn: $editAfterCapture) {
+            SettingsRowTitle(Self.anchor, LocalizedStringResource("Edit after capture", table: "NotchcastScreenshots"))
+            Text("Open each new screenshot in the editor before it is copied or saved.",
+                 tableName: "NotchcastScreenshots")
+        }
         Picker(selection: $destination) {
             Text("Clipboard", tableName: "NotchcastScreenshots").tag(ScreenshotDestination.clipboard)
             Text("File", tableName: "NotchcastScreenshots").tag(ScreenshotDestination.file)
@@ -32,7 +39,7 @@ struct ScreenshotsSettingsView: View {
                 Text("Desktop", tableName: "NotchcastScreenshots")
             }
         }
-        .settingsEnabled(destination != .clipboard)
+        .settingsEnabled(destination != .clipboard || editAfterCapture)
     }
 
     private func chooseFolder() {
