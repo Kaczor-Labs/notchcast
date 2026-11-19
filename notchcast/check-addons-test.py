@@ -123,6 +123,15 @@ class CheckAddonsTest(unittest.TestCase):
                 self.assertEqual(code, 1, out)
                 self.assertIn(needle, out)
 
+    def test_a_fork_harness_name_the_branch_did_not_add_passes(self):
+        write(self.root, 'notchcast/config.env', 'CI_SKIP_TESTS=""\nHOSTED_ONLY_TESTS="PasteboardTests nc-Old-test"\n')
+        self.base = self.commit('main before the tags')
+        self.add_shots()
+        write(self.root, 'Tests/nc-Shots-test.swift', '// notchcast-hosted-only\nlet id = "shots"\n')
+        self.commit('feature')
+        code, out = self.check('none')
+        self.assertEqual(code, 0, out)
+
     def test_its_own_files_carry_an_addon_and_a_new_tab_line_is_core(self):
         self.add_shots()
         write(self.root, 'notchcast/licenses/borrowed/Shots.txt', 'Shots: A.swift ← x/y/A.swift (MIT)\n')

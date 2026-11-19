@@ -181,10 +181,11 @@ def shared_lists(root, base, head, changed):
             if len(marks) == 2 and marks[0] < lineno < marks[1] and TAB_PHRASE.match(text):
                 problems.append(f'{README_PUBLIC}:{lineno}: a phrase on a tab line; an add-on states it as '
                                 '`// notchcast-readme: <Tab>: <phrase>` in its own <Folder>Addon.swift')
-    config = show(root, head, CONFIG)
+    # Only names the branch adds: a branch cut before the tags still carries main's old lists until it merges.
+    config, before = show(root, head, CONFIG), show(root, git('merge-base', base, head, root=root).strip(), CONFIG)
     for key, tag in HARNESS_TAGS.items():
-        listed = re.search(rf'^{key}="(.*)"$', config, re.M)
-        for name in (listed[1].split() if listed else []):
+        listed, was = (re.search(rf'^{key}="(.*)"$', text, re.M) for text in (config, before))
+        for name in sorted(set(listed[1].split() if listed else []) - set(was[1].split() if was else [])):
             if FORK_HARNESS.match(name):
                 problems.append(f'{CONFIG}: {key} names the fork harness {name}; drop it there and give '
                                 f'Tests/{name}.swift a `// notchcast-{tag}` line (notchcast/harness-tags.sh)')
