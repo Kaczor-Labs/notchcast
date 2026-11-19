@@ -394,6 +394,6 @@ enum CopyPathResolverTests {
         try statusMapping()
         folding()
         cleaning()
-        print("PASS: copy path resolves Finder, browsers, Gecko pages and tabs, documents, stops on timeouts, folds home, cleans links")
+        print("PASS: copy path resolves Finder, browsers, Gecko pages and tabs, documents, stops on timeouts, folds home and cleans")
     }
 }
