@@ -118,6 +118,17 @@ final class IslandCanvas: NSView {
         if expanding == 0 { leaving = nil }
         context.restoreGState()
     }
+    /// The pointer entered, left or moved over the island window; no global monitor is needed for it (#1029).
+    var onPointer: (() -> Void)?
+    override func updateTrackingAreas() {
+        super.updateTrackingAreas()
+        guard trackingAreas.isEmpty else { return }
+        addTrackingArea(NSTrackingArea(rect: .zero, options: [.mouseEnteredAndExited, .mouseMoved, .activeAlways,
+                                                              .inVisibleRect], owner: self))
+    }
+    override func mouseEntered(with event: NSEvent) { onPointer?() }
+    override func mouseExited(with event: NSEvent) { onPointer?() }
+    override func mouseMoved(with event: NSEvent) { onPointer?() }
     override func hitTest(_ point: NSPoint) -> NSView? {
         outline?.contains(point) == true ? self : nil
     }
