@@ -1,5 +1,6 @@
 // notchcast-sources: Tinycast/Features/Island/Model/IslandPresentation.swift
 // notchcast-sources: Tinycast/Features/Island/Model/IslandPageDeck.swift
+// notchcast-sources: Tinycast/Features/Island/Model/IslandCardSlots.swift
 // notchcast-sources: Tinycast/Features/Island/Model/IslandPageSwipe.swift
 // notchcast-sources: Tinycast/Features/Island/Model/IslandPlayer.swift
 import CoreGraphics
@@ -34,6 +35,7 @@ struct IslandPagesTest {
         swipe()
         keys()
         player()
+        cards()
         print("IslandPagesTest passed")
     }
 
@@ -252,5 +254,44 @@ struct IslandPagesTest {
         two.set(IslandPage(id: "agents", title: "Agents", symbol: "person.2", order: 0, badge: 1,
                            line: IslandPageLine(text: "1 waiting"), blocks: []), id: "agents")
         precondition(two.homeLines.map(\.id) == ["agents", "player"], "agents waiting come before the player")
+    }
+
+    /// The card blocks (#1128): fixed slots, a hollow card half a slot, the row four across.
+    static func cards() {
+        typealias Card = IslandCardSlots.Card
+        let gap: CGFloat = 8
+        precondition(IslandCardSlots.count(groups: 1) == 3 && IslandCardSlots.count(groups: 4) == 4,
+                     "a column keeps a third of the width with one machine, and narrows past three")
+        precondition(IslandCardSlots.columnWidth(width: 736, columns: 3, gap: gap) == 240, "three columns share the width")
+        let cards = [Card(column: 0, hollow: false, natural: 150), Card(column: 0, hollow: false, natural: 120),
+                     Card(column: 1, hollow: false, natural: 130), Card(column: 1, hollow: true, natural: 60),
+                     Card(column: 1, hollow: true, natural: 70), Card(column: 2, hollow: false, natural: 100)]
+        precondition(IslandCardSlots.slot(cards, gap: gap) == 150, "a slot is the tallest full card")
+        let frames = IslandCardSlots.columns(cards, width: 736, columns: 3, gap: gap)
+        precondition(frames.map(\.height) == [150, 150, 150, 71, 71, 150],
+                     "every full card fills a slot, a hollow half less the gap")
+        precondition(frames[4].maxY == frames[1].maxY, "two hollow cards end level with a full card beside them")
+        precondition(frames.map(\.minX) == [0, 0, 248, 248, 248, 496], "a card never leaves its column")
+        precondition(frames[3].minY == 158 && frames[1].minY == 158, "the gap separates cards down a column")
+        let spentOnly = [Card(column: 0, hollow: true, natural: 80)]
+        precondition(IslandCardSlots.slot(spentOnly, gap: gap) == 168, "with only hollow cards, two fit one slot")
+        precondition(IslandCardSlots.columns([Card(column: 5, hollow: false, natural: 10)], width: 736, columns: 3,
+                                             gap: gap) == [.zero], "a column past the count draws nothing")
+        let row = IslandCardSlots.row([90, 60, 120, 80, 70], width: 736, gap: gap)
+        precondition(row.prefix(4).allSatisfy { $0.height == 120 && $0.minY == 0 }, "a row's cards share the tallest height")
+        precondition(row[4].minX == 0 && row[4].minY == 128, "a fifth card wraps under the first")
+        precondition(row[1].width == 178, "four across")
+        let page = IslandPage(id: "agents", title: "Agents", symbol: "gauge.with.needle", order: 0,
+            line: IslandPageLine(text: "C4 · Weekly runs out in 1 d 17 h"),
+            blocks: [.columns([IslandCardGroup(title: "MBA", cards: [IslandCard(
+                title: "C1", tag: IslandCardTag(symbol: "arrow.counterclockwise", text: "1 reset credit"),
+                body: .meters([IslandCardMeter(label: "Weekly", value: "55% left", trailing: "in 5 d 14 h", fraction: 0.55,
+                                               tick: 0.8, thick: true, warning: true, note: "Runs out in 1 d 17 h")]))])]),
+                     .cards(IslandCardGroup(title: "Other", cards: [IslandCard(
+                         title: "Codex", hollow: true,
+                         body: .notice(symbol: "hourglass", headline: "Back in 2 d 19 h", detail: "Weekly limit used up"))]))])
+        var deck = IslandPageDeck()
+        deck.set(page, id: "agents")
+        precondition(deck.current == page, "a page of cards posts like any other")
     }
 }
