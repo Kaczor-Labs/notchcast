@@ -410,6 +410,6 @@ enum CopyPathResolverTests {
         budget()
         folding()
         cleaning()
-        print("PASS: copy path resolves Finder, browsers, Gecko pages and selected tabs, documents, timeouts, budgets, home and links")
+        print("PASS: copy path: Finder, browsers, Gecko pages, selected tabs, documents, timeouts, budgets, links")
     }
 }
