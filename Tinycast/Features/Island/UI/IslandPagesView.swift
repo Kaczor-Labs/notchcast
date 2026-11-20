@@ -29,7 +29,7 @@ struct IslandPagesView: View {
             } else {
                 VStack(spacing: metrics.spacing.xxs) {
                     ForEach(deck.homeLines, id: \.id) { page in
-                        IslandPageLineView(line: page.line, open: { select(.page(page.id)) }, act: { act(page.id, $0) })
+                        IslandPageLineView(line: page.line, open: { open(page) }, act: { act(page.id, $0) })
                     }
                 }
             }
@@ -37,6 +37,10 @@ struct IslandPagesView: View {
         .padding(metrics.spacing.md)
         .fixedSize()
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+    }
+
+    private func open(_ page: IslandPage) {
+        if let action = page.line.action { act(page.id, action) } else { select(.page(page.id)) }
     }
 
     private func tab(_ tab: IslandPageDeck.Tab) -> some View {

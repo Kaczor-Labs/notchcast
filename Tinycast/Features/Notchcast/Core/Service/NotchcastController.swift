@@ -37,7 +37,8 @@ final class NotchcastController {
         dictation: any NotchcastTranscribing, clipboard: NotchcastClipboardMutation = .none,
         surfaces: NotchcastSurfaces = NotchcastSurfaces(),
         settingsBackup: any NotchcastSettingsBackup = NotchcastNoSettingsBackup(),
-        presenter: any IslandPresenting, now: @escaping @MainActor () -> Date = { Date() }
+        presenter: any IslandPresenting, now: @escaping @MainActor () -> Date = { Date() },
+        calendar: NotchcastCalendar = NotchcastCalendar()
     ) {
         preferences = NotchcastPreferences(defaults: defaults, switches: addons.flatMap { $0.switches })
         self.hub = hub
@@ -50,7 +51,7 @@ final class NotchcastController {
                 onTapsChanged: { [weak self] in self?.applyTaps() },
                 onCommandsChanged: { [weak self] in if self?.isRunning == true { self?.publishCommands() } },
                 recovery: recovery, clipboard: clipboard, surfaces: surfaces,
-                settingsBackup: settingsBackup)
+                settingsBackup: settingsBackup, calendar: calendar)
         }
         slots = addons.map { addon in
             let recovery = makeContext()
