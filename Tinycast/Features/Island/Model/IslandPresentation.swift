@@ -86,6 +86,8 @@ struct IslandPageButton: Equatable, Sendable {
     var id: String
     var symbol: String
     var label: String
+    /// Off, the button shows dimmed and takes no click.
+    var isEnabled = true
 }
 
 /// The vocabulary a page body is written in; a new kind is drawn once in `IslandPageBlocks`.
@@ -218,6 +220,8 @@ struct IslandNowPlaying: Equatable, Sendable {
     var overflow = IslandSongOverflow.widen
     /// In the user's liked songs; nil when the player cannot tell, so no heart shows.
     var liked: Bool?
+    /// The player is still asking about this song, so the heart shows dimmed instead of a guess.
+    var likePending = false
     /// 0...1; nil hides the volume bar.
     var volume: Double?
     /// The player takes a seek on the bar.

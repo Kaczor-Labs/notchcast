@@ -29,6 +29,10 @@ final class SpotifyModule: NotchcastModule {
     }
     /// The current song's liked state; nil while unknown for it or signed out, so a click waits.
     var liked: Bool? { likedState.flatMap { $0.uri == playback.track?.id ? $0.liked : nil } }
+    /// A check for the current song is out; a failed one clears it, so the heart never waits forever.
+    var likePending = false {
+        didSet { if likePending != oldValue { onPlayback?(playback, playback) } }
+    }
     @ObservationIgnored var likeTask: Task<Void, Never>?
     @ObservationIgnored var web: SpotifyWeb?
     @ObservationIgnored private var volume: SpotifyVolumeMemory

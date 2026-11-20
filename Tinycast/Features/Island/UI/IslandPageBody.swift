@@ -83,7 +83,7 @@ struct IslandMediaView: View {
                 HStack(spacing: metrics.spacing.md) {
                     SymbolImage(name: "speaker.fill", size: metrics.scaled(Theme.Typography.menuSymbolSize),
                                 monochrome: true)
-                    IslandPageBar(fraction: volume, step: 0.1) {
+                    IslandPageBar(fraction: volume, step: 0.1, live: true) {
                         act(IslandMedia.action(IslandMedia.volumeAction, $0))
                     }
                     .accessibilityLabel(String(localized: "Volume"))
@@ -129,12 +129,15 @@ struct IslandPageBar: View {
     let fraction: Double
     /// What VoiceOver's increment and decrement move by.
     var step = 0.0
+    /// Sends while the drag lasts, as volume does; otherwise only on release, so a seek happens once.
+    var live = false
     var change: ((Double) -> Void)?
     @Environment(\.metrics) private var metrics
     /// The drag's fraction while it lasts, so the fill follows the pointer before the player answers.
     @State private var dragged: Double?
     @State private var sent: ContinuousClock.Instant?
-    /// As Aural's `VolumeSlider`: a drag sends at most this often, and its exact end on release.
+    @State private var trailing: Task<Void, Never>?
+    /// A live drag sends at most this often (Aural's `VolumeSlider`), its last value once still.
     static let sendInterval = Duration.milliseconds(100)
 
     var body: some View {
@@ -158,17 +161,30 @@ struct IslandPageBar: View {
                         .onChanged { drag in
                             let value = min(max(drag.location.x / max(proxy.size.width, 1), 0), 1)
                             dragged = value
+                            guard live else { return }
+                            trailing?.cancel()
                             let now = ContinuousClock.now
-                            guard sent.map({ now - $0 >= Self.sendInterval }) ?? true else { return }
-                            sent = now
-                            change(value)
+                            let wait = sent.map { Self.sendInterval - (now - $0) } ?? .zero
+                            guard wait > .zero else {
+                                sent = now
+                                return change(value)
+                            }
+                            trailing = Task {
+                                try? await Task.sleep(for: wait)
+                                guard !Task.isCancelled else { return }
+                                sent = .now
+                                change(value)
+                            }
                         }
                         .onEnded { drag in
+                            trailing?.cancel()
+                            trailing = nil
                             change(min(max(drag.location.x / max(proxy.size.width, 1), 0), 1))
                             dragged = nil
                             sent = nil
                         })
             }
+            .onDisappear { trailing?.cancel() }
             .frame(height: metrics.size.menuRowHeight / 2)
             .accessibilityElement(children: .ignore)
             .accessibilityAdjustableAction { direction in

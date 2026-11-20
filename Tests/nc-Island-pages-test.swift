@@ -304,6 +304,13 @@ struct IslandPagesTest {
         guard case .media(let liked)? = IslandPlayerPage.page(full).blocks.first else { preconditionFailure("media") }
         precondition(liked.like?.symbol == "heart.fill" && liked.like?.label != media.like?.label,
                      "a liked one a filled heart, named for what a click does")
+        full.liked = nil
+        full.likePending = true
+        guard case .media(let pending)? = IslandPlayerPage.page(full).blocks.first else { preconditionFailure("media") }
+        precondition(pending.like?.isEnabled == false && pending.like?.label == "Checking Liked Songs",
+                     "while the player asks, the heart is dimmed, unclickable and says it is loading (#850 B3)")
+        full.liked = false
+        full.likePending = false
         precondition(media.volume == 0.4 && media.seekable, "volume and seek carry through")
         precondition(media.upNext == [IslandPageRow(title: "Glass Harbour", detail: "Juno Vale"),
                                       IslandPageRow(title: "Low Tide")], "Up Next lists what follows, unclickable")

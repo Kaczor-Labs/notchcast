@@ -115,11 +115,15 @@ enum IslandPlayerPage {
                                     label: String(localized: "Previous Track"))
         let skip = IslandPageButton(id: IslandPlayerControl.next.rawValue, symbol: "forward.fill",
                                     label: String(localized: "Next Track"))
-        let like = playing.liked.map { liked in
-            liked ? IslandPageButton(id: IslandPlayerControl.like.rawValue, symbol: "heart.fill",
-                                     label: String(localized: "Remove from Liked Songs", table: "Notchcast"))
-                  : IslandPageButton(id: IslandPlayerControl.like.rawValue, symbol: "heart",
-                                     label: String(localized: "Add to Liked Songs", table: "Notchcast"))
+        let like: IslandPageButton? = switch (playing.liked, playing.likePending) {
+        case (true?, _): IslandPageButton(id: IslandPlayerControl.like.rawValue, symbol: "heart.fill",
+                                          label: String(localized: "Remove from Liked Songs", table: "Notchcast"))
+        case (false?, _): IslandPageButton(id: IslandPlayerControl.like.rawValue, symbol: "heart",
+                                           label: String(localized: "Add to Liked Songs", table: "Notchcast"))
+        case (nil, true): IslandPageButton(id: IslandPlayerControl.like.rawValue, symbol: "heart",
+                                           label: String(localized: "Checking Liked Songs", table: "Notchcast"),
+                                           isEnabled: false)
+        case (nil, false): nil
         }
         let upNext = playing.upNext.map { IslandPageRow(title: $0.title, detail: $0.artist) }
         return IslandPage(
