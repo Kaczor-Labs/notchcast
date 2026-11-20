@@ -15,6 +15,8 @@ protocol IslandPresenting: AnyObject {
     func watchPages(id: String, onChange: (@MainActor (_ visible: Bool) -> Void)?)
     /// Opens the island pinned on `id`'s page, for a command or hotkey; again while it shows, closes it.
     func showPage(id: String)
+    /// The loaded song in the resting pill, below a meeting glance; nil clears it.
+    func setSong(_ song: IslandNowPlaying?)
 }
 
 extension IslandPresenting {
@@ -22,4 +24,5 @@ extension IslandPresenting {
     func setPage(_ page: IslandPage?, id: String, onAction: (@MainActor (String) -> Void)?) {}
     func watchPages(id: String, onChange: (@MainActor (_ visible: Bool) -> Void)?) {}
     func showPage(id: String) {}
+    func setSong(_ song: IslandNowPlaying?) {}
 }
