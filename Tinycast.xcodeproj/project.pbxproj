@@ -1094,6 +1094,7 @@
 		C385AEF3C8C5A6B2BACC1D9A /* OverflowFade.swift in Sources */ = {isa = PBXBuildFile; fileRef = 88499DF2F503F2A3A19DEF07 /* OverflowFade.swift */; };
 		C396379DCAD85611D4C6F587 /* UpdateDownloader.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9BD81541882CBCC5B06F718F /* UpdateDownloader.swift */; };
 		C3FB2BE3542F2076C4922D1E /* IPhoneBackupSystem+Live.swift in Sources */ = {isa = PBXBuildFile; fileRef = EA7D3936A6E9214475BD10E8 /* IPhoneBackupSystem+Live.swift */; };
+		C43550C15D070291133489EF /* AnnotationDocument+Dirty.swift in Sources */ = {isa = PBXBuildFile; fileRef = 39CBE80EC4DE5AC3DCECE40A /* AnnotationDocument+Dirty.swift */; };
 		C4479572F65559306118A9F0 /* CodexTurnRunner.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1E82DD04042376EBDEF3E84C /* CodexTurnRunner.swift */; };
 		C45CCAE9AE2D3BCAC2BF80BE /* CommandOutputView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0E099C50FF0B6A0069CAC5BF /* CommandOutputView.swift */; };
 		C479C8E43F4EB36C48A56F79 /* CalcGrowth.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3E81B4C409EBB4D3D0DECD47 /* CalcGrowth.swift */; };
@@ -1809,6 +1810,7 @@
 		391B8024E8719506361B45F7 /* FileSearchQuery.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FileSearchQuery.swift; sourceTree = "<group>"; };
 		39B8982F3CFB63CAAB0520E3 /* RoomLayoutKind.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RoomLayoutKind.swift; sourceTree = "<group>"; };
 		39CA477CA36624DA5EAB9E28 /* NotchcastContext.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotchcastContext.swift; sourceTree = "<group>"; };
+		39CBE80EC4DE5AC3DCECE40A /* AnnotationDocument+Dirty.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "AnnotationDocument+Dirty.swift"; sourceTree = "<group>"; };
 		39EF327E9EFB308B858B58B8 /* FormTextInput.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FormTextInput.swift; sourceTree = "<group>"; };
 		3A068600862BC729F0565D67 /* ColorDot.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ColorDot.swift; sourceTree = "<group>"; };
 		3A201CEF4AEF0D464C79CED6 /* NotchcastTranscription.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotchcastTranscription.swift; sourceTree = "<group>"; };
@@ -4365,6 +4367,7 @@
 			isa = PBXGroup;
 			children = (
 				0FC1901AC5169B397063EFE0 /* AnnotationDocument.swift */,
+				39CBE80EC4DE5AC3DCECE40A /* AnnotationDocument+Dirty.swift */,
 				538C74295FB537DFF4D4DF65 /* AnnotationDrag.swift */,
 				6D633205EEECB972980CB13B /* AnnotationGeometry.swift */,
 				96B1397F54281668E394AD53 /* AnnotationKeyAction.swift */,
@@ -6934,6 +6937,7 @@
 				D68E7585496722BEC72E788C /* AliasStore.swift in Sources */,
 				BDE3D2A094C595D0DEAC02C4 /* AllowedDeepLinksSection.swift in Sources */,
 				76D39035109BC58859D2BB62 /* AnimatedPanel.swift in Sources */,
+				C43550C15D070291133489EF /* AnnotationDocument+Dirty.swift in Sources */,
 				3D23684E17E06A6683B7CE90 /* AnnotationDocument.swift in Sources */,
 				32C28ED26285D6FEAAF5AE78 /* AnnotationDrag.swift in Sources */,
 				7189F91F5752B1B897152E1E /* AnnotationGeometry.swift in Sources */,
