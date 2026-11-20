@@ -6,24 +6,11 @@ merge_tools=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 source "$merge_tools/drift-gates.sh"
 # Those of the names $1 (space separated) listed one per line in file $2, space separated.
 listed_in() { grep -xF -f <(tr ' ' '\n' <<< "$1" | grep .) "$2" | sort -u | paste -sd' ' - || true; }
-# The harnesses of the tree here in both HOSTED_ONLY_TESTS and CI_SKIP_TESTS, tags included: no CI run proves one
-# (FormInputTests passes in no VM), so a bench check on the MBP's real screen stands in for it.
-bench_only_list() {
+# The harnesses of the tree here in both HOSTED_ONLY_TESTS and CI_SKIP_TESTS: no run proves one, so land.sh
+# refuses a PR that selects one.
+unprovable_list() {
     (source notchcast/config.env
     comm -12 <(tr ' ' '\n' <<< "$HOSTED_ONLY_TESTS" | sort -u) <(tr ' ' '\n' <<< "$CI_SKIP_TESTS" | sort -u) | paste -sd' ' -)
-}
-# What PR $1 at head $2 still needs for the bench-only harnesses $3, or nothing: a maintainer's comment whose first
-# line is `bench-ok <harness> <head>`, so a new push voids it.
-bench_wanted() {
-    local ok name want=
-    ok=$(gh pr view "$1" -R "$FORK_REPO" --json comments | jq -r '.comments[]
-        | select(.authorAssociation | IN("OWNER", "MEMBER", "COLLABORATOR")) | .body | split("\n")[0] | sub("\\s+$"; "")') \
-        || { printf 'its comments could not be read'; return 0; }
-    for name in $3; do
-        grep -qxF "bench-ok $name $2" <<< "$ok" \
-            || want="$want${want:+; }needs a bench check of $name on the MBP's real screen: comment \`bench-ok $name $2\`"
-    done
-    printf '%s' "$want"
 }
 # Check runs on the commit, not the PR's statusCheckRollup: the rollup omits dispatched runs, and a PR
 # GitHub calls conflicting gets no pull_request run at all. Cancelled or skipped runs count only alone.
