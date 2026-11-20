@@ -49,7 +49,8 @@ struct RecordingSession: Sendable {
         let source = try await RecordingCaptureEngine.source(target, systemAudio: options.systemAudio)
         let writer = try RecordingWriter(
             url: file, width: source.configuration.width, height: source.configuration.height,
-            codec: options.codec, systemAudio: options.systemAudio, microphone: options.microphone)
+            codec: options.codec, systemAudio: options.systemAudio, microphone: options.microphone,
+            onFailure: { Task { @MainActor in ended(RecordingTarget.Failure.captureFailed) } })
         guard writer.start() else { throw RecordingTarget.Failure.captureFailed }
         let queue = DispatchQueue(label: "app.notchcast.recording", qos: .userInitiated)
         let engine = RecordingCaptureEngine(

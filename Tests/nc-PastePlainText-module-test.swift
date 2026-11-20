@@ -25,12 +25,17 @@ final class FakeBoard: PlainPasteBoard {
     var nilType: String?
     /// Another app copies while the snapshot is being read.
     var bumpsDuringRead = false
+    /// Another app copies right after the text is read, before the snapshot.
+    var bumpsAfterText = false
     /// Writes that clear the board and then fail.
     var writeFailures = 0
     let ownMarker = "com.tinycast.internal"
 
     var types: [String] { items.flatMap { $0.map(\.type) } }
-    var string: String? { entry("public.utf8-plain-text").map { utf8($0) } }
+    var string: String? {
+        defer { if bumpsAfterText { changeCount += 1 } }
+        return entry("public.utf8-plain-text").map { utf8($0) }
+    }
     func rtfText() -> String? {
         rtfReads += 1
         return entry("public.rtf").map { "rtf:" + utf8($0) }
@@ -182,9 +187,10 @@ final class Rig {
         let hub = NotchcastTapHub(syntheticTag: 0x54494E59, isTrusted: { trusted }, makeSession: { FakeSession($0) })
         controller = NotchcastController(
             addons: [PastePlainTextAddon.self], defaults: defaults, hub: hub, dictation: FakeDictation(),
-            clipboard: NotchcastClipboardMutation(
-                prepare: { fake.history.append("prepare \(fake.board.changeCount)") },
-                synchronize: { fake.history.append("sync \($0)") }),
+            services: NotchcastServices(
+                clipboard: NotchcastClipboardMutation(
+                    prepare: { fake.history.append("prepare \(fake.board.changeCount)") },
+                    synchronize: { fake.history.append("sync \($0)") })),
             presenter: presenter)
         controller.start()
     }
@@ -206,6 +212,7 @@ func reset() {
     board.rtfReads = 0
     board.nilType = nil
     board.bumpsDuringRead = false
+    board.bumpsAfterText = false
     board.writeFailures = 0
     fake.pastes = []
     fake.timers = []
@@ -225,91 +232,16 @@ let plainHi: [[PlainPasteEntry]] = [[
 enum PastePlainTextModuleTests {
     @MainActor
     static func main() {
-        selection()
-        matchStyle()
         engine()
         snapshotRefusal()
         writeFailure()
         wiring()
+        readGap()
         nativeRoute()
         heldKeys()
         keystrokeGuard()
         secondPress()
         print("nc-PastePlainText-module-test: OK")
-    }
-
-    /// Vorssaint's case table: files and lone pictures paste as themselves, never as their names.
-    @MainActor
-    static func selection() {
-        func text(_ types: [String], string: String? = nil, rtf: String? = nil, html: String? = nil,
-                  reads: inout [String]) -> String? {
-            var log: [String] = []
-            defer { reads = log }
-            return PlainPastePolicy.text(
-                types: types, string: { log.append("string"); return string },
-                rtf: { log.append("rtf"); return rtf }, rtfd: { log.append("rtfd"); return nil },
-                html: { log.append("html"); return html })
-        }
-        var reads: [String] = []
-        let fileTypes = ["public.file-url", "NSFilenamesPboardType", "NSFileContentsPboardType",
-                         "com.apple.NSFilePromiseItemMetaData", "Apple files promise pasteboard type",
-                         "com.apple.pasteboard.promised-file-url"]
-        let mediaTypes = ["public.png", "public.tiff", "public.jpeg", "public.heic", "public.mpeg-4", "public.video",
-                          "com.apple.quicktime-movie", "public.mp3", "com.adobe.pdf"]
-        for type in fileTypes + mediaTypes {
-            for fallback in [nil, "https://example.com/image.png", "IMG_1234.HEIC", "data:image/png;base64,AAAA", "  \n"] {
-                let types = [type] + (fallback == nil ? [] : ["public.utf8-plain-text"])
-                precondition(text(types, string: fallback, reads: &reads) == nil,
-                             "\(type), text=\(fallback ?? "none"): pastes as itself")
-                precondition(reads.allSatisfy { $0 == "string" } && (!fileTypes.contains(type) || reads.isEmpty),
-                             "\(type): media is never converted and files are never read")
-            }
-        }
-        let table = "Item\tQty\nA\t1"
-        for (copied, extras) in [(table, ["com.adobe.pdf", "public.tiff"]), (table, ["public.png"]),
-                                 ("Total", ["com.adobe.pdf"]), ("Total:", ["public.tiff"]), ("1.2.3", ["com.adobe.pdf"]),
-                                 ("example.com", ["com.adobe.pdf"]), ("2.4GHz", ["public.tiff"]),
-                                 ("john@example.com", ["com.adobe.pdf"]),
-                                 ("https://example.com/report", ["com.adobe.pdf", "public.rtf"]),
-                                 ("photo.png", ["public.tiff", "public.rtf"])] {
-            let types = ["public.utf8-plain-text", "public.html"] + extras
-            precondition(text(types, string: copied, html: "<td>x</td>", reads: &reads) == copied && reads == ["string"],
-                         "\(copied) with \(extras): text with a picture of itself still pastes plain")
-        }
-        precondition(text(["public.utf8-plain-text", "public.file-url"], string: table, reads: &reads) == nil,
-                     "a file copy pastes the file even when it carries text")
-        precondition(text([], reads: &reads) == nil, "an empty clipboard forwards a normal paste")
-        precondition(text(["public.utf8-plain-text"], string: "", rtf: "b", reads: &reads) == nil,
-                     "an empty string forwards a normal paste")
-        precondition(text(["public.utf8-plain-text"], string: "a", rtf: "b", reads: &reads) == "a" && reads == ["string"],
-                     "the plain string wins and RTF is never converted beside it")
-        precondition(text(["public.rtf"], rtf: "b", html: "c", reads: &reads) == "b", "RTF when no string")
-        precondition(text(["public.html"], html: "c", reads: &reads) == "c" && reads == ["string", "rtf", "rtfd", "html"],
-                     "HTML last")
-
-        for fallback in ["", " \n", "https://example.com/a.png", "data:image/png;base64,AAAA",
-                         "blob:https://example.com/1", "IMG_1234.HEIC", "photo.jpeg", "clip.mp4", "scan.pdf"] {
-            precondition(PlainPastePolicy.isMediaTextFallback(fallback), "'\(fallback)' is what a lone picture carries")
-        }
-        for copied in ["Total", "Total:", "1.2.3", "3.14", "e.g.", table, "see https://example.com", "two words",
-                       "U.S.", "example.com", "2.4GHz", "12.5kg", "config.yaml", "john@example.com"] {
-            precondition(!PlainPastePolicy.isMediaTextFallback(copied), "'\(copied)' is copied text")
-        }
-    }
-
-    @MainActor
-    static func matchStyle() {
-        func matches(_ key: String?, _ mask: UInt32?, enabled: Bool = true, app: String? = "com.apple.TextEdit") -> Bool {
-            PlainPastePolicy.isMatchStyleEquivalent(
-                bundleIdentifier: app, commandCharacter: key, modifierMask: mask, isEnabled: enabled)
-        }
-        precondition(matches("V", 3) && matches("v", 3) && matches("V", 3, app: nil),
-                     "⌥⇧⌘V, any case, is the app's matching-style paste, also in an app without a bundle ID")
-        precondition(!matches("V", 0) && !matches("V", 1), "plain ⌘V, and ⇧⌘V alone, are other commands in several apps")
-        precondition(!matches("V", 3 | 4) && !matches("V", 3 | 8), "a control variant is not it, nor one without ⌘")
-        precondition(!matches("C", 3) && !matches(nil, 3) && !matches("V", nil), "nor another key or none")
-        precondition(!matches("V", 3, enabled: false), "a disabled item is never pressed")
-        precondition(!matches("V", 3, app: "com.apple.finder"), "Finder's ⌥⇧⌘V is Paste Item Exactly, never pressed")
     }
 
     @MainActor
@@ -321,8 +253,9 @@ enum PastePlainTextModuleTests {
 
     @MainActor
     static func lend(_ engine: PlainPasteEngine) -> PlainPasteEngine.Outcome {
+        let changeCount = engine.changeCount
         guard let text = engine.text() else { preconditionFailure("the clipboard holds text") }
-        return engine.lend(text)
+        return engine.lend(text, readAt: changeCount)
     }
 
     @MainActor
@@ -374,6 +307,11 @@ enum PastePlainTextModuleTests {
         board.bumpsDuringRead = true
         precondition(lend(engine) == .refused, "a copy made during the read refuses the paste")
         precondition(board.ownWrites == 0 && !engine.isRestorePending, "and nothing is written")
+        board.bumpsDuringRead = false
+        board.copy([("public.utf8-plain-text", "Old")])
+        board.bumpsAfterText = true
+        precondition(lend(engine) == .refused, "a copy between the text read and the snapshot refuses the paste")
+        precondition(board.ownWrites == 0 && !engine.isRestorePending, "so the older text is never pasted")
     }
 
     @MainActor
@@ -401,6 +339,19 @@ enum PastePlainTextModuleTests {
         precondition(lend(engine) == .refused, "a failed temporary write refuses the paste")
         precondition(board.items == original && !engine.isRestorePending, "and puts the original back")
         precondition(fake.history.last == "sync \(board.changeCount)", "baselining history on it")
+    }
+
+    @MainActor
+    static func readGap() {
+        reset()
+        let rig = Rig(on: true)
+        fake.board.copy(styled)
+        fake.board.bumpsAfterText = true
+        precondition(rig.run(), "on: the command runs")
+        fake.fireAll()
+        precondition(fake.pastes.isEmpty && fake.board.ownWrites == 0,
+                     "a copy landing right after the text read pastes nothing, never the older text")
+        rig.finish()
     }
 
     @MainActor

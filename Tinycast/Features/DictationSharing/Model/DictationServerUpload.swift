@@ -21,12 +21,11 @@ struct DictationServerUpload: Equatable, Sendable {
             return .failure(.error(400, "Attach the audio as a non-empty `file` field."))
         }
         guard file.content.count <= DictationServerHTTP.maximumFileBytes else { return .failure(.tooLarge) }
+        guard isAudioContainer(file.content) else { return .failure(.unsupportedFormat) }
         var fileExtension: String?
         if let filename = file.filename, let dot = filename.lastIndex(of: ".") {
             let suffix = filename[filename.index(after: dot)...].lowercased()
-            guard extensions.contains(suffix) else {
-                return .failure(.error(400, "Unsupported audio format; send wav, m4a, mp3, flac, ogg or webm."))
-            }
+            guard extensions.contains(suffix) else { return .failure(.unsupportedFormat) }
             fileExtension = suffix
         }
         var language: DictationLanguage?
@@ -43,6 +42,34 @@ struct DictationServerUpload: Equatable, Sendable {
         default: return .failure(.error(400, "response_format must be json or text."))
         }
         return .success(Self(audio: file.content, fileExtension: fileExtension, language: language, format: format))
+    }
+
+    /// The decoder sniffs content whatever the name says, so only the allowed containers reach it.
+    static func isAudioContainer(_ data: Data) -> Bool {
+        let bytes = Array(data.prefix(12))
+        func has(_ text: String, at offset: Int) -> Bool {
+            let wanted = Array(text.utf8)
+            return bytes.count >= offset + wanted.count && Array(bytes[offset..<offset + wanted.count]) == wanted
+        }
+        if has("RIFF", at: 0), has("WAVE", at: 8) { return true }
+        if has("fLaC", at: 0) || has("OggS", at: 0) || has("ID3", at: 0) || has("ftyp", at: 4) { return true }
+        if bytes.starts(with: [0x1A, 0x45, 0xDF, 0xA3]) { return true }
+        return bytes.count >= 2 && bytes[0] == 0xFF && bytes[1] & 0xE0 == 0xE0
+    }
+
+    /// Refuses audio that is unreadable or too long before it waits for the model.
+    static func refusal(frames: Int64, sampleRate: Double) -> DictationServerResponse? {
+        guard sampleRate > 0, frames > 0 else { return .unreadable }
+        return Double(frames) / sampleRate > Double(DictationServerHTTP.maximumAudioSeconds) ? .tooLong : nil
+    }
+
+    /// Staged uploads a crash left behind; run before any listener starts, so none is in use.
+    static func removeStaged(in directory: URL, prefix: String) {
+        let manager = FileManager.default
+        let names = (try? manager.contentsOfDirectory(atPath: directory.path(percentEncoded: false))) ?? []
+        for name in names where name.hasPrefix(prefix) {
+            try? manager.removeItem(at: directory.appending(path: name))
+        }
     }
 
     private struct Part {
@@ -125,6 +152,9 @@ struct DictationServerReader: Sendable {
         self.token = token
         self.port = port
     }
+
+    /// The head arrived and was accepted; only the body is still to come.
+    var hasHead: Bool { pending != nil }
 
     /// The most a single receive should take: the rest of the body, or a head-sized read.
     var wanted: Int {

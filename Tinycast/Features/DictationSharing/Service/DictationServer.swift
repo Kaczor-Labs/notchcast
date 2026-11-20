@@ -1,6 +1,8 @@
+import AVFoundation
 import Foundation
 import Network
 import Observation
+import Synchronization
 
 /// Lends the user's Dictation model to other apps on 127.0.0.1, behind a bearer token.
 @MainActor
@@ -16,13 +18,16 @@ final class DictationServer {
     private static let enabledKey = "dictationServerEnabled"
     private static let portKey = "dictationServerPort"
     private static let maximumConnections = 8
-    private static let readDeadline: Duration = .seconds(30)
+    /// Keyed by the bundle, so a Debug build's sweep never removes an installed copy's upload.
+    private nonisolated static let stagedPrefix = "\(Bundle.main.bundleIdentifier ?? "notchcast").dictation-request-"
     /// The endpoint has one token, so it lives under one fixed account.
     private static let tokenAccount = UUID(
         uuid: (0x6D, 0x1C, 0x4B, 0x0E, 0x5F, 0x2A, 0x4C, 0x55, 0x9A, 0x8E, 0x0B, 0x7D, 0x3F, 0x1E, 0x2C, 0x94))
 
     private(set) var status: Status = .off
     private(set) var token: String?
+    /// The listener keeps serving the old token, so this is reported apart from `status`.
+    private(set) var tokenFailure: String?
     var isEnabled: Bool {
         didSet {
             defaults.set(isEnabled, forKey: Self.enabledKey)
@@ -43,6 +48,7 @@ final class DictationServer {
     @ObservationIgnored private let coordinator: DictationCoordinator
     @ObservationIgnored private let runner: NotchcastTranscriptionRunner
     @ObservationIgnored private let queue = DictationServerQueue(capacity: DictationServer.maximumConnections)
+    @ObservationIgnored private let clients = DictationServerClients(capacity: DictationServer.maximumConnections)
     @ObservationIgnored private let tokens = KeychainSecretStore.dictationServer
     @ObservationIgnored private var watcher: Task<Void, Never>?
     @ObservationIgnored private var listening: Task<Void, Never>?
@@ -69,6 +75,7 @@ final class DictationServer {
         let settings = settings
         let coordinator = coordinator
         watcher = Task { [weak self] in
+            await Self.removeStaged()
             for await (enabled, dictating) in Observations({ (settings.dictationEnabled, coordinator.isActive) }) {
                 guard let self else { return }
                 queue.setUserDictating(dictating)
@@ -92,8 +99,11 @@ final class DictationServer {
         do {
             try tokens.setSecret(fresh, for: Self.tokenAccount)
             token = fresh
+            tokenFailure = nil
         } catch {
-            status = .failed(String(localized: "Notchcast could not save a new token in the Keychain.", table: "Notchcast"))
+            tokenFailure = String(
+                localized: "Notchcast could not save a new token in the Keychain. The current token still works.",
+                table: "Notchcast")
         }
     }
 
@@ -137,10 +147,7 @@ final class DictationServer {
         status = .starting
         listening = Task { [weak self] in
             do {
-                let listener = try NetworkListener(
-                    using: .parameters { TCP() }
-                        .localEndpoint(.hostPort(host: .ipv4(.loopback), port: endpointPort)))
-                listener.newConnectionLimit = Self.maximumConnections
+                let listener = try DictationServerListener.make(port: endpointPort)
                 try await listener.onStateUpdate { [weak self] _, state in
                     switch state {
                     case .ready: self?.ready(generation)
@@ -148,7 +155,6 @@ final class DictationServer {
                     default: break
                     }
                 }.run { [weak self] connection in
-                    defer { listener.newConnectionLimit += 1 }
                     await self?.serve(connection, port: port)
                 }
             } catch {
@@ -178,18 +184,16 @@ final class DictationServer {
     }
 
     private func serve(_ connection: NetworkConnection<TCP>, port: Int) async {
-        guard let token else { return }
+        guard let token, clients.admit() else { return }
+        defer { clients.release() }
         let reader = DictationServerReader(token: token, port: port)
-        let deadline = Self.readDeadline
+        let progress = HeadProgress()
         let step: DictationServerReader.Step
         do {
             step = try await withThrowingTaskGroup(of: DictationServerReader.Step.self) { group in
-                group.addTask { [weak self] in
-                    guard let self else { throw CancellationError() }
-                    return try await read(connection, reader: reader)
-                }
+                group.addTask { try await Self.read(connection, reader: reader, progress: progress) }
                 group.addTask {
-                    try await Task.sleep(for: deadline)
+                    try await DictationServerHTTP.expire(headRead: { progress.isRead() }) { try await Task.sleep(for: $0) }
                     throw URLError(.timedOut)
                 }
                 defer { group.cancelAll() }
@@ -201,20 +205,29 @@ final class DictationServer {
         let response: DictationServerResponse
         switch step {
         case .models: response = .models([Self.modelID(settings.dictationModel)])
-        case .form(let body, let boundary): response = await transcribe(body, boundary: boundary)
+        case .form(let body, let boundary):
+            await DictationServerListener.reply(connection) { [weak self] in
+                let answer = await self?.transcribe(body, boundary: boundary)
+                return (answer ?? .error(503, "Notchcast stopped sharing the model.")).encoded
+            }
+            return
         case .respond(let refusal): response = refusal
         case .more, .sendContinue: return
         }
         try? await connection.send(response.encoded, endOfStream: true)
     }
 
-    private func read(_ connection: NetworkConnection<TCP>, reader: DictationServerReader) async throws
-        -> DictationServerReader.Step
-    {
+    /// Off the main actor: nothing an unauthenticated client sends is parsed there.
+    @concurrent
+    private nonisolated static func read(
+        _ connection: NetworkConnection<TCP>, reader: DictationServerReader, progress: HeadProgress
+    ) async throws -> DictationServerReader.Step {
         var reader = reader
         while true {
             let message = try await connection.receive(atLeast: 1, atMost: reader.wanted)
-            switch reader.feed(message.content) {
+            let step = reader.feed(message.content)
+            if reader.hasHead { progress.markRead() }
+            switch step {
             case .more:
                 if message.metadata.endOfStream { throw CancellationError() }
             case .sendContinue:
@@ -232,6 +245,9 @@ final class DictationServer {
         case .failure(let refusal): return refusal
         }
         guard coordinator.models.isInstalled(settings.dictationModel) else { return .modelMissing }
+        guard let file = await Self.stage(upload) else { return .error(500, "Could not stage the audio.") }
+        defer { try? FileManager.default.removeItem(at: file) }
+        if let refusal = await Self.lengthRefusal(file) { return refusal }
         do {
             try await queue.enter()
         } catch is DictationServerQueue.Full {
@@ -240,8 +256,6 @@ final class DictationServer {
             return .error(503, "Notchcast stopped sharing the model.")
         }
         defer { queue.leave() }
-        guard let file = await Self.stage(upload) else { return .error(500, "Could not stage the audio.") }
-        defer { try? FileManager.default.removeItem(at: file) }
         do {
             let text = try await runner.transcribe(file, language: upload.language?.rawValue)
             return .transcript(text, format: upload.format)
@@ -249,7 +263,7 @@ final class DictationServer {
             switch failure {
             case .busy: return .busy
             case .unavailable: return .modelMissing
-            case .unreadableAudio: return .error(400, "Notchcast could not decode this audio file.")
+            case .unreadableAudio: return .unreadable
             case .failed: return .error(500, "Transcription failed.")
             }
         } catch {
@@ -267,7 +281,7 @@ final class DictationServer {
     /// The decoder reads a file, so the upload lives in a private temporary one for the request only.
     @concurrent
     private nonisolated static func stage(_ upload: DictationServerUpload) async -> URL? {
-        let name = "dictation-request-\(UUID().uuidString)" + (upload.fileExtension.map { ".\($0)" } ?? "")
+        let name = stagedPrefix + UUID().uuidString + (upload.fileExtension.map { ".\($0)" } ?? "")
         let url = URL.temporaryDirectory.appending(path: name)
         let created = FileManager.default.createFile(
             atPath: url.path(percentEncoded: false), contents: upload.audio,
@@ -275,7 +289,26 @@ final class DictationServer {
         return created ? url : nil
     }
 
+    @concurrent
+    private nonisolated static func lengthRefusal(_ file: URL) async -> DictationServerResponse? {
+        guard let audio = try? AVAudioFile(forReading: file) else { return .unreadable }
+        return DictationServerUpload.refusal(frames: audio.length, sampleRate: audio.fileFormat.sampleRate)
+    }
+
+    @concurrent
+    private nonisolated static func removeStaged() async {
+        DictationServerUpload.removeStaged(in: URL.temporaryDirectory, prefix: stagedPrefix)
+    }
+
     private static func modelID(_ model: DictationModel) -> String {
         "\(model.family.rawValue)-\(model.variantTitle)".lowercased()
     }
+}
+
+/// Set once the reader has the head, so the deadline task knows which phase it is timing.
+private final class HeadProgress: Sendable {
+    private let read = Mutex(false)
+
+    func markRead() { read.withLock { $0 = true } }
+    func isRead() -> Bool { read.withLock { $0 } }
 }

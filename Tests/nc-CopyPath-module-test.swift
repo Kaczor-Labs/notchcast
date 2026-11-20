@@ -19,6 +19,8 @@ final class Fake {
     var failure: CopyPathFailure?
     var hold = false
     var copies: [String] = []
+    /// How many copies were made when history was told to read the board first.
+    var prepares: [Int] = []
     var page: String?
     var tabs = 1
     var browserText: String?
@@ -30,7 +32,7 @@ final class Fake {
     func reset() {
         app = CopyPathApp(bundleID: "com.apple.finder", pid: 1)
         selection = ["file:///home/tester/a"]
-        failure = nil; hold = false; copies = []; copyWorks = true; settings = []; released = [:]
+        failure = nil; hold = false; copies = []; prepares = []; copyWorks = true; settings = []; released = [:]
         page = nil; tabs = 1; browserText = nil
     }
 
@@ -107,7 +109,9 @@ final class Rig {
         let hub = NotchcastTapHub(syntheticTag: 0x54494E59, isTrusted: { true }, makeSession: { FakeSession($0) })
         controller = NotchcastController(
             addons: [CopyPathAddon.self], defaults: defaults, hub: hub, dictation: FakeDictation(),
-            clipboard: NotchcastClipboardMutation(prepare: {}, synchronize: { _ in }),
+            services: NotchcastServices(
+                clipboard: NotchcastClipboardMutation(
+                    prepare: { fake.prepares.append(fake.copies.count) }, synchronize: { _ in })),
             presenter: presenter)
         controller.start()
     }
@@ -156,6 +160,7 @@ enum CopyPathModuleTests {
         await rig.run()
         rig.expect("Copied path", failure: false, "Finder selection")
         precondition(fake.copies == ["~/a"], "the folded path is copied: \(fake.copies)")
+        precondition(fake.prepares == [0], "history reads the user's last copy before the path replaces it")
 
         fake.selection = []
         await rig.run()

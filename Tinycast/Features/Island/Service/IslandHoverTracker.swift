@@ -28,6 +28,8 @@ final class IslandHoverTracker {
 
     var isOpen: Bool { hover.isOpen }
     var isPinned: Bool { hover.isPinned }
+    /// True only while the pin `pinWhenUncovered` waited for opens the island, never on a later click.
+    private(set) var isPinningFromWait = false
     var isWatching: Bool { !monitors.isEmpty }
 
     func start() { refresh() }
@@ -65,8 +67,12 @@ final class IslandHoverTracker {
         hover.update(next, at: world.now())
         if let by = pinBy, !next.covered || by < world.now() {
             pinBy = nil
-            if !next.covered, by >= world.now(), !hover.isPinned { hover.togglePin(at: world.now()) }
+            if !next.covered, by >= world.now(), !hover.isPinned {
+                hover.togglePin(at: world.now())
+                isPinningFromWait = true
+            }
         }
+        defer { isPinningFromWait = false }
         apply(was != hover.isOpen)
     }
 

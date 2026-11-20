@@ -76,7 +76,7 @@ runs:
         STAGE="$(mktemp -d)"
         cp -R "$APP" "$STAGE/"
         ln -s /Applications "$STAGE/Applications"
-        # Never mounts a volume, unlike hdiutil create, which failed silently at its unmount (#902).
+        # Never mounts a volume, unlike hdiutil create, which can fail silently at its unmount.
         diskutil image create from --format UDZO --volumeName "$APP_NAME" "$STAGE" "dist/$APP_NAME-$VERSION.dmg" >/dev/null \
           || { echo "::error::diskutil could not build the dmg; its message is above"; exit 1; }
         ls -l dist

@@ -60,15 +60,19 @@ final class ScreenshotFake {
     var texts: [String] = []
     var settingsOpened = 0
     var holdRecognize = false
+    var recognizeFails = false
     var recognizeGate: CheckedContinuation<Void, Never>?
     var holdWarm = false
     var warmGate: CheckedContinuation<Void, Never>?
     var warmOffMain: [Bool] = []
     var warmCancelled: [Bool] = []
 
-    func recognize(_ image: CGImage) async -> [ScreenTextLine] {
+    struct VisionFailed: Error {}
+
+    func recognize(_ image: CGImage) async throws -> [ScreenTextLine] {
         recognizedWidths.append(image.width)
         if holdRecognize { await withCheckedContinuation { recognizeGate = $0 } }
+        if recognizeFails { throw VisionFailed() }
         return lines
     }
 
@@ -126,7 +130,7 @@ extension ScreenshotSystem {
             fake.texts.append(text)
             return true
         },
-        recognizeText: { image in await fake.recognize(image) },
+        recognizeText: { image in try await fake.recognize(image) },
         warmTextRecognition: {
             let offMain = pthread_main_np() == 0
             await fake.warm(offMain: offMain)
@@ -385,6 +389,15 @@ enum ScreenshotsModuleTests {
         fake.pick(nil)
         await drain()
         precondition(fake.recognizedWidths.count == 2 && presenter.posts.count == notices, "Esc recognises nothing")
+
+        fake.recognizeFails = true
+        rig.fire(text)
+        await drain()
+        fake.pick(.window(51))
+        await drain()
+        precondition(presenter.posts.last?.text == "Could not read text from the selection."
+                     && presenter.posts.last?.isFailure == true, "a recognition error is not a capture error")
+        fake.recognizeFails = false
 
         fake.lines = [ScreenTextLine(text: "kept", box: CGRect(x: 0, y: 0.5, width: 1, height: 0.1))]
         fake.textWorks = false

@@ -81,7 +81,7 @@ stack() {
     pr_title=$(jq -r '.title // ""' <<< "$metadata")
     pr_body=$(jq -r '.body // ""' <<< "$metadata")
     git -C "$top" fetch -q origin "refs/pull/$2/head"
-    git -C "$top" rev-parse FETCH_HEAD > "$scratch/head-$2"  # the head it merges is the one the bench record must name
+    git -C "$top" rev-parse FETCH_HEAD > "$scratch/head-$2"  # the head it merges is the one a refusal record names
     echo "train: #$2 ${head:0:8} onto ${1:0:8}" >&2
     # The merge runs even for an unlabelled draft, so one pass names every reason a PR would be dropped for.
     set +e
@@ -146,15 +146,6 @@ tell_drops() {
 notify() {
     ! declare -F notchcast_notify >/dev/null || printf 'Notchcast: %s\n' "$1" | notchcast_notify || echo 'WARN: notify failed' >&2
 }
-# PR $1 is held for reason $2: one comment and one notify line per head and reason, never one per tick.
-tell_wait() {
-    local pr=$1 note
-    note="Held out of the landing batch at its head $(< "$scratch/head-$pr"): #$pr $2. The queue tries it again each tick."
-    gh pr view "$pr" -R "$FORK_REPO" --json comments | jq -e --arg note "$note" 'any(.comments[]; .body == $note)' >/dev/null && return 0
-    # No comment, no notify: the comment is what marks it told, so a failed one is tried again next tick.
-    gh pr comment "$pr" -R "$FORK_REPO" --body "$note" >/dev/null || { echo "WARN: could not comment on #$pr" >&2; return 0; }
-    notify "$note"
-}
 # Every one must finish green on the train's tip; all but Design take the train's base, as a PR run has it.
 workflows='pr.yml proof.yml design.yml leaks.yml'
 # The ones with a Mac job, which take the train's lane as their hosted input (ready-check-test.py: GATED_JOBS).
@@ -170,18 +161,15 @@ fi
 # HOSTED_ONLY_TESTS of the tree in the current directory, every line that sets it.
 hosted_only_list() { sed -n 's/^HOSTED_ONLY_TESTS="\(.*\)"$/\1/p' notchcast/config.env | paste -sd' ' -; }
 # Before the push, for the train just built ($tip on $base, its merges in $scratch/merges): refuses one whose run
-# land.sh could not find, and sets runner, where its Mac jobs go: hosted when only a hosted run proves it. Under
-# --queue a PR that selects a bench-only harness with no bench check at its head is left out: waits names those PRs.
+# land.sh could not find, and sets runner, where its Mac jobs go: hosted when only a hosted run proves it.
 preflight() {
-    local main_key tip_key commit pr changers='' hosted_only hosted_list bench_list bench reason
+    local main_key tip_key commit pr changers='' hosted_only hosted_list
     tree_at "$base"
     main_key=$(python3 notchcast/ci.py tested-key "$tip")
     hosted_list=$(hosted_only_list)
-    bench_list=$(bench_only_list)
     tree_at "$tip"
     tip_key=$(python3 notchcast/ci.py tested-key HEAD)
     hosted_list="$hosted_list $(hosted_only_list)"
-    bench_list="$bench_list $(bench_only_list)"
     if [ "$main_key" != "$tip_key" ]; then
         while read -r pr commit; do
             git diff --quiet "$commit^1" "$commit" -- notchcast/ci.py || changers="$changers${changers:+ }#$pr"
@@ -189,7 +177,6 @@ preflight() {
         refuse "the train's run would record tree ${tip_key:0:8}, but land.sh with main's ci.py looks for ${main_key:0:8}, so it could never land: ${changers:-a PR} changes ci.py tested-key; land that one first, alone (notchcast/land.sh <pr> on its own PR build), then train the rest"
     fi
     runner=$mac
-    waits=
     if ! (while read -r pr commit; do bash notchcast/changed-harnesses.sh "$commit^1" "$commit" > "$scratch/selected-$pr" || exit 1; done) < "$scratch/merges"; then
         cd "$top"
         [ "$mac" = isolated ] || return 0
@@ -199,18 +186,6 @@ preflight() {
     fi
     while read -r pr commit; do cat "$scratch/selected-$pr"; done < "$scratch/merges" > "$scratch/selected"
     cd "$top"
-    while read -r pr commit; do
-        bench=$(listed_in "$bench_list" "$scratch/selected-$pr")
-        [ -z "$bench" ] || reason=$(bench_wanted "$pr" "$(< "$scratch/head-$pr")" "$bench")
-        [ -n "$bench" ] && [ -n "$reason" ] || continue
-        if [ -z "$auto" ]; then
-            echo "train: #$pr $reason, before land.sh lands it"
-            continue
-        fi
-        echo "WAITS #$pr: $reason; the queue tries it again next tick"
-        tell_wait "$pr" "$reason"
-        waits="$waits${waits:+ }$pr"
-    done < "$scratch/merges"
     [ "$mac" = isolated ] || return 0
     if [ -s "$scratch/hosted-prs" ] && cut -d' ' -f1 "$scratch/merges" | grep -qxF -f "$scratch/hosted-prs"; then
         runner=hosted
@@ -272,29 +247,33 @@ wait_train() {
         waited=$((waited + poll))
     done
 }
-# When PR $1 was last marked ready or labelled land; nothing for a PR that was opened ready.
-ready_since() {
-    gh api "repos/$FORK_REPO/issues/$1/timeline" --paginate \
-        --jq '.[] | select(.event == "ready_for_review" or (.event == "labeled" and .label.name == "land")) | .created_at' | tail -1
+# When PR $1 was last labelled land, the lead's sign-off; marking it ready only gets it a PR build.
+signed_off_since() {
+    local at
+    at=$(gh api "repos/$FORK_REPO/issues/$1/timeline" --paginate \
+        --jq '.[] | select(.event == "labeled" and .label.name == "land") | .created_at' | tail -1) && [ -n "$at" ] \
+        || { echo "queue: cannot read when #$1 was labelled land" >&2
+            notify "the landing queue stopped: it cannot read when #$1 was labelled land" >&2; return 1; }
+    echo "$at"
 }
-# The first LAND_BATCH_SIZE open PRs on main, oldest sign-off first. Signed off is ready, or a draft labelled land;
-# its build must be green on its head (a draft may have none: the train run is its build). A PR a batch already
+# The first LAND_BATCH_SIZE open PRs on main labelled land, ready or draft, oldest sign-off first. Its build must be
+# green on its head; a draft's may be skipped or absent, since the train run is its build. A PR a batch already
 # found red alone waits for a new head. While the newest sign-off of the batch is younger than LAND_SETTLE_SECONDS it
 # prints only a "queue: waits" line, so PRs signed off close together ride one train.
 pick_batch() {
-    local pr draft head created verdict since newest age
+    local pr draft head verdict since newest age
     : > "$scratch/heads"
-    gh pr list -R "$FORK_REPO" --state open --base main -L 200 --json number,isDraft,labels,headRefOid,createdAt,comments \
-        --jq '.[] | . as $pr | select((.isDraft | not) or any(.labels[]; .name == "land"))
+    gh pr list -R "$FORK_REPO" --state open --base main -L 200 --json number,isDraft,labels,headRefOid,comments \
+        --jq '.[] | . as $pr | select(any(.labels[]; .name == "land"))
             | select(any(.comments[]; .body | contains("in the landing batch at head " + $pr.headRefOid)) | not)
-            | "\(.number) \(.isDraft) \(.headRefOid) \(.createdAt)"' |
-        while read -r pr draft head created; do
+            | "\(.number) \(.isDraft) \(.headRefOid)"' |
+        while read -r pr draft head; do
             echo "$pr@$head" >> "$scratch/heads"
             verdict=$(check_run "$head" build)
-            [ "$verdict" = success ] || { [ "$draft" = true ] && [ "$verdict" = none ]; } \
+            [ "$verdict" = success ] || { [ "$draft" = true ] && [[ "$verdict" =~ ^(none|skipped)$ ]]; } \
                 || { echo "queue: #$pr waits, build is $verdict on ${head:0:8}" >&2; continue; }
-            since=$(ready_since "$pr")
-            echo "${since:-$created} $pr"
+            since=$(signed_off_since "$pr") || exit 1
+            echo "$since $pr"
         done | sort > "$scratch/signed" || return 1
     still_refused
     [ ! -s "$scratch/hosted-prs" ] \
@@ -430,13 +409,7 @@ while [ ${#queue[@]} -gt 0 ]; do
     built=()
     for train in "${queue[@]}"; do
         build_train "$base" $train
-        # A PR dropped for a conflict with a waiting one gets another try, so the batch is rebuilt without them.
-        while [ -n "$stacked" ]; do
-            preflight
-            [ -n "$waits" ] || break
-            train=$(tr ' ' '\n' <<< "$train" | grep -vxF -f <(tr ' ' '\n' <<< "$waits") | paste -sd' ' - || true)
-            build_train "$base" $train
-        done
+        [ -z "$stacked" ] || preflight
         tell_drops
         [ "$stacked" = "$train" ] || status=1
         [ -n "$stacked" ] || continue

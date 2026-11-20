@@ -1,4 +1,5 @@
 // notchcast-addon-order: 95
+// notchcast-readme: Capture: screen recordings you trim before keeping them
 import SwiftUI
 
 /// Area, window and screen recordings with system audio, trimmed before they are kept.
