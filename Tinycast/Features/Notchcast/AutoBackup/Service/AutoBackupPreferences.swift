@@ -6,7 +6,7 @@ struct AutoBackupPreferences {
     static let switchID = "autoBackupSettings"
     private static let folderKey = "autoBackupSettings.folder"
     private static let keepKey = "autoBackupSettings.keep"
-    private static let scheduleKey = "autoBackupSettings.schedule"
+    static let scheduleKey = "autoBackupSettings.schedule"
 
     let defaults: UserDefaults
 

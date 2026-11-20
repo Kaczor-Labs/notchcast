@@ -43,7 +43,7 @@ final class TimersModule: NotchcastModule {
     func start() {
         guard !isRunning else { return }
         isRunning = true
-        let (running, missed) = store.resume(at: context.now())
+        let (running, missed) = store.resume(at: context.now(), calendar: environment.calendar())
         timers = running
         for timer in missed { ring(timer, missed: true) }
         refresh()
@@ -64,7 +64,8 @@ final class TimersModule: NotchcastModule {
 
     func start(_ text: String) {
         guard isRunning else { return }
-        switch TimerInput.parse(text, now: context.now(), calendar: environment.calendar()) {
+        let calendar = environment.calendar()
+        switch TimerInput.parse(text, now: context.now(), calendar: calendar) {
         case .failure(let error):
             let message = switch error {
             case .unreadable: String(localized: "Use 25, 1h30m, 90s or 07:30", table: "NotchcastTimers")
@@ -73,7 +74,8 @@ final class TimersModule: NotchcastModule {
             presenter.post(IslandNotice(id: "timers.input", symbol: "timer", text: message, isFailure: true),
                            onTap: nil)
         case .success(let request):
-            let timer = TimerEntry(id: UUID(), end: request.end, label: request.label, isAlarm: request.isAlarm)
+            let timer = TimerEntry(id: UUID(), end: request.end, label: request.label, isAlarm: request.isAlarm,
+                                   zone: request.isAlarm ? calendar.timeZone.identifier : nil)
             timers.append(timer)
             store.save(timers)
             presenter.post(IslandNotice(id: "timers.started", symbol: TimersText.symbol(timer),
@@ -101,12 +103,13 @@ final class TimersModule: NotchcastModule {
         tick = nil
         guard isRunning else { return }
         let now = context.now()
-        let (running, ended) = TimerEntry.split(timers, at: now)
+        let calendar = environment.calendar()
+        let followed = timers.map { $0.following(calendar) }
+        let (running, ended) = TimerEntry.split(followed, at: now)
+        let moved = followed != timers
         timers = running
-        if !ended.isEmpty {
-            store.save(timers)
-            for timer in ended { ring(timer, missed: false) }
-        }
+        if !ended.isEmpty || moved { store.save(timers) }
+        for timer in ended { ring(timer, missed: false) }
         updateMenu()
         guard let nearest = timers.first else {
             return presenter.setStatus(nil, for: Self.statusID, onTap: nil)

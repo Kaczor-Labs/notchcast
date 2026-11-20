@@ -19,6 +19,8 @@ final class AutoBackupModule: NotchcastModule {
 
     func start() {
         isRunning = true
+        let now = context.now()
+        preferences.update { $0.noteStart(at: now) }
         observe()
         arm()
     }
