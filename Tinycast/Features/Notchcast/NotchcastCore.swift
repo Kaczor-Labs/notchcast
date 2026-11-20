@@ -73,9 +73,6 @@ final class NotchcastCore {
             stockLauncherShown?()
             controller?.launcherShown()
         }
-        LauncherScreen.digitRow = { [weak controller] digit, query, entryRows in
-            controller?.launcherRow(digit: digit, query: query, entryRows: entryRows)
-        }
         launcherHides = NotchcastLauncherHides(
             visibility: core.visibility, preferences: controller.preferences, commandIDs: Set(commands.map(\.id)))
         trustMonitor = NotchcastTrustMonitor(hub: hub)
