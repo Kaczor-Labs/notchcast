@@ -33,6 +33,7 @@
 		03A3D04845734F13B025D68D /* IslandAccessibilityScenes.swift in Sources */ = {isa = PBXBuildFile; fileRef = D135129FC99653A88BAC8009 /* IslandAccessibilityScenes.swift */; };
 		03C41F6394089BAEC7E630D6 /* ClipboardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FBF6EF3A2C35F45B82D40968 /* ClipboardView.swift */; };
 		03E7778C519F9661D34076DC /* CalcText.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6EC577B20FF254C5D384F039 /* CalcText.swift */; };
+		04673195CA862314BEDDA670 /* DictationServerListener.swift in Sources */ = {isa = PBXBuildFile; fileRef = B7F8E2DCF41ABD41DC7A677F /* DictationServerListener.swift */; };
 		050B0F0221560063469074EF /* AppleShortcutCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 439D94674FA1F5020C3AA0E8 /* AppleShortcutCoordinator.swift */; };
 		0571AC43FE2787016116A48E /* ClaudeUsageAnswer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3D13E1AE265A9AB8D5F63B69 /* ClaudeUsageAnswer.swift */; };
 		058EFDE8E2770FAE8B5EC45D /* ModalActionButtonStyle.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5E62A0BA3E85C8942167A310 /* ModalActionButtonStyle.swift */; };
@@ -765,6 +766,7 @@
 		85734D451C5E8B4E9F1DB8A1 /* RoomGrid.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1F749283370AC9B506E6529 /* RoomGrid.swift */; };
 		859F66335C0DFE5C065258F6 /* SnippetSyncSource.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0551B847C6CF35515B36AB30 /* SnippetSyncSource.swift */; };
 		85B372E9A8F8D00D3A5FA260 /* HyperKey.swift in Sources */ = {isa = PBXBuildFile; fileRef = 95BFA41B0D7F369A8CF1E013 /* HyperKey.swift */; };
+		85C86D9E9E892FADDFD2C343 /* IslandTestDisplay.swift in Sources */ = {isa = PBXBuildFile; fileRef = E148C9FE9648FFDF9A023E05 /* IslandTestDisplay.swift */; };
 		85FF7D441BD782A29EDD95A8 /* TextTranslator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8D0371F4748011D45C185444 /* TextTranslator.swift */; };
 		867B82EDC8A12BBC51592786 /* Tooltip.swift in Sources */ = {isa = PBXBuildFile; fileRef = ADD4CE330F75BC5FE5EAD99E /* Tooltip.swift */; };
 		8696DC1B16B6618D22F804D5 /* AIChatState.swift in Sources */ = {isa = PBXBuildFile; fileRef = EAC662BDA6856590DCF96B94 /* AIChatState.swift */; };
@@ -1022,6 +1024,7 @@
 		B39142C7900A9A63144D6737 /* MediaLevelKeyPolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = FC7582ABD316FE607F8C7E8C /* MediaLevelKeyPolicy.swift */; };
 		B3A4B62B7BAD5BFAC60B6E13 /* IslandPageCards.swift in Sources */ = {isa = PBXBuildFile; fileRef = 55D89B9686159D727C530272 /* IslandPageCards.swift */; };
 		B40434D581183863A23D7E86 /* DictionaryCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = B7DE05BCC5E8CD91E8B0A26E /* DictionaryCoordinator.swift */; };
+		B4086BD0A39319FFD499A449 /* DictationServerClients.swift in Sources */ = {isa = PBXBuildFile; fileRef = 202F8F1BD76AC9330D649931 /* DictationServerClients.swift */; };
 		B47CBC25BC704D2D9489AD29 /* NotchcastAddon.swift in Sources */ = {isa = PBXBuildFile; fileRef = CFB37D725934B5B2FA2EA611 /* NotchcastAddon.swift */; };
 		B4E2653CA0AB8AED583F81F9 /* AgentsSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 61A317A58738F92D0324E92B /* AgentsSettingsView.swift */; };
 		B525C410AB77F08CCC801368 /* CloudSyncStateStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7F33CF9E73D1E928FF848541 /* CloudSyncStateStore.swift */; };
@@ -1089,6 +1092,7 @@
 		BFA8B1578664272E7CBFF806 /* ExtensionDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2B0D967615846F9C4EC3E44F /* ExtensionDetailView.swift */; };
 		BFB2370BF9C72434465D2C02 /* FinderToolsSystem+Live.swift in Sources */ = {isa = PBXBuildFile; fileRef = 99F1E9D45B359131756BEA1B /* FinderToolsSystem+Live.swift */; };
 		BFC17B1BD5D239E0CCD56DDF /* QuickActionFailure.swift in Sources */ = {isa = PBXBuildFile; fileRef = 53DBA322BA1F117530075F51 /* QuickActionFailure.swift */; };
+		BFCB8E32AD398F92A1B2616F /* notchcast.icon in Resources */ = {isa = PBXBuildFile; fileRef = 252CB5FF839AACA804149963 /* notchcast.icon */; };
 		BFD24D218C3CC151A9F85E94 /* ParakeetRecognizer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7C0D8112DC5513C8331D7DAF /* ParakeetRecognizer.swift */; };
 		BFFA3F1DA6CEF6C267648911 /* SyntaxHighlighter.swift in Sources */ = {isa = PBXBuildFile; fileRef = BCF9862B0BB24D73427B676C /* SyntaxHighlighter.swift */; };
 		C05022DE7B77920ECFB177EE /* LauncherItemsTable.swift in Sources */ = {isa = PBXBuildFile; fileRef = 934A79BF0F9B66225E5C38CE /* LauncherItemsTable.swift */; };
@@ -1673,6 +1677,7 @@
 		1F8AB48A3C8B78B04CBFF36B /* ExtensionMenuBarController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExtensionMenuBarController.swift; sourceTree = "<group>"; };
 		1FCA2C4013D8F8DA0E9392EA /* SystemToolsPicker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SystemToolsPicker.swift; sourceTree = "<group>"; };
 		201FCD08ACA933378876385B /* ClipboardStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClipboardStore.swift; sourceTree = "<group>"; };
+		202F8F1BD76AC9330D649931 /* DictationServerClients.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DictationServerClients.swift; sourceTree = "<group>"; };
 		2069789D62057E302322AFDB /* MeetingRowParts.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MeetingRowParts.swift; sourceTree = "<group>"; };
 		209D951FDD587A040F1F76F3 /* PaletteWindowController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PaletteWindowController.swift; sourceTree = "<group>"; };
 		21325C9F712F52ADCF51C42E /* AgentsLocator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentsLocator.swift; sourceTree = "<group>"; };
@@ -1690,6 +1695,7 @@
 		241B93FCA1A1406BB79C4DC9 /* NotchcastTap.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotchcastTap.swift; sourceTree = "<group>"; };
 		24386713685FB65FB46A5516 /* DictationAudioDucker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DictationAudioDucker.swift; sourceTree = "<group>"; };
 		2438C33DEAF16B26E4F195EB /* ExecutableLocator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExecutableLocator.swift; sourceTree = "<group>"; };
+		252CB5FF839AACA804149963 /* notchcast.icon */ = {isa = PBXFileReference; lastKnownFileType = wrapper.icon; path = notchcast.icon; sourceTree = "<group>"; };
 		25652C724ED8330A80DFEC7E /* SyncSourceID.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncSourceID.swift; sourceTree = "<group>"; };
 		2575583134BE03EA9FA719CD /* ActivationPolicy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActivationPolicy.swift; sourceTree = "<group>"; };
 		25EA21DCF61666DB736D5B82 /* RaycastQuicklinkImport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RaycastQuicklinkImport.swift; sourceTree = "<group>"; };
@@ -2563,6 +2569,7 @@
 		B7B6F7BCC02A370C22EA545D /* SyncSource.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncSource.swift; sourceTree = "<group>"; };
 		B7DE05BCC5E8CD91E8B0A26E /* DictionaryCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DictionaryCoordinator.swift; sourceTree = "<group>"; };
 		B7F46DBF8D46FE35742C4D36 /* DictionaryMarkup.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DictionaryMarkup.swift; sourceTree = "<group>"; };
+		B7F8E2DCF41ABD41DC7A677F /* DictationServerListener.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DictationServerListener.swift; sourceTree = "<group>"; };
 		B8173FF2A1054B05D5AC7065 /* MediaOutput.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MediaOutput.swift; sourceTree = "<group>"; };
 		B88A0A9B7B1759331AF9C509 /* CloudSyncCategoryList.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CloudSyncCategoryList.swift; sourceTree = "<group>"; };
 		B905AEEFA83FBE2B411E4657 /* AnnotationMark.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnnotationMark.swift; sourceTree = "<group>"; };
@@ -2789,6 +2796,7 @@
 		E0BE684A650197A714D6858A /* CameraPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CameraPanel.swift; sourceTree = "<group>"; };
 		E0CFDE06F3FFB4BEA29BB5A9 /* ExtensionSyncSource.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExtensionSyncSource.swift; sourceTree = "<group>"; };
 		E0D80FB6FCBEA7B4FC10EA9C /* NotchcastCopyPath.xcstrings */ = {isa = PBXFileReference; lastKnownFileType = text.json.xcstrings; path = NotchcastCopyPath.xcstrings; sourceTree = "<group>"; };
+		E148C9FE9648FFDF9A023E05 /* IslandTestDisplay.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IslandTestDisplay.swift; sourceTree = "<group>"; };
 		E150D59ECBCB4730206FA01F /* QuitProtectionAddon.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuitProtectionAddon.swift; sourceTree = "<group>"; };
 		E1FB153A0D53D42771F1CA99 /* WindowLayoutDisplay.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WindowLayoutDisplay.swift; sourceTree = "<group>"; };
 		E1FB75182A60F65BA1FB9BA8 /* NotificationToken.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationToken.swift; sourceTree = "<group>"; };
@@ -5669,6 +5677,7 @@
 		B05CE905C93FC3DAA9CCA0BE /* Model */ = {
 			isa = PBXGroup;
 			children = (
+				202F8F1BD76AC9330D649931 /* DictationServerClients.swift */,
 				3C8A1281DFED120E15E86EA8 /* DictationServerHTTP.swift */,
 				05747713B9329238351111C9 /* DictationServerQueue.swift */,
 				F4E285BEA9ECEF1222561B67 /* DictationServerUpload.swift */,
@@ -5726,6 +5735,7 @@
 				CACF5EC3FE229BE408F2449F /* Windows */,
 				C45190564C9D9F1722E83943 /* Assets.xcassets */,
 				4DA7B926405DAC632C056418 /* Info.plist */,
+				252CB5FF839AACA804149963 /* notchcast.icon */,
 				45D4BA6E1BD8EB1F96A8927F /* Tinycast.entitlements */,
 				6621A88681E993D49EEF07A3 /* tinycast.icon */,
 				1D08950D93473A469DD94704 /* TinycastCloud.entitlements */,
@@ -5866,6 +5876,7 @@
 				EBBB7E92F490AD4B651308C1 /* IslandPosition.swift */,
 				998895A07A571AE5ABA5A6EF /* IslandPresentation.swift */,
 				AF2143449E19CC0A2B9E7B00 /* IslandScreenSelection.swift */,
+				E148C9FE9648FFDF9A023E05 /* IslandTestDisplay.swift */,
 				41764F53F093ECF3E9A59593 /* PillMenuRows.swift */,
 				72D46DC4449D6A61CAC64AC8 /* VolumeLevel+Island.swift */,
 			);
@@ -6620,6 +6631,7 @@
 			isa = PBXGroup;
 			children = (
 				51E5C935B6A9D658093D5F39 /* DictationServer.swift */,
+				B7F8E2DCF41ABD41DC7A677F /* DictationServerListener.swift */,
 			);
 			path = Service;
 			sourceTree = "<group>";
@@ -6889,6 +6901,7 @@
 				0F4616F3E9AD191DC6746B31 /* NotchcastTimers.xcstrings in Resources */,
 				90179D639B4E27790FDA5A4B /* NotchcastURLCleaner.xcstrings in Resources */,
 				694B7E1A8C7C2D6DF26D3BF9 /* RaycastRuntime.generated.js in Resources */,
+				BFCB8E32AD398F92A1B2616F /* notchcast.icon in Resources */,
 				36784C964DB27B94A62EEAA3 /* tinycast.icon in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -7346,7 +7359,9 @@
 				E8B5311B9F93E1646D9B4B0B /* DictationModelStore.swift in Sources */,
 				16B744C774114CAEDC3BDDF1 /* DictationPanel.swift in Sources */,
 				5DE8DF3EEA1548D040B2C1CA /* DictationServer.swift in Sources */,
+				B4086BD0A39319FFD499A449 /* DictationServerClients.swift in Sources */,
 				3A059EB9C58BA637C9F52D53 /* DictationServerHTTP.swift in Sources */,
+				04673195CA862314BEDDA670 /* DictationServerListener.swift in Sources */,
 				335FF6A83FB8C3774584664A /* DictationServerQueue.swift in Sources */,
 				C7125621664CDCDE09D052D5 /* DictationServerUpload.swift in Sources */,
 				4963DF703487FA79850C2DF3 /* DictationSettingsView.swift in Sources */,
@@ -7673,6 +7688,7 @@
 				B8B1E01E54FD1C6CFC9A7F60 /* IslandScenes.swift in Sources */,
 				A982CF7F12FA1619DA103D85 /* IslandScreenSelection.swift in Sources */,
 				DA186C991B43A44DEA20E862 /* IslandSurface+Expand.swift in Sources */,
+				85C86D9E9E892FADDFD2C343 /* IslandTestDisplay.swift in Sources */,
 				A731A2DD9DFBB0B43FA104F6 /* IslandUpdateActivity.swift in Sources */,
 				FF4547D81506C054D51B0C0A /* IslandUpdateScenes.swift in Sources */,
 				3FE6D96C5155016A05B748F8 /* IslandVerification.swift in Sources */,
@@ -8387,7 +8403,7 @@
 			isa = XCBuildConfiguration;
 			baseConfigurationReference = 816B7042740F0446E4EF3FD7 /* Tinycast.xcconfig */;
 			buildSettings = {
-				ASSETCATALOG_COMPILER_APPICON_NAME = tinycast;
+				ASSETCATALOG_COMPILER_APPICON_NAME = notchcast;
 				CODE_SIGN_ENTITLEMENTS = "$(TINYCAST_ENTITLEMENTS)";
 				COMBINE_HIDPI_IMAGES = YES;
 				FRAMEWORK_SEARCH_PATHS = (
@@ -8454,7 +8470,7 @@
 		58A6CE2BBFD809933397AE23 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				ASSETCATALOG_COMPILER_APPICON_NAME = tinycast;
+				ASSETCATALOG_COMPILER_APPICON_NAME = notchcast;
 				CODE_SIGN_ENTITLEMENTS = "$(TINYCAST_ENTITLEMENTS)";
 				COMBINE_HIDPI_IMAGES = YES;
 				FRAMEWORK_SEARCH_PATHS = (

@@ -1,4 +1,5 @@
 // notchcast-addon-order: 220
+// notchcast-readme: Launcher Extras: countdowns and alarms that tick in the island
 import Foundation
 
 /// Countdowns and alarms that tick in the island and ring there when they end.

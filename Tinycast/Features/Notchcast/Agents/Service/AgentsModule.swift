@@ -145,7 +145,8 @@ final class AgentsModule: NotchcastModule {
 
     func post() {
         let board = AgentBoard(home: system.home, machineName: machineName, local: locals, feed: feed, now: system.now())
-        context.presenter.setPage(AgentPage.page(board), id: AgentPage.id) { [weak self] action in
+        let firstRead = preferences.sources(home: system.home).contains { attempts[$0.name] == nil }
+        context.presenter.setPage(AgentPage.page(board, firstRead: firstRead), id: AgentPage.id) { [weak self] action in
             if action == IslandPage.refreshAction { self?.refresh() }
         }
     }

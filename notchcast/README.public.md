@@ -39,6 +39,7 @@ The in-app updater stays off in Notchcast. To keep a Mac current, clone this rep
 - **Settings › Notchcast.** One tab per area, each add-on with its own switch; an add-on's tab shows only while that add-on is in the build.
   <!-- addon-tabs:start -->
   - **Island**: look, outline when open, open on hover, position on displays without a notch, show in screenshots and videos.
+  - **Agents**:
   - **Keyboard & Mouse**:
   - **Display & Sound**:
   - **Capture**:
