@@ -1,7 +1,7 @@
 // notchcast-addon-order: 80
 // notchcast-readme: Downloads: video, audio, transcripts and webpages from clipboard links,
 // notchcast-readme: Downloads: with optional aria2c and transcription into a local folder;
-// notchcast-readme: Downloads: big downloads and torrents can use Wi-Fi and a USB-tethered iPhone together;
+// notchcast-readme: Downloads: downloads and torrents can use Wi-Fi and a USB-tethered iPhone together;
 // notchcast-readme: Downloads: optionally a copy of each note in a Markdown folder you choose,
 // notchcast-readme: Downloads: where PDF, HTML, audio and video files added while the option is on become notes and their originals go to the Trash
 // notchcast-new-switch-ids: downloadsUseIPhone
@@ -23,13 +23,6 @@ enum DownloadsAddon: NotchcastAddon {
             subtitle: String(
                 localized: "Use aria2c for faster media downloads when it is installed.", table: "NotchcastDownloads"),
             category: .filesDownloads, dependencies: ["downloads"]),
-        NotchcastSwitch(
-            id: "downloadsUseIPhone",
-            title: String(localized: "Use Wi-Fi and a plugged-in iPhone together", table: "NotchcastDownloads"),
-            subtitle: String(
-                localized: "Downloads over 200 MB use both while the iPhone shares Personal Hotspot over USB.",
-                table: "NotchcastDownloads"),
-            category: .filesDownloads, dependencies: ["downloadsAria2"]),
         NotchcastSwitch(
             id: "distill",
             title: String(localized: "Distill", table: "NotchcastDownloads"),
@@ -57,12 +50,15 @@ enum DownloadsAddon: NotchcastAddon {
                 table: "NotchcastDownloads"),
             category: .filesDownloads, dependencies: ["torrents"]),
         NotchcastSwitch(
-            id: "torrentsUseIPhone",
+            id: DownloadsModule.bondingSwitchID,
             title: String(localized: "Use Wi-Fi and a plugged-in iPhone together", table: "NotchcastDownloads"),
-            subtitle: String(
-                localized: "Every torrent uses both while the iPhone shares Personal Hotspot over USB.",
-                table: "NotchcastDownloads"),
-            category: .filesDownloads, dependencies: ["torrents"]),
+            subtitle: [
+                String(
+                    localized: "Torrents and Fast Downloads use both while the iPhone shares Personal Hotspot over USB.",
+                    table: "NotchcastDownloads"),
+                String(localized: "This uses mobile data.", table: "NotchcastDownloads"),
+            ].joined(separator: " "),
+            category: .filesDownloads),
     ]
 
     static let commands = DownloadsModule.Action.allCases.map { action in

@@ -95,14 +95,14 @@ struct DownloadsModuleTest {
     private static func shape() {
         let switches = DownloadsAddon.switches
         expect(switches.map(\.id) == [
-            "downloads", "downloadsAria2", "downloadsUseIPhone", "distill", "distillTimestamps", "torrents",
-            "torrentsKeepSharing", "torrentsUseIPhone",
-        ], "v1 raw ids stay")
+            "downloads", "downloadsAria2", "distill", "distillTimestamps", "torrents", "torrentsKeepSharing",
+            "downloadsUseIPhone",
+        ], "v1 raw ids stay; #1183: one iPhone switch, last")
         expect(switches.allSatisfy { !$0.defaultEnabled && $0.category == .filesDownloads && $0.requiredGrants.isEmpty },
                "every switch starts off in Files & Downloads")
         expect(switches.map(\.dependencies) == [
-            [], ["downloads"], ["downloadsAria2"], [], ["distill"], [], ["torrents"], ["torrents"],
-        ], "aria2 needs Downloads, Timestamps needs Distill, keep-sharing needs Torrents, bonding its own engine")
+            [], ["downloads"], [], ["distill"], [], ["torrents"], [],
+        ], "aria2 needs Downloads, Timestamps needs Distill, keep-sharing needs Torrents, bonding serves either")
         expect(DownloadsAddon.commands.map(\.slug) == [
             "download-video", "download-audio", "download-youtube-transcript", "save-webpage-as-markdown",
             "add-links-to-distill", "run-distill", "download-torrent-from-clipboard", "open-torrent-file",
@@ -239,11 +239,27 @@ struct DownloadsModuleTest {
         expect(context.openURL == nil, "the hook goes with the module")
     }
 
-    /// #925: the option hands aria2c both interfaces, and the iPhone mark lasts only while both stay up.
+    /// #925, #1183: one option bonds torrents and videos alike; the mark lasts while both stay up.
     private static func bonding(_ root: URL) async throws {
         let suite = "nc-downloads-bonding-test.\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suite)!
         defer { defaults.removePersistentDomain(forName: suite) }
+        defaults.set(true, forKey: "torrentsUseIPhone")
+        let bin = root.appending(path: "bonding/bin", directoryHint: .isDirectory)
+        try FileManager.default.createDirectory(at: bin, withIntermediateDirectories: true)
+        try """
+        #!/bin/sh
+        args="$*"
+        while [ "$#" -gt 0 ]; do [ "$1" = --paths ] && dest="$2"; shift; done
+        echo "$args" > "$dest/arguments"
+        touch "$dest/clip.mp4"
+        printf 'MEDIA_FILE "%s/clip.mp4"\\n' "$dest"
+        """.write(to: bin.appending(path: "yt-dlp"), atomically: true, encoding: .utf8)
+        try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: bin.appending(path: "yt-dlp").path)
+        for tool in ["ffmpeg", "aria2c"] {
+            try FileManager.default.createSymbolicLink(at: bin.appending(path: tool),
+                                                       withDestinationURL: bin.appending(path: "yt-dlp"))
+        }
         let fakes = Fakes()
         let downloads = root.appending(path: "bonding/Downloads", directoryHint: .isDirectory)
         var engine = TorrentManager.Environment(downloads: downloads)
@@ -254,7 +270,7 @@ struct DownloadsModuleTest {
         engine.sleep = { _ in throw CancellationError() }
         let environment = DownloadsModule.Environment(
             downloads: downloads, queues: root.appending(path: "bonding/queues", directoryHint: .isDirectory),
-            tools: DownloadToolLookup(directories: [root.appending(path: "bin")], home: root),
+            tools: DownloadToolLookup(directories: [bin], home: root),
             clipboard: { fakes.clipboard }, torrents: engine, interfaces: { fakes.interfaces })
         let hub = NotchcastTapHub(syntheticTag: 0, isTrusted: { false }) { _ in
             preconditionFailure("the harness never installs a tap")
@@ -277,12 +293,12 @@ struct DownloadsModuleTest {
 
         expect(context.openURL?(magnet) == true, "a magnet starts a torrent")
         try await eventually { module.torrents.jobs.first?.gid != nil }
-        expect(fakes.sessions == [[]], "option off: aria2c starts as it always did")
+        expect(fakes.sessions == [[]], "option off, an old torrentsUseIPhone on: aria2c starts as it always did")
         try await eventually { presenter.log.last == "post torrents.progress Big · Finding peers" }
         module.torrents.cancelAll()
         await module.torrents.stopping?.value
 
-        preferences.set("torrentsUseIPhone", on: true)
+        preferences.set("downloadsUseIPhone", on: true)
         expect(context.openURL?(magnet) == true, "a second torrent, with the option on")
         try await eventually { fakes.sessions.count == 2 && module.torrents.jobs.last?.state.isActive == true }
         try await eventually { module.torrents.jobs.last?.gid != nil }
@@ -294,6 +310,25 @@ struct DownloadsModuleTest {
         await module.torrents.poll()
         try await eventually { presenter.log.last == "post torrents.progress Big · 10%" }
         expect(module.torrents.jobs.last?.state == .downloading, "unplugged: the mark goes, the download carries on")
+
+        fakes.interfaces = [
+            BondingInterface(bsdName: "en0", isWiFi: true, port: "Wi-Fi", ipv4: ["192.168.1.5"]),
+            BondingInterface(bsdName: "en7", isWiFi: false, port: "iPhone USB", ipv4: ["172.20.10.2"]),
+        ]
+        preferences.set("downloads", on: true)
+        preferences.set("downloadsAria2", on: true)
+        try await eventually { module.downloads.queue != nil }
+        let arguments = downloads.appending(path: "arguments")
+        for on in [true, false] {
+            preferences.set("downloadsUseIPhone", on: on)
+            try? FileManager.default.removeItem(at: arguments)
+            fakes.clipboard = "https://example.com/clip"
+            DownloadsAddon.commands.first { $0.slug == "download-video" }!.run(context)
+            try await eventually { FileManager.default.fileExists(atPath: arguments.path) }
+            let line = try String(contentsOf: arguments, encoding: .utf8)
+            expect(line.contains("--multiple-interface=en0,en7") == on,
+                   "the same switch \(on ? "bonds" : "leaves alone") a video download of any size")
+        }
 
         module.stop()
         context.detach()

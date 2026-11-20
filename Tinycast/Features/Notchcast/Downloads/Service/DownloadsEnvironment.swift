@@ -11,7 +11,6 @@ extension DownloadsModule.Environment {
             tools: tools,
             clipboard: { NSPasteboard.general.string(forType: .string) ?? "" },
             torrents: .live(downloads: downloads, tools: tools),
-            interfaces: BondingInterfaceScanner.scan,
-            remoteBytes: { await DownloadSizeProbe.bytes(of: $0) })
+            interfaces: BondingInterfaceScanner.scan)
     }
 }
