@@ -6,6 +6,22 @@ struct TimerEntry: Codable, Equatable, Sendable, Identifiable {
     var end: Date
     var label: String
     var isAlarm: Bool
+    /// The time zone an alarm's clock time was read in; a timer has none.
+    var zone: String?
+
+    /// An alarm keeps its clock time when the time zone changes, like the system Clock.
+    func following(_ calendar: Calendar) -> TimerEntry {
+        guard isAlarm, let zone, zone != calendar.timeZone.identifier, let setIn = TimeZone(identifier: zone)
+        else { return self }
+        var old = calendar
+        old.timeZone = setIn
+        let wall = old.dateComponents([.year, .month, .day, .hour, .minute, .second], from: end)
+        guard let moved = calendar.date(from: wall) else { return self }
+        var entry = self
+        entry.end = moved
+        entry.zone = calendar.timeZone.identifier
+        return entry
+    }
 
     /// Still running, soonest first, and the ones whose end has come.
     static func split(_ timers: [TimerEntry], at now: Date) -> (running: [TimerEntry], ended: [TimerEntry]) {
@@ -33,9 +49,11 @@ struct TimerStore {
     }
 
     /// Ended while nothing ran: removed here, so each is reported once.
-    func resume(at now: Date) -> (running: [TimerEntry], missed: [TimerEntry]) {
-        let (running, ended) = TimerEntry.split(load(), at: now)
-        if !ended.isEmpty { save(running) }
+    func resume(at now: Date, calendar: Calendar) -> (running: [TimerEntry], missed: [TimerEntry]) {
+        let loaded = load()
+        let followed = loaded.map { $0.following(calendar) }
+        let (running, ended) = TimerEntry.split(followed, at: now)
+        if !ended.isEmpty || followed != loaded { save(running) }
         return (running, ended)
     }
 }
