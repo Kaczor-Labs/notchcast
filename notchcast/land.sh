@@ -403,6 +403,8 @@ run_harnesses() {
     done
     [ "$status" -eq 0 ] || [ -n "$failed" ] || refuse 'the harness run failed without naming a harness'
 }
+# Exit 3: no isolated run of these heads can change the verdict, so train.sh --queue trains them hosted next.
+refuse_for_good() { echo "REFUSED: $*" >&2; exit 3; }
 # Sets proof, and left to the selected harnesses it excused, from the isolated runner's build of this tree if there
 # is one. Refuses a toolchain other than ISOLATED_TOOLCHAIN, and an excused harness that only a hosted run proves.
 isolated_proof() {
@@ -411,11 +413,11 @@ isolated_proof() {
     [ -n "$found" ] || return 0
     { read -r url; read -r stamp; read -r excused || true; } <<< "$found"
     [ "$stamp" = "$ISOLATED_TOOLCHAIN" ] \
-        || refuse "the isolated run $url tested this tree with '$stamp', and landing expects '$ISOLATED_TOOLCHAIN' (ISOLATED_TOOLCHAIN, notchcast/config.env): land on a hosted train (NOTCHCAST_TRAIN_MAC=hosted notchcast/train.sh ${train[*]})"
+        || refuse_for_good "the isolated run $url tested this tree with '$stamp', and landing expects '$ISOLATED_TOOLCHAIN' (ISOLATED_TOOLCHAIN, notchcast/config.env): land on a hosted train (NOTCHCAST_TRAIN_MAC=hosted notchcast/train.sh ${train[*]})"
     left=$(grep -xF -f <(tr ' ' '\n' <<< "$excused") "$scratch/selected" || true)
     need=$(grep -xF -f <(tr ' ' '\n' <<< "$HOSTED_ONLY_TESTS") <<< "$left" | grep -vxF -f <(tr ' ' '\n' <<< "$CI_SKIP_TESTS") | paste -sd' ' - || true)
     [ -z "$need" ] \
-        || refuse "the isolated run $url did not prove $need (red there and on upstream), and only a hosted run can: NOTCHCAST_TRAIN_MAC=hosted notchcast/train.sh ${train[*]}"
+        || refuse_for_good "the isolated run $url did not prove $need (red there and on upstream), and only a hosted run can: NOTCHCAST_TRAIN_MAC=hosted notchcast/train.sh ${train[*]}"
     proof=$url
     isolated=1
 }
