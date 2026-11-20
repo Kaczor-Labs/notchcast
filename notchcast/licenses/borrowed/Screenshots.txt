@@ -17,4 +17,4 @@ Screenshots: UI/CaptureEditorToolbar.swift ← vorssaint/vorssaint-utils@89d2626
 Screenshots: UI/CaptureEditorExport.swift ← vorssaint/vorssaint-utils@89d2626/Sources/Vorssaint/Services/QuickTools/ScreenshotService.swift (GPL-3.0-or-later)
 Screenshots: Model/AnnotationKeyAction.swift ← vorssaint/vorssaint-utils@faada18d/Sources/Vorssaint/Services/QuickTools/ScreenshotEditorController.swift (GPL-3.0-or-later)
 Screenshots: Model/AnnotationKeyAction.swift ← vorssaint/vorssaint-utils@faada18d/Sources/Vorssaint/Services/QuickTools/ScreenshotSupport.swift (GPL-3.0-or-later)
-Screenshots: Model/AnnotationDocument.swift ← vorssaint/vorssaint-utils@faada18d/Sources/Vorssaint/Services/QuickTools/ScreenshotEditorController.swift (GPL-3.0-or-later)
+Screenshots: Model/AnnotationDocument+Dirty.swift ← vorssaint/vorssaint-utils@faada18d/Sources/Vorssaint/Services/QuickTools/ScreenshotEditorController.swift (GPL-3.0-or-later)
