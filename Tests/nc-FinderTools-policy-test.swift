@@ -27,9 +27,9 @@ func policy() -> Policy {
 extension Policy {
     mutating func down(
         _ code: UInt16, _ modifiers: Modifiers = .command, repeat isRepeat: Bool = false,
-        synthetic: Bool = false, tap: Tap = .cutPaste
+        synthetic: Bool = false
     ) -> Verdict {
-        keyDown(code, modifiers, isRepeat: isRepeat, isSynthetic: synthetic, tap: tap)
+        keyDown(code, modifiers, isRepeat: isRepeat, isSynthetic: synthetic)
     }
 
     /// Resolves every queued request in order against one focus and clipboard version.
@@ -43,15 +43,15 @@ func scenarios() {
 do {
     var p = policy()
     check("⌘X in Finder is swallowed", p.down(x) == .swallow)
-    check("its key-up is swallowed too", p.keyUp(x, tap: .cutPaste) == .swallow)
+    check("its key-up is swallowed too", p.keyUp(x) == .swallow)
     check("cut becomes Finder's ⌘C", p.settle(.fileList, changeCount: 10) == [.copy])
     check("a pending cut remains", p.hasPendingCut)
     check("⌘V with a pending cut is swallowed", p.down(v) == .swallow)
-    check("its key-up is swallowed", p.keyUp(v, tap: .cutPaste) == .swallow)
+    check("its key-up is swallowed", p.keyUp(v) == .swallow)
     check("unchanged clipboard version moves", p.settle(.fileList, changeCount: 11) == [.move])
     check("the cut is used up", !p.hasPendingCut)
     check("a second ⌘V is plain paste", p.down(v) == .pass)
-    check("its key-up passes", p.keyUp(v, tap: .cutPaste) == .pass)
+    check("its key-up passes", p.keyUp(v) == .pass)
 }
 
 // Any clipboard change since the cut makes ⌘V a normal paste.
@@ -90,7 +90,7 @@ do {
 do {
     var p = policy()
     _ = p.down(x)
-    _ = p.keyUp(x, tap: .cutPaste)
+    _ = p.keyUp(x)
     check("⌘V during the cut's focus check is swallowed", p.down(v) == .swallow)
     let requests = p.takeRequests()
     check("both are queued in order", requests.map(\.action) == [.cut, .paste])
@@ -102,13 +102,13 @@ do {
     _ = p.down(x)
     check("cut in a text field replays ⌘X", p.settle(.text, changeCount: 10) == [.replay])
     check("no cut from a text field", !p.hasPendingCut)
-    _ = p.keyUp(x, tap: .cutPaste)
+    _ = p.keyUp(x)
     _ = p.down(x)
     _ = p.settle(.fileList, changeCount: 10)
     _ = p.down(v)
     check("paste in a text field replays ⌘V", p.settle(.text, changeCount: 11) == [.replay])
     check("the cut survives text editing", p.hasPendingCut)
-    _ = p.keyUp(v, tap: .cutPaste)
+    _ = p.keyUp(v)
     _ = p.down(v)
     check("paste in a dialog replays ⌘V", p.settle(.blocked, changeCount: 11) == [.replay])
     check("and drops the cut", !p.hasPendingCut)
@@ -120,13 +120,13 @@ do {
     check("⌘X with nothing selected is still swallowed", p.down(x) == .swallow)
     check("and goes back to Finder as ⌘X", p.settle(.emptyFileList, changeCount: 10) == [.replay])
     check("nothing is armed", !p.hasPendingCut)
-    _ = p.keyUp(x, tap: .cutPaste)
+    _ = p.keyUp(x)
     check("⌘V after a later copy is a plain paste", p.down(v) == .pass)
     check("the cut command with nothing selected queues", p.command(.cut))
     check("and sends ⌘X on unarmed", p.settle(.emptyFileList, changeCount: 11) == [.replay] && !p.hasPendingCut)
     _ = p.down(x)
     _ = p.settle(.fileList, changeCount: 20)
-    _ = p.keyUp(x, tap: .cutPaste)
+    _ = p.keyUp(x)
     _ = p.down(v)
     check("a real cut still moves into a window with nothing selected",
           p.settle(.emptyFileList, changeCount: 21) == [.move])
@@ -146,7 +146,6 @@ do {
 do {
     var p = Policy()
     check("⌘X outside Finder passes", p.down(x) == .pass)
-    check("⌃⌥⇧⌘R outside Finder passes", p.down(r, .hyper, tap: .rename) == .pass)
     p.finderPID = finder
     check("a synthetic ⌘X passes", p.down(x, synthetic: true) == .pass)
     check("a fresh auto-repeat passes", p.down(x, repeat: true) == .pass)
@@ -157,17 +156,14 @@ do {
     check("and queues nothing more", p.takeRequests().count == 1)
 }
 
-// Hyper-R sends Return from the file list, the chord itself from a text field.
+// Rename has no key of its own: ⌃⌥⇧⌘R passes, and only the command presses Return.
 do {
     var p = policy()
-    check("⌘R is not rename", p.down(r, tap: .rename) == .pass)
-    check("⌃⌥⇧⌘R in Finder is swallowed", p.down(r, .hyper, tap: .rename) == .swallow)
-    check("rename sends Return", p.settle(.fileList, changeCount: 0) == [.pressReturn])
-    check("rename's key-up belongs to the rename tap", p.keyUp(r, tap: .cutPaste) == .pass)
-    check("and is swallowed there", p.keyUp(r, tap: .rename) == .swallow)
-    _ = p.down(r, .hyper, tap: .rename)
-    check("rename in a text field replays the chord", p.settle(.text, changeCount: 0) == [.replay])
-    check("the rename tap never handles ⌘X", p.down(x, tap: .rename) == .pass)
+    check("⌃⌥⇧⌘R in Finder passes", p.down(r, [.command, .shift, .option, .control]) == .pass)
+    check("⌘R is not rename", p.down(r) == .pass)
+    check("no key queued a rename", !p.hasRequests)
+    check("the rename command sends Return", p.command(.rename) && p.settle(.fileList, changeCount: 0) == [.pressReturn])
+    check("in a text field it sends nothing", p.command(.rename) && p.settle(.text, changeCount: 0) == [.drop])
 }
 
 // A tap reset drops the cut and the swallowed key-ups.
@@ -177,7 +173,7 @@ do {
     _ = p.settle(.fileList, changeCount: 1)
     p.reset()
     check("reset forgets the cut", !p.hasPendingCut)
-    check("reset forgets swallowed keys", p.keyUp(x, tap: .cutPaste) == .pass)
+    check("reset forgets swallowed keys", p.keyUp(x) == .pass)
 }
 
 // Commands act like their keys; a command has no key to replay.

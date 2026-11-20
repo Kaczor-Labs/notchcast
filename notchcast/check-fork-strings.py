@@ -13,6 +13,25 @@ ADDONS = ROOT / 'Tinycast/Features/Notchcast'
 LOCALIZING = re.compile(r'(?:String\(\s*localized:|LocalizedStringResource\(|\b(?:Text|TextField|SecureField'
                         r'|Section|Button|Toggle|Picker|LabeledContent|SettingsRow)\(|\.(?:help|navigationTitle'
                         r'|accessibility(?:Label|Hint|Value))\(|(?:title|subtitle|prompt):)\s*$')
+CHORD = re.compile(r'[⌃⌥⇧⌘]+[^\s⌃⌥⇧⌘.,;:()]|\bHyper\b')
+SYSTEM_KEYS = re.compile(r'^// notchcast-system-keys:(.*)$', re.M)
+
+
+def undeclared_chords(catalogs):
+    """`catalogs` maps a catalog's path to its keys; a chord passes only if its folder declares it."""
+    errors = []
+    for path, keys in catalogs.items():
+        declared = set()
+        if path.name != 'Notchcast.xcstrings':
+            for source in path.parent.rglob('*.swift'):
+                for line in SYSTEM_KEYS.findall(source.read_text()):
+                    declared.update(line.split())
+        for key in keys:
+            for chord in sorted(set(CHORD.findall(key)) - declared):
+                errors.append(f'{path.name}: "{key}" names {chord}. A command\'s shortcut is the user\'s and '
+                              'its field shows it, so leave it out of the text; a fixed key the feature itself '
+                              f'handles is declared in its add-on folder as `// notchcast-system-keys: {chord}`')
+    return errors
 
 
 def check():
@@ -42,6 +61,8 @@ def check():
                 errors.append(f'{key}: non-English localizations {sorted(extra)}')
     tables = {path.stem: json.loads(path.read_bytes())['strings']
               for path in (ROOT / 'Tinycast').rglob('Notchcast?*.xcstrings')}
+    errors += undeclared_chords({fork_path: fork} | {
+        path: tables[path.stem] for path in (ROOT / 'Tinycast').rglob('Notchcast?*.xcstrings')})
     for path in (ROOT / 'Tinycast').rglob('*.swift'):
         source = path.read_text()
         addon = ADDONS in path.parents
