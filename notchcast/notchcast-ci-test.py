@@ -9,9 +9,11 @@ from pathlib import Path
 import subprocess
 import sys
 import tempfile
+import time
 import unittest
 
 CI = Path(__file__).resolve().parent / "notchcast-ci.py"
+RUN_QUERY = "query($id: ID!) { node(id: $id) { ... on WorkflowRun { checkSuite { status conclusion commit { oid } } } } }"
 URL = "https://github.com/kaczordodgers/notchcast/actions/runs/777"
 FAKE_GH = '''#!/usr/bin/env python3
 import json, os, sys
@@ -29,13 +31,20 @@ def count(name):
     if n < sc.get("limited", {}).get(name, 0):
         sys.exit("gh: API rate limit exceeded for user ID 1 (HTTP 403)")
     return n - sc.get("limited", {}).get(name, 0)
-if args[:2] == ["api", "rate_limit"] and args[-1].endswith(".remaining"):
-    left = sc.get("remaining", [5000])
-    n = int((d / "budget").read_text()) if (d / "budget").exists() else 0
-    (d / "budget").write_text(str(n + 1))
-    print(left[min(n, len(left) - 1)])
-elif args[:2] == ["api", "rate_limit"]:
-    print(0)  # a reset long past: no wait, whatever the real clock says
+if args[:2] == ["api", "rate_limit"]:
+    bucket = args[-1].split()[0].split(".")[-1]
+    left = sc.get("remaining" if bucket == "core" else bucket + "_remaining", [5000])
+    n = int((d / bucket).read_text()) if (d / bucket).exists() else 0
+    (d / bucket).write_text(str(n + 1))
+    print(left[min(n, len(left) - 1)], sc.get("reset", 0))  # 0: a reset long past, whatever the real clock says
+elif args[:2] == ["api", "graphql"]:
+    if sc.get("graphql") == "down":
+        sys.exit("gh: HTTP 502")
+    views = sc["view"] if isinstance(sc["view"], list) else [sc["view"]]
+    v = views[min(count("view"), len(views) - 1)]
+    suite = {"status": v["status"].upper(), "conclusion": (v["conclusion"] or "").upper() or None,
+             "commit": {"oid": v["headSha"]}}
+    print(json.dumps({"data": {"node": {"checkSuite": suite}}}))
 elif args[0] == "api":
     path = next(a for a in args if a.startswith("repos/"))
     if "/runs?" in path:
@@ -47,8 +56,8 @@ elif args[0] == "api":
         print(json.dumps({"total_count": len(runs), "workflow_runs": runs}))
     elif "/dispatches" in path:
         print(json.dumps(sc["dispatch"]) if sc["dispatch"] is not None else "")
-    elif "/actions/runs/" in path and args[-2:] == ["--jq", ".path"]:
-        print(sc.get("run_path", ".github/workflows/main-harnesses.yml"))
+    elif "/actions/runs/" in path and args[-2:] == ["--jq", "{path, node_id}"]:
+        print(json.dumps({"path": sc.get("run_path", ".github/workflows/main-harnesses.yml"), "node_id": "WFR_777"}))
     else:
         sys.exit("unexpected " + path)
 elif args[:2] == ["run", "view"]:
@@ -162,7 +171,7 @@ class CiTests(unittest.TestCase):
         return [json.loads(line) for line in path.read_text().splitlines()] if path.exists() else []
 
     def views(self):
-        return [c for c in self.calls() if c[:2] == ["run", "view"] and "--json" in c]
+        return [c for c in self.calls() if c[:2] == ["api", "graphql"] or c[:2] == ["run", "view"] and "--json" in c]
 
     def passed(self, url=URL, sha=None):
         return f"PASS {url} at {(sha or self.head)[:12]} harnesses: notchcast-core-test, nc-Clock-model-test"
@@ -208,8 +217,7 @@ class CiTests(unittest.TestCase):
         dispatch = next(c for c in calls if "-X" in c)
         self.assertIn("repos/kaczordodgers/notchcast/actions/workflows/main-harnesses.yml/dispatches", dispatch)
         self.assertIn("ref=feat", dispatch)
-        self.assertEqual(self.views(), [["run", "view", "777", "-R", "kaczordodgers/notchcast", "--json",
-                                  "status,conclusion,headSha"]])
+        self.assertEqual(self.views(), [["api", "graphql", "-f", f"query={RUN_QUERY}", "-f", "id=WFR_777"]])
         self.assertFalse([c for c in calls if c[:2] == ["run", "watch"]])
         self.assertFalse([c for c in calls if c[:2] == ["run", "list"]])
 
@@ -223,27 +231,25 @@ class CiTests(unittest.TestCase):
 
     def test_rate_limit_waits_for_the_reset_then_carries_on(self):
         self.scenario(limited={"poll": 2, "view": 1})
-        result = self.ci()
+        result = self.ci("--max-wait", "1000")
         self.assertEqual(result.returncode, 0, result.stderr)
         waits = [line for line in result.stdout.splitlines() if "rate limit" in line]
         self.assertEqual(len(waits), 3)
         for line in waits:
             self.assertRegex(line, r"^notchcast-ci: GitHub API rate limit; waiting until \d\d:\d\d UTC$")
-        calls = self.calls()
-        self.assertEqual(len([c for c in calls if c[-1] == ".resources.core.reset"]), 3)
         self.assertEqual(len(self.views()), 2)
         self.assertTrue(result.stdout.splitlines()[-1].startswith(f"PASS {URL} "))
 
     def test_a_low_api_budget_waits_for_the_reset_before_dispatching(self):
         self.scenario(remaining=[120, 499, 4800])
-        result = self.ci()
+        result = self.ci("--max-wait", "1000")
         self.assertEqual(result.returncode, 0, result.stderr)
         waits = [line for line in result.stdout.splitlines() if "API calls left" in line]
         self.assertEqual(len(waits), 2)
         self.assertRegex(waits[0], r"^notchcast-ci: 120 API calls left \(<500\); waiting until \d\d:\d\d UTC$")
         self.assertTrue(waits[1].startswith("notchcast-ci: 499 API calls left (<500); waiting until "))
         calls = self.calls()
-        budget = [i for i, c in enumerate(calls) if c[-1] == ".resources.core.remaining"]
+        budget = [i for i, c in enumerate(calls) if c[:2] == ["api", "rate_limit"] and ".core " in c[-1]]
         self.assertEqual(len(budget), 3)
         self.assertLess(budget[-1], next(i for i, c in enumerate(calls) if "-X" in c))
         self.assertTrue(result.stdout.splitlines()[-1].startswith(f"PASS {URL} "))
@@ -262,6 +268,42 @@ class CiTests(unittest.TestCase):
         result = self.ci()
         self.assertEqual(result.returncode, 1)
         self.assertTrue(result.stdout.splitlines()[-1].endswith("; skipped: nc-Clock-model-test, KeychainTests"))
+
+    def paced(self, **scenario):
+        """The waits the run announced, from a poll pace of 60 s, in seconds."""
+        for counter in ("view", "graphql"):
+            (self.fake / counter).unlink(missing_ok=True)
+        self.scenario(view=[self.view(None, status="in_progress"), self.view("success")], **scenario)
+        result = self.ci("--max-wait", "5000", NOTCHCAST_CI_POLL="60")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertTrue(result.stdout.splitlines()[-1].startswith(f"PASS {URL} "))
+        return [int(line.rsplit(" ", 2)[1]) for line in result.stdout.splitlines() if "next poll in" in line]
+
+    def test_polls_read_the_run_over_graphql_and_stretch_under_the_reserve(self):
+        self.assertEqual(self.paced(graphql_remaining=[4000]), [])
+        self.assertFalse([c for c in self.calls() if c[:2] == ["run", "view"] and "--json" in c])
+        (self.fake / "calls.log").unlink()
+        waits = self.paced(graphql_remaining=[300], reset=int(time.time()) + 3600)
+        self.assertEqual(len(waits), 1)
+        self.assertTrue(300 <= waits[0] <= 375, waits)
+
+    def test_a_budget_too_small_for_the_stretch_waits_to_the_reset_with_jitter(self):
+        waits = self.paced(graphql_remaining=[10], reset=int(time.time()) + 200)
+        self.assertEqual(len(waits), 1)
+        self.assertTrue(195 <= waits[0] <= 320, waits)
+
+    def test_without_graphql_the_run_is_read_over_rest(self):
+        self.scenario(graphql="down")
+        result = self.ci()
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(result.stdout.splitlines()[-1], self.passed())
+        self.assertEqual(len([c for c in self.calls() if c[:2] == ["run", "view"] and "--json" in c]), 1)
+
+    def test_a_rate_limit_wakes_after_the_reset_within_its_jitter(self):
+        self.scenario(limited={"view": 1}, reset=int(time.time()) + 500)
+        self.assertEqual(self.ci("--max-wait", "495").returncode, 3)
+        (self.fake / "view").unlink()
+        self.assertEqual(self.ci("--max-wait", "630").returncode, 0)
 
     def test_fail_prints_the_failed_log_tail_then_the_verdict(self):
         self.scenario(view=self.view("failure"),
@@ -432,7 +474,7 @@ class CiTests(unittest.TestCase):
     def test_a_hanging_gh_call_ends_within_max_wait(self):
         pending = f"PENDING {URL} at {self.head[:12]}; rerun: {self.rerun()} --run 777"
         waiting = f"WAITING (not dispatched); rerun: {self.rerun()} --no-push"
-        for hang, last in (("--json status", pending), ("--log", pending), ("event=workflow_dispatch", waiting)):
+        for hang, last in (("graphql", pending), ("--log", pending), ("event=workflow_dispatch", waiting)):
             with self.subTest(hang=hang):
                 self.scenario(hang=[hang])
                 # real time: subprocess.run's own timeout cuts the hung call, 1 s per subtest; no other call is timed
@@ -449,7 +491,7 @@ class CiTests(unittest.TestCase):
         calls = self.calls()
         self.assertFalse([c for c in calls if "-X" in c or any("/runs?" in a for a in c) or c[:2] == ["run", "list"]])
         self.assertEqual(len(self.views()), 2)
-        self.assertIn(["api", "repos/kaczordodgers/notchcast/actions/runs/777", "--jq", ".path"], calls)
+        self.assertIn(["api", "repos/kaczordodgers/notchcast/actions/runs/777", "--jq", "{path, node_id}"], calls)
 
     def test_run_of_another_workflow_proves_nothing(self):
         for path in (".github/workflows/build.yml", ".github/workflows/main-harnesses.yml.bak", ""):

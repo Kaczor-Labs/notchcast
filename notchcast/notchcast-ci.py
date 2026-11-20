@@ -21,8 +21,10 @@ main-harnesses.yml has not started (queued, pending, waiting or requested), disp
 Main harnesses run already waits; rerun when it starts` and exit 4: a second waiting run would cancel the first in the
 workflow's concurrency group. A run in progress does not block; the new run waits behind it. (3) Dispatch
 main-harnesses.yml on the branch and use the workflow_run_id and html_url its response carries (never "the latest
-run"); a response without workflow_run_id is an error. (4) Poll the run with one `gh run view`
-every 60 s until it completes, then print the last ~40 lines of the failing step's log on a failure and one final line:
+run"); a response without workflow_run_id is an error. (4) Poll the run every 60 s until it completes, reading its
+check suite over GraphQL (its own hourly budget) and `gh run view` only where GraphQL cannot say; under RESERVE calls
+left in the bucket a poll used, the wait stretches by RESERVE/left with jitter, up to the reset plus 0-120 s, and says
+so (`notchcast-ci: N <bucket> calls left (<1500); next poll in S s`). Then print the last ~40 lines of the failing step's log on a failure and one final line:
 `PASS|FAIL <html_url> at <sha12> harnesses: <list>` (sha12 is the run's headSha; the list is the "Changed harnesses"
 step's output; `PASS (no harnesses selected) <html_url> at <sha12>` when it selected none, `harnesses: unknown` when
 the log cannot be read). A conclusion other than success or failure (cancelled, e.g. superseded in the workflow's
@@ -31,8 +33,9 @@ A run whose log shows a skipped harness (a self-hosted runner's NOTCHCAST_RUNNER
 proves nothing for it: a success prints `NOPROOF <html_url> at <sha12> skipped harnesses: <list>; rerun on a hosted
 runner` and exits 2, a failure appends `; skipped: <list>` to its FAIL line.
 The account's API budget is shared: a poll that hits "API rate limit exceeded" prints
-`notchcast-ci: GitHub API rate limit; waiting until <HH:MM> UTC`, sleeps until the reset and retries; before the
-dispatch, fewer than 500 calls left likewise waits for the reset (`notchcast-ci: N API calls left (<500); waiting ...`).
+`notchcast-ci: GitHub API rate limit; waiting until <HH:MM> UTC`, sleeps until the reset plus a random 0-120 s, so
+pollers do not wake together, and retries; before the dispatch, fewer than 500 calls left likewise waits
+(`notchcast-ci: N API calls left (<500); waiting ...`).
 
 Exit 0: the run passed. 1: the run failed. 2: usage or infrastructure error (gh, git, a failed push, no push
 to prove), a NOPROOF run, or a run whose headSha is not the HEAD this started at (the branch moved; the verdict is
@@ -45,6 +48,7 @@ import argparse
 import json
 import os
 from pathlib import Path
+import random
 import re
 import subprocess
 import sys
@@ -58,6 +62,10 @@ HOOKS = "notchcast/githooks"
 STEP = "Changed harnesses"
 FAILED_LOG_LINES = 40
 MIN_API_CALLS = 500  # the hourly budget is shared with every lead's gh; never dispatch into its last calls
+RESERVE = 1500  # calls left for land.sh and the Keepers: under it a poll waits longer, so pollers spread to the reset
+WAKE_JITTER = 120  # pollers that all slept to one reset would empty the new budget again on waking together
+RATE_LIMITED = re.compile(r"rate limit (?:already )?exceeded", re.I)
+RUN_QUERY = "query($id: ID!) { node(id: $id) { ... on WorkflowRun { checkSuite { status conclusion commit { oid } } } } }"
 HARNESS = re.compile(r"[\w.+-]+")
 # test-harnesses.sh's two skip lines: a runner's own NOTCHCAST_RUNNER_SKIP_TESTS, and a hosted-only harness.
 SKIPPED = re.compile(r"(?:##\[notice\]|::notice::)SKIPPED on this runner: ([\w.+-]+)|\bSKIPPED ([\w.+-]+): hosted-only:")
@@ -117,34 +125,48 @@ def git(repo, *args):
     return run("git", "-C", repo, *args)
 
 
-def rate_limit(field):
-    return int(run("gh", "api", "rate_limit", "--jq", f".resources.core.{field}"))  # not counted by GitHub
+def budget(bucket):
+    """(calls left, reset epoch) of one rate-limit bucket, core (REST) or graphql; reading it is not counted."""
+    left, reset = run("gh", "api", "rate_limit", "--jq", f'.resources.{bucket} | "\\(.remaining) \\(.reset)"').split()
+    return int(left), int(reset)
 
 
-def sleep_until_reset(reason):
-    reset = rate_limit("reset")
+def sleep_until_reset(reason, bucket="core", reset=None):
+    reset = budget(bucket)[1] if reset is None else reset
     print(f"notchcast-ci: {reason}; waiting until {time.strftime('%H:%M', time.gmtime(reset))} UTC", flush=True)
-    nap(max(0, reset + 5 - now()))
+    nap(max(0, reset - now()) + random.uniform(0, WAKE_JITTER))
 
 
-def patient_gh(*args):
+def patient_gh(*args, bucket="core"):
     """gh, sleeping out the account's API rate limit instead of failing on it."""
     while True:
         try:
             return run("gh", *args)
         except Infra as error:
-            if "API rate limit exceeded" not in str(error):
+            if not RATE_LIMITED.search(str(error)):
                 raise
-        sleep_until_reset("GitHub API rate limit")
+        sleep_until_reset("GitHub API rate limit", bucket)
 
 
 def wait_for_api_budget():
-    while (left := rate_limit("remaining")) < MIN_API_CALLS:
-        sleep_until_reset(f"{left} API calls left (<{MIN_API_CALLS})")
+    while (state := budget("core"))[0] < MIN_API_CALLS:
+        sleep_until_reset(f"{state[0]} API calls left (<{MIN_API_CALLS})", reset=state[1])
 
 
 def poll_seconds():
     return float(os.environ.get("NOTCHCAST_CI_POLL", "60"))
+
+
+def poll_wait(bucket):
+    """The pause before the next poll: the usual one, stretched under RESERVE so every poller leaves the reserve be."""
+    left, reset = budget(bucket)
+    if left >= RESERVE:
+        return poll_seconds()
+    to_reset = max(0, reset - now())
+    stretched = poll_seconds() * RESERVE / max(left, 1)
+    wait = to_reset + random.uniform(0, WAKE_JITTER) if stretched >= to_reset else stretched * random.uniform(1, 1.25)
+    print(f"notchcast-ci: {left} {bucket} calls left (<{RESERVE}); next poll in {wait:.0f} s", flush=True)
+    return wait
 
 
 def refuse_while_one_waits():
@@ -155,12 +177,29 @@ def refuse_while_one_waits():
             raise Queued(waiting["html_url"])
 
 
-def finished_run(run_id):
+def graphql_state(node_id):
+    """The run's state from its check suite over GraphQL (its own budget), or None where GraphQL cannot say."""
+    try:
+        data = json.loads(patient_gh("api", "graphql", "-f", f"query={RUN_QUERY}", "-f", f"id={node_id}",
+                                     bucket="graphql"))
+    except (Infra, ValueError):
+        return None
+    suite = ((data.get("data") or {}).get("node") or {}).get("checkSuite")
+    if not suite:
+        return None
+    return {"status": suite["status"].lower(), "conclusion": (suite["conclusion"] or "").lower() or None,
+            "headSha": suite["commit"]["oid"]}
+
+
+def finished_run(run_id, node_id):
     while True:
-        state = json.loads(patient_gh("run", "view", str(run_id), "-R", REPO, "--json", "status,conclusion,headSha"))
+        state = graphql_state(node_id) if node_id else None
+        bucket = "graphql" if state else "core"
+        if state is None:
+            state = json.loads(patient_gh("run", "view", str(run_id), "-R", REPO, "--json", "status,conclusion,headSha"))
         if state["status"] == "completed":
             return state
-        nap(poll_seconds())
+        nap(poll_wait(bucket))
 
 
 def push(repo, branch):
@@ -267,11 +306,11 @@ def prove(args):
             print(f"QUEUED {waiting}: one Main harnesses run already waits; rerun when it starts")
             return 4
     try:
-        if args.run:
-            path = patient_gh("api", f"repos/{REPO}/actions/runs/{run_id}", "--jq", ".path")
-            if path.split("@")[0] != f".github/workflows/{WORKFLOW}":
-                raise Infra(f"run {run_id} is {path or 'of no workflow file'}, not {WORKFLOW}; it proves no harness")
-        return verdict(run_id, url, finished_run(run_id), head)
+        info = json.loads(patient_gh("api", f"repos/{REPO}/actions/runs/{run_id}", "--jq", "{path, node_id}"))
+        path = info.get("path") or ""
+        if args.run and path.split("@")[0] != f".github/workflows/{WORKFLOW}":
+            raise Infra(f"run {run_id} is {path or 'of no workflow file'}, not {WORKFLOW}; it proves no harness")
+        return verdict(run_id, url, finished_run(run_id, info.get("node_id")), head)
     except OutOfTime:
         print(f"PENDING {url} at {head[:12]}; rerun: {rerun} --run {run_id}")
         return 3
