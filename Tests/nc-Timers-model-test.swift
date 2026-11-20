@@ -30,6 +30,7 @@ enum TimersModelTests {
         clockText()
         clockChanges()
         store()
+        travel()
         print("\(checks) timer model checks; \(failures) failures")
         if failures > 0 { exit(1) }
         print("PASSED")
@@ -150,21 +151,52 @@ enum TimersModelTests {
         check("absolute end dates round-trip", store.load() == [later, sooner, alarm])
         check("raw storage is end dates, not durations", defaults.data(forKey: TimerStore.key) != nil)
 
-        let relaunch = store.resume(at: now + 30)
+        let relaunch = store.resume(at: now + 30, calendar: calendar)
         check("a relaunch before any end resumes all, soonest first", relaunch.running == [sooner, later, alarm]
               && relaunch.missed.isEmpty && store.load().count == 3)
-        let afterQuit = store.resume(at: now + 120)
+        let afterQuit = store.resume(at: now + 120, calendar: calendar)
         check("one that ended while closed is reported", afterQuit.missed == [sooner]
               && afterQuit.running == [later, alarm])
         check("and leaves the store", store.load() == [later, alarm])
-        check("so it is reported once", store.resume(at: now + 120).missed.isEmpty)
-        check("an end exactly now has ended", store.resume(at: now + 600).missed == [later])
+        check("so it is reported once", store.resume(at: now + 120, calendar: calendar).missed.isEmpty)
+        check("an end exactly now has ended", store.resume(at: now + 600, calendar: calendar).missed == [later])
 
         store.save([])
         check("an empty list removes the key", defaults.object(forKey: TimerStore.key) == nil)
         defaults.set(Data("not json".utf8), forKey: TimerStore.key)
-        check("unreadable data counts as none", store.load().isEmpty && store.resume(at: now).missed.isEmpty)
+        check("unreadable data counts as none", store.load().isEmpty && store.resume(at: now, calendar: calendar).missed.isEmpty)
         defaults.set("a string", forKey: TimerStore.key)
         check("a wrong type counts as none", store.load().isEmpty)
+    }
+
+    /// #1096: an alarm set for 07:30 rings at 07:30 wherever the clock now is, a timer keeps its instant.
+    static func travel() {
+        let suite = "nc-timers-model-test.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suite)!
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let store = TimerStore(defaults: defaults)
+        var london = calendar
+        london.timeZone = TimeZone(identifier: "Europe/London")!
+        let now = date(18, 8, 0)
+        let alarm = TimerEntry(id: UUID(), end: date(19, 7, 30), label: "", isAlarm: true,
+                               zone: calendar.timeZone.identifier)
+        let timer = TimerEntry(id: UUID(), end: now + 600, label: "", isAlarm: false)
+        let moved = alarm.following(london)
+        check("after a zone change west the alarm rings at 07:30 there",
+              london.dateComponents([.day, .hour, .minute], from: moved.end) == DateComponents(day: 19, hour: 7, minute: 30)
+              && moved.end == date(19, 7, 30) + 3600 && moved.zone == "Europe/London")
+        check("and moves once", moved.following(london) == moved)
+        check("the same zone leaves it alone", alarm.following(calendar) == alarm)
+        check("a timer keeps its instant", timer.following(london) == timer)
+        let legacy = TimerEntry(id: UUID(), end: date(19, 7, 30), label: "", isAlarm: true)
+        check("an alarm saved without a zone keeps its instant", legacy.following(london) == legacy)
+
+        store.save([alarm, timer])
+        let resumed = store.resume(at: now, calendar: london)
+        check("a relaunch in the new zone moves the alarm and saves it",
+              resumed.running == [timer, moved] && store.load() == [timer, moved])
+        store.save([alarm])
+        check("an alarm the move pushes past now is not missed",
+              store.resume(at: date(19, 7, 45), calendar: london).missed.isEmpty)
     }
 }
