@@ -1085,6 +1085,7 @@
 		BBAB44C0E70AABE70A048889 /* QuicklinkArchive.swift in Sources */ = {isa = PBXBuildFile; fileRef = F616D2EE62AEC6782E77364D /* QuicklinkArchive.swift */; };
 		BBB4D9950641854AE635A86E /* CaptureEditorExport.swift in Sources */ = {isa = PBXBuildFile; fileRef = C26EC9F3FE2A515FD367D221 /* CaptureEditorExport.swift */; };
 		BBB8B45D348F26CBA5A5A757 /* ClaudeUsageReader.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8311591E3814EA283015AD55 /* ClaudeUsageReader.swift */; };
+		BBF46E00CB46525E902AD867 /* SpotifyIslandRows.swift in Sources */ = {isa = PBXBuildFile; fileRef = F12DE98000815D49609BC5B9 /* SpotifyIslandRows.swift */; };
 		BBF53E418EBC41C200FECA49 /* DownloadsEnvironment.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7FC444D0D230F6D2D8D228E3 /* DownloadsEnvironment.swift */; };
 		BBFC8F0B49C8F14DAC0D6903 /* SystemNoticesModule.swift in Sources */ = {isa = PBXBuildFile; fileRef = B0F640156255EC38130B3D53 /* SystemNoticesModule.swift */; };
 		BC0F55FAF25EC46CF4CE0226 /* DownloadsModule.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5D3B2C1A46FCBE0A07C554A5 /* DownloadsModule.swift */; };
@@ -2933,6 +2934,7 @@
 		F044A6A0C3C1CEC53D46497A /* ClipboardTextWorker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClipboardTextWorker.swift; sourceTree = "<group>"; };
 		F082FD6A3AC234F43735715D /* FeatureCommandsSection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FeatureCommandsSection.swift; sourceTree = "<group>"; };
 		F097C9983DF27A99694C8BC5 /* Zlib.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Zlib.swift; sourceTree = "<group>"; };
+		F12DE98000815D49609BC5B9 /* SpotifyIslandRows.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpotifyIslandRows.swift; sourceTree = "<group>"; };
 		F1C4D945F355A2EF6FF55C83 /* URLCleanerSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = URLCleanerSettingsView.swift; sourceTree = "<group>"; };
 		F1E9825C49999F2834249146 /* SnippetArgumentsState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SnippetArgumentsState.swift; sourceTree = "<group>"; };
 		F1F37E7B3C4F39019A921B9F /* ChatPresetSyncSource.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatPresetSyncSource.swift; sourceTree = "<group>"; };
@@ -6817,6 +6819,7 @@
 		FDAF3E5E92521E5ED83BB1E5 /* UI */ = {
 			isa = PBXGroup;
 			children = (
+				F12DE98000815D49609BC5B9 /* SpotifyIslandRows.swift */,
 				B61B418C36B0804460E79ED7 /* SpotifySettingsView.swift */,
 			);
 			path = UI;
@@ -8307,6 +8310,7 @@
 				7C2AA1D827EC87533021BD74 /* SpaceSwitcher.swift in Sources */,
 				A2276EF16E020B5E294C3366 /* SpotifyAddon.swift in Sources */,
 				C491DBC517C7762957A5D88F /* SpotifyAuthorization.swift in Sources */,
+				BBF46E00CB46525E902AD867 /* SpotifyIslandRows.swift in Sources */,
 				110E51AA09EB978A70418D2D /* SpotifyLoopback.swift in Sources */,
 				AF75AD2FEF971C7E8B8595EB /* SpotifyModule+Commands.swift in Sources */,
 				3E24CE6BFB8D4D02D6A91581 /* SpotifyModule+Web.swift in Sources */,
