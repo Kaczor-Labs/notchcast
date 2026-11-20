@@ -4,7 +4,6 @@ enum NotchcastRegistry {
     static let addons: [any NotchcastAddon.Type] = [
         HideCommandMAddon.self,
         ShowDesktopAddon.self,
-        QuitProtectionAddon.self,
         MiddleClickAddon.self,
         MusicBlockAddon.self,
         SmallCommandsAddon.self,
@@ -26,5 +25,6 @@ enum NotchcastRegistry {
         ScriptCommandsAddon.self,
         TimersAddon.self,
         AgentsAddon.self,
+        URLCleanerAddon.self,
     ]
 }
