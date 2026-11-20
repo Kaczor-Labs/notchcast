@@ -143,6 +143,19 @@ enum AutoBackupScheduleTests {
         precondition(s.tick(at: at(620), digest: "b", timeZone: utc, exists: { _ in true }) != nil, "due acts")
         precondition(s.pendingChange == nil && s.lastCheck == at(620), "a tick consumes the change")
         precondition(s.due() == at(620 + Schedule.checkInterval), "then the daily check")
+        s.noteStart(at: at(700))
+        precondition(s.firstDue == nil, "a start after a backup changes nothing")
+
+        var fresh = Schedule()
+        fresh.noteStart(at: start)
+        precondition(fresh.due() == at(Schedule.firstDelay), "switching on waits before the first backup")
+        fresh.noteChange(at: start)
+        precondition(fresh.due() == at(Schedule.firstDelay), "a change does not cut that wait short")
+        fresh.noteStart(at: at(60))
+        precondition(fresh.due() == at(Schedule.firstDelay), "and switching off and on does not push it back")
+        fresh.noteStart(at: at(5_000))
+        precondition(
+            fresh.due() == at(5_000 + Schedule.firstDelay), "on again after the wait lapsed unused waits anew")
     }
 
     static func changeDetection() {
@@ -221,7 +234,11 @@ enum AutoBackupScheduleTests {
         defer { rig.finish() }
         precondition(rig.backup.writes.isEmpty, "off by default: nothing written")
         await rig.set(true)
-        precondition(rig.backup.writes.count == 1, "turning it on writes the first backup")
+        precondition(rig.backup.writes.isEmpty, "turning it on leaves time to choose a folder first")
+        rig.clock.now = rig.clock.now.addingTimeInterval(Schedule.firstDelay)
+        rig.backup.change(to: "a")
+        await settle()
+        precondition(rig.backup.writes.count == 1, "then the first backup is written, still on")
         precondition(rig.onDisk.count == 1 && rig.onDisk[0].hasPrefix("Notchcast Settings "), "one file in the chosen folder")
         await rig.reopen(after: Schedule.checkInterval)
         precondition(rig.backup.writes.count == 1, "the daily check skips unchanged settings")
