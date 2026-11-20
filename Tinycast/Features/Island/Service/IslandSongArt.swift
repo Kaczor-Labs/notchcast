@@ -32,7 +32,7 @@ struct IslandSongArt: PillArt {
         self.cover = cover
         self.since = since
         ink = Theme.Colors.textPrimary.islandInk(frosted: frosted)
-        let font = NotchTheme.Typography.islandSongNSFont
+        let font = NotchTheme.Typography.islandGlanceNSFont
         let text = NSMutableAttributedString(string: song.title, attributes: [.font: font, .foregroundColor: ink])
         if let artist = song.artist, !artist.isEmpty {
             text.append(NSAttributedString(string: " · " + artist, attributes: [.font: font,

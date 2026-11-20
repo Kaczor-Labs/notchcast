@@ -20,7 +20,7 @@ struct IslandExpansionArt {
     /// D16: the cover stands where the meeting shows its glyph.
     init(_ song: IslandNowPlaying, cover: NSImage, frosted: Bool) {
         self.init(glyph: cover,
-                  title: song.title, detail: song.artist ?? "", font: NotchTheme.Typography.islandSongNSFont,
+                  title: song.title, detail: song.artist ?? "", font: NotchTheme.Typography.islandGlanceNSFont,
                   frosted: frosted)
     }
 

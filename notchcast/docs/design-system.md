@@ -232,7 +232,6 @@ The island-black branch is fixing the first four, and #8 is closed; the rest are
 | `Theme.Typography.indicatorGlyphSize` → `metrics.typography.indicatorGlyph` | 10 | §6 Quicklinks list indicator glyph (`QuicklinkListView`) | defined (#756) |
 | `Theme.Typography.removeGlyphSize` → `metrics.typography.removeGlyph` | 9, semibold | §6 composer chip remove glyph (`ChatComposerChips`) | defined (#756) |
 | `NotchTheme.Radius.islandCover` | 4 | §3 a song's cover in the closed pill | defined (#850 D31): `thumbnail` (6) nearly rounds a 16-point cover off |
-| `NotchTheme.Typography.islandSongNSFont` | body, 13 on macOS, medium | §6 the song's title and artist in the pill and the song change | defined (#850 D17): a step over the glance font (callout, 12) |
 | `NotchTheme.Size.islandArtwork` | 64 (2 × `Theme.Size.resultRowIcon`) | §17 the Player page's cover | defined (#975): no media size existed; a row icon is too small to read a cover |
 | `NotchTheme.Size.islandMeterThin`, `islandMeterThick` | 3 and 6 | §17 a card meter's bar | defined (#1128): `volumeTrackHeight` is one height, and the deciding limit must read heavier |
 | `NotchTheme.Colors.islandWarning` | OBSIDIAN `Theme.yellow` `#fbbf24`, both looks | §17 a limit running out faster than its window passes | defined (#1128): the first warning ink on the island; `Frosted.warning` is a muted text ink, not a state |
