@@ -43,6 +43,8 @@ struct AgentLocalAccount: Equatable, Sendable {
     var reading: AgentAccount?
     /// Read on another machine and passed on by the feed, so it arrives older.
     var remote = false
+    /// A Claude config folder as Settings or the feed writes it; empty is `~/.claude`.
+    var folder: String? = nil
 }
 
 enum AgentFeedRead: Equatable, Sendable {
@@ -67,18 +69,21 @@ struct AgentBoard: Equatable, Sendable {
 
     var isEmpty: Bool { columns.isEmpty && other.isEmpty }
 
-    init(machineName: String, local: [AgentLocalAccount], feed: AgentFeedRead, now: Date) {
+    /// Window meters per card, Extra usage aside, so no card outgrows the slot the board drew.
+    static let meterCap = 3
+
+    init(home: URL, machineName: String, local: [AgentLocalAccount], feed: AgentFeedRead, now: Date) {
         let loaded: AgentFeed? = if case .loaded(let feed) = feed { feed } else { nil }
         var machines = (loaded?.machines ?? []).map { machine in
             (name: machine.name, accounts: machine.accounts.map {
-                AgentLocalAccount(name: $0.name, provider: $0.provider, reading: $0, remote: true)
+                AgentLocalAccount(name: $0.name, provider: $0.provider, reading: $0, remote: true, folder: $0.folder)
             })
         }
         let shared = loaded?.shared ?? []
         let copies = local.map { Self.copy(of: $0, local: local, shared: shared) }
         let own = zip(local, copies).filter { $1 == nil }.map(\.0)
         if let index = machines.firstIndex(where: { $0.name == machineName }) {
-            machines[index].accounts = Self.merge(local: own, feed: machines[index].accounts, now: now)
+            machines[index].accounts = Self.merge(local: own, feed: machines[index].accounts, home: home, now: now)
         } else {
             machines.insert((machineName, own), at: 0)
         }
@@ -113,10 +118,30 @@ struct AgentBoard: Equatable, Sendable {
         return alone ? same.first : nil
     }
 
-    /// This Mac's accounts, each merged with the feed's copy by name, then the feed's own.
-    private static func merge(local: [AgentLocalAccount], feed: [AgentLocalAccount], now: Date) -> [AgentLocalAccount] {
-        local.map { account in feed.first { $0.name == account.name }.map { pick(account, $0, now: now) } ?? account }
-            + feed.filter { copy in !local.contains { $0.name == copy.name } }
+    /// This Mac's accounts, each merged with the feed's copy, then the feed's own.
+    private static func merge(local: [AgentLocalAccount], feed: [AgentLocalAccount], home: URL, now: Date)
+        -> [AgentLocalAccount]
+    {
+        let copies = local.map { account in feed.firstIndex { same(account, $0, home: home) } }
+        let merged = zip(local, copies).map { account, index -> AgentLocalAccount in
+            guard let index else { return account }
+            var merged = pick(account, feed[index], now: now)
+            // Settings' own default name gives way to the gate's; a typed one stays.
+            if let folder = account.folder, account.name != ClaudeLaunch.defaultName(directory: folder) {
+                merged.name = account.name
+                merged.reading?.name = account.name
+            }
+            return merged
+        }
+        return merged + feed.indices.filter { !copies.contains($0) }.map { feed[$0] }
+    }
+
+    /// One Claude config folder when the feed names it, else one name.
+    private static func same(_ own: AgentLocalAccount, _ copy: AgentLocalAccount, home: URL) -> Bool {
+        guard own.provider == copy.provider, let mine = own.folder, let theirs = copy.folder else {
+            return own.name == copy.name
+        }
+        return ClaudeLaunch.path(mine, home: home) == ClaudeLaunch.path(theirs, home: home)
     }
 
     /// This Mac's reading wins unless failed beside a good copy, or stale beside a fresher one.
@@ -208,11 +233,25 @@ struct AgentBoard: Equatable, Sendable {
         }
         let extra = account.extraUsage.flatMap(extraMeter)
         let spokenWindows = windows.map { spoken($0, now: now) } + [extra.map { "\($0.label), \($0.value), \($0.trailing ?? "")" }]
+        let (shown, more) = capped(windows.map { meter($0, now: now) })
+        let meters = shown + [extra].compactMap(\.self)
         return AgentCard(
             title: account.name, hollow: false,
-            body: .meters(windows.map { meter($0, now: now) } + [extra].compactMap(\.self)),
-            dimmed: stale, caption: caption, credit: credit,
+            body: .meters(meters),
+            dimmed: stale, caption: caption ?? more, credit: credit,
             spoken: ([account.name, credit] + spokenWindows + [caption]).compactMap(\.self).joined(separator: ". "))
+    }
+
+    /// Past the cap, warned meters and then the lowest stay in order; one line counts the rest.
+    private static func capped(_ meters: [AgentMeter]) -> ([AgentMeter], String?) {
+        guard meters.count > meterCap else { return (meters, nil) }
+        let rank = { (index: Int) in (meters[index].warning ? 0 : 1, meters[index].fraction, index) }
+        let kept = Set(meters.indices.sorted { rank($0) < rank($1) }.prefix(meterCap))
+        let hidden = meters.indices.filter { !kept.contains($0) }.map { meters[$0] }
+        let count = hidden.count
+        let lowest = hidden.min { $0.fraction < $1.fraction }?.value ?? ""
+        let line = String(localized: "\(count) more, lowest \(lowest)", table: "NotchcastAgents")
+        return (meters.indices.filter(kept.contains).map { meters[$0] }, line)
     }
 
     /// "1 reset credit", "2 Fable reset credits"; none in hand, or lapsed, draws nothing.
