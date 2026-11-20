@@ -40,6 +40,7 @@ test ! -e "$HOME/Library/LaunchAgents/notchcast.app.plist" || { echo 'FAIL: all 
 STATUS=0
 bash "$CHECKOUT" app 2>/dev/null || STATUS=$?
 test "$STATUS" = 2 || { echo "FAIL: the app mode still exists (exit $STATUS)"; exit 1; }
+test ! -e "$HOME/Library/LaunchAgents/notchcast.queue.plist" || { echo 'FAIL: all loaded the landing queue'; exit 1; }
 echo 'PASS: all loads update and kick only; no app mode'
 
 test "$(cat "$ENV")" = "NOTCHCAST_OTHER=1"$'\n'"SIGN_SHA1=$PIN" || { echo 'FAIL: private.env pin'; cat "$ENV"; exit 1; }
@@ -152,6 +153,15 @@ grep -qF 'Application\ Support/notchcast/tools/prune-branches.py --remote --loca
 git -C "$WORK/checkout" worktree remove --force "$WORK/linked"
 run "$KICK" 'kick-v2 Notchcast '
 echo 'PASS: prune installs from a linked worktree into the main checkout; jobs outlive the worktree'
+
+bash "$CHECKOUT" queue > /dev/null
+plist="$HOME/Library/LaunchAgents/notchcast.queue.plist"
+test "$(/usr/libexec/PlistBuddy -c 'Print :StartInterval' "$plist")" = 180 || { echo 'FAIL: the queue does not tick every 3 minutes'; exit 1; }
+test "$(/usr/libexec/PlistBuddy -c 'Print :ExitTimeOut' "$plist")" = 120 || { echo 'FAIL: a stopped queue gets no time to scrap its train'; exit 1; }
+test "$(/usr/libexec/PlistBuddy -c 'Print :StandardOutPath' "$plist")" = "$HOME/Library/Logs/notchcast/queue.log" || { echo 'FAIL: queue log path'; exit 1; }
+grep -qxF "exec /bin/bash $(printf '%q' "$TOOLS/queue.sh") $(printf '%q' "$(cd "$WORK/checkout" && pwd -P)") " \
+    "$(/usr/libexec/PlistBuddy -c 'Print :ProgramArguments:0' "$plist")" || { echo 'FAIL: the queue job does not run the tools copy on the main checkout'; exit 1; }
+echo 'PASS: queue loads notchcast.queue alone, every 3 minutes with 120 s to stop, running the tools copy of queue.sh on the main checkout'
 
 rm -rf "$(readlink "$TOOLS")" "$TOOLS"
 printf '#!/bin/bash\necho checkout\n' > "$WORK/checkout/notchcast/update.sh"

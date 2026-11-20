@@ -6,7 +6,7 @@ trap 'rm -rf "$scratch"' EXIT
 mkdir -p "$scratch/repo/notchcast" "$scratch/bin"
 cp "${LAND_SCRIPT:-$root/notchcast/land.sh}" "$scratch/repo/notchcast/land.sh"
 cp "$root/notchcast/config.env" "$root/notchcast/local-build-status.sh" "$root/notchcast/sync-wait.sh" "$root/notchcast/hold.sh" "$root/notchcast/drift-gates.sh" "$root/notchcast/merge.sh" "$root/notchcast/land-tooling.txt" "$scratch/repo/notchcast/"
-cp "$root/notchcast/app-proof.py" "$root/notchcast/ci.py" "$scratch/repo/notchcast/"
+cp "$root/notchcast/app-proof.py" "$root/notchcast/ci.py" "$root/notchcast/train.sh" "$scratch/repo/notchcast/"
 echo '{"fixture-proof": ["Tinycast/Fixture/Proved.swift"]}' > "$scratch/repo/notchcast/app-proofs.json"
 cat > "$scratch/bin/gh" <<'STUB'
 #!/bin/bash
@@ -58,6 +58,9 @@ chmod +x "$scratch/bin/gh" "$scratch/bin/git"
 export REAL_GIT=$(command -v git)
 cd "$scratch/repo"
 git init -q
+# Its own home, so no machine's private.env (a land lock among its hooks) reaches the script.
+export HOME="$scratch/home"
+mkdir -p "$HOME"
 export PATH="$scratch/bin:$PATH" HEAD_SHA=0123456789012345678901234567890123456789
 # The script under test runs as is, not origin/main's copy.
 export NOTCHCAST_LAND_TOOLS=test CALLS="$scratch/calls" BASE_NAME=main BUILD=success DESIGN=success LEAKS=success LOCAL_BUILD=none
@@ -215,3 +218,62 @@ for bad in '330' "330 $later extra" '330 later' '330 1e9' "330 0$later"; do
     grep -q 'REFUSED: malformed landing hold' "$scratch/output" || { cat "$scratch/output"; echo "FAIL: malformed hold '$bad' was ignored"; exit 1; }
 done
 echo 'PASS: a malformed hold refuses'
+
+# The land lease (#1161): private.env names a stub lock hook that logs each call and refuses while LOCK_EXIT is 1.
+cat > "$scratch/bin/land-lock" <<'STUB'
+#!/bin/bash
+echo "$*" >> "$LOCK_LOG"
+[ "${LOCK_EXIT:-0}" -eq 0 ] || { echo 'gate: land is held by queue@other until 12:00' >&2; exit 1; }
+STUB
+chmod +x "$scratch/bin/land-lock"
+export HOLD= LOCK_LOG="$scratch/lock-log"
+mkdir -p "$HOME/.config/notchcast"
+echo 'NOTCHCAST_LAND_LOCK="land-lock land"' > "$HOME/.config/notchcast/private.env"
+in_pty() { python3 -c 'import os, pty, sys; sys.exit(os.waitstatus_to_exitcode(pty.spawn(sys.argv[1:])))' "$@" < /dev/null; }
+refused_by_lease() { grep -q "^REFUSED: landing is the queue's: sign off the PR and wait" "$scratch/output"; }
+: > "$LOCK_LOG"
+run < /dev/null
+[ "$status" -eq 1 ] && refused_by_lease && [ ! -s "$LOCK_LOG" ] && [ ! -s "$CALLS" ] && [ ! -s "$HOLD_LOG" ] \
+    || { cat "$scratch/output"; echo 'FAIL: a hand run under the lock hook was not refused before anything'; exit 1; }
+echo 'PASS: with the lock hook a run without NOTCHCAST_LAND_LEASE is refused, never calls the hook and touches nothing'
+: > "$LOCK_LOG"
+NOTCHCAST_LAND_LEASE=queue@test LOCK_EXIT=1 run < /dev/null
+[ "$status" -eq 1 ] && refused_by_lease && grep -q '^gate: land is held by queue@other until 12:00$' "$scratch/output" \
+    && [ "$(cat "$LOCK_LOG")" = 'land take queue@test' ] && [ ! -s "$CALLS" ] \
+    || { cat "$scratch/output"; echo 'FAIL: a lease the hook refused still landed'; exit 1; }
+echo 'PASS: a lease the hook refuses is refused, with the holder the hook names'
+: > "$LOCK_LOG"
+NOTCHCAST_LAND_LEASE=queue@test run < /dev/null
+[ "$status" -eq 77 ] && [ "$(cat "$LOCK_LOG")" = 'land take queue@test' ] \
+    || { cat "$scratch/output"; echo 'FAIL: a taken lease did not land'; exit 1; }
+echo 'PASS: a lease the hook grants lands'
+: > "$LOCK_LOG"
+NOTCHCAST_LAND_FORCE=1 run < /dev/null
+[ "$status" -eq 1 ] && refused_by_lease && [ ! -s "$LOCK_LOG" ] || { cat "$scratch/output"; echo 'FAIL: a force without a terminal landed'; exit 1; }
+status=0
+NOTCHCAST_LAND_FORCE=1 in_pty bash notchcast/land.sh 1 > "$scratch/output" 2>&1 || status=$?
+[ "$status" -eq 77 ] && grep -q '^FORCED: landing outside the queue' "$scratch/output" && [ ! -s "$LOCK_LOG" ] \
+    || { cat "$scratch/output"; echo 'FAIL: a force from a terminal did not land'; exit 1; }
+echo 'PASS: NOTCHCAST_LAND_FORCE=1 lands only from a terminal, saying FORCED, and never without one'
+# train.sh refuses before it detaches, fetches or asks GitHub anything.
+train() {
+    : > "$CALLS"
+    : > "$LOCK_LOG"
+    status=0
+    bash notchcast/train.sh "$@" > "$scratch/output" 2>&1 < /dev/null || status=$?
+}
+for args in '1 2' '--detach 1 2' '--queue' '--detach --queue'; do
+    train $args
+    [ "$status" -eq 1 ] && refused_by_lease && [ ! -s "$LOCK_LOG" ] && [ ! -s "$CALLS" ] && ! grep -q detached "$scratch/output" \
+        || { cat "$scratch/output"; echo "FAIL: train.sh $args ran without a lease"; exit 1; }
+    NOTCHCAST_LAND_LEASE=queue@test LOCK_EXIT=1 train $args
+    [ "$status" -eq 1 ] && refused_by_lease && [ "$(cat "$LOCK_LOG")" = 'land take queue@test' ] && ! grep -q detached "$scratch/output" \
+        || { cat "$scratch/output"; echo "FAIL: train.sh $args ran on a refused lease"; exit 1; }
+    NOTCHCAST_LAND_FORCE=1 train $args
+    [ "$status" -eq 1 ] && refused_by_lease && [ ! -s "$LOCK_LOG" ] || { cat "$scratch/output"; echo "FAIL: train.sh $args forced without a terminal"; exit 1; }
+done
+status=0
+NOTCHCAST_LAND_FORCE=1 in_pty bash notchcast/train.sh --detach 1 > "$scratch/output" 2>&1 || status=$?
+[ "$status" -eq 1 ] && grep -q '^FORCED: landing outside the queue' "$scratch/output" && grep -q '^REFUSED: a forced train runs attached: drop --detach' "$scratch/output" \
+    && ! grep -q detached "$scratch/output" || { cat "$scratch/output"; echo 'FAIL: a forced train detached'; exit 1; }
+echo 'PASS: train.sh, --detach and --queue included, refuses without a lease, on a refused one and on a force without a terminal; a forced train never detaches'
