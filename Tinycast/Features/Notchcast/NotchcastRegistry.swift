@@ -18,6 +18,7 @@ enum NotchcastRegistry {
         ColorPickerAddon.self,
         CopyPathAddon.self,
         SpotifyAddon.self,
+        TaildropAddon.self,
         FinderToolsAddon.self,
         PasteImageAddon.self,
         ArchivesAddon.self,
@@ -25,6 +26,7 @@ enum NotchcastRegistry {
         ScriptCommandsAddon.self,
         TimersAddon.self,
         AgentsAddon.self,
+        SystemToolsAddon.self,
         URLCleanerAddon.self,
     ]
 }

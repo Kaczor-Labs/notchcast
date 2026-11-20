@@ -43,7 +43,7 @@ The in-app updater stays off in Notchcast. To keep a Mac current, clone this rep
   - **Display & Sound**: stop Apple Music opening on media keys, brightness keys for every display, volume in the island, AirPods and Beats noise control from the launcher.
   - **Capture**: screenshots of an area, window or display, and an editor to mark one up with arrows, shapes, highlights, text, pixelation and a crop before copying, saving or dragging it out.
   - **Launcher Extras**: small commands for passwords, short links and AirDrop, clean tracking parameters from copied links (with Clipboard History on).
-  - **Downloads**: video, audio, transcripts and webpages from clipboard links, with optional aria2c and transcription into a local folder; big downloads and torrents can use Wi-Fi and a USB-tethered iPhone together; optionally a copy of each note in a Markdown folder you choose, where PDF, HTML, audio and video files added while the option is on become notes and their originals go to the Trash.
+  - **Downloads**: video, audio, transcripts and webpages from clipboard links, with optional aria2c and transcription into a local folder; big downloads and torrents can use Wi-Fi and a USB-tethered iPhone together; optionally a copy of each note in a Markdown folder you choose, where PDF, HTML, audio and video files added while the option is on become notes and their originals go to the Trash, Taildrop the Finder selection to another of your devices.
   - **Mac Tweaks**: turn off iPhone auto backups.
   <!-- addon-tabs:end -->
 - **Add-on commands** are ordinary launcher commands: search them, and give them an alias, a hotkey or Show in launcher on the command's row in its Notchcast tab.
