@@ -26,6 +26,7 @@ enum NotchcastRegistry {
         ScriptCommandsAddon.self,
         TimersAddon.self,
         AgentsAddon.self,
+        DayAddon.self,
         SystemToolsAddon.self,
         URLCleanerAddon.self,
     ]
