@@ -1,4 +1,4 @@
 #!/bin/sh
-# Git never takes a merge driver from the repo, so every copy registers the one .gitattributes names (#1110).
+# Git never takes a merge driver from the repo: every copy registers the one .gitattributes names.
 driver='if test -f notchcast/merge-words.py; then python3 notchcast/merge-words.py %O %A %B; else git merge-file %A %O %B; fi'
 [ "$(git config --get merge.notchcast-words.driver)" = "$driver" ] || git config merge.notchcast-words.driver "$driver" || true

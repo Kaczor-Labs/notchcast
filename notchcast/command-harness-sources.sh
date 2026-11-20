@@ -27,7 +27,7 @@ fi
 if [[ " $* " == *" Tinycast/DesignSystem/Theme.swift "* || " $* " == *" Tinycast/Features/Settings/SettingsTab.swift "* ]]; then
     [[ " $* " == *" Tinycast/DesignSystem/IconTint.swift "* ]] || set -- "$@" Tinycast/DesignSystem/IconTint.swift
 fi
-# ci-tests.sh's object that makes the app Dark before main: its ink checks read Dark text (#1205).
+# ci-tests.sh's object that makes the app Dark before main: its ink checks read Dark text.
 if [ "${name:-}" = FormInputTests ] && [ -n "${NOTCHCAST_DARK_OBJECT:-}" ]; then
     [[ " $* " == *" $NOTCHCAST_DARK_OBJECT "* ]] || set -- "$@" "$NOTCHCAST_DARK_OBJECT"
 fi
