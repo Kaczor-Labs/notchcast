@@ -218,6 +218,13 @@ unset -f gh
     [ "$(git ls-remote origin refs/heads/cut-from | cut -f1)" = "$head" ]
     [ "$output" = 'kept origin/cut-from: open PR #8 stands on it' ]
     echo 'PASS: delete_head keeps a branch an open PR was cut from'
+    git push --quiet origin "$moved:refs/pull/8/head" "$head:refs/heads/force-pushed"
+    held=0123456789abcdef0123456789abcdef01234567
+    output=$(delete_head force-pushed "$head" 2>&1)
+    held=
+    [ "$(git ls-remote origin refs/heads/force-pushed | cut -f1)" = "$head" ]
+    [ "$output" = 'WARN: kept origin/force-pushed: cannot tell whether open PR #8 stands on it' ]
+    echo 'PASS: delete_head keeps a branch when an open PR head force-pushed since the listing cannot be compared'
     git push --quiet origin "$head:refs/heads/unlistable"
     output=$(delete_head unlistable "$head" 2>&1)
     [ -n "$(git ls-remote origin refs/heads/unlistable)" ]
