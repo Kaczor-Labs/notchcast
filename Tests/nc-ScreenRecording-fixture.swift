@@ -1,3 +1,4 @@
+import AVFoundation
 import Foundation
 import Synchronization
 import SwiftUI
@@ -108,7 +109,13 @@ extension RecordingSystem {
         },
         freeBytes: { files.withLock { $0.freeBytes } },
         duration: { url in
-            Double(String(bytes: try Data(contentsOf: url), encoding: .utf8) ?? "") ?? 0
+            let data = try Data(contentsOf: url)
+            // A real stub a quit left before the first fragment fails to parse as a movie.
+            if data.isEmpty { throw AVError(.fileFailedToParse) }
+            guard let seconds = Double(String(bytes: data, encoding: .utf8) ?? "") else {
+                throw CocoaError(.fileReadCorruptFile)
+            }
+            return seconds
         },
         passthroughWorks: { _, _ in files.withLock { $0.passthrough } },
         export: { source, trim, plan, destination in

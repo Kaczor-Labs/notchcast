@@ -18,10 +18,23 @@ final class RecordingWorkFolder: Sendable {
             }
             if let claim { close(claim.lock) }
             claim = nil
-            let folder = root.appending(path: UUID().uuidString, directoryHint: .isDirectory)
-            try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
-            let lock = Self.lock(folder)
-            guard lock >= 0 else { throw CocoaError(.fileLocking) }
+            let name = UUID().uuidString
+            let folder = root.appending(path: name, directoryHint: .isDirectory)
+            // Locked under a hidden name first, so another copy never sees it unlocked.
+            let hidden = root.appending(path: "." + name, directoryHint: .isDirectory)
+            try FileManager.default.createDirectory(at: hidden, withIntermediateDirectories: true)
+            let lock = Self.lock(hidden)
+            guard lock >= 0 else {
+                try? FileManager.default.removeItem(at: hidden)
+                throw CocoaError(.fileLocking)
+            }
+            do {
+                try FileManager.default.moveItem(at: hidden, to: folder)
+            } catch {
+                close(lock)
+                try? FileManager.default.removeItem(at: hidden)
+                throw error
+            }
             claim = (folder, lock)
             return folder
         }
@@ -29,7 +42,8 @@ final class RecordingWorkFolder: Sendable {
 
     /// Folders of runs that ended: nothing holds their lock, so no running copy is still writing there.
     func abandoned() -> [URL] {
-        let folders = (try? FileManager.default.contentsOfDirectory(at: root, includingPropertiesForKeys: nil)) ?? []
+        let folders = (try? FileManager.default.contentsOfDirectory(
+            at: root, includingPropertiesForKeys: nil, options: .skipsHiddenFiles)) ?? []
         return folders.filter {
             let lock = Self.lock($0)
             guard lock >= 0 else { return false }
