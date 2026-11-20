@@ -1,5 +1,6 @@
 // notchcast-addon-order: 230
 // notchcast-new-switch-ids: systemTools
+// notchcast-system-keys: ⌥↩
 import SwiftUI
 
 enum SystemToolsAddon: NotchcastAddon {

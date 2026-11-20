@@ -134,8 +134,6 @@ final class Rig {
 enum FinderToolsModuleTests {
     @MainActor
     static func main() async {
-        let hyper: CGEventFlags = [.maskCommand, .maskAlternate, .maskShift, .maskControl]
-
         let off = Rig(enabled: [])
         precondition(off.session == nil, "both switches off by default: no tap")
         precondition(off.module == nil, "no module while both are off")
@@ -159,7 +157,6 @@ enum FinderToolsModuleTests {
         rig.key(9, down: false)
 
         precondition(rig.key(7, synthetic: true) == .pass, "our own events pass")
-        precondition(rig.key(15, hyper) == .pass, "rename off: the chord passes")
 
         fake.posted = []
         rig.key(7)
@@ -213,9 +210,8 @@ enum FinderToolsModuleTests {
 
         let rename = Rig(enabled: [FinderToolsAddon.renameSwitchID])
         fake.posted = []
-        precondition(rename.key(7) == .pass, "cut off: ⌘X passes")
-        precondition(rename.key(15, hyper) == .swallow, "⌃⌥⇧⌘R in Finder is swallowed")
-        precondition(rename.key(15, hyper, down: false) == .swallow, "its key-up too")
+        precondition(rename.session == nil, "rename alone installs no tap, so ⌃⌥⇧⌘R and ⌘X pass")
+        precondition(rename.controller.run(entryID: "command:nc-finder-rename"), "the rename command runs")
         await rename.settle()
         precondition(fake.posted == ["77:36:0"], "rename presses Return in Finder: \(fake.posted)")
         rename.finish()
