@@ -267,13 +267,17 @@ echo 'PASS: a 2-PR train lands one squash per PR after one harness pass over the
 # #2 is stacked on #1's branch: GitHub would close it when that branch is deleted.
 fixture
 open_pr 1 pr-b 'Add B' src/b.txt
-open_pr 2 pr-c 'Add C' src/c.txt
+base=pr-b open_pr 2 pr-c 'Add C' src/c.txt
 jq '.baseRefName = "pr-b"' "$FIXTURE/pr-2.json" > "$FIXTURE/pr.json" && mv "$FIXTURE/pr.json" "$FIXTURE/pr-2.json"
-land 1
+open_pr 3 pr-d 'Add D' src/plain.txt
+land 1 3
 [ "$status" -eq 0 ] && grep -q '^retargeted #2 from pr-b to main$' "$FIXTURE/output" || fail 'landing #1 did not say it moved the PR stacked on its branch'
-[ "$(cat "$FIXTURE/retargeted")" = '2 pr-b 1' ] && [ -z "$(origin for-each-ref refs/heads/pr-b)" ] \
-    && [ "$(jq -r '.state + " " + .baseRefName' "$FIXTURE/pr-2.json")" = 'OPEN main' ] || fail 'the stacked PR was not moved to main before its base was deleted'
-echo 'PASS: a PR stacked on a landed branch is moved to main, and said so, before that branch is deleted'
+[ "$(cat "$FIXTURE/retargeted")" = '2 pr-b 1' ] && [ "$(jq -r '.state + " " + .baseRefName' "$FIXTURE/pr-2.json")" = 'OPEN main' ] \
+    || fail 'the stacked PR was not moved to main before its base was deleted'
+grep -q '^kept origin/pr-b: open PR #2 stands on it$' "$FIXTURE/output" && [ -n "$(origin for-each-ref refs/heads/pr-b)" ] \
+    || fail 'the branch the stacked PR was cut from was deleted'
+[ -z "$(origin for-each-ref refs/heads/pr-d)" ] || fail 'a plain landed PR kept its branch'
+echo 'PASS: a PR stacked on a landed branch is moved to main and that branch stays; a plain landed branch is deleted'
 
 fixture
 open_pr 1 pr-one 'Add one' src/shared.txt
