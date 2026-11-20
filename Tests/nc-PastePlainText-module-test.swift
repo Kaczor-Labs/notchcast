@@ -187,9 +187,10 @@ final class Rig {
         let hub = NotchcastTapHub(syntheticTag: 0x54494E59, isTrusted: { trusted }, makeSession: { FakeSession($0) })
         controller = NotchcastController(
             addons: [PastePlainTextAddon.self], defaults: defaults, hub: hub, dictation: FakeDictation(),
-            clipboard: NotchcastClipboardMutation(
-                prepare: { fake.history.append("prepare \(fake.board.changeCount)") },
-                synchronize: { fake.history.append("sync \($0)") }),
+            services: NotchcastServices(
+                clipboard: NotchcastClipboardMutation(
+                    prepare: { fake.history.append("prepare \(fake.board.changeCount)") },
+                    synchronize: { fake.history.append("sync \($0)") })),
             presenter: presenter)
         controller.start()
     }
