@@ -48,6 +48,7 @@ private struct CaptureEditorActions: View {
             CaptureEditorDragChip(session: session)
             Button { session.perform(.discard) } label: { Text("Discard", tableName: "NotchcastScreenshots") }
                 .buttonStyle(.modalAction(.cancel, fillsWidth: false))
+                .tooltip("⌘⌫", edge: .bottom)
             Button { session.perform(.save) } label: { Text("Save", tableName: "NotchcastScreenshots") }
                 .buttonStyle(.modalAction(.standard, fillsWidth: false))
                 .tooltip("⌘S", edge: .bottom)
@@ -73,7 +74,11 @@ private struct CaptureEditorDragChip: View {
         .frame(height: metrics.size.dialogButtonHeight)
         .background(Capsule().fill(Theme.Colors.controlSurface))
         .contentShape(Capsule())
-        .onDrag { CaptureEditorExport.provider(session.document, in: session.dragFolder) }
+        .onDrag {
+            let provider = CaptureEditorExport.provider(session.document, in: session.dragFolder)
+            session.document.markExported()
+            return provider
+        }
         .tooltip(String(localized: "Drag the image into another app.", table: "NotchcastScreenshots"), edge: .bottom)
         .accessibilityElement(children: .combine)
         .accessibilityLabel(Text("Drag image", tableName: "NotchcastScreenshots"))

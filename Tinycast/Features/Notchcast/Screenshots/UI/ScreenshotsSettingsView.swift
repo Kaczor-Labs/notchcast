@@ -36,7 +36,7 @@ struct ScreenshotsSettingsView: View {
             if let folder {
                 Text(folder)
             } else {
-                Text("Desktop", tableName: "NotchcastScreenshots")
+                Text("Downloads", tableName: "NotchcastScreenshots")
             }
         }
         .settingsEnabled(destination != .clipboard || editAfterCapture)
