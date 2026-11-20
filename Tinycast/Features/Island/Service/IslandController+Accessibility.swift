@@ -5,7 +5,7 @@ extension IslandController {
     var accessibilityValue: String {
         if let level { return "\(level.label), \(level.readout)" }
         if panel?.isVisible == true { return "" }
-        if let notice { return notice.text }
+        if let notice { return notice.spoken }
         if let glance { return "\(glance.title), \(glance.countdown)" }
         return statuses.map(\.label).joined(separator: ", ")
     }

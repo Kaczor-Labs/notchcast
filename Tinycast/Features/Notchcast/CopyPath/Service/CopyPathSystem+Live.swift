@@ -136,12 +136,13 @@ nonisolated enum CopyPathAccessibility {
         CopyPathBudget.timeout(left: ContinuousClock.now.duration(to: deadline), cap: cap)
     }
 
-    /// One read leashed afresh; a clipped read that times out spent the budget rather than hung.
+    /// One read leashed afresh; a clipped read that fails with nothing left spent the budget.
     static func leashed<T>(_ deadline: ContinuousClock.Instant, cap: Float, _ read: (Float) throws -> T) throws -> T {
         guard let timeout = leash(deadline, cap: cap) else { throw BudgetSpent() }
         do {
             return try read(timeout)
-        } catch is CopyPathUnavailable where timeout < cap {
+        } catch is CopyPathUnavailable where CopyPathBudget.isSpent(
+            timeout: timeout, cap: cap, leftAfter: ContinuousClock.now.duration(to: deadline)) {
             throw BudgetSpent()
         }
     }

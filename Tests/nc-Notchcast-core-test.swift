@@ -10,6 +10,8 @@
 // notchcast-sources: Tests/NotchcastTapFixtures.swift
 // notchcast-sources: Tests/NotchcastDictationFixture.swift
 // notchcast-reads: Tinycast/Features/Notchcast/NotchcastCore.swift
+// notchcast-reads: Tinycast/Features/Notchcast/NotchcastClipboard+Live.swift
+// notchcast-reads: Tinycast/Features/Notchcast/NotchcastServices+Live.swift
 // notchcast-reads: Tinycast/Features/Notchcast/Core/UI/NotchcastSettingsView.swift
 import AppKit
 import CoreGraphics
@@ -527,6 +529,19 @@ struct NotchcastCoreTest {
               })
         check("NotchcastCore hands the controller stock Dictation",
               calls.allSatisfy { $0.contains("dictation: NotchcastDictationBridge(core: core)") })
+        check("NotchcastCore hands the controller the live doors, never the inert defaults",
+              calls.allSatisfy { arguments($0).contains("services: NotchcastServices(core: core)") })
+        func text(_ path: String) -> String {
+            FileManager.default.contents(atPath: path).flatMap { String(data: $0, encoding: .utf8) } ?? ""
+        }
+        let clipboard = text("Tinycast/Features/Notchcast/NotchcastClipboard+Live.swift")
+        check("the live clipboard door is clipboard history's own pair",
+              clipboard.contains("prepare: { history.prepareForTinycastPasteboardMutation() }")
+                  && clipboard.contains("history.synchronizeAfterTinycastPasteboardMutation(changeCount: $0)")
+                  && clipboard.contains("let history = core.clipboardManager"))
+        check("the live services wire clipboard history's door",
+              text("Tinycast/Features/Notchcast/NotchcastServices+Live.swift")
+                  .contains("clipboard = NotchcastClipboardMutation(core: core)"))
         check("nc command entries are owned by their add-on tab, never gated by stock Commands",
               core.contains("owner: .notchcast(tabs[$0.switchID]"))
         let viewPath = "Tinycast/Features/Notchcast/Core/UI/NotchcastSettingsView.swift"
