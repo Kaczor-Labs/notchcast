@@ -50,7 +50,8 @@ extension SystemNoticesModule {
         queue.async { relay.read() }
         return SystemNoticesWatcher {
             SCDynamicStoreSetDispatchQueue(store, nil)
-            withExtendedLifetime(relay) {}
+            // A callback already running on the serial queue still holds the unretained relay.
+            queue.async { withExtendedLifetime(relay) {} }
         }
     }
 
