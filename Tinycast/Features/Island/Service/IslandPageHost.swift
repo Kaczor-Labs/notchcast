@@ -46,12 +46,12 @@ final class IslandPageHost {
         for (id, visible) in changes { watchers[id]?(visible) }
     }
 
-    /// Opens Home, or the one page, on `resting`; false when there is no page to show.
+    /// Opens Home, or the one page, on `resting`; false when a notice or `glance` keeps its own form.
     @discardableResult
-    func hover(_ open: Bool, on resting: IslandController?) -> Bool {
+    func hover(_ open: Bool, on resting: IslandController?, glance: Bool = false) -> Bool {
         hovered = open && resting != nil
         defer { announce() }
-        guard open, let resting, !deck.pages.isEmpty else {
+        guard open, let resting, deck.opens(glance: glance) else {
             if !open { focus = IslandPageFocus() }
             close()
             return false
@@ -81,8 +81,7 @@ final class IslandPageHost {
 
     /// Measures the content, hangs the panel from the island top and grows the outline to it.
     private func render() {
-        guard let controller, let screen = controller.screen, let top = controller.openingTop,
-              !deck.pages.isEmpty else { return close() }
+        guard let controller, let screen = controller.screen, let top = controller.openingTop else { return close() }
         let island = AppCore.shared.island
         host.rootView = AnyView(IslandPagesView(deck: deck, select: { [weak self] in self?.select($0) },
                                                 act: { [weak self] in self?.act(page: $0, action: $1) })
