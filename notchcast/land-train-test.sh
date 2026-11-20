@@ -267,13 +267,17 @@ echo 'PASS: a 2-PR train lands one squash per PR after one harness pass over the
 # #2 is stacked on #1's branch: GitHub would close it when that branch is deleted.
 fixture
 open_pr 1 pr-b 'Add B' src/b.txt
-open_pr 2 pr-c 'Add C' src/c.txt
+base=pr-b open_pr 2 pr-c 'Add C' src/c.txt
 jq '.baseRefName = "pr-b"' "$FIXTURE/pr-2.json" > "$FIXTURE/pr.json" && mv "$FIXTURE/pr.json" "$FIXTURE/pr-2.json"
-land 1
+open_pr 3 pr-d 'Add D' src/plain.txt
+land 1 3
 [ "$status" -eq 0 ] && grep -q '^retargeted #2 from pr-b to main$' "$FIXTURE/output" || fail 'landing #1 did not say it moved the PR stacked on its branch'
-[ "$(cat "$FIXTURE/retargeted")" = '2 pr-b 1' ] && [ -z "$(origin for-each-ref refs/heads/pr-b)" ] \
-    && [ "$(jq -r '.state + " " + .baseRefName' "$FIXTURE/pr-2.json")" = 'OPEN main' ] || fail 'the stacked PR was not moved to main before its base was deleted'
-echo 'PASS: a PR stacked on a landed branch is moved to main, and said so, before that branch is deleted'
+[ "$(cat "$FIXTURE/retargeted")" = '2 pr-b 1' ] && [ "$(jq -r '.state + " " + .baseRefName' "$FIXTURE/pr-2.json")" = 'OPEN main' ] \
+    || fail 'the stacked PR was not moved to main before its base was deleted'
+grep -q '^kept origin/pr-b: open PR #2 stands on it$' "$FIXTURE/output" && [ -n "$(origin for-each-ref refs/heads/pr-b)" ] \
+    || fail 'the branch the stacked PR was cut from was deleted'
+[ -z "$(origin for-each-ref refs/heads/pr-d)" ] || fail 'a plain landed PR kept its branch'
+echo 'PASS: a PR stacked on a landed branch is moved to main and that branch stays; a plain landed branch is deleted'
 
 fixture
 open_pr 1 pr-one 'Add one' src/shared.txt
@@ -851,6 +855,19 @@ queue
     || queue_fail 'the queue took a PR without land, or held a labelled draft whose build was skipped'
 [ "$(landed)" = 'Notchcast: Add B (#1)|Notchcast: Add C (#2)' ] || queue_fail "the land-only batch landed '$(landed)'"
 echo 'PASS: --queue takes only PRs labelled land: a green ready one and a draft with a skipped build ride, red or unlabelled wait'
+
+# A hold for #2 cuts the green batch 1 2 to #2 in land.sh: the queue says only #2 landed and #1 is held (#1119).
+fixture
+open_pr 1 pr-b 'Add B' src/b.txt
+open_pr 2 pr-c 'Add C' src/c.txt
+held="2 $(($(date +%s) + 600))"
+echo "$held" > "$FIXTURE/hold"
+queue
+[ "$status" -eq 0 ] && grep -q '^queue: batch 1 2$' "$FIXTURE/train-output" && grep -q '^LANDED #2$' "$FIXTURE/train-output" \
+    && grep -q '^HELD #1: landing is held for #2, ' "$FIXTURE/train-output" && ! grep -q '^LANDED #1' "$FIXTURE/train-output" \
+    || queue_fail 'under a hold the queue did not say which PR landed and which were held'
+[ "$(landed)" = 'Notchcast: Add C (#2)' ] && [ "$(cat "$FIXTURE/hold")" = "$held" ] || queue_fail "under a hold for #2 the queue landed '$(landed)'"
+echo 'PASS: under a hold for one PR of the batch, --queue prints that only it landed and the rest are held'
 
 # Unprovable: a harness in both lists passes in no VM, so land.sh refuses for good a PR that selects one.
 head_of() { jq -r .headRefOid "$FIXTURE/pr-$1.json"; }

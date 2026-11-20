@@ -24,7 +24,7 @@ enum NotchcastAppProof {
         let defaults = UserDefaults.standard
         defer { defaults.removePersistentDomain(forName: bundleID) }
         for key in [AppSettingsKey.extensionsEnabled, .showInMenuBar, .notesShowsInMenuBar,
-                    .paletteDraggable, .supportReminders, .navigationEnabled] {
+                    .paletteDraggable, .supportReminders, .navigationEnabled, .quickActionsEnabled] {
             defaults.set(true, forKey: key.rawValue)
         }
         defaults.set(false, forKey: AppSettingsKey.openOnCursorScreen.rawValue)
@@ -39,6 +39,7 @@ enum NotchcastAppProof {
         settings.showInMenuBar = true
         settings.notesShowsInMenuBar = true
         settings.paletteDraggable = true
+        settings.quickActionsEnabled = true
         settings.openOnCursorScreen = false
         settings.appearance = .light
         settings.calendarMenuBarDisplay = .meetingTitle
@@ -56,6 +57,7 @@ enum NotchcastAppProof {
         check(defaults.stringArray(forKey: AppSettingsKey.language.rawValue) == [NotchcastHidden.language],
               "AppleLanguages is pinned")
         check(!settings.paletteDraggable, "paletteDraggable reads off")
+        check(!settings.quickActionsEnabled, "quickActionsEnabled reads off")
         check(settings.openOnCursorScreen, "openOnCursorScreen reads on")
         check(settings.palettePosition(on: "proof") == nil, "stored palette position is ignored")
         check(!settings.supportRemindersEnabled, "supportRemindersEnabled reads off")
