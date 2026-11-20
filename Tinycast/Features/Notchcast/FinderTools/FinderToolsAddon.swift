@@ -1,9 +1,9 @@
 // notchcast-addon-order: 170
+// notchcast-system-keys: ⌘X ⌘V
 import Foundation
 
 enum FinderToolsAddon: NotchcastAddon {
     static let cutPasteSwitchID = "finderCutPaste"
-    static let renameSwitchID = "finderRename"
 
     static let switches = [
         NotchcastSwitch(
@@ -18,7 +18,8 @@ enum FinderToolsAddon: NotchcastAddon {
             id: "finderRename",
             title: String(localized: "Quick rename in Finder", table: "NotchcastFinderTools"),
             subtitle: String(
-                localized: "⌃⌥⇧⌘R renames the selection without reaching for Return.", table: "NotchcastFinderTools"),
+                localized: "Rename the selected file or folder from the launcher or with a shortcut you choose.",
+                table: "NotchcastFinderTools"),
             category: .macTweaks,
             requiredGrants: [.accessibility]
         ),
