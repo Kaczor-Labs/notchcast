@@ -1,9 +1,17 @@
 #!/bin/bash
-# Sourced by land.sh and local-ci.sh: the one merge of a PR onto main, and the cheap checks on the merged tree.
+# Sourced by land.sh, train.sh and local-ci.sh: the one merge of a PR onto main, and the cheap checks on the merged tree.
 # The caller sets top (its repository), head, pr_title and pr_body, and defines tree_at <commit>, which leaves the
 # shell in a clean tree at that commit.
 merge_tools=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 source "$merge_tools/drift-gates.sh"
+# Those of the names $1 (space separated) listed one per line in file $2, space separated.
+listed_in() { grep -xF -f <(tr ' ' '\n' <<< "$1" | grep .) "$2" | sort -u | paste -sd' ' - || true; }
+# The harnesses of the tree here in both HOSTED_ONLY_TESTS and CI_SKIP_TESTS, tags included: only an isolated runner
+# runs one (FormInputTests).
+isolated_only_list() {
+    (source notchcast/config.env
+    comm -12 <(tr ' ' '\n' <<< "$HOSTED_ONLY_TESTS" | sort -u) <(tr ' ' '\n' <<< "$CI_SKIP_TESTS" | sort -u) | paste -sd' ' -)
+}
 # Check runs on the commit, not the PR's statusCheckRollup: the rollup omits dispatched runs, and a PR
 # GitHub calls conflicting gets no pull_request run at all. Cancelled or skipped runs count only alone.
 check_run() {
