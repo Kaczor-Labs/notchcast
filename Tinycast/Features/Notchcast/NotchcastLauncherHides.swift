@@ -5,7 +5,7 @@ import Observation
 final class NotchcastLauncherHides {
     private let visibility: VisibilityStore
     private let preferences: NotchcastPreferences
-    private let commandIDs: Set<String>
+    private var commandIDs: Set<String>
     /// The pending copy of a launcher Hide onto its checkbox, so a caller can await it.
     private(set) var adoption: Task<Void, Never>?
 
@@ -17,6 +17,9 @@ final class NotchcastLauncherHides {
         visibility.removeItemKeys(commandIDs)
         adoptStockHides()
     }
+
+    /// A module's own commands join once published, so a launcher Hide on one lands on its checkbox.
+    func include(_ ids: Set<String>) { commandIDs.formUnion(ids) }
 
     /// The launcher's own Hide writes the stock store; adopting it turns the command's switch off.
     private func adoptStockHides() {
