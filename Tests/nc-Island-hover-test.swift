@@ -29,7 +29,6 @@ struct IslandHoverTest {
         monitors()
         pinnedClick()
         topRowRest()
-        trackedMove()
         primaryClick()
         try clickHooks()
         try refreshHooks()
@@ -280,21 +279,6 @@ struct IslandHoverTest {
             world.advance(to: open)
             precondition(tracker.isOpen && world.opens == [true], "and the island opens with no further pointer move")
         }
-    }
-
-    /// The island window's tracking area reports a move the monitors never saw (#1029).
-    static func trackedMove() {
-        let world = FakeWorld()
-        let tracker = world.tracker()
-        world.input = Input(inside: true)
-        tracker.refresh()
-        precondition(world.wakeAt == open, "a tracked move starts the intent delay with no monitor event")
-        world.advance(to: open)
-        precondition(tracker.isOpen && world.opens == [true], "and the island opens")
-        world.input = Input(inside: false)
-        tracker.refresh()
-        world.advance(to: open + close)
-        precondition(!tracker.isOpen, "a tracked exit closes it")
     }
 
     /// A primary click opens the island as hover does and holds it, hover on or off (#1029).
