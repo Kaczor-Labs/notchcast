@@ -1,5 +1,6 @@
 // notchcast-new-switch-ids: spotify
 // notchcast-addon-order: 165
+// notchcast-readme: Display & Sound: Spotify in the Island through Soloist
 import SwiftUI
 
 /// Spotify in the island through Soloist, Spotify's own headless player; off by default.
