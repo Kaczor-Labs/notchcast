@@ -78,10 +78,10 @@ Which add-ons a tab holds is in the README's generated list; an add-on PR never 
 
 | Category | Tab | Later (`później`), placed now |
 | - | - | - |
-| Capture | Capture | F40 text/OCR, F41 colour picker, F45 trimmer, F46 recording, F47 scrolling |
+| Capture | Capture | F40 text/OCR, F41 colour picker, F47 scrolling |
 | Display & Sound | Display & Sound | XDR, F102 Audio priority |
 | Keyboard & Mouse | Keyboard & Mouse | F12 Green button maximizes |
-| Launcher | Launcher Extras | F27 Copy path, F29 GitHub search, F30 Quick Look on Space, F99 URL cleaner |
+| Launcher | Launcher Extras | F29 GitHub search, F30 Quick Look on Space |
 | Files & Downloads | Downloads | F59 Distill folder, F60 Convert files, F68 Media tools, F32 Paste image in Finder, F128–F130 Torrents |
 | Power | Power | F101 Accessory batteries |
 | Music | Display & Sound | F49 covers, F52 resume player, F53 now playing, F54 Spotify Connect |
