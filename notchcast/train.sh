@@ -292,17 +292,25 @@ ready_since() {
 # prints only a "queue: waits" line, so PRs signed off close together ride one train.
 pick_batch() {
     local pr draft head created verdict since newest age
+    : > "$scratch/heads"
     gh pr list -R "$FORK_REPO" --state open --base main -L 200 --json number,isDraft,labels,headRefOid,createdAt,comments \
         --jq '.[] | . as $pr | select((.isDraft | not) or any(.labels[]; .name == "land"))
             | select(any(.comments[]; .body | contains("in the landing batch at head " + $pr.headRefOid)) | not)
             | "\(.number) \(.isDraft) \(.headRefOid) \(.createdAt)"' |
         while read -r pr draft head created; do
+            echo "$pr@$head" >> "$scratch/heads"
             verdict=$(check_run "$head" build)
             [ "$verdict" = success ] || { [ "$draft" = true ] && [ "$verdict" = none ]; } \
                 || { echo "queue: #$pr waits, build is $verdict on ${head:0:8}" >&2; continue; }
             since=$(ready_since "$pr")
             echo "${since:-$created} $pr"
         done | sort > "$scratch/signed" || return 1
+    still_refused > "$scratch/refused-prs"
+    if [ -s "$scratch/refused-prs" ]; then
+        echo "queue: #$(paste -sd' ' "$scratch/refused-prs" | sed 's/ / #/g') left out: land.sh refused them for good at these heads" >&2
+        awk 'NR == FNR { out[$1]; next } !($2 in out)' "$scratch/refused-prs" "$scratch/signed" > "$scratch/kept"
+        mv "$scratch/kept" "$scratch/signed"
+    fi
     # Only the batch's own: sign-offs behind a full batch must not hold it back.
     newest=$(sed -n "1,${LAND_BATCH_SIZE}p" "$scratch/signed" | tail -1)
     if [ -n "$newest" ]; then
@@ -310,6 +318,35 @@ pick_batch() {
         [ "$age" -ge "$LAND_SETTLE_SECONDS" ] || { echo "queue: waits, #${newest#* } signed off $age s ago"; return 0; }
     fi
     sed -n "1,${LAND_BATCH_SIZE}p" "$scratch/signed" | cut -d' ' -f2 | paste -sd' ' -
+}
+# Lines "<pr>@<head> <pr>@<head>...": batches land.sh refused for good (exit 3) at those heads, which a tick would only
+# rebuild to be refused again. Kept beside the detached train logs, so every tick's tree of this checkout sees it.
+refused_file="$(cd "$(git rev-parse --git-common-dir)" && pwd)/notchcast-refused"
+# Prints the PRs of each refusal still at its heads (open PRs in $scratch/heads), and forgets the others.
+still_refused() {
+    local line
+    [ -s "$refused_file" ] || return 0
+    : > "$scratch/refusals"
+    while read -r line; do
+        tr ' ' '\n' <<< "$line" | grep -qvxF -f "$scratch/heads" || echo "$line" >> "$scratch/refusals"
+    done < "$refused_file"
+    cat "$scratch/refusals" > "$refused_file"
+    tr ' ' '\n' < "$refused_file" | sed 's/@.*//'
+}
+# Batch $1 of train branch $2, refused for good by the land.sh output in $scratch/landing: recorded at its heads,
+# and told once, on each PR and to notchcast_notify, since no later tick tries it again.
+refused_for_good() {
+    local pr record='' reason
+    reason=$(sed -n 's/^REFUSED: //p' "$scratch/landing" | tail -1)
+    for pr in $1; do record="$record${record:+ }$pr@$(< "$scratch/head-$pr")"; done
+    echo "$record" >> "$refused_file"
+    echo "REFUSED FOR GOOD #$1: its train branch $2 stays; the queue leaves these PRs out until one has a new head"
+    for pr in $1; do
+        gh pr comment "$pr" -R "$FORK_REPO" >/dev/null \
+            --body "Left out of the landing queue at its head $(< "$scratch/head-$pr"): land.sh refused the green train $2 (#${1// / #}) for good: $reason. The queue takes these PRs again once one of them has a new head." \
+            || echo "WARN: could not comment on #$pr" >&2
+    done
+    notify "the queue leaves #${1// / #} out: land.sh refused the green train $2 for good: $reason"
 }
 # The one place a batch lands. A batch whose union needs no Mac (#1033's linux-ok) plugs its Linux landing in here.
 land_batch() { bash notchcast/land.sh --train-run "$@"; }
@@ -426,9 +463,16 @@ while [ ${#queue[@]} -gt 0 ]; do
             settle "$branch"
             echo "GREEN $branch ${sha:0:8} on $where ${base:0:8}: notchcast/land.sh --train-run $sha $train"
             [ -n "$auto" ] || continue
-            if land_batch "$sha" $train; then
+            set +e
+            land_batch "$sha" $train 2>&1 | tee "$scratch/landing"
+            landing=${PIPESTATUS[0]}
+            set -e
+            if [ "$landing" -eq 0 ]; then
                 landed=$train
                 echo "LANDED #$train"
+            elif [ "$landing" -eq 3 ]; then
+                status=1
+                refused_for_good "$train" "$branch"
             else
                 status=1
                 echo "NOT LANDED #$train: land.sh refused above; its train branch $branch stays"

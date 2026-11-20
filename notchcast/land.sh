@@ -403,20 +403,41 @@ run_harnesses() {
     done
     [ "$status" -eq 0 ] || [ -n "$failed" ] || refuse 'the harness run failed without naming a harness'
 }
+# Exit 3: no run of these heads can change the verdict, so train.sh --queue leaves them out until one moves.
+refuse_for_good() { echo "REFUSED: $*" >&2; exit 3; }
+# The hosted run land.sh needs beside the isolated record, as a command train.sh and land.sh accept: a train that
+# selects $both is refused hosted, so then a hosted PR run of this very tree, or a split.
+hosted_advice() {
+    local branch
+    if [ -z "$both" ]; then
+        echo "NOTCHCAST_TRAIN_MAC=hosted notchcast/train.sh ${train[*]}"
+    elif [ -n "$covered" ]; then
+        branch=$(git -C "$top" for-each-ref --points-at "$train_run" --format='%(refname:lstrip=3)' refs/remotes/origin/train/ | head -1)
+        echo "gh workflow run pr.yml -R $FORK_REPO --ref ${branch:-train/$(IFS=-; echo "${train[*]}")} -f base=$train_base -f hosted=true, then notchcast/land.sh --train-run $train_run ${train[*]}, which takes it beside this isolated run for $both"
+    elif [ ${#train[@]} -eq 1 ]; then
+        load "${train[0]}"
+        echo "gh workflow run pr.yml -R $FORK_REPO --ref $(jq -r .headRefName <<< "$metadata") -f hosted=true, then notchcast/land.sh ${train[0]}, which takes it beside this isolated run for $both"
+    else
+        echo "split the batch, since a hosted train of it is refused for $both: notchcast/train.sh with each PR alone"
+    fi
+}
 # Sets proof, and left to the selected harnesses it excused, from the isolated runner's build of this tree if there
 # is one. Refuses a toolchain other than ISOLATED_TOOLCHAIN, and an excused harness that only a hosted run proves,
 # unless $1 says a hosted run of this tree proved the rest.
 isolated_proof() {
-    local found url stamp excused need
+    local found url stamp excused need why
     found=$(python3 "$(dirname "$selector")/ci.py" isolated-proof HEAD) || found=
     [ -n "$found" ] || return 0
     { read -r url; read -r stamp; read -r excused || true; } <<< "$found"
-    [ "$stamp" = "$ISOLATED_TOOLCHAIN" ] \
-        || refuse "the isolated run $url tested this tree with '$stamp', and landing expects '$ISOLATED_TOOLCHAIN' (ISOLATED_TOOLCHAIN, notchcast/config.env): land on a hosted train (NOTCHCAST_TRAIN_MAC=hosted notchcast/train.sh ${train[*]})"
+    if [ "$stamp" != "$ISOLATED_TOOLCHAIN" ]; then
+        why="the isolated run $url tested this tree with '$stamp', and landing expects '$ISOLATED_TOOLCHAIN' (ISOLATED_TOOLCHAIN, notchcast/config.env)"
+        [ -n "$both" ] || refuse_for_good "$why: land on a hosted train ($(hosted_advice))"
+        refuse_for_good "$why, and only an isolated runner can run $both: bring the runner back to it, or change ISOLATED_TOOLCHAIN after comparing a hosted and an isolated run of one commit, then train again"
+    fi
     left=$(grep -xF -f <(tr ' ' '\n' <<< "$excused") "$scratch/selected" || true)
     need=$(grep -xF -f <(tr ' ' '\n' <<< "$HOSTED_ONLY_TESTS") <<< "$left" | grep -vxF -f <(tr ' ' '\n' <<< "$CI_SKIP_TESTS") | paste -sd' ' - || true)
     [ -z "$need" ] || [ -n "${1:-}" ] \
-        || refuse "the isolated run $url did not prove $need (red there and on upstream), and only a hosted run can: NOTCHCAST_TRAIN_MAC=hosted notchcast/train.sh ${train[*]}${both:+; land.sh then takes this isolated run for $both}"
+        || refuse_for_good "the isolated run $url did not prove $need (red there and on upstream), and only a hosted run can: $(hosted_advice)"
     proof=$url
     isolated=1
 }
@@ -473,7 +494,7 @@ harnesses() {
         fi
     fi
     [ -z "$skipped" ] || [ "$check" -eq 1 ] \
-        || refuse "$skipped proven by no run: only an isolated runner can run them (train on NOTCHCAST_MAC_RUNNER)"
+        || refuse_for_good "$skipped proven by no run: only an isolated runner can run them (train on NOTCHCAST_MAC_RUNNER)"
     if [ "$platform" = linux ] && [ -n "$tested" ]; then
         # A macOS runner tested this tree; only what it skips is left, and that needs a Mac.
         [ -z "$names" ] || route "the hosted run skipped $(echo $names), which run only on a Mac"
