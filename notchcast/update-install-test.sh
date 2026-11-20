@@ -189,4 +189,9 @@ PR_VERSION="${LATEST#v}" RELEASE_TAGS='v0.12.8' bench restore-no-snapshot 1 "$TE
 # A hold for a version no longer installed holds nothing.
 /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString 0.12.8.pr7.99999999" "$BENCH/App.app/Contents/Info.plist"
 PR_VERSION="${LATEST#v}" bench stale-hold 0 "preparing $LATEST" yes
+# A plain half-hourly run that cannot install exits 0: refused names --retry alone, busy changes nothing.
+echo "${LATEST#v}" > "$REFUSED"
+PR_VERSION="${LATEST#v}" bench plain-refused 0 'run update.sh --retry to' no
+rm "$REFUSED"
+PR_VERSION="${LATEST#v}" INSTALL_STATUS=75 bench plain-busy 0 'another install is running' no
 echo 'PASS: update.sh --pr installs only a green test build of the current head, signed by us, and --restore ends its hold'
