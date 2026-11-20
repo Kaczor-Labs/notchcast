@@ -60,28 +60,14 @@ final class IslandController: NSObject {
         return bounds.offsetBy(dx: backdrop.frame.minX, dy: backdrop.frame.minY).intersection(backdrop.frame)
     }
 
-    var glance: IslandGlance? {
-        didSet { if glance != oldValue { redraw() } }
-    }
-    var level: IslandLevel? {
-        didSet { if level != oldValue { redraw() } }
-    }
-    var expanded = false {
-        didSet { if expanded != oldValue { redraw() } }
-    }
-    var notice: IslandNotice? {
-        didSet { if notice != oldValue { redraw() } }
-    }
-    var statuses: [IslandStatus] = [] {
-        didSet { if statuses != oldValue { redraw() } }
-    }
-    var song: IslandNowPlaying? {
-        didSet { if song != oldValue { redraw() } }
-    }
+    var glance: IslandGlance? { didSet { if glance != oldValue { redraw() } } }
+    var level: IslandLevel? { didSet { if level != oldValue { redraw() } } }
+    var expanded = false { didSet { if expanded != oldValue { redraw() } } }
+    var notice: IslandNotice? { didSet { if notice != oldValue { redraw() } } }
+    var statuses: [IslandStatus] = [] { didSet { if statuses != oldValue { redraw() } } }
+    var song: IslandNowPlaying? { didSet { if song != oldValue { redraw() } } }
     /// D16: a new song grows the pill below a notch, as the meeting expansion does.
-    var songChange = false {
-        didSet { if songChange != oldValue { redraw() } }
-    }
+    var songChange = false { didSet { if songChange != oldValue { redraw() } } }
 
     private func redraw() {
         canvas.show(glance: glance, level: level, notice: notice, statuses: statuses, expanded: expanded,
