@@ -16,7 +16,6 @@ struct QuitProtectionSettingsView: View {
                 .tag(QuitProtectionEngine.Mode.doublePress)
         } label: {
             SettingsRowTitle(Self.anchor, LocalizedStringResource("Confirm by", table: "NotchcastQuitProtection"))
-            Text("How you confirm a quit.", tableName: "NotchcastQuitProtection")
         }
     }
 }
