@@ -107,6 +107,10 @@ final class NotchcastController {
         slots.contains { $0.context.openURL?(url) == true } || slots.contains { $0.recovery.openURL?(url) == true }
     }
 
+    func launcherShown() {
+        for slot in slots { slot.context.launcherShown?() }
+    }
+
     func context(forSwitch id: String) -> NotchcastContext? {
         slots.first { $0.addon.switches.contains { $0.id == id } }?.context
     }
