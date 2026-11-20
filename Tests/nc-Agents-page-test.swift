@@ -149,6 +149,18 @@ enum AgentsPageTest {
         precondition(cards().map(\.title) == ["C1", "C2", "Codex"], "Codex found is a card, after the Claude accounts")
         module.open()
         precondition(presenter.shown == ["agents"], "Open Agents opens the page")
+        module.stop()
+
+        AgentsPreferences(defaults: defaults).claudeAccounts = []
+        let codexOnly = AgentsModule(context: context, system: system)
+        codexOnly.start()
+        precondition(presenter.page?.line.text == "Reading…" && presenter.page?.blocks.first
+            == .row(IslandPageRow(symbol: "magnifyingglass", title: "Reading…")),
+            "Codex and no Claude account reads before it says no plans: \(String(describing: presenter.page))")
+        codexOnly.stop()
+        answer("Codex", "codex", used: 0, state: .missing)
+        await codexOnly.cycle()
+        precondition(presenter.page?.line.text == "No plans found", "no Codex after its first read: no plans")
         print("PASS AgentsPageTest")
     }
 }
