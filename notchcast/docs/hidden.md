@@ -70,7 +70,7 @@ Four tables in our own files, each read by a short hook in upstream's; hiding a 
 - iCloud Sync: `CloudSyncTests`.
 - Support: `SupportTests`.
 - Navigation: `WindowSwitchTests`, `MenuSearchTests`.
-- Quick Actions: `QuickActionTests`, `TextDiffTests` and `TextDiffPerformanceTests` (the result panel's diff engine). `CompactBarTests`, `FallbackTests`, `HotKeyTests`, `DeepLinkTests` and `LauncherSettingsFileTests` keep running: they compile Quick Actions model files only as dependencies.
+- Quick Actions: `QuickActionTests` and `TextDiffTests` (the result panel's diff engine; `TextDiffPerformanceTests` is index-only upstream and never runs). `CompactBarTests`, `FallbackTests`, `HotKeyTests`, `DeepLinkTests` and `LauncherSettingsFileTests` keep running: they compile Quick Actions model files only as dependencies.
 
 CI steps that served only a hidden item are gone too (#945): CodeQL's JavaScript scan skips the Raycast runtime (`Scripts/raycast-runtime/`, `Tinycast/Resources/RaycastRuntime.generated.js`, `Tests/ext-fixtures/`), the Generated workflow sets up no Node and never rebuilds that runtime (it stays upstream's), and `land.sh` no longer reruns harnesses when `main` moved only in it, since only `ExtensionTests` loads it. Measured on GitHub Actions: CodeQL's JavaScript job fell from 73 s (average of the 10 main runs before) to 45 and 58 s on two runs, about 20 s of a Linux runner per push to `main`, and Generated saves its Node setup, about 1 s per run; the PR and Main harness lanes already ran no hidden harness, so they are unchanged.
 
