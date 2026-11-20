@@ -7,7 +7,7 @@ import Foundation
 /// One link (Wi-Fi or VPN): announces a change only once it has held for `settle`, never the state at start.
 struct LinkWatch: Equatable, Sendable {
     static let settle: TimeInterval = 5
-    /// After a wake the links come back on their own; that is not news.
+    /// After a login or a wake the links come back on their own; that is not news.
     static let wakeQuiet: TimeInterval = 30
 
     private(set) var announced: Bool?
@@ -15,39 +15,40 @@ struct LinkWatch: Equatable, Sendable {
     private var changedAt = Date.distantPast
     private var quietUntil = Date.distantPast
 
-    /// The first reading is a silent baseline, and so is every reading while quiet.
+    /// The first reading is a silent baseline; while quiet a link coming up is too, a drop waits for the end.
     mutating func observe(_ up: Bool, at now: Date) {
         if current != up {
             current = up
             changedAt = now
         }
-        if announced == nil || now < quietUntil { announced = up }
+        if announced == nil || (up && now < quietUntil) { announced = up }
     }
 
-    /// Asleep, nothing is announced; `until` is when the quiet after waking ends. A pending change is dropped.
+    /// Quiet until `until` (`.distantFuture` while asleep): a link that is up now is taken as said.
     mutating func quiet(until: Date) {
         quietUntil = until
-        if let current { announced = current }
+        if current == true { announced = true }
     }
 
-    /// When `due` should next run, nil while there is nothing pending.
+    /// When `due` should next run, nil while nothing is pending or the Mac sleeps.
     var deadline: Date? {
-        guard let current, current != announced else { return nil }
-        return changedAt.addingTimeInterval(Self.settle)
+        guard let current, current != announced, quietUntil != .distantFuture else { return nil }
+        return max(changedAt, quietUntil).addingTimeInterval(Self.settle)
     }
 
-    /// The new state to announce, once it has held for `settle`; a flap that came back is never announced.
+    /// The new state to announce, once it has held for `settle` past any quiet; a flap is never announced.
     mutating func due(at now: Date) -> Bool? {
-        guard let current, let announced, current != announced else { return nil }
-        guard now.timeIntervalSince(changedAt) >= Self.settle else { return nil }
+        guard let current, announced != nil, let deadline, now >= deadline else { return nil }
         self.announced = current
         return current
     }
 }
 
-/// The Mac's own battery: warns once at 20% or below while on battery, re-armed only above 20%.
+/// The Mac's own battery: warns once at 20% or below while on battery, re-armed only at 25% or above.
 struct BatteryWatch: Equatable, Sendable {
     static let threshold = 20
+    /// Well above the threshold, so a gauge stepping 20, 21, 20 warns once.
+    static let recovery = 25
 
     private(set) var armed: Bool?
 
@@ -57,11 +58,11 @@ struct BatteryWatch: Equatable, Sendable {
             self.armed = percent > Self.threshold
             return nil
         }
-        if percent > Self.threshold {
+        if percent >= Self.recovery {
             self.armed = true
             return nil
         }
-        guard armed, !onAC else { return nil }
+        guard armed, !onAC, percent <= Self.threshold else { return nil }
         self.armed = false
         return percent
     }
