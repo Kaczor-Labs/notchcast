@@ -79,7 +79,6 @@ private struct ScriptCommandRow: View {
                 Toggle(isOn: Binding(get: { shown }, set: { preferences.setShowsInLauncher(entryID, $0) })) {
                     Text("Show in launcher", tableName: "NotchcastScriptCommands")
                 }
-                .labelsHidden()
                 .toggleStyle(.checkbox)
                 .launcherVisibilityHelp()
                 .accessibilityLabel(String(localized: "Show \(name) in the launcher", table: "NotchcastScriptCommands"))
