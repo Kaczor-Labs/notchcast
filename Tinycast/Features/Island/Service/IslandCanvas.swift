@@ -151,11 +151,11 @@ final class IslandCanvas: NSView {
         return true
     }
 
-    /// The presenter's order: level, notice, meeting glance, then status; a notch grows a headline.
+    /// The presenter's order: level, notice, meeting glance, song, then status; a notch grows a headline.
     func show(glance: IslandGlance?, level: IslandLevel?, notice: IslandNotice?, statuses: [IslandStatus],
-              expanded: Bool, notch: CGFloat?) {
+              expanded: Bool, notch: CGFloat?, song: IslandNowPlaying? = nil, songChange: Bool = false) {
         replay = { $0.show(glance: glance, level: level, notice: notice, statuses: statuses, expanded: expanded,
-                           notch: notch) }
+                           notch: notch, song: song, songChange: songChange) }
         let frosted = look == .frosted
         headline = if let notch, level == nil, let notice, notice.isHeadline {
             IslandHeadlineArt(notice, notch: notch, frosted: frosted)
@@ -167,13 +167,63 @@ final class IslandCanvas: NSView {
             headline == nil ? IslandNoticeArt(notice, notch: notched, frosted: frosted) : nil
         } else if let glance {
             GlanceArt(glance, notch: notched, frosted: frosted)
+        } else if let song {
+            IslandSongArt(song, notch: notched, frosted: frosted, still: still, cover: cover(for: song, frosted: frosted),
+                          since: songSince(song))
         } else if !statuses.isEmpty {
             IslandStatusArt(statuses, notch: notched, frosted: frosted)
         } else { nil }
         self.glance = art
-        expansion = level == nil && notice == nil && expanded ? glance.map { IslandExpansionArt($0, frosted: frosted) } : nil
+        expansion = if level != nil || notice != nil { nil } else if let glance {
+            expanded ? IslandExpansionArt(glance, frosted: frosted) : nil
+        } else if let song, songChange {
+            IslandExpansionArt(song, cover: cover(for: song, frosted: frosted), frosted: frosted)
+        } else { nil }
         if expansion != nil { leaving = nil }
+        animate((art as? IslandSongArt)?.animates == true)
     }
+
+    private var songCover: (song: String, artwork: Data?, frosted: Bool, scale: CGFloat, image: NSImage)?
+    private var songStart: (song: String, at: CFTimeInterval)?
+
+    /// One decode and downscale per song, cover and look; a rebuild or a frame reuses it.
+    private func cover(for song: IslandNowPlaying, frosted: Bool) -> NSImage {
+        if let cached = songCover, cached.song == song.songID, cached.frosted == frosted, cached.scale == scale,
+           cached.artwork == song.artwork { return cached.image }
+        var image = NSImage()
+        effectiveAppearance.performAsCurrentDrawingAppearance {
+            image = IslandCover.image(song.artwork, side: IslandSongArt.cell, scale: scale, frosted: frosted)
+        }
+        songCover = (song.songID, song.artwork, frosted, scale, image)
+        return image
+    }
+
+    private func songSince(_ song: IslandNowPlaying) -> CFTimeInterval {
+        if songStart?.song != song.songID { songStart = (song.songID, CACurrentMediaTime()) }
+        return songStart?.at ?? 0
+    }
+
+    /// Reduce Motion or Show animations off: the meter and the line stand still.
+    var still = false {
+        didSet { if still != oldValue { replay?(self) } }
+    }
+
+    /// The meter and a scrolling line redraw on the display's clock only while they move.
+    private var ticker: CADisplayLink?
+
+    func animate(_ wanted: Bool) {
+        if wanted, ticker == nil {
+            let link = displayLink(target: self, selector: #selector(tick))
+            link.preferredFrameRateRange = CAFrameRateRange(minimum: 15, maximum: 30, preferred: 30)
+            link.add(to: .main, forMode: .common)
+            ticker = link
+        } else if !wanted {
+            ticker?.invalidate()
+            ticker = nil
+        }
+    }
+
+    @objc private func tick() { needsDisplay = true }
 }
 
 /// What the resting pill draws in its compact slots, measured once and drawn on every frame.

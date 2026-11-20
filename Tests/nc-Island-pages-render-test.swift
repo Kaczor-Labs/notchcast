@@ -99,6 +99,8 @@ struct IslandPagesRenderTest {
             ("agents-alone", deck([alone])),
             ("0-home", deck([])),
             ("1-player", deck([player])),
+            ("1-player-full", deck([fullPlayer()])),
+            ("1-player-full-paused-long", deck([fullPlayer(paused: true, long: true)])),
             ("1-player-notice", noticed(deck([player]))),
             ("3-home-notice", noticed(deck([calm, player, system]))),
             ("3-home", deck([calm, player, system])),
@@ -164,6 +166,23 @@ struct IslandPagesRenderTest {
     }
 
     /// A gradient cover, so the artwork slot shows a real image without a fixture file.
+    /// #850 part B: like, seek, volume and Up Next beside the player.
+    static func fullPlayer(paused: Bool = false, long: Bool = false) -> IslandPage {
+        var playing = IslandNowPlaying(
+            title: long ? "Everything Everywhere at Once (Extended Midnight Version)" : "Paper Lanterns",
+            artist: long ? "Juno Vale, The Paper Lanterns Orchestra" : "Juno Vale", artwork: artwork(),
+            time: IslandMediaTime(elapsed: 72, duration: 214, rate: 0, sampledAt: Date(timeIntervalSince1970: 0)),
+            isPlaying: !paused)
+        playing.liked = !paused
+        playing.volume = 0.6
+        playing.seekable = true
+        playing.upNext = [IslandQueuedSong(id: "1", title: "Glass Harbour", artist: "Juno Vale"),
+                          IslandQueuedSong(id: "2", title: "Low Tide", artist: "Mira North"),
+                          IslandQueuedSong(id: "3", title: "Night Ferry (Live at the Old Pier, 2019)",
+                                           artist: "The Paper Lanterns Orchestra")]
+        return IslandPlayerPage.page(playing)
+    }
+
     static func artwork() -> Data? {
         let image = NSImage(size: CGSize(width: 128, height: 128), flipped: false) { rect in
             NSGradient(starting: .systemTeal, ending: .systemIndigo)?.draw(in: rect, angle: 45)

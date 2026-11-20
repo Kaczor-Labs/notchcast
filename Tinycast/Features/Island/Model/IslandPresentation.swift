@@ -65,6 +65,8 @@ struct IslandPage: Equatable, Sendable {
     /// The page summed up in one Home line.
     var line: IslandPageLine
     var blocks: [IslandPageBlock]
+    /// Set, space and the four arrows on this page go to `onAction` as `IslandPageKey.action` ids.
+    var takesKeys = false
 
     /// What Command-R sends to `onAction`; every page refreshes its data on it.
     static let refreshAction = "refresh"
@@ -87,6 +89,8 @@ struct IslandPageButton: Equatable, Sendable {
     var id: String
     var symbol: String
     var label: String
+    /// Off, the button shows dimmed and takes no click.
+    var isEnabled = true
 }
 
 /// The vocabulary a page body is written in; a new kind is drawn once in `IslandPageBlocks`.
@@ -107,6 +111,29 @@ struct IslandMedia: Equatable, Sendable {
     var subtitle: String?
     var time: IslandMediaTime?
     var buttons: [IslandPageButton]
+    /// A toggle beside the title, such as a heart; nil draws none.
+    var like: IslandPageButton?
+    /// A click or drag on the bar sends `IslandMedia.seekAction` with the fraction.
+    var seekable = false
+    /// 0...1; set, a volume bar under the transport sends `IslandMedia.volumeAction` with the level.
+    var volume: Double?
+    /// What plays next, listed beside the player under "Up Next" as plain rows.
+    var upNext: [IslandPageRow] = []
+
+    static let seekAction = "media.seek"
+    static let volumeAction = "media.volume"
+
+    /// "<action>:<fraction>", the one string `onAction` carries; `value(of:in:)` reads it back.
+    static func action(_ name: String, _ fraction: Double) -> String {
+        "\(name):\(min(max(fraction, 0), 1))"
+    }
+
+    static func value(of name: String, in id: String) -> Double? {
+        guard id.hasPrefix(name + ":"), let value = Double(id.dropFirst(name.count + 1)), value.isFinite else {
+            return nil
+        }
+        return min(max(value, 0), 1)
+    }
 }
 
 /// "At `sampledAt` it was `elapsed` seconds in, moving at `rate`", so the bar runs without updates.
@@ -183,4 +210,47 @@ struct IslandCardMeter: Equatable, Sendable {
     /// The value, the fill and the note take the warning ink.
     var warning = false
     var note: String?
+}
+
+/// What any player shows on the island: Spotify now, the any-player source (#930) later.
+struct IslandNowPlaying: Equatable, Sendable {
+    var title: String
+    var artist: String?
+    var artwork: Data?
+    var time: IslandMediaTime?
+    var isPlaying: Bool
+    /// Changes with the song, so a new one announces itself once; empty falls back to the names.
+    var id = ""
+    /// How a pill without a notch fits "title · artist" longer than its cap (D15).
+    var overflow = IslandSongOverflow.widen
+    /// In the user's liked songs; nil when the player cannot tell, so no heart shows.
+    var liked: Bool?
+    /// The player is still asking about this song, so the heart shows dimmed instead of a guess.
+    var likePending = false
+    /// 0...1; nil hides the volume bar.
+    var volume: Double?
+    /// The player takes a seek on the bar.
+    var seekable = false
+    var upNext: [IslandQueuedSong] = []
+
+    /// Only what the pill draws, so a change to the page alone never redraws it.
+    var glance: IslandNowPlaying {
+        IslandNowPlaying(title: title, artist: artist, artwork: artwork, time: nil, isPlaying: isPlaying, id: id,
+                         overflow: overflow)
+    }
+
+    var songID: String { id.isEmpty ? title + "\u{1F}" + (artist ?? "") : id }
+}
+
+/// A song waiting after this one.
+struct IslandQueuedSong: Equatable, Sendable {
+    var id: String
+    var title: String
+    var artist: String?
+}
+
+/// D15: a pill without a notch either widens to the song's line or keeps its cap and scrolls the line.
+enum IslandSongOverflow: String, Sendable, CaseIterable {
+    case widen
+    case scroll
 }
