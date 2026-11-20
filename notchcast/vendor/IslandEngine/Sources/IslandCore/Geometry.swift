@@ -177,7 +177,8 @@ extension ShapeTarget {
             let left = -jsMin(sensor + sides.leading, c.maxWidth / 2)
             let right = jsMin(sensor + sides.trailing, c.maxWidth / 2)
             self = .hidingBubble(
-                left: left, right: right, top: top, height: c.height, radius: c.height / 2, bubbleHeight: c.height)
+                left: left, right: right, top: top, height: c.height, radius: c.radius ?? c.height / 2,
+                bubbleHeight: c.height)
         case .minimal:
             let m = metrics.minimal
             let sensor = metrics.compact.sensorWidth / 2
