@@ -458,6 +458,10 @@ harnesses() {
         echo "harnesses: the isolated run $proof proved all of them but ${left:-none}"
         names=$left
     fi
+    # One in both lists runs only on an isolated runner, so no lander here can stand in for the run that left it out.
+    skipped=$(grep -xF -f <(tr ' ' '\n' <<< "$unproven") <<< "$names" | paste -sd' ' - || true)
+    [ -z "$skipped" ] || [ "$check" -eq 1 ] \
+        || refuse "$skipped proven by no run: only an isolated runner can run them (train on NOTCHCAST_MAC_RUNNER)"
     if [ "$platform" = linux ] && [ -n "$tested" ]; then
         # A macOS runner tested this tree; only what it skips is left, and that needs a Mac.
         [ -z "$names" ] || route "the hosted run skipped $(echo $names), which run only on a Mac"

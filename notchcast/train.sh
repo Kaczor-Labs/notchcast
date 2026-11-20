@@ -143,16 +143,28 @@ if [ "${NOTCHCAST_TRAIN_MAC:-}" != hosted ] && [ -n "$label" ]; then
 fi
 # HOSTED_ONLY_TESTS of the tree in the current directory, every line that sets it.
 hosted_only_list() { sed -n 's/^HOSTED_ONLY_TESTS="\(.*\)"$/\1/p' notchcast/config.env | paste -sd' ' -; }
+# The harnesses of the tree here in both HOSTED_ONLY_TESTS and CI_SKIP_TESTS, tags included: only an isolated runner
+# runs one, and land.sh refuses a landing it selects that no isolated run proved.
+isolated_only_list() {
+    (source notchcast/config.env
+    comm -12 <(tr ' ' '\n' <<< "$HOSTED_ONLY_TESTS" | sort -u) <(tr ' ' '\n' <<< "$CI_SKIP_TESTS" | sort -u) | paste -sd' ' -)
+}
+# Those of the names $1 listed in file $2.
+listed_in() { grep -xF -f <(tr ' ' '\n' <<< "$1" | grep .) "$2" | sort -u | paste -sd' ' - || true; }
 # Before the push, for the train just built ($tip on $base, its merges in $scratch/merges): refuses one whose run
-# land.sh could not find, and sets runner, where its Mac jobs go, to hosted when only a hosted run proves it.
+# land.sh could not find, and sets runner, where its Mac jobs go: hosted when only a hosted run proves it, isolated
+# when it selects an isolated-only harness. With the Mac jobs hosted, a PR that selects one is refused, or under
+# --queue left out: waits names those PRs.
 preflight() {
-    local main_key tip_key commit pr changers='' hosted_only hosted_list
+    local main_key tip_key commit pr changers='' hosted_only hosted_list isolated_list isolated_only reason
     tree_at "$base"
     main_key=$(python3 notchcast/ci.py tested-key "$tip")
     hosted_list=$(hosted_only_list)
+    isolated_list=$(isolated_only_list)
     tree_at "$tip"
     tip_key=$(python3 notchcast/ci.py tested-key HEAD)
     hosted_list="$hosted_list $(hosted_only_list)"
+    isolated_list="$isolated_list $(isolated_only_list)"
     if [ "$main_key" != "$tip_key" ]; then
         while read -r pr commit; do
             git diff --quiet "$commit^1" "$commit" -- notchcast/ci.py || changers="$changers${changers:+ }#$pr"
@@ -160,12 +172,33 @@ preflight() {
         refuse "the train's run would record tree ${tip_key:0:8}, but land.sh with main's ci.py looks for ${main_key:0:8}, so it could never land: ${changers:-a PR} changes ci.py tested-key; land that one first, alone (notchcast/land.sh <pr> on its own PR build), then train the rest"
     fi
     runner=$mac
-    [ "$mac" = isolated ] || { cd "$top"; return 0; }
-    hosted_only='(no selection: changed-harnesses.sh failed)'
-    if (while read -r pr commit; do bash notchcast/changed-harnesses.sh "$commit^1" "$commit" || exit 1; done) < "$scratch/merges" > "$scratch/selected"; then
-        hosted_only=$(grep -xF -f <(tr ' ' '\n' <<< "$hosted_list" | grep .) "$scratch/selected" | sort -u | paste -sd' ' - || true)
+    waits=
+    if ! (while read -r pr commit; do bash notchcast/changed-harnesses.sh "$commit^1" "$commit" > "$scratch/selected-$pr" || exit 1; done) < "$scratch/merges"; then
+        cd "$top"
+        [ "$mac" = isolated ] || return 0
+        runner=hosted
+        echo "train: changed-harnesses.sh failed, so no selection says the isolated runner may prove it, and its Mac jobs are hosted"
+        return 0
     fi
+    while read -r pr commit; do cat "$scratch/selected-$pr"; done < "$scratch/merges" > "$scratch/selected"
     cd "$top"
+    if [ "$mac" != isolated ]; then
+        while read -r pr commit; do
+            isolated_only=$(listed_in "$isolated_list" "$scratch/selected-$pr")
+            [ -n "$isolated_only" ] || continue
+            reason="#$pr selects $isolated_only, which only an isolated runner can run, and this train's Mac jobs are hosted"
+            [ -n "$auto" ] || refuse "$reason: train it while a runner labelled NOTCHCAST_MAC_RUNNER is online"
+            echo "WAITS #$pr: $reason; the queue tries it again next tick"
+            waits="$waits${waits:+ }$pr"
+        done < "$scratch/merges"
+        return 0
+    fi
+    isolated_only=$(listed_in "$isolated_list" "$scratch/selected")
+    if [ -n "$isolated_only" ]; then
+        echo "train: it selects $isolated_only, which only an isolated runner can run, so its Mac jobs stay there"
+        return 0
+    fi
+    hosted_only=$(listed_in "$hosted_list" "$scratch/selected")
     [ -n "$hosted_only" ] || return 0
     runner=hosted
     echo "train: it selects hosted-only harnesses ($hosted_only), which land.sh trusts only from a hosted run, so its Mac jobs are hosted"
@@ -317,11 +350,15 @@ while [ ${#queue[@]} -gt 0 ]; do
     for train in "${queue[@]}"; do
         build_train "$base" $train
         [ "$stacked" = "$train" ] || status=1
+        while [ -n "$stacked" ]; do
+            preflight
+            [ -n "$waits" ] || break
+            build_train "$base" $(tr ' ' '\n' <<< "$stacked" | grep -vxF -f <(tr ' ' '\n' <<< "$waits") || true)
+        done
         [ -n "$stacked" ] || continue
         branch=$(train_branch $stacked)
         [ -z "$(git ls-remote origin "refs/heads/$branch")" ] \
             || refuse "origin already has $branch; land it or delete it: git push origin --delete $branch"
-        preflight
         built+=("$branch $tip $runner $stacked")
     done
     queue=()
