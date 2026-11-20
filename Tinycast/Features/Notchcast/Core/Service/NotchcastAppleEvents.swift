@@ -1,7 +1,11 @@
 import Foundation
 
-/// Reads another app with `core/getd` Apple Events, 5 s each; in Core because two add-ons read Finder.
+/// Reads another app with `core/getd` Apple Events, 5 s each; in Core as three add-ons read Finder.
 nonisolated enum NotchcastAppleEvents {
+    /// macOS refusing the event: Automation denied (-1743) or not yet asked (-1744).
+    static let refused = [-1743, -1744]
+    static let timedOut = -1712
+
     /// One object-specifier hop: a named property, or the first element of a class.
     struct Hop {
         let want: NSAppleEventDescriptor
