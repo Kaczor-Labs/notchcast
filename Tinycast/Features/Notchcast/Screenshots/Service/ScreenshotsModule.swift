@@ -160,25 +160,60 @@ final class ScreenshotsModule: NotchcastModule {
     private func finishEditing(_ outcome: CaptureEditorOutcome) {
         guard closeEditor != nil, export == nil else { return }
         let document: AnnotationDocument
+        var chosen: URL?
         switch outcome {
         case .discard: return endEditing()
+        case .close(let edited):
+            guard edited.isDirty else { return endEditing() }
+            return askToDiscard()
         case .copy(let edited), .save(let edited): document = edited
+        case .saveAs(let edited):
+            guard let url = system.chooseSaveFile(
+                ScreenshotFileName.name(date: context.now(), timeZone: .current)) else { return }
+            document = edited
+            chosen = url
         }
         export = Task {
             do {
                 let data = try await Self.render(document)
                 try Task.checkCancellation()
-                if case .save = outcome {
-                    _ = try await Self.save(data, in: folder(), date: context.now(), timeZone: .current)
-                } else if !system.writeClipboard(data) {
-                    throw ScreenshotRequest.Failure.clipboardFailed
+                let notice: IslandNotice
+                if case .copy = outcome {
+                    guard system.writeClipboard(data) else { throw ScreenshotRequest.Failure.clipboardFailed }
+                    notice = IslandNotice(
+                        id: "screenshot.copied", symbol: "camera",
+                        text: String(localized: "Copied", table: "NotchcastScreenshots"))
+                } else {
+                    let url = if let chosen {
+                        try await Self.write(data, to: chosen)
+                    } else {
+                        try await Self.save(data, in: folder(), date: context.now(), timeZone: .current)
+                    }
+                    let name = url.deletingLastPathComponent().lastPathComponent
+                    notice = IslandNotice(
+                        id: "screenshot.saved", symbol: "camera",
+                        text: String(localized: "Saved to \(name)", table: "NotchcastScreenshots"))
                 }
                 try Task.checkCancellation()
                 endEditing()
+                context.presenter.post(notice, onTap: nil)
             } catch {
                 if !(error is CancellationError) { report(error) }
             }
             if !Task.isCancelled { export = nil }
+        }
+    }
+
+    /// Our own dialog; with none to ask (no app running) the edits are kept.
+    private func askToDiscard() {
+        export = Task {
+            let discard = await context.confirmDestructive?(
+                String(localized: "Discard this screenshot's edits?", table: "NotchcastScreenshots"),
+                String(localized: "It was not copied or saved yet.", table: "NotchcastScreenshots"),
+                String(localized: "Discard", table: "NotchcastScreenshots")) ?? false
+            guard !Task.isCancelled else { return }
+            export = nil
+            if discard { endEditing() }
         }
     }
 
@@ -190,7 +225,7 @@ final class ScreenshotsModule: NotchcastModule {
 
     private func folder() throws -> URL {
         try context.defaults.string(forKey: ScreenshotBackupKeys.folder)
-            .map { URL(filePath: $0, directoryHint: .isDirectory) } ?? system.desktop()
+            .map { URL(filePath: $0, directoryHint: .isDirectory) } ?? system.downloads()
     }
 
     /// v1's order: the file first, so a failed clipboard write still leaves the picture saved.
@@ -244,6 +279,13 @@ final class ScreenshotsModule: NotchcastModule {
     @concurrent
     private static func decode(_ data: Data) async -> CGImage? {
         CGImageSourceCreateWithData(data as CFData, nil).flatMap { CGImageSourceCreateImageAtIndex($0, 0, nil) }
+    }
+
+    /// Save As writes where the save panel pointed, which already asked before replacing a file.
+    @concurrent
+    private static func write(_ data: Data, to url: URL) async throws -> URL {
+        try data.write(to: url, options: .atomic)
+        return url
     }
 
     @concurrent

@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 // Adapted from Vorssaint 89d2626's editor model: tool and style state, undo, drag gestures, text and crop.
+// Unsaved-work tracking adapted from Vorssaint faada18d's ScreenshotEditorController.
 
 import CoreGraphics
 import Foundation
@@ -35,11 +36,14 @@ struct AnnotationDocument: Sendable {
     private var newTextID: Int?
     private var nextID = 1
     private var noise: AnnotationNoise
+    /// What was last copied, saved or dragged out, or the capture as it opened.
+    private var clean: Snapshot
 
     init(image: CGImage, scale: CGFloat = 1, seed: UInt64 = 0) {
         self.image = image
         self.scale = max(scale, 0.1)
         noise = AnnotationNoise(seed: seed)
+        clean = Snapshot(image: image, marks: [])
     }
 
     var imageSize: CGSize { CGSize(width: image.width, height: image.height) }
@@ -48,6 +52,17 @@ struct AnnotationDocument: Sendable {
     var canRedo: Bool { !redoStack.isEmpty }
     var selected: AnnotationMark? { marks.first { $0.id == selectedID } }
     var isCropping: Bool { tool == .crop && cropDraft != nil }
+
+    /// Closing would lose work: a mark, an edit or a crop not yet copied, saved or dragged out.
+    var isDirty: Bool {
+        let output = finished()
+        return output.image !== clean.image || output.marks != clean.marks
+    }
+
+    mutating func markExported() {
+        let output = finished()
+        clean = Snapshot(image: output.image, marks: output.marks)
+    }
 
     /// Crop starts on the whole image; leaving it drops the draft, and a drawing tool drops the selection.
     mutating func pick(_ tool: AnnotationTool) {

@@ -44,7 +44,7 @@ enum ScreenshotBackupKeys {
     static let folder = "notchcast.screenshot.folder"
 }
 
-/// v1's naming, so files from both versions sort together on the Desktop.
+/// v1's naming, so files from both versions sort together in one folder.
 enum ScreenshotFileName {
     static func name(date: Date, timeZone: TimeZone, collision: Int = 0) -> String {
         let formatter = DateFormatter()
