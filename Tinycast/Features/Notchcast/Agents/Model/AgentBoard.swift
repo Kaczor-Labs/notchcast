@@ -105,7 +105,7 @@ struct AgentBoard: Equatable, Sendable {
         footnote = Self.footnote(feed)
     }
 
-    /// This Mac and the feed's writer name an account each their own way, so one of a provider matches too.
+    /// This Mac and the gate may name one account differently, so one of a provider matches too.
     private static func copy(of account: AgentLocalAccount, local: [AgentLocalAccount], shared: [AgentAccount]) -> Int? {
         let same = shared.indices.filter { shared[$0].provider == account.provider }
         if let named = same.first(where: { shared[$0].name == account.name }) { return named }
@@ -119,16 +119,21 @@ struct AgentBoard: Equatable, Sendable {
             + feed.filter { copy in !local.contains { $0.name == copy.name } }
     }
 
-    /// This Mac's reading wins unless failed, or stale beside a fresher copy; the other fills in what it lacks.
+    /// This Mac's reading wins unless failed beside a good copy, or stale beside a fresher one.
     private static func pick(_ own: AgentLocalAccount, _ copy: AgentLocalAccount, now: Date) -> AgentLocalAccount {
         guard let mine = own.reading, let theirs = copy.reading else { return own.reading == nil ? copy : own }
         let stale = now.timeIntervalSince(mine.checkedAt) > staleAfter
-        var winner = mine.state != .ok || (stale && theirs.checkedAt > mine.checkedAt) ? copy : own
+        let failed = mine.state != .ok && theirs.state == .ok
+        var winner = failed || (stale && theirs.checkedAt > mine.checkedAt) ? copy : own
         var reading = winner.remote ? theirs : mine
-        let loser = winner.remote ? mine : theirs
+        let loser = winner.remote ? own : copy
         reading.name = copy.name
-        reading.resetCredits = reading.resetCredits ?? loser.resetCredits
-        reading.extraUsage = reading.extraUsage ?? loser.extraUsage
+        // A stale copy lends nothing, or a credit spent since would come back.
+        if let lent = loser.reading,
+           now.timeIntervalSince(lent.checkedAt) <= (loser.remote ? feedStaleAfter : staleAfter) {
+            reading.resetCredits = reading.resetCredits ?? lent.resetCredits
+            reading.extraUsage = reading.extraUsage ?? lent.extraUsage
+        }
         winner.name = copy.name
         winner.reading = reading
         return winner

@@ -470,7 +470,7 @@ func claudeLaunch() {
     print("claude launch: ok")
 }
 
-/// `gate.py feed` on the VPS, 20 Nov 00:56 Warsaw, cut to one window each and moved to `now` less 20 min.
+/// A `gate.py feed` cut to one window each, its machines read `now` less 20 min.
 let gateFeed = #"""
     {"version": 1, "generatedAt": "2026-11-19T17:59:00Z", "machines": [
     {"name": "MBA", "accounts": [{"name": "C1", "provider": "claude", "checkedAt": "2026-11-19T17:40:00Z",
@@ -537,6 +537,29 @@ func boardWithGateFeed() throws {
                               feed: .loaded(feed), now: now)
         check(meters(pair.other[0])[0].value == used && pair.other[0].credit == "2 reset credits", "\(why): \(pair.other[0])")
     }
+
+    let later = now.addingTimeInterval(25 * minute)
+    var spent = codex
+    spent.checkedAt = later.addingTimeInterval(-minute)
+    spent.extraUsage = nil
+    let lent = AgentBoard(machineName: "MBA", local: [AgentLocalAccount(name: "Codex", provider: "codex", reading: spent)],
+                          feed: .loaded(feed), now: later)
+    check(meters(lent.other[0])[0].value == "50% left" && lent.other[0].credit == nil,
+          "a stale feed copy lends no credit: \(lent.other[0])")
+    var broken = feed
+    broken.shared[0].state = .unavailable
+    broken.shared[0].windows = []
+    let kept = AgentBoard(machineName: "MBA", local: [AgentLocalAccount(name: "Codex", provider: "codex", reading: failed)],
+                          feed: .loaded(broken), now: now)
+    check(meters(kept.other[0])[0].value == "50% left", "a failed local read keeps its numbers beside a failed copy")
+    let edge = AgentBoard(machineName: "MBP", local: [], feed: .loaded(feed), now: now.addingTimeInterval(5 * minute))
+    let past = AgentBoard(machineName: "MBP", local: [], feed: .loaded(feed), now: now.addingTimeInterval(5 * minute + 1))
+    check(edge.columns.first { $0.title == "VPS" }?.cards[0].dimmed == false, "a feed reading at 25 min still counts")
+    check(past.columns.first { $0.title == "VPS" }?.cards[0].dimmed == true, "and dims just past it")
+    let ownEdge = AgentBoard(machineName: "MBA", local: [AgentLocalAccount(
+        name: "C9", provider: "claude", reading: account("C9", "claude", [weekly(5, resetsIn: day)], age: 10 * minute))],
+                             feed: .missing, now: now)
+    check(ownEdge.columns[0].cards[0].dimmed == false, "this Mac's own reading at 10 min still counts")
     print("board with the gate's feed: ok")
 }
 
