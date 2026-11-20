@@ -9,6 +9,7 @@
     "%lld h" : {},
     "%lld h %lld min" : {},
     "%lld min" : {},
+    "%lld more, lowest %@" : {},
     "%lld percent left" : {},
     "%lld reset credits" : {},
     "%lld%% left" : {},
@@ -19,6 +20,7 @@
     "Agents" : {},
     "Agents page" : {},
     "Back in %@" : {},
+    "Choose a Claude Code folder" : {},
     "Choose…" : {},
     "Claude accounts" : {},
     "Couldn’t read usage" : {},
@@ -56,6 +58,7 @@
     "Updated %@ ago" : {},
     "Weekly" : {},
     "Weekly limit used up" : {},
+    "Your home folder isn’t one. Choose the folder Claude Code signs in with, such as .claude_team." : {},
     "in %@" : {},
     "resets in %@" : {},
     "runs out in %@" : {}
