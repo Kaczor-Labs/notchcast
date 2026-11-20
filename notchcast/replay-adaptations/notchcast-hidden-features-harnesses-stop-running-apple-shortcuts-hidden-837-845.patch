@@ -1,0 +1,36 @@
+diff --git a/Tests/nc-Notchcast-hotkeys-test.swift b/Tests/nc-Notchcast-hotkeys-test.swift
+index 804966a34..fb8a5e878 100644
+--- a/Tests/nc-Notchcast-hotkeys-test.swift
++++ b/Tests/nc-Notchcast-hotkeys-test.swift
+@@ -94,7 +94,7 @@ struct NotchcastHotKeysTests {
+               relaunchedCenter !== center && actions.allSatisfy { relaunchedCenter.entries[$0.defaultsKey] != nil })
+     }
+ 
+-    /// Apple Shortcuts and Extensions are hidden: a stored chord for either registers nothing at launch.
++    /// Apple Shortcuts and Extensions are hidden: AppCore's allowance refuses a stored chord at launch.
+     static func hiddenFeatureBindingsStayUnregistered() {
+         let domain = "tinycast.notchcast-hotkeys-test.\(UUID())"
+         let defaults = UserDefaults(suiteName: domain)!
+@@ -106,6 +106,7 @@ struct NotchcastHotKeysTests {
+             manager.setBinding(.combo(KeyShortcut(carbonKeyCode: key, carbonModifiers: controlKey)), for: action)
+         }
+         let relaunched = HotKeyManager(defaults: defaults)
++        relaunched.allowsAction = { !hidden.contains($0) }
+         relaunched.start(
+             customCommandIDs: [], quicklinkIDs: [quicklink], windowLayoutIDs: [],
+             windowRoomIDs: [], customWindowSizeIDs: [], quickActionIDs: [])
+diff --git a/Tinycast/Features/HotKeys/Service/HotKeyManager.swift b/Tinycast/Features/HotKeys/Service/HotKeyManager.swift
+index 36f9dfe2f..623f3cabe 100644
+--- a/Tinycast/Features/HotKeys/Service/HotKeyManager.swift
++++ b/Tinycast/Features/HotKeys/Service/HotKeyManager.swift
+@@ -166,8 +166,8 @@ final class HotKeyManager {
+ 
+     var boundQuickActionIDs: [UUID] { boundIDs(key: boundQuickActionKey) }
+ 
+-    /// Apple Shortcuts is hidden (notchcast/docs/hidden.md), so a stored binding registers no chord.
+-    var boundAppleShortcutIDs: [UUID] { [] }
++    /// Pruned by `AppleShortcutCoordinator` after a successful read, never here at launch.
++    var boundAppleShortcutIDs: [UUID] { boundIDs(key: boundAppleShortcutKey) }
+ 
+     /// Swept by `removeSnippetBindings` on each load, never at launch: the store may be off.
+     var boundSnippetIDs: [StoredSnippet.ID] {
