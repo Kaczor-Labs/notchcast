@@ -6,7 +6,7 @@ struct LowDiskSettingsView: View {
     @AppStorage private var threshold: Int
     private static let anchor = NotchcastSettingsSearch.anchor(.power)
     /// Room for the largest threshold, three digits.
-    private static let fieldWidth: CGFloat = 48
+    private static let fieldWidth = ObsidianTokens.Spacing.space8
 
     init(context: NotchcastContext) {
         self.context = context

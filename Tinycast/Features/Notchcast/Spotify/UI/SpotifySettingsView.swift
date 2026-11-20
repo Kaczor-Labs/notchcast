@@ -41,9 +41,6 @@ private struct SoloistRows: View {
                     Task { await module.install() }
                 }
                 .disabled(module.installing)
-                if module.phase == .gaveUp {
-                    Button(String(localized: "Restart", table: "NotchcastSpotify")) { module.restart() }
-                }
             }
         }
         if let error = module.installError {

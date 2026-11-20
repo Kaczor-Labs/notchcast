@@ -153,6 +153,9 @@ enum AutoBackupScheduleTests {
         precondition(fresh.due() == at(Schedule.firstDelay), "a change does not cut that wait short")
         fresh.noteStart(at: at(60))
         precondition(fresh.due() == at(Schedule.firstDelay), "and switching off and on does not push it back")
+        fresh.noteStart(at: at(5_000))
+        precondition(
+            fresh.due() == at(5_000 + Schedule.firstDelay), "on again after the wait lapsed unused waits anew")
     }
 
     static func changeDetection() {

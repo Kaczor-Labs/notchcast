@@ -9,7 +9,7 @@ struct AutoBackupSchedule: Codable, Equatable, Sendable {
     static let keepRange = 1...50
     static let folderName = "Notchcast Backups"
     static let fileExtension = "tinycast"
-    /// The first backup waits this long after switching on, so a folder can be chosen before it lands.
+    /// The first backup waits this long after switching on, so a folder can be chosen first.
     static let firstDelay: TimeInterval = minimumGap
 
     /// Paths this Mac wrote, oldest first: rotation deletes nothing else.
@@ -29,7 +29,8 @@ struct AutoBackupSchedule: Codable, Equatable, Sendable {
     mutating func noteChange(at now: Date) { pendingChange = now }
 
     mutating func noteStart(at now: Date) {
-        if lastWrite == nil, firstDue == nil { firstDue = now.addingTimeInterval(Self.firstDelay) }
+        guard lastWrite == nil, (firstDue ?? .distantPast) <= now else { return }
+        firstDue = now.addingTimeInterval(Self.firstDelay)
     }
 
     /// A change waits out the debounce and the gap since the last write; without one, a daily check.

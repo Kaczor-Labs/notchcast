@@ -82,7 +82,7 @@ enum SoloistPhase: Sendable, Equatable {
     case keyRejected
     /// Ended on its own; it starts again at `retryAt`.
     case waiting(retryAt: Date, attempt: Int)
-    /// Failed `SoloistSupervision.maxAttempts` times in a row; waits for a restart, update or switch-off.
+    /// `SoloistSupervision.maxAttempts` failed starts in a row; update, new key or off clears it.
     case gaveUp
     case updating
 }
