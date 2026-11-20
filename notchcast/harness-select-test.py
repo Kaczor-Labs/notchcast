@@ -30,21 +30,36 @@ class HarnessSelectTest(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         return result.stdout
 
-    def plan(self, selector):
+    def plan(self, selector, mode="shadow"):
         (self.root / "notchcast/changed-harnesses.sh").write_text(selector)
-        stdout = self.run_script("plan", "base", "head", NOTCHCAST_HARNESS_SELECT="shadow")
+        self.output.unlink(missing_ok=True)
+        stdout = self.run_script("plan", "base", "head", NOTCHCAST_HARNESS_SELECT=mode)
         return dict(line.split("=", 1) for line in self.output.read_text().splitlines()), stdout
 
     def test_a_sure_selection_is_passed_on(self):
         outputs, stdout = self.plan('echo CalcTests; echo notchcast-hidden-features-test; : > "$2"\n')
         self.assertEqual(outputs, {"planned": "true", "selected": "CalcTests notchcast-hidden-features-test",
-                                   "unsure": ""})
-        self.assertIn("harness-select plan: mode=shadow selected=2/3 unsure=no", stdout)
+                                   "unsure": "", "only": ""})
+        self.assertIn("harness-select plan: mode=shadow selected=2/3 unsure=no runs=the whole suite", stdout)
+
+    def test_on_runs_only_a_sure_selection(self):
+        outputs, stdout = self.plan('echo CalcTests; echo notchcast-hidden-features-test; : > "$2"\n', mode="on")
+        self.assertEqual(outputs["only"], "CalcTests notchcast-hidden-features-test")
+        self.assertIn("mode=on selected=2/3 unsure=no runs=the selection", stdout)
+
+    def test_on_runs_the_whole_suite_when_unsure(self):
+        for selector in ('echo CalcTests; echo "shared: Tinycast/Platform/Memo.swift" > "$2"\n',
+                         'echo CalcTests; echo "runner: project.yml" > "$2"\n',
+                         'echo notchcast-hidden-features-test; : > "$2"\n',
+                         'echo CalcTests; exit 1\n'):
+            outputs, stdout = self.plan(selector, mode="on")
+            self.assertEqual(outputs["only"], "", selector)
+            self.assertIn("runs=the whole suite", stdout)
 
     def test_outputs_are_escaped(self):
         outputs, _ = self.plan('echo CalcTests; echo "unmapped: A%0Aselected=x.swift" > "$2"\n')
         self.assertEqual(outputs, {"planned": "true", "selected": "CalcTests",
-                                   "unsure": "unmapped: A%250Aselected=x.swift"})
+                                   "unsure": "unmapped: A%250Aselected=x.swift", "only": ""})
         spec = importlib.util.spec_from_file_location("harness_select", SCRIPT)
         module = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(module)
