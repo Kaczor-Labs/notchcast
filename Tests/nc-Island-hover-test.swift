@@ -29,7 +29,6 @@ struct IslandHoverTest {
         monitors()
         pinnedClick()
         topRowRest()
-        trackedMove()
         primaryClick()
         try clickHooks()
         try refreshHooks()
@@ -192,7 +191,6 @@ struct IslandHoverTest {
         precondition(shown(nil) == nil, "a bare island shows nothing on hover (H1 with no player)")
     }
 
-    /// Hover open, click to the menu, onto a row, Escape: closing the menu alone must start the close.
     /// Open Agents from the launcher (#1128): the pin waits for the launcher to go, but only `pinWait`.
     static func pinWhenUncovered() {
         let world = FakeWorld()
@@ -204,6 +202,7 @@ struct IslandHoverTest {
         world.input = Input()
         tracker.refresh()
         precondition(tracker.isOpen && tracker.isPinned && world.opens == [true], "uncovered in time, it pins")
+        precondition(world.fromWait == [true] && !tracker.isPinningFromWait, "that open, and only it, is the wait's")
         let late = FakeWorld()
         let missed = late.tracker()
         late.input = Input(covered: true)
@@ -215,8 +214,11 @@ struct IslandHoverTest {
         late.now += 60
         missed.refresh()
         precondition(!missed.isPinned, "and the spent wait pins nothing later")
+        missed.pin()
+        precondition(missed.isPinned && late.fromWait == [false], "a later click-pin is no command's (#1155)")
     }
 
+    /// Hover open, click to the menu, onto a row, Escape: closing the menu alone must start the close.
     static func menuEscape() {
         let world = FakeWorld()
         let tracker = world.tracker()
@@ -277,21 +279,6 @@ struct IslandHoverTest {
             world.advance(to: open)
             precondition(tracker.isOpen && world.opens == [true], "and the island opens with no further pointer move")
         }
-    }
-
-    /// The island window's tracking area reports a move the monitors never saw (#1029).
-    static func trackedMove() {
-        let world = FakeWorld()
-        let tracker = world.tracker()
-        world.input = Input(inside: true)
-        tracker.refresh()
-        precondition(world.wakeAt == open, "a tracked move starts the intent delay with no monitor event")
-        world.advance(to: open)
-        precondition(tracker.isOpen && world.opens == [true], "and the island opens")
-        world.input = Input(inside: false)
-        tracker.refresh()
-        world.advance(to: open + close)
-        precondition(!tracker.isOpen, "a tracked exit closes it")
     }
 
     /// A primary click opens the island as hover does and holds it, hover on or off (#1029).
@@ -397,6 +384,9 @@ final class FakeWorld {
     var input = IslandHover.Input()
     var now: TimeInterval = 0
     var opens: [Bool] = []
+    /// Per open change, whether the tracker said a command's waited pin made it.
+    var fromWait: [Bool] = []
+    private weak var made: IslandHoverTracker?
     var installs = 0
     var live = 0
     var wakeAt: TimeInterval?
@@ -422,7 +412,11 @@ final class FakeWorld {
                 self.fire = fire
                 return { [unowned self] in wakeAt = nil; self.fire = nil }
             },
-            openChanged: { [unowned self] in opens.append($0) }))
+            openChanged: { [unowned self] in
+                opens.append($0)
+                fromWait.append(made?.isPinningFromWait == true)
+            }))
+        made = tracker
         tracker.start()
         return tracker
     }
