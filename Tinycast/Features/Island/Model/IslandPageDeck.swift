@@ -54,7 +54,9 @@ struct IslandPageDeck: Equatable, Sendable {
     static let noticeID = "island.notice"
 
     mutating func show(_ notice: IslandNotice?, tappable: Bool) {
-        self.notice = notice.map { IslandPageRow(id: tappable ? Self.noticeID : nil, symbol: $0.symbol, title: $0.text) }
+        self.notice = notice.map {
+            IslandPageRow(id: tappable ? Self.noticeID : nil, symbol: $0.symbol, title: $0.text, spoken: $0.spokenText)
+        }
     }
 
     /// With a page, a click on the resting island opens it; the notice's own tap moves to its row.
