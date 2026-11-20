@@ -82,6 +82,8 @@ enum SoloistPhase: Sendable, Equatable {
     case keyRejected
     /// Ended on its own; it starts again at `retryAt`.
     case waiting(retryAt: Date, attempt: Int)
+    /// Failed `SoloistSupervision.maxAttempts` times in a row; waits for a restart, update or switch-off.
+    case gaveUp
     case updating
 }
 
@@ -91,6 +93,8 @@ struct SoloistSupervision: Sendable, Equatable {
     static let maxDelay: TimeInterval = 60
     /// A run this long resets the back-off, so a crash days later restarts at once.
     static let stableRun: TimeInterval = 60
+    /// Consecutive failed starts before giving up: about two minutes of back-off.
+    static let maxAttempts = 8
 
     private(set) var phase = SoloistPhase.stopped
     private var startedAt: Date?
@@ -119,8 +123,9 @@ struct SoloistSupervision: Sendable, Equatable {
         if exit == .expired { phase = .expired; return nil }
         if let startedAt, now.timeIntervalSince(startedAt) >= Self.stableRun { attempt = 0 }
         startedAt = nil
-        let delay = min(Self.firstDelay * pow(2, Double(attempt)), Self.maxDelay)
         attempt += 1
+        guard attempt < Self.maxAttempts else { phase = .gaveUp; return nil }
+        let delay = min(Self.firstDelay * pow(2, Double(attempt - 1)), Self.maxDelay)
         let retryAt = now.addingTimeInterval(delay)
         phase = .waiting(retryAt: retryAt, attempt: attempt)
         return retryAt

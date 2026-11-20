@@ -41,6 +41,9 @@ private struct SoloistRows: View {
                     Task { await module.install() }
                 }
                 .disabled(module.installing)
+                if module.phase == .gaveUp {
+                    Button(String(localized: "Restart", table: "NotchcastSpotify")) { module.restart() }
+                }
             }
         }
         if let error = module.installError {
@@ -95,6 +98,7 @@ private struct SoloistRows: View {
         case .keyRejected: return String(localized: "Spotify refused the key", table: "NotchcastSpotify")
         case .updating: return String(localized: "Installing…", table: "NotchcastSpotify")
         case .waiting: return String(localized: "Stopped, starting again…", table: "NotchcastSpotify")
+        case .gaveUp: return String(localized: "Stopped after repeated failures", table: "NotchcastSpotify")
         case .starting: return String(localized: "Starting…", table: "NotchcastSpotify")
         case .running, .needsKey, .stopped: return version ?? String(localized: "Not installed", table: "NotchcastSpotify")
         }
