@@ -14,20 +14,20 @@ final class BondingState {
         self.now = now
     }
 
-    /// True when both interfaces are up right now, so a download's size is worth asking for.
-    var isPossible: Bool { BondingPolicy.pair(in: interfaces()) != nil }
-
     /// aria2c's extra flags for a torrent session starting now; every torrent shares that session.
     func startTorrents(enabled: Bool) -> [String] {
-        torrents = BondingPolicy.pair(for: .torrent, enabled: enabled, interfaces: interfaces())
+        torrents = BondingPolicy.pair(enabled: enabled, interfaces: interfaces())
         return torrents?.arguments ?? []
     }
 
-    /// aria2c's extra flags for one plain download; a nil size or a small file clears its mark.
-    func startDownload(_ id: String, bytes: Int64?, enabled: Bool) -> [String] {
-        downloads[id] = BondingPolicy.pair(for: .download(bytes: bytes), enabled: enabled, interfaces: interfaces())
+    /// aria2c's extra flags for one plain download.
+    func startDownload(_ id: String, enabled: Bool) -> [String] {
+        downloads[id] = BondingPolicy.pair(enabled: enabled, interfaces: interfaces())
         return downloads[id]?.arguments ?? []
     }
+
+    /// A job that left aria2c for yt-dlp's own downloader is on one interface again.
+    func endDownload(_ id: String) { downloads[id] = nil }
 
     var torrentsBonded: Bool { torrents.map(isLive) ?? false }
 

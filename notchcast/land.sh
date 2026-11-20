@@ -52,7 +52,7 @@ delete_head() {
 }
 source "$(dirname "$0")/sync-wait.sh"
 source "$(dirname "$0")/hold.sh"
-# Optional maintainer hooks (README, "Private hooks"): notchcast_mac_route and notchcast_notify.
+# Optional maintainer hooks (README, "Private hooks"): notchcast_mac_route, notchcast_notify, NOTCHCAST_LAND_LOCK.
 [ ! -f "$HOME/.config/notchcast/private.env" ] || source "$HOME/.config/notchcast/private.env"
 # Where the harness proof runs: a Mac runs every harness, anything else only LINUX_OK_TESTS (config.env).
 case "${NOTCHCAST_PLATFORM:-$(uname -s)}" in Darwin) platform=mac ;; *) platform=linux ;; esac
@@ -330,6 +330,7 @@ elif [ "${1:-}" = --check ] && [ -z "$train_run" ] && [ "$#" -eq 3 ]; then
 elif [ "$#" -ge 1 ] && [[ "$*" =~ ^[0-9]+(\ [0-9]+)*$ ]]; then
     repeated=$(printf '%s\n' "$@" | sort | uniq -d | paste -sd' ' -)
     [ -z "$repeated" ] || refuse "PR named more than once: $repeated"
+    land_lease
     hold_claim "$@"
     train=("$@")
     if [ -n "$hold_pr" ] && [ "$#" -gt 1 ]; then
