@@ -16,7 +16,7 @@ struct HiddenFeaturesTest {
             precondition(SettingsTab(slug: tab.slug) == nil, "settings/\(tab.slug) opens nothing")
             precondition(!SettingsSearchCatalog.entries.contains { $0.tab == tab }, "Search omits \(tab.slug)")
         }
-        for tab in [SettingsTab.backup, .about, .fallbacks, .systemActions] {
+        for tab in [SettingsTab.backup, .about, .fallbacks, .systemActions, .calendar] {
             precondition(visible.contains(tab), "Stock tab stays visible: \(tab.slug)")
             precondition(SettingsTab(slug: tab.slug) == tab, "settings/\(tab.slug) still opens")
             precondition(SettingsSearchCatalog.entries.contains { $0.tab == tab })
@@ -32,6 +32,12 @@ struct HiddenFeaturesTest {
             (.calendar, [
                 "Calendar in Menu Bar", "Show Upcoming Events", "Only show events with meetings",
                 "Hide when there are no upcoming events", "Hide Current Event",
+                "Upcoming meetings in launcher",
+                "Auto Join Meetings",
+                "Only join known meeting services",
+                "Confirm before joining",
+                "Camera Preview",
+                "Calendar commands",
             ]),
         ]
         for (tab, titles) in hiddenRows {
@@ -52,6 +58,13 @@ struct HiddenFeaturesTest {
             precondition(
                 SettingsSearchCatalog.entries.contains { $0.keywords.contains(title) },
                 "Search keeps the stock row: \(title)")
+        }
+        for title in [
+            "Join meetings from Tinycast", "Show the meeting card", "Open Meeting Links In", "Days to Show", "Calendars",
+        ] {
+            precondition(
+                SettingsSearchCatalog.entries.contains { $0.tab == .calendar && $0.keywords.contains(title) },
+                "Calendar keeps its row: \(title)")
         }
         precondition(
             SettingsSearchCatalog.entries.contains { $0.tab == .about && $0.keywords.contains("Links") },

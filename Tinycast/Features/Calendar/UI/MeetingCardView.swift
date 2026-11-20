@@ -77,7 +77,7 @@ extension MeetingEvent.CalendarColor {
 @MainActor
 enum MeetingActionsMenu {
     static func content(
-        meeting: MeetingEvent, core: AppCore, offersDetails: Bool = true
+        meeting: MeetingEvent, core: AppCore, offersDetails: Bool = false
     ) -> PopoverMenuContent {
         var items: [PopoverMenuItem] = []
         if meeting.link != nil {
@@ -120,7 +120,7 @@ enum MeetingActionsMenu {
     }
 
     static func perform(
-        _ shortcut: PaletteShortcut, meeting: MeetingEvent, core: AppCore, offersDetails: Bool = true
+        _ shortcut: PaletteShortcut, meeting: MeetingEvent, core: AppCore, offersDetails: Bool = false
     ) -> Bool {
         switch shortcut {
         case .openInApp:
