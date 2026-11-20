@@ -7,6 +7,8 @@
 // notchcast-sources: Tinycast/Features/Island/Model/IslandNoticeQueue.swift
 // notchcast-sources: Tinycast/Features/Island/Model/IslandHover.swift
 // notchcast-sources: Tinycast/Features/Island/Model/IslandPageDeck.swift
+// notchcast-sources: Tinycast/Features/Island/Model/IslandPlayer.swift
+// notchcast-sources: Tinycast/Features/Island/Service/IslandPlayerSource.swift
 // notchcast-sources: Tinycast/Features/Island/Service/IslandPresenting.swift
 // notchcast-sources: Tinycast/Features/Island/Service/IslandPresenter.swift
 // notchcast-sources: Tinycast/Features/Settings/SettingsTab.swift Tinycast/Features/Notchcast/Hidden/NotchcastHidden.swift
@@ -48,6 +50,9 @@ final class IslandController {
     var level: IslandLevel?
     var expanded = false
     var glance: String?
+    var song: IslandNowPlaying?
+    var songChange = false
+    var notchWidth: CGFloat?
 }
 
 /// The page host as shipped decides: a page, or a bare island, opens it instead of the pill.
@@ -172,6 +177,45 @@ struct AddonNoticeQueueTest {
         check("\(label): it goes exactly at a full dwell once seen", pill?.notice == nil)
     }
 
+    /// D7, D16: a new song grows a notched pill for one dwell; a meeting, notice or no notch never.
+    static func songChange(_ presenter: IslandPresenter) async {
+        let pill = AppCore.shared.island.resting!
+        pill.notchWidth = 180
+        func song(_ id: String, playing: Bool = true) -> IslandNowPlaying {
+            IslandNowPlaying(title: "Song " + id, artist: "Juno Vale", artwork: nil,
+                             time: IslandMediaTime(elapsed: 1, duration: 200, rate: 1, sampledAt: Date()),
+                             isPlaying: playing, id: id)
+        }
+        presenter.setSong(song("a"))
+        check("the song reaches the pill without its running time", pill.song?.id == "a" && pill.song?.time == nil)
+        check("the first song seen never grows the pill", !pill.songChange)
+        presenter.setSong(song("a", playing: false))
+        check("a pause is no song change", !pill.songChange && pill.song?.isPlaying == false)
+        presenter.setSong(song("b"))
+        check("a new song grows a notched pill", pill.songChange)
+        await clock.advance(by: dwell - step)
+        check("for one message dwell", pill.songChange)
+        await clock.advance(by: step)
+        check("then settles back to the glance", !pill.songChange)
+        presenter.setSong(song("c"))
+        presenter.post(IslandNotice(id: "cut", text: "Copied"), onTap: nil)
+        check("a notice cuts the song change", !pill.songChange)
+        presenter.end(notice: "cut")
+        check("and it does not come back", !pill.songChange)
+        pill.glance = "Standup"
+        presenter.setSong(song("d"))
+        check("a meeting glance outranks the song change", !pill.songChange)
+        pill.glance = nil
+        pill.notchWidth = nil
+        presenter.setSong(song("e"))
+        check("without a notch the pill already names the song", !pill.songChange && pill.song?.id == "e")
+        let arrived = IslandController()
+        presenter.restore(arrived, resting: true)
+        check("a rebuilt pill gets the song without a change", arrived.song?.id == "e" && !arrived.songChange)
+        presenter.setSong(nil)
+        check("nil clears the song", pill.song == nil && !pill.songChange)
+    }
+
     static func main() async {
         _ = NSApplication.shared
         let suite = "nc-notice-queue-test-\(UUID().uuidString)"
@@ -270,6 +314,7 @@ struct AddonNoticeQueueTest {
         check("with no page a meeting glance keeps its own expansion", !presenter.pages.isOpen)
         presenter.hoverChanged(false)
         core.island.resting?.glance = nil
+        await songChange(presenter)
         controller.stop()
         print(failures == 0 ? "PASS AddonNoticeQueueTest" : "FAILED \(failures)")
         exit(failures == 0 ? 0 : 1)
