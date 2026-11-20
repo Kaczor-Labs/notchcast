@@ -4,16 +4,12 @@ import Foundation
 struct FinderToolsPolicy: Sendable {
     enum Action: Sendable, Equatable { case cut, paste, rename }
 
-    /// Each switch has its own tap, so each owns the key-ups of the keys it swallowed.
-    enum Tap: Sendable, Hashable { case cutPaste, rename }
-
     struct Modifiers: OptionSet, Sendable, Hashable {
         let rawValue: UInt8
         static let command = Self(rawValue: 1)
         static let shift = Self(rawValue: 2)
         static let option = Self(rawValue: 4)
         static let control = Self(rawValue: 8)
-        static let hyper: Self = [.command, .shift, .option, .control]
     }
 
     /// One swallowed key or command; `keyCode` nil means there is no original key to send back.
@@ -45,7 +41,7 @@ struct FinderToolsPolicy: Sendable {
     static let escapeKeyCode: UInt16 = 53
     static let returnKeyCode: UInt16 = 36
     /// ANSI positions, used when the layout reports no character for a key.
-    static let ansiKeyCodes: [Character: UInt16] = ["x": 7, "c": 8, "v": 9, "r": 15]
+    static let ansiKeyCodes: [Character: UInt16] = ["x": 7, "c": 8, "v": 9]
 
     /// Finder's pid while Finder is frontmost, refreshed on app activation.
     var finderPID: Int32?
@@ -54,37 +50,30 @@ struct FinderToolsPolicy: Sendable {
     private(set) var epoch = 0
     private var cutChangeCount: Int?
     private var cutsInFlight = 0
-    private var swallowed: Set<SwallowedKey> = []
+    private var swallowed: Set<UInt16> = []
     private var requests: [Request] = []
-
-    private struct SwallowedKey: Hashable, Sendable {
-        let tap: Tap
-        let code: UInt16
-    }
 
     var hasPendingCut: Bool { cutChangeCount != nil || cutsInFlight > 0 }
     var hasRequests: Bool { !requests.isEmpty }
 
-    mutating func keyDown(
-        _ code: UInt16, _ modifiers: Modifiers, isRepeat: Bool, isSynthetic: Bool, tap: Tap
-    ) -> Verdict {
+    mutating func keyDown(_ code: UInt16, _ modifiers: Modifiers, isRepeat: Bool, isSynthetic: Bool) -> Verdict {
         guard !isSynthetic else { return .pass }
-        if swallowed.contains(SwallowedKey(tap: tap, code: code)) { return .swallow }
+        if swallowed.contains(code) { return .swallow }
         let character = character(for: code)
-        if tap == .cutPaste, code == Self.escapeKeyCode || (character == "c" && modifiers == .command) {
+        if code == Self.escapeKeyCode || (character == "c" && modifiers == .command) {
             forget()
             return .pass
         }
-        guard !isRepeat, let pid = finderPID, let action = Self.action(character, modifiers, tap: tap),
+        guard !isRepeat, let pid = finderPID, let action = Self.action(character, modifiers),
               action != .paste || hasPendingCut
         else { return .pass }
-        swallowed.insert(SwallowedKey(tap: tap, code: code))
+        swallowed.insert(code)
         enqueue(action, pid: pid, keyCode: code, modifiers: modifiers, isKeyPress: true)
         return .swallow
     }
 
-    mutating func keyUp(_ code: UInt16, tap: Tap) -> Verdict {
-        swallowed.remove(SwallowedKey(tap: tap, code: code)) != nil ? .swallow : .pass
+    mutating func keyUp(_ code: UInt16) -> Verdict {
+        swallowed.remove(code) != nil ? .swallow : .pass
     }
 
     /// A launcher command or hotkey: the same request a key would make, with Finder frontmost.
@@ -157,11 +146,10 @@ struct FinderToolsPolicy: Sendable {
         return Self.ansiKeyCodes.first { $0.value == code }?.key
     }
 
-    private static func action(_ character: Character?, _ modifiers: Modifiers, tap: Tap) -> Action? {
-        switch (tap, character, modifiers) {
-        case (.cutPaste, "x", .command): .cut
-        case (.cutPaste, "v", .command): .paste
-        case (.rename, "r", .hyper): .rename
+    private static func action(_ character: Character?, _ modifiers: Modifiers) -> Action? {
+        switch (character, modifiers) {
+        case ("x", .command): .cut
+        case ("v", .command): .paste
         default: nil
         }
     }

@@ -1,13 +1,13 @@
 {
   "sourceLanguage" : "en",
   "strings" : {
-    "⌃⌥⇧⌘R renames the selection without reaching for Return." : {},
     "⌘X then ⌘V moves files instead of copying them." : {},
     "Cut and paste in Finder" : {},
     "Cut Files in Finder" : {},
     "Paste Files in Finder" : {},
     "Quick rename in Finder" : {},
-    "Rename in Finder" : {}
+    "Rename in Finder" : {},
+    "Rename the selected file or folder from the launcher or with a shortcut you choose." : {}
   },
   "version" : "1.0"
 }
