@@ -852,6 +852,19 @@ queue
 [ "$(landed)" = 'Notchcast: Add B (#1)|Notchcast: Add C (#2)' ] || queue_fail "the land-only batch landed '$(landed)'"
 echo 'PASS: --queue takes only PRs labelled land: a green ready one and a draft with a skipped build ride, red or unlabelled wait'
 
+# A hold for #2 cuts the green batch 1 2 to #2 in land.sh: the queue says only #2 landed and #1 is held (#1119).
+fixture
+open_pr 1 pr-b 'Add B' src/b.txt
+open_pr 2 pr-c 'Add C' src/c.txt
+held="2 $(($(date +%s) + 600))"
+echo "$held" > "$FIXTURE/hold"
+queue
+[ "$status" -eq 0 ] && grep -q '^queue: batch 1 2$' "$FIXTURE/train-output" && grep -q '^LANDED #2$' "$FIXTURE/train-output" \
+    && grep -q '^HELD #1: landing is held for #2, ' "$FIXTURE/train-output" && ! grep -q '^LANDED #1' "$FIXTURE/train-output" \
+    || queue_fail 'under a hold the queue did not say which PR landed and which were held'
+[ "$(landed)" = 'Notchcast: Add C (#2)' ] && [ "$(cat "$FIXTURE/hold")" = "$held" ] || queue_fail "under a hold for #2 the queue landed '$(landed)'"
+echo 'PASS: under a hold for one PR of the batch, --queue prints that only it landed and the rest are held'
+
 # Unprovable: a harness in both lists passes in no VM, so land.sh refuses for good a PR that selects one.
 head_of() { jq -r .headRefOid "$FIXTURE/pr-$1.json"; }
 refused() { echo "REFUSED: no run proves $1: it is in both HOSTED_ONLY_TESTS and CI_SKIP_TESTS (notchcast/config.env, main's or the PR's); make it pass on a hosted VM and take it out of CI_SKIP_TESTS"; }

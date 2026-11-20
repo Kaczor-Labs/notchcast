@@ -448,8 +448,11 @@ while [ ${#queue[@]} -gt 0 ]; do
             landing=${PIPESTATUS[0]}
             set -e
             if [ "$landing" -eq 0 ]; then
-                landed=$train
-                echo "LANDED #$train"
+                held=$(sed -n 's/^landing is held for #\([0-9]*\): the train is cut to it$/\1/p' "$scratch/landing")
+                landed=${held:-$train}
+                echo "LANDED #$landed"
+                rest=$(tr ' ' '\n' <<< "$train" | grep -vxF "$landed" | paste -sd' ' - || true)
+                [ -z "$held" ] || echo "HELD #${rest// / #}: landing is held for #$held, so land.sh landed only it; the queue takes the rest again"
             elif [ "$landing" -eq 3 ]; then
                 status=1
                 refused_for_good "$train" "$branch" "$runner"
