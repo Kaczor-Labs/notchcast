@@ -4,23 +4,27 @@ import CoreGraphics
 import Foundation
 
 final class FakeFiles: @unchecked Sendable {
+    var existing: Set<String> = []
     var written: [String] = []
     var removed: [String] = []
-    var folderFails = false
-    var writeFails = false
-    let folder = URL(filePath: "/private-tmp/paste", directoryHint: .isDirectory)
+    var writeError: CocoaError?
 
     var files: PasteImageFiles {
         PasteImageFiles(
-            makeFolder: {
-                if self.folderFails { throw CocoaError(.fileWriteNoPermission) }
-                return self.folder
-            },
             write: { _, url in
-                if self.writeFails { throw CocoaError(.fileWriteNoPermission) }
-                self.written.append(url.lastPathComponent)
+                let name = url.lastPathComponent
+                if self.existing.contains(name) { throw CocoaError(.fileWriteFileExists) }
+                if let error = self.writeError {
+                    self.existing.insert(name)
+                    throw error
+                }
+                self.existing.insert(name)
+                self.written.append(name)
             },
-            remove: { self.removed.append($0.lastPathComponent) })
+            remove: {
+                self.removed.append($0.lastPathComponent)
+                self.existing.remove($0.lastPathComponent)
+            })
     }
 }
 
@@ -47,9 +51,17 @@ enum PasteImagePolicyTests {
     }
 
     static func clipboard() {
-        for type in ["public.png", "public.tiff", "public.jpeg", "public.heic"] {
+        let images = ["public.png", "public.tiff", "public.jpeg", "public.heic", "com.compuserve.gif", "org.webmproject.webp"]
+        for type in images {
             precondition(PasteImagePolicy.accepts(types: ["public.utf8-plain-text", type]), "\(type) is an image")
         }
+        precondition(PasteImagePolicy.imageType(in: ["public.utf8-plain-text"]) == nil, "text keeps Finder's paste")
+        precondition(PasteImagePolicy.imageType(in: ["public.tiff", "public.png"]) == "public.png", "PNG wins")
+        precondition(PasteImagePolicy.imageType(in: ["public.file-url", "public.png"]) == nil, "a copied file stays a file")
+        precondition(PasteImagePolicy.imageType(in: ["public.jpeg"]) == "public.jpeg", "a JPEG is converted")
+        precondition(
+            PasteImagePolicy.imageType(in: ["public.utf8-plain-text", "public.tiff", "public.jpeg"]) == "public.tiff",
+            "else the first image type")
         precondition(!PasteImagePolicy.accepts(types: ["public.file-url", "public.tiff"]), "copied files keep Finder's")
         precondition(!PasteImagePolicy.accepts(types: ["public.utf8-plain-text"]), "text is no image")
         precondition(!PasteImagePolicy.accepts(types: []), "an empty clipboard is no image")
@@ -59,6 +71,7 @@ enum PasteImagePolicyTests {
         precondition(passes(7, "AXTextField"), "rename field takes text")
         precondition(passes(7, "AXTextArea"), "text area takes text")
         precondition(passes(7, "AXComboBox"), "Connect to Server's address field takes text")
+        precondition(passes(7, "AXSecureTextField"), "a password field takes text")
         precondition(!passes(7, "AXOutline"), "the file list takes the image")
         precondition(passes(99, "AXOutline"), "a panel over Finder keeps its ⌘V")
         precondition(passes(7, nil), "an unreadable role gets ⌘V back")
@@ -74,9 +87,19 @@ enum PasteImagePolicyTests {
         precondition(!accepts("smb://server/share/"), "only a file URL is a folder")
         precondition(PasteImagePolicy.keyCode(commandCharacter: { _ in nil }) == 9, "fallback is kVK_ANSI_V")
         precondition(PasteImagePolicy.keyCode(commandCharacter: { $0 == 47 ? "v" : "x" }) == 47, "Dvorak's ⌘V")
+        let utc = TimeZone(secondsFromGMT: 0)!
         precondition(
-            PasteImagePolicy.fileName(at: Date(timeIntervalSince1970: 1_700_000_000.9), attempt: 3)
-                == "Pasted Image 1700000000 3.png", "file name")
+            PasteImagePolicy.fileName(at: Date(timeIntervalSince1970: 0), timeZone: utc, attempt: 1)
+                == "Pasted_Image_19700101_000000.png", "Vorssaint's name")
+        let warsaw = TimeZone(identifier: "Europe/Warsaw")!
+        precondition(
+            PasteImagePolicy.fileName(at: Date(timeIntervalSince1970: 1_700_000_000.9), timeZone: warsaw, attempt: 3)
+                == "Pasted_Image_20231114_231320 3.png", "local time and the third name")
+        precondition(PasteImageFailure.finder(status: -1743) == .automationRefused, "Automation refused")
+        precondition(PasteImageFailure.finder(status: -1744) == .automationRefused, "consent would be asked")
+        for status in [-600, -609, -1712, -1728, 0] {
+            precondition(PasteImageFailure.finder(status: status) == .finderSilent, "status \(status) is no answer")
+        }
     }
 
     static func keys() {
@@ -134,48 +157,42 @@ enum PasteImagePolicyTests {
     }
 
     static func saving() {
-        let date = Date(timeIntervalSince1970: 1_700_000_000)
-        var fake = FakeFiles()
-        var answers: [PasteImagePlacement] = [.placed]
-        var placed: [String] = []
-        func place(_ url: URL) -> PasteImagePlacement {
-            placed.append(url.lastPathComponent)
-            return answers.isEmpty ? .nameTaken : answers.removeFirst()
+        let date = Date(timeIntervalSince1970: 0)
+        let utc = TimeZone(secondsFromGMT: 0)!
+        let folder = URL(filePath: "/Volumes/Disk/Pictures", directoryHint: .isDirectory)
+        let first = "Pasted_Image_19700101_000000"
+        func save(_ fake: FakeFiles) -> PasteImageWrite {
+            PasteImageSaver.save(Data([1]), into: folder, at: date, timeZone: utc, files: fake.files)
         }
-        precondition(PasteImageSaver.save(Data([1]), at: date, files: fake.files, place: place), "placed")
-        precondition(placed == ["Pasted Image 1700000000 1.png"], "first name: \(placed)")
-        precondition(fake.removed == ["paste"], "the folder is removed after success")
+
+        var fake = FakeFiles()
+        precondition(save(fake) == .saved(folder.appending(path: "\(first).png")), "the first name, in Finder's folder")
+        precondition(fake.written == ["\(first).png"] && fake.removed.isEmpty, "one file written, nothing removed")
 
         fake = FakeFiles()
-        placed = []
-        answers = [.nameTaken, .nameTaken, .placed]
-        precondition(PasteImageSaver.save(Data([1]), at: date, files: fake.files, place: place), "a clash retries")
-        precondition(placed.map { $0.split(separator: " ").last! } == ["1.png", "2.png", "3.png"], "next number")
-        precondition(fake.removed == ["Pasted Image 1700000000 1.png", "Pasted Image 1700000000 2.png", "paste"],
-                     "each clashed file and the folder go: \(fake.removed)")
+        fake.existing = ["\(first).png"]
+        precondition(save(fake) == .saved(folder.appending(path: "\(first) 2.png")), "a clash: \" 2\"")
+        fake.existing = ["\(first).png", "\(first) 2.png"]
+        fake.written = []
+        precondition(save(fake) == .saved(folder.appending(path: "\(first) 3.png")), "then \" 3\"")
+        precondition(fake.removed.isEmpty, "a taken file is never removed")
 
         fake = FakeFiles()
-        placed = []
-        answers = []
-        precondition(!PasteImageSaver.save(Data([1]), at: date, files: fake.files, place: place), "ten clashes fail")
-        precondition(placed.count == 10 && placed.last == "Pasted Image 1700000000 10.png", "up to 10 times")
-        precondition(fake.removed.last == "paste", "the folder goes after ten clashes")
+        fake.existing = Set((1...10).map { PasteImagePolicy.fileName(at: date, timeZone: utc, attempt: $0) })
+        let before = fake.existing
+        precondition(save(fake) == .failed(code: CocoaError.fileWriteFileExists.rawValue), "ten clashes fail")
+        precondition(fake.written.isEmpty && fake.removed.isEmpty && fake.existing == before, "nothing overwritten")
 
         fake = FakeFiles()
-        placed = []
-        answers = [.failed]
-        precondition(!PasteImageSaver.save(Data([1]), at: date, files: fake.files, place: place), "a refusal fails")
-        precondition(placed.count == 1 && fake.removed == ["paste"], "no retry after a refusal; folder removed")
+        fake.writeError = CocoaError(.fileWriteNoPermission)
+        precondition(save(fake) == .failed(code: CocoaError.fileWriteNoPermission.rawValue), "an unwritable folder")
+        precondition(fake.removed == ["\(first).png"] && fake.existing.isEmpty, "a half-written file is removed")
 
         fake = FakeFiles()
-        fake.writeFails = true
-        placed = []
-        precondition(!PasteImageSaver.save(Data([1]), at: date, files: fake.files, place: place), "unwritable")
-        precondition(placed.isEmpty && fake.removed == ["paste"], "a failed write never reaches Finder")
-
-        fake = FakeFiles()
-        fake.folderFails = true
-        precondition(!PasteImageSaver.save(Data([1]), at: date, files: fake.files, place: place), "no folder")
-        precondition(fake.removed.isEmpty, "nothing to remove")
+        fake.writeError = CocoaError(.fileWriteOutOfSpace)
+        fake.existing = ["\(first).png"]
+        precondition(save(fake) == .failed(code: CocoaError.fileWriteOutOfSpace.rawValue), "a full disk")
+        precondition(fake.removed == ["\(first) 2.png"] && fake.existing == ["\(first).png"],
+                     "only its own half-written file goes, never the taken one")
     }
 }
