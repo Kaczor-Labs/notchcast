@@ -1,6 +1,7 @@
 import AppKit
 import SwiftUI
 
+// Dry run for the bench-check landing path; no behaviour change.
 @main
 @MainActor
 struct FormInputTests {
