@@ -24,7 +24,6 @@
   ],
   "commands-hidden": [
     "Tinycast/Features/Notchcast/Hidden/*",
-    "Tinycast/Features/Notchcast/ScriptCommands/*",
     "Tinycast/Features/Launcher/Model/CommandCatalog.swift",
     "Tinycast/Features/Launcher/Service/AppIndex.swift",
     "Tinycast/Features/Launcher/Service/VisibilityStore.swift",
