@@ -8,6 +8,7 @@
     "Asks for your admin password each time it changes." : {},
     "Copied %@" : {},
     "Copied Public IP %@" : {},
+    "Copied Wi-Fi password" : {},
     "Copied “%@”: %@" : {},
     "Copy Local IP Address" : {},
     "Copy Public IP Address" : {},
