@@ -1,6 +1,7 @@
 // notchcast-addon-order: 50
 // notchcast-readme: Display & Sound: stop Apple Music opening on media keys
 // notchcast-readme: Display & Sound: the play key resumes the player you used last
+// notchcast-new-switch-ids: musicBlockResumeLastPlayer
 import Foundation
 
 /// Quits Apple Music when a media key, not the user, opened it, and plays the last player instead.
