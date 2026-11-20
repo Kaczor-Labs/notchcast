@@ -50,6 +50,7 @@ struct IslandPagesRenderTest {
         precondition(sizes["1-player"] != sizes["3-home"] && sizes["3-home"] != sizes["5-system"],
                      "pages size to their content: no fixed width or height (946-6)")
         precondition(sizes["5-home"]!.height > sizes["3-home"]!.height, "five lines stand taller than three")
+        precondition(sizes["0-home"]!.height < sizes["3-home"]!.height, "a bare island's Home holds one line (#884)")
         precondition(sizes["agents-slots"]!.width == Theme.Size.panelWidth && sizes["agents-alone"]!.width
             == Theme.Size.panelWidth, "a page of cards keeps the launcher's width (#1128)")
         print("agents-slots \(sizes["agents-slots"]!), agents-alone \(sizes["agents-alone"]!)")
@@ -96,6 +97,7 @@ struct IslandPagesRenderTest {
         return [
             ("agents-slots", deck([board, player], select: .page(board.id))),
             ("agents-alone", deck([alone])),
+            ("0-home", deck([])),
             ("1-player", deck([player])),
             ("1-player-notice", noticed(deck([player]))),
             ("3-home-notice", noticed(deck([calm, player, system]))),
