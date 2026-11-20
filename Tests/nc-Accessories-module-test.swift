@@ -32,8 +32,12 @@ final class FakeSystem {
     var profilerReads = 0
     var connection: (@MainActor @Sendable (AccessoryConnectionEvent) -> Void)?
     var bannerNames: [String: Date] = [:]
+    var sleep: (@MainActor @Sendable () -> Void)?
+    var wake: (@MainActor @Sendable () -> Void)?
     var live = 0
     var now = Date(timeIntervalSinceReferenceDate: 0)
+
+    func advance(_ seconds: TimeInterval) { now.addTimeInterval(seconds) }
 }
 
 @MainActor let system = FakeSystem()
@@ -51,7 +55,14 @@ extension AccessoriesModule {
     ) -> AccessoriesWatcher? {
         system.connection = handler
         system.live += 1
-        return AccessoriesWatcher { Task { @MainActor in system.live -= 1 } }
+        return AccessoriesWatcher { MainActor.assumeIsolated { system.live -= 1 } }
+    }
+
+    static func watchSleep(sleep: @escaping @MainActor @Sendable () -> Void,
+                           wake: @escaping @MainActor @Sendable () -> Void) -> AccessoriesWatcher? {
+        system.sleep = sleep
+        system.wake = wake
+        return AccessoriesWatcher {}
     }
 
     static func watchBanners(_ defaults: UserDefaults) -> AccessoryBannerHandle? {
@@ -239,15 +250,8 @@ enum AccessoriesModuleTests {
         precondition(AccessoryPolicy.isApple("Kim's AirPods Pro") && !AccessoryPolicy.isApple("MX Master 3"),
                      "Apple accessories by name")
 
-        let now = Date(timeIntervalSinceReferenceDate: 100)
-        let names = ["kim's airpods pro": now.addingTimeInterval(5), "magic mouse": now.addingTimeInterval(-1)]
-        precondition(AccessoryPolicy.hides(banner: ["Kim's AirPods Pro", "Connected"], names: names, now: now),
-                     "macOS's banner for the accessory we just announced")
-        precondition(!AccessoryPolicy.hides(banner: ["Magic Mouse", "Connected"], names: names, now: now),
-                     "not once its window has passed")
-        precondition(!AccessoryPolicy.hides(banner: ["Messages", "See you at 5"], names: names, now: now),
-                     "never another app's banner")
-        precondition(!AccessoryPolicy.hides(banner: ["x"], names: ["": .distantFuture], now: now), "an empty name hides nothing")
+        precondition(!AccessoryPolicy.isAccessory(majorClass: 2) && AccessoryPolicy.isAccessory(majorClass: 5),
+                     "a phone is not an accessory, a keyboard is")
     }
 
     static func page() {
@@ -305,28 +309,61 @@ enum AccessoriesModuleTests {
         await settle()
         precondition(rig.texts.last == "Magic Mouse: Low battery: 18%", "a fall to 20% or below warns")
         precondition(rig.presenter.posts.last?.isFailure == true, "in the failure ink")
-        precondition(system.bannerNames["magic mouse"] == .distantFuture, "macOS's later warning counts as a duplicate")
+        precondition(system.bannerNames["magic mouse"] == system.now.addingTimeInterval(10),
+                     "macOS's banner for it counts as a duplicate for 10 s, then never again")
         await module.read(profilerAge: 300)
         precondition(rig.texts.count == 2, "once per discharge")
+
+        system.profiler = [device("Kim's AirPods Pro", 60, .audio), device("Kim's iPhone", 50, .device),
+                           device("Office Mac", 90, .device)]
+        system.connection?(.others(names: ["Kim's iPhone"]))
+        system.connection?(.connected(name: "Office Mac", majorClass: 1, minorClass: 1))
+        await settle()
+        await module.read(profilerAge: 0)
+        precondition(module.devices.map(\.name) == ["Magic Mouse", "Kim's AirPods Pro"],
+                     "phones and computers never reach the page: \(module.devices.map(\.name))")
+        precondition(rig.texts.count == 2, "nor announced")
+
+        system.sleep?()
+        precondition(system.live == 0, "asleep or locked: connections stop")
+        system.wake?()
+        precondition(system.live == 1, "back: they start again from a silent baseline")
+        system.connection?(.connected(name: "Desk Keyboard", majorClass: 5, minorClass: 0x10))
+        system.advance(29)
+        system.connection?(.connected(name: "Desk Trackpad", majorClass: 5, minorClass: 0x25))
+        await settle()
+        precondition(rig.texts.count == 2, "reconnections within 30 s of a wake are silent")
+        system.advance(1)
+        system.connection?(.connected(name: "Pixel Buds", majorClass: 4, minorClass: 1))
+        await settle()
+        precondition(rig.texts.last == "Pixel Buds: Connected", "after it, news again")
 
         rig.defaults.set(false, forKey: AccessoryPolicy.connectKey)
         system.connection?(.connected(name: "MX Master 3", majorClass: 5, minorClass: 0x20))
         await settle()
-        precondition(rig.texts.count == 2, "the Connected checkbox off silences connections")
+        precondition(rig.texts.count == 3, "the Connected checkbox off silences connections")
+
+        let stale = system.hid
+        system.connection?(.disconnected(name: "Magic Mouse"))
+        await settle()
+        system.hid = stale
+        await module.read(profilerAge: 300)
+        precondition(!module.devices.contains { $0.name == "Magic Mouse" }, "a reading begun before it left stays gone")
+        system.advance(1)
 
         system.connection?(.disconnected(name: "Kim's AirPods Pro"))
         await settle()
-        precondition(rig.presenter.ends == ["accessories.connected.kim's airpods pro"], "its notice goes")
+        precondition(rig.presenter.ends.contains("accessories.connected.kim's airpods pro"), "its notice goes")
         precondition(!module.devices.contains { $0.name == "Kim's AirPods Pro" }, "and it leaves the page")
 
         module.stop()
         await settle()
         precondition(rig.presenter.page == nil && rig.presenter.watcher == nil, "stop clears the page")
-        precondition(rig.presenter.ends.contains("accessories.low.magic mouse"), "and ends its notices")
+        precondition(rig.presenter.ends.contains("accessories.connected.pixel buds"), "and ends its notices")
         precondition(system.live == 0, "and lets go of Bluetooth")
         system.connection?(.connected(name: "Late", majorClass: 4, minorClass: 1))
         await settle()
-        precondition(rig.texts.count == 2, "a stopped module posts nothing")
+        precondition(rig.texts.count == 3, "a stopped module posts nothing")
         rig.context.attach(nil)
     }
 

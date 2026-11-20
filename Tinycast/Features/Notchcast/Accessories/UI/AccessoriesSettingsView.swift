@@ -1,3 +1,4 @@
+import CoreBluetooth
 import SwiftUI
 
 /// One checkbox per notice kind under the Accessories switch, and the opt-in that hides macOS's own banner.
@@ -6,6 +7,7 @@ struct AccessoriesSettingsView: View {
     @AppStorage private var low: Bool
     @AppStorage private var hideBanner: Bool
     @State private var trusted = Permissions.isAccessibilityTrusted()
+    @State private var bluetooth = CBManager.authorization
     private static let anchor = NotchcastSettingsSearch.anchor(.notices)
 
     init(defaults: UserDefaults) {
@@ -15,6 +17,19 @@ struct AccessoriesSettingsView: View {
     }
 
     var body: some View {
+        if [.denied, .restricted].contains(bluetooth) {
+            LabeledContent {
+                Button(String(localized: "Grant Access…", table: "NotchcastAccessories")) {
+                    guard let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Bluetooth")
+                    else { return }
+                    NSWorkspace.shared.open(url)
+                }
+            } label: {
+                Label(String(localized: "Needs Bluetooth access", table: "NotchcastAccessories"),
+                      systemImage: "exclamationmark.triangle.fill")
+                    .foregroundStyle(Theme.Colors.warning)
+            }
+        }
         Toggle(isOn: $connect) {
             SettingsRowTitle(Self.anchor, LocalizedStringResource("Connected", table: "NotchcastAccessories"))
             Text("When headphones, a keyboard, a mouse or another Bluetooth accessory connects. Never computers or phones.",
@@ -37,6 +52,7 @@ struct AccessoriesSettingsView: View {
         // macOS announces no Accessibility grant; returning from System Settings keys the window.
         .onReceive(NotificationCenter.default.publisher(for: NSWindow.didBecomeKeyNotification)) { _ in
             trusted = Permissions.isAccessibilityTrusted()
+            bluetooth = CBManager.authorization
         }
         if hideBanner, !trusted {
             LabeledContent {

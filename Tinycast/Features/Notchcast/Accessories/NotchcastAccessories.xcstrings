@@ -15,6 +15,7 @@
     "Left" : {},
     "Low battery" : {},
     "Needs Accessibility access" : {},
+    "Needs Bluetooth access" : {},
     "Once per discharge, when an accessory falls to 20 percent. Charging it to 25 percent arms it again." : {},
     "Right" : {},
     "Shows on the island when a Bluetooth accessory connects or its battery runs low, and lists connected accessories with their battery levels." : {},

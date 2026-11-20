@@ -67,13 +67,53 @@ extension AccessoriesModule {
         return AccessoriesWatcher { source.cancel() }
     }
 
+    /// The option and an Accessibility grant take effect at once, not at the next poll.
     static func watchBanners(_ defaults: UserDefaults) -> AccessoryBannerHandle? {
         let hider = AccessoryBannerHider(defaults: defaults)
         let thread = AccessoriesThread.shared
+        let refresh: @Sendable () -> Void = { thread.perform { hider.refresh() } }
+        let local = NotificationCenter.default
+        let distributed = DistributedNotificationCenter.default()
+        let tokens = [
+            NotificationToken(local.addObserver(
+                forName: UserDefaults.didChangeNotification, object: defaults, queue: nil) { _ in refresh() },
+                center: local),
+            NotificationToken(distributed.addObserver(
+                forName: Notification.Name("com.apple.accessibility.api"), object: nil, queue: nil
+            ) { _ in
+                refresh()
+                // The trust database answers a moment after macOS announces the change.
+                DispatchQueue.global(qos: .utility).asyncAfter(deadline: .now() + 1) { refresh() }
+            }, center: distributed),
+        ]
+        refresh()
         return AccessoryBannerHandle(
-            watcher: AccessoriesWatcher { hider.cancel() },
+            watcher: AccessoriesWatcher {
+                withExtendedLifetime(tokens) {}
+                hider.cancel()
+            },
             setNames: { names in thread.perform { hider.setNames(names) } },
-            refresh: { thread.perform { hider.refresh() } })
+            refresh: refresh)
+    }
+
+    /// Asleep or locked, and back: connections are rebuilt as a silent baseline on the way back.
+    static func watchSleep(sleep: @escaping @MainActor @Sendable () -> Void,
+                           wake: @escaping @MainActor @Sendable () -> Void) -> AccessoriesWatcher? {
+        let workspace = NSWorkspace.shared.notificationCenter
+        let distributed = DistributedNotificationCenter.default()
+        func observe(_ center: NotificationCenter, _ name: Notification.Name,
+                     _ action: @escaping @MainActor @Sendable () -> Void) -> NotificationToken {
+            NotificationToken(center.addObserver(forName: name, object: nil, queue: .main) { _ in
+                Task { @MainActor in action() }
+            }, center: center)
+        }
+        let tokens = [
+            observe(workspace, NSWorkspace.willSleepNotification, sleep),
+            observe(workspace, NSWorkspace.didWakeNotification, wake),
+            observe(distributed, Notification.Name("com.apple.screenIsLocked"), sleep),
+            observe(distributed, Notification.Name("com.apple.screenIsUnlocked"), wake),
+        ]
+        return AccessoriesWatcher { withExtendedLifetime(tokens) {} }
     }
 }
 
@@ -86,6 +126,16 @@ final class AccessoriesThread: @unchecked Sendable {
     private var pending: [@Sendable () -> Void] = []
     private var started = false
     private var draining = false
+
+    /// Waits at most `timeout`, so a stuck Accessibility call can delay quitting but never hang it.
+    func performAndWait(timeout: TimeInterval, _ work: @escaping @Sendable () -> Void) {
+        let done = DispatchSemaphore(value: 0)
+        perform {
+            work()
+            done.signal()
+        }
+        _ = done.wait(timeout: .now() + timeout)
+    }
 
     func perform(_ work: @escaping @Sendable () -> Void) {
         let action = lock.withLock { () -> (launch: Bool, runLoop: CFRunLoop?) in
@@ -159,13 +209,18 @@ private final class AccessoryBluetoothSource: NSObject, @unchecked Sendable {
     func start() {
         guard !isCancelled else { return }
         var baseline = Set<String>()
+        var others: [String] = []
         for device in IOBluetoothDevice.pairedDevices() as? [IOBluetoothDevice] ?? [] {
             guard !isCancelled else { return }
             guard device.isConnected(), let address = device.addressString else { continue }
             baseline.insert(address)
             observeDisconnect(device, address: address)
+            if let name = device.name, !AccessoryPolicy.isAccessory(majorClass: UInt32(device.deviceClassMajor)) {
+                others.append(name)
+            }
         }
         connections.baseline(baseline)
+        deliver(.others(names: others))
         let notification = IOBluetoothDevice.register(forConnectNotifications: self, selector: #selector(connected))
         // A framework call can run a nested run loop and return after `cancel`.
         if isCancelled { notification?.unregister() } else { connectNotification = notification }
@@ -208,26 +263,93 @@ private final class AccessoryBluetoothSource: NSObject, @unchecked Sendable {
     }
 }
 
-/// Moves the center's banner window off screen while it names our accessory; unchecked: thread-confined.
-final class AccessoryBannerHider: @unchecked Sendable {
-    /// A new window waits this long, out of sight, for its banner to lay out and for our own event to land.
-    static let grace: TimeInterval = 0.6
+/// Notification Center through Accessibility; a timed-out or failed read throws, a missing value is nil.
+struct AccessoryNativeBannerAccess: AccessoryBannerAccess {
+    private enum Failure: Error { case unavailable }
+    let application: AXUIElement
 
-    private struct Moved {
-        let window: AXUIElement
-        let origin: CGPoint
-        let since: Date
-        var kept: Bool
+    func windows() throws -> [AXUIElement] {
+        guard let value = try value(application, kAXWindowsAttribute) else { return [] }
+        guard let windows = value as? [AXUIElement] else { throw Failure.unavailable }
+        return windows
     }
+
+    /// An unsupported attribute cannot prove the center closed, so only "no value" means closed.
+    func centerIsOpen() throws -> Bool {
+        guard let value = try value(application, kAXFocusedWindowAttribute, allowsUnsupported: false) else { return false }
+        guard CFGetTypeID(value) == AXUIElementGetTypeID() else { throw Failure.unavailable }
+        return true
+    }
+
+    func string(_ element: AXUIElement, _ attribute: String) throws -> String? {
+        guard let value = try value(element, attribute) else { return nil }
+        guard let string = value as? String else { throw Failure.unavailable }
+        return string
+    }
+
+    func children(_ element: AXUIElement) throws -> [AXUIElement] {
+        guard let value = try value(element, kAXChildrenAttribute) else { return [] }
+        guard let children = value as? [AXUIElement] else { throw Failure.unavailable }
+        return children
+    }
+
+    /// Global coordinates, top-left origin: the space both AX positions and display bounds use.
+    func frame(_ element: AXUIElement) throws -> CGRect? {
+        AXUIElementSetMessagingTimeout(element, 0.1)
+        var read: CFTypeRef?
+        let error = AXUIElementCopyAttributeValue(element, kAXPositionAttribute as CFString, &read)
+        if [.invalidUIElement, .noValue, .attributeUnsupported].contains(error) { return nil }
+        guard error == .success, let position = read, let size = try value(element, kAXSizeAttribute),
+              CFGetTypeID(position) == AXValueGetTypeID(), CFGetTypeID(size) == AXValueGetTypeID() else {
+            throw Failure.unavailable
+        }
+        var origin = CGPoint.zero
+        var extent = CGSize.zero
+        guard AXValueGetValue(unsafeDowncast(position, to: AXValue.self), .cgPoint, &origin),
+              AXValueGetValue(unsafeDowncast(size, to: AXValue.self), .cgSize, &extent) else { throw Failure.unavailable }
+        return CGRect(origin: origin, size: extent)
+    }
+
+    func move(_ element: AXUIElement, to origin: CGPoint) -> Bool {
+        var origin = origin
+        guard let value = AXValueCreate(.cgPoint, &origin) else { return false }
+        AXUIElementSetMessagingTimeout(element, 0.1)
+        return AXUIElementSetAttributeValue(element, kAXPositionAttribute as CFString, value) == .success
+    }
+
+    func same(_ lhs: AXUIElement, _ rhs: AXUIElement) -> Bool { CFEqual(lhs, rhs) }
+
+    func screens() -> CGRect {
+        var count: UInt32 = 0
+        guard CGGetActiveDisplayList(0, nil, &count) == .success, count > 0 else { return .null }
+        var ids = [CGDirectDisplayID](repeating: 0, count: Int(count))
+        guard CGGetActiveDisplayList(count, &ids, &count) == .success else { return .null }
+        return ids.prefix(Int(count)).map(CGDisplayBounds).reduce(CGRect.null) { $0.union($1) }
+    }
+
+    private func value(_ element: AXUIElement, _ attribute: String, allowsUnsupported: Bool = true) throws -> CFTypeRef? {
+        AXUIElementSetMessagingTimeout(element, 0.1)
+        var result: CFTypeRef?
+        let error = AXUIElementCopyAttributeValue(element, attribute as CFString, &result)
+        if error == .noValue || (allowsUnsupported && error == .attributeUnsupported) { return nil }
+        guard error == .success else { throw Failure.unavailable }
+        return result
+    }
+}
+
+/// Feeds Notification Center's events to the hider core; unchecked: confined to `AccessoriesThread`.
+final class AccessoryBannerHider: @unchecked Sendable {
+    private static let notifications = [kAXWindowCreatedNotification, kAXLayoutChangedNotification,
+                                        kAXUIElementDestroyedNotification, kAXFocusedWindowChangedNotification]
 
     private let defaults: UserDefaults
     private let cancelled = Mutex(false)
     private var names: [String: Date] = [:]
     private var observer: AXObserver?
     private var pid: pid_t?
-    private var app: AXUIElement?
-    private var moved: [Moved] = []
-    private var budget = 0
+    /// Outlives the observer while a window it moved is not confirmed back.
+    private var core: AccessoryBannerHiderCore<AccessoryNativeBannerAccess>?
+    private var pass: DispatchWorkItem?
 
     init(defaults: UserDefaults) { self.defaults = defaults }
 
@@ -235,9 +357,10 @@ final class AccessoryBannerHider: @unchecked Sendable {
         !cancelled.withLock { $0 } && defaults.bool(forKey: AccessoryPolicy.hideBannerKey) && AXIsProcessTrusted()
     }
 
+    /// Puts every window back before it returns, so quitting never leaves a banner off screen.
     func cancel() {
         cancelled.withLock { $0 = true }
-        AccessoriesThread.shared.perform { self.detach() }
+        AccessoriesThread.shared.performAndWait(timeout: 2) { self.detach() }
     }
 
     func setNames(_ names: [String: Date]) {
@@ -250,157 +373,63 @@ final class AccessoryBannerHider: @unchecked Sendable {
         guard enabled else { return detach() }
         let next = NSRunningApplication.runningApplications(withBundleIdentifier: "com.apple.notificationcenterui")
             .first?.processIdentifier
-        guard next != pid || observer == nil else { return }
+        guard next != pid || observer == nil else { return scan() }
         detach()
         guard let next else { return }
         var created: AXObserver?
         let callback: AXObserverCallback = { _, element, name, context in
             guard let context else { return }
             let hider = Unmanaged<AccessoryBannerHider>.fromOpaque(context).takeUnretainedValue()
-            if name as String == kAXWindowCreatedNotification { hider.prehide(element) }
-            hider.scan()
+            if name as String == kAXWindowCreatedNotification { hider.prehide(element) } else { hider.scan() }
         }
         guard AXObserverCreate(next, callback, &created) == .success, let created else { return }
         let app = AXUIElementCreateApplication(next)
         let context = Unmanaged.passUnretained(self).toOpaque()
-        let added = [kAXWindowCreatedNotification, kAXLayoutChangedNotification].filter {
+        let added = Self.notifications.filter {
             AXObserverAddNotification(created, app, $0 as CFString, context) == .success
         }
         guard !added.isEmpty else { return }
         CFRunLoopAddSource(CFRunLoopGetCurrent(), AXObserverGetRunLoopSource(created), .commonModes)
         observer = created
-        self.app = app
-        pid = next
-    }
-
-    private func restore() {
-        for record in moved { _ = move(record.window, to: record.origin) }
-        moved = []
+        if next != pid || core == nil {
+            core = AccessoryBannerHiderCore(access: AccessoryNativeBannerAccess(application: app), now: Date.init)
+            pid = next
+        }
+        scan()
     }
 
     private func detach() {
-        restore()
         if let observer {
             CFRunLoopRemoveSource(CFRunLoopGetCurrent(), AXObserverGetRunLoopSource(observer), .commonModes)
         }
         observer = nil
-        app = nil
-        pid = nil
+        scan()
     }
 
-    /// A window the center just made goes out of sight before its banner draws; `scan` decides if it stays.
     private func prehide(_ window: AXUIElement) {
-        guard enabled, !centerIsOpen(), hide(window, kept: false) else { return }
-        for delay in [0.05, Self.grace] {
-            DispatchQueue.global(qos: .userInitiated).asyncAfter(deadline: .now() + delay) { [weak self] in
-                guard let self else { return }
-                AccessoriesThread.shared.perform { self.scan() }
-            }
-        }
+        guard enabled, let core else { return }
+        core.prehide(window)
+        // The banner lays out a few hundredths of a second after its window.
+        schedule(Date().addingTimeInterval(0.05))
     }
 
-    /// Keeps out of sight each window whose transient banners all name our accessories, and puts back the rest.
+    /// Judges every window while attached; detached, only puts back what is still away, then lets go.
     func scan() {
-        guard observer != nil else { return }
-        guard enabled, let app else { return detach() }
-        guard !centerIsOpen() else { return restore() }
-        budget = 400
-        let now = Date()
-        let live = names.filter { $0.value > now }
-        var seen: [AXUIElement] = []
-        for window in elements(app, kAXWindowsAttribute) {
-            seen.append(window)
-            var banners: [(texts: [String], transient: Bool)] = []
-            findBanners(window, depth: 0, into: &banners)
-            let ours = !banners.isEmpty && banners.allSatisfy {
-                $0.transient && AccessoryPolicy.hides(banner: $0.texts, names: live, now: now)
-            }
-            let index = moved.firstIndex { CFEqual($0.window, window) }
-            if ours {
-                if let index { moved[index].kept = true } else { _ = hide(window, kept: true) }
-            } else if let index, moved[index].kept || now.timeIntervalSince(moved[index].since) >= Self.grace {
-                _ = move(window, to: moved[index].origin)
-                moved.remove(at: index)
-            }
+        guard let core else { return }
+        if observer != nil, enabled { core.scan(names: names) } else { core.restoreAll() }
+        if observer == nil, !core.hidesWindows { self.core = nil }
+        schedule(core.nextPass)
+    }
+
+    private func schedule(_ date: Date?) {
+        pass?.cancel()
+        pass = nil
+        guard let date else { return }
+        let work = DispatchWorkItem { [weak self] in
+            guard let self else { return }
+            AccessoriesThread.shared.perform { self.scan() }
         }
-        moved.removeAll { record in !seen.contains { CFEqual($0, record.window) } }
-    }
-
-    private func hide(_ window: AXUIElement, kept: Bool) -> Bool {
-        let screens = displays()
-        guard !screens.isNull, let frame = frame(window), frame.intersects(screens) else { return false }
-        let away = CGPoint(x: screens.minX - frame.width - 1_000, y: screens.minY - frame.height - 1_000)
-        guard move(window, to: away) else { return false }
-        guard let landed = self.frame(window), !landed.intersects(screens) else {
-            _ = move(window, to: frame.origin)
-            return false
-        }
-        moved.removeAll { CFEqual($0.window, window) }
-        moved.append(Moved(window: window, origin: frame.origin, since: Date(), kept: kept))
-        return true
-    }
-
-    /// The open center keeps its banners in the same window as its list, which is never ours to move.
-    private func centerIsOpen() -> Bool {
-        guard let app else { return false }
-        return value(app, kAXFocusedWindowAttribute) != nil
-    }
-
-    private func findBanners(_ node: AXUIElement, depth: Int, into banners: inout [(texts: [String], transient: Bool)]) {
-        guard depth <= 10, budget > 0 else { return }
-        budget -= 1
-        let subrole = value(node, kAXSubroleAttribute) as? String ?? ""
-        if subrole.hasPrefix("AXNotificationCenterBanner") || subrole.hasPrefix("AXNotificationCenterAlert") {
-            var texts: [String] = []
-            collectTexts(node, depth: depth, into: &texts)
-            banners.append((texts, subrole.hasPrefix("AXNotificationCenterBanner")))
-            return
-        }
-        for child in elements(node, kAXChildrenAttribute) { findBanners(child, depth: depth + 1, into: &banners) }
-    }
-
-    private func collectTexts(_ node: AXUIElement, depth: Int, into texts: inout [String]) {
-        guard depth <= 14, budget > 0 else { return }
-        budget -= 1
-        for attribute in [kAXValueAttribute, kAXDescriptionAttribute, kAXTitleAttribute] {
-            if let text = value(node, attribute) as? String, !text.isEmpty { texts.append(text) }
-        }
-        for child in elements(node, kAXChildrenAttribute) { collectTexts(child, depth: depth + 1, into: &texts) }
-    }
-
-    private func value(_ element: AXUIElement, _ attribute: String) -> CFTypeRef? {
-        AXUIElementSetMessagingTimeout(element, 0.1)
-        var result: CFTypeRef?
-        return AXUIElementCopyAttributeValue(element, attribute as CFString, &result) == .success ? result : nil
-    }
-
-    private func elements(_ element: AXUIElement, _ attribute: String) -> [AXUIElement] {
-        (value(element, attribute) as? [AXUIElement]).map { Array($0.prefix(64)) } ?? []
-    }
-
-    /// Global coordinates, top-left origin: the space both AX positions and display bounds use.
-    private func frame(_ window: AXUIElement) -> CGRect? {
-        guard let position = value(window, kAXPositionAttribute), let size = value(window, kAXSizeAttribute),
-              CFGetTypeID(position) == AXValueGetTypeID(), CFGetTypeID(size) == AXValueGetTypeID() else { return nil }
-        var origin = CGPoint.zero
-        var extent = CGSize.zero
-        guard AXValueGetValue(unsafeDowncast(position, to: AXValue.self), .cgPoint, &origin),
-              AXValueGetValue(unsafeDowncast(size, to: AXValue.self), .cgSize, &extent) else { return nil }
-        return CGRect(origin: origin, size: extent)
-    }
-
-    private func move(_ window: AXUIElement, to origin: CGPoint) -> Bool {
-        var origin = origin
-        guard let value = AXValueCreate(.cgPoint, &origin) else { return false }
-        AXUIElementSetMessagingTimeout(window, 0.1)
-        return AXUIElementSetAttributeValue(window, kAXPositionAttribute as CFString, value) == .success
-    }
-
-    private func displays() -> CGRect {
-        var count: UInt32 = 0
-        guard CGGetActiveDisplayList(0, nil, &count) == .success, count > 0 else { return .null }
-        var ids = [CGDirectDisplayID](repeating: 0, count: Int(count))
-        guard CGGetActiveDisplayList(count, &ids, &count) == .success else { return .null }
-        return ids.prefix(Int(count)).map(CGDisplayBounds).reduce(CGRect.null) { $0.union($1) }
+        pass = work
+        DispatchQueue.global(qos: .utility).asyncAfter(deadline: .now() + max(date.timeIntervalSinceNow, 0.02), execute: work)
     }
 }

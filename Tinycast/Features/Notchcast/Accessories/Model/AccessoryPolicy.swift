@@ -45,27 +45,48 @@ enum AccessoryPolicy {
     static let connectKey = "accessoryNoticesConnect"
     static let lowKey = "accessoryNoticesLow"
     static let hideBannerKey = "accessoryNoticesHideBanner"
-    /// How long after our own notice a system banner naming the same accessory counts as its duplicate.
+    /// How long after our own notice, connect or low battery, macOS's banner naming it counts as its duplicate.
     static let bannerWindow: TimeInterval = 10
+    /// Accessories reconnect on their own after a wake or an unlock; that is not news.
+    static let wakeQuiet: TimeInterval = 30
     /// Off drops our Connected notice for Apple's own accessories, where macOS shows its banner anyway.
     static let announcesAppleConnects = true
 
-    /// Computers, phones and network access points come and go without anyone reaching for them.
+    /// Computers, phones and access points come and go without anyone reaching for them.
     static func announcesConnection(name: String, majorClass: UInt32) -> Bool {
-        guard !(0x01...0x03).contains(majorClass) else { return false }
-        return announcesAppleConnects || !isApple(name)
+        isAccessory(majorClass: majorClass) && (announcesAppleConnects || !isApple(name))
     }
+
+    /// Computers, phones and network access points are never accessories: not announced, never listed.
+    static func isAccessory(majorClass: UInt32) -> Bool { !(0x01...0x03).contains(majorClass) }
 
     static func isApple(_ name: String) -> Bool {
         let name = name.lowercased()
         return ["airpods", "beats", "magic keyboard", "magic mouse", "magic trackpad"].contains(where: name.contains)
     }
 
-    /// A banner is ours to hide when it names an accessory we just announced, or one still low; keys are lowercased.
-    static func hides(banner texts: [String], names: [String: Date], now: Date) -> Bool {
-        let live = names.filter { $0.value > now }.keys.filter { !$0.isEmpty }
-        let joined = texts.joined(separator: "\n").lowercased()
-        return live.contains { joined.contains($0) }
+    /// A name this short ("Go", "Pro") would match ordinary words in other apps' banners.
+    static let minimumNameLength = 4
+
+    /// A window is ours to hide when every card is a banner naming a live accessory; keys are lowercased.
+    static func hides(cards: [AccessoryBannerCard], names: [String: Date], now: Date) -> Bool {
+        let live = names.filter { $0.value > now && $0.key.count >= minimumNameLength }.keys
+        return !cards.isEmpty && cards.allSatisfy { card in
+            card.transient && live.contains { name in card.texts.contains { mentions($0, name) } }
+        }
+    }
+
+    /// Whether one text holds `name` as whole words, never as part of a longer word.
+    static func mentions(_ text: String, _ name: String) -> Bool {
+        let text = text.lowercased()
+        var from = text.startIndex
+        while let found = text.range(of: name, range: from..<text.endIndex) {
+            let before = found.lowerBound == text.startIndex ? nil : text[text.index(before: found.lowerBound)]
+            let after = found.upperBound == text.endIndex ? nil : text[found.upperBound]
+            if ![before, after].contains(where: { $0?.isLetter == true || $0?.isNumber == true }) { return true }
+            from = text.index(after: found.lowerBound)
+        }
+        return false
     }
 
     static func connected(_ name: String) -> String {

@@ -8,6 +8,8 @@ import Foundation
 enum AccessoryConnectionEvent: Equatable, Sendable {
     case connected(name: String, majorClass: UInt32, minorClass: UInt32)
     case disconnected(name: String)
+    /// Computers, phones and access points connected when the watcher started.
+    case others(names: [String])
 }
 
 /// The Accessibility watcher over Notification Center's banners, and the names it may hide them for.
@@ -32,8 +34,10 @@ final class AccessoriesModule: NotchcastModule {
     private let context: NotchcastContext
     private let sleep: @Sendable (Duration) async throws -> Void
     private var low = AccessoryLowWatch()
-    private var warned: Set<String> = []
     private var announced: [String: Date] = [:]
+    /// Connected devices that are not accessories, kept off the page by name.
+    private var others: Set<String> = []
+    private var quietUntil = Date.distantPast
     private var hid: [AccessoryBattery] = []
     private var profiled: [AccessoryBattery] = []
     private var profiledAt = Date.distantPast
@@ -41,7 +45,8 @@ final class AccessoriesModule: NotchcastModule {
     private(set) var devices: [AccessoryBattery] = []
     private var posted: Set<String> = []
     private var page: IslandPage?
-    private var watchers: [AccessoriesWatcher] = []
+    private var connections: AccessoriesWatcher?
+    private var sleepWatcher: AccessoriesWatcher?
     private var banners: AccessoryBannerHandle?
     private var loop: Task<Void, Never>?
     private var reads: [UUID: Task<Void, Never>] = [:]
@@ -60,7 +65,9 @@ final class AccessoriesModule: NotchcastModule {
         isRunning = true
         run += 1
         let run = run
-        watchers = [Self.watchConnections { [weak self] in self?.current(run)?.handle($0) }].compactMap(\.self)
+        connect(run)
+        sleepWatcher = Self.watchSleep(sleep: { [weak self] in self?.current(run)?.suspend() },
+                                       wake: { [weak self] in self?.current(run)?.resume() })
         banners = Self.watchBanners(context.defaults)
         let sleep = sleep
         loop = Task { [weak self] in
@@ -85,15 +92,17 @@ final class AccessoriesModule: NotchcastModule {
         loop = nil
         reads.values.forEach { $0.cancel() }
         reads = [:]
-        watchers = []
+        connections = nil
+        sleepWatcher = nil
         banners = nil
         posted.forEach { context.presenter.end(notice: $0) }
         posted = []
         context.presenter.setPage(nil, id: AccessoryPage.id, onAction: nil)
         page = nil
         low = AccessoryLowWatch()
-        warned = []
         announced = [:]
+        others = []
+        quietUntil = .distantPast
         hid = []
         profiled = []
         profiledAt = .distantPast
@@ -111,7 +120,7 @@ final class AccessoriesModule: NotchcastModule {
         let hid = await Self.readHID()
         let profiled = profiles ? await Self.readProfiler() : nil
         guard current(run) != nil, !Task.isCancelled else { return }
-        self.hid = hid
+        self.hid = hid.filter { (gone[$0.key] ?? .distantPast) < started }
         if let profiled {
             self.profiled = profiled.filter { (gone[$0.key] ?? .distantPast) < started }
         }
@@ -122,9 +131,13 @@ final class AccessoriesModule: NotchcastModule {
         guard isRunning else { return }
         switch event {
         case let .connected(name, major, minor):
-            guard AccessoryPolicy.announcesConnection(name: name, majorClass: major) else { return }
+            guard AccessoryPolicy.isAccessory(majorClass: major) else {
+                others.insert(AccessoryReadings.key(name))
+                return apply()
+            }
             gone[AccessoryReadings.key(name)] = nil
-            if wants(AccessoryPolicy.connectKey) {
+            guard AccessoryPolicy.announcesConnection(name: name, majorClass: major) else { return }
+            if wants(AccessoryPolicy.connectKey), context.now() >= quietUntil {
                 announced[AccessoryReadings.key(name)] = context.now().addingTimeInterval(AccessoryPolicy.bannerWindow)
                 post("accessories.connected.\(AccessoryReadings.key(name))",
                      symbol: AccessoryReadings.symbol(name: name, majorClass: major, minorClass: minor),
@@ -135,22 +148,40 @@ final class AccessoriesModule: NotchcastModule {
         case let .disconnected(name):
             let key = AccessoryReadings.key(name)
             gone[key] = context.now()
+            others.remove(key)
             low.forget(name)
-            warned.remove(key)
             hid.removeAll { $0.key == key }
             profiled.removeAll { $0.key == key }
             for id in ["accessories.connected.\(key)", "accessories.low.\(key)"] where posted.remove(id) != nil {
                 context.presenter.end(notice: id)
             }
             apply()
+        case let .others(names):
+            others = Set(names.map(AccessoryReadings.key))
+            apply()
         }
     }
 
+    /// Asleep or locked: connections stop, and after it they start again from a silent baseline.
+    private func suspend() {
+        quietUntil = .distantFuture
+        connections = nil
+    }
+
+    private func resume() {
+        quietUntil = context.now().addingTimeInterval(AccessoryPolicy.wakeQuiet)
+        connect(run)
+    }
+
+    private func connect(_ run: Int) {
+        connections = nil
+        connections = Self.watchConnections { [weak self] in self?.current(run)?.handle($0) }
+    }
+
     private func apply() {
-        devices = AccessoryReadings.merge(hid: hid, profiler: profiled)
-        for device in devices where device.percent >= AccessoryLowWatch.recovery { warned.remove(device.key) }
+        devices = AccessoryReadings.merge(hid: hid, profiler: profiled).filter { !others.contains($0.key) }
         for device in low.consume(devices) where wants(AccessoryPolicy.lowKey) {
-            warned.insert(device.key)
+            announced[device.key] = context.now().addingTimeInterval(AccessoryPolicy.bannerWindow)
             post("accessories.low.\(device.key)", symbol: AccessoryReadings.symbol(device.kind, name: device.name),
                  text: AccessoryPolicy.low(device.name, percent: device.percent), failure: true)
         }
@@ -183,14 +214,12 @@ final class AccessoriesModule: NotchcastModule {
         }
     }
 
-    /// Our own notices of the last seconds, and every warning still low: macOS's banners for them are duplicates.
+    /// Our own notices of the last seconds: macOS's banners for them are duplicates.
     private func pushBannerNames() {
         guard let banners else { return }
         let now = context.now()
         announced = announced.filter { $0.value > now }
-        var names = announced
-        for key in warned { names[key] = .distantFuture }
-        banners.setNames(names)
+        banners.setNames(announced)
     }
 
     private func current(_ run: Int) -> AccessoriesModule? { isRunning && run == self.run ? self : nil }

@@ -6,3 +6,6 @@ Accessories: Service/AccessoriesModule+Live.swift ← vorssaint/vorssaint-utils@
 Accessories: Service/AccessoriesModule+Live.swift ← vorssaint/vorssaint-utils@faada18/Sources/Vorssaint/Services/Notch/NotchAccessoryConnectionMonitor.swift (GPL-3.0-or-later)
 Accessories: Service/AccessoriesModule+Live.swift ← vorssaint/vorssaint-utils@faada18/Sources/Vorssaint/Services/Notch/NotchNotificationService.swift (GPL-3.0-or-later)
 Accessories: Service/AccessoriesModule+Live.swift ← vorssaint/vorssaint-utils@faada18/Sources/Vorssaint/Services/Notch/NotchNotificationReaderCore.swift (GPL-3.0-or-later)
+Accessories: Model/AccessoryBannerHiderCore.swift ← vorssaint/vorssaint-utils@faada18/Sources/Vorssaint/Services/Notch/NotchNotificationReaderCore.swift (GPL-3.0-or-later)
+Accessories: Model/AccessoryBannerHiderCore.swift ← vorssaint/vorssaint-utils@faada18/Sources/Vorssaint/Services/Notch/NotchNotificationSupport.swift (GPL-3.0-or-later)
+Accessories: Service/AccessoriesModule+Live.swift ← vorssaint/vorssaint-utils@faada18/Sources/Vorssaint/Services/Notch/NotchNotificationReader.swift (GPL-3.0-or-later)
