@@ -163,13 +163,14 @@ echo 'PASS: other creator refused'
 rm "$status_fixture"
 unset -f gh
 (
-    eval "$(sed -n '/^delete_head() {$/,/^}$/p' "$root/notchcast/land.sh")"
+    eval "$(sed -n '/^held_by() {$/,/^}$/p;/^delete_head() {$/,/^}$/p' "$root/notchcast/land.sh")"
     # A fake gh: PR 7 is based on stacked; its retarget logs whether origin/stacked still existed.
     gh() {
         case "$*" in
             "pr list -R $FORK_REPO --base stacked --state open "*) echo 7 ;;
             "pr list -R $FORK_REPO --base unlistable "*) return 1 ;;
             "pr list -R $FORK_REPO --base "*) ;;
+            "pr list -R $FORK_REPO --state open "*) [ -z "${held:-}" ] || echo "8 $held" ;;
             "pr edit 7 -R $FORK_REPO --base main")
                 echo "edit 7 $(git ls-remote origin refs/heads/stacked | wc -l | tr -d ' ')" >> "$scratch/gh.log"
                 [ -z "${edit_fails:-}" ] ;;
@@ -210,6 +211,13 @@ unset -f gh
     [ "$(tail -1 "$scratch/gh.log")" = 'edit 7 1' ]
     [ -z "$(git ls-remote origin refs/heads/stacked)" ]
     echo 'PASS: delete_head moves a stacked PR to main before deleting its base'
+    git push --quiet origin "$head:refs/heads/cut-from"
+    held=$moved
+    output=$(delete_head cut-from "$head" 2>&1)
+    held=
+    [ "$(git ls-remote origin refs/heads/cut-from | cut -f1)" = "$head" ]
+    [ "$output" = 'kept origin/cut-from: open PR #8 stands on it' ]
+    echo 'PASS: delete_head keeps a branch an open PR was cut from'
     git push --quiet origin "$head:refs/heads/unlistable"
     output=$(delete_head unlistable "$head" 2>&1)
     [ -n "$(git ls-remote origin refs/heads/unlistable)" ]
