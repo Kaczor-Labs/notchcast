@@ -142,6 +142,14 @@ class Gates(unittest.TestCase):
         write(self.root, 'Tests/drift-test.swift', 'let probe = DriftTestOnly()\n')
         self.red('3', 'test-only: ' + TODO + ':DriftTestOnly')
 
+    def test_addon_type_counts_as_registered(self):
+        write(self.root, TODO, '// notchcast-addon-order: 10\nenum DriftAddon: NotchcastAddon {}\nstruct DriftProbe {}\n')
+        write(self.root, 'Tests/drift-test.swift', 'let probe = DriftAddon.self\n')
+        result = self.run_check('3')
+        self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+        self.assertIn(TODO + ':DriftProbe:', result.stdout)
+        self.assertNotIn('DriftAddon', result.stdout)
+
     def test_dead_func_static_and_global(self):
         write(self.root, TODO, 'func driftFunction() {}\nlet driftGlobal = 0\n'
               'struct Existing {\n    static let driftStatic = 1\n}\n')
