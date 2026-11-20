@@ -141,6 +141,7 @@ enum IslandCover {
         bitmap.size = image.size
         NSGraphicsContext.saveGraphicsState()
         NSGraphicsContext.current = context
+        context.cgContext.scaleBy(x: CGFloat(pixels) / side, y: CGFloat(pixels) / side)
         draw(data.flatMap(NSImage.init(data:)), in: CGRect(origin: .zero, size: image.size), frosted: frosted)
         NSGraphicsContext.restoreGraphicsState()
         image.addRepresentation(bitmap)
