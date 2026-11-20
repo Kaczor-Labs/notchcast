@@ -25,6 +25,7 @@ struct IslandLayoutTest {
                                       notch: notch, canvas: CGSize(width: 1100, height: 860),
                                       position: position, menuBar: 30, pill: 24)
             precondition(layout.window.maxY == layout.screen.maxY)
+            precondition(layout.notchRadius == (notch == .zero ? nil : 32 * 0.34), "D25: the cutout's corner")
             for scale in [1.0, 1.1, 1.2] {
                 let size = CGSize(width: (750 * scale).rounded(), height: (475 * scale).rounded())
                 let frame = layout.contentFrame(size)
