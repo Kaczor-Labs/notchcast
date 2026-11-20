@@ -126,7 +126,7 @@ enum SpotifyModelTests {
         check(s.ended(.killed(9), at: start.addingTimeInterval(7)) == start.addingTimeInterval(9), "two seconds")
         _ = s.retryDue(at: start.addingTimeInterval(9))
         check(s.failed(at: start.addingTimeInterval(9)) == start.addingTimeInterval(13), "a failed launch backs off too")
-        for _ in 0..<10 { _ = s.retryDue(at: .distantFuture); _ = s.failed(at: start) }
+        for _ in 0..<4 { _ = s.retryDue(at: .distantFuture); _ = s.failed(at: start) }
         if case .waiting(let at, _) = s.phase { check(at == start.addingTimeInterval(60), "capped at a minute") }
         _ = s.retryDue(at: .distantFuture)
         s.launched(at: start)

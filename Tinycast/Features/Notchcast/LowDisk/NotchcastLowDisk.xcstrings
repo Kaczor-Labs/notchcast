@@ -2,9 +2,9 @@
   "sourceLanguage" : "en",
   "strings" : {
     "%@ free" : {},
-    "%lld GB" : {},
     "Check Disk Space" : {},
     "Couldn’t read disk space" : {},
+    "GB" : {},
     "Low disk space: %@" : {},
     "Low disk warning" : {},
     "The island warns once when free space drops below this." : {},

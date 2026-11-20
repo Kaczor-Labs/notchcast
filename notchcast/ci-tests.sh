@@ -21,7 +21,7 @@ if [ -n "${NOTCHCAST_SWIFTC_CACHE:-}" ]; then
   export PATH="$RUNNER_TEMP/swiftc-shim:$PATH"
 fi
 if [ "$(uname -s)" = Darwin ]; then
-  # A fresh VM session stays Light until a reboot; FormInputTests must render Dark, as the app (#1205).
+  # A fresh VM session stays Light until a reboot; FormInputTests must render Dark, as the app.
   NOTCHCAST_DARK_OBJECT="${RUNNER_TEMP:-${TMPDIR:-/tmp}}/notchcast-dark.o"
   triple=$(swiftc -print-target-info | python3 -c 'import json, sys; print(json.load(sys.stdin)["target"]["triple"])')
   clang -fmodules -x objective-c -target "$triple" -c -o "$NOTCHCAST_DARK_OBJECT" - <<'OBJC'
