@@ -1,6 +1,11 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (C) 2026 Vorssaint
+// Adapted from Vorssaint faada18d's Finder cut and paste: ask Finder where, then write the PNG there.
+
 import AppKit
 import Carbon.HIToolbox
 import ImageIO
+import OSLog
 import UniformTypeIdentifiers
 
 extension PasteImageSystem {
@@ -15,13 +20,10 @@ extension PasteImageSystem {
         clipboardTypes: { NSPasteboard.general.types?.map(\.rawValue) ?? [] },
         clipboardImage: {
             let board = NSPasteboard.general
-            guard PasteImagePolicy.accepts(types: board.types?.map(\.rawValue) ?? []) else { return nil }
-            for type in PasteImagePolicy.imageTypes {
-                if let data = board.data(forType: NSPasteboard.PasteboardType(type)) {
-                    return PasteImageClip(data: data, isPNG: type == UTType.png.identifier)
-                }
-            }
-            return nil
+            guard let type = PasteImagePolicy.imageType(in: board.types?.map(\.rawValue) ?? []),
+                  let data = board.data(forType: NSPasteboard.PasteboardType(type))
+            else { return nil }
+            return PasteImageClip(data: data, isPNG: type == PasteImagePolicy.pngType)
         },
         focus: { await PasteImageFinder.focus() },
         save: { await PasteImageFinder.save($0, at: $1) },
@@ -35,23 +37,22 @@ extension PasteImageSystem {
                 event.setIntegerValueField(.eventSourceUserData, value: Paster.tinycastEventTag)
                 event.post(tap: .cgSessionEventTap)
             }
+        },
+        openAutomationSettings: {
+            guard let url = URL(
+                string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Automation")
+            else { return }
+            NSWorkspace.shared.open(url)
         }
     )
 }
 
-/// Finder's focus over Accessibility, the PNG conversion and Finder's move, all off the main actor.
+/// Finder's focus, the PNG conversion, Finder's answers and the write, all off the main actor.
 private nonisolated enum PasteImageFinder {
-    /// -48 and -15267 are Finder's "an item with that name already exists".
-    private static let nameTakenCodes: Set<Int> = [-48, -15267]
+    private static let logger = Logger(
+        subsystem: Bundle.main.bundleIdentifier ?? "Notchcast", category: "PasteImage")
 
     private static let files = PasteImageFiles(
-        makeFolder: {
-            let folder = FileManager.default.temporaryDirectory
-                .appending(path: "Notchcast Paste \(UUID().uuidString)", directoryHint: .isDirectory)
-            try FileManager.default.createDirectory(
-                at: folder, withIntermediateDirectories: false, attributes: [.posixPermissions: 0o700])
-            return folder
-        },
         write: { try $0.write(to: $1, options: .withoutOverwriting) },
         remove: { try? FileManager.default.removeItem(at: $0) })
 
@@ -73,53 +74,106 @@ private nonisolated enum PasteImageFinder {
     }
 
     @concurrent
-    static func save(_ clip: PasteImageClip, at date: Date) async -> Bool {
-        guard canPlace(), let png = clip.isPNG ? clip.data : png(from: clip.data) else { return false }
-        return PasteImageSaver.save(png, at: date, files: files, place: place)
+    static func save(_ clip: PasteImageClip, at date: Date) async -> PasteImageFailure? {
+        if let failure = checkFrontWindow() { return failure }
+        guard clip.data.count <= PasteImagePolicy.maxImageBytes else {
+            return fail(.tooLarge, step: "image", "\(clip.data.count) bytes copied")
+        }
+        guard let png = png(from: clip) else { return fail(.unreadable, step: "image", "does not decode") }
+        guard png.count <= PasteImagePolicy.maxImageBytes else {
+            return fail(.tooLarge, step: "image", "\(png.count) bytes as PNG")
+        }
+        let location = insertionLocation()
+        guard location.status == 0 else {
+            return fail(.location(status: location.status), step: "location", "status \(location.status)")
+        }
+        guard let folder = PasteImagePolicy.folder(posixPath: location.path),
+              PasteImagePolicy.accepts(frontFolder: folder, hasWindow: true)
+        else {
+            return fail(.noFolder, step: "location", "not a folder")
+        }
+        switch PasteImageSaver.save(png, into: folder, at: date, timeZone: .current, files: files) {
+        case let .failed(code):
+            return fail(.notSaved, step: "write", "error \(code)")
+        case let .saved(file):
+            let select = send(event("misc", "slct", to: finder, directObject: NSAppleEventDescriptor(fileURL: file)))
+            if select.status != 0 {
+                logger.error("select failed: status \(select.status, privacy: .public), file kept")
+            }
+            return nil
+        }
     }
 
-    /// Copies the source's own properties too, so a JPEG or HEIC keeps its orientation.
-    private static func png(from data: Data) -> Data? {
+    private static func fail(_ failure: PasteImageFailure, step: String, _ detail: String) -> PasteImageFailure {
+        logger.error("\(step, privacy: .public) failed: \(detail, privacy: .public)")
+        return failure
+    }
+
+    /// A PNG is kept once it decodes; anything else copies its properties too, so it keeps its orientation.
+    private static func png(from clip: PasteImageClip) -> Data? {
+        guard let source = CGImageSourceCreateWithData(clip.data as CFData, nil), CGImageSourceGetCount(source) > 0
+        else { return nil }
+        if clip.isPNG {
+            let decoded = CGImageSourceCreateImageAtIndex(
+                source, 0, [kCGImageSourceShouldCacheImmediately: true] as CFDictionary)
+            return decoded == nil ? nil : clip.data
+        }
         let output = NSMutableData()
-        guard let source = CGImageSourceCreateWithData(data as CFData, nil), CGImageSourceGetCount(source) > 0,
-              let destination = CGImageDestinationCreateWithData(
-                  output as CFMutableData, UTType.png.identifier as CFString, 1, nil)
+        guard let destination = CGImageDestinationCreateWithData(
+            output as CFMutableData, UTType.png.identifier as CFString, 1, nil)
         else { return nil }
         CGImageDestinationAddImageFromSource(destination, source, 0, nil)
         return CGImageDestinationFinalize(destination) ? output as Data : nil
     }
 
+    /// Compiled and run in this process off the main actor, as Vorssaint runs it; -1 when no number came.
+    private static func insertionLocation() -> (path: String?, status: Int) {
+        guard let script = NSAppleScript(source: PasteImagePolicy.insertionLocationScript) else { return (nil, -1) }
+        var error: NSDictionary?
+        let reply = script.executeAndReturnError(&error)
+        if let error { return (nil, error[NSAppleScript.errorNumber] as? Int ?? -1) }
+        return (reply.stringValue, 0)
+    }
+
     /// Asks Finder for `URL of target of Finder window 1`, and whether that window exists when it has none.
-    private static func canPlace() -> Bool {
-        let finder = NSAppleEventDescriptor(bundleIdentifier: PasteImagePolicy.finderBundleIdentifier)
+    private static func checkFrontWindow() -> PasteImageFailure? {
         let window = specifier("brow", "indx", NSAppleEventDescriptor(int32: 1))
-        let url = property("pURL", of: property("fvtg", of: window))
-        let target = send(event("core", "getd", to: finder, directObject: url))
-        let folder = target.status == 0 ? result(target.reply)?.stringValue.flatMap(URL.init(string:)) : nil
-        if let folder { return PasteImagePolicy.accepts(frontFolder: folder, hasWindow: true) }
+        let target = send(get(property("pURL", of: property("fvtg", of: window))))
+        if target.status == 0, let folder = url(target.reply) {
+            guard PasteImagePolicy.accepts(frontFolder: folder, hasWindow: true) else {
+                return fail(.noFolder, step: "target", "not a folder")
+            }
+            return nil
+        }
+        guard PasteImageFailure.meansNoFolder(status: target.status) else {
+            return fail(.finder(status: target.status), step: "target", "status \(target.status)")
+        }
         let exists = send(event("core", "doex", to: finder, directObject: window))
-        guard exists.status == 0, let hasWindow = result(exists.reply)?.booleanValue else { return false }
-        return PasteImagePolicy.accepts(frontFolder: nil, hasWindow: hasWindow)
+        guard exists.status == 0, let hasWindow = result(exists.reply)?.booleanValue else {
+            return fail(.finder(status: exists.status), step: "target", "status \(exists.status)")
+        }
+        guard PasteImagePolicy.accepts(frontFolder: nil, hasWindow: hasWindow) else {
+            return fail(.noFolder, step: "target", "window without a folder, status \(target.status)")
+        }
+        return nil
+    }
+
+    private static var finder: NSAppleEventDescriptor {
+        NSAppleEventDescriptor(bundleIdentifier: PasteImagePolicy.finderBundleIdentifier)
+    }
+
+    private static func get(_ object: NSAppleEventDescriptor) -> NSAppleEventDescriptor {
+        event("core", "getd", to: finder, directObject: object)
     }
 
     private static func result(_ reply: NSAppleEventDescriptor?) -> NSAppleEventDescriptor? {
         reply?.paramDescriptor(forKeyword: code("----"))
     }
 
-    /// `move file to insertion location`, then `select` the moved item, as Finder's own paste leaves it.
-    private static func place(_ file: URL) -> PasteImagePlacement {
-        let finder = NSAppleEventDescriptor(bundleIdentifier: PasteImagePolicy.finderBundleIdentifier)
-        let move = event("core", "move", to: finder, directObject: NSAppleEventDescriptor(fileURL: file))
-        move.setParam(property("pins"), forKeyword: code("insh"))
-        let (reply, status) = send(move)
-        guard status == 0 else { return nameTakenCodes.contains(status) ? .nameTaken : .failed }
-        if let moved = result(reply) {
-            _ = send(event("misc", "slct", to: finder, directObject: moved))
-        }
-        return .placed
+    private static func url(_ reply: NSAppleEventDescriptor?) -> URL? {
+        result(reply)?.stringValue.flatMap(URL.init(string:))
     }
 
-    /// `pins` is the insertion location: the front window's folder, or the Desktop when no window is open.
     private static func property(_ name: String, of owner: NSAppleEventDescriptor = .null()) -> NSAppleEventDescriptor {
         specifier("prop", "prop", NSAppleEventDescriptor(typeCode: code(name)), from: owner)
     }
