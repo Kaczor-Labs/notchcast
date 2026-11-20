@@ -78,7 +78,8 @@ extension SystemToolsModule {
             switch outcome {
             case .success(let password?) where copy(password, concealed: true):
                 postWiFi(String(localized: "Copied “\(network)”: \(password)", table: "NotchcastSystemTools"),
-                         failure: false, seconds: Self.resultSeconds)
+                         failure: false, seconds: Self.resultSeconds,
+                         spoken: String(localized: "Copied Wi-Fi password", table: "NotchcastSystemTools"))
             case .success(nil):
                 postWiFi(String(localized: "No Saved Password for “\(network)”", table: "NotchcastSystemTools"),
                          failure: true)
@@ -103,11 +104,11 @@ extension SystemToolsModule {
             onTap: nil)
     }
 
-    private func postWiFi(_ text: String, failure: Bool, seconds: TimeInterval? = nil) {
+    private func postWiFi(_ text: String, failure: Bool, seconds: TimeInterval? = nil, spoken: String? = nil) {
         context.presenter.post(
             IslandNotice(
                 id: Self.addressNoticeID, symbol: WiFiNetworkSession.symbol, text: text, isFailure: failure,
-                seconds: seconds),
+                seconds: seconds, spokenText: spoken),
             onTap: nil)
     }
 }
