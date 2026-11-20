@@ -21,6 +21,12 @@ extension TaildropSystem {
 
 /// One tool run to its end, off the caller's thread; cancelling the task terminates the tool.
 private nonisolated enum TaildropProcess {
+    /// Bad bytes become U+FFFD, so one invalid byte never drops the whole output.
+    private static func text(_ data: Data) -> String {
+        // swiftlint:disable:next optional_data_string_conversion
+        String(decoding: data, as: UTF8.self)
+    }
+
     /// Shared by the launch, the cancel handler and the stderr reader, which run on three threads.
     private final class Run: Sendable {
         let launch = Mutex((started: false, cancelled: false))
@@ -52,10 +58,10 @@ private nonisolated enum TaildropProcess {
                     // Both pipes drain at once: a tool blocked on a full stderr would never close stdout.
                     let draining = DispatchGroup()
                     DispatchQueue.global().async(group: draining) {
-                        let text = String(bytes: errors.readDataToEndOfFile(), encoding: .utf8) ?? ""
+                        let text = text(errors.readDataToEndOfFile())
                         run.errors.withLock { $0 = text }
                     }
-                    let text = String(bytes: output.readDataToEndOfFile(), encoding: .utf8) ?? ""
+                    let text = text(output.readDataToEndOfFile())
                     draining.wait()
                     process.waitUntilExit()
                     continuation.resume(returning: TaildropOutput(

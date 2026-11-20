@@ -1,4 +1,4 @@
-import Foundation
+import AVFoundation
 
 /// Where a clip goes when its export cannot run: whole, under a free name, in the first folder that takes it.
 enum RecordingRescue {
@@ -47,8 +47,7 @@ final class ScreenRecordingRecovery: NotchcastModule {
         moving = Task {
             var kept: [URL] = []
             for clip in clips {
-                // A quit before the first fragment leaves a stub with nothing in it.
-                if let seconds = try? await system.duration(clip), seconds <= 0 {
+                if await isStub(clip) {
                     try? FileManager.default.removeItem(at: clip)
                     continue
                 }
@@ -62,6 +61,17 @@ final class ScreenRecordingRecovery: NotchcastModule {
                 id: ScreenRecordingModule.islandID, symbol: "checkmark.circle",
                 text: String(localized: "Recovered a recording from the last session.", table: "NotchcastScreenRecording")),
                 onTap: { [system] in system.reveal(last) })
+        }
+    }
+
+    /// A quit before the first fragment leaves a file that is not a movie yet, or one that reads 0.
+    private func isStub(_ clip: URL) async -> Bool {
+        do {
+            return try await system.duration(clip) <= 0
+        } catch let error as AVError {
+            return error.code == .fileFailedToParse
+        } catch {
+            return false
         }
     }
 
