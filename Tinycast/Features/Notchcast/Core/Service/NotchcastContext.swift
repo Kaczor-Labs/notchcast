@@ -20,6 +20,7 @@ final class NotchcastContext {
     let preferences: NotchcastPreferences
     let presenter: any IslandPresenting
     let now: @MainActor () -> Date
+    let surfaces: NotchcastSurfaces
     let settingsBackup: any NotchcastSettingsBackup
     private let hub: NotchcastTapHub
     private let transcription: NotchcastTranscriptionRunner
@@ -39,6 +40,9 @@ final class NotchcastContext {
     private(set) var launcherShown: (@MainActor () -> Void)?
     /// Notchcast's own yes/no dialog, never `NSAlert`; nil where no app runs, as in harnesses.
     var confirm: (@MainActor @Sendable (_ title: String, _ message: String?, _ confirmTitle: String) async -> Bool)?
+    /// The same dialog with a destructive confirm button, for a step that loses something.
+    var confirmDestructive:
+        (@MainActor @Sendable (_ title: String, _ message: String?, _ confirmTitle: String) async -> Bool)?
 
     init(
         defaults: UserDefaults, preferences: NotchcastPreferences, presenter: any IslandPresenting,
@@ -46,6 +50,7 @@ final class NotchcastContext {
         now: @escaping @MainActor () -> Date,
         onTapsChanged: @escaping @MainActor () -> Void, onCommandsChanged: @escaping @MainActor () -> Void = {},
         recovery: NotchcastContext? = nil, clipboard: NotchcastClipboardMutation = .none,
+        surfaces: NotchcastSurfaces = NotchcastSurfaces(),
         settingsBackup: any NotchcastSettingsBackup = NotchcastNoSettingsBackup()
     ) {
         self.defaults = defaults
@@ -57,6 +62,7 @@ final class NotchcastContext {
         self.settingsBackup = settingsBackup
         self.onTapsChanged = onTapsChanged
         self.onCommandsChanged = onCommandsChanged
+        self.surfaces = surfaces
         self.clipboard = clipboard
         recoveryContext = recovery
     }
@@ -130,6 +136,14 @@ final class NotchcastContext {
         openURL = nil
         launcherShown = nil
     }
+}
+
+/// What the app lends an add-on's own panel; the inert defaults paint Black.
+@MainActor
+struct NotchcastSurfaces {
+    /// The user's Interface Size, as `InterfaceMetrics(scale:)` takes it.
+    var interfaceScale: () -> Double = { 1 }
+    var isFrosted: () -> Bool = { false }
 }
 
 /// The stock settings backup (Backup › Export's file) as the core sees it; `NotchcastCore` injects it.
