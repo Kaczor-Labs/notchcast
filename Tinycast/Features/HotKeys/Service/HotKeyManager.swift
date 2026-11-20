@@ -151,8 +151,8 @@ final class HotKeyManager {
         defaults.stringArray(forKey: boundPaneKey) ?? []
     }
 
-    /// Custom-command UUIDs with a binding, indexed separately so startup can re-register them.
-    var boundCustomCommandIDs: [UUID] { boundIDs(key: boundCustomCommandKey) }
+    /// Custom Commands is hidden (notchcast/docs/hidden.md), so a stored binding registers no chord.
+    var boundCustomCommandIDs: [UUID] { [] }
 
     var boundQuicklinkIDs: [UUID] { boundIDs(key: boundQuicklinkKey) }
 

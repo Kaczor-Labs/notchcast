@@ -14,6 +14,7 @@ enum NotchcastAppProof {
         case "hidden-settings": hiddenSettings()
         case "addon-launcher": addonLauncher()
         case "icloud-sync-off": iCloudSyncOff()
+        case "commands-hidden": commandsHidden()
         default: fail("unknown proof \(name)")
         }
         print("PROOF PASS \(name)")
@@ -24,7 +25,8 @@ enum NotchcastAppProof {
         let defaults = UserDefaults.standard
         defer { defaults.removePersistentDomain(forName: bundleID) }
         for key in [AppSettingsKey.extensionsEnabled, .showInMenuBar, .notesShowsInMenuBar,
-                    .paletteDraggable, .supportReminders, .navigationEnabled] {
+                    .paletteDraggable, .supportReminders, .navigationEnabled,
+                    .customCommandsEnabled] {
             defaults.set(true, forKey: key.rawValue)
         }
         defaults.set(false, forKey: AppSettingsKey.openOnCursorScreen.rawValue)
@@ -45,6 +47,7 @@ enum NotchcastAppProof {
         settings.language = .german
         settings.supportRemindersEnabled = true
         settings.navigationEnabled = true
+        settings.customCommandsEnabled = true
         let visibility = VisibilityStore(defaults: defaults)
         visibility.setKindEnabled(true, for: .systemSettings)
         check(!settings.extensionsEnabled, "extensionsEnabled reads off")
@@ -60,8 +63,47 @@ enum NotchcastAppProof {
         check(settings.palettePosition(on: "proof") == nil, "stored palette position is ignored")
         check(!settings.supportRemindersEnabled, "supportRemindersEnabled reads off")
         check(!settings.navigationEnabled, "navigationEnabled reads off")
+        check(!settings.customCommandsEnabled, "customCommandsEnabled reads off")
         check(!visibility.isKindEnabled(.systemSettings), "System Settings in the launcher reads off")
         check(!AppCore.shared.appIndex.isCommandEnabled(.support), "Support command reads disabled")
+    }
+
+    /// #1219, #1066: Commands hidden and off, an address still opens and Script commands still list.
+    private static func commandsHidden() {
+        let defaults = UserDefaults.standard
+        let suite = NotchcastPreferences.suiteName(bundleID: bundleID)
+        let addons = UserDefaults(suiteName: suite)!
+        defer {
+            defaults.removePersistentDomain(forName: bundleID)
+            addons.removePersistentDomain(forName: suite)
+        }
+        defaults.set(["command"], forKey: "hiddenLauncherKinds")
+        addons.set(true, forKey: ScriptCommandsAddon.switchID)
+        let script = ScriptCommand(id: "proof", name: "Proof Script", script: "true")
+        addons.set(ScriptCommand.encodeList([script]), forKey: ScriptCommandsModule.rowsKey)
+        let core = AppCore.shared
+        let notchcast = NotchcastCore(core: core)
+        defer { notchcast.stop() }
+        check(!SettingsSection.allCases.flatMap(\.tabs).contains(.commands) && SettingsTab(slug: "commands") == nil,
+              "the Commands pane is not in Settings")
+        check(!core.visibility.isKindEnabled(.command), "Enable Commands reads off as stored")
+        for (query, url) in [("x.com", "https://x.com"), ("https://example.com", "https://example.com")] {
+            // LauncherScreen leads with this row; Enter on it opens its url (LauncherCoordinator.launch).
+            guard let row = CommandCatalog.openInBrowser(for: query), core.visibility.isVisible(row)
+            else { fail("\(query) offers no Open in Browser") }
+            check(CommandCatalog.command(for: row) == .openInBrowser && row.url.absoluteString == url,
+                  "\(query): Open in Browser opens \(url)")
+        }
+        let listed = core.appIndex.orderedResults(
+            query: script.name, visibility: core.visibility, favorites: core.favorites, hotKeys: core.hotKeys
+        ).entries
+        check(listed.contains { $0.id == "command:nc-" + script.slug }, "Script commands lists its command")
+        for id in [CommandID.createCustomCommand, .searchCustomCommands, .runShellCommand] {
+            check(!core.appIndex.isCommandEnabled(id), "\(id.rawValue) reads disabled")
+        }
+        check(!core.fallbackCoordinator.available.contains(.builtin(.runShellCommand)),
+              "Run Shell Command is no fallback")
+        check(defaults.stringArray(forKey: "hiddenLauncherKinds") == ["command"], "the stored Enable Commands stays off")
     }
 
     /// #910: a stored iCloud Sync switch reads off and the sync engine never starts.
