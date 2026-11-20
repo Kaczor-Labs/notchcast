@@ -95,6 +95,7 @@ extension ScreenshotSystem {
         },
         writeText: { _ in true },
         recognizeText: { _ in [] },
+        warmTextRecognition: {},
         openScreenRecordingSettings: {},
         desktop: { desktopFolder },
         select: { _, _, completion in

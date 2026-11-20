@@ -59,10 +59,32 @@ final class ScreenshotFake {
     var textWorks = true
     var texts: [String] = []
     var settingsOpened = 0
+    var holdRecognize = false
+    var recognizeGate: CheckedContinuation<Void, Never>?
+    var holdWarm = false
+    var warmGate: CheckedContinuation<Void, Never>?
+    var warmOffMain: [Bool] = []
+    var warmCancelled: [Bool] = []
 
-    func recognize(_ image: CGImage) -> [ScreenTextLine] {
+    func recognize(_ image: CGImage) async -> [ScreenTextLine] {
         recognizedWidths.append(image.width)
+        if holdRecognize { await withCheckedContinuation { recognizeGate = $0 } }
         return lines
+    }
+
+    func warm(offMain: Bool) async {
+        warmOffMain.append(offMain)
+        if holdWarm { await withCheckedContinuation { warmGate = $0 } }
+    }
+
+    func releaseWarm() {
+        warmGate?.resume()
+        warmGate = nil
+    }
+
+    func releaseRecognize() {
+        recognizeGate?.resume()
+        recognizeGate = nil
     }
 
     func release() {
@@ -105,6 +127,12 @@ extension ScreenshotSystem {
             return true
         },
         recognizeText: { image in await fake.recognize(image) },
+        warmTextRecognition: {
+            let offMain = pthread_main_np() == 0
+            await fake.warm(offMain: offMain)
+            let cancelled = Task.isCancelled
+            await MainActor.run { fake.warmCancelled.append(cancelled) }
+        },
         openScreenRecordingSettings: { fake.settingsOpened += 1 },
         desktop: { desktopFolder },
         select: { frozen, windows, completion in
@@ -122,10 +150,14 @@ extension ScreenshotSystem {
 @MainActor
 final class FakePresenter: IslandPresenting {
     var posts: [IslandNotice] = []
+    var events: [String] = []
 
     func showLevel(_ level: IslandLevel) {}
-    func post(_ notice: IslandNotice, onTap: (@MainActor () -> Void)?) { posts.append(notice) }
-    func end(notice id: String) {}
+    func post(_ notice: IslandNotice, onTap: (@MainActor () -> Void)?) {
+        posts.append(notice)
+        events.append("post " + notice.id)
+    }
+    func end(notice id: String) { events.append("end " + id) }
     func setStatus(_ status: IslandStatus?, for id: String, onTap: (@MainActor () -> Void)?) {}
     func setMenuRows(_ rows: [IslandMenuRow], owner: String, onSelect: @escaping @MainActor (String) -> Void) {}
 }
@@ -165,6 +197,19 @@ let text = "command:nc-capture-text"
 
 func drain() async { try? await Task.sleep(for: .milliseconds(120)) }
 
+/// Yields the main actor until the condition holds; no clock, so a hang fails by the cap instead.
+@MainActor
+func settle(_ what: String, until condition: @MainActor () -> Bool) async {
+    for _ in 0..<100_000 {
+        if condition() { return }
+        await Task.yield()
+    }
+    preconditionFailure("never settled: \(what)")
+}
+
+let recognizing = IslandNotice(
+    id: "screenshot.text", symbol: "text.viewfinder", text: "Recognizing text…", progress: IslandProgress(fraction: nil))
+
 func files(in folder: URL) -> [String] {
     ((try? FileManager.default.contentsOfDirectory(atPath: folder.path(percentEncoded: false))) ?? []).sorted()
 }
@@ -198,6 +243,9 @@ enum ScreenshotsModuleTests {
                          "hotkey.command:nc-edit-last-screenshot", "hotkey.command:nc-capture-text"],
                      "each stored binding names its command")
         precondition(rig.controller.enabledCommands.map(\.id) == [area, display, editLast, text], "on by default")
+        await settle("the first warm-up", until: { fake.warmCancelled.count == 1 })
+        precondition(fake.warmOffMain == [true] && fake.warmCancelled == [false],
+                     "the module's start warms the recogniser once, off the main actor")
 
         fake.holdFreeze = true
         precondition(rig.controller.run(entryID: area), "the area binding resolves")
@@ -315,6 +363,9 @@ enum ScreenshotsModuleTests {
                      "the selected pixels' text is copied in reading order")
         precondition(presenter.posts.last?.text == "first" && presenter.posts.last?.isFailure == false,
                      "a notice shows the first line")
+        precondition(presenter.posts.suffix(2).map(\.id) == ["screenshot.text", "screenshot.text"]
+                     && presenter.posts.suffix(2).first == recognizing && presenter.posts.last?.progress == nil,
+                     "the first line replaces the progress notice under its id")
         precondition(files(in: chosenFolder) == saved && fake.clipboard.count == images,
                      "the image is never saved or copied, whatever the screenshot destination")
         rig.defaults.set("clipboard", forKey: "notchcast.screenshot.destination")
@@ -357,6 +408,7 @@ enum ScreenshotsModuleTests {
                      "text without access opens the Screen Recording pane")
         fake.granted = true
 
+        precondition(fake.warmOffMain.count == 1, "captures never warm again")
         rig.fire(area)
         await drain()
         let shots = fake.clipboard.count
@@ -366,6 +418,90 @@ enum ScreenshotsModuleTests {
         precondition(fake.clipboard.count == shots && !rig.controller.run(entryID: area), "and its commands go")
 
         rig.finish()
+        await warmUpCases()
         print("nc-Screenshots-module-test: ok")
+    }
+
+    @MainActor
+    static func warmUpCases() async {
+        fake.holdWarm = true
+        let rig = Rig()
+        let presenter = rig.presenter
+        await settle("a held warm-up", until: { fake.warmGate != nil })
+        precondition(fake.warmOffMain == [true, true], "a new start warms")
+        rig.controller.preferences.set("screenshot", on: false)
+        await settle("the switch off", until: { presenter.events == ["end screenshot.text"] })
+        fake.releaseWarm()
+        await settle("the cancelled warm-up", until: { fake.warmCancelled.count == 2 })
+        precondition(fake.warmCancelled.last == true, "switching off cancels a warm-up in flight")
+        precondition(presenter.posts.isEmpty, "a warm-up shows nothing")
+
+        rig.controller.preferences.set("screenshot", on: true)
+        await settle("the warm-up after switching on", until: { fake.warmGate != nil })
+        precondition(fake.warmOffMain.count == 3, "switching on warms again")
+        fake.lines = [ScreenTextLine(text: "warm", box: CGRect(x: 0, y: 0.5, width: 1, height: 0.1))]
+        let recognized = fake.recognizedWidths.count
+        let copied = fake.texts.count
+        presenter.events = []
+        rig.fire(text)
+        await settle("the text surface", until: { fake.answer != nil })
+        fake.pick(.display(1))
+        await settle("the progress notice", until: { !presenter.posts.isEmpty })
+        precondition(presenter.posts == [recognizing], "a capture during the warm-up says it is recognising")
+        precondition(fake.recognizedWidths.count == recognized, "and recognises nothing until the warm-up ends")
+        fake.holdWarm = false
+        fake.releaseWarm()
+        await settle("the copied text", until: { fake.texts.count == copied + 1 })
+        precondition(fake.recognizedWidths.count == recognized + 1 && fake.warmCancelled.last == false,
+                     "the capture recognises once after the warm-up it waited for")
+        precondition(presenter.posts.last?.id == "screenshot.text" && presenter.posts.last?.text == "warm"
+                     && presenter.posts.last?.progress == nil && !presenter.events.contains("end screenshot.text"),
+                     "the first line replaces the progress notice in place")
+
+        fake.holdRecognize = true
+        presenter.posts = []
+        presenter.events = []
+        rig.fire(text)
+        await settle("the text surface", until: { fake.answer != nil })
+        fake.pick(.display(1))
+        await settle("a held recognition", until: { fake.recognizeGate != nil })
+        precondition(presenter.posts == [recognizing], "the notice shows while recognition runs")
+        rig.controller.preferences.set("screenshot", on: false)
+        await settle("the switch off", until: { presenter.events.count == 2 })
+        precondition(presenter.events == ["post screenshot.text", "end screenshot.text"],
+                     "switching off ends the notice, and nothing else, while recognition runs")
+        fake.holdRecognize = false
+        fake.releaseRecognize()
+        rig.controller.preferences.set("screenshot", on: true)
+        await settle("the switch on", until: { rig.controller.enabledCommands.contains { $0.id == text } })
+        fake.lines = [ScreenTextLine(text: "fresh", box: CGRect(x: 0, y: 0.5, width: 1, height: 0.1))]
+        rig.fire(text)
+        await settle("the text surface", until: { fake.answer != nil })
+        fake.pick(.display(1))
+        await settle("the fresh copy", until: { fake.texts.last == "fresh" })
+        precondition(fake.texts.suffix(2) == ["warm", "fresh"] && presenter.posts == [recognizing, recognizing]
+                     + [IslandNotice(id: "screenshot.text", symbol: "text.viewfinder", text: "fresh")]
+                     && presenter.events.filter({ $0.hasPrefix("end") }).count == 1,
+                     "a stopped recognition, released late, writes and posts nothing")
+
+        let failures: [(lines: [ScreenTextLine], works: Bool, message: String)] = [
+            ([ScreenTextLine](), true, "No text found in the selected area."),
+            ([ScreenTextLine(text: "kept", box: CGRect(x: 0, y: 0.5, width: 1, height: 0.1))], false,
+             "Could not copy to clipboard."),
+        ]
+        for (lines, works, failure) in failures {
+            fake.lines = lines
+            fake.textWorks = works
+            presenter.events = []
+            rig.fire(text)
+            await settle("the text surface", until: { fake.answer != nil })
+            fake.pick(.display(1))
+            await settle("the failure", until: { presenter.events.last == "post screenshot.failed" })
+            precondition(presenter.events == ["post screenshot.text", "end screenshot.text", "post screenshot.failed"]
+                         && presenter.posts.last?.text == failure,
+                         "a failure ends the progress notice before it reports: \(failure)")
+        }
+        fake.textWorks = true
+        rig.finish()
     }
 }

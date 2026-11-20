@@ -27,6 +27,7 @@ extension ScreenshotSystem {
         recognizeText: { image in
             try await ScreenTextRecognizer.lines(in: image, preferredLanguages: Locale.preferredLanguages)
         },
+        warmTextRecognition: { await ScreenTextRecognizer.warmUp(preferredLanguages: Locale.preferredLanguages) },
         openScreenRecordingSettings: {
             guard let url = URL(
                 string: "x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture")

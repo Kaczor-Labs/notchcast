@@ -15,6 +15,8 @@ struct ScreenshotSystem: Sendable {
     let writeClipboard: @MainActor @Sendable (Data) -> Bool
     let writeText: @MainActor @Sendable (String) -> Bool
     let recognizeText: @Sendable (CGImage) async throws -> [ScreenTextLine]
+    /// Pays Vision's one-off model compile in the background; it logs its result and never throws.
+    let warmTextRecognition: @Sendable () async -> Void
     let openScreenRecordingSettings: @MainActor @Sendable () -> Void
     let desktop: @Sendable () throws -> URL
     /// Shows the selection surface; the returned closure closes it, which answers nil.
