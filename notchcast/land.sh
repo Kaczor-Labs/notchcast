@@ -404,8 +404,7 @@ run_harnesses() {
     [ "$status" -eq 0 ] || [ -n "$failed" ] || refuse 'the harness run failed without naming a harness'
 }
 # Sets proof, and left to the selected harnesses it excused, from the isolated runner's build of this tree if there
-# is one. Refuses a toolchain other than ISOLATED_TOOLCHAIN, and an excused harness that only a hosted run proves,
-# unless $1 says a hosted run of this tree proved the rest.
+# is one. Refuses a toolchain other than ISOLATED_TOOLCHAIN, and an excused harness that only a hosted run proves.
 isolated_proof() {
     local found url stamp excused need
     found=$(python3 "$(dirname "$selector")/ci.py" isolated-proof HEAD) || found=
@@ -415,8 +414,8 @@ isolated_proof() {
         || refuse "the isolated run $url tested this tree with '$stamp', and landing expects '$ISOLATED_TOOLCHAIN' (ISOLATED_TOOLCHAIN, notchcast/config.env): land on a hosted train (NOTCHCAST_TRAIN_MAC=hosted notchcast/train.sh ${train[*]})"
     left=$(grep -xF -f <(tr ' ' '\n' <<< "$excused") "$scratch/selected" || true)
     need=$(grep -xF -f <(tr ' ' '\n' <<< "$HOSTED_ONLY_TESTS") <<< "$left" | grep -vxF -f <(tr ' ' '\n' <<< "$CI_SKIP_TESTS") | paste -sd' ' - || true)
-    [ -z "$need" ] || [ -n "${1:-}" ] \
-        || refuse "the isolated run $url did not prove $need (red there and on upstream), and only a hosted run can: NOTCHCAST_TRAIN_MAC=hosted notchcast/train.sh ${train[*]}${both:+; land.sh then takes this isolated run for $both}"
+    [ -z "$need" ] \
+        || refuse "the isolated run $url did not prove $need (red there and on upstream), and only a hosted run can: NOTCHCAST_TRAIN_MAC=hosted notchcast/train.sh ${train[*]}"
     proof=$url
     isolated=1
 }
@@ -424,25 +423,40 @@ isolated_proof() {
 # Not covered without an Xcode build of this tree: code no selected harness compiles (UI, AppCore wiring,
 # resources); the PR build covered each head alone, and Sync and Snapshot follow on main.
 harnesses() {
-    local commit proof= names why tested= unproven= skipped isolated= left= both
+    local commit proof= names why tested= unproven= skipped isolated= left= bench i=0 pr wanted
     : > "$scratch/linux"
     for commit in $(git rev-list --reverse "$base..HEAD"); do
+        i=$((i + 1))
         if [ "$platform" = linux ]; then
             TMPDIR="$scratch/tmp" "$selector" --linux "$scratch/linux-one" "$commit^" "$commit"
             cat "$scratch/linux-one" >> "$scratch/linux"
         else
             TMPDIR="$scratch/tmp" "$selector" "$commit^" "$commit"
-        fi
+        fi > "$scratch/selected-$i"
+        cat "$scratch/selected-$i"
     done | sort -u > "$scratch/selected"
     [ -s "$scratch/selected" ] || refuse 'no harness selected for the merged tree'
     names=$(< "$scratch/selected")
     landed_from=mac
     # Main's lists and the merged tree's: a PR that puts a new harness in both had its own hosted run skip it.
-    both=$(listed_in "$(cd "$(dirname "$selector")/.." && isolated_only_list) $(isolated_only_list)" "$scratch/selected")
+    bench=$(listed_in "$(cd "$(dirname "$selector")/.." && bench_only_list) $(bench_only_list)" "$scratch/selected")
+    if [ -n "$bench" ] && [ "$check" -eq 0 ]; then
+        # The chain holds one squash per PR of the train, in its order.
+        for i in "${!train[@]}"; do
+            pr=${train[$i]}
+            wanted=$(listed_in "$bench" "$scratch/selected-$((i + 1))")
+            [ -z "$wanted" ] || wanted=$(bench_wanted "$pr" "$(jq -r .headRefOid "$scratch/pr-$pr.json")" "$wanted")
+            [ -z "$wanted" ] || refuse "#$pr $wanted"
+        done
+        echo "harnesses: a bench check on the MBP's real screen proved $bench at each head that selects it"
+        grep -vxF -f <(tr ' ' '\n' <<< "$bench") "$scratch/selected" > "$scratch/selected-rest" || true
+        mv "$scratch/selected-rest" "$scratch/selected"
+        names=$(< "$scratch/selected")
+    fi
     # run-tests.sh skips these here (test-harnesses.sh), so only a hosted run of this exact tree proves them;
     # a Linux landing never proves one itself, whatever runner it is on.
     { [ "$platform" = mac ] && { [ "${RUNNER_ENVIRONMENT:-}" = github-hosted ] || [ "${NOTCHCAST_ISOLATED_RUNNER:-}" = 1 ]; }; } \
-        || unproven=$({ grep -xF -f <(tr ' ' '\n' <<< "$HOSTED_ONLY_TESTS") "$scratch/selected"; tr ' ' '\n' <<< "$both"; } | grep . | sort -u | paste -sd' ' - || true)
+        || unproven=$(grep -xF -f <(tr ' ' '\n' <<< "$HOSTED_ONLY_TESTS") "$scratch/selected" | paste -sd' ' - || true)
     [ "$check" -eq 1 ] || proof=$(python3 "$(dirname "$selector")/ci.py" tested-run HEAD) || proof=
     [ "$check" -eq 1 ] || [ -n "$proof" ] || isolated_proof
     [ -z "$unproven" ] || [ "$check" -eq 1 ] || [ -n "$proof" ] \
@@ -450,11 +464,11 @@ harnesses() {
     # A covered train run tested this exact tree on GitHub; only the harnesses its hosted runner skips are left.
     if [ -n "$covered" ]; then
         echo "harnesses: covered by train ${train_run:0:8} (same tree, generated files aside); running only what its runner skips"
-        names=$({ grep -xF -f <(tr ' ' '\n' <<< "$CI_SKIP_TESTS") "$scratch/selected"; tr ' ' '\n' <<< "$both"; } | grep . | sort -u || true)
+        names=$(grep -xF -f <(tr ' ' '\n' <<< "$CI_SKIP_TESTS") "$scratch/selected" || true)
         tested=1
     elif [ -n "$proof" ]; then
         echo "harnesses: $proof built and tested this tree; running only what its runner skips"
-        names=$({ grep -xF -f <(tr ' ' '\n' <<< "$CI_SKIP_TESTS") "$scratch/selected"; tr ' ' '\n' <<< "$both"; } | grep . | sort -u || true)
+        names=$(grep -xF -f <(tr ' ' '\n' <<< "$CI_SKIP_TESTS") "$scratch/selected" || true)
         tested=1
     fi
     # The isolated runner skips nothing: only what it excused is left, to run here or stay unproven as below.
@@ -462,18 +476,6 @@ harnesses() {
         echo "harnesses: the isolated run $proof proved all of them but ${left:-none}"
         names=$left
     fi
-    # One in both lists runs only on an isolated runner, so no lander here can stand in for the run that left it out.
-    skipped=$(grep -xF -f <(tr ' ' '\n' <<< "$unproven") <<< "$names" | paste -sd' ' - || true)
-    if [ -n "$skipped" ] && [ "$check" -eq 0 ] && [ -z "$isolated" ]; then
-        isolated_proof "$proof"
-        if [ -n "$isolated" ]; then
-            names=$(grep -vxF -f <(tr ' ' '\n' <<< "$skipped") <<< "$names" || true)
-            skipped=$(listed_in "$skipped" <(tr ' ' '\n' <<< "$left"))
-            echo "harnesses: the isolated run $proof of this tree ran what the hosted run skipped but ${skipped:-none}"
-        fi
-    fi
-    [ -z "$skipped" ] || [ "$check" -eq 1 ] \
-        || refuse "$skipped proven by no run: only an isolated runner can run them (train on NOTCHCAST_MAC_RUNNER)"
     if [ "$platform" = linux ] && [ -n "$tested" ]; then
         # A macOS runner tested this tree; only what it skips is left, and that needs a Mac.
         [ -z "$names" ] || route "the hosted run skipped $(echo $names), which run only on a Mac"
