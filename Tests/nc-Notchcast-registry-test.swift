@@ -113,12 +113,14 @@ enum RegistryCheck {
         "notificationCleanup", "sudoTouchID", "aiFeaturesOff", "spotlightOff", "privacyChoices", "typingTweaks",
         "finderTweaks", "dockTweaks", "appleAppsTweaks", "iPhoneBackupTweaks", "downloads", "downloadsAria2",
         "distill", "distillTimestamps", "distillConvert", "urlCleaner", "convertFiles", "mediaTools",
-        "commandRunner", "machBlockedDialogAlert", "remoteScreen", "machMBPFans", "torrents", "torrentsUseIPhone",
+        "commandRunner", "machBlockedDialogAlert", "remoteScreen", "machMBPFans", "torrents",
         "torrentsKeepSharing", "backupRunNow", "backupBrowseRestore", "quickLookSpace", "markdownFiles",
         "plainTextFiles", "editorSpellChecking", "buildStats",
     ]
-    // Removed in #836, #1163 and #1166 yet maybe still on in old prefs, so never declared again.
-    static let retiredIDs: Set<String> = ["keepAwake", "lidClosedAwake", "quitProtection", "launcherNumberKeys"]
+    // Removed in #836, #1163, #1166 and #1183 yet maybe still on in old prefs, so never declared again.
+    static let retiredIDs: Set<String> = [
+        "keepAwake", "lidClosedAwake", "quitProtection", "launcherNumberKeys", "torrentsUseIPhone",
+    ]
     static let frozenSlugs: Set<String> = ["screenshot-area", "screenshot-display"]
 
     /// Problems fail the harness; notes only report (an absent dependency counts as off).

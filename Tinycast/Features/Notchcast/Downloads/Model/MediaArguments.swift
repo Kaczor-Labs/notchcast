@@ -25,16 +25,6 @@ nonisolated enum MediaArguments {
         return arguments + ["--", source]
     }
 
-    /// Asks only for the size of what `download` would fetch; nothing is downloaded.
-    static func size(source: String, format: Format) -> [String] {
-        base + ["--print", "%(filesize,filesize_approx)s"] + selection(format) + ["--", source]
-    }
-
-    /// The byte count `size` printed, nil when yt-dlp could not tell ("NA").
-    static func bytes(_ output: String) -> Int64? {
-        output.split(whereSeparator: \.isNewline).last.flatMap { Int64($0) }.flatMap { $0 > 0 ? $0 : nil }
-    }
-
     private static func selection(_ format: Format) -> [String] {
         switch format {
         case .video:
