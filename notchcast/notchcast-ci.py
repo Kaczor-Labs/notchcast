@@ -27,6 +27,9 @@ every 60 s until it completes, then print the last ~40 lines of the failing step
 step's output; `PASS (no harnesses selected) <html_url> at <sha12>` when it selected none, `harnesses: unknown` when
 the log cannot be read). A conclusion other than success or failure (cancelled, e.g. superseded in the workflow's
 concurrency group; timed_out; skipped) proves nothing: `NOPROOF <html_url> conclusion <c>; rerun`.
+A run whose log shows a skipped harness (a self-hosted runner's NOTCHCAST_RUNNER_SKIP_TESTS, or a hosted-only one)
+proves nothing for it: a success prints `NOPROOF <html_url> at <sha12> skipped harnesses: <list>; rerun on a hosted
+runner` and exits 2, a failure appends `; skipped: <list>` to its FAIL line.
 The account's API budget is shared: a poll that hits "API rate limit exceeded" prints
 `notchcast-ci: GitHub API rate limit; waiting until <HH:MM> UTC`, sleeps until the reset and retries; before the
 dispatch, fewer than 500 calls left likewise waits for the reset (`notchcast-ci: N API calls left (<500); waiting ...`).
@@ -56,6 +59,8 @@ STEP = "Changed harnesses"
 FAILED_LOG_LINES = 40
 MIN_API_CALLS = 500  # the hourly budget is shared with every lead's gh; never dispatch into its last calls
 HARNESS = re.compile(r"[\w.+-]+")
+# test-harnesses.sh's two skip lines: a runner's own NOTCHCAST_RUNNER_SKIP_TESTS, and a hosted-only harness.
+SKIPPED = re.compile(r"(?:##\[notice\]|::notice::)SKIPPED on this runner: ([\w.+-]+)|\bSKIPPED ([\w.+-]+): hosted-only:")
 
 
 class Infra(Exception):
@@ -178,11 +183,21 @@ def dispatch(branch):
     return body["workflow_run_id"], body.get("html_url") or f"https://github.com/{REPO}/actions/runs/{body['workflow_run_id']}"
 
 
-def selected_harnesses(run_id):
-    """The names the "Changed harnesses" step printed, or None when its log or the step cannot be read."""
+def run_log(run_id):
     try:
-        log = run("gh", "run", "view", str(run_id), "-R", REPO, "--log")
+        return run("gh", "run", "view", str(run_id), "-R", REPO, "--log")
     except Infra:
+        return None
+
+
+def skipped_harnesses(log):
+    """Harnesses the run's runner skipped (a runner list or hosted-only), in log order; a skip proves nothing."""
+    return list(dict.fromkeys(a or b for a, b in SKIPPED.findall(log or "")))
+
+
+def selected_harnesses(log):
+    """The names the "Changed harnesses" step printed, or None when its log or the step cannot be read."""
+    if log is None:
         return None
     steps = []  # [is ours, lines outside groups]; gh may label every line UNKNOWN STEP
     key = in_group = None
@@ -296,7 +311,8 @@ def verdict(run_id, url, state, head):
         return 2
     passed = state["conclusion"] == "success"
     sha = state["headSha"][:12]
-    names = selected_harnesses(run_id)
+    log = run_log(run_id)
+    names, skipped = selected_harnesses(log), skipped_harnesses(log)
     if not passed:
         try:
             failed = run("gh", "run", "view", str(run_id), "-R", REPO, "--log-failed").splitlines()
@@ -304,10 +320,14 @@ def verdict(run_id, url, state, head):
             failed = [f"(failed-step log unavailable: {error})"]
         print("\n".join(failed[-FAILED_LOG_LINES:]))
     label = "PASS" if passed else "FAIL"
+    if passed and skipped:
+        print(f"NOPROOF {url} at {sha} skipped harnesses: {', '.join(skipped)}; rerun on a hosted runner")
+        return 2
     if names == []:
         print(f"{label} (no harnesses selected) {url} at {sha}")
     else:
-        print(f"{label} {url} at {sha} harnesses: {', '.join(names) if names else 'unknown'}")
+        print(f"{label} {url} at {sha} harnesses: {', '.join(names) if names else 'unknown'}"
+              + (f"; skipped: {', '.join(skipped)}" if skipped else ""))
     if state["headSha"] != head:
         print(f"notchcast-ci: the branch moved: the run tested {sha} but HEAD was {head[:12]}", file=sys.stderr)
         return 2

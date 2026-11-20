@@ -248,6 +248,21 @@ class CiTests(unittest.TestCase):
         self.assertLess(budget[-1], next(i for i, c in enumerate(calls) if "-X" in c))
         self.assertTrue(result.stdout.splitlines()[-1].startswith(f"PASS {URL} "))
 
+    def test_a_pass_with_skipped_harnesses_proves_nothing_and_names_them(self):
+        skips = [log_line("##[notice]SKIPPED on this runner: nc-Clock-model-test", step="Run harnesses"),
+                 log_line("SKIPPED KeychainTests: hosted-only: it can reach the keychain", step="Run harnesses"),
+                 log_line("##[notice]SKIPPED on this runner: nc-Clock-model-test", step="Run harnesses")]
+        self.scenario(log="\n".join([SELECTED_LOG, *skips]))
+        result = self.ci()
+        self.assertEqual(result.returncode, 2, result.stderr)
+        self.assertEqual(result.stdout.splitlines()[-1], f"NOPROOF {URL} at {self.head[:12]} skipped harnesses: "
+                         "nc-Clock-model-test, KeychainTests; rerun on a hosted runner")
+        self.assertNotIn("PASS", result.stdout)
+        self.scenario(view=self.view("failure"))
+        result = self.ci()
+        self.assertEqual(result.returncode, 1)
+        self.assertTrue(result.stdout.splitlines()[-1].endswith("; skipped: nc-Clock-model-test, KeychainTests"))
+
     def test_fail_prints_the_failed_log_tail_then_the_verdict(self):
         self.scenario(view=self.view("failure"),
                       log_failed="\n".join(f"failed line {n}" for n in range(1, 61)))
