@@ -128,7 +128,8 @@ compilation of its 2-bit weights; Ultra's encoder and both variants' decoder/joi
   within 30. Reading and parsing run off the main actor; only a decided request comes back to it.
 - An upload must start with the bytes of an allowed container (WAV, FLAC, Ogg, MP3, MP4/M4A, WebM),
   whatever its filename, and audio over 60 minutes is 413; both are refused before the request waits
-  for the model. A client that closes its connection cancels its transcription.
+  for the model. A client that closes its connection, or only its sending side, cancels its
+  transcription.
 - The user's own dictation always wins. Shared requests take the model one at a time in arrival order
   through the add-on transcription runner, and none starts while the user records or transcribes. A
   request still running when the user starts is cancelled and answered 503 with `Retry-After`, and the

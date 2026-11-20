@@ -206,11 +206,11 @@ final class DictationServer {
         switch step {
         case .models: response = .models([Self.modelID(settings.dictationModel)])
         case .form(let body, let boundary):
-            let answer = await DictationServerClients.answer({ [weak self] in
-                await self?.transcribe(body, boundary: boundary) ?? .error(503, "Notchcast stopped sharing the model.")
-            }, unless: { await Self.untilClosed(connection) })
-            guard let answer else { return }
-            response = answer
+            await DictationServerListener.reply(connection) { [weak self] in
+                let answer = await self?.transcribe(body, boundary: boundary)
+                return (answer ?? .error(503, "Notchcast stopped sharing the model.")).encoded
+            }
+            return
         case .respond(let refusal): response = refusal
         case .more, .sendContinue: return
         }
@@ -236,11 +236,6 @@ final class DictationServer {
                 return step
             }
         }
-    }
-
-    /// Returns when the client closes its side or the connection fails.
-    private nonisolated static func untilClosed(_ connection: NetworkConnection<TCP>) async {
-        while let message = try? await connection.receive(atLeast: 1, atMost: 1), !message.metadata.endOfStream {}
     }
 
     private func transcribe(_ body: Data, boundary: String) async -> DictationServerResponse {

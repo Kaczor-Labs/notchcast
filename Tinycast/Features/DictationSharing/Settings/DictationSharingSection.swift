@@ -53,7 +53,7 @@ struct DictationSharingSection: View {
         } footer: {
             if server.isEnabled {
                 footer(server.status)
-                if let failure = server.tokenFailure { Text(failure).foregroundStyle(.orange) }
+                if let failure = server.tokenFailure { Text(failure).foregroundStyle(Theme.Colors.warning) }
             }
         }
         .confirmationDialog(
@@ -76,7 +76,7 @@ struct DictationSharingSection: View {
             Text("Listening on this Mac only. Send the token as a Bearer authorization header.",
                  tableName: "Notchcast")
         case .failed(let message):
-            Text(message).foregroundStyle(.orange)
+            Text(message).foregroundStyle(Theme.Colors.warning)
         case .off, .starting:
             EmptyView()
         }
@@ -92,8 +92,10 @@ struct DictationSharingSection: View {
     private static func copyConcealed(_ text: String) {
         let pasteboard = NSPasteboard.general
         let concealed = NSPasteboard.PasteboardType("org.nspasteboard.ConcealedType")
+        let item = NSPasteboardItem()
+        item.setString(text, forType: .string)
+        item.setData(Data(), forType: concealed)
         _ = pasteboard.prepareForNewContents(with: .currentHostOnly)
-        pasteboard.setString(text, forType: .string)
-        pasteboard.setData(Data(), forType: concealed)
+        pasteboard.writeObjects([item])
     }
 }
