@@ -147,6 +147,10 @@ struct IslandPagesTest {
         precondition(three.notice?.title == "Update ready", "it heads every tab, so no page hides it")
         three.show(IslandNotice(id: "copied", symbol: nil, text: "Copied"), tappable: false)
         precondition(three.notice?.id == nil && three.notice?.title == "Copied", "a notice with no tap is a plain row")
+        three.show(IslandNotice(id: "w", text: "Copied “Home”: hunter2", spokenText: "Copied Wi-Fi password"),
+                   tappable: false)
+        precondition(three.notice?.title == "Copied “Home”: hunter2" && three.notice?.spoken == "Copied Wi-Fi password",
+                     "the open island's notice row is read as the spoken text, never the shown secret")
         three.show(nil, tappable: false)
         precondition(three.notice == nil, "an ended notice leaves the page")
         var one = deck(page("player", order: 10))
