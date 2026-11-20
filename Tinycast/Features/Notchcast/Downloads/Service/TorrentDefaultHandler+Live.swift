@@ -3,7 +3,7 @@ import UniformTypeIdentifiers
 
 extension TorrentDefaultHandler.System {
     /// The completion form and imported type exactly as the proven installer calls them.
-    static func live() -> Self {
+    @MainActor static func live() -> Self {
         let workspace = NSWorkspace.shared
         let own = Bundle.main.bundleIdentifier ?? ""
         let magnet = URL(string: "magnet:")!
