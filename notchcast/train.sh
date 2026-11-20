@@ -274,27 +274,30 @@ wait_train() {
 }
 # When PR $1 was last labelled land, the lead's sign-off; marking it ready only gets it a PR build.
 signed_off_since() {
-    gh api "repos/$FORK_REPO/issues/$1/timeline" --paginate \
-        --jq '.[] | select(.event == "labeled" and .label.name == "land") | .created_at' | tail -1
+    local at
+    at=$(gh api "repos/$FORK_REPO/issues/$1/timeline" --paginate \
+        --jq '.[] | select(.event == "labeled" and .label.name == "land") | .created_at' | tail -1) && [ -n "$at" ] \
+        || { echo "queue: cannot read when #$1 was labelled land" >&2; return 1; }
+    echo "$at"
 }
 # The first LAND_BATCH_SIZE open PRs on main labelled land, ready or draft, oldest sign-off first. Its build must be
 # green on its head; a draft's may be skipped or absent, since the train run is its build. A PR a batch already
 # found red alone waits for a new head. While the newest sign-off of the batch is younger than LAND_SETTLE_SECONDS it
 # prints only a "queue: waits" line, so PRs signed off close together ride one train.
 pick_batch() {
-    local pr draft head created verdict since newest age
+    local pr draft head verdict since newest age
     : > "$scratch/heads"
-    gh pr list -R "$FORK_REPO" --state open --base main -L 200 --json number,isDraft,labels,headRefOid,createdAt,comments \
+    gh pr list -R "$FORK_REPO" --state open --base main -L 200 --json number,isDraft,labels,headRefOid,comments \
         --jq '.[] | . as $pr | select(any(.labels[]; .name == "land"))
             | select(any(.comments[]; .body | contains("in the landing batch at head " + $pr.headRefOid)) | not)
-            | "\(.number) \(.isDraft) \(.headRefOid) \(.createdAt)"' |
-        while read -r pr draft head created; do
+            | "\(.number) \(.isDraft) \(.headRefOid)"' |
+        while read -r pr draft head; do
             echo "$pr@$head" >> "$scratch/heads"
             verdict=$(check_run "$head" build)
             [ "$verdict" = success ] || { [ "$draft" = true ] && [[ "$verdict" =~ ^(none|skipped)$ ]]; } \
                 || { echo "queue: #$pr waits, build is $verdict on ${head:0:8}" >&2; continue; }
-            since=$(signed_off_since "$pr")
-            echo "${since:-$created} $pr"
+            since=$(signed_off_since "$pr") || exit 1
+            echo "$since $pr"
         done | sort > "$scratch/signed" || return 1
     still_refused
     [ ! -s "$scratch/hosted-prs" ] \

@@ -28,9 +28,15 @@ case "$*" in
     'pr comment '*)
         echo "$3 ${*: -1}" >> "$FIXTURE/comments"
         jq --arg body "${*: -1}" '.comments += [{body: $body}]' "$FIXTURE/pr-$3.json" > "$FIXTURE/pr.json" && mv "$FIXTURE/pr.json" "$FIXTURE/pr-$3.json" ;;
+    # Mixed events, the real --jq: only the last land label add, at ready-<pr> or creation, is a sign-off.
     *issues/*/timeline*)
+        [ -z "${TIMELINE_FAILS:-}" ] || { echo 'HTTP 502' >&2; exit 1; }
         pr=${2#*issues/}
-        cat "$FIXTURE/ready-${pr%%/*}" 2>/dev/null || true ;;
+        pr=${pr%%/*}
+        at=$(cat "$FIXTURE/ready-$pr" 2>/dev/null || jq -r .createdAt "$FIXTURE/pr-$pr.json")
+        jq -n --arg at "$at" '($at | fromdateiso8601) as $t | def ev($e; $l; $d): {event: $e, label: {name: $l}, created_at: ($t + $d | todateiso8601)};
+            [ev("labeled"; "land"; -7200), ev("unlabeled"; "land"; -3600), ev("labeled"; "land"; 0),
+             ev("labeled"; "other"; 600), ev("ready_for_review"; null; 900)]' | jq -r "${*: -1}" ;;
     'pr view '*'--json headRefOid'*) jq -r .headRefOid "$FIXTURE/pr-$3.json" ;;
     'pr view '*) cat "$FIXTURE/pr-$3.json" ;;
     'pr close '*)
@@ -1272,6 +1278,14 @@ PRLIST_FAILS=1 queue
 [ "$status" -eq 1 ] && ! grep -q '^queue: no open PR' "$FIXTURE/train-output" && [ ! -e "$FIXTURE/dispatched" ] && untouched \
     || queue_fail 'a failed PR listing read as nothing to land'
 echo 'PASS: --queue fails when it cannot list the open PRs, never reports an idle queue'
+
+fixture
+open_pr 1 pr-b 'Add B' src/b.txt
+TIMELINE_FAILS=1 queue
+[ "$status" -eq 1 ] && grep -q '^queue: cannot read when #1 was labelled land$' "$FIXTURE/train-output" \
+    && ! grep -q '^queue: batch' "$FIXTURE/train-output" && [ ! -e "$FIXTURE/dispatched" ] && untouched \
+    || queue_fail 'a failed sign-off lookup landed on a guessed time'
+echo 'PASS: --queue fails when it cannot read a sign-off time, never lands on the creation date instead'
 
 # The land lease (#1161): private.env names a stub lock hook that logs each call and refuses while LOCK_EXIT is 1.
 cat > "$scratch/bin/land-lock" <<'STUB'
