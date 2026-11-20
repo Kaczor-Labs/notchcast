@@ -60,25 +60,18 @@ final class IslandController: NSObject {
         return bounds.offsetBy(dx: backdrop.frame.minX, dy: backdrop.frame.minY).intersection(backdrop.frame)
     }
 
-    var glance: IslandGlance? {
-        didSet { if glance != oldValue { redraw() } }
-    }
-    var level: IslandLevel? {
-        didSet { if level != oldValue { redraw() } }
-    }
-    var expanded = false {
-        didSet { if expanded != oldValue { redraw() } }
-    }
-    var notice: IslandNotice? {
-        didSet { if notice != oldValue { redraw() } }
-    }
-    var statuses: [IslandStatus] = [] {
-        didSet { if statuses != oldValue { redraw() } }
-    }
+    var glance: IslandGlance? { didSet { if glance != oldValue { redraw() } } }
+    var level: IslandLevel? { didSet { if level != oldValue { redraw() } } }
+    var expanded = false { didSet { if expanded != oldValue { redraw() } } }
+    var notice: IslandNotice? { didSet { if notice != oldValue { redraw() } } }
+    var statuses: [IslandStatus] = [] { didSet { if statuses != oldValue { redraw() } } }
+    var song: IslandNowPlaying? { didSet { if song != oldValue { redraw() } } }
+    /// D16: a new song grows the pill below a notch, as the meeting expansion does.
+    var songChange = false { didSet { if songChange != oldValue { redraw() } } }
 
     private func redraw() {
         canvas.show(glance: glance, level: level, notice: notice, statuses: statuses, expanded: expanded,
-                    notch: layout?.notchWidth)
+                    notch: layout?.notchWidth, song: song, songChange: songChange)
         canvas.setAccessibilityValue(accessibilityValue)
         frameChanged()
     }
@@ -99,7 +92,7 @@ final class IslandController: NSObject {
         canvas.canOpen = { [weak self] in
             guard let self else { return false }
             return self.canOpen?() == true && self.overlays.isEmpty && NSApp.modalWindow == nil
-                && self.page == nil && (self.isResting || self.expanded && self.source.isIdle)
+                && self.page == nil && (self.isResting || (self.expanded || self.songChange) && self.source.isIdle)
         }
         source.didFrame = { [weak self] in self?.paintFrame() }
         source.didSettle = { [weak self] in self?.applyPending(); self?.onSettle?() }
@@ -148,7 +141,7 @@ final class IslandController: NSObject {
         layout = next
         canvas.scale = screen.backingScaleFactor
         canvas.show(glance: glance, level: level, notice: notice, statuses: statuses, expanded: expanded,
-                    notch: next.notchWidth)
+                    notch: next.notchWidth, song: song, songChange: songChange)
         backdrop.setFrame(next.window, display: false)
         if update == .recreate {
             surface = nil
@@ -181,9 +174,11 @@ final class IslandController: NSObject {
         metrics.compact.edgePadding = Theme.Spacing.lg
         let inner = next.hasNotch ? Theme.Spacing.md : 0
         metrics.compact.innerPadding = .init(leading: inner, trailing: inner)
-        metrics.compact.maxSlotWidth = NotchTheme.Size.islandGlanceWing
+        // Each art caps its own wings; a song line that widens may reach the headline's width.
+        metrics.compact.maxSlotWidth = NotchTheme.Size.islandHeadlineMaxWidth
         metrics.compact.maxWidth = next.canvas.width
         metrics.compact.balance = 0
+        metrics.compact.radius = next.notchRadius.map(Double.init)
         let clock = FrameClock(frameSource: source)
         clock.timeScale = Self.motionSpeed
         let surface = IslandSurface<CGSize>(
@@ -209,6 +204,7 @@ final class IslandController: NSObject {
         canvas.setAccessibilityValue(accessibilityValue)
         guard let surface, let layout else { return }
         surface.reduced = reducedMotion
+        canvas.still = reducedMotion
         let sunk = panel.map { $0.isVisible && $0.level < Self.paletteLevel } ?? false
         let suspended = NSApp.modalWindow != nil || sunk
         if suspended { backdrop.orderOut(nil) }
@@ -377,6 +373,7 @@ final class IslandController: NSObject {
 
     isolated deinit {
         NSWorkspace.shared.notificationCenter.removeObserver(self)
+        canvas.animate(false)
         backdrop.orderOut(nil)
     }
 
