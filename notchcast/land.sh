@@ -403,7 +403,7 @@ run_harnesses() {
     done
     [ "$status" -eq 0 ] || [ -n "$failed" ] || refuse 'the harness run failed without naming a harness'
 }
-# Exit 3: no run of these heads can change the verdict, so train.sh --queue leaves them out until one moves.
+# Exit 3: no isolated run of these heads can change the verdict, so train.sh --queue trains them hosted next.
 refuse_for_good() { echo "REFUSED: $*" >&2; exit 3; }
 # Sets proof, and left to the selected harnesses it excused, from the isolated runner's build of this tree if there
 # is one. Refuses a toolchain other than ISOLATED_TOOLCHAIN, and an excused harness that only a hosted run proves.

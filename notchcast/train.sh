@@ -212,6 +212,11 @@ preflight() {
         waits="$waits${waits:+ }$pr"
     done < "$scratch/merges"
     [ "$mac" = isolated ] || return 0
+    if [ -s "$scratch/hosted-prs" ] && cut -d' ' -f1 "$scratch/merges" | grep -qxF -f "$scratch/hosted-prs"; then
+        runner=hosted
+        echo "train: land.sh refused a PR of it for good on the isolated runner at its head, so its Mac jobs are hosted"
+        return 0
+    fi
     hosted_only=$(listed_in "$hosted_list" "$scratch/selected")
     [ -n "$hosted_only" ] || return 0
     runner=hosted
@@ -291,7 +296,9 @@ pick_batch() {
             since=$(ready_since "$pr")
             echo "${since:-$created} $pr"
         done | sort > "$scratch/signed" || return 1
-    still_refused > "$scratch/refused-prs"
+    still_refused
+    [ ! -s "$scratch/hosted-prs" ] \
+        || echo "queue: #$(paste -sd' ' "$scratch/hosted-prs" | sed 's/ / #/g') train hosted: land.sh refused them for good on the isolated runner at these heads" >&2
     if [ -s "$scratch/refused-prs" ]; then
         echo "queue: #$(paste -sd' ' "$scratch/refused-prs" | sed 's/ / #/g') left out: land.sh refused them for good at these heads" >&2
         awk 'NR == FNR { out[$1]; next } !($2 in out)' "$scratch/refused-prs" "$scratch/signed" > "$scratch/kept"
@@ -305,34 +312,48 @@ pick_batch() {
     fi
     sed -n "1,${LAND_BATCH_SIZE}p" "$scratch/signed" | cut -d' ' -f2 | paste -sd' ' -
 }
-# Lines "<pr>@<head> <pr>@<head>...": batches land.sh refused for good (exit 3) at those heads, which a tick would only
-# rebuild to be refused again. Kept beside the detached train logs, so every tick's tree of this checkout sees it.
+# Lines "<runner> <config> <pr>@<head>...": batches land.sh refused for good (exit 3) at those heads on a train whose
+# Mac jobs ran on <runner>, under config.env blob <config>. Both such refusals judge an isolated runner's record, so a
+# hosted train is the run that can change the verdict: the queue trains a batch refused on the isolated runner hosted,
+# and leaves one refused on a hosted train out. Kept beside the detached train logs, so every tick's tree sees it.
 refused_file="$(cd "$(git rev-parse --git-common-dir)" && pwd)/notchcast-refused"
-# Prints the PRs of each refusal still at its heads (open PRs in $scratch/heads), and forgets the others.
+config_key=$(git hash-object notchcast/config.env)
+# Forgets each refusal under another config or with a head that moved (open PRs in $scratch/heads), and writes the
+# PRs of the rest to $scratch/hosted-prs (refused on the isolated runner) or $scratch/refused-prs (refused hosted).
 still_refused() {
-    local line
-    [ -s "$refused_file" ] || return 0
+    local runner key heads
     : > "$scratch/refusals"
-    while read -r line; do
-        tr ' ' '\n' <<< "$line" | grep -qvxF -f "$scratch/heads" || echo "$line" >> "$scratch/refusals"
+    : > "$scratch/hosted-prs"
+    : > "$scratch/refused-prs"
+    [ -s "$refused_file" ] || return 0
+    while read -r runner key heads; do
+        [ "$key" = "$config_key" ] || continue
+        ! tr ' ' '\n' <<< "$heads" | grep -qvxF -f "$scratch/heads" || continue
+        echo "$runner $key $heads" >> "$scratch/refusals"
+        if [ "$runner" = hosted ]; then
+            tr ' ' '\n' <<< "$heads" | sed 's/@.*//' >> "$scratch/refused-prs"
+        else
+            tr ' ' '\n' <<< "$heads" | sed 's/@.*//' >> "$scratch/hosted-prs"
+        fi
     done < "$refused_file"
     cat "$scratch/refusals" > "$refused_file"
-    tr ' ' '\n' < "$refused_file" | sed 's/@.*//'
 }
-# Batch $1 of train branch $2, refused for good by the land.sh output in $scratch/landing: recorded at its heads,
-# and told once, on each PR and to notchcast_notify, since no later tick tries it again.
+# Batch $1 of train branch $2, its Mac jobs on runner $3, refused for good by the land.sh output in $scratch/landing:
+# recorded at its heads, and told once, on each PR and to notchcast_notify.
 refused_for_good() {
-    local pr record='' reason
+    local pr record='' reason next
     reason=$(sed -n 's/^REFUSED: //p' "$scratch/landing" | tail -1)
     for pr in $1; do record="$record${record:+ }$pr@$(< "$scratch/head-$pr")"; done
-    echo "$record" >> "$refused_file"
-    echo "REFUSED FOR GOOD #$1: its train branch $2 stays; the queue leaves these PRs out until one has a new head"
+    echo "$3 $config_key $record" >> "$refused_file"
+    next='the queue leaves these PRs out until one has a new head or config.env changes'
+    [ "$3" = hosted ] || next='the queue trains these PRs hosted next, the run that can change that verdict'
+    echo "REFUSED FOR GOOD #$1: its train branch $2 stays; $next"
     for pr in $1; do
         gh pr comment "$pr" -R "$FORK_REPO" >/dev/null \
-            --body "Left out of the landing queue at its head $(< "$scratch/head-$pr"): land.sh refused the green train $2 (#${1// / #}) for good: $reason. The queue takes these PRs again once one of them has a new head." \
+            --body "Refused for good at its head $(< "$scratch/head-$pr"): land.sh refused the green train $2 (#${1// / #}) on the $3 runner: $reason. Next, $next." \
             || echo "WARN: could not comment on #$pr" >&2
     done
-    notify "the queue leaves #${1// / #} out: land.sh refused the green train $2 for good: $reason"
+    notify "land.sh refused the green train $2 (#${1// / #}) for good on the $3 runner: $reason; $next"
 }
 # The one place a batch lands. A batch whose union needs no Mac (#1033's linux-ok) plugs its Linux landing in here.
 land_batch() { bash notchcast/land.sh --train-run "$@"; }
@@ -458,7 +479,7 @@ while [ ${#queue[@]} -gt 0 ]; do
                 echo "LANDED #$train"
             elif [ "$landing" -eq 3 ]; then
                 status=1
-                refused_for_good "$train" "$branch"
+                refused_for_good "$train" "$branch" "$runner"
             else
                 status=1
                 echo "NOT LANDED #$train: land.sh refused above; its train branch $branch stays"
