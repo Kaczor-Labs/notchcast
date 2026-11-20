@@ -132,7 +132,7 @@ struct IslandPageRowView: View {
                 .onHover { hovered = $0 }
                 .accessibilityLabel(Text(verbatim: row.spoken ?? ""), isEnabled: row.spoken != nil)
         } else {
-            label.accessibilityElement(children: .combine)
+            label.accessibilityElement(children: row.spoken == nil ? .combine : .ignore)
                 .accessibilityLabel(Text(verbatim: row.spoken ?? ""), isEnabled: row.spoken != nil)
         }
     }
