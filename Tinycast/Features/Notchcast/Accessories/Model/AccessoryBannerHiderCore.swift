@@ -78,6 +78,7 @@ final class AccessoryBannerHiderCore<Access: AccessoryBannerAccess> {
         for record in records where record.restoring { show(record.window) }
         beginRead()
         guard let open = fetch({ try access.centerIsOpen() }), !open else { return restoreAll() }
+        defer { showExpired() }
         guard let windows = fetch({ try access.windows() }) else { return }
         if windows.count > 32 { incomplete = true }
         var read: [(window: Access.Element, cards: [AccessoryBannerCard])] = []
@@ -91,13 +92,15 @@ final class AccessoryBannerHiderCore<Access: AccessoryBannerAccess> {
         for (window, cards) in read {
             let index = records.firstIndex { access.same($0.window, window) }
             if complete, AccessoryPolicy.hides(cards: cards, names: names, now: time) {
-                if let index { records[index].kept = true } else { _ = hide(window, kept: true) }
+                if let index {
+                    if !records[index].restoring { records[index].kept = true }
+                } else {
+                    _ = hide(window, kept: true)
+                }
                 continue
             }
             guard let index, !records[index].restoring else { continue }
-            let graceOver = time.timeIntervalSince(records[index].since) >= Self.grace
-            let judged = complete && (records[index].kept || !cards.isEmpty)
-            if judged || (!records[index].kept && graceOver) { show(window) }
+            if complete && (records[index].kept || !cards.isEmpty) { show(window) }
         }
         guard complete else { return }
         for record in records where !windows.contains(where: { access.same($0, record.window) }) {
@@ -108,6 +111,15 @@ final class AccessoryBannerHiderCore<Access: AccessoryBannerAccess> {
     /// Puts back every window this hider moved; one it cannot confirm stays listed for the next try.
     func restoreAll() {
         for record in records { show(record.window) }
+    }
+
+    /// A window moved on arrival and never kept comes back after its grace, whatever the pass read.
+    private func showExpired() {
+        let time = now()
+        for record in records where !record.kept && !record.restoring
+            && time.timeIntervalSince(record.since) >= Self.grace {
+            show(record.window)
+        }
     }
 
     private func hide(_ window: Access.Element, kept: Bool) -> Bool {
@@ -188,7 +200,8 @@ final class AccessoryBannerHiderCore<Access: AccessoryBannerAccess> {
         guard visit(depth: depth) else { return }
         let subrole = string(node, "AXSubrole") ?? ""
         if Self.bannerRoles.contains(subrole) {
-            cards.append(AccessoryBannerCard(texts: message(node) ?? [], transient: subrole == "AXNotificationCenterBanner"))
+            let own = texts(node).flatMap(parse) ?? []
+            cards.append(AccessoryBannerCard(texts: own, transient: subrole == "AXNotificationCenterBanner"))
         } else if Self.stackRoles.contains(subrole) {
             findCards(node, depth: depth, transient: subrole == "AXNotificationCenterBannerStack", into: &cards)
         } else {
@@ -196,20 +209,34 @@ final class AccessoryBannerHiderCore<Access: AccessoryBannerAccess> {
         }
     }
 
-    /// Each card of a stack alone; a wrapper holding one whole card is descended, never counted twice.
+    /// Each card alone, a wrapper of a whole card descended; texts no card claims add an empty card.
     private func findCards(_ node: Access.Element, depth: Int, transient: Bool, into cards: inout [AccessoryBannerCard]) {
         guard usable else { return }
-        let own = message(node)
-        let next = own == nil ? children(node) : children(node).filter { message($0) == own }
-        if let own, next.isEmpty { return cards.append(AccessoryBannerCard(texts: own, transient: transient)) }
-        for child in next {
+        let found = texts(node)
+        let own = found.flatMap(parse)
+        let inner = children(node).filter { string($0, "AXRole") != "AXStaticText" }
+        if let own, !inner.contains(where: { texts($0).flatMap(parse) == own }) {
+            return cards.append(AccessoryBannerCard(texts: own, transient: transient))
+        }
+        let before = cards.count
+        for child in inner {
             guard visit(depth: depth + 1) else { return }
             findCards(child, depth: depth + 1, transient: transient, into: &cards)
         }
+        if cards.count == before, found?.isEmpty == false { cards.append(AccessoryBannerCard(texts: [], transient: transient)) }
     }
 
-    /// The texts of exactly one message, nil for none or several; only labelled static texts, never controls.
-    private func message(_ root: Access.Element) -> [String]? {
+    /// The texts of exactly one message, nil for none or several; unlabelled texts count only when all are.
+    private func parse(_ texts: [(identifier: String, value: String)]) -> [String]? {
+        if texts.allSatisfy({ $0.identifier.isEmpty }) { return (2...3).contains(texts.count) ? texts.map(\.value) : nil }
+        let labelled = texts.filter { !$0.identifier.isEmpty }
+        let count = { (identifier: String) in labelled.filter { $0.identifier == identifier }.count }
+        guard count("title") == 1, count("header") <= 1, count("subtitle") <= 1, count("body") <= 1 else { return nil }
+        return labelled.map(\.value)
+    }
+
+    /// Every labelled or unlabelled static text under `root`, never a control's; nil when the read failed.
+    private func texts(_ root: Access.Element) -> [(identifier: String, value: String)]? {
         var texts: [(identifier: String, value: String)] = []
         walk(root, depth: 0) { node in
             guard string(node, "AXRole") == "AXStaticText" else { return }
@@ -218,12 +245,7 @@ final class AccessoryBannerHiderCore<Access: AccessoryBannerAccess> {
                   let text = string(node, "AXValue"), !text.isEmpty else { return }
             texts.append((identifier, text))
         }
-        guard usable else { return nil }
-        if texts.allSatisfy({ $0.identifier.isEmpty }) { return (2...3).contains(texts.count) ? texts.map(\.value) : nil }
-        let count = { (identifier: String) in texts.filter { $0.identifier == identifier }.count }
-        guard count("title") == 1, count("header") <= 1, count("subtitle") <= 1, count("body") <= 1,
-              count("") == 0 else { return nil }
-        return texts.map(\.value)
+        return usable ? texts : nil
     }
 
     private func walk(_ node: Access.Element, depth: Int, _ action: (Access.Element) -> Void) {

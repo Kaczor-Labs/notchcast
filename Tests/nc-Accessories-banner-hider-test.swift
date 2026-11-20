@@ -69,6 +69,13 @@ final class FakeCenter: AccessoryBannerAccess {
         node(["AXSubrole": role], [text(title)] + (body.map { [text($0, "body")] } ?? []))
     }
 
+    /// A card group of a stack: its static texts as `(value, identifier)`.
+    func card(_ texts: [(String, String)]) -> Int {
+        node(["AXRole": "AXGroup"], texts.map { text($0.0, $0.1) })
+    }
+
+    func stack(_ cards: [Int]) -> Int { window([node(["AXSubrole": "AXNotificationCenterBannerStack"], cards)]) }
+
     /// A new on-screen window holding `content`.
     func window(_ content: [Int]) -> Int {
         let window = node(["AXRole": "AXWindow"], content)
@@ -92,6 +99,9 @@ enum AccessoryBannerHiderTests {
         failedReads()
         movesBack()
         prehideGrace()
+        graceWithoutAFullRead()
+        unreadableStackCards()
+        keptOnlyOnceBack()
         print("PASS nc-Accessories-banner-hider-test")
     }
 
@@ -276,5 +286,66 @@ enum AccessoryBannerHiderTests {
         let listed = center.window([])
         hider.prehide(listed)
         precondition(center.shown(listed), "never while the center is open")
+    }
+
+    static func graceWithoutAFullRead() {
+        let center = FakeCenter()
+        let hider = make(center)
+        let fresh = center.window([])
+        hider.prehide(fresh)
+        let crowded = center.window([center.node(["AXRole": "AXGroup"], (0..<65).map { _ in center.text("x") })])
+        center.windowList = [crowded, fresh]
+        center.now = center.now.addingTimeInterval(0.6)
+        hider.scan(names: names)
+        precondition(center.shown(fresh), "a partial pass still brings a window back after its grace")
+        precondition(hider.nextPass.map { $0 > center.now } ?? true, "and asks for no pass in the past")
+
+        let other = center.window([])
+        hider.prehide(other)
+        center.failWindows = true
+        center.now = center.now.addingTimeInterval(0.6)
+        hider.scan(names: names)
+        precondition(center.shown(other) && !hider.hidesWindows, "so does a failed window list")
+        precondition(hider.nextPass == nil, "with nothing left to wait for")
+    }
+
+    static func unreadableStackCards() {
+        let center = FakeCenter()
+        let hider = make(center)
+        let ours = [("Kim's AirPods Pro", "title"), ("Connected", "body")]
+        let unlabelled = center.stack([center.card(ours), center.card((0..<4).map { ("Line \($0)", "") })])
+        hider.scan(names: names)
+        precondition(center.shown(unlabelled), "a card no message fits keeps its stack")
+
+        let twoBodies = center.stack([center.card(ours + [("Running late", "body")])])
+        hider.scan(names: names)
+        precondition(center.shown(twoBodies), "a rejected card is never read as its bare title")
+
+        let stamped = center.window([center.node(["AXSubrole": "AXNotificationCenterBanner"],
+                                                 [center.text("Kim's AirPods Pro"), center.text("now", "")])])
+        hider.scan(names: names)
+        precondition(!center.shown(stamped), "an unlabelled timestamp beside labelled texts is ignored")
+        let stampedStack = center.stack([center.card(ours + [("now", "")])])
+        hider.scan(names: names)
+        precondition(!center.shown(stampedStack), "in a stack too")
+    }
+
+    static func keptOnlyOnceBack() {
+        let center = FakeCenter()
+        let hider = make(center)
+        let window = center.window([])
+        hider.prehide(window)
+        center.refuseMoves = [window]
+        center.now = center.now.addingTimeInterval(0.6)
+        hider.scan(names: names)
+        precondition(!center.shown(window) && hider.nextPass == center.now.addingTimeInterval(0.2), "on its way back")
+        center.tree[window] = [center.banner("Kim's AirPods Pro")]
+        hider.scan(names: names)
+        precondition(hider.nextPass == center.now.addingTimeInterval(0.2), "our banner does not stop the move back")
+        center.refuseMoves = []
+        let moves = center.moves.count
+        hider.scan(names: names)
+        precondition(center.moves.count == moves + 2 && !center.shown(window) && hider.nextPass == nil,
+                     "it comes back first, then goes away kept")
     }
 }
