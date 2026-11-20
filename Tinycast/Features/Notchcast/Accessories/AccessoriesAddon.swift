@@ -7,7 +7,10 @@ enum AccessoriesAddon: NotchcastAddon {
             id: "accessoryNotices",
             title: String(localized: "Accessories", table: "NotchcastAccessories"),
             subtitle: String(
-                localized: "Shows on the island when a Bluetooth accessory connects or its battery runs low, and lists connected accessories with their battery levels.",
+                localized: """
+                    Shows on the island when a Bluetooth accessory connects or its battery runs low, \
+                    and lists connected accessories with their battery levels.
+                    """,
                 table: "NotchcastAccessories"),
             category: .notices
         ),
