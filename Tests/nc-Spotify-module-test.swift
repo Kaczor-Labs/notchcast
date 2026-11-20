@@ -30,6 +30,11 @@ struct SpotifySettingsView: View {
     var body: some View { EmptyView() }
 }
 
+struct SpotifyIslandRows: View {
+    init(context: NotchcastContext) {}
+    var body: some View { EmptyView() }
+}
+
 extension SpotifySystem {
     static var live: SpotifySystem { FakeSpotify.shared.system }
 }
