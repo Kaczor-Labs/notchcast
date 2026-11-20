@@ -75,6 +75,8 @@ struct IslandPageLine: Equatable, Sendable {
     var text: String
     var detail: String?
     var buttons: [IslandPageButton] = []
+    /// Set, a click on the line sends this to `onAction` instead of opening the page's tab.
+    var action: String?
 }
 
 /// An icon button; `label` is its VoiceOver name and tooltip, `id` what `onAction` receives.

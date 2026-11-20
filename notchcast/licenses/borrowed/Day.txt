@@ -1,0 +1,2 @@
+Day: Model/DayAgenda.swift ← vorssaint/vorssaint-utils@89d2626/Sources/Vorssaint/Services/Notch/NotchCalendarSupport.swift (GPL-3.0-or-later)
+Day: Model/DayAgenda.swift ← vorssaint/vorssaint-utils@89d2626/Sources/Vorssaint/UI/Notch/NotchCalendarView.swift (GPL-3.0-or-later)
