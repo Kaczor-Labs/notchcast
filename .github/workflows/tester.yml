@@ -31,13 +31,15 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           persist-credentials: false
+          # fetch-upstream.sh needs a merge base with upstream for the renders harness.
+          fetch-depth: 0
       - uses: ./notchcast/actions/xcode
       - name: Debug build key
         id: key
         if: env.SCENARIO == 'all' || env.SCENARIO == 'launcher'
         run: |
           xcode=$(xcodebuild -version | shasum | cut -c1-12)
-          tree=$(git rev-parse HEAD:Tinycast)-$(git rev-parse HEAD:project.yml | cut -c1-12)
+          tree=$(git rev-parse HEAD:Tinycast)-$(git rev-parse HEAD:project.yml | cut -c1-12)-casprobe
           echo "prefix=tester-debug-$xcode" >> "$GITHUB_OUTPUT"
           echo "tree=$tree" >> "$GITHUB_OUTPUT"
       # The same tree's app: no build at all.

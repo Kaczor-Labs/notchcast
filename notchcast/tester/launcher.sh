@@ -24,6 +24,12 @@ rows() {
     }
     out.join("\n")' 2>>"$OUT/scenario.log"
 }
+# A real HID mouse move, down and up: System Events' "click at" presses the AX element and skips the row's tap.
+click() {
+  osascript -l JavaScript -e 'function run([x, y]) { ObjC.import("CoreGraphics"); const p = $.CGPointMake(+x, +y);
+    for (const type of [$.kCGEventMouseMoved, $.kCGEventLeftMouseDown, $.kCGEventLeftMouseUp]) {
+      $.CGEventPost($.kCGHIDEventTap, $.CGEventCreateMouseEvent(null, type, p, $.kCGMouseButtonLeft)); delay(0.1) } }' "$1" "$2"
+}
 has_row() { rows | cut -f1 | grep -qx "$1"; }
 app_exists() { [ -d "/System/Applications/$1.app" ] || [ -d "/System/Applications/Utilities/$1.app" ] || [ -d "/Applications/$1.app" ]; }
 reopen() { open "$APP"; until_ok 10 palette_up; }
@@ -51,7 +57,7 @@ shot 03-typed
 if [ -n "$target" ] && ! running "$target"; then
   IFS=$'\t' read -r _ cx cy < <(awk -F'\t' -v n="$target" '$1 == n {print; exit}' "$OUT/rows.tsv")
   log "click unselected row '$target' at $cx,$cy"
-  se "click at {$cx, $cy}" >>"$OUT/scenario.log" 2>&1
+  click "$cx" "$cy" >>"$OUT/scenario.log" 2>&1
   until_ok 20 running "$target"; check "click on unselected row opened $target" $?
   sleep 2
   shot 04-after-click
@@ -70,6 +76,6 @@ until_ok 20 running "Activity Monitor"; check "Return opened Activity Monitor" $
 sleep 2
 shot 06-after-return
 
-log show --style compact --last 10m --predicate 'process == "Notchcast Dev"' > "$OUT/app.unified.log" 2>&1
+command log show --style compact --last 10m --predicate 'process == "Notchcast Dev"' > "$OUT/app.unified.log" 2>&1
 log "result: $([ $fail = 0 ] && echo PASS || echo FAIL)"
 exit $fail
