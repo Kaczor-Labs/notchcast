@@ -83,7 +83,23 @@ struct SoloistTests {
         await adoptsOnlyOurOwn()
         await ownsThePidFromSpawn()
         await installVerifiesWhatRuns()
-        print("Soloist: verified before launch, adopts only its own, owns the pid, installs verified bytes")
+        givesUpAfterTheCap()
+        print("Soloist: verified before launch, adopts only its own, owns the pid, installs verified bytes, gives up")
+    }
+
+    static func givesUpAfterTheCap() {
+        let now = Date(timeIntervalSince1970: 0)
+        let build = SoloistBuild(version: "1", buildDate: now)
+        var s = SoloistSupervision()
+        s.start(hasKey: true, build: build, at: now)
+        for attempt in 1..<SoloistSupervision.maxAttempts {
+            check(s.failed(at: now) != nil && s.retryDue(at: .distantFuture), "retry \(attempt) is scheduled")
+        }
+        check(s.failed(at: now) == nil && s.phase == .gaveUp, "after the cap no retry date is returned")
+        check(!s.retryDue(at: .distantFuture) && s.failed(at: now) == nil, "and it stays given up")
+        s.stop()
+        s.start(hasKey: true, build: build, at: now)
+        check(s.phase == .starting && s.failed(at: now) == now.addingTimeInterval(1), "a restart clears the count")
     }
 
     @MainActor
