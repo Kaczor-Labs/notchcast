@@ -29,14 +29,9 @@ final class FinderToolsModule: NotchcastModule {
         relayout()
         refreshFrontmost()
         let mask = [CGEventType.keyDown, .keyUp].reduce(CGEventMask(0)) { $0 | NotchcastTapPolicy.mask(for: $1) }
-        subscriptions = [
-            (FinderToolsAddon.cutPasteSwitchID, FinderToolsPolicy.Tap.cutPaste),
-            (FinderToolsAddon.renameSwitchID, .rename),
-        ].map { switchID, tap in
-            context.subscribe(NotchcastTap(
-                switchID: switchID, mask: mask, handler: .synchronous(handler(tap)),
-                reset: { [policy] in policy.value.withLock { $0.reset() } }))
-        }
+        subscriptions = [context.subscribe(NotchcastTap(
+            switchID: FinderToolsAddon.cutPasteSwitchID, mask: mask, handler: .synchronous(handler()),
+            reset: { [policy] in policy.value.withLock { $0.reset() } }))]
         observers = [
             observe(NSWorkspace.didActivateApplicationNotification, in: NSWorkspace.shared.notificationCenter) {
                 $0.applicationActivated()
@@ -122,7 +117,7 @@ final class FinderToolsModule: NotchcastModule {
         }
     }
 
-    private func handler(_ tap: FinderToolsPolicy.Tap) -> NotchcastTap.Synchronous {
+    private func handler() -> NotchcastTap.Synchronous {
         { [policy, tag = system.syntheticTag, weak self] type, event in
             let code = UInt16(truncatingIfNeeded: event.getIntegerValueField(.keyboardEventKeycode))
             let (verdict, queued) = policy.value.withLock { policy in
@@ -131,9 +126,8 @@ final class FinderToolsModule: NotchcastModule {
                     policy.keyDown(
                         code, Self.modifiers(event.flags),
                         isRepeat: event.getIntegerValueField(.keyboardEventAutorepeat) != 0,
-                        isSynthetic: event.getIntegerValueField(.eventSourceUserData) == tag,
-                        tap: tap)
-                case .keyUp: policy.keyUp(code, tap: tap)
+                        isSynthetic: event.getIntegerValueField(.eventSourceUserData) == tag)
+                case .keyUp: policy.keyUp(code)
                 default: .pass
                 }
                 return (verdict, policy.hasRequests)
