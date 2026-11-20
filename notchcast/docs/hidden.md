@@ -61,7 +61,7 @@ Four tables in our own files, each read by a short hook in upstream's; hiding a 
 - Apple Shortcuts: `AppleShortcutTests`.
 - iCloud Sync: `CloudSyncTests`.
 
-No CI step serves only a hidden item: CodeQL's JavaScript scan skips the Raycast runtime (`Scripts/raycast-runtime/`, `Tinycast/Resources/RaycastRuntime.generated.js`, `Tests/ext-fixtures/`), the Generated workflow sets up no Node and never rebuilds that runtime (it stays upstream's), and `land.sh` does not rerun harnesses when `main` moved only in it, since only `ExtensionTests` loads it.
+No CI step serves only a hidden item: CodeQL's JavaScript scan skips the Raycast runtime (`Scripts/raycast-runtime/`, `Tinycast/Resources/RaycastRuntime.generated.js`, `Tests/ext-fixtures/`), the Generated workflow sets up no Node and never rebuilds that runtime (it stays upstream's).
 
 Kept on purpose: everything that guards the hiding (`notchcast-hidden-features-test`, `nc-Notchcast-footer-menu-hidden-test`, `notchcast-icloud-sync-off-migration-test`, the `hidden-settings` and `icloud-sync-off` app proofs); harnesses that only compile a hidden model as a dependency of a visible one (`DeepLinkTests`, `InterfaceSizeTests`, the `$SYNC` sources in `NotesTests` and `SnippetsTests`) and `RaycastTests` (the visible Raycast import); Light-appearance checks inside visible harnesses (`nc-NotchLook-tokens-test`, `nc-Island-keyline-test`, `nc-Notchcast-island-cards-test`) and the DEBUG `keyline` scene, which run with the visible code they sit in and run on no CI runner (scenes) or cost no measurable time; upstream's `Scripts/check-localizations.js` in `Scripts/lint.sh` (0.15 s; dropping it means patching upstream's lint script); and the Debug build, which still compiles hidden code so a rebase keeps it.
 

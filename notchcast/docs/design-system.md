@@ -196,31 +196,29 @@ Reference: HIG Live Activities, "Focus on simple, direct actions."
 11. Dark only: the island is pinned Dark; check Dark, never Light.
 12. Every progress activity ends with a result notice, success or failure (§10).
 13. Beside the notch show a glyph and a short status only; text expands below the notch on notched displays, and stays centred in the pill elsewhere (§10).
-14. Run §16 before READY: every hook at or below its recorded count.
+14. Run §16 before READY: no hook finds a new break.
 
 ## 14. Breaks today
 
-Each row is an open break; counts are from §16. A fixed break leaves the table.
+Each row is an open break that a §16 hook finds. A fixed break leaves the table.
 
 | # | Where | Breaks | Target |
 | --- | --- | --- | --- |
 | 1 | `PalettePanel.swift:273`, `HUDPanel.swift:19`, `DialogPanel.swift:39` | §1: `hasShadow = true` | `false` |
 
-## 15. Tokens to add
+## 15. Island tokens
 
-| Proposed token | Value | For | Why |
+| Token | Value | For | Why |
 | --- | --- | --- | --- |
 | `NotchTheme.Radius.islandMenu` | 26 (`Theme.Radius.menuRow` 18 + `Theme.Spacing.md` 8) | §3 menu panel on the island | concentric with its rows; equals the island outline |
-| `NotchTheme.Size.menuGlyphBars` | 14 and 8 wide, 1.5 thick | §9 menu circle | only if the hand-drawn bars stay; an SF Symbol needs no token |
-| `NotchTheme.Size.runningDot` | 3 | §6 running-app dot in launcher rows | today a literal in `LauncherList` |
-| `NotchTheme.Size.islandLevelCell`, `islandLevelTrack` | 24 and 96 | §4 level art | defined: `IslandLevelArt` reads them instead of the rest pill's height and width |
-| `Theme.Typography.indicatorGlyphSize` → `metrics.typography.indicatorGlyph` | 10 | §6 Quicklinks list indicator glyph (`QuicklinkListView`) | defined |
-| `Theme.Typography.removeGlyphSize` → `metrics.typography.removeGlyph` | 9, semibold | §6 composer chip remove glyph (`ChatComposerChips`) | defined |
-| `NotchTheme.Size.islandArtwork` | 64 (2 × `Theme.Size.resultRowIcon`) | §17 the Player page's cover | defined: no media size existed; a row icon is too small to read a cover |
-| `NotchTheme.Size.islandMeterThin`, `islandMeterThick` | 3 and 6 | §17 a card meter's bar | defined: `volumeTrackHeight` is one height, and the deciding limit must read heavier |
-| `NotchTheme.Colors.islandWarning` | OBSIDIAN `Theme.yellow` `#fbbf24`, both looks | §17 a limit running out faster than its window passes | defined: the first warning ink on the island; `Frosted.warning` is a muted text ink, not a state |
+| `NotchTheme.Size.islandLevelCell`, `islandLevelTrack` | 24 and 96 | §4 level art | `IslandLevelArt` reads them instead of the rest pill's height and width |
+| `Theme.Typography.indicatorGlyphSize` → `metrics.typography.indicatorGlyph` | 10 | §6 Quicklinks list indicator glyph (`QuicklinkListView`) | — |
+| `Theme.Typography.removeGlyphSize` → `metrics.typography.removeGlyph` | 9, semibold | §6 composer chip remove glyph (`ChatComposerChips`) | — |
+| `NotchTheme.Size.islandArtwork` | 64 (2 × `Theme.Size.resultRowIcon`) | §17 the Player page's cover | no media size existed; a row icon is too small to read a cover |
+| `NotchTheme.Size.islandMeterThin`, `islandMeterThick` | 3 and 6 | §17 a card meter's bar | `volumeTrackHeight` is one height, and the deciding limit must read heavier |
+| `NotchTheme.Colors.islandWarning` | OBSIDIAN `Theme.yellow` `#fbbf24`, both looks | §17 a limit running out faster than its window passes | the first warning ink on the island; `Frosted.warning` is a muted text ink, not a state |
 
-The notch expanded form needs one token, `NotchTheme.Size.islandHeadlineMaxWidth` (320): its height is the rest outline plus one headline line, its width the text up to that cap, never narrower than the notch plus two `Theme.Radius.panel` (§10).
+The notch expanded form has one token, `NotchTheme.Size.islandHeadlineMaxWidth` (320): its height is the rest outline plus one headline line, its width the text up to that cap, never narrower than the notch plus two `Theme.Radius.panel` (§10).
 
 The failure dwell is not a token: `IslandNotice.failureSeconds` (beside `messageSeconds`, 2.4 s) is a plain `TimeInterval` in `Features/Island/Model/`, which cannot import `NotchTheme`; `IslandLiveState.failureSeconds` is its alias (§10).
 
@@ -228,29 +226,29 @@ Nothing else is missing: every other value on the island resolves to a token nam
 
 ## 16. Audit hooks
 
-Run from the repo root with `bash`, after ``I=$(find Tinycast/Palette Tinycast/Features/Island Tinycast/Features/{AI,Calculator,Clipboard,Dictionary,Emoji,FileSearch,Launcher,Quicklinks,Snippets,Updates,WindowManagement}/UI Tinycast/Windows/HUD Tinycast/Windows/Dialog Tinycast/DesignSystem/{PopoverMenu,BarButton,KeyCapChip,ModalActionButtonStyle}.swift -name '*.swift' | grep -vE '/AIChat[A-Za-z]*\.swift$')`` (every on-island palette screen, §0; not the stock panels). Each prints one line per violation; "Hits" is the count at the commit that wrote this page, so a hook may only go down.
+Run from the repo root with `bash`, after ``I=$(find Tinycast/Palette Tinycast/Features/Island Tinycast/Features/{AI,Calculator,Clipboard,Dictionary,Emoji,FileSearch,Launcher,Quicklinks,Snippets,Updates,WindowManagement}/UI Tinycast/Windows/HUD Tinycast/Windows/Dialog Tinycast/DesignSystem/{PopoverMenu,BarButton,KeyCapChip,ModalActionButtonStyle}.swift -name '*.swift' | grep -vE '/AIChat[A-Za-z]*\.swift$')`` (every on-island palette screen, §0; not the stock panels). Each prints one line per violation.
 
-| Hook | Rule | Check | Hits |
-| --- | --- | --- | --- |
-| A1 | §1 surface | `grep -rnE -A1 'frosted\(in:\|\.glassEffect\(\|GlassEffectView\(\|panelScrim\|Material' $I \| grep -E 'frosted\(in:\|\.regular\|GlassEffectView\(\|panelScrim\|Material' \| grep -vE 'onIsland \? \.identity\|IslandVerification\.stock\|CompactBar\.swift[:-]123'` | 8 |
-| A2 | §2 stroke | `grep -rnE 'strokeBorder\|\.border\(\|cardStroke\|emojiSelectionBorder\|emojiInnerBorder\|roomCardStroke' $I \| grep -v 'controlEdge'` (Frosted's control edge, §2) | 20 |
-| A3 | §3 radius | `grep -rnE 'radius: metrics\.radius\.menuPanel' $I` | 1 |
-| A4 | §4 widths | `grep -rnE 'stageWidth: [^s]' Tinycast/Features/Island/Service/IslandController.swift \| grep -vE 'panelWidth\|size\.width\|stageWidth: width'` | 0 |
-| A5 | §5 padding | `grep -rnE '\.padding\((\.[a-zA-Z]+, )?[0-9]\|spacing: [0-9]{2,}' $I` | 3 |
-| A6 | §6 type | `grep -rnE 'font\(\.system\(\|^\s*\.system\(size\|NSFont\.systemFont\(ofSize: [0-9]' $I` | 15 |
-| A7 | §6 icon | `grep -rnE 'frame\(width: [0-9]+(\.[0-9])?, height: [0-9]' $I` | 4 |
-| A8 | §7 keycap | `grep -rn 'KeyCapChip(' $I \| grep -v 'style: .outline'` | 1 |
-| A9 | §7 button | `grep -rnE 'Theme\.Colors\.(selection\|controlSurface\|controlHover\|controlPressed)' Tinycast/DesignSystem/BarButton.swift Tinycast/DesignSystem/ModalActionButtonStyle.swift` | 4 |
-| A10 | §8 menu | `grep -rnE -A3 '(headerMenu\|PopoverMenu)\(' Tinycast --include='*.swift' \| grep -E 'width: [0-9]'` | 0 |
-| A11 | §9 footer | `grep -rnE 'frosted\(in: (Capsule\|Circle)\(\)\)' Tinycast/Palette/RootPaletteView.swift` | 2 |
-| A12 | §10 notice | `grep -q 'failureTone' Tinycast/Features/Island/Service/IslandNoticeArt.swift \|\| echo 'IslandNoticeArt.swift: no failure tone'` | 0 |
-| A13 | §10 HUD and dialog | `grep -rnE '\{ glow \}\|strokeBorder\|panelScrim' Tinycast/Windows/HUD Tinycast/Windows/Dialog` | 5 |
-| A14 | §10 update glyph | `grep -rn 'symbol: "arrow.down.circle", recovery' Tinycast/Features/Updates/UI/UpdateCoordinator.swift` | 1 |
-| A15 | §11 settings | `grep -rnE 'formStyle\(\|NotchTheme\.' $(grep -rlE 'struct [A-Za-z]+SettingsView' Tinycast/Features/Notchcast) \| grep -v 'formStyle(.grouped)'` | 0 |
-| A16 | §12 add-ons | `grep -rnE ': NSPanel\|NSHostingView\(\|NSWindow\(' Tinycast/Features/Notchcast --include='*.swift' \| grep -vE '/Screenshots/\|/ScreenRecording/UI/Recording(SelectionSurface\|Trimmer)\.swift'` | 0 |
-| A17 | §1 shadow | `grep -rnE 'hasShadow = true' Tinycast/Palette/PalettePanel.swift Tinycast/Palette/MenuPanel.swift Tinycast/Windows/HUD/HUDPanel.swift Tinycast/Windows/Dialog/DialogPanel.swift Tinycast/Features/Island` (window shadows stay off; Frosted's lift is a layer shadow in `IslandFrost`) | 4 |
-| A18 | §6 glyph | `grep -rnE 'Image\(systemName' $I` | 39 |
-| A19 | §1 look on Frosted | `./Scripts/run-tests.sh nc-Notchcast-frosted-guard-test \| grep -c '^FAIL'` (an `islandSurface` fill outside a look branch, an `NSColor(token)` ink) | 0 |
+| Hook | Rule | Check |
+| --- | --- | --- |
+| A1 | §1 surface | `grep -rnE -A1 'frosted\(in:\|\.glassEffect\(\|GlassEffectView\(\|panelScrim\|Material' $I \| grep -E 'frosted\(in:\|\.regular\|GlassEffectView\(\|panelScrim\|Material' \| grep -vE 'onIsland \? \.identity\|IslandVerification\.stock\|CompactBar\.swift[:-]123'` |
+| A2 | §2 stroke | `grep -rnE 'strokeBorder\|\.border\(\|cardStroke\|emojiSelectionBorder\|emojiInnerBorder\|roomCardStroke' $I \| grep -v 'controlEdge'` (Frosted's control edge, §2) |
+| A3 | §3 radius | `grep -rnE 'radius: metrics\.radius\.menuPanel' $I` |
+| A4 | §4 widths | `grep -rnE 'stageWidth: [^s]' Tinycast/Features/Island/Service/IslandController.swift \| grep -vE 'panelWidth\|size\.width\|stageWidth: width'` |
+| A5 | §5 padding | `grep -rnE '\.padding\((\.[a-zA-Z]+, )?[0-9]\|spacing: [0-9]{2,}' $I` |
+| A6 | §6 type | `grep -rnE 'font\(\.system\(\|^\s*\.system\(size\|NSFont\.systemFont\(ofSize: [0-9]' $I` |
+| A7 | §6 icon | `grep -rnE 'frame\(width: [0-9]+(\.[0-9])?, height: [0-9]' $I` |
+| A8 | §7 keycap | `grep -rn 'KeyCapChip(' $I \| grep -v 'style: .outline'` |
+| A9 | §7 button | `grep -rnE 'Theme\.Colors\.(selection\|controlSurface\|controlHover\|controlPressed)' Tinycast/DesignSystem/BarButton.swift Tinycast/DesignSystem/ModalActionButtonStyle.swift` |
+| A10 | §8 menu | `grep -rnE -A3 '(headerMenu\|PopoverMenu)\(' Tinycast --include='*.swift' \| grep -E 'width: [0-9]'` |
+| A11 | §9 footer | `grep -rnE 'frosted\(in: (Capsule\|Circle)\(\)\)' Tinycast/Palette/RootPaletteView.swift` |
+| A12 | §10 notice | `grep -q 'failureTone' Tinycast/Features/Island/Service/IslandNoticeArt.swift \|\| echo 'IslandNoticeArt.swift: no failure tone'` |
+| A13 | §10 HUD and dialog | `grep -rnE '\{ glow \}\|strokeBorder\|panelScrim' Tinycast/Windows/HUD Tinycast/Windows/Dialog` |
+| A14 | §10 update glyph | `grep -rn 'symbol: "arrow.down.circle", recovery' Tinycast/Features/Updates/UI/UpdateCoordinator.swift` |
+| A15 | §11 settings | `grep -rnE 'formStyle\(\|NotchTheme\.' $(grep -rlE 'struct [A-Za-z]+SettingsView' Tinycast/Features/Notchcast) \| grep -v 'formStyle(.grouped)'` |
+| A16 | §12 add-ons | `grep -rnE ': NSPanel\|NSHostingView\(\|NSWindow\(' Tinycast/Features/Notchcast --include='*.swift' \| grep -vE '/Screenshots/\|/ScreenRecording/UI/Recording(SelectionSurface\|Trimmer)\.swift'` |
+| A17 | §1 shadow | `grep -rnE 'hasShadow = true' Tinycast/Palette/PalettePanel.swift Tinycast/Palette/MenuPanel.swift Tinycast/Windows/HUD/HUDPanel.swift Tinycast/Windows/Dialog/DialogPanel.swift Tinycast/Features/Island` (window shadows stay off; Frosted's lift is a layer shadow in `IslandFrost`) |
+| A18 | §6 glyph | `grep -rnE 'Image\(systemName' $I` |
+| A19 | §1 look on Frosted | `./Scripts/run-tests.sh nc-Notchcast-frosted-guard-test \| grep -c '^FAIL'` (an `islandSurface` fill outside a look branch, an `NSColor(token)` ink) |
 
 In the table `\|` is a Markdown escape: type a plain `|`.
 
