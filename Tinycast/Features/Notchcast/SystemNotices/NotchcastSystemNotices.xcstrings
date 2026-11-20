@@ -1,0 +1,19 @@
+{
+  "sourceLanguage" : "en",
+  "strings" : {
+    "Low battery" : {},
+    "Low battery: %lld%%" : {},
+    "Once per discharge, when the charge falls to 20 percent. macOS keeps its own warning near 10 percent." : {},
+    "System notices" : {},
+    "Tells you on the island when Wi-Fi or a VPN drops or returns, and when the battery runs low." : {},
+    "VPN" : {},
+    "VPN connected" : {},
+    "VPN disconnected" : {},
+    "When a VPN tunnel goes down and when it comes back: WireGuard, Tailscale, IKEv2 and the like." : {},
+    "When Wi-Fi drops and when it returns. A drop shorter than 5 seconds is skipped." : {},
+    "Wi-Fi" : {},
+    "Wi-Fi connected" : {},
+    "Wi-Fi disconnected" : {}
+  },
+  "version" : "1.0"
+}
