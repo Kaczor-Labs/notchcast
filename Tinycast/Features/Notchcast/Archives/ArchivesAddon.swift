@@ -1,4 +1,5 @@
 // notchcast-addon-order: 190
+// notchcast-readme: Downloads: extract archives in place with HatchZip
 // notchcast-new-switch-ids: archives
 import SwiftUI
 
