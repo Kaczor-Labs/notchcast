@@ -62,6 +62,7 @@ final class CopyPathModule: NotchcastModule {
     private func finish(_ result: Result<CopyPathCopy?, any Error>) {
         switch result {
         case .success(let copy?):
+            context.prepareClipboardMutation()
             guard system.copy(copy.text) else {
                 return post(String(localized: "Could not copy to clipboard.", table: "NotchcastCopyPath"), failed: true)
             }

@@ -498,7 +498,8 @@ final class AppSettings {
     }
 
     var navigationEnabled: Bool {
-        didSet { defaults.set(navigationEnabled, forKey: Key.navigationEnabled.rawValue) }
+        get { false }
+        set { _ = newValue }
     }
 
     var menuSearchDisabledApps: [String] {
@@ -714,7 +715,8 @@ final class AppSettings {
 
     /// Whether the support window may reopen itself; off means never ask again.
     var supportRemindersEnabled: Bool {
-        didSet { defaults.set(supportRemindersEnabled, forKey: Key.supportReminders.rawValue) }
+        get { false }
+        set { _ = newValue }
     }
 
     /// Whether settings.json mirrors these settings; `AppCore` starts and stops the mirror.
@@ -935,7 +937,6 @@ final class AppSettings {
             defaults.object(forKey: Key.hideCurrentEvent.rawValue)
             .flatMap { $0 as? Int }
             .flatMap(HideCurrentEvent.init(rawValue:)) ?? .dontHide
-        navigationEnabled = defaults.bool(forKey: Key.navigationEnabled.rawValue)
         menuSearchDisabledApps =
             defaults.stringArray(forKey: Key.menuSearchDisabledApps.rawValue) ?? []
         menuSearchShowsAppleMenu = defaults.bool(forKey: Key.menuSearchShowsAppleMenu.rawValue)
@@ -969,9 +970,6 @@ final class AppSettings {
         quicklinkConfirmsBeforeDelete =
             defaults.object(forKey: Key.quicklinkConfirmsBeforeDelete.rawValue) == nil
             || defaults.bool(forKey: Key.quicklinkConfirmsBeforeDelete.rawValue)
-        supportRemindersEnabled =
-            defaults.object(forKey: Key.supportReminders.rawValue) == nil
-            || defaults.bool(forKey: Key.supportReminders.rawValue)
         settingsFileEnabled = defaults.bool(forKey: Key.settingsFileEnabled.rawValue)
         iCloudSyncDisabledCategories = Set(
             (defaults.stringArray(forKey: Key.iCloudSyncDisabledCategories.rawValue) ?? [])
