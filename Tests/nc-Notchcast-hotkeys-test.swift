@@ -94,7 +94,7 @@ struct NotchcastHotKeysTests {
               relaunchedCenter !== center && actions.allSatisfy { relaunchedCenter.entries[$0.defaultsKey] != nil })
     }
 
-    /// Hidden features: a stored Apple Shortcut, Extension or Quick Action chord registers nothing.
+    /// Hidden features: AppCore's allowance refuses a stored Apple Shortcut, Extension or Quick Action chord.
     static func hiddenFeatureBindingsStayUnregistered() {
         let domain = "tinycast.notchcast-hotkeys-test.\(UUID())"
         let defaults = UserDefaults(suiteName: domain)!
@@ -110,6 +110,7 @@ struct NotchcastHotKeysTests {
             manager.setBinding(.combo(KeyShortcut(carbonKeyCode: key, carbonModifiers: controlKey)), for: action)
         }
         let relaunched = HotKeyManager(defaults: defaults)
+        relaunched.allowsAction = { !hidden.contains($0) }
         relaunched.start(
             customCommandIDs: [], quicklinkIDs: [quicklink], windowLayoutIDs: [],
             windowRoomIDs: [], customWindowSizeIDs: [], quickActionIDs: [quickAction])
