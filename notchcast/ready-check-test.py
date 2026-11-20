@@ -135,8 +135,8 @@ GATED_MAC = ("${{ github.event_name == 'workflow_dispatch' && !inputs.hosted && 
 HARNESS_MAC = ("${{ github.event_name == 'workflow_dispatch' && (inputs.harness_runner || !inputs.hosted "
                "&& vars.NOTCHCAST_MAC_RUNNER) || 'xcode-27' }}")
 HARNESS_ONLY, FULL_RUN = "inputs.harness_runner != ''", "inputs.harness_runner == ''"
-# Only jobs that hold no secret and launch no app; a workflow outside this map is hosted-only.
-GATED_JOBS = {"pr.yml": 1, "main-harnesses.yml": 1}
+# Only jobs that hold no secret, sign with no identity and push nothing; a workflow outside this map is hosted-only.
+GATED_JOBS = {"pr.yml": 1, "main-harnesses.yml": 1, "proof.yml": 1}
 # Every macOS job (README Runners): it runs xcodebuild, compiles harnesses, signs or launches the app. Anything else is Linux.
 MAC_JOBS = {"pr.yml": 1, "main-harnesses.yml": 1, "delete-check.yml": 1, "proof.yml": 1, "snapshot.yml": 2, "sync.yml": 1,
             "sync-release.yml": 2, "test-build.yml": 2}
@@ -169,6 +169,21 @@ class RunnerTest(unittest.TestCase):
                     self.assertEqual(set(labels) - allowed, set(), "runs-on names a runner README Runners does not")
         self.assertEqual(gated, GATED_JOBS, "only these jobs may leave the hosted images, behind the fork gate")
         self.assertEqual(mac, MAC_JOBS, "a new macOS job needs a reason a Linux job cannot meet")
+
+    def test_a_train_passes_its_lane_to_every_workflow_that_can_leave_the_hosted_images(self):
+        for name in GATED_JOBS:
+            self.assertRegex((ROOT / ".github/workflows" / name).read_text(),
+                             r"\n      hosted:\n        description: .*\n        type: boolean\n        default: false\n", name)
+        train = (ROOT / "notchcast/train.sh").read_text()
+        dispatched = re.search(r"^workflows='(.*)'$", train, re.M)[1].split()
+        self.assertEqual(re.search(r"^mac_workflows='(.*)'$", train, re.M)[1].split(), [name for name in dispatched if name in GATED_JOBS])
+
+    def test_proof_refuses_a_working_mac_before_anything_else(self):
+        first = next(text for job, text in steps(ROOT / ".github/workflows/proof.yml", 6) if job == "proof")
+        self.assertEqual(signature(first), "Refuse a working Mac")
+        self.assertEqual(field(first, "if"), "runner.environment != 'github-hosted'")
+        self.assertIn('[ "${NOTCHCAST_ISOLATED_RUNNER:-}" = 1 ] && exit 0\n'
+                      '  echo "::error::Proof launches the app: hosted or isolated runner only"\n  exit 1', first)
 
     def test_a_working_mac_proves_no_tree_and_an_isolated_one_records_under_its_own_name(self):
         found = {(job, signature(text)): text for job, text in steps(WORKFLOW, 6)}
