@@ -16,6 +16,14 @@ enum SpotifyAddon: NotchcastAddon {
             category: .music),
     ]
 
+    static let commands = [
+        NotchcastCommand(slug: "spotify-expand-player",
+                         name: String(localized: "Expand Player", table: "NotchcastSpotify"),
+                         symbol: "music.note", switchID: "spotify", keywords: ["spotify", "music", "now playing"]) {
+            $0.module(SpotifyModule.self)?.expandPlayer()
+        },
+    ]
+
     static let settings = [
         NotchcastSettingsRow(switchID: "spotify") { AnyView(SpotifySettingsView(context: $0)) },
         NotchcastSettingsRow(switchID: "spotify") { AnyView(SpotifyIslandRows(context: $0)) },
