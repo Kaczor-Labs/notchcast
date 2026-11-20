@@ -149,6 +149,7 @@ struct AboutView: View {
             }
             .padding(.vertical, Theme.Spacing.xs)
         }
+        .notchcastHidden()
     }
 
     /// Both tints are fixed hues, so an alpha on them holds up in both appearances.
