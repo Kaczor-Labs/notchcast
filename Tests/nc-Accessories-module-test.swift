@@ -176,13 +176,13 @@ enum AccessoriesModuleTests {
 
         let json = """
         {"SPBluetoothDataType":[{"device_connected":[
-          {"Damian's AirPods Pro":{"device_batteryLevelLeft":"80%","device_batteryLevelRight":"75%",
+          {"Kim's AirPods Pro":{"device_batteryLevelLeft":"80%","device_batteryLevelRight":"75%",
             "device_batteryLevelCase":"40%","device_minorType":"Headphones"}},
           {"Magic Keyboard":{"device_batteryLevelMain":"90%"}},
           {"Speaker":{"device_minorType":"Speaker"}}]}]}
         """
         let profiled = AccessoryReadings.profiler(Data(json.utf8))
-        let pods = profiled.first { $0.name == "Damian's AirPods Pro" }
+        let pods = profiled.first { $0.name == "Kim's AirPods Pro" }
         precondition(pods?.percent == 40 && pods?.kind == .audio, "AirPods count as their lowest part")
         precondition(pods?.parts == [.init(name: .left, percent: 80), .init(name: .right, percent: 75),
                                      .init(name: .batteryCase, percent: 40)], "with left, right and case kept")
@@ -191,7 +191,7 @@ enum AccessoriesModuleTests {
         precondition(AccessoryReadings.profiler(Data("nope".utf8)).isEmpty, "unreadable output reads as nothing")
 
         let merged = AccessoryReadings.merge(hid: [device("Magic Keyboard", 88, .keyboard)], profiler: profiled)
-        precondition(merged.map(\.name) == ["Damian's AirPods Pro", "Magic Keyboard"], "one per name, lowest first")
+        precondition(merged.map(\.name) == ["Kim's AirPods Pro", "Magic Keyboard"], "one per name, lowest first")
         precondition(merged[1].percent == 88, "the fresher HID level wins over the profiler's")
 
         precondition(AccessoryReadings.symbol(name: "Pixel Buds", majorClass: 4, minorClass: 1) == "headphones",
@@ -236,12 +236,12 @@ enum AccessoriesModuleTests {
         precondition(AccessoryPolicy.announcesConnection(name: "Headset", majorClass: 4), "audio yes")
         precondition(AccessoryPolicy.announcesConnection(name: "Thing", majorClass: 0), "an unclassed device yes")
         precondition(AccessoryPolicy.announcesAppleConnects, "Apple accessories announced until the desk test says not")
-        precondition(AccessoryPolicy.isApple("Damian's AirPods Pro") && !AccessoryPolicy.isApple("MX Master 3"),
+        precondition(AccessoryPolicy.isApple("Kim's AirPods Pro") && !AccessoryPolicy.isApple("MX Master 3"),
                      "Apple accessories by name")
 
         let now = Date(timeIntervalSinceReferenceDate: 100)
-        let names = ["damian's airpods pro": now.addingTimeInterval(5), "magic mouse": now.addingTimeInterval(-1)]
-        precondition(AccessoryPolicy.hides(banner: ["Damian's AirPods Pro", "Connected"], names: names, now: now),
+        let names = ["kim's airpods pro": now.addingTimeInterval(5), "magic mouse": now.addingTimeInterval(-1)]
+        precondition(AccessoryPolicy.hides(banner: ["Kim's AirPods Pro", "Connected"], names: names, now: now),
                      "macOS's banner for the accessory we just announced")
         precondition(!AccessoryPolicy.hides(banner: ["Magic Mouse", "Connected"], names: names, now: now),
                      "not once its window has passed")
@@ -281,19 +281,19 @@ enum AccessoriesModuleTests {
         await module.read(profilerAge: AccessoriesModule.profilerAge)
         precondition(system.profilerReads == 1, "and not again inside its age")
 
-        system.connection?(.connected(name: "Damian's AirPods Pro", majorClass: 4, minorClass: 6))
+        system.connection?(.connected(name: "Kim's AirPods Pro", majorClass: 4, minorClass: 6))
         await settle()
-        precondition(rig.texts == ["Damian's AirPods Pro: Connected"], "a connection is announced")
+        precondition(rig.texts == ["Kim's AirPods Pro: Connected"], "a connection is announced")
         precondition(rig.presenter.posts[0].symbol == "airpodspro" && !rig.presenter.posts[0].isFailure, "its glyph")
-        precondition(system.bannerNames["damian's airpods pro"] == system.now.addingTimeInterval(10),
+        precondition(system.bannerNames["kim's airpods pro"] == system.now.addingTimeInterval(10),
                      "macOS's banner for it may be hidden for 10 s")
-        system.profiler = [device("Damian's AirPods Pro", 60, .audio)]
+        system.profiler = [device("Kim's AirPods Pro", 60, .audio)]
         await settle()
         await module.read(profilerAge: 0)
         precondition(system.profilerReads >= 2, "levels are read again after a connection")
-        precondition(module.devices.map(\.name) == ["Magic Mouse", "Damian's AirPods Pro"], "both listed")
+        precondition(module.devices.map(\.name) == ["Magic Mouse", "Kim's AirPods Pro"], "both listed")
 
-        rig.presenter.taps["accessories.connected.damian's airpods pro"]?()
+        rig.presenter.taps["accessories.connected.kim's airpods pro"]?()
         precondition(rig.presenter.shown == ["accessories"], "a tap opens the Accessories page")
 
         system.connection?(.connected(name: "iPhone", majorClass: 2, minorClass: 3))
@@ -314,10 +314,10 @@ enum AccessoriesModuleTests {
         await settle()
         precondition(rig.texts.count == 2, "the Connected checkbox off silences connections")
 
-        system.connection?(.disconnected(name: "Damian's AirPods Pro"))
+        system.connection?(.disconnected(name: "Kim's AirPods Pro"))
         await settle()
-        precondition(rig.presenter.ends == ["accessories.connected.damian's airpods pro"], "its notice goes")
-        precondition(!module.devices.contains { $0.name == "Damian's AirPods Pro" }, "and it leaves the page")
+        precondition(rig.presenter.ends == ["accessories.connected.kim's airpods pro"], "its notice goes")
+        precondition(!module.devices.contains { $0.name == "Kim's AirPods Pro" }, "and it leaves the page")
 
         module.stop()
         await settle()
