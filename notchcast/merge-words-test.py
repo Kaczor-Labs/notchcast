@@ -42,9 +42,25 @@ class MergeWordsTests(unittest.TestCase):
         self.assertEqual(self.merge(LIST, 'A="one two new"\nB="x"\n', 'A="one two new"\nB="x"\n'),
                          (0, 'A="one two new"\nB="x"\n'))
 
+    def test_a_name_both_sides_added_beside_others_lands_once(self):
+        self.assertEqual(self.merge('A="a d"\n', 'A="a b c d"\n', 'A="a b d"\n'), (0, 'A="a b c d"\n'))
+        self.assertEqual(self.merge('A="a d"\n', 'A="a b c d"\n', 'A="a c d"\n'), (0, 'A="a b c d"\n'))
+        self.assertEqual(self.merge('A="a d"\n', 'A="a x b d"\n', 'A="a b y d"\n'), (0, 'A="a x b y d"\n'))
+        self.assertEqual(self.merge('A="a"\n', 'A="a x b"\n', 'A="a b y"\n'), (0, 'A="a x b y"\n'))
+
+    def test_an_entry_both_sides_added_to_one_table_cell_lands_once(self):
+        self.assertEqual(self.merge('| a | F1 One |\n', '| a | F1 One, F3 Three, F4 Four |\n',
+                                    '| a | F1 One, F4 Four |\n'),
+                         (0, '| a | F1 One, F3 Three, F4 Four |\n'))
+
+    def test_entries_sharing_a_word_both_land(self):
+        self.assertEqual(self.merge('| a | F1 One |\n', '| a | F1 One, F3 New |\n', '| a | F1 One, F4 New |\n'),
+                         (0, '| a | F1 One, F3 New, F4 New |\n'))
+
     def test_a_removed_name_stays_removed(self):
         self.assertEqual(self.merge('A="one two three"\n', 'A="one three"\n', 'A="one two three four"\n'),
                          (0, 'A="one three four"\n'))
+        self.assertEqual(self.merge('A="a b d"\n', 'A="a c d"\n', 'A="a c d e"\n'), (0, 'A="a c d e"\n'))
         self.assertEqual(self.merge('A="one two three"\n', 'A="one two three four"\n', 'A="one three"\n'),
                          (0, 'A="one three four"\n'))
 
