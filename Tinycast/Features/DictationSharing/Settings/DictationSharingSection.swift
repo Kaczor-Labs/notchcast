@@ -76,7 +76,7 @@ struct DictationSharingSection: View {
             Text("Listening on this Mac only. Send the token as a Bearer authorization header.",
                  tableName: "Notchcast")
         case .failed(let message):
-            Text(message).foregroundStyle(.orange)
+            Text(message).foregroundStyle(Theme.Colors.warning)
         case .off, .starting:
             EmptyView()
         }

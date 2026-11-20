@@ -104,6 +104,9 @@ struct NotchLookTokensTests {
         same("light separator", c.separator, Color.black.opacity(0.12), .aqua)
         same("light primaryAction", c.primaryAction, Color.blue, .aqua)
         same("light progress", c.progress, Color.blue, .aqua)
+        same("light destructive", c.destructive, Color.red, .aqua)
+        same("light success", c.success, Color.green, .aqua)
+        same("light warning", c.warning, Color.orange, .aqua)
 
         print("# geometry")
         equal("radius.row", Theme.Radius.row, 18)
@@ -132,12 +135,13 @@ struct NotchLookTokensTests {
         equal("spacing.xl", InterfaceMetrics.standard.spacing.xl, 12)
         equal("size.menuIcon", InterfaceMetrics.standard.size.menuIcon, 20)
 
-        print("# Black resolves exactly what it always did")
+        print("# Black resolves its pinned values")
         let black: [(String, Color, Color)] = [
             ("textPrimary", c.textPrimary, .white), ("textSecondary", c.textSecondary, Color.white.opacity(0.72)),
             ("textTertiary", c.textTertiary, Color.white.opacity(0.6)), ("menuSymbol", c.menuSymbol, Color.white.opacity(0.7)),
             ("selection", c.selection, Color.white.opacity(0.24)), ("menuHover", c.menuHover, Color.white.opacity(0.24)),
-            ("primaryAction", c.primaryAction, accent), ("destructive", c.destructive, .red),
+            ("primaryAction", c.primaryAction, accent), ("destructive", c.destructive, ObsidianTokens.Theme.red),
+            ("success", c.success, ObsidianTokens.Theme.green), ("warning", c.warning, NotchTheme.Colors.islandWarning),
             ("keyCapFill", NotchTheme.Colors.keyCapFill, Color.white.opacity(0.14)),
             ("keyCapInk", NotchTheme.Colors.keyCapInk, Color.white.opacity(0.72)),
             ("controlEdge", NotchTheme.Colors.controlEdge, .clear),
@@ -147,7 +151,8 @@ struct NotchLookTokensTests {
         for (name, token, value) in black { sameResolved("black \(name)", token, value, frosted: false) }
         sameResolved("black lifted secondary stays", c.textSecondary, Color.white.opacity(0.72), frosted: false, lifted: true)
         sameResolved("black lifted tertiary stays", c.textTertiary, Color.white.opacity(0.6), frosted: false, lifted: true)
-        sameResolved("black lifted destructive stays", c.destructive, .red, frosted: false, lifted: true)
+        sameResolved("black lifted destructive stays", c.destructive, ObsidianTokens.Theme.red,
+                     frosted: false, lifted: true)
         sameResolved("black lifted secondaryLabel stays", NotchTheme.Colors.secondaryLabel, .secondary,
                      frosted: false, lifted: true)
 
