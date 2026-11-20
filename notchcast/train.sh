@@ -131,18 +131,20 @@ build_train() {
 }
 # Every one must finish green on the train's tip; all but Design take the train's base, as a PR run has it.
 workflows='pr.yml proof.yml design.yml leaks.yml'
-# A train's Mac job runs on the isolated runner while NOTCHCAST_MAC_RUNNER names one (README, Runners), else hosted.
+# The ones with a Mac job, which take the train's lane as their hosted input (ready-check-test.py: GATED_JOBS).
+mac_workflows='pr.yml proof.yml'
+# A train's Mac jobs run on the isolated runner while NOTCHCAST_MAC_RUNNER names one (README, Runners), else hosted.
 mac=hosted
 label=$(gh variable get NOTCHCAST_MAC_RUNNER -R "$FORK_REPO" 2>/dev/null || true)
 if [ "${NOTCHCAST_TRAIN_MAC:-}" != hosted ] && [ -n "$label" ]; then
     # A job for a label with no runner online stays queued for good, so such a train goes hosted.
     online=$(gh api "repos/$FORK_REPO/actions/runners" --jq '.runners[] | select(.status == "online") | .labels[].name' 2>/dev/null || true)
-    if grep -qxF "$label" <<< "$online"; then mac=isolated; else echo "train: no runner labelled $label is online, so the Mac job is hosted"; fi
+    if grep -qxF "$label" <<< "$online"; then mac=isolated; else echo "train: no runner labelled $label is online, so the Mac jobs are hosted"; fi
 fi
 # HOSTED_ONLY_TESTS of the tree in the current directory, every line that sets it.
 hosted_only_list() { sed -n 's/^HOSTED_ONLY_TESTS="\(.*\)"$/\1/p' notchcast/config.env | paste -sd' ' -; }
 # Before the push, for the train just built ($tip on $base, its merges in $scratch/merges): refuses one whose run
-# land.sh could not find, and sets runner, where its Mac job goes, to hosted when only a hosted run proves it.
+# land.sh could not find, and sets runner, where its Mac jobs go, to hosted when only a hosted run proves it.
 preflight() {
     local main_key tip_key commit pr changers='' hosted_only hosted_list
     tree_at "$base"
@@ -166,18 +168,18 @@ preflight() {
     cd "$top"
     [ -n "$hosted_only" ] || return 0
     runner=hosted
-    echo "train: it selects hosted-only harnesses ($hosted_only), which land.sh trusts only from a hosted run, so its Mac job is hosted"
+    echo "train: it selects hosted-only harnesses ($hosted_only), which land.sh trusts only from a hosted run, so its Mac jobs are hosted"
 }
 # Pushes $sha as new branch $branch and dispatches its workflows against base $1.
 start_train() {
     local base=$1 file
-    echo "train: $branch has its Mac job on the $runner runner" >&2
+    echo "train: $branch has its Mac jobs on the $runner runner" >&2
     echo "$branch $sha" >> "$unsettled"
     git push -q origin "$sha:refs/heads/$branch"
     for file in $workflows; do
         if [ "$file" = design.yml ]; then
             gh workflow run "$file" -R "$FORK_REPO" --ref "$branch" >&2
-        elif [ "$file" = pr.yml ] && [ "$runner" = hosted ]; then
+        elif [ "$runner" = hosted ] && [[ " $mac_workflows " == *" $file "* ]]; then
             gh workflow run "$file" -R "$FORK_REPO" --ref "$branch" -f "base=$base" -f hosted=true >&2
         else
             gh workflow run "$file" -R "$FORK_REPO" --ref "$branch" -f "base=$base" >&2
