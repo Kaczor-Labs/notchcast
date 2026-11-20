@@ -259,7 +259,7 @@ git fetch --quiet "$root" refs/remotes/upstream/main
 git switch --quiet --detach
 git update-ref refs/heads/main FETCH_HEAD
 git remote add upstream "$scratch/repo"
-# Each landing runs only the harness the fixtures break; --full keeps the whole selection (97 harnesses, twice).
+# Each landing runs only the harness the fixtures break; --full keeps the whole selection.
 land="$root/notchcast/land.sh"
 if [ "${1:-}" != --full ]; then
     cp -R "$root/notchcast" "$scratch/tools"
