@@ -100,6 +100,12 @@ enum PasteImagePolicyTests {
         for status in [-600, -609, -1712, -1728, 0] {
             precondition(PasteImageFailure.finder(status: status) == .finderSilent, "status \(status) is no answer")
         }
+        for status in [0, -1728, -1719, -1708] {
+            precondition(PasteImageFailure.meansNoFolder(status: status), "status \(status): ask whether a window exists")
+        }
+        for status in [-1743, -1744, -1712, -600, -609, -10004] {
+            precondition(!PasteImageFailure.meansNoFolder(status: status), "status \(status) fails at once")
+        }
     }
 
     static func keys() {

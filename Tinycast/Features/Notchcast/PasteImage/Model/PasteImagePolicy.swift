@@ -25,6 +25,11 @@ enum PasteImageFailure: Equatable, Sendable, CaseIterable {
     static func finder(status: Int) -> Self {
         status == -1743 || status == -1744 ? .automationRefused : .finderSilent
     }
+
+    /// No window or no folder: -1728 no such object, -1719 bad index, -1708 not handled.
+    static func meansNoFolder(status: Int) -> Bool {
+        [0, -1728, -1719, -1708].contains(status)
+    }
 }
 
 /// The element that holds the keys, read system-wide so a panel floating over Finder is seen.

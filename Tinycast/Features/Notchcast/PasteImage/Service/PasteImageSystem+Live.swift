@@ -134,6 +134,9 @@ private nonisolated enum PasteImageFinder {
             }
             return nil
         }
+        guard PasteImageFailure.meansNoFolder(status: target.status) else {
+            return fail(.finder(status: target.status), step: "target", "status \(target.status)")
+        }
         let exists = send(event("core", "doex", to: finder, directObject: window))
         guard exists.status == 0, let hasWindow = result(exists.reply)?.booleanValue else {
             return fail(.finder(status: exists.status), step: "target", "status \(exists.status)")
