@@ -209,10 +209,13 @@ struct AddonNoticeQueueTest {
         pill.notchWidth = nil
         presenter.setSong(song("e"))
         check("without a notch the pill already names the song", !pill.songChange && pill.song?.id == "e")
+        final class SilentSource: IslandPlayerSource { func perform(_ action: IslandPlayerAction) {} }
+        presenter.showPlayer(song("f"), source: SilentSource())
+        check("showPlayer hands the song to the pill", pill.song?.id == "f")
         let arrived = IslandController()
         presenter.restore(arrived, resting: true)
-        check("a rebuilt pill gets the song without a change", arrived.song?.id == "e" && !arrived.songChange)
-        presenter.setSong(nil)
+        check("a rebuilt pill gets the song without a change", arrived.song?.id == "f" && !arrived.songChange)
+        presenter.showPlayer(nil, source: SilentSource())
         check("nil clears the song", pill.song == nil && !pill.songChange)
     }
 
