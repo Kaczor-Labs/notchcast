@@ -322,7 +322,7 @@ class CheckAddonsTest(unittest.TestCase):
                              ('v2/addons-core-3-fix', 'feature'), ('v2/addons-core-3foo', 'feature'),
                              ('v2/addons-core-x', 'feature'), ('v2/addons-core-', 'feature'),
                              ('v2/addons-shots', 'feature'), ('v2/stack', 'none'), ('', 'none')):
-            self.assertEqual(check_addons.mode_for_branch(branch, self.root, self.base, 'HEAD', []), mode, branch)
+            self.assertEqual(check_addons.mode_for_branch(branch, self.root, self.base, 'HEAD', [])[0], mode, branch)
 
     def by_branch(self, branch):
         result = subprocess.run([sys.executable, str(CHECK), '--branch', branch, '--base', self.base,
@@ -355,6 +355,40 @@ class CheckAddonsTest(unittest.TestCase):
         code, out = self.by_branch('g-123abc')
         self.assertEqual(code, 1, out)
         self.assertIn('notchcast/tool.py: outside the add-on folders', out)
+
+    def keep_this_on_main(self):
+        write(self.root, NC + 'KeepThis/KeepThisAddon.swift', '// notchcast-addon-order: 10\nstruct KeepThisAddon: NotchcastAddon {}\n')
+        self.base = self.commit('main with an add-on')
+        write(self.root, NC + 'KeepThis/KeepThisAddon.swift', '// notchcast-addon-order: 10\nstruct KeepThisAddon: NotchcastAddon { }\n')
+
+    def test_a_train_or_an_empty_name_runs_no_feature_gate(self):
+        self.keep_this_on_main()
+        write(self.root, 'notchcast/tool.py', 'pass\n')
+        self.commit('a train of one add-on fix and one tool fix')
+        for branch in ('', 'train/1200-1201'):
+            code, out = self.by_branch(branch)
+            self.assertEqual(code, 0, f'{branch!r}: {out}')
+            self.assertIn('add-on gate (none):', out)
+        code, out = self.by_branch('g-123abc')
+        self.assertEqual(code, 1, out)
+        self.assertIn('notchcast/tool.py: outside the add-on folders', out)
+
+    def test_an_addon_may_touch_its_own_feature_doc_and_harnesses(self):
+        self.keep_this_on_main()
+        write(self.root, 'notchcast/docs/features/keep-this.md', '# Keep this\n')
+        write(self.root, 'Tests/nc-KeepThis-thing-test.swift', 'let x = 1\n')
+        fix = self.commit('add-on fix with its doc and harness')
+        code, out = self.by_branch('g-123abc')
+        self.assertEqual(code, 0, out)
+        self.assertIn('add-on gate (feature): feature folders: KeepThis', out)
+        for path in ('notchcast/docs/features/shots.md', 'notchcast/docs/design-system.md',
+                     'Tests/nc-Notchcast-registry-test.swift', 'Tests/nc-Shots-test.swift', NC + 'Core/Service/Core.swift'):
+            git(self.root, 'reset', '-q', '--hard', fix)
+            write(self.root, path, 'changed\n')
+            self.commit(f'also {path}')
+            code, out = self.by_branch('g-123abc')
+            self.assertEqual(code, 1, f'{path}: {out}')
+            self.assertIn(f'{path}: outside the add-on folders', out)
 
     def test_branch_runs_the_derived_mode(self):
         result = subprocess.run([sys.executable, str(CHECK), '--branch', 'v2/addons-core-4', '--base', self.base,
