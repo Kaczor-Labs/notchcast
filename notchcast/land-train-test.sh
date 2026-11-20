@@ -408,12 +408,12 @@ echo 'PASS: on Linux a hosted run of the tree lands it, and the hosted-only harn
 fixture
 open_pr 1 pr-h 'Add H' src/hosted.txt src/b.txt src/clipboard-text.txt
 ISOLATED='other toolchain|' land 1
-[ "$status" -eq 1 ] && [ "$(origin rev-parse main)" = "$base" ] && [ ! -s "$PASSES" ] \
+[ "$status" -eq 3 ] && [ "$(origin rev-parse main)" = "$base" ] && [ ! -s "$PASSES" ] \
     && grep -q "^REFUSED: the isolated run https://fixture.invalid/runs/8 tested this tree with 'other toolchain', and landing expects 'fixture toolchain'" "$FIXTURE/output" \
     || fail 'an isolated run with another toolchain was not refused'
 echo 'PASS: an isolated run of the tree with a toolchain landing does not expect is refused'
 ISOLATED='fixture toolchain|hosted-test' land 1
-[ "$status" -eq 1 ] && [ "$(origin rev-parse main)" = "$base" ] && [ ! -s "$PASSES" ] \
+[ "$status" -eq 3 ] && [ "$(origin rev-parse main)" = "$base" ] && [ ! -s "$PASSES" ] \
     && grep -q '^REFUSED: the isolated run https://fixture.invalid/runs/8 did not prove hosted-test ' "$FIXTURE/output" \
     || fail 'an isolated run that excused a selected hosted-only harness was not refused by name'
 echo 'PASS: an isolated run that excused a selected hosted-only harness is refused by name'
@@ -561,7 +561,7 @@ MAC_RUNNER=fixture-mac train 1
     && grep -q '^train: train/1 has its Mac jobs on the isolated runner$' "$FIXTURE/train-output" || fail "with a runner named the train dispatched '$(paste -sd'|' "$FIXTURE/dispatched")'"
 echo "$train_sha" > "$FIXTURE/green"
 ISOLATED='other toolchain|' land --train-run "$train_sha" 1
-[ "$status" -eq 1 ] && grep -q "^REFUSED: the isolated run .* tested this tree with 'other toolchain'" "$FIXTURE/output" && untouched \
+[ "$status" -eq 3 ] && grep -q "^REFUSED: the isolated run .* tested this tree with 'other toolchain'" "$FIXTURE/output" && untouched \
     || fail 'a train whose isolated run has another toolchain landed'
 ISOLATED='fixture toolchain|' land --train-run "$train_sha" 1
 [ "$status" -eq 0 ] && [ ! -s "$PASSES" ] && [ "$(landed)" = 'Notchcast: Add B (#1)' ] || fail "a train proven by the isolated runner landed '$(landed)'"
@@ -891,6 +891,12 @@ MAC_RUNNER=fixture-mac train 1
     && [ "$(grep -c 'hosted=true' "$FIXTURE/dispatched")" -eq 2 ] && [ ! -e "$FIXTURE/comments" ] \
     || queue_fail 'a hand train of a bench-only PR was refused, kept isolated or commented on'
 echo 'PASS: a hand train of a bench-only PR runs hosted and names the bench check land.sh will want'
+# A missing bench check is no refusal for good: a bench-ok at the same head can still land it, so exit 1, not 3.
+echo "$train_sha" > "$FIXTURE/green"
+TESTED=1 land --train-run "$train_sha" 1
+[ "$status" -eq 1 ] && grep -qxF "REFUSED: #1 $(wanted form-input-test "$(head_of 1)")" "$FIXTURE/output" && untouched \
+    || fail "a train run with no bench check exited $status, not 1"
+echo 'PASS: a train run with no bench check at the head is refused with exit 1, which the queue retries, never 3'
 # (a) held with one comment and one notify line over two ticks; (b) lands once bench-ok names its head; (c) a push voids it.
 fixture
 open_pr 1 pr-f 'Add F' src/form-input.txt
@@ -930,6 +936,76 @@ MAC_RUNNER=fixture-mac queue
     || queue_fail "with a bench-ok at its head the queue landed '$(landed)'"
 rm "$HOME/.config/notchcast/private.env"
 echo 'PASS: (b) with a bench-ok at its head the queue batches it hosted and lands it'
+# A green train land.sh refuses for good (exit 3) is recorded at its heads, with the runner it ran on and main's
+# config.env. Both such refusals judge an isolated record, so the next tick trains the batch hosted; only a batch
+# refused on a hosted train is left out, until a head or config.env changes. Here the isolated record has a toolchain
+# landing does not expect.
+refused_once() {
+    fixture
+    open_pr 1 pr-b 'Add B' src/b.txt
+    mkdir -p "$HOME/.config/notchcast"
+    echo 'notchcast_notify() { cat >> "$FIXTURE/notified"; }' > "$HOME/.config/notchcast/private.env"
+    head1=$(head_of 1)
+    key=$(git hash-object notchcast/config.env)
+    ISOLATED='other toolchain|' MAC_RUNNER=fixture-mac queue
+    [ "$status" -eq 1 ] && grep -q '^REFUSED: the isolated run https://fixture.invalid/runs/8 tested this tree with .other toolchain.' "$FIXTURE/train-output" \
+        && grep -qxF 'REFUSED FOR GOOD #1: its train branch train/1 stays; the queue trains these PRs hosted next, the run that can change that verdict' "$FIXTURE/train-output" \
+        && [ "$(wc -l < "$FIXTURE/dispatched")" -eq 4 ] && ! grep -q 'hosted=true' "$FIXTURE/dispatched" && untouched \
+        || queue_fail 'a green train refused for good on the isolated runner was not recorded'
+    [ "$(wc -l < "$FIXTURE/comments")" -eq 1 ] && grep -q "^1 Refused for good at its head $head1: land.sh refused the green train train/1 (#1) on the isolated runner: the isolated run " "$FIXTURE/comments" \
+        && [ "$(wc -l < "$FIXTURE/notified")" -eq 1 ] && grep -q '^Notchcast: land.sh refused the green train train/1 (#1) for good on the isolated runner: ' "$FIXTURE/notified" \
+        || queue_fail "the refusal was told as '$(cat "$FIXTURE/comments")' and '$(cat "$FIXTURE/notified" 2>/dev/null)'"
+    [ "$(cat .git/notchcast-refused)" = "isolated $key 1@$head1" ] || queue_fail "the record is '$(cat .git/notchcast-refused 2>/dev/null)'"
+}
+# hosted_tick <what>: the tick after the refusal trains the batch hosted and lands it.
+hosted_tick() {
+    [ "$status" -eq 0 ] && grep -q '^LANDED #1$' "$FIXTURE/train-output" && [ "$(wc -l < "$FIXTURE/dispatched")" -eq 8 ] \
+        && [ "$(grep -c 'hosted=true' "$FIXTURE/dispatched")" -eq 2 ] && ! grep -q 'left out' "$FIXTURE/train-output" \
+        && [ "$(landed)" = 'Notchcast: Add B (#1)' ] || queue_fail "$1 did not dispatch the refused batch and land it"
+}
+refused_once
+ISOLATED='fixture toolchain|' MAC_RUNNER=fixture-mac queue
+grep -q '^queue: #1 train hosted: land.sh refused them for good on the isolated runner at these heads$' "$FIXTURE/train-output" \
+    && grep -q '^train: land.sh refused a PR of it for good on the isolated runner at its head, so its Mac jobs are hosted$' "$FIXTURE/train-output" \
+    || queue_fail 'the tick after a refusal on the isolated runner did not train it hosted'
+hosted_tick 'a tick with the isolated runner back on the expected toolchain'
+refused_once
+NOTCHCAST_TRAIN_MAC=hosted TESTED=1 queue
+hosted_tick 'a tick with NOTCHCAST_TRAIN_MAC=hosted'
+echo 'PASS: a batch refused for good on the isolated runner is told once, and the next tick trains it hosted and lands it'
+# A hosted train of it refused for good again is left out at the same heads and config.
+refused_once
+for tick in 2 3; do
+    ISOLATED='other toolchain|' MAC_RUNNER=fixture-mac queue
+done
+[ "$status" -eq 0 ] && grep -q '^queue: #1 left out: land.sh refused them for good at these heads$' "$FIXTURE/train-output" \
+    && [ "$(wc -l < "$FIXTURE/dispatched")" -eq 8 ] && [ "$(grep -c 'hosted=true' "$FIXTURE/dispatched")" -eq 2 ] \
+    && [ "$(wc -l < "$FIXTURE/comments")" -eq 2 ] && [ "$(wc -l < "$FIXTURE/notified")" -eq 2 ] \
+    && grep -q '^Notchcast: land.sh refused the green train train/1 (#1) for good on the hosted runner: .*; the queue leaves these PRs out until one has a new head or config.env changes$' "$FIXTURE/notified" \
+    || queue_fail 'a batch refused for good on a hosted train was dispatched, commented or notified again'
+echo 'PASS: a batch refused for good on a hosted train too is left out at the same heads, told once each time'
+# Another config.env forgets the record.
+sed -i.bak "s/ $key / 0000 /" .git/notchcast-refused
+ISOLATED='fixture toolchain|' MAC_RUNNER=fixture-mac queue
+[ "$status" -eq 0 ] && ! grep -q -e 'left out' -e 'train hosted' "$FIXTURE/train-output" && grep -q '^LANDED #1$' "$FIXTURE/train-output" \
+    && [ "$(wc -l < "$FIXTURE/dispatched")" -eq 12 ] && [ "$(grep -c 'hosted=true' "$FIXTURE/dispatched")" -eq 2 ] && [ ! -s .git/notchcast-refused ] \
+    || queue_fail 'a record of another config.env was applied'
+echo 'PASS: a record made under another config.env is forgotten'
+# A new head forgets it too.
+refused_once
+for tick in 2 3; do
+    ISOLATED='other toolchain|' MAC_RUNNER=fixture-mac queue
+done
+git switch --quiet pr-b
+echo 'Add B again' > src/b.txt
+git commit --quiet -am 'Add B again'
+repush 1 pr-b
+ISOLATED='fixture toolchain|' MAC_RUNNER=fixture-mac queue
+[ "$status" -eq 0 ] && grep -q '^train: train/1 is left from an earlier run; scrapping it$' "$FIXTURE/train-output" && grep -q '^LANDED #1$' "$FIXTURE/train-output" \
+    && [ "$(wc -l < "$FIXTURE/dispatched")" -eq 12 ] && [ "$(landed)" = 'Notchcast: Add B (#1)' ] && [ ! -s .git/notchcast-refused ] \
+    || queue_fail 'a new head on a refused PR did not clear its record and dispatch it again'
+rm "$HOME/.config/notchcast/private.env"
+echo 'PASS: a new head on a PR of a refused batch clears the record, and the next tick dispatches it again'
 # #2 conflicts only with the held #1: it lands, and only #1's hold is commented.
 fixture
 open_pr 1 pr-f 'Add F' src/form-input.txt src/shared.txt
