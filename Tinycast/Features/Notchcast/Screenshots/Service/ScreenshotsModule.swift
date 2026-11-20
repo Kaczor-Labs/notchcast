@@ -9,6 +9,7 @@ final class ScreenshotsModule: NotchcastModule {
     static let switchID = ScreenshotsAddon.switches[0].id
     static let editAfterCaptureKey = "notchcast.screenshot.editAfterCapture"
     static let textSymbol = "text.viewfinder"
+    static let textNoticeID = "screenshot.text"
     private let context: NotchcastContext
     private let system: ScreenshotSystem
     private let exclusion: ScreenshotExclusion
@@ -20,6 +21,7 @@ final class ScreenshotsModule: NotchcastModule {
     private var lastCapture: (png: Data, scale: CGFloat)?
     private var closeEditor: (@MainActor () -> Void)?
     private var export: Task<Void, Never>?
+    private var warmUp: Task<Void, Never>?
 
     init(context: NotchcastContext, system: ScreenshotSystem,
          exclusion: ScreenshotExclusion = ScreenshotExclusion(
@@ -29,13 +31,20 @@ final class ScreenshotsModule: NotchcastModule {
         self.exclusion = exclusion
     }
 
-    func start() { running = true }
+    func start() {
+        running = true
+        let warm = system.warmTextRecognition
+        warmUp = Task.detached(priority: .utility) { await warm() }
+    }
 
     func stop() {
         running = false
         operation = nil
         session?.cancel()
         session = nil
+        warmUp?.cancel()
+        warmUp = nil
+        context.presenter.end(notice: Self.textNoticeID)
         closeSurface?()
         export?.cancel()
         export = nil
@@ -243,13 +252,28 @@ final class ScreenshotsModule: NotchcastModule {
     }
 
     /// Only the text leaves: the image stays in memory and is never written to disk.
+    /// Reposting the progress notice's id with the first line turns it into the result in place.
     private func copyText(in image: CGImage) async throws {
-        let lines = try await system.recognizeText(image)
-        try Task.checkCancellation()
-        guard let text = ScreenText.join(lines) else { throw ScreenshotRequest.Failure.noText }
-        guard system.writeText(text) else { throw ScreenshotRequest.Failure.clipboardFailed }
         context.presenter.post(IslandNotice(
-            id: "screenshot.text", symbol: Self.textSymbol, text: ScreenText.firstLine(of: text)), onTap: nil)
+            id: Self.textNoticeID, symbol: Self.textSymbol,
+            text: String(localized: "Recognizing text…", table: "NotchcastScreenshots"),
+            progress: IslandProgress(fraction: nil)), onTap: nil)
+        let text: String
+        do {
+            await warmUp?.value
+            try Task.checkCancellation()
+            let lines = try await system.recognizeText(image)
+            try Task.checkCancellation()
+            guard let joined = ScreenText.join(lines) else { throw ScreenshotRequest.Failure.noText }
+            guard system.writeText(joined) else { throw ScreenshotRequest.Failure.clipboardFailed }
+            text = joined
+        } catch {
+            // A cancelled run belongs to a `stop()` that already ended it, maybe under a newer notice.
+            if !Task.isCancelled { context.presenter.end(notice: Self.textNoticeID) }
+            throw error
+        }
+        context.presenter.post(IslandNotice(
+            id: Self.textNoticeID, symbol: Self.textSymbol, text: ScreenText.firstLine(of: text)), onTap: nil)
     }
 
     private func report(_ error: any Error) {

@@ -99,6 +99,7 @@ extension ScreenshotSystem {
         },
         writeText: { _ in true },
         recognizeText: { _ in [] },
+        warmTextRecognition: {},
         openScreenRecordingSettings: {},
         downloads: { downloadsFolder },
         chooseSaveFile: { name in
