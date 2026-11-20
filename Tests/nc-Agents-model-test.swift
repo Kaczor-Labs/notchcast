@@ -315,25 +315,25 @@ func boardWithFeed() {
         machines: [
             AgentMachine(name: "MBP", accounts: [account("C4", "claude", [weekly(20, resetsIn: 5 * day)])]),
             AgentMachine(name: "MBA", accounts: [
-                account("C1", "claude", [weekly(25, resetsIn: 5 * day)], age: 0),
-                account("C3", "claude", [weekly(10, resetsIn: 5 * day)], age: 25 * minute)]),
+                account("C1", "claude", [weekly(40, resetsIn: 5 * day)], age: 0),
+                account("C3", "claude", [weekly(10, resetsIn: 5 * day)], age: 26 * minute)]),
             AgentMachine(name: "VPS", accounts: [account("C6", "claude", [weekly(5, resetsIn: 5 * day)])])
         ],
         shared: [account("Grok", "grok", [AgentWindow(kind: .monthly, usedPercent: 3)])])
     let board = AgentBoard(
         machineName: "MBA",
         local: [AgentLocalAccount(name: "C1", provider: "claude",
-                                  reading: account("C1", "claude", [weekly(40, resetsIn: 5 * day)], age: minute)),
+                                  reading: account("C1", "claude", [weekly(25, resetsIn: 5 * day)], age: minute)),
                 AgentLocalAccount(name: "Codex", provider: "codex",
                                   reading: account("Codex", "codex", [], state: .missing))],
         feed: .loaded(feed), now: now)
     check(board.columns.map(\.title) == ["MBP", "MBA", "VPS"] && board.footnote == nil, "machines in feed order")
     check(board.columns[1].cards.map(\.title) == ["C1", "Codex", "C3"], "this Mac's accounts, then the feed's own")
-    check(meters(board.columns[1].cards[0])[0].value == "75% left", "the feed's fresher copy wins")
+    check(meters(board.columns[1].cards[0])[0].value == "75% left", "this Mac's fresh reading beats the feed's newer one")
     let missing = board.columns[1].cards[1]
     check(missing.hollow && notice(missing) == ("questionmark.app.dashed", "Codex not found"), "a missing CLI")
     let stale = board.columns[1].cards[2]
-    check(stale.dimmed && stale.caption == "Updated 25 min ago", "stale after 10 min: \(stale)")
+    check(stale.dimmed && stale.caption == "Updated 26 min ago", "a feed card is stale after 25 min: \(stale)")
     check(board.other.map(\.title) == ["Grok"] && board.other[0].title == "Grok", "shared accounts form the Other row")
     check(meters(board.other[0])[0].label == "Monthly", "an undated monthly")
     check(board.homeLine == "C1 · Weekly 75% left",
@@ -470,6 +470,103 @@ func claudeLaunch() {
     print("claude launch: ok")
 }
 
+/// A `gate.py feed` cut to one window each, its machines read `now` less 20 min.
+let gateFeed = #"""
+    {"version": 1, "generatedAt": "2026-11-19T17:59:00Z", "machines": [
+    {"name": "MBA", "accounts": [{"name": "C1", "provider": "claude", "checkedAt": "2026-11-19T17:40:00Z",
+    "windows": [{"kind": "weekly", "label": "Weekly", "scope": null, "usedPercent": 93,
+    "resetsAt": "2026-11-23T02:00:00Z", "durationMinutes": 10080}], "state": "ok",
+    "resetCredits": {"count": 1, "expiresAt": "2026-12-01T00:00:00Z"}},
+    {"name": "C2", "provider": "claude", "checkedAt": "2026-11-19T17:40:00Z", "windows": [], "state": "signedOut",
+    "resetCredits": null}]},
+    {"name": "MBP", "accounts": [{"name": "C3", "provider": "claude", "checkedAt": "2026-11-19T17:40:00Z",
+    "windows": [{"kind": "weekly", "label": "Weekly", "scope": null, "usedPercent": 40,
+    "resetsAt": "2026-11-23T02:00:00Z", "durationMinutes": 10080}], "state": "ok", "resetCredits": null}]},
+    {"name": "VPS", "accounts": [{"name": "C5", "provider": "claude", "checkedAt": "2026-11-19T17:40:00Z",
+    "windows": [{"kind": "session", "label": "Session", "scope": null, "usedPercent": 19,
+    "resetsAt": "2026-11-19T19:00:00Z", "durationMinutes": 300}], "state": "ok", "resetCredits": null}]}],
+    "shared": [{"name": "Codex", "provider": "codex", "checkedAt": "2026-11-19T17:55:00Z",
+    "windows": [{"kind": "weekly", "label": "Weekly", "scope": null, "usedPercent": 30,
+    "resetsAt": "2026-11-23T02:00:00Z", "durationMinutes": 10080}], "state": "ok",
+    "resetCredits": {"count": 2, "expiresAt": "2026-12-01T00:00:00Z"}},
+    {"name": "Grok", "provider": "grok", "checkedAt": "2026-11-19T17:40:00Z", "windows": [{"kind": "monthly",
+    "label": "Monthly", "scope": null, "usedPercent": 3, "resetsAt": null, "durationMinutes": null}],
+    "state": "ok", "resetCredits": null}]}
+    """#
+
+/// #1169: the gate's feed beside this Mac's own readings.
+func boardWithGateFeed() throws {
+    let feed = try AgentFeed.decode(Data(gateFeed.utf8))
+    var codex = account("Codex", "codex", [weekly(50, resetsIn: 3 * day)], age: 30 * minute)
+    codex.extraUsage = AgentExtraUsage(used: 34, limit: 200, currency: "USD")
+    var c1 = account("C1", "claude", [weekly(90, resetsIn: 3 * day)], age: 2 * minute)
+    c1.extraUsage = AgentExtraUsage(used: 10, limit: 100, currency: "USD")
+    let local = [AgentLocalAccount(name: "C1", provider: "claude", reading: c1),
+                 AgentLocalAccount(name: "Codex", provider: "codex", reading: codex)]
+    let board = AgentBoard(machineName: "MBA", local: local, feed: .loaded(feed), now: now)
+    check(board.columns.map(\.title) == ["MBA", "MBP", "VPS"], "the gate's machines: \(board.columns.map(\.title))")
+    check(board.columns[0].cards.map(\.title) == ["C1", "C2"], "Codex leaves this Mac's column")
+    check(board.other.map(\.title) == ["Codex", "Grok"], "one Codex, in Other: \(board.other.map(\.title))")
+    let shared = board.other[0]
+    check(meters(shared)[0].value == "70% left" && !shared.dimmed, "the feed's fresher Codex wins: \(shared)")
+    check(shared.credit == "2 reset credits" && meters(shared).count == 1,
+          "this Mac's stale Codex lends no extra usage: \(shared)")
+    let mine = board.columns[0].cards[0]
+    check(meters(mine)[0].value == "10% left" && mine.credit == "1 reset credit" && !mine.dimmed,
+          "this Mac's fresh C1 wins and keeps the feed's credit: \(mine)")
+    check(meters(mine).last?.trailing == "$90 of $100", "and its own extra usage")
+    let remote = board.columns.dropFirst().flatMap(\.cards) + [board.other[1]]
+    check(remote.allSatisfy { !$0.dimmed && $0.caption == nil }, "nothing from the feed dims at 20 min: \(remote)")
+    let local20 = AgentBoard(machineName: "MBA", local: [AgentLocalAccount(
+        name: "C9", provider: "claude", reading: account("C9", "claude", [weekly(5, resetsIn: day)], age: 20 * minute))],
+                             feed: .loaded(feed), now: now)
+    check(local20.columns[0].cards.first { $0.title == "C9" }?.dimmed == true, "this Mac's own reading still dims after 10 min")
+
+    let renamed = AgentBoard(machineName: "MBA", local: [AgentLocalAccount(name: "OpenAI", provider: "codex", reading: codex)],
+                             feed: .loaded(feed), now: now)
+    check(renamed.other.map(\.title) == ["Codex", "Grok"] && !renamed.columns[0].cards.contains { $0.title == "OpenAI" },
+          "one of a provider on each side matches though the names differ")
+    var failed = codex
+    failed.state = .unavailable
+    failed.checkedAt = now.addingTimeInterval(-minute)
+    var ownFresh = codex
+    ownFresh.checkedAt = now.addingTimeInterval(-minute)
+    ownFresh.extraUsage = nil
+    for (reading, used, why) in [(failed, "70% left", "a failed local read loses"), (ownFresh, "50% left", "a fresh one wins")] {
+        let pair = AgentBoard(machineName: "MBA", local: [AgentLocalAccount(name: "Codex", provider: "codex", reading: reading)],
+                              feed: .loaded(feed), now: now)
+        check(meters(pair.other[0])[0].value == used && pair.other[0].credit == "2 reset credits", "\(why): \(pair.other[0])")
+    }
+    let lender = AgentBoard(machineName: "MBA", local: [AgentLocalAccount(name: "Codex", provider: "codex", reading: failed)],
+                            feed: .loaded(feed), now: now)
+    check(meters(lender.other[0]).last?.trailing == "$166 of $200",
+          "a fresh failed read still lends its extra usage: \(lender.other[0])")
+
+    let later = now.addingTimeInterval(25 * minute)
+    var spent = codex
+    spent.checkedAt = later.addingTimeInterval(-minute)
+    spent.extraUsage = nil
+    let lent = AgentBoard(machineName: "MBA", local: [AgentLocalAccount(name: "Codex", provider: "codex", reading: spent)],
+                          feed: .loaded(feed), now: later)
+    check(meters(lent.other[0])[0].value == "50% left" && lent.other[0].credit == nil,
+          "a stale feed copy lends no credit: \(lent.other[0])")
+    var broken = feed
+    broken.shared[0].state = .unavailable
+    broken.shared[0].windows = []
+    let kept = AgentBoard(machineName: "MBA", local: [AgentLocalAccount(name: "Codex", provider: "codex", reading: failed)],
+                          feed: .loaded(broken), now: now)
+    check(meters(kept.other[0])[0].value == "50% left", "a failed local read keeps its numbers beside a failed copy")
+    let edge = AgentBoard(machineName: "MBP", local: [], feed: .loaded(feed), now: now.addingTimeInterval(5 * minute))
+    let past = AgentBoard(machineName: "MBP", local: [], feed: .loaded(feed), now: now.addingTimeInterval(5 * minute + 1))
+    check(edge.columns.first { $0.title == "VPS" }?.cards[0].dimmed == false, "a feed reading at 25 min still counts")
+    check(past.columns.first { $0.title == "VPS" }?.cards[0].dimmed == true, "and dims just past it")
+    let ownEdge = AgentBoard(machineName: "MBA", local: [AgentLocalAccount(
+        name: "C9", provider: "claude", reading: account("C9", "claude", [weekly(5, resetsIn: day)], age: 10 * minute))],
+                             feed: .missing, now: now)
+    check(ownEdge.columns[0].cards[0].dimmed == false, "this Mac's own reading at 10 min still counts")
+    print("board with the gate's feed: ok")
+}
+
 @main
 enum AgentsModelTest {
     static func main() throws {
@@ -482,6 +579,7 @@ enum AgentsModelTest {
         polling()
         boardThisMacOnly()
         boardWithFeed()
+        try boardWithGateFeed()
         boardStates()
         cardsAndPage()
         claudeLaunch()
