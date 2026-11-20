@@ -5,7 +5,7 @@
 // notchcast-sources: Tinycast/DesignSystem/ModalActionButtonStyle.swift Tinycast/DesignSystem/SymbolImage.swift
 // notchcast-sources: Tinycast/DesignSystem/Tooltip.swift Tinycast/DesignSystem/PopoverMenu.swift
 // notchcast-sources: Tinycast/Windows/HUD/MessageHUDView.swift Tinycast/Windows/Dialog/DialogView.swift
-// notchcast-sources: Tinycast/Windows/Dialog/DialogRequest.swift Tinycast/Windows/Dialog/DialogChip.swift
+// notchcast-sources: Tinycast/Windows/Dialog/DialogRequest.swift
 // notchcast-sources: Tinycast/Features/Island/Model/IslandPresentation.swift
 // notchcast-sources: Tinycast/Features/Island/Model/IslandHover.swift
 // notchcast-sources: Tinycast/Features/Notchcast/IslandButtonFill.swift
@@ -16,6 +16,7 @@
 // notchcast-sources: Tinycast/Features/Island/Model/IslandKeyline.swift Tinycast/Features/Island/Model/IslandLook.swift
 // notchcast-sources: Tinycast/Features/Island/Service/IslandCanvas.swift
 // notchcast-sources: Tinycast/Features/Island/Service/IslandExpansionArt.swift
+// notchcast-sources: Tinycast/Features/Island/Service/IslandSongArt.swift Tinycast/Features/Island/Model/IslandPlayer.swift
 // notchcast-sources: Tinycast/Platform/Images/IconCache.swift
 // notchcast-sources: Tinycast/Features/Notchcast/NotchMenuInk.swift
 // notchcast-sources: Tinycast/Features/Island/Model/IslandLiveState.swift
@@ -223,6 +224,16 @@ struct NotchcastIslandAuditRenderTest {
                    notch: notch, radius: notch ? 10 : 12,
                    notchLeft: Theme.Spacing.lg + Theme.Spacing.md + art.layout.leading) { art.draw(in: $0) }
         }
+        let cover = NSImage(size: CGSize(width: 64, height: 64), flipped: false) { rect in
+            NSGradient(colors: [.systemOrange, .systemPink, .systemPurple])?.draw(in: rect, angle: 45)
+            return true
+        }
+        let art = cover.tiffRepresentation.flatMap(NSBitmapImageRep.init(data:))?.representation(using: .png, properties: [:])
+        let song = IslandNowPlaying(title: "Paper Lanterns", artist: "Juno Vale", artwork: art, time: nil, isPlaying: true,
+                                    id: "a")
+        var long = song
+        long.title = "Everything Everywhere at Once (Extended Midnight Version)"
+        long.artist = "Juno Vale, The Paper Lanterns Orchestra"
         let look = frosted ? "frosted" : "black"
         for notch in [false, true] {
             let form = notch ? "notch" : "nonotch"
@@ -236,6 +247,30 @@ struct NotchcastIslandAuditRenderTest {
                     notch: notch)
             compact("884-08-download-\(form)-\(look)", IslandNoticeArt(download, notch: notch, frosted: frosted),
                     notch: notch)
+            func songGlance(_ step: String, _ base: IslandNowPlaying,
+                            _ change: (inout IslandNowPlaying) -> Void = { _ in }) {
+                var shown = base
+                change(&shown)
+                let cover = IslandCover.image(shown.artwork, side: IslandSongArt.cell, scale: 2, frosted: frosted)
+                compact("850-\(step)-\(form)-\(look)", IslandSongArt(shown, notch: notch, frosted: frosted, still: true,
+                                                                     cover: cover), notch: notch)
+            }
+            island("850-00-no-song-\(form)-\(look)", width: notch ? 185 : NotchTheme.Size.islandRest.width,
+                   body: notch ? 0 : NotchTheme.Size.islandRest.height, notch: notch, radius: notch ? 10 : 12) { _ in }
+            songGlance("01-song-playing", song)
+            songGlance("02-song-paused", song) { $0.isPlaying = false }
+            songGlance("03-song-cover-loading", song) { $0.artwork = nil }
+            for overflow in IslandSongOverflow.allCases where !notch {
+                songGlance("04-song-long-\(overflow.rawValue)", long) { $0.overflow = overflow }
+            }
+            for (name, playing) in [("850-05-song-change", song), ("850-06-song-change-long", long)] where notch {
+                let cover = IslandCover.image(playing.artwork, side: IslandSongArt.cell, scale: 2, frosted: frosted)
+                let change = IslandExpansionArt(playing, cover: cover, frosted: frosted)
+                let width = compactWidth(IslandSongArt(playing, notch: true, frosted: frosted, still: true, cover: cover),
+                                         notch: true)
+                island("\(name)-\(form)-\(look)", width: max(change.size.width, width), body: change.size.height,
+                       notch: true, radius: Theme.Radius.panel) { change.draw(in: $0) }
+            }
             for (step, top, statuses) in [("07-status", nil, [ready]), ("09-download", download, [])] {
                 let notice = hovered(top, statuses)
                 if notch {
@@ -332,12 +367,6 @@ struct NotchcastIslandAuditRenderTest {
                               DialogAction(title: "Quit", role: .destructive)],
                     defaultIndex: 1, cancelIndex: 0),
                 width: 420, onChoose: { _ in })
-        }
-        render("08-dialog-chips") {
-            HStack(spacing: 8) {
-                DialogChip(title: "Rest", selected: false, onTap: {})
-                DialogChip(title: "Selected", selected: true, onTap: {})
-            }
         }
         renderHosted("09-popover-menu", size: CGSize(width: 360, height: 300), desk: true) {
             PopoverMenu(
@@ -556,6 +585,7 @@ struct VolumeSlider: View {
 
 struct SnippetArgumentFields: View {
     let state: SnippetArgumentsState
+    var onSubmit: () -> Void = {}
     var body: some View { EmptyView() }
 }
 

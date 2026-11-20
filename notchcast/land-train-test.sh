@@ -39,7 +39,9 @@ case "$*" in
             [ev("labeled"; "land"; -7200), ev("unlabeled"; "land"; -3600), ev("labeled"; "land"; 0),
              ev("labeled"; "other"; 600), ev("ready_for_review"; null; 900)]' | jq -r "${*: -1}" ;;
     'pr view '*'--json headRefOid'*) jq -r .headRefOid "$FIXTURE/pr-$3.json" ;;
-    'pr view '*) cat "$FIXTURE/pr-$3.json" ;;
+    'pr view '*)
+        [ "$3" != "${VIEW_FAILS:-}" ] || { echo 'HTTP 502' >&2; exit 1; }
+        cat "$FIXTURE/pr-$3.json" ;;
     'pr close '*)
         echo "$3 ${*: -1}" >> "$FIXTURE/closed"
         jq '.state = "CLOSED"' "$FIXTURE/pr-$3.json" > "$FIXTURE/pr.json" && mv "$FIXTURE/pr.json" "$FIXTURE/pr-$3.json" ;;
@@ -1007,26 +1009,134 @@ open_pr 2 pr-two 'Add two' src/shared.txt
 open_pr 3 pr-c 'Add C' src/c.txt
 queue
 [ "$status" -eq 1 ] && grep -q '^DROPPED #2: conflicts with #1 in the landing batch in src/shared.txt: it rides a later train, after #1 lands; nobody merges main into it$' "$FIXTURE/train-output" \
-    && [ "$(cat "$FIXTURE/comments")" = '2 conflicts with #1 in the landing batch in src/shared.txt: it rides a later train, after #1 lands; nobody merges main into it' ] || queue_fail 'the later conflicting PR was not dropped and told'
+    && [ "$(cat "$FIXTURE/comments")" = "2 Left out of the landing batch at its head $(jq -r .headRefOid "$FIXTURE/pr-2.json"): conflicts with #1 in the landing batch in src/shared.txt: it rides a later train, after #1 lands; nobody merges main into it" ] \
+    || queue_fail 'the later conflicting PR was not dropped and told'
 [ "$(landed)" = 'Notchcast: Add one (#1)|Notchcast: Add C (#3)' ] && [ "$(grep -c -- '--ref train/1-3\( \|$\)' "$FIXTURE/dispatched")" -eq 4 ] \
     && ! grep -q '^2 ' "$FIXTURE/closed" || queue_fail "the conflict batch landed '$(landed)'"
-echo 'PASS: a PR that conflicts with an earlier one in the batch is dropped with a comment naming it, and the rest lands'
-
-tangled
-DISPATCH_FAILS=train/1-3 queue
-[ "$status" -ne 0 ] && [ "$(landed)" = '' ] || queue_fail 'a batch whose dispatch failed landed or passed'
 queue
-[ "$status" -eq 1 ] && grep -q '^DROPPED #2: #2 contains commits of #1, ' "$FIXTURE/train-output" && grep -q '^LANDED #1 3$' "$FIXTURE/train-output" \
+[ "$status" -eq 1 ] && grep -q '^queue: batch 2$' "$FIXTURE/train-output" && grep -q '^DROPPED #2: conflicts with main in src/shared.txt: ' "$FIXTURE/train-output" \
+    || queue_fail 'a PR left out behind a PR that has landed was not taken again'
+echo 'PASS: a PR that conflicts with an earlier one in the batch is dropped with a comment naming it, the rest lands, and it is taken again once that one landed'
+
+# A batch of 2: the holder left out, #3 behind it takes its place in the same run.
+tangled
+echo LAND_BATCH_SIZE=2 >> notchcast/config.env
+DISPATCH_FAILS=train/1-3 queue
+[ "$status" -ne 0 ] && [ "$(landed)" = '' ] && grep -q '^DROPPED #2: #2 contains commits of #1, ' "$FIXTURE/train-output" \
+    && grep -q '^queue: batch 1 3$' "$FIXTURE/train-output" || queue_fail 'a batch whose dispatch failed landed or passed, or was not refilled'
+queue
+[ "$status" -eq 0 ] && grep -q "^queue: #2 waits, dropped at $(jq -r .headRefOid "$FIXTURE/pr-2.json" | cut -c1-8): #2 contains commits of #1$" "$FIXTURE/train-output" \
+    && ! grep -q '^DROPPED' "$FIXTURE/train-output" && grep -q '^LANDED #1 3$' "$FIXTURE/train-output" \
     || queue_fail "the PR that holds another's commits was not left out of the batch"
 [ "$(landed)" = 'Notchcast: Add B (#1)|Notchcast: Add one (#3)' ] && ! grep -q -- '--ref train/1-2' "$FIXTURE/dispatched" && ! grep -q '^2 ' "$FIXTURE/closed" \
     || queue_fail "the tangled batch landed '$(landed)'"
 [ "$(cat "$FIXTURE/comments")" = "2 Left out of the landing batch at its head $(jq -r .headRefOid "$FIXTURE/pr-2.json"): #2 contains commits of #1, and landing squashes each PR, so #2 can conflict with main once #1 lands. Land #1 first; then #2 gets one merge round, which the landing owner starts when it is next to land." ] \
     || queue_fail "two runs on one head of the holder commented '$(cat "$FIXTURE/comments")'"
-base=$(origin rev-parse main)
-train 2
+queue
 [ "$status" -eq 1 ] && grep -q '^DROPPED #2: conflicts with main in src/b.txt: it waits for one merge round, which the landing owner starts when this PR is next to land; nobody merges main into it before that$' "$FIXTURE/train-output" \
-    || queue_fail 'the holder did not conflict with main once the other landed, so the fixture is not #1067'
-echo "PASS: --queue leaves out the PR that holds another's commits, tells it once per head what to do, and lands the rest"
+    || queue_fail 'the holder was not taken again once the other landed, or did not conflict with main, so the fixture is not #1067'
+echo "PASS: --queue leaves out the PR that holds another's commits, fills its place, skips it while that one is open, and takes it again once it landed"
+
+# Four holders of #1 and #6, which conflicts with main, are signed off before the green #7 and #8. The first tick drops
+# them and #1 is red alone; the second, on the same heads, trains #7 and #8; a new head on #6 is taken again.
+fixture
+open_pr 1 pr-b 'Add B' src/b.txt
+for pr in 2 3 4 5; do
+    open_pr "$pr" "pr-h$pr" "Add H$pr" "src/h$pr.txt"
+    git switch --quiet "pr-h$pr"
+    git merge --quiet --no-edit pr-b
+    repush "$pr" "pr-h$pr"
+done
+open_pr 6 pr-six 'Add six' src/shared.txt
+open_pr 7 pr-c 'Add C' src/c.txt
+open_pr 8 pr-one 'Add one' src/one.txt
+echo moved > src/shared.txt
+git commit --quiet -am 'Main moves shared'
+git push --quiet origin main
+base=$(git rev-parse HEAD)
+for pr in 1 2 3 4 5 6; do jq -r .headRefOid "$FIXTURE/pr-$pr.json"; done > "$FIXTURE/green"
+RED_PRS=1 HEAD_CHECKS=pending queue
+[ "$status" -eq 1 ] && grep -q '^queue: batch 1 6$' "$FIXTURE/train-output" && grep -q '^DROPPED #6: conflicts with main in src/shared.txt: ' "$FIXTURE/train-output" \
+    && [ "$(grep -c '^DROPPED #[2-5]: #[2-5] contains commits of #1, ' "$FIXTURE/train-output")" -eq 4 ] && grep -q '^CULPRIT #1 ' "$FIXTURE/train-output" \
+    && [ "$(wc -l < "$FIXTURE/comments")" -eq 6 ] || queue_fail 'the first tick did not drop the holders and the conflict, or #1 was not red alone'
+queue
+[ "$status" -eq 0 ] && grep -q '^queue: batch 7 8$' "$FIXTURE/train-output" && grep -q '^LANDED #7 8$' "$FIXTURE/train-output" \
+    && grep -q "^queue: #6 waits, dropped at $(jq -r .headRefOid "$FIXTURE/pr-6.json" | cut -c1-8): conflicts with main in src/shared.txt$" "$FIXTURE/train-output" \
+    && grep -q "^queue: #1 waits, dropped at $(jq -r .headRefOid "$FIXTURE/pr-1.json" | cut -c1-8): Red alone on main [0-9a-f]*$" "$FIXTURE/train-output" \
+    && [ "$(grep -c '^queue: #[2-5] waits, dropped at [0-9a-f]\{8\}: #[2-5] contains commits of #1$' "$FIXTURE/train-output")" -eq 4 ] \
+    && [ "$(wc -l < "$FIXTURE/comments")" -eq 6 ] && [ "$(landed)" = 'Notchcast: Add C (#7)|Notchcast: Add one (#8)' ] \
+    || queue_fail 'PRs dropped at these heads took the batch from the green ones behind them'
+git switch --quiet pr-six
+git fetch --quiet origin main
+git merge --quiet --no-edit -X ours origin/main
+git rev-parse HEAD >> "$FIXTURE/green"
+repush 6 pr-six
+queue
+[ "$status" -eq 0 ] && grep -q '^queue: batch 6$' "$FIXTURE/train-output" && grep -q '^LANDED #6$' "$FIXTURE/train-output" \
+    || queue_fail 'a dropped PR with a new head was not taken again'
+echo 'PASS: --queue skips PRs dropped at their heads, so green PRs behind them land, and takes one again at a new head'
+
+# A refusal an edit or a retry cures is not tied to the head: #1's title names something private until it is fixed.
+fixture
+open_pr 1 pr-b 'Add B' src/b.txt
+open_pr 2 pr-c 'Add C' src/c.txt
+jq '.title = "Add FORBIDDEN B"' "$FIXTURE/pr-1.json" > "$FIXTURE/pr.json" && mv "$FIXTURE/pr.json" "$FIXTURE/pr-1.json"
+queue
+[ "$status" -eq 1 ] && grep -q '^DROPPED #1: dropped from the landing batch: ' "$FIXTURE/train-output" && grep -q '^LANDED #2$' "$FIXTURE/train-output" \
+    && ! grep -q 'Left out' "$FIXTURE/comments" || queue_fail 'a PR with a private name in its title was not dropped with a plain comment'
+jq '.title = "Add B"' "$FIXTURE/pr-1.json" > "$FIXTURE/pr.json" && mv "$FIXTURE/pr.json" "$FIXTURE/pr-1.json"
+queue
+[ "$status" -eq 0 ] && grep -q '^LANDED #1$' "$FIXTURE/train-output" || queue_fail 'a title fixed at the same head was not landed on the next tick'
+fixture
+open_pr 1 pr-b 'Add B' src/b.txt
+open_pr 2 pr-c 'Add C' src/c.txt
+VIEW_FAILS=2 queue
+[ "$status" -eq 1 ] && grep -q '^DROPPED #2: dropped from the landing batch: its merge onto main failed$' "$FIXTURE/train-output" \
+    && grep -q '^LANDED #1$' "$FIXTURE/train-output" || queue_fail 'a failed gh call did not drop only its PR'
+queue
+[ "$status" -eq 0 ] && grep -q '^LANDED #2$' "$FIXTURE/train-output" || queue_fail 'a PR dropped for one failed gh call was parked'
+echo 'PASS: a PR dropped for a refusal its head does not decide (a private title, a failed call) is taken on the next tick'
+
+# #2 conflicts with #1 in the batch and #1 is red alone, so #2 no longer waits on it.
+fixture
+open_pr 1 pr-one 'Add one' src/shared.txt
+open_pr 2 pr-two 'Add two' src/shared.txt
+RED_PRS=1 queue
+[ "$status" -eq 1 ] && grep -q '^DROPPED #2: conflicts with #1 in the landing batch ' "$FIXTURE/train-output" && grep -q '^CULPRIT #1 ' "$FIXTURE/train-output" \
+    || queue_fail '#2 was not left out behind #1, or #1 was not red alone'
+queue
+[ "$status" -eq 0 ] && grep -q '^queue: batch 2$' "$FIXTURE/train-output" && grep -q '^LANDED #2$' "$FIXTURE/train-output" \
+    || queue_fail 'a PR waited behind a PR that was red alone'
+echo 'PASS: a PR left out behind a PR of the batch is taken again once that PR cannot be picked'
+
+# #2 conflicts with #1, which land.sh refuses for good on the isolated runner and then on a hosted train.
+fixture
+open_pr 1 pr-one 'Add one' src/shared.txt
+open_pr 2 pr-two 'Add two' src/shared.txt
+mkdir -p "$HOME/.config/notchcast"
+echo 'notchcast_notify() { cat >> "$FIXTURE/notified"; }' > "$HOME/.config/notchcast/private.env"
+ISOLATED='other toolchain|' MAC_RUNNER=fixture-mac queue
+grep -q '^DROPPED #2: conflicts with #1 in the landing batch ' "$FIXTURE/train-output" && grep -q '^REFUSED FOR GOOD #1: ' "$FIXTURE/train-output" \
+    || queue_fail '#2 was not left out behind #1, or #1 was not refused for good on the isolated runner'
+ISOLATED='other toolchain|' MAC_RUNNER=fixture-mac queue
+grep -q '^queue: batch 1$' "$FIXTURE/train-output" && grep -q '^REFUSED FOR GOOD #1: .*; the queue leaves these PRs out ' "$FIXTURE/train-output" \
+    || queue_fail '#1 was not trained hosted alone and refused for good again'
+ISOLATED='fixture toolchain|' MAC_RUNNER=fixture-mac queue
+rm "$HOME/.config/notchcast/private.env"
+[ "$status" -eq 0 ] && grep -q '^queue: #1 left out: ' "$FIXTURE/train-output" && grep -q '^queue: batch 2$' "$FIXTURE/train-output" \
+    && grep -q '^LANDED #2$' "$FIXTURE/train-output" || queue_fail 'a PR waited behind a PR refused for good on a hosted train'
+echo 'PASS: a PR left out behind a PR of the batch is taken again once land.sh refused that PR for good on a hosted train'
+
+# Batch of 2: #3 is signed off 30 s ago, so it does not take the holder's place.
+tangled
+echo LAND_BATCH_SIZE=2 >> notchcast/config.env
+echo 2026-03-01T10:00:00Z > "$FIXTURE/ready-1"
+echo 2026-03-01T10:00:00Z > "$FIXTURE/ready-2"
+echo 2026-03-01T10:09:30Z > "$FIXTURE/ready-3"
+NOTCHCAST_NOW=$(jq -n '"2026-03-01T10:10:00Z" | fromdateiso8601') queue
+[ "$status" -ne 0 ] && grep -q '^DROPPED #2: #2 contains commits of #1, ' "$FIXTURE/train-output" && grep -q '^queue: batch 1$' "$FIXTURE/train-output" \
+    && grep -q '^LANDED #1$' "$FIXTURE/train-output" || queue_fail 'a sign-off younger than the settle time refilled the batch'
+echo 'PASS: a sign-off younger than LAND_SETTLE_SECONDS does not refill a place the holder check leaves'
 
 fixture
 open_pr 1 pr-b 'Add B' src/b.txt

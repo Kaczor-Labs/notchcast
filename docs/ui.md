@@ -486,8 +486,6 @@ All lists share one row grammar so launcher and clipboard look identical:
 - **Scroll moves only on keyboard nav/reset**, driven by a `ScrollIntent` (`DesignSystem/Scrolling/ScrollIntent.swift`); mouse selection targets a visible row and never yanks scroll. `.top` scrolls to the origin anchor that `scrollOriginAnchor()` installs: a zero-height overlay applied to the scrolled content _after_ its padding, so it marks offset 0 without joining the layout and the restored origin is exact (targeting the first row instead leaves the top padding hidden under the header); it is restated when the header's inset settles after mount, which moves the resting offset. A `.follow` that lands on flat index 0 restores the origin instead, so that row's section header comes back into view. A reset lands on the screen's `landingSelection` through `RootPaletteView.land()`: row 0 takes `.top`; a later row takes `.center`, which brings a row the lazy stack has not built in by id, centres it once its frame is measured and then lets go (restated, like `.top`, when the inset settles). One intent state serves every mode; they never coexist.
 - **`.follow` is an invariant, not a command** (`scrollFollowsSelection`, `DesignSystem/Scrolling/`). Each list marks its selected row with `selectionFrame(_:)`, and the modifier keeps that row inside the band between the floating bars, re-checking as the geometry and the row's frame settle, then **stops watching the moment the row is inside**. That self-release is what keeps it safe: once a keystroke has landed nothing is observing, so a wheel scroll (or a scrollbar-thumb drag, which `onScrollPhaseChange` cannot see at all) is never pulled back. Two measured facts it rests on: `frame(in: .scrollView)` reports the _inset-excluded_ space, so the band is simply `0…containerSize.height`; and SwiftUI's minimal scroll-to-visible counts the strip behind the bottom bar as visible while its _destination_ math respects the insets. Hence the split: Tinycast decides **whether** to scroll (`SelectionReveal`, pure, pinned by `Tests/ScrollRevealTests.swift`) and SwiftUI performs the move with an explicit `.top`/`.bottom` anchor. Scroll far by hand and the lazy stack drops the selected row, so there is no frame to measure at all: the fallback brings it back by id and the invariant, still standing, re-checks the moment it reports, which is why arrowing after a long mouse scroll lands the selection on screen rather than moving it out of sight. A one-shot `scrollTo` here left the highlight stranded under the pill whenever the target row's layout was not yet known, with nothing looking again until the next key press. **The id passed to `scrollFollowsSelection` must be the lazy container's own `ForEach` identity**: an `.id()` applied inside a row registers only once that row has been realized, which is exactly when scrolling to it is unnecessary, and the fallback that brings a dropped row back by id then has nothing to aim at.
 - **Keycaps** use `KeyCapChip`: `.outline` (white-0.20 border) for hotkey hints on rows, `.filled` (white-0.10 fill) for footer shortcuts.
-  Symbol legends (🎤 → `mic`) use `Text(Image(systemName:))` to inherit the cap's font. A shortcut
-  printed as text goes through `KeyCapChip.inlineText`, never `keycaps.joined()`.
 
 ### Section headers
 
@@ -588,9 +586,11 @@ alike.
   **↵ runs the dialog's primary action; Escape cancels**, on every dialog including destructive ones.
   Arrow keys walk the volume slider along the same 5% grid the volume commands use (`DialogPanel`
   reports `.increment` / `.decrement` and `DialogController` applies `VolumeLevel.stepped`, so the
-  panel never learns what a volume step is); click-away resolves as a dismissal. ↵ that commits an
-  input method's marked text never confirms, and a multi-line accessory takes ↵ as a line break, so
-  its dialog confirms on ⌘↵ and its default button advertises that instead.
+  panel never learns what a volume step is); click-away resolves as a dismissal. A snippet's
+  argument prompt claims ⇥/⇧⇥ through `claimsTabKey`, so focus walks its fields in order and wraps,
+  and ↑/↓ move the focused options list's choice. ↵ that commits an input method's marked text never
+  confirms, and a multi-line accessory takes ↵ as a line break, so its dialog confirms on ⌘↵ and its
+  default button advertises that instead.
 - **Async, not modal.** Presentation is `async` (`withCheckedContinuation`), so there is no nested run
   loop. A held hotkey can't stack dialogs: while one is up, a second request resolves immediately as a
   dismissal, which is why the old `isConfirmingCommand` re-entrancy flag is gone.
@@ -714,17 +714,22 @@ it would couple two unrelated surfaces.
 
 A dialog carries at most one control beyond its buttons, and `DialogAccessory` makes that structural
 rather than a convention: `.volume` for the Set Volume prompt, `.snippetArguments` for a snippet's
-`{argument}` values and `.clipboardText` for Edit Entry. Text fields take `dialogTextField()`;
-inline enumerated arguments are `DialogChip`s. `DialogPanel.handlesArrowKeys` is set from
-`DialogAccessory.claimsArrowKeys`, so the slider steps on ←/→ while snippet argument text fields
-keep their caret, and `acceptsLineBreaks` from the accessory of the same name, so only Edit Entry's
-`dialogTextHeight` text area takes ↵. Create Event uses the launcher form instead.
+`{argument}` values and `.clipboardText` for Edit Entry. Text fields take `dialogTextField()`; an
+`options=` argument is a list of `dialogButtonHeight` rows that scrolls past `menuVisibleRows`, its
+choice checked and filled with `selection` while the list has focus. A prompt of lists alone uses
+`dialogCompactWidth`, and a lone unnamed argument drops its label. `DialogPanel.handlesArrowKeys`
+is set from `DialogAccessory.claimsArrowKeys`, so the slider steps on ←/→ while snippet argument
+text fields keep their caret, and `acceptsLineBreaks` from the accessory of the same name, so only
+Edit Entry's `dialogTextHeight` text area takes ↵. Create Event uses the launcher form instead.
 
 The first text field or text view takes focus from `DialogController.windowDidBecomeKey`, never from
-the view. When the panel turns key AppKit picks its own first responder (the Cancel button with
-Keyboard navigation on), and over another app that happens only after `show` returns, so focus a
-SwiftUI view asks for loses to it. The panel can also turn key inside `makeKeyAndOrderFront`, before
-SwiftUI has built the field, so `DialogPanel.focusFirstTextField` lays the content out first.
+the view. A snippet prompt that opens on an options list sets `SnippetArgumentsState.focusedIndex`
+there instead, which its view mirrors into a `FocusState`; a SwiftUI request to focus a text field
+there is lost, so a leading text field still goes through `focusFirstTextField`. When the panel turns key
+AppKit picks its own first responder (the Cancel button with Keyboard navigation on), and over
+another app that happens only after `show` returns, so focus a SwiftUI view asks for loses to it.
+The panel can also turn key inside `makeKeyAndOrderFront`, before SwiftUI has built the field, so
+`DialogPanel.focusFirstTextField` lays the content out first.
 
 ## Settings
 
