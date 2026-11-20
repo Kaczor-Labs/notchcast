@@ -24,7 +24,7 @@ enum NotchcastAppProof {
         let defaults = UserDefaults.standard
         defer { defaults.removePersistentDomain(forName: bundleID) }
         for key in [AppSettingsKey.extensionsEnabled, .showInMenuBar, .notesShowsInMenuBar,
-                    .paletteDraggable, .supportReminders, .navigationEnabled] {
+                    .paletteDraggable, .supportReminders, .navigationEnabled, .notesEnabled] {
             defaults.set(true, forKey: key.rawValue)
         }
         defaults.set(false, forKey: AppSettingsKey.openOnCursorScreen.rawValue)
@@ -45,6 +45,7 @@ enum NotchcastAppProof {
         settings.language = .german
         settings.supportRemindersEnabled = true
         settings.navigationEnabled = true
+        settings.notesEnabled = true
         let visibility = VisibilityStore(defaults: defaults)
         visibility.setKindEnabled(true, for: .systemSettings)
         check(!settings.extensionsEnabled, "extensionsEnabled reads off")
@@ -60,8 +61,10 @@ enum NotchcastAppProof {
         check(settings.palettePosition(on: "proof") == nil, "stored palette position is ignored")
         check(!settings.supportRemindersEnabled, "supportRemindersEnabled reads off")
         check(!settings.navigationEnabled, "navigationEnabled reads off")
+        check(!settings.notesEnabled, "notesEnabled reads off")
         check(!visibility.isKindEnabled(.systemSettings), "System Settings in the launcher reads off")
         check(!AppCore.shared.appIndex.isCommandEnabled(.support), "Support command reads disabled")
+        check(!AppCore.shared.appIndex.isCommandEnabled(.showNotes), "Show Notes command reads disabled")
     }
 
     /// #910: a stored iCloud Sync switch reads off and the sync engine never starts.
