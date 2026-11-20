@@ -133,7 +133,9 @@ final class Rig {
         controller = NotchcastController(
             addons: [SmallCommandsAddon.self], defaults: defaults, hub: hub,
             dictation: FakeDictation(),
-            clipboard: NotchcastClipboardMutation(prepare: { fake.prepares.append(fake.copies.count) }, synchronize: { _ in }),
+            services: NotchcastServices(
+                clipboard: NotchcastClipboardMutation(
+                    prepare: { fake.prepares.append(fake.copies.count) }, synchronize: { _ in })),
             presenter: presenter)
         controller.start()
     }
