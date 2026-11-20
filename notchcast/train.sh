@@ -135,12 +135,14 @@ build_train() {
         printf '%s %s\n' "$pr" "$reason" >> "$scratch/drops"
     done
 }
+# The note on a PR the train leaves out; pick_batch skips the PR until its head moves (or the PR it waits on closes).
+left_out() { echo "Left out of the landing batch at its head $(< "$scratch/head-$1"): ${2#dropped from the landing batch: }"; }
 # Prints and comments the drops of the last build_train, the one the train keeps.
 tell_drops() {
     local pr reason
     while read -r pr reason; do
         echo "DROPPED #$pr: $reason"
-        gh pr comment "$pr" -R "$FORK_REPO" --body "$reason" >/dev/null || echo "WARN: could not comment on #$pr" >&2
+        gh pr comment "$pr" -R "$FORK_REPO" --body "$(left_out "$pr" "$reason")" >/dev/null || echo "WARN: could not comment on #$pr" >&2
     done < "$scratch/drops"
 }
 notify() {
@@ -256,19 +258,31 @@ signed_off_since() {
             notify "the landing queue stopped: it cannot read when #$1 was labelled land" >&2; return 1; }
     echo "$at"
 }
-# The first LAND_BATCH_SIZE open PRs on main labelled land, ready or draft, oldest sign-off first. Its build must be
-# green on its head; a draft's may be skipped or absent, since the train run is its build. A PR a batch already
-# found red alone waits for a new head. While the newest sign-off of the batch is younger than LAND_SETTLE_SECONDS it
-# prints only a "queue: waits" line, so PRs signed off close together ride one train.
+# Open PRs on main labelled land, ready or draft, oldest sign-off first: the first LAND_BATCH_SIZE, then the settled
+# ones behind them, which refill a batch the holder check thins. Its build must be green on its head; a draft's may
+# be skipped or absent, since the train run is its build. A PR a queue found red alone or left out waits for a new
+# head; one left out behind an open PR of the batch is taken again once that PR closes. While the newest sign-off of
+# the batch is younger than LAND_SETTLE_SECONDS it prints only a "queue: waits" line, so PRs signed off close
+# together ride one train.
 pick_batch() {
-    local pr draft head verdict since newest age
+    local pr draft head why verdict since newest age now
     : > "$scratch/heads"
     gh pr list -R "$FORK_REPO" --state open --base main -L 200 --json number,isDraft,labels,headRefOid,comments \
-        --jq '.[] | . as $pr | select(any(.labels[]; .name == "land"))
-            | select(any(.comments[]; .body | contains("in the landing batch at head " + $pr.headRefOid)) | not)
-            | "\(.number) \(.isDraft) \(.headRefOid)"' |
-        while read -r pr draft head; do
+        --jq '[.[].number] as $open | .[] | . as $pr | select(any(.labels[]; .name == "land"))
+            | ("Left out of the landing batch at its head " + .headRefOid + ": ") as $note
+            | ([.comments[].body | select(contains("in the landing batch at head " + $pr.headRefOid) or startswith($note))]
+                | last // "" | ltrimstr($note) | gsub("\\s+"; " ")) as $why
+            | ([$why | capture("(contains commits of|^conflicts with) #(?<n>[0-9]+)") | .n | tonumber] | first) as $on
+            | if $why != "" and ($on == null or any($open[]; . == $on)) then "\(.number) dropped \(.headRefOid) \($why)"
+              else "\(.number) \(.isDraft) \(.headRefOid)" end' |
+        while read -r pr draft head why; do
             echo "$pr@$head" >> "$scratch/heads"
+            if [ "$draft" = dropped ]; then
+                why=${why%%: *}
+                why=${why%%, *}
+                echo "queue: #$pr waits, dropped at ${head:0:8}: ${why%% in the landing batch at head *}" >&2
+                continue
+            fi
             verdict=$(check_run "$head" build)
             [ "$verdict" = success ] || { [ "$draft" = true ] && [[ "$verdict" =~ ^(none|skipped)$ ]]; } \
                 || { echo "queue: #$pr waits, build is $verdict on ${head:0:8}" >&2; continue; }
@@ -285,11 +299,14 @@ pick_batch() {
     fi
     # Only the batch's own: sign-offs behind a full batch must not hold it back.
     newest=$(sed -n "1,${LAND_BATCH_SIZE}p" "$scratch/signed" | tail -1)
+    now=${NOTCHCAST_NOW:-$(date +%s)}
     if [ -n "$newest" ]; then
-        age=$((${NOTCHCAST_NOW:-$(date +%s)} - $(jq -rn --arg at "${newest% *}" '$at | fromdateiso8601')))
+        age=$((now - $(jq -rn --arg at "${newest% *}" '$at | fromdateiso8601')))
         [ "$age" -ge "$LAND_SETTLE_SECONDS" ] || { echo "queue: waits, #${newest#* } signed off $age s ago"; return 0; }
     fi
-    sed -n "1,${LAND_BATCH_SIZE}p" "$scratch/signed" | cut -d' ' -f2 | paste -sd' ' -
+    # The batch is settled, so this prints it and the settled sign-offs behind it, in order.
+    awk -v cutoff="$(jq -rn --argjson at "$((now - LAND_SETTLE_SECONDS))" '$at | todate')" '$1 <= cutoff' "$scratch/signed" \
+        | cut -d' ' -f2 | paste -sd' ' -
 }
 # Lines "<runner> <config> <pr>@<head>...": batches land.sh refused for good (exit 3) at those heads on a train whose
 # Mac jobs ran on <runner>, under config.env blob <config>. Both such refusals judge an isolated runner's record, so a
@@ -342,7 +359,6 @@ if [ "$*" = --queue ]; then
     picked=$(pick_batch)
     [[ "$picked" != 'queue: waits'* ]] || { echo "$picked"; exit 0; }
     [ -n "$picked" ] || { echo 'queue: no open PR on main is signed off and green on its head'; exit 0; }
-    echo "queue: batch $picked"
     set -- $picked
 fi
 status=0
@@ -352,7 +368,11 @@ git fetch -q origin main '+refs/notchcast/synced/*:refs/notchcast/synced/*'
 # PR $1 holds PR $2 when its head reaches a commit on $2's own first-parent line; a branch both merged is on neither.
 holds() { [ -n "$(comm -12 "$scratch/all-$1" "$scratch/line-$2")" ]; }
 clear=
+# --queue fills its batch from the PRs behind it as the holder check leaves PRs out; a train takes every PR named.
+size=$#
+[ -z "$auto" ] || size=$LAND_BATCH_SIZE
 for pr in "$@"; do
+    [ "$(wc -w <<< "$clear")" -lt "$size" ] || break
     git fetch -q origin "refs/pull/$pr/head"
     git rev-parse FETCH_HEAD > "$scratch/head-$pr"
     git rev-list FETCH_HEAD --not origin/main --glob=refs/notchcast/synced/ | sort > "$scratch/all-$pr"
@@ -381,7 +401,7 @@ for pr in "$@"; do
         [ -n "$auto" ] || refuse "$reason"
         status=1
         echo "DROPPED #$holder: $reason"
-        note="Left out of the landing batch at its head $(< "$scratch/head-$holder"): $reason"
+        note=$(left_out "$holder" "$reason")
         gh pr view "$holder" -R "$FORK_REPO" --json comments | jq -e --arg note "$note" 'any(.comments[]; .body == $note)' >/dev/null \
             || gh pr comment "$holder" -R "$FORK_REPO" --body "$note" >/dev/null || echo "WARN: could not comment on #$holder" >&2
         [ "$holder" = "$other" ] || { out=1; kept="$kept $other"; }
@@ -390,6 +410,7 @@ for pr in "$@"; do
     [ -n "$out" ] || clear="$clear $pr"
 done
 set -- $clear
+[ -z "$auto" ] || echo "queue: batch $*"
 queue=("$*")
 while [ ${#queue[@]} -gt 0 ]; do
     git fetch -q origin main '+refs/notchcast/synced/*:refs/notchcast/synced/*'
