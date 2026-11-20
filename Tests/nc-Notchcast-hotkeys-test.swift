@@ -94,26 +94,34 @@ struct NotchcastHotKeysTests {
               relaunchedCenter !== center && actions.allSatisfy { relaunchedCenter.entries[$0.defaultsKey] != nil })
     }
 
-    /// Apple Shortcuts and Extensions are hidden: a stored chord for either registers nothing at launch.
+    /// Hidden features: a stored Apple Shortcut, Extension, Quick Action or Custom Command chord registers nothing.
     static func hiddenFeatureBindingsStayUnregistered() {
         let domain = "tinycast.notchcast-hotkeys-test.\(UUID())"
         let defaults = UserDefaults(suiteName: domain)!
         defer { defaults.removePersistentDomain(forName: domain) }
         let quicklink = UUID()
-        let hidden: [HotKeyAction] = [.appleShortcut(id: UUID()), .extensionCommand(entryID: "ext.cmd")]
+        let quickAction = UUID()
+        let customCommand = UUID()
+        let hidden: [HotKeyAction] = [
+            .appleShortcut(id: UUID()), .extensionCommand(entryID: "ext.cmd"), .quickAction(id: quickAction),
+            .customCommand(id: customCommand),
+        ]
         let manager = HotKeyManager(defaults: defaults)
-        for (action, key) in zip(hidden + [.quicklink(id: quicklink)], [kVK_ANSI_3, kVK_ANSI_4, kVK_ANSI_5]) {
+        let keys = [kVK_ANSI_3, kVK_ANSI_4, kVK_ANSI_6, kVK_ANSI_7, kVK_ANSI_5]
+        for (action, key) in zip(hidden + [.quicklink(id: quicklink)], keys) {
             manager.setBinding(.combo(KeyShortcut(carbonKeyCode: key, carbonModifiers: controlKey)), for: action)
         }
         let relaunched = HotKeyManager(defaults: defaults)
         relaunched.start(
-            customCommandIDs: [], quicklinkIDs: [quicklink], windowLayoutIDs: [],
-            windowRoomIDs: [], customWindowSizeIDs: [], quickActionIDs: [])
+            customCommandIDs: [customCommand], quicklinkIDs: [quicklink], windowLayoutIDs: [],
+            windowRoomIDs: [], customWindowSizeIDs: [], quickActionIDs: [quickAction])
         let entries = HotKeyCenter.current!.entries
         check("a stored quicklink chord registers after a relaunch",
               entries[HotKeyAction.quicklink(id: quicklink).defaultsKey] != nil)
         for action in hidden {
             check("\(action.defaultsKey): its chord stays unregistered", entries[action.defaultsKey] == nil)
         }
+        check("the hidden custom command keeps its stored chord",
+              defaults.object(forKey: HotKeyAction.customCommand(id: customCommand).defaultsKey) != nil)
     }
 }

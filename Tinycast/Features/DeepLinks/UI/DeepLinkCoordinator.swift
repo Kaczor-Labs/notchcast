@@ -50,6 +50,7 @@ final class DeepLinkCoordinator {
             guard let tab = SettingsTab(slug: slug) else { return reportUnknownLink() }
             settingsCoordinator.showSettings(tab: tab)
         case .note(let name):
+            guard exists(.command(.showNotes)) else { return reportUnknownLink() }
             guard isAllowed(.command(.showNotes)) else { return }
             core.notesCoordinator.open(NoteID(rawValue: name))
         case .chat(let id):
@@ -160,10 +161,11 @@ final class DeepLinkCoordinator {
         }
     }
 
-    /// The catalogs' rows always exist; a row you made is known by the name it resolves to.
+    /// A catalog row exists unless hidden; a row you made is known by the name it resolves to.
     private func exists(_ action: HotKeyAction) -> Bool {
         switch action {
-        case .command, .systemAction, .windowCommand: true
+        case .command(let id): !NotchcastHiddenCommands.commands.contains(id)
+        case .systemAction, .windowCommand: true
         default: hotKeys.displayName?(action) != nil
         }
     }

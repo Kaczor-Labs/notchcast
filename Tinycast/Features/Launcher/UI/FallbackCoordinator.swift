@@ -69,6 +69,7 @@ final class FallbackCoordinator {
     }
 
     private func isAvailable(_ builtin: Fallback.Builtin) -> Bool {
+        guard !NotchcastHiddenCommands.commands.contains(builtin.command) else { return false }
         switch builtin {
         case .quickAI: return settings.aiEnabled
         case .searchFiles: return settings.fileSearchEnabled
