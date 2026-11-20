@@ -114,19 +114,27 @@ compilation of its 2-bit weights; Ultra's encoder and both variants' decoder/joi
   on: an OpenAI-compatible `POST /v1/audio/transcriptions` (multipart `file`, `model` ignored,
   optional ISO-639-1 `language`, `response_format` json or text) and `GET /v1/models`, bound to
   127.0.0.1 on a configurable port (8178 by default). `NotchcastCore` owns `DictationServer`, so quitting stops it.
+  Clients should call `127.0.0.1`, not `localhost`: a client that tries `::1` first may reach another process there.
 - The switch and port live in the fork's `.notchcast` defaults suite, which backups and `settings.json`
   never carry, so an import cannot open a listener. The bearer token is 32 random bytes generated on first
   use, kept only in the Keychain (`KeychainSecretStore.dictationServer`), compared in constant time, never
-  logged, and copied to the pasteboard as concealed so Clipboard History skips it.
+  logged or shown, and copied to the pasteboard as concealed and current-host only, so Clipboard History
+  skips it and Universal Clipboard never carries it. A token that could not be saved leaves the old one
+  serving, and Settings says so under the status.
 - Every request is decided from its head before any body is read: a Host other than 127.0.0.1 or
   localhost is 403, a missing or wrong token 401, and a Content-Length over 25 MB (plus form overhead)
-  413. Chunked uploads are refused; each connection carries one request, at most eight at once, and
-  must arrive within 30 seconds.
+  413. Chunked uploads are refused; each connection carries one request, at most eight at once (counted
+  on the main actor; a ninth is dropped). The head must arrive within 5 seconds and the whole request
+  within 30. Reading and parsing run off the main actor; only a decided request comes back to it.
+- An upload must start with the bytes of an allowed container (WAV, FLAC, Ogg, MP3, MP4/M4A, WebM),
+  whatever its filename, and audio over 60 minutes is 413; both are refused before the request waits
+  for the model. A client that closes its connection cancels its transcription.
 - The user's own dictation always wins. Shared requests take the model one at a time in arrival order
   through the add-on transcription runner, and none starts while the user records or transcribes. A
   request still running when the user starts is cancelled and answered 503 with `Retry-After`, and the
   user's session waits only for its cleanup. A missing model is 503.
-- An upload is written to a private 0600 temporary file only for decoding and removed when its request ends.
+- An upload is written to a private 0600 temporary file only for decoding and removed when its request ends;
+  files a crash left behind are removed when `DictationServer` starts, before any listener.
 - The `Model/` folder imports Foundation only. Context-sensitive spaces and capitalization are a
   pure decision driven by text around the caret. Capitalization adapts by default and can be disabled
   without disabling contextual spaces; if an app does not expose that context through
@@ -148,9 +156,12 @@ and competing downloads on shared or independent cache roots, without sockets or
 `DictationVolumeTests` uses private files and injected audio controls to verify crash recovery
 before and after fade steps, user volume changes, output switching, failed writes and rapid cancellation,
 without changing the system volume or downloading a model.
-`nc-DictationSharing-server-test` checks the endpoint's head parsing, host and token checks, size caps,
-multipart forms fed byte by byte, responses, and the dictation-wins queue through the add-on runner with
-fakes, without a socket, a timer or a model.
+`nc-DictationSharing-server-test` checks the endpoint's head parsing, host and token checks, size, container
+and length caps, multipart forms fed byte by byte, responses, the head and body deadlines, the connection
+cap, cancellation when a client leaves, the crash-leftover sweep, and the dictation-wins queue through the
+add-on runner with fakes, without a socket, a timer or a model. `nc-DictationSharing-bind-test` starts the
+real listener on a free port and checks that 127.0.0.1 connects while `::1` and the Mac's network address
+are refused.
 
 Also exercise all four real models, short and long recordings, downloads/removal, initial microphone
 grant and denial, hold/toggle shortcuts, Globe tap and hold, Return/Escape, output destinations, live insertion on and off, surrounding text with

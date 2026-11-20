@@ -46,15 +46,15 @@ struct DictationSharingSection: View {
                     }
                 } label: {
                     Text("Token", tableName: "Notchcast")
-                    Text(verbatim: server.token ?? "")
-                        .monospaced()
-                        .textSelection(.enabled)
                 }
             }
         } header: {
             Text("Sharing", tableName: "Notchcast")
         } footer: {
-            if server.isEnabled { footer(server.status) }
+            if server.isEnabled {
+                footer(server.status)
+                if let failure = server.tokenFailure { Text(failure).foregroundStyle(.orange) }
+            }
         }
         .confirmationDialog(
             Text("Regenerate the token?", tableName: "Notchcast"), isPresented: $confirmsRegenerate
@@ -88,12 +88,11 @@ struct DictationSharingSection: View {
             set: { if DictationServer.ports.contains($0) { server.port = $0 } })
     }
 
-    /// Concealed, so Clipboard History never records the token.
+    /// Concealed, so Clipboard History never records the token, and kept off Universal Clipboard.
     private static func copyConcealed(_ text: String) {
         let pasteboard = NSPasteboard.general
         let concealed = NSPasteboard.PasteboardType("org.nspasteboard.ConcealedType")
-        pasteboard.clearContents()
-        pasteboard.declareTypes([.string, concealed], owner: nil)
+        _ = pasteboard.prepareForNewContents(with: .currentHostOnly)
         pasteboard.setString(text, forType: .string)
         pasteboard.setData(Data(), forType: concealed)
     }
