@@ -11,6 +11,7 @@
 // notchcast-sources: Tinycast/Features/Island/Model/IslandPageDeck.swift
 // notchcast-sources: Tinycast/Features/Island/Model/IslandPageSwipe.swift
 // notchcast-sources: Tinycast/Features/Island/Model/IslandPlayer.swift
+// notchcast-sources: Tinycast/Features/Island/Model/IslandCardSlots.swift
 // notchcast-sources: Tinycast/Features/Island/UI/*.swift
 // notchcast-sources: Tinycast/Features/Notchcast/Day/Model/*.swift
 // notchcast-sources: Tests/nc-Day-fixtures.swift
