@@ -1,0 +1,4 @@
+Accessories: Model/AccessoryReadings.swift ← vorssaint/vorssaint-utils@faada18/Sources/Vorssaint/Services/Metrics/PeripheralBatterySupport.swift, Services/Notch/NotchAccessorySupport.swift (GPL-3.0-or-later)
+Accessories: Model/AccessoryPolicy.swift ← vorssaint/vorssaint-utils@faada18/Sources/Vorssaint/Services/Notch/NotchAccessorySupport.swift (GPL-3.0-or-later)
+Accessories: Service/AccessoriesModule.swift ← vorssaint/vorssaint-utils@faada18/Sources/Vorssaint/Services/Notch/NotchAccessoryService.swift (GPL-3.0-or-later)
+Accessories: Service/AccessoriesModule+Live.swift ← vorssaint/vorssaint-utils@faada18/Sources/Vorssaint/Services/Metrics/PeripheralBatterySampler.swift, Services/Notch/NotchAccessoryConnectionMonitor.swift, Services/Notch/NotchNotificationService.swift, Services/Notch/NotchNotificationReaderCore.swift (GPL-3.0-or-later)
