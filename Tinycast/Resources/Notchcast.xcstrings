@@ -4,9 +4,6 @@
     "A faint line around the open island in Dark." : {
 
     },
-    "A notch always decides where the island sits." : {
-
-    },
     "Agents" : {
       "shouldTranslate" : false
     },
@@ -182,9 +179,6 @@
 
     },
     "Reset to Default" : {
-
-    },
-    "Resting the pointer on the island opens what it shows." : {
 
     },
     "Search past dictations…" : {

@@ -48,7 +48,7 @@ private struct NotchcastSwitchRows: View {
     var body: some View {
         Toggle(isOn: Binding(get: { preferences.isOn(item.id) }, set: { preferences.set(item.id, on: $0) })) {
             SettingsRowTitle(anchor, verbatim: item.title)
-            Text(item.subtitle)
+            if !item.subtitle.isEmpty { Text(item.subtitle) }
         }
         .settingsEnabled(dependenciesMet)
         if preferences.isEnabled(item.id), needsAccessibility {

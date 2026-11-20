@@ -2,7 +2,6 @@
   "sourceLanguage" : "en",
   "strings" : {
     "Couldn't Stop Apple Music Opening" : {},
-    "Prevent media keys from launching Apple Music." : {},
     "Stop Apple Music opening on media keys" : {}
   },
   "version" : "1.0"
