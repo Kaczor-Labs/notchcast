@@ -9,6 +9,11 @@ enum DictationServerHTTP {
     /// Room for the form's boundaries and small fields around a file at the cap.
     static let maximumBodyBytes = maximumFileBytes + (64 << 10)
     static let retryAfterSeconds = 5
+    /// Longer audio would hold the single model turn for hours.
+    static let maximumAudioSeconds = 60 * 60
+    /// Short for the head, so idle connections cannot hold every slot for long.
+    static let headDeadline: Duration = .seconds(5)
+    static let readDeadline: Duration = .seconds(30)
 
     struct Head: Equatable, Sendable {
         var method: String
@@ -116,6 +121,15 @@ enum DictationServerHTTP {
         return nil
     }
 
+    /// Returns once the head missed its deadline, or the whole request missed `readDeadline`.
+    static func expire(
+        headRead: @Sendable () -> Bool, sleep: @Sendable (Duration) async throws -> Void
+    ) async throws {
+        try await sleep(headDeadline)
+        guard headRead() else { return }
+        try await sleep(readDeadline - headDeadline)
+    }
+
     /// 32 bytes from `generator` as 64 hex digits.
     static func makeToken(using generator: inout some RandomNumberGenerator) -> String {
         (0..<32).map { _ in
@@ -135,6 +149,9 @@ struct DictationServerResponse: Error, Equatable, Sendable {
     static let continueHead = Data("HTTP/1.1 100 Continue\r\n\r\n".utf8)
     static let unauthorized = error(401, "Missing or wrong bearer token.")
     static let tooLarge = error(413, "The audio file is larger than 25 MB.")
+    static let tooLong = error(413, "The audio is longer than 60 minutes.")
+    static let unreadable = error(400, "Notchcast could not decode this audio file.")
+    static let unsupportedFormat = error(400, "Unsupported audio format; send wav, m4a, mp3, flac, ogg or webm.")
     static let busy = error(
         503, "Notchcast's own dictation is using the model; retry shortly.",
         retryAfter: DictationServerHTTP.retryAfterSeconds)
