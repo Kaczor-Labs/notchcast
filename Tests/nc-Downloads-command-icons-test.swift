@@ -19,6 +19,7 @@
 // notchcast-sources: Tinycast/Features/Notchcast/Downloads/Service/TorrentManager.swift
 // notchcast-sources: Tinycast/Features/Notchcast/Downloads/Service/TorrentSession.swift
 // notchcast-sources: Tinycast/Features/Notchcast/Downloads/Service/TorrentOpenFallback.swift
+// notchcast-sources: Tinycast/Features/Notchcast/Downloads/Service/TorrentDefaultHandler.swift
 // notchcast-sources: Tinycast/Features/Notchcast/Downloads/Service/DownloadsQueueController.swift
 // notchcast-sources: Tinycast/Features/Notchcast/Downloads/Service/JobOutput.swift
 // notchcast-sources: Tinycast/Features/Notchcast/Downloads/Service/MediaDownloadRunner.swift
@@ -41,4 +42,8 @@ enum DownloadsCommandIconTests {
 // The shipped `live` environment is left out: this stands in so the descriptor compiles.
 extension DownloadsModule.Environment {
     static func live() -> Self { fatalError("the harness never makes a module") }
+}
+
+extension TorrentDefaultHandler.System {
+    static func live() -> Self { fatalError("the harness never makes a recovery") }
 }
