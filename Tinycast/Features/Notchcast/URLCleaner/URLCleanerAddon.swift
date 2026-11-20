@@ -2,7 +2,7 @@
 // notchcast-readme: Launcher Extras: clean tracking parameters from copied links (with Clipboard History on)
 import SwiftUI
 
-enum URLCleanerAddon: NotchcastAddon { // drift: keep the generated NotchcastRegistry lists it
+enum URLCleanerAddon: NotchcastAddon {
     static let switches = [
         NotchcastSwitch(
             id: "urlCleaner",
