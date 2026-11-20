@@ -96,7 +96,7 @@ enum RegistryCheck {
         "tasks", "tasksSync", "todoIsland", "githubSearch", "clearNotifications", "launcherAnswers", "copyPath",
         "smallCommands", "aiUsage", "aiUsageOtherMac", "machLink", "island", "islandExternalDisplays",
         "islandFullScreen", "islandHoverOpen", "islandStatusMessages", "islandLiveActivities", "launcherFromIsland",
-        "launcherNumberKeys", "launcherAliasSpace", "musicNowPlaying", "musicLastPlayer", "musicBlockAppleMusic",
+        "launcherAliasSpace", "musicNowPlaying", "musicLastPlayer", "musicBlockAppleMusic",
         "musicSharpCovers", "spotifyConnect", "microphoneMute", "inUseMarks", "systemMonitor", "fanControl",
         "accessoryBatteries", "accessoryNotices", "monitorAlerts", "lowDiskWarning", "systemNotices",
         "volumeLevels", "audioPriority", "displayBrightness", "liveTimers", "dayCalendar",
@@ -117,8 +117,8 @@ enum RegistryCheck {
         "torrentsKeepSharing", "backupRunNow", "backupBrowseRestore", "quickLookSpace", "markdownFiles",
         "plainTextFiles", "editorSpellChecking", "buildStats",
     ]
-    // Removed in #836 and #1163 yet maybe still on in old prefs, so never declared again.
-    static let retiredIDs: Set<String> = ["keepAwake", "lidClosedAwake", "quitProtection"]
+    // Removed in #836, #1163 and #1166 yet maybe still on in old prefs, so never declared again.
+    static let retiredIDs: Set<String> = ["keepAwake", "lidClosedAwake", "quitProtection", "launcherNumberKeys"]
     static let frozenSlugs: Set<String> = ["screenshot-area", "screenshot-display"]
 
     /// Problems fail the harness; notes only report (an absent dependency counts as off).

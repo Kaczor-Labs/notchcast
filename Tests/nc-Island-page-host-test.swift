@@ -9,6 +9,7 @@
 // notchcast-sources: Tinycast/Features/Island/Model/IslandLook.swift
 // notchcast-sources: Tinycast/Features/Island/Model/IslandPresentation.swift
 // notchcast-sources: Tinycast/Features/Island/Model/IslandPageDeck.swift
+// notchcast-sources: Tinycast/Features/Island/Model/IslandCardSlots.swift
 // notchcast-sources: Tinycast/Features/Island/Model/IslandPageSwipe.swift
 // notchcast-sources: Tinycast/Features/Island/Model/IslandPlayer.swift
 // notchcast-sources: Tinycast/Features/Island/UI/*.swift
@@ -40,9 +41,14 @@ final class StubIsland {
 @MainActor
 final class StubHover {
     var isPinned = false
-    func pin() {}
+    var calls: [String] = []
+    func pin() {
+        calls.append("pin")
+        isPinned = true
+    }
+    func pinWhenUncovered() { calls.append("pinWhenUncovered") }
     func togglePin() {}
-    func dismiss() {}
+    func dismiss() { calls.append("dismiss") }
 }
 
 @MainActor final class StubSettings { let interfaceSize = StubSize() }
@@ -99,6 +105,31 @@ struct IslandPageHostTest {
         host.show(nil, onTap: nil)
         host.act(page: IslandPageDeck.noticeID, action: IslandPageDeck.noticeID)
         precondition(host.deck.notice == nil && tapped == 1, "an ended notice leaves no row and no tap")
+        showPage(host, resting: resting, page: page)
         print("PASS IslandPageHostTest")
+    }
+
+    /// A command opens the island pinned on its page (#1128): the pin waits out the launcher, then picks the tab.
+    static func showPage(_ host: IslandPageHost, resting: IslandController, page: (String) -> IslandPage) {
+        let hover = AppCore.shared.island.hover
+        host.hover(false, on: resting)
+        host.set(page("agents"), id: "agents", onAction: nil)
+        host.set(page("day"), id: "day", onAction: nil)
+        hover.calls = []
+        host.showPage(id: "nothing")
+        precondition(hover.calls.isEmpty, "a page nobody posted opens nothing")
+        host.showPage(id: "day")
+        precondition(hover.calls == ["pinWhenUncovered"], "a closed island pins once the launcher has gone")
+        hover.isPinned = true
+        host.hover(true, on: resting)
+        precondition(host.deck.selection == .page("day"), "the pin opens on the asked page, not Home")
+        hover.isPinned = false
+        host.hover(false, on: resting)
+        host.hover(true, on: resting)
+        precondition(host.deck.selection == .home, "the ask is spent: the next hover opens Home again")
+        host.hover(false, on: resting)
+        host.showPage(id: "day")
+        host.hover(true, on: resting)
+        precondition(host.deck.selection == .home, "a pin whose wait ran out leaves a plain hover on Home")
     }
 }

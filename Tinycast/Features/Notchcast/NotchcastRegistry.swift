@@ -7,10 +7,10 @@ enum NotchcastRegistry {
         QuitProtectionAddon.self,
         MiddleClickAddon.self,
         MusicBlockAddon.self,
-        NumberKeysAddon.self,
         SmallCommandsAddon.self,
         DownloadsAddon.self,
         ScreenshotsAddon.self,
+        ScreenRecordingAddon.self,
         IPhoneBackupAddon.self,
         DisplaySoundAddon.self,
         NoiseControlAddon.self,
@@ -25,5 +25,6 @@ enum NotchcastRegistry {
         LowDiskAddon.self,
         ScriptCommandsAddon.self,
         TimersAddon.self,
+        AgentsAddon.self,
     ]
 }

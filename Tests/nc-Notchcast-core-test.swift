@@ -33,9 +33,6 @@ final class ProbeModule: NotchcastModule {
         token = context.subscribe(
             NotchcastTap(switchID: "probeMain", mask: NotchcastTapPolicy.mask(for: .leftMouseDown),
                          handler: .observe { _ in }))
-        context.handleLauncherDigit { digit, query, entryRows in
-            query.isEmpty || digit > entryRows.count ? nil : entryRows[digit - 1]
-        }
     }
 
     func stop() { ProbeLog.events.append("stop") }
@@ -324,7 +321,6 @@ struct NotchcastCoreTest {
         controller.onCommandsChanged = { published.append($0.map(\.id)) }
         controller.start()
         check("nothing runs while off", ProbeLog.events.isEmpty && hub.subscriberCount == 0)
-        check("no digit row while off", controller.launcherRow(digit: 1, query: "sa", entryRows: [2, 5]) == nil)
         check("no commands while off", controller.enabledCommands.isEmpty && !controller.run(entryID: "command:nc-probe-run"))
 
         controller.preferences.set("probeMain", on: true)
@@ -335,8 +331,6 @@ struct NotchcastCoreTest {
         check("its command runs", controller.run(entryID: "command:nc-probe-run"))
         check("the notice reaches the presenter", presenter.log == ["post probe Probe ran"])
         check("an unknown id falls through", !controller.run(entryID: "command:nc-nope"))
-        check("a digit maps to its entry row", controller.launcherRow(digit: 2, query: "sa", entryRows: [2, 5]) == 5)
-        check("a declined digit falls through", controller.launcherRow(digit: 3, query: "sa", entryRows: [2, 5]) == nil)
         check("the context finds its module", controller.context(forSwitch: "probeMain")?.module(ProbeModule.self) != nil)
         let probe = controller.enabledCommands
         controller.preferences.setShowsInLauncher("command:nc-probe-run", false)
@@ -365,8 +359,6 @@ struct NotchcastCoreTest {
         check("toggling off stops the module", ProbeLog.events == ["start", "stop"])
         check("a stopped module's unavailable commands are cleared", probeContext?.unavailableCommands.isEmpty == true)
         check("its taps and dependents' taps go", hub.subscriberCount == 0 && !hub.isRunning)
-        check("a stopped module's digit handler is gone",
-              controller.launcherRow(digit: 1, query: "sa", entryRows: [2, 5]) == nil)
         check("its command is withdrawn", published.last == [] && controller.enabledCommands.isEmpty)
         check("a withdrawn command no longer runs", !controller.run(entryID: "command:nc-probe-run"))
 
@@ -547,8 +539,8 @@ struct NotchcastCoreTest {
     static func settingsTabs() {
         check("each tab holds its categories",
               NotchcastPane.allCases.map(\.categories)
-                == [[], [.keyboardMouse], [.displaySound, .music], [.capture], [.launcher], [.filesDownloads], [.power],
-                   [.macTweaks]])
+                == [[], [.agents], [.keyboardMouse], [.displaySound, .music], [.capture], [.launcher], [.filesDownloads],
+                   [.power], [.macTweaks]])
         check("no category sits in two tabs", NotchcastCategory.allCases.allSatisfy { category in
             NotchcastPane.allCases.filter { $0.categories.contains(category) }.count <= 1
         })
