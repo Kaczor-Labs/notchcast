@@ -286,8 +286,21 @@ func keys() {
     func action(_ key: Action.Key, _ modifiers: Action.Modifiers = []) -> Action? {
         Action.action(for: key, modifiers: modifiers, in: document)
     }
-    check(action(.escape) == .discard && action(.enter) == .copy, "Esc discards and Return copies")
+    check(action(.escape) == .close && action(.enter) == .copy, "Esc closes and Return copies")
     check(action(.character("c"), .command) == .copy && action(.character("s"), .command) == .save, "⌘C and ⌘S")
+    check(action(.character("S"), [.command, .shift]) == .saveAs && action(.character("w"), .command) == .close
+          && action(.delete, .command) == .discard, "⇧⌘S saves as, ⌘W closes, ⌘⌫ discards")
+    check(Action.action(for: .enter, modifiers: [], isRepeat: true, in: document) == .ignore
+          && Action.action(for: .character("c"), modifiers: .command, isRepeat: true, in: document) == .ignore
+          && Action.action(for: .character("z"), modifiers: .command, isRepeat: true, in: document) == .undo,
+          "a held Return or ⌘C acts once; other keys still repeat")
+    check(Action.action(for: .character("c"), modifiers: .command, postedCopy: true, in: document) == .ignore,
+          "a ⌘C another app posts during a drag is ignored")
+    check(Action.isPostedCopy(sourcePID: 7, ownPID: 1, now: 10.5, lastPointer: 10)
+          && !Action.isPostedCopy(sourcePID: 7, ownPID: 1, now: 10.7, lastPointer: 10)
+          && !Action.isPostedCopy(sourcePID: 0, ownPID: 1, now: 10.1, lastPointer: 10)
+          && !Action.isPostedCopy(sourcePID: 1, ownPID: 1, now: 10.1, lastPointer: 10),
+          "only another process's ⌘C within 0.6 s of the pointer counts as posted")
     check(action(.character("z"), .command) == .undo && action(.character("Z"), [.command, .shift]) == .redo,
           "⌘Z undoes, ⇧⌘Z redoes")
     for tool in AnnotationTool.allCases {
@@ -299,7 +312,7 @@ func keys() {
     draw(&document, .rectangle, from: p(10, 10), to: p(50, 50))
     check(action(.escape) == .deselect, "Esc first lets go of the selection")
     document.apply(.delete)
-    check(document.marks.isEmpty && action(.escape) == .discard, "Delete removes the selection")
+    check(document.marks.isEmpty && action(.escape) == .close, "Delete removes the selection")
     document.apply(.undo)
     check(document.marks.count == 1, "⌘Z brings it back")
     document.apply(.redo)
@@ -312,13 +325,41 @@ func keys() {
 
     document.apply(.tool(.text))
     tap(&document, at: p(20, 20))
-    check(action(.escape) == .endText && action(.character("s"), .command) == .save, "typing: Esc ends it, ⌘S saves")
+    check(action(.escape) == .endText && action(.character("s"), .command) == .save
+          && action(.character("w"), .command) == .close, "typing: Esc ends it, ⌘S saves, ⌘W closes")
     check(action(.enter) == nil && action(.delete) == nil && action(.character("1")) == nil
-          && action(.character("c"), .command) == nil && action(.character("z"), .command) == nil,
+          && action(.character("c"), .command) == nil && action(.character("z"), .command) == nil
+          && action(.delete, .command) == nil,
           "every other key belongs to the text field")
     document.editText("Done")
     document.apply(.endText)
     check(document.editingTextID == nil && document.marks.last?.text == "Done", "ending commits the text")
+}
+
+func dirtiness() {
+    var document = AnnotationDocument(image: base(width: 100, height: 100))
+    check(!document.isDirty, "a fresh capture has nothing to lose")
+    draw(&document, .rectangle, from: p(10, 10), to: p(50, 50))
+    check(document.isDirty, "a mark is unsaved work")
+    document.markExported()
+    check(!document.isDirty, "copied, saved or dragged out, it is clean")
+    document.apply(.delete)
+    check(document.isDirty, "deleting after an export is unsaved again")
+    document.undo()
+    check(!document.isDirty, "undoing back to the exported state is clean")
+    document.pick(.text)
+    tap(&document, at: p(70, 70))
+    check(!document.isDirty, "an empty text field changes nothing yet")
+    document.editText("Hi")
+    check(document.isDirty, "text still being typed counts")
+    var cropped = AnnotationDocument(image: base(width: 100, height: 100))
+    cropped.pick(.crop)
+    check(!cropped.isDirty, "a crop frame not yet applied changes nothing")
+    cropped.beginDrag(at: p(10, 10))
+    cropped.continueDrag(to: p(60, 60))
+    cropped.endDrag(at: p(60, 60), isTap: false)
+    cropped.applyCrop()
+    check(cropped.imageSize.width < 100 && cropped.isDirty, "an applied crop is unsaved work")
 }
 
 func rendering() throws {
@@ -399,6 +440,7 @@ enum ScreenshotsAnnotationTests {
         editing()
         undoRedo()
         keys()
+        dirtiness()
         try rendering()
         print("nc-Screenshots-annotation-test: ok")
     }

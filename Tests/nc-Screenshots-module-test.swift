@@ -21,7 +21,7 @@ struct ScreenshotsSettingsView: View {
 }
 
 let scratch = FileManager.default.temporaryDirectory.appending(path: "nc-Screenshots-module-test.\(UUID())")
-let desktopFolder = scratch.appending(path: "Desktop")
+let downloadsFolder = scratch.appending(path: "Downloads")
 let chosenFolder = scratch.appending(path: "Chosen")
 let fixedDate = Date(timeIntervalSince1970: 1_763_290_800)
 
@@ -106,7 +106,8 @@ extension ScreenshotSystem {
         },
         recognizeText: { image in await fake.recognize(image) },
         openScreenRecordingSettings: { fake.settingsOpened += 1 },
-        desktop: { desktopFolder },
+        downloads: { downloadsFolder },
+        chooseSaveFile: { _ in nil },
         select: { frozen, windows, completion in
             fake.surfaces.append((frozen.map(\.id), windows.map(\.id)))
             fake.answer = completion
@@ -185,7 +186,7 @@ func pngWidth(_ data: Data?) -> Int? {
 enum ScreenshotsModuleTests {
     @MainActor
     static func main() async {
-        precondition((try? FileManager.default.createDirectory(at: desktopFolder, withIntermediateDirectories: true)) != nil)
+        precondition((try? FileManager.default.createDirectory(at: downloadsFolder, withIntermediateDirectories: true)) != nil)
         precondition((try? FileManager.default.createDirectory(at: chosenFolder, withIntermediateDirectories: true)) != nil)
         defer { try? FileManager.default.removeItem(at: scratch) }
         let rig = Rig()
@@ -231,7 +232,7 @@ enum ScreenshotsModuleTests {
         precondition(fake.clipboard.count == 1 && isPNG(fake.clipboard.last), "clipboard by default")
         precondition(pngDPI(fake.clipboard.last).map { abs($0 - 144) < 1 } == true,
                      "an unedited Retina capture says 144 dpi, like an edited one")
-        precondition(files(in: desktopFolder).isEmpty && presenter.posts.isEmpty, "no file by default")
+        precondition(files(in: downloadsFolder).isEmpty && presenter.posts.isEmpty, "no file by default")
 
         precondition(rig.controller.run(entryID: area))
         await drain()
@@ -276,7 +277,7 @@ enum ScreenshotsModuleTests {
         await drain()
         precondition(fake.freezes.last?.point == fake.cursor, "the screen capture freezes the display under the cursor")
         let first = ScreenshotFileName.name(date: fixedDate, timeZone: .current)
-        precondition(files(in: desktopFolder) == [first], "no folder set means the Desktop, v1 name")
+        precondition(files(in: downloadsFolder) == [first], "no folder set means Downloads, v1 name")
         precondition(fake.clipboard.count == 2, "file only leaves the clipboard alone")
         rig.defaults.set(chosenFolder.path(percentEncoded: false), forKey: "notchcast.screenshot.folder")
         rig.fire(display)
