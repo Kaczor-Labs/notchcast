@@ -1,0 +1,3 @@
+# Door: Clipboard
+
+**Clipboard** history's write pair: an add-on that writes `NSPasteboard.general` calls `context.prepareClipboardMutation()` before the write, so the user's last copy reaches history first, and `context.synchronizeClipboard(changeCount:)` after each of its own writes only when that write must not be recorded (a copy that belongs in history, such as a copied address, skips it). The door is `NotchcastClipboardMutation` (`Core/Service/NotchcastClipboard.swift`); `NotchcastClipboard+Live.swift` wires both to `ClipboardManager`'s own pair, the one `TextInjector` uses, and the default does nothing.

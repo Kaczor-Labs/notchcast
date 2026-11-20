@@ -81,7 +81,7 @@ final class Rig {
         let clock = clock
         controller = NotchcastController(
             addons: [AutoBackupAddon.self], defaults: defaults, hub: hub, dictation: FakeDictation(),
-            settingsBackup: backup, presenter: presenter, now: { clock.now })
+            services: NotchcastServices(settingsBackup: backup), presenter: presenter, now: { clock.now })
         AutoBackupPreferences(defaults: defaults).chosenFolder = folder.path(percentEncoded: false)
         controller.start()
     }
