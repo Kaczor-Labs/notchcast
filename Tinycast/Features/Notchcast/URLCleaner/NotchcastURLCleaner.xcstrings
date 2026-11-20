@@ -1,0 +1,14 @@
+{
+  "sourceLanguage" : "en",
+  "strings" : {
+    "Clean Copied Links" : {},
+    "Extra parameters to remove" : {},
+    "Names separated by commas." : {},
+    "Never removed, even when listed elsewhere." : {},
+    "One site and its parameters, as host=name,name; separate sites with semicolons." : {},
+    "Parameters to keep" : {},
+    "Per-site rules" : {},
+    "Remove tracking parameters from links you copy while Clipboard History is on." : {}
+  },
+  "version" : "1.0"
+}

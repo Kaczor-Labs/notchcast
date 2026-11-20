@@ -12,6 +12,9 @@ final class ClipboardManager {
         .init("com.apple.is-sensitive")
     ]
 
+    /// Notchcast: runs before a foreign copy is recorded and may rewrite it; nil is stock.
+    static var willCapture: (@MainActor () -> Void)?
+
     private let store: ClipboardStore
     private let settings: AppSettings
     private var timer: Timer?
@@ -156,6 +159,7 @@ final class ClipboardManager {
         // The pasteboard carries no source, so attribute it to the frontmost app.
         let sourceBundleID = NSWorkspace.shared.frontmostApplication?.bundleIdentifier
         if let sourceBundleID, settings.clipboardDisabledApps.contains(sourceBundleID) { return }
+        Self.willCapture?()
 
         // Ahead of the text branch: Finder puts the file's *name* on `.string` beside its URL.
         let roots = Self.volatileRoots(on: pb, copiedFrom: sourceBundleID)
