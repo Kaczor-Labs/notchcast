@@ -89,7 +89,7 @@ enum IslandUpdateScenes {
         IslandVerification.require(controller.notice == nil && controller.statuses.isEmpty, "cancel clears notice and status")
         print("ANNOUNCED \(IslandVerification.announcements)")
         IslandVerification.require(IslandVerification.announcements == [String(localized: "Downloading…"),
-            String(localized: "Expanding…"), ready, failed], "each stage announces once")
+            ready, failed], "the install announces as it starts, its phases stay quiet, each outcome once")
         core.updateCoordinator.dismiss()
         activity.preview(nil)
     }

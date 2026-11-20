@@ -288,6 +288,7 @@ struct FeatureSwitchSection: View {
     @Binding var showsInLauncher: Bool
     var showsIcon = false
     var showsHeader = true
+    var hidesLauncherToggle = false
 
     var body: some View {
         if showsHeader {
@@ -311,6 +312,7 @@ struct FeatureSwitchSection: View {
             Toggle("Show in launcher", isOn: $showsInLauncher)
                 // The switch above stays live so the feature can always be turned back on.
                 .settingsEnabled(isEnabled)
+                .notchcastHidden(hidesLauncherToggle)
         } header: {
             if showsHeader { SettingsSectionHeader(anchor) }
         }

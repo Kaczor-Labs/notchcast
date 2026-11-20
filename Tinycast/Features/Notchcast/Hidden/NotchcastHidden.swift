@@ -6,6 +6,8 @@ enum NotchcastHidden {
         .iCloudSync,
         .systemSettings,
         .navigation,
+        .quickActions,
+        .commands,
         .notes,
     ]
     /// The app speaks English only; `AppSettings.pinLanguage()` writes this at every launch.
@@ -21,6 +23,12 @@ enum NotchcastHidden {
         .calendar: [
             "Calendar in Menu Bar", "Show Upcoming Events", "Only show events with meetings",
             "Hide when there are no upcoming events", "Hide Current Event",
+            "Upcoming meetings in launcher",
+            "Auto Join Meetings",
+            "Only join known meeting services",
+            "Confirm before joining",
+            "Camera Preview",
+            "Calendar commands",
         ],
     ]
 
