@@ -30,12 +30,13 @@ final class SpotifyPlayerPage: IslandPlayerSource {
         if let url = track.artworkURL, url != cover?.url, url != loading?.url { load(url) }
     }
 
-    func perform(_ control: IslandPlayerControl) {
-        switch control {
-        case .previous: module?.previous()
-        case .playPause: module?.togglePlay()
-        case .next: module?.next()
-        case .refresh: module?.send(.getState)
+    func perform(_ action: IslandPlayerAction) {
+        switch action {
+        case .control(.previous): module?.previous()
+        case .control(.playPause): module?.togglePlay()
+        case .control(.next): module?.next()
+        case .control(.refresh): module?.send(.getState)
+        case .control(.like), .control(.volumeUp), .control(.volumeDown), .seek, .volume: break
         }
     }
 

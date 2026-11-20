@@ -63,12 +63,40 @@ struct IslandSongChange: Equatable, Sendable {
     mutating func cut() { shown = nil }
 }
 
-/// The player page's buttons; the raw value is the id its page sends back.
+/// The player page's buttons and keys; the raw value is the id its page sends back.
 enum IslandPlayerControl: String, Sendable {
     case previous = "player.previous"
     case playPause = "player.playPause"
     case next = "player.next"
+    case like = "player.like"
     case refresh = "refresh"
+    case volumeUp = "key.up"
+    case volumeDown = "key.down"
+}
+
+/// What the player page asks of its player: a control, or a seek or volume as a fraction.
+enum IslandPlayerAction: Equatable, Sendable {
+    case control(IslandPlayerControl)
+    case seek(Double)
+    case volume(Double)
+
+    /// Space and the arrows on the page are the transport (#850 D27).
+    init?(id: String) {
+        if let control = IslandPlayerControl(rawValue: id) {
+            self = .control(control)
+        } else if let fraction = IslandMedia.value(of: IslandMedia.seekAction, in: id) {
+            self = .seek(fraction)
+        } else if let fraction = IslandMedia.value(of: IslandMedia.volumeAction, in: id) {
+            self = .volume(fraction)
+        } else {
+            switch id {
+            case "key.space": self = .control(.playPause)
+            case "key.left": self = .control(.previous)
+            case "key.right": self = .control(.next)
+            default: return nil
+            }
+        }
+    }
 }
 
 /// The Player page (#975): artwork, title, artist, time and transport, and its Home line.
@@ -87,12 +115,25 @@ enum IslandPlayerPage {
                                     label: String(localized: "Previous Track"))
         let skip = IslandPageButton(id: IslandPlayerControl.next.rawValue, symbol: "forward.fill",
                                     label: String(localized: "Next Track"))
+        let like: IslandPageButton? = switch (playing.liked, playing.likePending) {
+        case (true?, _): IslandPageButton(id: IslandPlayerControl.like.rawValue, symbol: "heart.fill",
+                                          label: String(localized: "Remove from Liked Songs", table: "Notchcast"))
+        case (false?, _): IslandPageButton(id: IslandPlayerControl.like.rawValue, symbol: "heart",
+                                           label: String(localized: "Add to Liked Songs", table: "Notchcast"))
+        case (nil, true): IslandPageButton(id: IslandPlayerControl.like.rawValue, symbol: "heart",
+                                           label: String(localized: "Checking Liked Songs", table: "Notchcast"),
+                                           isEnabled: false)
+        case (nil, false): nil
+        }
+        let upNext = playing.upNext.map { IslandPageRow(title: $0.title, detail: $0.artist) }
         return IslandPage(
             id: id, title: String(localized: "Player", table: "Notchcast"), symbol: "music.note", order: order,
             line: IslandPageLine(symbol: "music.note", artwork: playing.artwork, text: playing.title,
                                  detail: playing.artist, buttons: [toggle, skip]),
             blocks: [.media(IslandMedia(artwork: playing.artwork, title: playing.title, subtitle: playing.artist,
-                                        time: playing.time, buttons: [back, toggle, skip]))])
+                                        time: playing.time, buttons: [back, toggle, skip], like: like,
+                                        seekable: playing.seekable, volume: playing.volume, upNext: upNext))],
+            takesKeys: true)
     }
 }
 
