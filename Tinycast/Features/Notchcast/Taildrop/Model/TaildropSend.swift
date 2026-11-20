@@ -21,6 +21,11 @@ nonisolated struct TaildropSystem: Sendable {
 
 nonisolated enum TaildropSend {
     static let zipTool = "/usr/bin/ditto"
+    /// The CLI inside the Tailscale app, which matches the running daemon, then Homebrew's.
+    static let cliPaths = [
+        "/Applications/Tailscale.app/Contents/MacOS/Tailscale",
+        "/opt/homebrew/bin/tailscale", "/usr/local/bin/tailscale",
+    ]
 
     /// The devices that can receive files now, never empty.
     static func targets(_ system: TaildropSystem) async throws -> [TaildropTarget] {
