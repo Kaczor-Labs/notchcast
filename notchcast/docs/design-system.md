@@ -28,7 +28,7 @@ The island has two looks, chosen per display (`IslandLook`, island-shell.md "Loo
 | --- | --- | --- |
 | The island shape, every form from rest to open (backdrop, launcher, palette screens) | Black: paint one opaque black surface. Frosted: one behind-window `NSVisualEffectView` (`.hudWindow`, `.behindWindow`, `.active`) in the backdrop window, masked to the engine outline every frame (`IslandFrost`), under the graphite tint the canvas fills the outline with. On a notch the glass hangs from the screen's top edge and the hardware is its black cutout. Under Reduce Transparency or Increase Contrast, Frosted drops the blur and paints solid. No second material on either look: no Liquid Glass (`frosted(in:)`, a non-`.identity` `.glassEffect`, `GlassEffectView`, a SwiftUI `Material`) and no `panelScrim` on the island. | Black `NotchTheme.Colors.islandSurface`; Frosted `islandGlassTint` (rgb 24 25 28 at 0.88), solid `islandGlassSolid` (#1c1d20) |
 | Island controls over the shape (`islandGlass`, `frosted(in:)`) | Black: the control paints `islandSurface`. Frosted: no fill of its own, so the glass shows (`@Environment(\.islandFrosted)`), and a 1 pt control edge (§2). | as above |
-| Island controls that float over scrolling content (`floatingFrosted(in:)`: the launcher footer capsule and the menu circle) | Black: as any island control. Frosted: the control gets its own within-window blur (`NSVisualEffectView` `.hudWindow`, `.withinWindow`, `.active`, masked to its shape) under `islandGlassTint` and the 1 pt control edge, so a row scrolling under it blurs instead of showing through; solid `islandGlassSolid` under Reduce Transparency or Increase Contrast. Every other control keeps the row above (#898). | Frosted `islandGlassTint`, solid `islandGlassSolid`, `controlEdge` |
+| Island controls that float over scrolling content (`floatingFrosted(in:)`: the launcher footer capsule and the menu circle) | Black: as any island control. Frosted: the control gets its own within-window blur (`NSVisualEffectView` `.hudWindow`, `.withinWindow`, `.active`, masked to its shape) under `islandGlassTint` and the 1 pt control edge, so a row scrolling under it blurs instead of showing through; solid `islandGlassSolid` under Reduce Transparency or Increase Contrast. Every other control keeps the row above. | Frosted `islandGlassTint`, solid `islandGlassSolid`, `controlEdge` |
 | HUD and dialog panels, and the level band in the report slot | Black: one opaque black surface. Frosted: no fill (`islandPanelFill`), so the backdrop's glass, which grows over them, shows. | `NotchTheme.Colors.islandPanelFill` |
 | AppKit-drawn ink (engine art, the level band, `FormTextInput`, `FormTextArea`, the AI transcript's text view) | `NSColor(token)` resolves no SwiftUI environment, so it is always Black's value. A representable resolves its tokens with `token.nsColor(in: context.environment)`; engine art takes `frosted` from its canvas's look (`token.islandInk(frosted:)`), so Frosted's inks and red reach AppKit too. | the §6 tokens |
 | Menu panel (`PopoverMenu`) | Black: one opaque black surface. Frosted: `islandMenuBacking`, a behind-window `.hudWindow` blur masked to the menu shape under the denser menu tint, with the island's 1 pt edge; solid `islandGlassSolid` under Reduce Transparency or Increase Contrast. | Black `islandSurface`; Frosted `NotchTheme.Frosted.menuTint` (rgb 38 39 43 at 0.92), `islandEdge` |
@@ -132,7 +132,7 @@ Reference: HIG Live Activities, "When separating a block of content, place it in
 | Element | Rule | Token |
 | --- | --- | --- |
 | Footer capsule (the action group: primary action, ⌘↵, Actions ⌘K) | `BarButton`s in a `Capsule()` padded `metrics.spacing.xs`, drawn on the island surface with no glass and no fill; each button follows §7. Bar height `metrics.size.bottomBarHeight` (44). | `NotchTheme.Colors.islandSurface`, `NotchTheme.Colors.keyCapFill` |
-| Menu circle (hidden, #882: the footer shows no left button; rules kept for upstream sync) | A `Circle()` of `metrics.size.menuButton` (36), no glass and no fill at rest, hover `Theme.Colors.rowHover`, pressed `NotchTheme.Colors.keyCapFill`; its glyph is an SF Symbol (§6). | `metrics.size.menuButton` |
+| Menu circle (hidden: the footer shows no left button; rules kept for upstream sync) | A `Circle()` of `metrics.size.menuButton` (36), no glass and no fill at rest, hover `Theme.Colors.rowHover`, pressed `NotchTheme.Colors.keyCapFill`; its glyph is an SF Symbol (§6). | `metrics.size.menuButton` |
 | Update pill in the footer | Same shape as the footer capsule (`metrics.size.menuButton` tall), no glass; the stage tint (`Theme.Colors.progress`, `success`, `destructive`) colours only its glyph, ring and label. | `Theme.Colors.progress`, `Theme.Colors.success`, `Theme.Colors.destructive` |
 
 Hook A11 (plus A1 for the update pill).
@@ -200,7 +200,7 @@ Reference: HIG Live Activities, "Focus on simple, direct actions."
 
 ## 14. Breaks today
 
-The island-black branch is fixing the first four, and #8 is closed; the rest are open. Counts are from §16.
+Each row is an open break; counts are from §16. A fixed break leaves the table.
 
 | # | Where | Breaks | Target |
 | --- | --- | --- | --- |
@@ -211,7 +211,6 @@ The island-black branch is fixing the first four, and #8 is closed; the rest are
 | 5 | `UpdatePill.swift:90` | §1, §9: tinted interactive `.glassEffect` | no glass, tint on glyph and label |
 | 6 | `ModalActionButtonStyle.swift:43`–`:47` | §7: neutral buttons fill `controlSurface` / `controlHover` / `controlPressed` | bare, `rowHover`, `keyCapFill` on the island |
 | 7 | `PopoverMenu.swift:129` | §3: menu radius 16 inside 18-point rows | `NotchTheme.Radius.islandMenu` |
-| 8 | `IslandNoticeArt.swift` | Closed: the failure glyph is `IslandNoticeArt.failureTone` and its dwell `IslandNotice.failureSeconds` (#732); on a notch the notice text expands below (§10) | done |
 | 9 | `UpdateCoordinator.swift:122` | §10: Try Again dialog shows `arrow.down.circle`, the notice `exclamationmark.arrow.circlepath` | one glyph per state |
 | 10 | `RootPaletteView.swift:1647`–`:1648`, `LauncherList.swift:321` | §6: hand-drawn menu-circle bars (14 and 8 × 1.5) and a 3 × 3 running dot | SF Symbol, or §15 tokens |
 | 11 | `VolumeHUDView.swift:39` | §1: `panelScrim` (hidden view, reached only by the volume scene) | island surface only |
@@ -226,12 +225,12 @@ The island-black branch is fixing the first four, and #8 is closed; the rest are
 | `NotchTheme.Radius.islandMenu` | 26 (`Theme.Radius.menuRow` 18 + `Theme.Spacing.md` 8) | §3 menu panel on the island | concentric with its rows; equals the island outline |
 | `NotchTheme.Size.menuGlyphBars` | 14 and 8 wide, 1.5 thick | §9 menu circle | only if the hand-drawn bars stay; an SF Symbol needs no token |
 | `NotchTheme.Size.runningDot` | 3 | §6 running-app dot in launcher rows | today a literal in `LauncherList` |
-| `NotchTheme.Size.islandLevelCell`, `islandLevelTrack` | 24 and 96 | §4 level art | defined (#756): `IslandLevelArt` reads them instead of the rest pill's height and width |
-| `Theme.Typography.indicatorGlyphSize` → `metrics.typography.indicatorGlyph` | 10 | §6 Quicklinks list indicator glyph (`QuicklinkListView`) | defined (#756) |
-| `Theme.Typography.removeGlyphSize` → `metrics.typography.removeGlyph` | 9, semibold | §6 composer chip remove glyph (`ChatComposerChips`) | defined (#756) |
-| `NotchTheme.Size.islandArtwork` | 64 (2 × `Theme.Size.resultRowIcon`) | §17 the Player page's cover | defined (#975): no media size existed; a row icon is too small to read a cover |
-| `NotchTheme.Size.islandMeterThin`, `islandMeterThick` | 3 and 6 | §17 a card meter's bar | defined (#1128): `volumeTrackHeight` is one height, and the deciding limit must read heavier |
-| `NotchTheme.Colors.islandWarning` | OBSIDIAN `Theme.yellow` `#fbbf24`, both looks | §17 a limit running out faster than its window passes | defined (#1128): the first warning ink on the island; `Frosted.warning` is a muted text ink, not a state |
+| `NotchTheme.Size.islandLevelCell`, `islandLevelTrack` | 24 and 96 | §4 level art | defined: `IslandLevelArt` reads them instead of the rest pill's height and width |
+| `Theme.Typography.indicatorGlyphSize` → `metrics.typography.indicatorGlyph` | 10 | §6 Quicklinks list indicator glyph (`QuicklinkListView`) | defined |
+| `Theme.Typography.removeGlyphSize` → `metrics.typography.removeGlyph` | 9, semibold | §6 composer chip remove glyph (`ChatComposerChips`) | defined |
+| `NotchTheme.Size.islandArtwork` | 64 (2 × `Theme.Size.resultRowIcon`) | §17 the Player page's cover | defined: no media size existed; a row icon is too small to read a cover |
+| `NotchTheme.Size.islandMeterThin`, `islandMeterThick` | 3 and 6 | §17 a card meter's bar | defined: `volumeTrackHeight` is one height, and the deciding limit must read heavier |
+| `NotchTheme.Colors.islandWarning` | OBSIDIAN `Theme.yellow` `#fbbf24`, both looks | §17 a limit running out faster than its window passes | defined: the first warning ink on the island; `Frosted.warning` is a muted text ink, not a state |
 
 The notch expanded form needs one token, `NotchTheme.Size.islandHeadlineMaxWidth` (320): its height is the rest outline plus one headline line, its width the text up to that cap, never narrower than the notch plus two `Theme.Radius.panel` (§10).
 
@@ -292,7 +291,7 @@ Deviations, numbered for review:
 1. The badge is a compact outline keycap, the existing count chip, rather than a new red dot: §6 keeps colour for status, and a count reads without colour.
 2. The cover is 64 points at interface scale 1 (`metrics.scaled`), a new token (§15), its radius concentric with the fixed outline (`Theme.Radius.panel` less two `metrics.spacing.md`), because no existing size fits a media cover.
 3. The tab bar shows titles beside glyphs on every page count up to five; past that it would need glyph-only tabs, which nothing posts yet.
-4. A page of cards has a fixed width, the launcher's 750 pt, so its slots never reflow as numbers change (#1128).
+4. A page of cards has a fixed width, the launcher's 750 pt, so its slots never reflow as numbers change.
 5. A page of cards stands taller than the launcher: the approved Agents board is about 507 pt with no notch and 539 pt below one, against the launcher's 475; nothing scrolls, and the host canvas below the notch caps it.
 6. Column and row titles keep the text they are given (sentence case, "Other"), not the approved board's capitals, which is sentence case throughout elsewhere on the island.
 7. Four across (the Other row, or four or more Macs), a meter's trailing text sits under its value, not beside it: "55% left in 2 d 15 h" needs about 165 pt against the card's 153, and no wording that says left fits one line.

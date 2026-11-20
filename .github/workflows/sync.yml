@@ -31,7 +31,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     # Also replays our commits here, on Linux: a conflict is reported (issue notchcast-sync) without a macOS runner.
-    # Reads the keeper's review of new upstream before any job runs upstream's tree: no review, no rebase (#871).
+    # Reads the keeper's review of new upstream before any job runs upstream's tree: no review, no rebase.
     # actions: read and statuses: write let it skip testing a main that a green PR build already tested (reuse_pr_build).
     permissions:
       contents: read

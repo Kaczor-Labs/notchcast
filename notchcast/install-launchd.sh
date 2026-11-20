@@ -7,7 +7,7 @@
 #   prune   notchcast.prune prunes merged branches on Sundays at 04:00 (notchcast/docs/branch-cleanup.md).
 #   queue   notchcast.queue runs queue.sh every 3 min: the one landing queue, on one Mac only (README).
 # Every mode first copies the committed notchcast/ of this checkout to the tooling copy the jobs run, and
-# then pins SIGN_SHA1 from that commit in private.env when absent. Rerun it to update the tooling (#872).
+# then pins SIGN_SHA1 from that commit in private.env when absent. Rerun it to update the tooling.
 # No agent runs the app: it starts at login through its own "Launch at login" setting (SMAppService).
 # Builds and releases run on GitHub Actions (.github/workflows/sync.yml), not on a Mac.
 set -euo pipefail
@@ -57,7 +57,7 @@ TOOLS="$HOME/Library/Application Support/notchcast/tools"
 JOBS="$HOME/Library/Application Support/notchcast/jobs"
 TOOLS_NEEDS='update.sh install-app.sh config.env kick.sh ci.py prune-branches.py'
 
-# Jobs run only this copy, made here from the checkout's HEAD; nothing refreshes it from origin (#872).
+# Jobs run only this copy, made here from the checkout's HEAD; nothing refreshes it from origin.
 install_tools() {
     [ -z "${TOOLS_INSTALLED:-}" ] || return 0
     local repo rev stage old f

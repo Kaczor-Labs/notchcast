@@ -1,6 +1,6 @@
 #!/bin/bash
 # A fresh worker copy (git worktree add, as the gate's brief makes it) merges two add-on branches that append to
-# every shared list with no conflict, using only the repo's files and the clone's core.hooksPath (#1110).
+# every shared list with no conflict, using only the repo's files and the clone's core.hooksPath.
 set -euo pipefail
 root=$(git rev-parse --show-toplevel)
 scratch=$(mktemp -d)
