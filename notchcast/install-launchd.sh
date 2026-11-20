@@ -1,10 +1,11 @@
 #!/bin/bash
-# Install Notchcast for this user. Usage: install-launchd.sh all|update|kick|prune [--auto-install]
+# Install Notchcast for this user. Usage: install-launchd.sh all|update|kick|prune|queue [--auto-install]
 #   all     first install: update.sh installs /Applications/Notchcast.app, migrate.sh copies the old Tinycast data once,
 #           the old Tinycast .app goes to the Trash (its data stays), then update and kick below are loaded.
 #   update  notchcast.update runs update.sh every 30 min (needs gh logged in).
 #   kick    notchcast.kick runs kick.sh every 10 min: starts the sync when upstream moved (needs gh).
 #   prune   notchcast.prune prunes merged branches on Sundays at 04:00 (notchcast/docs/branch-cleanup.md).
+#   queue   notchcast.queue runs queue.sh every 3 min: the one landing queue, on one Mac only (README).
 # Every mode first copies the committed notchcast/ of this checkout to the tooling copy the jobs run, and
 # then pins SIGN_SHA1 from that commit in private.env when absent. Rerun it to update the tooling (#872).
 # No agent runs the app: it starts at login through its own "Launch at login" setting (SMAppService).
@@ -20,7 +21,7 @@ UPDATE_ARG=""
 case "${2:-}" in
     --auto-install) UPDATE_ARG=--install ;;
     "") ;;
-    *) echo "usage: $0 all|update|kick|prune [--auto-install]" >&2; exit 2 ;;
+    *) echo "usage: $0 all|update|kick|prune|queue [--auto-install]" >&2; exit 2 ;;
 esac
 [ "$#" -le 2 ] || { echo "too many arguments" >&2; exit 2; }
 mkdir -p "$LOGS" "$HOME/Library/LaunchAgents"
@@ -173,6 +174,14 @@ install_prune() {
             --remote --local --log "$LOGS/pruned-branches.tsv" ${args[@]+"${args[@]}"})"
 }
 
+install_queue() {
+    agent notchcast.queue queue \
+        '<key>StartInterval</key><integer>180</integer>
+<key>ProcessType</key><string>Background</string>
+<key>EnvironmentVariables</key><dict><key>PATH</key><string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string></dict>' \
+        "$(named_job 'Notchcast landing queue' /bin/bash "$TOOLS/queue.sh" "$(main_checkout)")"
+}
+
 first_install() {
     /bin/bash "$HERE/update.sh" ${UPDATE_ARG:+"$UPDATE_ARG"}
     [ -d "$APP" ] || { echo "no $APP after update.sh; see its output" >&2; exit 1; }
@@ -187,12 +196,13 @@ first_install() {
 }
 
 case "${1:-}" in
-    all|update|kick|prune) install_tools; install_pin ;;
+    all|update|kick|prune|queue) install_tools; install_pin ;;
 esac
 case "${1:-}" in
     all) first_install; install_update; install_kick ;;
     update) install_update ;;
     kick) install_kick ;;
     prune) install_prune ;;
-    *) echo "usage: $0 all|update|kick|prune [--auto-install]" >&2; exit 2 ;;
+    queue) install_queue ;;
+    *) echo "usage: $0 all|update|kick|prune|queue [--auto-install]" >&2; exit 2 ;;
 esac

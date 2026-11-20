@@ -8,6 +8,11 @@ detach=
     || { echo 'usage: train.sh [--detach] <pr> <pr>... | [--detach] --queue' >&2; exit 2; }
 repeated=$(printf '%s\n' "$@" | sort | uniq -d | paste -sd' ' -)
 [ -z "$repeated" ] || { echo "REFUSED: PR named more than once: $repeated" >&2; exit 1; }
+[ ! -f "$HOME/.config/notchcast/private.env" ] || source "$HOME/.config/notchcast/private.env"
+source "$(dirname "$0")/hold.sh"
+land_lease
+# The detached run has no terminal, so a force would not reach it.
+[ -z "$detach" ] || [ -z "$land_forced" ] || { echo 'REFUSED: a forced train runs attached: drop --detach' >&2; exit 1; }
 if [ -n "$detach" ]; then
     log="$(cd "$(git rev-parse --git-common-dir)" && pwd)/train-$(date +%Y%m%d-%H%M%S)-$$.log"
     # A new session outlives the chat or terminal that started it; the log ends with "train: exit <status>".
@@ -227,9 +232,10 @@ ready_since() {
 }
 # The first LAND_BATCH_SIZE open PRs on main, oldest sign-off first. Signed off is ready, or a draft labelled land;
 # its build must be green on its head (a draft may have none: the train run is its build). A PR a batch already
-# found red alone waits for a new head.
+# found red alone waits for a new head. While the newest sign-off is younger than LAND_SETTLE_SECONDS it prints
+# only a "queue: waits" line, so PRs signed off close together ride one train.
 pick_batch() {
-    local pr draft head created verdict since
+    local pr draft head created verdict since newest age
     gh pr list -R "$FORK_REPO" --state open --base main -L 200 --json number,isDraft,labels,headRefOid,createdAt,comments \
         --jq '.[] | . as $pr | select((.isDraft | not) or any(.labels[]; .name == "land"))
             | select(any(.comments[]; .body | contains("in the landing batch at head " + $pr.headRefOid)) | not)
@@ -240,7 +246,13 @@ pick_batch() {
                 || { echo "queue: #$pr waits, build is $verdict on ${head:0:8}" >&2; continue; }
             since=$(ready_since "$pr")
             echo "${since:-$created} $pr"
-        done | sort | sed -n "1,${LAND_BATCH_SIZE}p" | cut -d' ' -f2 | paste -sd' ' -
+        done | sort > "$scratch/signed"
+    newest=$(tail -1 "$scratch/signed")
+    if [ -n "$newest" ]; then
+        age=$((${NOTCHCAST_NOW:-$(date +%s)} - $(jq -rn --arg at "${newest% *}" '$at | fromdateiso8601')))
+        [ "$age" -ge "$LAND_SETTLE_SECONDS" ] || { echo "queue: waits, #${newest#* } signed off $age s ago"; return 0; }
+    fi
+    sed -n "1,${LAND_BATCH_SIZE}p" "$scratch/signed" | cut -d' ' -f2 | paste -sd' ' -
 }
 # The one place a batch lands. A batch whose union needs no Mac (#1033's linux-ok) plugs its Linux landing in here.
 land_batch() { bash notchcast/land.sh --train-run "$@"; }
@@ -248,6 +260,7 @@ auto=
 if [ "$*" = --queue ]; then
     auto=1
     picked=$(pick_batch)
+    [[ "$picked" != 'queue: waits'* ]] || { echo "$picked"; exit 0; }
     [ -n "$picked" ] || { echo 'queue: no open PR on main is signed off and green on its head'; exit 0; }
     echo "queue: batch $picked"
     set -- $picked
