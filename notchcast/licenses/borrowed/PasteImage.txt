@@ -1,0 +1,4 @@
+PasteImage: Model/PasteImagePolicy.swift ← vorssaint/vorssaint-utils@faada18d/Sources/Vorssaint/Services/Finder/FinderPasteImageSupport.swift (GPL-3.0-or-later)
+PasteImage: Model/PasteImagePolicy.swift ← vorssaint/vorssaint-utils@faada18d/Sources/Vorssaint/Services/Finder/FinderCutPaste.swift (GPL-3.0-or-later)
+PasteImage: Model/PasteImageSaver.swift ← vorssaint/vorssaint-utils@faada18d/Sources/Vorssaint/Services/Finder/FinderCutPaste.swift (GPL-3.0-or-later)
+PasteImage: Service/PasteImageSystem+Live.swift ← vorssaint/vorssaint-utils@faada18d/Sources/Vorssaint/Services/Finder/FinderCutPaste.swift (GPL-3.0-or-later)

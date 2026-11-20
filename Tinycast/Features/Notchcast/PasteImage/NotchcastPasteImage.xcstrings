@@ -1,9 +1,13 @@
 {
   "sourceLanguage" : "en",
   "strings" : {
-    "Cannot paste image here." : {},
-    "Choose a writable Finder folder and allow Automation access in System Settings." : {},
+    "Allow Automation access for Finder." : {},
+    "Finder did not answer." : {},
+    "Open a folder to paste the image." : {},
     "Paste images as files in Finder" : {},
+    "The copied image could not be read." : {},
+    "The copied image is too large." : {},
+    "The image could not be saved here." : {},
     "⌘V in a Finder window saves a copied image there as a PNG file." : {}
   },
   "version" : "1.0"

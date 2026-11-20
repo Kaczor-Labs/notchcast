@@ -81,6 +81,7 @@ stack() {
     pr_title=$(jq -r '.title // ""' <<< "$metadata")
     pr_body=$(jq -r '.body // ""' <<< "$metadata")
     git -C "$top" fetch -q origin "refs/pull/$2/head"
+    git -C "$top" rev-parse FETCH_HEAD > "$scratch/head-$2"  # the head it merges is the one the bench record must name
     echo "train: #$2 ${head:0:8} onto ${1:0:8}" >&2
     # The merge runs even for an unlabelled draft, so one pass names every reason a PR would be dropped for.
     set +e
@@ -143,26 +144,16 @@ tell_drops() {
     done < "$scratch/drops"
 }
 notify() {
-    [ ! -f "$HOME/.config/notchcast/private.env" ] || source "$HOME/.config/notchcast/private.env"
     ! declare -F notchcast_notify >/dev/null || printf 'Notchcast: %s\n' "$1" | notchcast_notify || echo 'WARN: notify failed' >&2
 }
-# PR $1 waits for an isolated runner, for reason $2: a comment the first time at its head, and after an hour a
-# second one and a notify line, so a runner that never comes online is not only in the queue's log.
+# PR $1 is held for reason $2: one comment and one notify line per head and reason, never one per tick.
 tell_wait() {
-    local pr=$1 head comments first note late age
-    head=$(< "$scratch/head-$pr")
-    note="Waits for an isolated runner at its head $head: $2. The queue tries it again each tick."
-    late="Still waits for an isolated runner at its head $head after an hour: is a runner labelled NOTCHCAST_MAC_RUNNER online?"
-    comments=$(gh pr view "$pr" -R "$FORK_REPO" --json comments) || { echo "WARN: could not read the comments of #$pr" >&2; return 0; }
-    first=$(jq -r --arg note "$note" '[.comments[] | select(.body == $note)][0].createdAt // empty' <<< "$comments")
-    if [ -z "$first" ]; then
-        gh pr comment "$pr" -R "$FORK_REPO" --body "$note" >/dev/null || echo "WARN: could not comment on #$pr" >&2
-        return 0
-    fi
-    age=$((${NOTCHCAST_NOW:-$(date +%s)} - $(jq -rn --arg at "$first" '$at | fromdateiso8601')))
-    [ "$age" -ge 3600 ] && ! jq -e --arg late "$late" 'any(.comments[]; .body == $late)' <<< "$comments" >/dev/null || return 0
-    gh pr comment "$pr" -R "$FORK_REPO" --body "$late" >/dev/null || echo "WARN: could not comment on #$pr" >&2
-    notify "#$pr: $late"
+    local pr=$1 note
+    note="Held out of the landing batch at its head $(< "$scratch/head-$pr"): #$pr $2. The queue tries it again each tick."
+    gh pr view "$pr" -R "$FORK_REPO" --json comments | jq -e --arg note "$note" 'any(.comments[]; .body == $note)' >/dev/null && return 0
+    # No comment, no notify: the comment is what marks it told, so a failed one is tried again next tick.
+    gh pr comment "$pr" -R "$FORK_REPO" --body "$note" >/dev/null || { echo "WARN: could not comment on #$pr" >&2; return 0; }
+    notify "$note"
 }
 # Every one must finish green on the train's tip; all but Design take the train's base, as a PR run has it.
 workflows='pr.yml proof.yml design.yml leaks.yml'
@@ -179,19 +170,18 @@ fi
 # HOSTED_ONLY_TESTS of the tree in the current directory, every line that sets it.
 hosted_only_list() { sed -n 's/^HOSTED_ONLY_TESTS="\(.*\)"$/\1/p' notchcast/config.env | paste -sd' ' -; }
 # Before the push, for the train just built ($tip on $base, its merges in $scratch/merges): refuses one whose run
-# land.sh could not find, and sets runner, where its Mac jobs go: hosted when only a hosted run proves it, isolated
-# when it selects an isolated-only harness. With the Mac jobs hosted, a PR that selects one is refused, or under
-# --queue left out: waits names those PRs.
+# land.sh could not find, and sets runner, where its Mac jobs go: hosted when only a hosted run proves it. Under
+# --queue a PR that selects a bench-only harness with no bench check at its head is left out: waits names those PRs.
 preflight() {
-    local main_key tip_key commit pr changers='' hosted_only hosted_list isolated_list isolated_only reason
+    local main_key tip_key commit pr changers='' hosted_only hosted_list bench_list bench reason
     tree_at "$base"
     main_key=$(python3 notchcast/ci.py tested-key "$tip")
     hosted_list=$(hosted_only_list)
-    isolated_list=$(isolated_only_list)
+    bench_list=$(bench_only_list)
     tree_at "$tip"
     tip_key=$(python3 notchcast/ci.py tested-key HEAD)
     hosted_list="$hosted_list $(hosted_only_list)"
-    isolated_list="$isolated_list $(isolated_only_list)"
+    bench_list="$bench_list $(bench_only_list)"
     if [ "$main_key" != "$tip_key" ]; then
         while read -r pr commit; do
             git diff --quiet "$commit^1" "$commit" -- notchcast/ci.py || changers="$changers${changers:+ }#$pr"
@@ -209,23 +199,19 @@ preflight() {
     fi
     while read -r pr commit; do cat "$scratch/selected-$pr"; done < "$scratch/merges" > "$scratch/selected"
     cd "$top"
-    if [ "$mac" != isolated ]; then
-        while read -r pr commit; do
-            isolated_only=$(listed_in "$isolated_list" "$scratch/selected-$pr")
-            [ -n "$isolated_only" ] || continue
-            reason="#$pr selects $isolated_only, which only an isolated runner can run, and this train's Mac jobs are hosted"
-            [ -n "$auto" ] || refuse "$reason: train it while a runner labelled NOTCHCAST_MAC_RUNNER is online"
-            echo "WAITS #$pr: $reason; the queue tries it again next tick"
-            tell_wait "$pr" "$reason"
-            waits="$waits${waits:+ }$pr"
-        done < "$scratch/merges"
-        return 0
-    fi
-    isolated_only=$(listed_in "$isolated_list" "$scratch/selected")
-    if [ -n "$isolated_only" ]; then
-        echo "train: it selects $isolated_only, which only an isolated runner can run, so its Mac jobs stay there"
-        return 0
-    fi
+    while read -r pr commit; do
+        bench=$(listed_in "$bench_list" "$scratch/selected-$pr")
+        [ -z "$bench" ] || reason=$(bench_wanted "$pr" "$(< "$scratch/head-$pr")" "$bench")
+        [ -n "$bench" ] && [ -n "$reason" ] || continue
+        if [ -z "$auto" ]; then
+            echo "train: #$pr $reason, before land.sh lands it"
+            continue
+        fi
+        echo "WAITS #$pr: $reason; the queue tries it again next tick"
+        tell_wait "$pr" "$reason"
+        waits="$waits${waits:+ }$pr"
+    done < "$scratch/merges"
+    [ "$mac" = isolated ] || return 0
     hosted_only=$(listed_in "$hosted_list" "$scratch/selected")
     [ -n "$hosted_only" ] || return 0
     runner=hosted

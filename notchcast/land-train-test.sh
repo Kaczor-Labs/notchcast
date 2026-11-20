@@ -27,7 +27,7 @@ case "$*" in
         jq '.baseRefName = "main"' "$FIXTURE/pr-$3.json" > "$FIXTURE/pr.json" && mv "$FIXTURE/pr.json" "$FIXTURE/pr-$3.json" ;;
     'pr comment '*)
         echo "$3 ${*: -1}" >> "$FIXTURE/comments"
-        jq --arg body "${*: -1}" --argjson at "${NOTCHCAST_NOW:-0}" '.comments += [{body: $body, createdAt: ($at | todate)}]' "$FIXTURE/pr-$3.json" > "$FIXTURE/pr.json" && mv "$FIXTURE/pr.json" "$FIXTURE/pr-$3.json" ;;
+        jq --arg body "${*: -1}" '.comments += [{body: $body}]' "$FIXTURE/pr-$3.json" > "$FIXTURE/pr.json" && mv "$FIXTURE/pr.json" "$FIXTURE/pr-$3.json" ;;
     *issues/*/timeline*)
         pr=${2#*issues/}
         cat "$FIXTURE/ready-${pr%%/*}" 2>/dev/null || true ;;
@@ -100,7 +100,7 @@ for name in check-drift.py check-drift-test.py; do
     printf '#!/usr/bin/env python3\n' > "$seed/notchcast/$name"
 done
 # The fixture's own hosted-runner skip, so it never depends on the real list.
-# form-input-test is in both lists, as FormInputTests is: only an isolated runner runs it.
+# form-input-test is in both lists, as FormInputTests is: it passes in no VM, so a bench check proves it.
 echo 'CI_SKIP_TESTS="clipboard-text-test form-input-test"' >> "$seed/notchcast/config.env"
 echo 'HOSTED_ONLY_TESTS="hosted-test form-input-test"' >> "$seed/notchcast/config.env"
 echo 'LINUX_OK_TESTS="notchcast-core-test hosted-test"' >> "$seed/notchcast/config.env"
@@ -819,53 +819,38 @@ queue
     || queue_fail 'the green batch did not close exactly its PRs and delete its branch'
 echo 'PASS: --queue stacks the oldest signed-off green PRs up to the batch size, runs them once and lands one commit per PR'
 
-# Proven by no run: a harness in both lists runs only on an isolated runner, so nothing else may stand in for it.
-isolated_only='form-input-test proven by no run: only an isolated runner can run them (train on NOTCHCAST_MAC_RUNNER)'
-fixture
-open_pr 1 pr-f 'Add F' src/form-input.txt src/hosted.txt
-for platform in Darwin Linux; do
-    NOTCHCAST_PLATFORM=$platform TESTED=1 land 1
-    [ "$status" -eq 3 ] && grep -qxF "REFUSED: $isolated_only" "$FIXTURE/output" && ! grep -q -e SKIPPED -e ROUTED "$FIXTURE/output" \
-        && untouched && [ ! -s "$PASSES" ] || fail "on $platform a hosted run of the tree landed an isolated-only harness"
-done
-for tested in '' 1; do
-    TESTED=$tested ISOLATED='fixture toolchain|form-input-test' land 1
-    [ "$status" -eq 3 ] && grep -qxF "REFUSED: $isolated_only" "$FIXTURE/output" && untouched \
-        || fail "an isolated run that excused the isolated-only harness landed it (hosted record: ${tested:-none})"
-done
-echo 'PASS: a hosted run, or an isolated run that excused it, leaves an isolated-only harness proven by no run, and land.sh refuses'
-TESTED=1 ISOLATED='fixture toolchain|' land 1
-[ "$status" -eq 0 ] && [ ! -s "$PASSES" ] && [ "$(landed)" = 'Notchcast: Add F (#1)' ] \
-    && grep -q '^harnesses: the isolated run https://fixture.invalid/runs/8 of this tree ran what the hosted run skipped but none$' "$FIXTURE/output" \
-    || fail "with a hosted and an isolated run of the tree the isolated-only PR landed '$(landed)'"
-echo 'PASS: beside a hosted run of the same tree, an isolated run that ran the isolated-only harness lands it'
-fixture
-open_pr 1 pr-f 'Add F' src/form-input.txt src/hosted.txt
-ISOLATED='fixture toolchain|' land 1
-[ "$status" -eq 0 ] && [ ! -s "$PASSES" ] && [ "$(landed)" = 'Notchcast: Add F (#1)' ] || fail "an isolated run of the tree landed '$(landed)'"
-echo 'PASS: an isolated run that ran the isolated-only harness lands it'
-fixture
-open_pr 1 pr-f 'Add F' src/form-input.txt src/hosted.txt
-MAC_RUNNER=fixture-mac train 1
-[ "$status" -eq 0 ] && [ "$(grep -c '^workflow run ' "$FIXTURE/dispatched")" -eq 4 ] && ! grep -q 'hosted=true' "$FIXTURE/dispatched" \
-    && grep -q '^train: it selects form-input-test, which only an isolated runner can run, so its Mac jobs stay there$' "$FIXTURE/train-output" \
-    && grep -q '^train: train/1 has its Mac jobs on the isolated runner$' "$FIXTURE/train-output" \
-    || queue_fail 'a train that selects an isolated-only harness was sent hosted'
-echo 'PASS: a train that selects an isolated-only harness keeps its Mac jobs on the isolated runner, hosted-only harnesses beside it'
-# hand_refused <name> <case>: every way a hand train's Mac jobs end up hosted refuses PR #1, naming <name>, before its push.
-hand_refused() {
-    local offline
-    for offline in 'OFFLINE=1 MAC_RUNNER=fixture-mac' 'NOTCHCAST_TRAIN_MAC=hosted MAC_RUNNER=fixture-mac' 'NOTHING=1'; do
-        env $offline NOTCHCAST_TRAIN_POLL=0 bash notchcast/train.sh 1 > "$FIXTURE/train-output" 2>&1 && status=0 || status=$?
-        [ "$status" -eq 1 ] && grep -qxF "REFUSED: #1 selects $1, which only an isolated runner can run, and this train's Mac jobs are hosted: train it while a runner labelled NOTCHCAST_MAC_RUNNER is online" "$FIXTURE/train-output" \
-            && [ ! -e "$FIXTURE/dispatched" ] && [ -z "$(origin for-each-ref refs/heads/train/)" ] \
-            || queue_fail "with $offline a hand train of $2 was not refused before its push"
-    done
+# Bench-only: a harness in both lists passes in no VM, so only a maintainer's bench-ok comment at the head proves it.
+head_of() { jq -r .headRefOid "$FIXTURE/pr-$1.json"; }
+wanted() { echo "needs a bench check of $1 on the MBP's real screen: comment \`bench-ok $1 $2\`"; }
+# comment <pr> <body> [<association>]; bench_ok <pr> <sha> [<association>]: a first line recording a bench check at <sha>.
+comment() {
+    jq --arg body "$2" --arg as "${3:-OWNER}" '.comments += [{body: $body, authorAssociation: $as}]' "$FIXTURE/pr-$1.json" > "$FIXTURE/pr.json" \
+        && mv "$FIXTURE/pr.json" "$FIXTURE/pr-$1.json"
 }
+bench_ok() { comment "$1" "$(printf 'bench-ok form-input-test %s\nChecked on the MBP.' "$2")" "${3:-}"; }
 fixture
-open_pr 1 pr-f 'Add F' src/form-input.txt
-hand_refused form-input-test 'an isolated-only harness'
-echo 'PASS: a hand train that selects an isolated-only harness is refused before its push while its Mac jobs would be hosted'
+open_pr 1 pr-f 'Add F' src/form-input.txt src/hosted.txt
+bench_ok 1 "$(head_of 1)" NONE
+bench_ok 1 "$(git rev-parse "$base")"
+comment 1 "$(printf 'Quoting the hold note:\nbench-ok form-input-test %s' "$(head_of 1)")"
+comment 1 "bench-ok form-input-test $(head_of 1) after a look"
+for platform in Darwin Linux; do
+    NOTCHCAST_PLATFORM=$platform TESTED=1 ISOLATED='fixture toolchain|' land 1
+    [ "$status" -eq 1 ] && grep -qxF "REFUSED: #1 $(wanted form-input-test "$(head_of 1)")" "$FIXTURE/output" \
+        && ! grep -q -e SKIPPED -e ROUTED "$FIXTURE/output" && untouched && [ ! -s "$PASSES" ] \
+        || fail "on $platform land.sh took an isolated run, an outsider's, an old head's or a non-first-line record for a bench check"
+done
+echo 'PASS: land.sh refuses a bench-only harness with no maintainer bench-ok at the head, whatever runs tested the tree'
+for platform in Darwin Linux; do
+    fixture
+    open_pr 1 pr-f 'Add F' src/form-input.txt src/hosted.txt
+    bench_ok 1 "$(head_of 1)"
+    NOTCHCAST_PLATFORM=$platform TESTED=1 land 1
+    [ "$status" -eq 0 ] && [ ! -s "$PASSES" ] && [ "$(landed)" = 'Notchcast: Add F (#1)' ] && ! grep -q -e SKIPPED -e ROUTED "$FIXTURE/output" \
+        && grep -qxF 'harnesses: a bench check on the MBP'"'"'s real screen proved form-input-test at each head that selects it' "$FIXTURE/output" \
+        || fail "on $platform a bench-ok at the head landed '$(landed)'"
+done
+echo 'PASS: a bench-ok at the head lands it on a hosted run of the tree, on a Mac and on Linux'
 # list_change <title> <line> <path>...: PR #1 appends <line> to config.env (the last line sets a list) and writes each path.
 list_change() {
     local title=$1 line=$2
@@ -879,13 +864,12 @@ list_change() {
     jq -n --arg head "$(git rev-parse HEAD)" --arg title "$title" '{number: 1, createdAt: "2026-01-01T00:00:00Z", comments: [], state: "OPEN", isDraft: false, headRefOid: $head, headRefName: "pr-l", baseRefName: "main", isCrossRepository: false, title: $title, body: "Drift tooling: fixture changes a harness list", labels: []}' > "$FIXTURE/pr-1.json"
     git switch --quiet main
 }
-# Main's lists: a PR that takes the harness out of one list at its tip still selects one main runs only isolated.
+# Main's lists: a PR that takes the harness out of one list at its tip still selects one bench-only on main.
 fixture
 list_change 'Add F' 'CI_SKIP_TESTS="clipboard-text-test"' src/form-input.txt
-hand_refused form-input-test "a harness isolated-only on main but not at the PR's tip"
 TESTED=1 land 1
-[ "$status" -eq 3 ] && grep -qxF "REFUSED: $isolated_only" "$FIXTURE/output" && untouched || fail "a harness isolated-only on main landed on a hosted run"
-echo "PASS: a harness isolated-only on main stays so for train.sh and land.sh though the PR takes it out of a list"
+[ "$status" -eq 1 ] && grep -qxF "REFUSED: #1 $(wanted form-input-test "$(head_of 1)")" "$FIXTURE/output" && untouched \
+    || fail 'a harness bench-only on main landed with no bench check'
 # The PR's lists: a new harness it puts in both lists had its own hosted run skip it.
 fixture
 list_change 'Add X' 'CI_SKIP_TESTS="clipboard-text-test form-input-test x-test"' src/x.txt Tests/x-test.swift
@@ -895,65 +879,70 @@ git commit --quiet -am 'Add X hosted-only'
 git push --quiet origin pr-l pr-l:refs/pull/1/head
 jq --arg head "$(git rev-parse HEAD)" '.headRefOid = $head' "$FIXTURE/pr-1.json" > "$FIXTURE/pr.json" && mv "$FIXTURE/pr.json" "$FIXTURE/pr-1.json"
 git switch --quiet main
-hand_refused x-test 'a harness the PR makes isolated-only'
 TESTED=1 land 1
-[ "$status" -eq 3 ] && grep -qxF 'REFUSED: x-test proven by no run: only an isolated runner can run them (train on NOTCHCAST_MAC_RUNNER)' "$FIXTURE/output" && untouched \
-    || fail 'a harness the PR makes isolated-only landed on a hosted run'
-echo "PASS: a harness the PR itself puts in both lists is isolated-only for train.sh and land.sh"
+[ "$status" -eq 1 ] && grep -qxF "REFUSED: #1 $(wanted x-test "$(head_of 1)")" "$FIXTURE/output" && untouched \
+    || fail 'a harness the PR makes bench-only landed with no bench check'
+echo "PASS: land.sh takes the bench-only set from main's lists and the PR's"
+# A hand train is not refused: it runs, says what land.sh will want, and goes hosted though a runner is online.
+fixture
+open_pr 1 pr-f 'Add F' src/form-input.txt
+MAC_RUNNER=fixture-mac train 1
+[ "$status" -eq 0 ] && grep -qxF "train: #1 $(wanted form-input-test "$(head_of 1)"), before land.sh lands it" "$FIXTURE/train-output" \
+    && [ "$(grep -c 'hosted=true' "$FIXTURE/dispatched")" -eq 2 ] && [ ! -e "$FIXTURE/comments" ] \
+    || queue_fail 'a hand train of a bench-only PR was refused, kept isolated or commented on'
+echo 'PASS: a hand train of a bench-only PR runs hosted and names the bench check land.sh will want'
+# A missing bench check is no refusal for good: a bench-ok at the same head can still land it, so exit 1, not 3.
+echo "$train_sha" > "$FIXTURE/green"
+TESTED=1 land --train-run "$train_sha" 1
+[ "$status" -eq 1 ] && grep -qxF "REFUSED: #1 $(wanted form-input-test "$(head_of 1)")" "$FIXTURE/output" && untouched \
+    || fail "a train run with no bench check exited $status, not 1"
+echo 'PASS: a train run with no bench check at the head is refused with exit 1, which the queue retries, never 3'
+# (a) held with one comment and one notify line over two ticks; (b) lands once bench-ok names its head; (c) a push voids it.
 fixture
 open_pr 1 pr-f 'Add F' src/form-input.txt
 open_pr 2 pr-b 'Add B' src/b.txt
-OFFLINE=1 MAC_RUNNER=fixture-mac queue
-[ "$status" -eq 0 ] && grep -q '^queue: batch 1 2$' "$FIXTURE/train-output" && grep -q '^LANDED #2$' "$FIXTURE/train-output" \
-    && grep -qxF "WAITS #1: #1 selects form-input-test, which only an isolated runner can run, and this train's Mac jobs are hosted; the queue tries it again next tick" "$FIXTURE/train-output" \
-    || queue_fail 'with no isolated runner online the queue did not leave out the isolated-only PR and land the rest'
-[ "$(landed)" = 'Notchcast: Add B (#2)' ] && [ "$(grep -c -- '--ref train/2\( \|$\)' "$FIXTURE/dispatched")" -eq 4 ] && [ "$(wc -l < "$FIXTURE/dispatched")" -eq 4 ] \
-    && [ "$(cut -d' ' -f1 "$FIXTURE/closed")" = 2 ] || queue_fail "the queue landed '$(landed)' around the waiting PR"
-tick=$(origin rev-parse main)
-rm "$FIXTURE/dispatched"
-OFFLINE=1 MAC_RUNNER=fixture-mac queue
-[ "$status" -eq 0 ] && grep -q '^WAITS #1: ' "$FIXTURE/train-output" && [ ! -e "$FIXTURE/dispatched" ] && [ "$(origin rev-parse main)" = "$tick" ] \
-    || queue_fail 'a tick with no isolated runner online built a train for the waiting PR'
-ISOLATED='fixture toolchain|' MAC_RUNNER=fixture-mac queue
-[ "$status" -eq 0 ] && grep -q '^LANDED #1$' "$FIXTURE/train-output" && ! grep -q -e WAITS -e 'hosted=true' "$FIXTURE/train-output" "$FIXTURE/dispatched" \
-    && [ "$(landed)" = 'Notchcast: Add B (#2)|Notchcast: Add F (#1)' ] || queue_fail "once the isolated runner was online the queue landed '$(landed)'"
-echo 'PASS: --queue leaves an isolated-only PR out with a WAITS line while no isolated runner is online, lands the rest, and lands it on the isolated runner later'
-# #2 conflicts only with the waiting #1; the wait is told on #1 once per head, and again with a notify line after an hour.
-fixture
-open_pr 1 pr-f 'Add F' src/form-input.txt src/shared.txt
-open_pr 2 pr-two 'Add two' src/shared.txt
 mkdir -p "$HOME/.config/notchcast"
 echo 'notchcast_notify() { cat >> "$FIXTURE/notified"; }' > "$HOME/.config/notchcast/private.env"
-now=1769904000  # 2026-02-01T00:00:00Z, after every fixture sign-off
-wait_note="1 Waits for an isolated runner at its head $(jq -r .headRefOid "$FIXTURE/pr-1.json"): #1 selects form-input-test, which only an isolated runner can run, and this train's Mac jobs are hosted. The queue tries it again each tick."
-NOTCHCAST_NOW=$now OFFLINE=1 MAC_RUNNER=fixture-mac queue
-[ "$status" -eq 0 ] && grep -q '^LANDED #2$' "$FIXTURE/train-output" && ! grep -q DROPPED "$FIXTURE/train-output" && [ "$(landed)" = 'Notchcast: Add two (#2)' ] \
-    && [ "$(cat "$FIXTURE/comments")" = "$wait_note" ] || queue_fail "beside a waiting PR its conflicting one landed '$(landed)' with comments '$(cat "$FIXTURE/comments" 2>/dev/null)'"
-echo 'PASS: a PR that conflicts only with a waiting one is not dropped or told, and lands'
-# #1 conflicts with main now, so the hour runs on a fresh fixture.
-fixture
-open_pr 1 pr-f 'Add F' src/form-input.txt src/shared.txt
-wait_note="1 Waits for an isolated runner at its head $(jq -r .headRefOid "$FIXTURE/pr-1.json"): #1 selects form-input-test, which only an isolated runner can run, and this train's Mac jobs are hosted. The queue tries it again each tick."
-NOTCHCAST_NOW=$now OFFLINE=1 MAC_RUNNER=fixture-mac queue
-NOTCHCAST_NOW=$((now + 3599)) OFFLINE=1 MAC_RUNNER=fixture-mac queue
-[ "$status" -eq 0 ] && grep -q '^WAITS #1: ' "$FIXTURE/train-output" && [ "$(cat "$FIXTURE/comments")" = "$wait_note" ] && [ ! -e "$FIXTURE/notified" ] \
-    || queue_fail "a second tick within the hour commented '$(cat "$FIXTURE/comments")'"
-late="1 Still waits for an isolated runner at its head $(jq -r .headRefOid "$FIXTURE/pr-1.json") after an hour: is a runner labelled NOTCHCAST_MAC_RUNNER online?"
-for tick in 3600 7200; do
-    NOTCHCAST_NOW=$((now + tick)) OFFLINE=1 MAC_RUNNER=fixture-mac queue
-    [ "$status" -eq 0 ] && [ "$(cat "$FIXTURE/comments")" = "$(printf '%s\n%s' "$wait_note" "$late")" ] \
-        && [ "$(cat "$FIXTURE/notified")" = "Notchcast: #1: ${late#1 }" ] || queue_fail "after $tick s of waiting the PR got '$(cat "$FIXTURE/comments")' and '$(cat "$FIXTURE/notified" 2>/dev/null)'"
-done
+held() { echo "Held out of the landing batch at its head $1: #1 $(wanted form-input-test "$1"). The queue tries it again each tick."; }
+note=$(held "$(head_of 1)")
+MAC_RUNNER=fixture-mac queue
+[ "$status" -eq 0 ] && grep -q '^queue: batch 1 2$' "$FIXTURE/train-output" && grep -q '^LANDED #2$' "$FIXTURE/train-output" \
+    && grep -qxF "WAITS #1: $(wanted form-input-test "$(head_of 1)"); the queue tries it again next tick" "$FIXTURE/train-output" \
+    && [ "$(landed)" = 'Notchcast: Add B (#2)' ] || queue_fail "with no bench check the queue landed '$(landed)'"
+tick=$(origin rev-parse main)
+rm "$FIXTURE/dispatched"
+MAC_RUNNER=fixture-mac queue
+[ "$status" -eq 0 ] && grep -q '^WAITS #1: ' "$FIXTURE/train-output" && [ ! -e "$FIXTURE/dispatched" ] && [ "$(origin rev-parse main)" = "$tick" ] \
+    && [ "$(cat "$FIXTURE/comments")" = "1 $note" ] && [ "$(cat "$FIXTURE/notified")" = "Notchcast: $note" ] \
+    || queue_fail "over two ticks the held PR got '$(cat "$FIXTURE/comments")' and '$(cat "$FIXTURE/notified" 2>/dev/null)'"
+echo 'PASS: (a) --queue holds a bench-only PR with no bench-ok, lands the rest, and tells it once over two ticks'
+old=$(head_of 1)
+git switch --quiet pr-f
+echo again > src/form-input.txt
+git commit --quiet -am 'Fix F'
+git push --quiet origin pr-f pr-f:refs/pull/1/head
+jq --arg head "$(git rev-parse HEAD)" '.headRefOid = $head' "$FIXTURE/pr-1.json" > "$FIXTURE/pr.json" && mv "$FIXTURE/pr.json" "$FIXTURE/pr-1.json"
+git switch --quiet main
+bench_ok 1 "$old"
+MAC_RUNNER=fixture-mac queue
+[ "$status" -eq 0 ] && grep -qxF "WAITS #1: $(wanted form-input-test "$(head_of 1)"); the queue tries it again next tick" "$FIXTURE/train-output" \
+    && [ "$(origin rev-parse main)" = "$tick" ] && [ "$(tail -1 "$FIXTURE/comments")" = "1 $(held "$(head_of 1)")" ] \
+    && [ "$(wc -l < "$FIXTURE/notified")" -eq 2 ] || queue_fail 'a bench-ok for an old head let the PR through'
+echo 'PASS: (c) a bench-ok for an old head holds the PR again and tells it once at its new head'
+bench_ok 1 "$(head_of 1)"
+MAC_RUNNER=fixture-mac queue
+[ "$status" -eq 0 ] && grep -q '^LANDED #1$' "$FIXTURE/train-output" && ! grep -q WAITS "$FIXTURE/train-output" \
+    && [ "$(grep -c 'hosted=true' "$FIXTURE/dispatched")" -eq 2 ] && [ "$(landed)" = 'Notchcast: Add B (#2)|Notchcast: Add F (#1)' ] \
+    || queue_fail "with a bench-ok at its head the queue landed '$(landed)'"
 rm "$HOME/.config/notchcast/private.env"
-echo 'PASS: a waiting PR is told once per head, and once more with a notify line after an hour, never every tick'
-
+echo 'PASS: (b) with a bench-ok at its head the queue batches it hosted and lands it'
 # A green train land.sh refuses for good (exit 3) is recorded at its heads: the next tick leaves it out, and
 # only a new head brings it back. Here the isolated record has a toolchain landing does not expect.
 fixture
-open_pr 1 pr-f 'Add F' src/form-input.txt
+open_pr 1 pr-b 'Add B' src/b.txt
 mkdir -p "$HOME/.config/notchcast"
 echo 'notchcast_notify() { cat >> "$FIXTURE/notified"; }' > "$HOME/.config/notchcast/private.env"
-head1=$(jq -r .headRefOid "$FIXTURE/pr-1.json")
+head1=$(head_of 1)
 ISOLATED='other toolchain|' MAC_RUNNER=fixture-mac queue
 [ "$status" -eq 1 ] && grep -q '^REFUSED: the isolated run https://fixture.invalid/runs/8 tested this tree with .other toolchain.' "$FIXTURE/train-output" \
     && grep -qxF 'REFUSED FOR GOOD #1: its train branch train/1 stays; the queue leaves these PRs out until one has a new head' "$FIXTURE/train-output" \
@@ -969,67 +958,24 @@ for tick in 2 3; do
         || queue_fail "tick $tick of the same refused batch dispatched, commented or notified again"
 done
 echo 'PASS: a batch land.sh refuses for good is dispatched once, told once on the PR and once to notify, and left out at the same heads'
-git switch --quiet pr-f
-echo 'Add F again' > src/form-input.txt
-git commit --quiet -am 'Add F again'
-repush 1 pr-f
+git switch --quiet pr-b
+echo 'Add B again' > src/b.txt
+git commit --quiet -am 'Add B again'
+repush 1 pr-b
 ISOLATED='fixture toolchain|' MAC_RUNNER=fixture-mac queue
 [ "$status" -eq 0 ] && grep -q '^train: train/1 is left from an earlier run; scrapping it$' "$FIXTURE/train-output" && grep -q '^LANDED #1$' "$FIXTURE/train-output" \
-    && [ "$(wc -l < "$FIXTURE/dispatched")" -eq 8 ] && [ "$(landed)" = 'Notchcast: Add F (#1)' ] && [ ! -s .git/notchcast-refused ] \
+    && [ "$(wc -l < "$FIXTURE/dispatched")" -eq 8 ] && [ "$(landed)" = 'Notchcast: Add B (#1)' ] && [ ! -s .git/notchcast-refused ] \
     || queue_fail 'a new head on a refused PR did not clear its record and dispatch it again'
 rm "$HOME/.config/notchcast/private.env"
 echo 'PASS: a new head on a PR of a refused batch clears the record, and the next tick dispatches it again'
-
-# Both lists: the isolated run proved form-input-test but excused the hosted-only hosted-test, and a hosted train of
-# it is refused, so land.sh's advice must be a command that lands it. dispatch_inputs: pr.yml's dispatch inputs.
-dispatch_inputs=$(python3 -c 'import re, sys
-block = open(sys.argv[1]).read().split("workflow_dispatch:")[1].split("\npermissions:")[0]
-print(" ".join(re.findall(r"^      (\w+):", block, re.M)))' "$root/.github/workflows/pr.yml")
-[[ " $dispatch_inputs " == *' base '* && " $dispatch_inputs " == *' hosted '* ]] || fail "pr.yml dispatch inputs are '$dispatch_inputs'"
-# advised <file>: the command after "only a hosted run can: " in the REFUSED line, up to ", then".
-advised() { sed -n 's/^REFUSED: .*only a hosted run can: \(gh workflow run [^,]*\), then \(notchcast\/land\.sh [^,]*\), which takes it beside .*/\1|\2/p' "$1"; }
-# accepted <gh command>: a pr.yml dispatch whose --ref is $2 on origin and whose every -f is a pr.yml input.
-accepted() {
-    local word previous= ref=
-    for word in $1; do
-        [ "$previous" != --ref ] || ref=$word
-        [ "$previous" != -f ] || [[ " $dispatch_inputs " == *" ${word%%=*} "* ]] || return 1
-        previous=$word
-    done
-    [[ "$1" == "gh workflow run pr.yml -R $FORK_REPO "* && "$1" == *' -f hosted=true'* ]] && [ "$ref" = "$2" ] \
-        && [ -n "$(origin for-each-ref "refs/heads/$ref")" ]
-}
+# #2 conflicts only with the held #1: it lands, and only #1's hold is commented.
 fixture
-open_pr 1 pr-f 'Add F' src/form-input.txt src/hosted.txt
-MAC_RUNNER=fixture-mac train 1
-[ "$status" -eq 0 ] && [ -n "$train_sha" ] && grep -q '^train: train/1 has its Mac jobs on the isolated runner$' "$FIXTURE/train-output" \
-    || queue_fail 'the both-lists train did not run on the isolated runner'
-echo "$train_sha" > "$FIXTURE/green"
-ISOLATED='fixture toolchain|hosted-test' land --train-run "$train_sha" 1
-[ "$status" -eq 3 ] && untouched && ! grep -q 'notchcast/train\.sh' "$FIXTURE/output" || fail 'land.sh advised a train train.sh refuses, or did not exit 3'
-IFS='|' read -r command landing <<< "$(advised "$FIXTURE/output")"
-accepted "$command" train/1 && [[ "$command" == *" -f base=$base "* ]] && [ "$landing" = "notchcast/land.sh --train-run $train_sha 1" ] \
-    || fail "the advice was '$command' then '$landing'"
-rm "$FIXTURE/dispatched"
-$command > /dev/null && grep -qxF "${command#gh }" "$FIXTURE/dispatched" || fail "the gh stub did not take '$command'"
-TESTED=1 ISOLATED='fixture toolchain|hosted-test' land ${landing#notchcast/land.sh }
-[ "$status" -eq 0 ] && [ "$(landed)" = 'Notchcast: Add F (#1)' ] || fail "the advised landing landed '$(landed)'"
-echo 'PASS: land.sh advises a hosted PR run of the train branch beside the isolated record, and that run lands the train'
-fixture
-open_pr 1 pr-f 'Add F' src/form-input.txt src/hosted.txt
-ISOLATED='fixture toolchain|hosted-test' land 1
-[ "$status" -eq 3 ] && untouched || fail 'land.sh without a train run did not refuse for good'
-IFS='|' read -r command landing <<< "$(advised "$FIXTURE/output")"
-accepted "$command" pr-f && [ "$landing" = 'notchcast/land.sh 1' ] || fail "the advice was '$command' then '$landing'"
-TESTED=1 ISOLATED='fixture toolchain|hosted-test' land 1
-[ "$status" -eq 0 ] && [ "$(landed)" = 'Notchcast: Add F (#1)' ] || fail "the advised landing of one PR landed '$(landed)'"
-echo 'PASS: for one PR land.sh advises a hosted PR run of its branch, and that run lands it'
-fixture
-open_pr 1 pr-f 'Add F' src/form-input.txt
-ISOLATED='other toolchain|' land 1
-[ "$status" -eq 3 ] && grep -q 'and only an isolated runner can run form-input-test: bring the runner back to it' "$FIXTURE/output" \
-    && ! grep -q 'notchcast/train\.sh' "$FIXTURE/output" || fail 'a toolchain refusal of an isolated-only harness advised a hosted train'
-echo 'PASS: a toolchain refusal of an isolated-only harness advises no hosted train, which train.sh would refuse'
+open_pr 1 pr-f 'Add F' src/form-input.txt src/shared.txt
+open_pr 2 pr-two 'Add two' src/shared.txt
+queue
+[ "$status" -eq 0 ] && grep -q '^LANDED #2$' "$FIXTURE/train-output" && ! grep -q DROPPED "$FIXTURE/train-output" && [ "$(landed)" = 'Notchcast: Add two (#2)' ] \
+    && [ "$(cat "$FIXTURE/comments")" = "1 $(held "$(head_of 1)")" ] || queue_fail "beside a held PR its conflicting one landed '$(landed)' with comments '$(cat "$FIXTURE/comments" 2>/dev/null)'"
+echo 'PASS: a PR that conflicts only with a held one is not dropped or told, and lands'
 
 fixture
 open_pr 1 pr-b 'Add B' src/b.txt

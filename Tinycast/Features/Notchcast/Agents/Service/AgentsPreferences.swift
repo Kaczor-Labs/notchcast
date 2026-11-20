@@ -48,5 +48,5 @@ struct AgentsPreferences {
         return claude.map { .claude(name: $0.name, directory: $0.directory) } + [.codex]
     }
 
-    static let defaultAccount = AgentsClaudeAccount(name: "Claude", directory: "")
+    static let defaultAccount = AgentsClaudeAccount(name: ClaudeLaunch.defaultName(directory: ""), directory: "")
 }
