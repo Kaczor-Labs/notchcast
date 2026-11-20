@@ -52,7 +52,7 @@ enum DayPage {
                                             trailing: String(localized: "Unavailable", table: "NotchcastDay"))] : []
         }
         let stamp = board.weatherIsStale(now: now) ? board.weatherClock.succeededAt.map {
-            updated($0, calendar: calendar, locale: locale)
+            updated($0, now: now, calendar: calendar, locale: locale)
         } : nil
         let head = IslandPageRow(symbol: DayWeatherFeed.symbol(weather.current),
                                  title: summary(weather.current, locale: locale), detail: place.name,
@@ -72,7 +72,7 @@ enum DayPage {
         let clock = board.quotesClock
         guard !board.symbols.isEmpty, !board.quotes.isEmpty || clock.isOffline else { return [] }
         let state = !board.quotesAreStale(now: now) ? nil : clock.succeededAt.map {
-            updated($0, calendar: calendar, locale: locale)
+            updated($0, now: now, calendar: calendar, locale: locale)
         } ?? String(localized: "Unavailable", table: "NotchcastDay")
         let header = IslandPageRow(symbol: clock.isOffline && board.quotes.isEmpty ? unavailableSymbol
                                        : "chart.line.uptrend.xyaxis",
@@ -103,8 +103,13 @@ enum DayPage {
         DayWeatherFeed.degrees(hour.celsius, locale: locale) + " " + DayWeatherFeed.words(hour)
     }
 
-    static func updated(_ date: Date, calendar: Calendar, locale: Locale) -> String {
-        let time = DayAgenda.time(date, calendar: calendar, locale: locale)
-        return String(localized: "Updated \(time)", table: "NotchcastDay")
+    /// "Updated 15:31"; from another day "Updated 18 Nov at 15:31", so it never reads as today's.
+    static func updated(_ date: Date, now: Date, calendar: Calendar, locale: Locale) -> String {
+        var style = Date.FormatStyle.dateTime.hour().minute()
+        if !calendar.isDate(date, inSameDayAs: now) { style = style.day().month(.abbreviated) }
+        style.locale = locale
+        style.calendar = calendar
+        style.timeZone = calendar.timeZone
+        return String(localized: "Updated \(date.formatted(style))", table: "NotchcastDay")
     }
 }

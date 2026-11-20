@@ -7,7 +7,8 @@ struct AgentsSettingsView: View {
     @State private var machineName = ""
     @State private var accounts: [AgentsClaudeAccount] = []
     @State private var feedFolder: String?
-    @State private var refused = false
+    /// Why Add… left the chosen folder out, naming it.
+    @State private var refusal: String?
     @FocusState private var focus: Field?
     private static let anchor = NotchcastSettingsSearch.anchor(.agents)
 
@@ -36,11 +37,9 @@ struct AgentsSettingsView: View {
             SettingsRowTitle(Self.anchor, LocalizedStringResource("Claude accounts", table: "NotchcastAgents"))
             Text("Each is a Claude Code config folder, read with its own sign-in.", tableName: "NotchcastAgents")
         }
-        .alert(Text("Choose a Claude Code folder", tableName: "NotchcastAgents"), isPresented: $refused) {
-        } message: {
-            Text("Your home folder isn’t one. Choose the folder Claude Code signs in with, such as .claude_team.",
-                 tableName: "NotchcastAgents")
-        }
+        .alert(Text("Folder not added", tableName: "NotchcastAgents"),
+               isPresented: Binding { refusal != nil } set: { if !$0 { refusal = nil } }, presenting: refusal) { _ in
+        } message: { Text(verbatim: $0) }
         ForEach($accounts) { $account in
             LabeledContent {
                 HStack(spacing: Theme.Spacing.sm) {
@@ -123,9 +122,18 @@ struct AgentsSettingsView: View {
         let home = URL(fileURLWithPath: NSHomeDirectory())
         guard let url = Self.pickFolder(from: home) else { return }
         let path = ClaudeLaunch.trimmed(url.path(percentEncoded: false))
+        let shown = Self.display(path)
         // With nothing selected the panel returns the folder it shows, at first home.
-        guard path != "/", path != ClaudeLaunch.path("~", home: home) else { return refused = true }
-        guard !accounts.contains(where: { ClaudeLaunch.path($0.directory, home: home) == path }) else { return }
+        guard path != "/", path != ClaudeLaunch.path("~", home: home) else {
+            return refusal = [
+                String(localized: "\(shown) isn’t a Claude Code folder.", table: "NotchcastAgents"),
+                String(localized: "Choose the folder Claude Code signs in with, such as .claude_team.", table: "NotchcastAgents"),
+            ].joined(separator: " ")
+        }
+        guard !accounts.contains(where: { ClaudeLaunch.path($0.directory, home: home) == path }) else {
+            return refusal = String(localized: "\(shown) is already listed, so it wasn’t added again.",
+                                    table: "NotchcastAgents")
+        }
         let directory = path == ClaudeLaunch.path("", home: home) ? "" : path
         accounts.append(AgentsClaudeAccount(name: ClaudeLaunch.defaultName(directory: directory), directory: directory))
         saveAccounts()
