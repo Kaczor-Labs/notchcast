@@ -34,8 +34,8 @@ extension SystemNoticesModule {
     /// Network Extension VPNs), ipsec (IKEv2, Cisco IPSec) and ppp (L2TP). Idle system utuns carry none.
     nonisolated static let tunnelPattern = "State:/Network/Interface/(utun|ipsec|ppp)[0-9]+/IPv4"
 
-    /// Up while any tunnel interface holds an address; configd calls back on every change, off the main actor.
-    static func watchVPN(_ changed: @escaping LinkChanged) -> SystemNoticesWatcher? {
+    /// Up while any tunnel interface holds an address; nonisolated, as configd calls back on its own queue.
+    nonisolated static func watchVPN(_ changed: @escaping LinkChanged) -> SystemNoticesWatcher? {
         let relay = TunnelRelay(changed)
         var context = SCDynamicStoreContext(
             version: 0, info: Unmanaged.passUnretained(relay).toOpaque(), retain: nil, release: nil,
@@ -56,7 +56,7 @@ extension SystemNoticesModule {
     }
 
     /// The internal battery's percent and whether it is on AC; nil on a Mac without one, which watches nothing.
-    static func watchBattery(_ changed: @escaping @MainActor @Sendable (Int, Bool) -> Void) -> SystemNoticesWatcher? {
+    nonisolated static func watchBattery(_ changed: @escaping @MainActor @Sendable (Int, Bool) -> Void) -> SystemNoticesWatcher? {
         guard readBattery() != nil else { return nil }
         let relay = BatteryRelay(changed)
         guard let source = IOPSNotificationCreateRunLoopSource({ info in
