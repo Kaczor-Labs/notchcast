@@ -108,7 +108,10 @@ extension RecordingSystem {
         },
         freeBytes: { files.withLock { $0.freeBytes } },
         duration: { url in
-            Double(String(bytes: try Data(contentsOf: url), encoding: .utf8) ?? "") ?? 0
+            guard let seconds = Double(String(bytes: try Data(contentsOf: url), encoding: .utf8) ?? "") else {
+                throw CocoaError(.fileReadCorruptFile)
+            }
+            return seconds
         },
         passthroughWorks: { _, _ in files.withLock { $0.passthrough } },
         export: { source, trim, plan, destination in

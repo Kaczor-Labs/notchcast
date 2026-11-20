@@ -48,7 +48,7 @@ final class ScreenRecordingRecovery: NotchcastModule {
             var kept: [URL] = []
             for clip in clips {
                 // A quit before the first fragment leaves a stub with nothing in it.
-                guard ((try? await system.duration(clip)) ?? 0) > 0 else {
+                if let seconds = try? await system.duration(clip), seconds <= 0 {
                     try? FileManager.default.removeItem(at: clip)
                     continue
                 }
