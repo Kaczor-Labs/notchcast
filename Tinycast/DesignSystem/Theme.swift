@@ -510,10 +510,12 @@ enum Theme {
         static let primaryAction = adaptive(
             dark: NSColor(ObsidianTokens.Theme.primary), light: .systemBlue
         ).frosted(NotchTheme.Frosted.accent)
-        static let destructive = Color.red
+        static let destructive = adaptive(dark: NSColor(ObsidianTokens.Theme.destructive), light: .systemRed)
             .frosted(NotchTheme.Frosted.destructive, lifted: NotchTheme.Frosted.destructiveLifted)
-        static let success = Color.green.frosted(NotchTheme.Frosted.success)
-        static let warning = Color.orange.frosted(NotchTheme.Frosted.warning)
+        static let success = adaptive(dark: NSColor(ObsidianTokens.Theme.green), light: .systemGreen)
+            .frosted(NotchTheme.Frosted.success)
+        static let warning = adaptive(dark: NSColor(ObsidianTokens.Theme.yellow), light: .systemOrange)
+            .frosted(NotchTheme.Frosted.warning)
         static let composerSend = ramp(dark: 0.92, light: 0.92)
         static let composerSendInk = adaptive(dark: .srgbInk(0, alpha: 0.85), light: .srgbInk(1, alpha: 1))
         /// The window's own page, for a card that must hide the transcript it floats over.
