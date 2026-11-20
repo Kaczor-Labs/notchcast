@@ -3,6 +3,7 @@
 // Adapted from Vorssaint 89d2626's music launch blocker: quitting a launch a media key started.
 
 import AppKit
+import CoreServices
 
 @MainActor
 final class MusicBlockModule: NotchcastModule {
@@ -15,21 +16,26 @@ final class MusicBlockModule: NotchcastModule {
     private var launchObservers: [NotificationCenter.ObservationToken] = []
     private var announcements: [NotificationToken] = []
     private var armedKey: NotchcastMediaKey.Key?
-    private var resuming: Task<Void, Never>?
+    private(set) var resuming: Task<Void, Never>?
     private let gestureAge: () -> TimeInterval
     private let isMusicRunning: () -> Bool
-    private let isRunning: (String) -> Bool
-    private let play: @MainActor (LastPlayer) async -> Bool
+    private let processID: (String) -> pid_t?
+    private let play: @MainActor (LastPlayer, pid_t) async -> LastPlayer.Outcome
+    private let openAutomationSettings: @MainActor () -> Void
 
     init(context: NotchcastContext, gestureAge: @escaping () -> TimeInterval = MusicBlockModule.secondsSinceGesture,
          isMusicRunning: @escaping () -> Bool = MusicBlockModule.isMusicRunning,
-         isRunning: @escaping (String) -> Bool = MusicBlockModule.isAppRunning,
-         play: @escaping @MainActor (LastPlayer) async -> Bool = { await MusicBlockModule.sendPlay($0) }) {
+         processID: @escaping (String) -> pid_t? = MusicBlockModule.runningProcessID,
+         play: @escaping @MainActor (LastPlayer, pid_t) async -> LastPlayer.Outcome = {
+             await MusicBlockModule.sendPlay($0, to: $1)
+         },
+         openAutomationSettings: @escaping @MainActor () -> Void = MusicBlockModule.openAutomationSettings) {
         self.context = context
         self.gestureAge = gestureAge
         self.isMusicRunning = isMusicRunning
-        self.isRunning = isRunning
+        self.processID = processID
         self.play = play
+        self.openAutomationSettings = openAutomationSettings
     }
 
     func start() {
@@ -54,7 +60,7 @@ final class MusicBlockModule: NotchcastModule {
                 forName: Notification.Name(player.announcement), object: nil, queue: .main
             ) { [weak self] note in
                 let state = note.userInfo?["Player State"] as? String
-                MainActor.assumeIsolated { self?.heard(player.announcement, state: state) }
+                Task { @MainActor [weak self] in self?.heard(player.announcement, state: state) }
             }, center: distributed)
         }
     }
@@ -101,17 +107,21 @@ final class MusicBlockModule: NotchcastModule {
 
     private func resumeLastPlayer() {
         guard context.preferences.isEnabled(Self.resumeSwitchID),
-              let player = LastPlayer.resume(context.defaults.string(forKey: LastPlayer.storeKey), after: armedKey,
-                                             isRunning: isRunning)
+              let player = LastPlayer.resume(context.defaults.string(forKey: LastPlayer.storeKey), after: armedKey),
+              let pid = processID(player.bundleID)
         else { return }
         resuming?.cancel()
         resuming = Task { [weak self, play] in
-            guard await !play(player), !Task.isCancelled, let self else { return }
-            let text = String(localized: "Couldn't Resume the Last Player", table: "NotchcastMusicBlock")
+            let outcome = await play(player, pid)
+            guard outcome != .played, !Task.isCancelled, let self else { return }
+            let refused = outcome == .refused
+            let text = refused
+                ? String(localized: "Allow Automation access for \(player.name).", table: "NotchcastMusicBlock")
+                : String(localized: "Couldn't resume \(player.name).", table: "NotchcastMusicBlock")
             context.presenter.post(
                 IslandNotice(id: "musicBlock.resumeFailed", symbol: "exclamationmark.triangle", text: text,
                              isFailure: true),
-                onTap: nil)
+                onTap: refused ? openAutomationSettings : nil)
         }
     }
 
@@ -128,18 +138,35 @@ final class MusicBlockModule: NotchcastModule {
         }
     }
 
-    nonisolated static func isAppRunning(_ bundleID: String) -> Bool {
-        !NSRunningApplication.runningApplications(withBundleIdentifier: bundleID).isEmpty
+    nonisolated static func runningProcessID(_ bundleID: String) -> pid_t? {
+        NSRunningApplication.runningApplications(withBundleIdentifier: bundleID).first?.processIdentifier
     }
 
-    /// The player's own `play` command; a first use asks for Automation consent.
-    @concurrent nonisolated static func sendPlay(_ player: LastPlayer) async -> Bool {
+    static func openAutomationSettings() {
+        guard let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Automation")
+        else { return }
+        NSWorkspace.shared.open(url)
+    }
+
+    /// Waits on consent as long as the user takes, then sends to that pid, so a quit player stays quit.
+    @concurrent nonisolated static func sendPlay(_ player: LastPlayer, to processID: pid_t)
+        async -> LastPlayer.Outcome {
+        guard let playEvent = player.playEvent else { return .failed }
         let code = { (text: Substring) in text.utf8.reduce(UInt32(0)) { $0 << 8 | UInt32($1) } }
+        let target = NSAppleEventDescriptor(processIdentifier: processID)
+        let consent = Int(AEDeterminePermissionToAutomateTarget(target.aeDesc, typeWildCard, typeWildCard, true))
+        guard consent == Int(noErr) else {
+            return LastPlayer.outcome(status: consent, refused: NotchcastAppleEvents.refused)
+        }
         let event = NSAppleEventDescriptor(
-            eventClass: code(player.playEvent.prefix(4)), eventID: code(player.playEvent.suffix(4)),
-            targetDescriptor: NSAppleEventDescriptor(bundleIdentifier: player.bundleID),
+            eventClass: code(playEvent.prefix(4)), eventID: code(playEvent.suffix(4)), targetDescriptor: target,
             returnID: AEReturnID(kAutoGenerateReturnID), transactionID: AETransactionID(kAnyTransactionID))
-        guard let reply = try? event.sendEvent(options: [.waitForReply, .canInteract], timeout: 5) else { return false }
-        return (reply.paramDescriptor(forKeyword: code("errn"))?.int32Value ?? 0) == 0
+        do {
+            let reply = try event.sendEvent(options: [.waitForReply, .neverInteract], timeout: 2)
+            let status = Int(reply.paramDescriptor(forKeyword: code("errn"))?.int32Value ?? 0)
+            return LastPlayer.outcome(status: status, refused: NotchcastAppleEvents.refused)
+        } catch {
+            return LastPlayer.outcome(status: (error as NSError).code, refused: NotchcastAppleEvents.refused)
+        }
     }
 }
