@@ -46,6 +46,8 @@ struct IslandLayout: Sendable {
 
     var hasNotch: Bool { notch.width > 0 && notch.height > 0 }
     var notchWidth: CGFloat? { hasNotch ? notch.width : nil }
+    /// The cutout's own corner, a third of its height, as Vorssaint draws a camera-tall strip (#850 D25).
+    var notchRadius: CGFloat? { hasNotch ? notch.height * 0.34 : nil }
     /// The engine's pill top, shared by rest and expanded so nothing jumps between them.
     var top: CGFloat { hasNotch ? -notch.height : drop }
     var contentTop: CGFloat { hasNotch ? notch.height : drop }

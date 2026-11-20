@@ -152,6 +152,8 @@ struct IslandPageIconButton: View {
             SymbolImage(name: button.symbol, size: metrics.scaled(Theme.Typography.menuSymbolSize), monochrome: true)
                 .foregroundStyle(Theme.Colors.textPrimary)
         }
+        .disabled(!button.isEnabled)
+        .opacity(button.isEnabled ? 1 : NotchTheme.Opacity.disabled)
         .accessibilityLabel(button.label)
         .tooltip(button.label)
     }
