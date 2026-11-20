@@ -36,6 +36,7 @@ final class NotchcastContext {
     private(set) var commands: [NotchcastCommand] = []
     /// Returns true to claim a URL or file opened with the app (a link clicked, a document opened).
     private(set) var openURL: (@MainActor (URL) -> Bool)?
+    private(set) var launcherShown: (@MainActor () -> Void)?
     /// Notchcast's own yes/no dialog, never `NSAlert`; nil where no app runs, as in harnesses.
     var confirm: (@MainActor @Sendable (_ title: String, _ message: String?, _ confirmTitle: String) async -> Bool)?
 
@@ -97,6 +98,9 @@ final class NotchcastContext {
         openURL = handler
     }
 
+    /// Runs each time the launcher opens, so a module can refresh what its commands list.
+    func handleLauncherShown(_ handler: (@MainActor () -> Void)?) { launcherShown = handler }
+
     /// Stock Dictation's text for a file; `.busy` while the user dictates or another one runs.
     func transcribe(_ audioURL: URL) async throws -> String { try await transcription.transcribe(audioURL) }
 
@@ -124,6 +128,7 @@ final class NotchcastContext {
         commands.removeAll()
         unavailableCommands = []
         openURL = nil
+        launcherShown = nil
     }
 }
 
