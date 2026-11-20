@@ -100,7 +100,7 @@ for name in check-drift.py check-drift-test.py; do
     printf '#!/usr/bin/env python3\n' > "$seed/notchcast/$name"
 done
 # The fixture's own hosted-runner skip, so it never depends on the real list.
-# form-input-test is in both lists, as FormInputTests is: it passes in no VM, so a bench check proves it.
+# form-input-test is in both lists, so only a bench check proves it.
 echo 'CI_SKIP_TESTS="clipboard-text-test form-input-test"' >> "$seed/notchcast/config.env"
 echo 'HOSTED_ONLY_TESTS="hosted-test form-input-test"' >> "$seed/notchcast/config.env"
 echo 'LINUX_OK_TESTS="notchcast-core-test hosted-test"' >> "$seed/notchcast/config.env"

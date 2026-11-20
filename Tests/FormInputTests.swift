@@ -1,7 +1,6 @@
 import AppKit
 import SwiftUI
 
-// Dry run for the bench-check landing path; no behaviour change.
 @main
 @MainActor
 struct FormInputTests {
@@ -15,7 +14,8 @@ struct FormInputTests {
     }
 
     static func main() {
-        _ = NSApplication.shared
+        // The ink detector looks for light text, so render as the Dark-only app does.
+        NSApplication.shared.appearance = NSAppearance(named: .darkAqua)
         testSingleLine()
         testCapAlignment()
         testTextArea()

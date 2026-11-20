@@ -6,8 +6,8 @@ merge_tools=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 source "$merge_tools/drift-gates.sh"
 # Those of the names $1 (space separated) listed one per line in file $2, space separated.
 listed_in() { grep -xF -f <(tr ' ' '\n' <<< "$1" | grep .) "$2" | sort -u | paste -sd' ' - || true; }
-# The harnesses of the tree here in both HOSTED_ONLY_TESTS and CI_SKIP_TESTS, tags included: no CI run proves one
-# (FormInputTests passes in no VM), so a bench check on the MBP's real screen stands in for it.
+# The harnesses of the tree here in both HOSTED_ONLY_TESTS and CI_SKIP_TESTS, tags included: no CI run proves one,
+# so a bench check stands in for it.
 bench_only_list() {
     (source notchcast/config.env
     comm -12 <(tr ' ' '\n' <<< "$HOSTED_ONLY_TESTS" | sort -u) <(tr ' ' '\n' <<< "$CI_SKIP_TESTS" | sort -u) | paste -sd' ' -)
