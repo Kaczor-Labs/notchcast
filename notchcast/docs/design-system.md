@@ -145,7 +145,7 @@ Reference: HIG Materials, "Use Liquid Glass effects sparingly."
 | --- | --- | --- |
 | Notice (engine art) | Without a notch: one glyph and one short text in the pill's wings (§4). On a notch a notice with text grows the island below the notch, like the meeting expansion: glyph and text on one centred line, as wide as the text needs up to 320 pt (`NotchTheme.Size.islandHeadlineMaxWidth`), a longer text truncating at its tail with an ellipsis, and never narrower than the notch plus two `Theme.Radius.panel`; the line fades in over the outer half of the grow and is gone by the middle of the contract. Glyph and text `textPrimary`, progress as a `textPrimary` arc on a `Theme.Colors.border` track; an unknown fraction shows the glyph alone, never a ring. Dwell `Theme.Duration.messageHUD` (2.4 s). Tap opens the follow-up. | `NotchTheme.Typography.islandGlanceNSFont`, `NotchTheme.Size.islandHeadlineMaxWidth` |
 | Failure (every `isFailure` notice, from the update flow or an add-on) | Glyph `Theme.Colors.destructive` in the notice, the status and the footer; text stays `textPrimary`. Dwell `IslandNotice.failureSeconds` (4 s), which `IslandNotice.dwell` applies whenever `isFailure` is set and `seconds` is left unset; a failure poster leaves `seconds` unset. The glyph shape is the poster's, its colour and dwell are not. | `IslandNoticeArt.failureTone` (`Theme.Colors.destructive`), `IslandNotice.failureSeconds` |
-| HUD and dialog shown in the island | The island surface alone: no glow, no rim, no scrim. HUD: `Capsule()`, `metrics.typography.bar`, hover `Theme.Colors.rowHover`, tone on its glyph only. Dialog: `RoundedRectangle(cornerRadius: metrics.radius.panel)`, padding `metrics.spacing.dialogInset`, icon = the subject's bare glyph at `metrics.size.dialogIcon`, with no tinted tile (`dialogSymbol` and `dialogSymbolContainer` are retired), buttons `.modalAction(role)` per §7, ↵ primary, Esc cancel. | `NotchTheme.Colors.islandSurface` |
+| HUD and dialog shown in the island | The island surface alone: no glow, no rim, no scrim. HUD: `Capsule()`, `metrics.typography.bar`, hover `Theme.Colors.rowHover`, tone on its glyph only. Dialog: `RoundedRectangle(cornerRadius: metrics.radius.panel)`, padding `metrics.spacing.dialogInset`, icon = the subject's bare glyph at `metrics.size.dialogIcon`, with no tinted tile (never `dialogSymbol` or `dialogSymbolContainer`), buttons `.modalAction(role)` per §7, ↵ primary, Esc cancel. | `NotchTheme.Colors.islandSurface` |
 | Result | Any island activity that shows progress ends with a result notice, never just a vanish: success is a checkmark glyph and a short title, failure is the failure rule above (red glyph, 4 s). | `textPrimary`, `Theme.Colors.destructive` |
 | Notch layout | On a notched display, the compact form beside the notch is a glyph and a short status only: progress is the ring left of the notch and the bare percent right of it, rounded down so it never claims 100 % early. Any text (a title, a message) expands out of the notch and shows below it, as the Dynamic Island expanded form. Titled progress (a download with its title) expands for one message dwell, then stays compact until it is ended, whatever its text; untitled progress (the update installing) is compact from the start; the result notice expands again. On a non-notched display the pill keeps its centred text. | `IslandNotice.messageSeconds` (2.4 s), sizes in §15 |
 
@@ -204,19 +204,7 @@ Each row is an open break; counts are from §16. A fixed break leaves the table.
 
 | # | Where | Breaks | Target |
 | --- | --- | --- | --- |
-| 1 | `RootPaletteView.swift:1079`, `:1657` | §1, §9: footer capsule and menu circle use `frosted(in:)` | no glass, §9 |
-| 2 | `BarButton.swift:64` | §7: selected fill is `Theme.Colors.selection` | `NotchTheme.Colors.keyCapFill` on the island |
-| 3 | `MessageHUDView.swift:59`, `:60`, `:79` | §10: radial glow, `panelScrim` and a tinted `strokeBorder` rim | island surface only |
-| 4 | `DialogView.swift:62` | §1: `panelScrim` under the island surface | island surface only |
-| 5 | `UpdatePill.swift:90` | §1, §9: tinted interactive `.glassEffect` | no glass, tint on glyph and label |
-| 6 | `ModalActionButtonStyle.swift:43`–`:47` | §7: neutral buttons fill `controlSurface` / `controlHover` / `controlPressed` | bare, `rowHover`, `keyCapFill` on the island |
-| 7 | `PopoverMenu.swift:129` | §3: menu radius 16 inside 18-point rows | `NotchTheme.Radius.islandMenu` |
-| 9 | `UpdateCoordinator.swift:122` | §10: Try Again dialog shows `arrow.down.circle`, the notice `exclamationmark.arrow.circlepath` | one glyph per state |
-| 10 | `RootPaletteView.swift:1647`–`:1648`, `LauncherList.swift:321` | §6: hand-drawn menu-circle bars (14 and 8 × 1.5) and a 3 × 3 running dot | SF Symbol, or §15 tokens |
-| 11 | `VolumeHUDView.swift:39` | §1: `panelScrim` (hidden view, reached only by the volume scene) | island surface only |
-| 12 | `PalettePanel.swift:273`, `MenuPanel.swift:20`, `HUDPanel.swift:19`, `DialogPanel.swift:39` | §1: `hasShadow = true` | `false` |
-| 13 | `ChatTranscriptView.swift:169`–`:170`, `ChatSuggestionChips.swift:55` | §1, §2: `.ultraThinMaterial` with a `border` rim, a `frosted` chip | `rowHover` circle, §7 chip |
-| 14 | palette-screen cards, `EmojiGridView.swift:322`–`:333` | §2: `cardStroke` hairlines and a selection ring | fill, §2 |
+| 1 | `PalettePanel.swift:273`, `HUDPanel.swift:19`, `DialogPanel.swift:39` | §1: `hasShadow = true` | `false` |
 
 ## 15. Tokens to add
 
