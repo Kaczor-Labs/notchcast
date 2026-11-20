@@ -79,7 +79,7 @@ enum NotchcastAppProof {
         }
     }
 
-    /// #1219, #1066: Commands hidden and off, an address still opens and Script commands still list.
+    /// #1219, #1066: Commands hidden and off, an address still opens and add-on commands still list.
     private static func commandsHidden() {
         let defaults = UserDefaults.standard
         let suite = NotchcastPreferences.suiteName(bundleID: bundleID)
@@ -89,9 +89,9 @@ enum NotchcastAppProof {
             addons.removePersistentDomain(forName: suite)
         }
         defaults.set(["command"], forKey: "hiddenLauncherKinds")
-        addons.set(true, forKey: ScriptCommandsAddon.switchID)
-        let script = ScriptCommand(id: "proof", name: "Proof Script", script: "true")
-        addons.set(ScriptCommand.encodeList([script]), forKey: ScriptCommandsModule.rowsKey)
+        guard let command = NotchcastRegistry.addons.flatMap({ $0.commands }).first
+        else { fail("no add-on declares a command") }
+        addons.set(true, forKey: command.switchID)
         let core = AppCore.shared
         let notchcast = NotchcastCore(core: core)
         defer { notchcast.stop() }
@@ -106,9 +106,9 @@ enum NotchcastAppProof {
                   "\(query): Open in Browser opens \(url)")
         }
         let listed = core.appIndex.orderedResults(
-            query: script.name, visibility: core.visibility, favorites: core.favorites, hotKeys: core.hotKeys
+            query: command.name, visibility: core.visibility, favorites: core.favorites, hotKeys: core.hotKeys
         ).entries
-        check(listed.contains { $0.id == "command:nc-" + script.slug }, "Script commands lists its command")
+        check(listed.contains { $0.id == command.id }, "the add-on command \(command.name) lists")
         for id in [CommandID.createCustomCommand, .searchCustomCommands, .runShellCommand] {
             check(!core.appIndex.isCommandEnabled(id), "\(id.rawValue) reads disabled")
         }
