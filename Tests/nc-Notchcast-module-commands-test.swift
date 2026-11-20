@@ -5,6 +5,8 @@
 // notchcast-sources: Tests/NotchcastTapFixtures.swift
 // notchcast-sources: Tests/NotchcastDictationFixture.swift
 import AppKit
+import Observation
+import os
 
 /// Publishes a command of its own on start, as a module does for what it learns at run time.
 @MainActor
@@ -52,8 +54,11 @@ struct NotchcastModuleCommandsTest {
         controller.start()
         precondition(!controller.run(entryID: "command:nc-publish-run"), "a module's commands wait for its switch")
 
+        let observed = OSAllocatedUnfairLock(initialState: false)
+        withObservationTracking { _ = controller.slots[0].commands } onChange: { observed.withLock { $0 = true } }
         controller.preferences.set("publishMain", on: true)
         drain()
+        precondition(observed.withLock { $0 }, "a view reading the add-on's commands redraws on setCommands")
         precondition(published == [["command:nc-publish-run"]], "a module's own command is published: \(published)")
         precondition(
             controller.slots[0].commands.map(\.name) == ["Published"], "the add-on's rows list it")
