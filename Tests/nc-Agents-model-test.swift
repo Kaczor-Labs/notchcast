@@ -509,8 +509,8 @@ func boardWithGateFeed() throws {
     check(board.other.map(\.title) == ["Codex", "Grok"], "one Codex, in Other: \(board.other.map(\.title))")
     let shared = board.other[0]
     check(meters(shared)[0].value == "70% left" && !shared.dimmed, "the feed's fresher Codex wins: \(shared)")
-    check(shared.credit == "2 reset credits" && meters(shared).last?.trailing == "$166 of $200",
-          "extra usage carries over from this Mac's older Codex: \(shared)")
+    check(shared.credit == "2 reset credits" && meters(shared).count == 1,
+          "this Mac's stale Codex lends no extra usage: \(shared)")
     let mine = board.columns[0].cards[0]
     check(meters(mine)[0].value == "10% left" && mine.credit == "1 reset credit" && !mine.dimmed,
           "this Mac's fresh C1 wins and keeps the feed's credit: \(mine)")
@@ -537,6 +537,10 @@ func boardWithGateFeed() throws {
                               feed: .loaded(feed), now: now)
         check(meters(pair.other[0])[0].value == used && pair.other[0].credit == "2 reset credits", "\(why): \(pair.other[0])")
     }
+    let lender = AgentBoard(machineName: "MBA", local: [AgentLocalAccount(name: "Codex", provider: "codex", reading: failed)],
+                            feed: .loaded(feed), now: now)
+    check(meters(lender.other[0]).last?.trailing == "$166 of $200",
+          "a fresh failed read still lends its extra usage: \(lender.other[0])")
 
     let later = now.addingTimeInterval(25 * minute)
     var spent = codex
