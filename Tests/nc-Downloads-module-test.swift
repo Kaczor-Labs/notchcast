@@ -62,15 +62,7 @@
 // notchcast-sources: Tinycast/Features/FileSearch/Service/FileSystemWatcher.swift
 // notchcast-sources: Tinycast/Platform/NotificationToken.swift
 // notchcast-sources: Tinycast/Features/Notchcast/Core/Model/*.swift
-// notchcast-sources: Tinycast/Features/Notchcast/Core/Service/NotchcastAddon.swift
-// notchcast-sources: Tinycast/Features/Notchcast/Core/Service/NotchcastContext.swift
-// notchcast-sources: Tinycast/Features/Notchcast/Core/Service/NotchcastController.swift
-// notchcast-sources: Tinycast/Features/Notchcast/Core/Service/NotchcastTranscription.swift
-// notchcast-sources: Tinycast/Features/Notchcast/Core/Service/NotchcastPreferences.swift
-// notchcast-sources: Tinycast/Features/Notchcast/Core/Service/NotchcastTap.swift
-// notchcast-sources: Tinycast/Features/Notchcast/Core/Service/NotchcastTapHub.swift
-// notchcast-sources: Tinycast/Features/Notchcast/Core/Service/NotchcastTapRouter.swift
-// notchcast-sources: Tinycast/Features/Notchcast/Core/Service/NotchcastTapThread.swift
+// notchcast-sources: Tinycast/Features/Notchcast/Core/Service/*.swift
 // notchcast-sources: Tinycast/Features/Island/Model/IslandPresentation.swift
 // notchcast-sources: Tinycast/Features/Island/Service/IslandPresenting.swift
 // notchcast-sources: Tests/NotchcastTapFixtures.swift
