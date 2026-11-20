@@ -94,6 +94,15 @@ class DeleteTest(unittest.TestCase):
         names = ['nc-Keep-test', 'nc-Other-test', 'notchcast-hidden-features-test', 'nc-Padded-test']
         self.assertEqual(delete.unreported(log, names), ['nc-Other-test'])
 
+    def test_a_harness_the_runner_says_it_skipped_counts_as_skipped(self):
+        log = ('[1/1] ok    nc-Keep-test       0.0s\n'
+               'SKIPPED nc-Hosted-test: hosted-only: it can reach the keychain\n'
+               'skipped on the runner: nc-Ci-test\n'
+               '::notice::SKIPPED on this runner: nc-Unfit-test\n')
+        names = ['nc-Keep-test', 'nc-Hosted-test', 'nc-Ci-test', 'nc-Unfit-test', 'nc-Other-test']
+        self.assertEqual(delete.unreported(log, names), ['nc-Other-test'])
+        self.assertEqual(delete.skipped(log, names), ['nc-Hosted-test', 'nc-Ci-test', 'nc-Unfit-test'])
+
     def test_fork_harnesses_come_from_harness_inputs(self):
         write(self.tree, 'notchcast/harness_inputs.py',
               'print("Tests/nc-Keep-test.swift\\t1\\tA.swift")\nprint("Tests/BarTests.swift\\t0\\t")\n')
