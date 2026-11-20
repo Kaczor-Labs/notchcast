@@ -322,7 +322,39 @@ class CheckAddonsTest(unittest.TestCase):
                              ('v2/addons-core-3-fix', 'feature'), ('v2/addons-core-3foo', 'feature'),
                              ('v2/addons-core-x', 'feature'), ('v2/addons-core-', 'feature'),
                              ('v2/addons-shots', 'feature'), ('v2/stack', 'none'), ('', 'none')):
-            self.assertEqual(check_addons.mode_for_branch(branch), mode, branch)
+            self.assertEqual(check_addons.mode_for_branch(branch, self.root, self.base, 'HEAD', []), mode, branch)
+
+    def by_branch(self, branch):
+        result = subprocess.run([sys.executable, str(CHECK), '--branch', branch, '--base', self.base,
+                                 '--upstream', self.upstream, '--root', str(self.root)], capture_output=True, text=True)
+        return result.returncode, result.stdout + result.stderr
+
+    def test_any_branch_that_adds_an_addon_is_a_feature(self):
+        self.add_shots()
+        write(self.root, 'Tinycast/App/AppCore.swift', 'start()\nshots()\n')
+        self.commit('feature on a gate branch')
+        code, out = self.by_branch('g-123abc')
+        self.assertEqual(code, 1, out)
+        self.assertIn('add-on gate (feature): feature folders: Shots', out)
+        self.assertIn('Tinycast/App/AppCore.swift: outside the add-on folders', out)
+
+    def test_a_sweep_across_addons_runs_no_feature_gate(self):
+        write(self.root, NC + 'Keep/KeepAddon.swift', '// notchcast-addon-order: 10\nstruct KeepAddon: NotchcastAddon {}\n')
+        self.add_shots()
+        self.base = self.commit('main with two add-ons')
+        write(self.root, NC + 'Keep/KeepAddon.swift', '// notchcast-addon-order: 10\n// notchcast-readme: Capture: k\n'
+              'struct KeepAddon: NotchcastAddon {}\n')
+        write(self.root, NC + 'Shots/ShotsAddon.swift', SHOTS.replace('30\n', '30\n// notchcast-readme: Capture: s\n', 1))
+        write(self.root, 'notchcast/tool.py', 'pass\n')
+        self.commit('sweep')
+        code, out = self.by_branch('g-123abc')
+        self.assertEqual(code, 0, out)
+        self.assertIn('add-on gate (none):', out)
+        write(self.root, NC + 'Keep/KeepAddon.swift', '// notchcast-addon-order: 10\nstruct KeepAddon: NotchcastAddon {}\n')
+        self.commit('one add-on and a tool')
+        code, out = self.by_branch('g-123abc')
+        self.assertEqual(code, 1, out)
+        self.assertIn('notchcast/tool.py: outside the add-on folders', out)
 
     def test_branch_runs_the_derived_mode(self):
         result = subprocess.run([sys.executable, str(CHECK), '--branch', 'v2/addons-core-4', '--base', self.base,

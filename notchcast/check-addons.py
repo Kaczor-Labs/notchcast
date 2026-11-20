@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """Gate the add-on system's upstream footprint and its folder boundaries (notchcast/docs/addons.md §3, §5).
 
-The caller names the mode, or passes --branch to derive it (ci-build.sh does). Core mode (v2/addons-core[-<n>]): the
+The caller names the mode, or passes --branch to derive it (ci-checks.sh does): core by name, feature for any other
+v2/addons-* or a branch that adds an add-on or touches one add-on's folder, else none. Core mode: the
 upstream paths the branch changes against the base stay within notchcast/addons-budget.env. Feature mode
 (v2/addons-<feature>): the branch owns the folders whose add-on file gains its `// notchcast-addon-order:` line
 (or, with none, the one folder it touches), and every changed path is inside an owned folder, an owned
@@ -320,8 +321,9 @@ def guard(root, upstream, head):
     return problems
 
 
-def run(root, base, head, upstream, mode):
+def run(root, base, head, upstream, mode, branch=''):
     changed = [p for p in git('diff', '--name-only', f'{base}...{head}', root=root).splitlines() if p]
+    mode = mode or mode_for_branch(branch, root, base, head, changed)
     if mode == 'core':
         problems, summary = core_gate(root, base, head, upstream, changed)
     elif mode == 'feature':
@@ -337,10 +339,14 @@ def run(root, base, head, upstream, mode):
 CORE_BRANCH = re.compile(r'v2/addons-core(-[0-9]+)?')
 
 
-def mode_for_branch(branch):
+def mode_for_branch(branch, root, base, head, changed):
+    """Core by name; feature for any other v2/addons-*, or a branch that adds an add-on or touches only one."""
     if CORE_BRANCH.fullmatch(branch):
         return 'core'
-    return 'feature' if branch.startswith('v2/addons-') else 'none'
+    if branch.startswith('v2/addons-'):
+        return 'feature'
+    touched = {folder_of(path) for path in changed} - {None}
+    return 'feature' if len(touched) == 1 or ordered_folders(root, base, head, changed) else 'none'
 
 
 def main():
@@ -355,7 +361,7 @@ def main():
     args = parser.parse_args()
     try:
         upstream = args.upstream or git('merge-base', args.head, 'refs/remotes/upstream/main', root=args.root).strip()
-        problems = run(args.root, args.base, args.head, upstream, args.mode or mode_for_branch(args.branch))
+        problems = run(args.root, args.base, args.head, upstream, args.mode, args.branch or '')
     except (Tooling, OSError, ValueError) as error:
         print(f'add-on gate: tooling failure, not a contract breach: {error}', file=sys.stderr)
         return 2
