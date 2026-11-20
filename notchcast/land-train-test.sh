@@ -39,7 +39,9 @@ case "$*" in
             [ev("labeled"; "land"; -7200), ev("unlabeled"; "land"; -3600), ev("labeled"; "land"; 0),
              ev("labeled"; "other"; 600), ev("ready_for_review"; null; 900)]' | jq -r "${*: -1}" ;;
     'pr view '*'--json headRefOid'*) jq -r .headRefOid "$FIXTURE/pr-$3.json" ;;
-    'pr view '*) cat "$FIXTURE/pr-$3.json" ;;
+    'pr view '*)
+        [ "$3" != "${VIEW_FAILS:-}" ] || { echo 'HTTP 502' >&2; exit 1; }
+        cat "$FIXTURE/pr-$3.json" ;;
     'pr close '*)
         echo "$3 ${*: -1}" >> "$FIXTURE/closed"
         jq '.state = "CLOSED"' "$FIXTURE/pr-$3.json" > "$FIXTURE/pr.json" && mv "$FIXTURE/pr.json" "$FIXTURE/pr-$3.json" ;;
@@ -1073,6 +1075,50 @@ queue
 [ "$status" -eq 0 ] && grep -q '^queue: batch 6$' "$FIXTURE/train-output" && grep -q '^LANDED #6$' "$FIXTURE/train-output" \
     || queue_fail 'a dropped PR with a new head was not taken again'
 echo 'PASS: --queue skips PRs dropped at their heads, so green PRs behind them land, and takes one again at a new head'
+
+# A refusal an edit or a retry cures is not tied to the head: #1's title names something private until it is fixed.
+fixture
+open_pr 1 pr-b 'Add B' src/b.txt
+open_pr 2 pr-c 'Add C' src/c.txt
+jq '.title = "Add FORBIDDEN B"' "$FIXTURE/pr-1.json" > "$FIXTURE/pr.json" && mv "$FIXTURE/pr.json" "$FIXTURE/pr-1.json"
+queue
+[ "$status" -eq 1 ] && grep -q '^DROPPED #1: dropped from the landing batch: ' "$FIXTURE/train-output" && grep -q '^LANDED #2$' "$FIXTURE/train-output" \
+    && ! grep -q 'Left out' "$FIXTURE/comments" || queue_fail 'a PR with a private name in its title was not dropped with a plain comment'
+jq '.title = "Add B"' "$FIXTURE/pr-1.json" > "$FIXTURE/pr.json" && mv "$FIXTURE/pr.json" "$FIXTURE/pr-1.json"
+queue
+[ "$status" -eq 0 ] && grep -q '^LANDED #1$' "$FIXTURE/train-output" || queue_fail 'a title fixed at the same head was not landed on the next tick'
+fixture
+open_pr 1 pr-b 'Add B' src/b.txt
+open_pr 2 pr-c 'Add C' src/c.txt
+VIEW_FAILS=2 queue
+[ "$status" -eq 1 ] && grep -q '^DROPPED #2: dropped from the landing batch: its merge onto main failed$' "$FIXTURE/train-output" \
+    && grep -q '^LANDED #1$' "$FIXTURE/train-output" || queue_fail 'a failed gh call did not drop only its PR'
+queue
+[ "$status" -eq 0 ] && grep -q '^LANDED #2$' "$FIXTURE/train-output" || queue_fail 'a PR dropped for one failed gh call was parked'
+echo 'PASS: a PR dropped for a refusal its head does not decide (a private title, a failed call) is taken on the next tick'
+
+# #2 conflicts with #1 in the batch and #1 is red alone, so #2 no longer waits on it.
+fixture
+open_pr 1 pr-one 'Add one' src/shared.txt
+open_pr 2 pr-two 'Add two' src/shared.txt
+RED_PRS=1 queue
+[ "$status" -eq 1 ] && grep -q '^DROPPED #2: conflicts with #1 in the landing batch ' "$FIXTURE/train-output" && grep -q '^CULPRIT #1 ' "$FIXTURE/train-output" \
+    || queue_fail '#2 was not left out behind #1, or #1 was not red alone'
+queue
+[ "$status" -eq 0 ] && grep -q '^queue: batch 2$' "$FIXTURE/train-output" && grep -q '^LANDED #2$' "$FIXTURE/train-output" \
+    || queue_fail 'a PR waited behind a PR that was red alone'
+echo 'PASS: a PR left out behind a PR of the batch is taken again once that PR cannot be picked'
+
+# Batch of 2: #3 is signed off 30 s ago, so it does not take the holder's place.
+tangled
+echo LAND_BATCH_SIZE=2 >> notchcast/config.env
+echo 2026-03-01T10:00:00Z > "$FIXTURE/ready-1"
+echo 2026-03-01T10:00:00Z > "$FIXTURE/ready-2"
+echo 2026-03-01T10:09:30Z > "$FIXTURE/ready-3"
+NOTCHCAST_NOW=$(jq -n '"2026-03-01T10:10:00Z" | fromdateiso8601') queue
+[ "$status" -ne 0 ] && grep -q '^DROPPED #2: #2 contains commits of #1, ' "$FIXTURE/train-output" && grep -q '^queue: batch 1$' "$FIXTURE/train-output" \
+    && grep -q '^LANDED #1$' "$FIXTURE/train-output" || queue_fail 'a sign-off younger than the settle time refilled the batch'
+echo 'PASS: a sign-off younger than LAND_SETTLE_SECONDS does not refill a place the holder check leaves'
 
 fixture
 open_pr 1 pr-b 'Add B' src/b.txt

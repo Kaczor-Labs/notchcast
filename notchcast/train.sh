@@ -135,14 +135,17 @@ build_train() {
         printf '%s %s\n' "$pr" "$reason" >> "$scratch/drops"
     done
 }
-# The note on a PR the train leaves out; pick_batch skips the PR until its head moves (or the PR it waits on closes).
-left_out() { echo "Left out of the landing batch at its head $(< "$scratch/head-$1"): ${2#dropped from the landing batch: }"; }
-# Prints and comments the drops of the last build_train, the one the train keeps.
+# The note on a PR left out for what only a new head (or the PR it waits on) cures; pick_batch skips it till then.
+left_out() { echo "Left out of the landing batch at its head $(< "$scratch/head-$1"): $2"; }
+# Prints and comments the drops of the last build_train, the one the train keeps. A refusal an edit of the PR or a
+# retry cures gets a plain comment, so the next tick takes the PR again.
 tell_drops() {
-    local pr reason
+    local pr reason body
     while read -r pr reason; do
         echo "DROPPED #$pr: $reason"
-        gh pr comment "$pr" -R "$FORK_REPO" --body "$(left_out "$pr" "$reason")" >/dev/null || echo "WARN: could not comment on #$pr" >&2
+        body=$reason
+        [[ "$reason" != 'conflicts with '* ]] || body=$(left_out "$pr" "$reason")
+        gh pr comment "$pr" -R "$FORK_REPO" --body "$body" >/dev/null || echo "WARN: could not comment on #$pr" >&2
     done < "$scratch/drops"
 }
 notify() {
@@ -260,23 +263,38 @@ signed_off_since() {
 }
 # Open PRs on main labelled land, ready or draft, oldest sign-off first: the first LAND_BATCH_SIZE, then the settled
 # ones behind them, which refill a batch the holder check thins. Its build must be green on its head; a draft's may
-# be skipped or absent, since the train run is its build. A PR a queue found red alone or left out waits for a new
-# head; one left out behind an open PR of the batch is taken again once that PR closes. While the newest sign-off of
-# the batch is younger than LAND_SETTLE_SECONDS it prints only a "queue: waits" line, so PRs signed off close
-# together ride one train.
+# be skipped or absent, since the train run is its build. A PR a queue found red alone, or left out for a conflict or
+# for holding another PR's commits, waits for a new head; a holder only while that PR is open, and one that
+# conflicts with a PR of the batch only while that PR can still be picked. While the newest sign-off of the batch is
+# younger than LAND_SETTLE_SECONDS it prints only a "queue: waits" line, so PRs signed off close together ride one
+# train.
 pick_batch() {
-    local pr draft head why verdict since newest age now
+    local pr draft head why other verdict since newest age now
     : > "$scratch/heads"
     gh pr list -R "$FORK_REPO" --state open --base main -L 200 --json number,isDraft,labels,headRefOid,comments \
-        --jq '[.[].number] as $open | .[] | . as $pr | select(any(.labels[]; .name == "land"))
-            | ("Left out of the landing batch at its head " + .headRefOid + ": ") as $note
-            | ([.comments[].body | select(contains("in the landing batch at head " + $pr.headRefOid) or startswith($note))]
-                | last // "" | ltrimstr($note) | gsub("\\s+"; " ")) as $why
-            | ([$why | capture("(contains commits of|^conflicts with) #(?<n>[0-9]+)") | .n | tonumber] | first) as $on
-            | if $why != "" and ($on == null or any($open[]; . == $on)) then "\(.number) dropped \(.headRefOid) \($why)"
-              else "\(.number) \(.isDraft) \(.headRefOid)" end' |
+        --jq 'def land: any(.labels[]; .name == "land");
+            def why: ("Left out of the landing batch at its head " + .headRefOid + ": ") as $note | .headRefOid as $head
+                | [.comments[].body | select(contains("in the landing batch at head " + $head)
+                    or (startswith($note) and (ltrimstr($note) | test("^conflicts with |^#[0-9]+ contains commits of "))))]
+                | last // "" | ltrimstr($note) | gsub("\\s+"; " ");
+            def on($re): [capture($re) | .n] | first;
+            (map({key: (.number | tostring), value: .}) | from_entries) as $open
+            | .[] | select(land) | . as $pr | why as $why
+            | ($why | on("^#[0-9]+ contains commits of #(?<n>[0-9]+)")) as $holds
+            | ($why | on("^conflicts with #(?<n>[0-9]+) in the landing batch")) as $behind
+            | if $holds != null then (if $open[$holds] then "dropped" else null end)
+              elif $behind != null then ($open[$behind] | if . and land and why == "" then "behind:\($pr.isDraft):\(.headRefOid)" else null end)
+              elif $why != "" then "dropped" else null end
+            | "\($pr.number) \(. // $pr.isDraft) \($pr.headRefOid) \($why)"' |
         while read -r pr draft head why; do
             echo "$pr@$head" >> "$scratch/heads"
+            # It waits on a PR the queue can still pick: open, signed off, not dropped, its build not red.
+            if [[ "$draft" == behind:* ]]; then
+                other=${draft##*:}
+                draft=${draft#behind:}
+                draft=${draft%%:*}
+                if [[ "$(check_run "$other" build)" =~ ^(success|pending|none|skipped)$ ]]; then draft=dropped; fi
+            fi
             if [ "$draft" = dropped ]; then
                 why=${why%%: *}
                 why=${why%%, *}
