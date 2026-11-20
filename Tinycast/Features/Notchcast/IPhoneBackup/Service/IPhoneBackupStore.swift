@@ -59,6 +59,15 @@ final class IPhoneBackupStore {
         context.preferences.set(IPhoneBackupAddon.switchID, on: false)
     }
 
+    /// On but not in effect at launch: a question never answered, so the switch goes off without asking.
+    func dropUnanswered() {
+        let current: IPhoneBackupPolicy.Value?
+        do { current = try system.read() } catch { return }
+        guard let journal = try? loadJournal(), !IPhoneBackupPolicy.isApplied(journal, current: current) else { return }
+        decline()
+        restore(bounceOnFailure: false)
+    }
+
     /// A failed write or unavailable storage keeps the capture and, by default, the switch on, so switching off retries.
     /// A corrupt journal is kept and reported once; restores skip it quietly until it loads again.
     @discardableResult
