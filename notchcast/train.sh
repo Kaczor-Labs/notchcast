@@ -81,6 +81,7 @@ stack() {
     pr_title=$(jq -r '.title // ""' <<< "$metadata")
     pr_body=$(jq -r '.body // ""' <<< "$metadata")
     git -C "$top" fetch -q origin "refs/pull/$2/head"
+    git -C "$top" rev-parse FETCH_HEAD > "$scratch/head-$2"  # the head it merges is the one the bench record must name
     echo "train: #$2 ${head:0:8} onto ${1:0:8}" >&2
     # The merge runs even for an unlabelled draft, so one pass names every reason a PR would be dropped for.
     set +e
@@ -94,13 +95,14 @@ stack() {
     [ "$merged" -eq 0 ] || exit 1
     git -C "$scratch/tree" rev-parse HEAD > "$scratch/tip"
 }
-# Merges PRs $2... onto $1 into $tip and sets stacked to the PRs that merged. One that refuses is dropped and told
-# why in a PR comment (a conflict names the earlier PR of the train that touched the file), and the rest goes on.
+# Merges PRs $2... onto $1 into $tip and sets stacked to the PRs that merged. One that refuses is dropped, and the
+# rest goes on; tell_drops says why (a conflict names the earlier PR of the train that touched the file).
 build_train() {
     local pr code reason files other commit conflict
     tip=$1
     stacked=
     : > "$scratch/merges"
+    : > "$scratch/drops"
     shift
     for pr in "$@"; do
         # A subshell with its own errexit, so a refusal ends this PR and not the run.
@@ -130,9 +132,28 @@ build_train() {
         else
             reason="dropped from the landing batch: ${reason:-its merge onto main failed}"
         fi
+        printf '%s %s\n' "$pr" "$reason" >> "$scratch/drops"
+    done
+}
+# Prints and comments the drops of the last build_train, the one the train keeps.
+tell_drops() {
+    local pr reason
+    while read -r pr reason; do
         echo "DROPPED #$pr: $reason"
         gh pr comment "$pr" -R "$FORK_REPO" --body "$reason" >/dev/null || echo "WARN: could not comment on #$pr" >&2
-    done
+    done < "$scratch/drops"
+}
+notify() {
+    ! declare -F notchcast_notify >/dev/null || printf 'Notchcast: %s\n' "$1" | notchcast_notify || echo 'WARN: notify failed' >&2
+}
+# PR $1 is held for reason $2: one comment and one notify line per head and reason, never one per tick.
+tell_wait() {
+    local pr=$1 note
+    note="Held out of the landing batch at its head $(< "$scratch/head-$pr"): #$pr $2. The queue tries it again each tick."
+    gh pr view "$pr" -R "$FORK_REPO" --json comments | jq -e --arg note "$note" 'any(.comments[]; .body == $note)' >/dev/null && return 0
+    # No comment, no notify: the comment is what marks it told, so a failed one is tried again next tick.
+    gh pr comment "$pr" -R "$FORK_REPO" --body "$note" >/dev/null || { echo "WARN: could not comment on #$pr" >&2; return 0; }
+    notify "$note"
 }
 # Every one must finish green on the train's tip; all but Design take the train's base, as a PR run has it.
 workflows='pr.yml proof.yml design.yml leaks.yml'
@@ -149,15 +170,18 @@ fi
 # HOSTED_ONLY_TESTS of the tree in the current directory, every line that sets it.
 hosted_only_list() { sed -n 's/^HOSTED_ONLY_TESTS="\(.*\)"$/\1/p' notchcast/config.env | paste -sd' ' -; }
 # Before the push, for the train just built ($tip on $base, its merges in $scratch/merges): refuses one whose run
-# land.sh could not find, and sets runner, where its Mac jobs go, to hosted when only a hosted run proves it.
+# land.sh could not find, and sets runner, where its Mac jobs go: hosted when only a hosted run proves it. Under
+# --queue a PR that selects a bench-only harness with no bench check at its head is left out: waits names those PRs.
 preflight() {
-    local main_key tip_key commit pr changers='' hosted_only hosted_list
+    local main_key tip_key commit pr changers='' hosted_only hosted_list bench_list bench reason
     tree_at "$base"
     main_key=$(python3 notchcast/ci.py tested-key "$tip")
     hosted_list=$(hosted_only_list)
+    bench_list=$(bench_only_list)
     tree_at "$tip"
     tip_key=$(python3 notchcast/ci.py tested-key HEAD)
     hosted_list="$hosted_list $(hosted_only_list)"
+    bench_list="$bench_list $(bench_only_list)"
     if [ "$main_key" != "$tip_key" ]; then
         while read -r pr commit; do
             git diff --quiet "$commit^1" "$commit" -- notchcast/ci.py || changers="$changers${changers:+ }#$pr"
@@ -165,12 +189,30 @@ preflight() {
         refuse "the train's run would record tree ${tip_key:0:8}, but land.sh with main's ci.py looks for ${main_key:0:8}, so it could never land: ${changers:-a PR} changes ci.py tested-key; land that one first, alone (notchcast/land.sh <pr> on its own PR build), then train the rest"
     fi
     runner=$mac
-    [ "$mac" = isolated ] || { cd "$top"; return 0; }
-    hosted_only='(no selection: changed-harnesses.sh failed)'
-    if (while read -r pr commit; do bash notchcast/changed-harnesses.sh "$commit^1" "$commit" || exit 1; done) < "$scratch/merges" > "$scratch/selected"; then
-        hosted_only=$(grep -xF -f <(tr ' ' '\n' <<< "$hosted_list" | grep .) "$scratch/selected" | sort -u | paste -sd' ' - || true)
+    waits=
+    if ! (while read -r pr commit; do bash notchcast/changed-harnesses.sh "$commit^1" "$commit" > "$scratch/selected-$pr" || exit 1; done) < "$scratch/merges"; then
+        cd "$top"
+        [ "$mac" = isolated ] || return 0
+        runner=hosted
+        echo "train: changed-harnesses.sh failed, so no selection says the isolated runner may prove it, and its Mac jobs are hosted"
+        return 0
     fi
+    while read -r pr commit; do cat "$scratch/selected-$pr"; done < "$scratch/merges" > "$scratch/selected"
     cd "$top"
+    while read -r pr commit; do
+        bench=$(listed_in "$bench_list" "$scratch/selected-$pr")
+        [ -z "$bench" ] || reason=$(bench_wanted "$pr" "$(< "$scratch/head-$pr")" "$bench")
+        [ -n "$bench" ] && [ -n "$reason" ] || continue
+        if [ -z "$auto" ]; then
+            echo "train: #$pr $reason, before land.sh lands it"
+            continue
+        fi
+        echo "WAITS #$pr: $reason; the queue tries it again next tick"
+        tell_wait "$pr" "$reason"
+        waits="$waits${waits:+ }$pr"
+    done < "$scratch/merges"
+    [ "$mac" = isolated ] || return 0
+    hosted_only=$(listed_in "$hosted_list" "$scratch/selected")
     [ -n "$hosted_only" ] || return 0
     runner=hosted
     echo "train: it selects hosted-only harnesses ($hosted_only), which land.sh trusts only from a hosted run, so its Mac jobs are hosted"
@@ -330,6 +372,14 @@ while [ ${#queue[@]} -gt 0 ]; do
     built=()
     for train in "${queue[@]}"; do
         build_train "$base" $train
+        # A PR dropped for a conflict with a waiting one gets another try, so the batch is rebuilt without them.
+        while [ -n "$stacked" ]; do
+            preflight
+            [ -n "$waits" ] || break
+            train=$(tr ' ' '\n' <<< "$train" | grep -vxF -f <(tr ' ' '\n' <<< "$waits") | paste -sd' ' - || true)
+            build_train "$base" $train
+        done
+        tell_drops
         [ "$stacked" = "$train" ] || status=1
         [ -n "$stacked" ] || continue
         branch=$(train_branch $stacked)
@@ -341,7 +391,6 @@ while [ ${#queue[@]} -gt 0 ]; do
             echo "train: $branch is left from an earlier run; scrapping it"
             scrap_train "$branch" "$leftover"
         fi
-        preflight
         built+=("$branch $tip $runner $stacked")
     done
     queue=()
