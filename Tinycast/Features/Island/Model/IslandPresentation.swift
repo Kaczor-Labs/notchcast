@@ -130,6 +130,8 @@ struct IslandPageRow: Equatable, Sendable {
     var title: String
     var detail: String?
     var trailing: String?
+    /// What VoiceOver reads instead of the row, as a notice's `spokenText`.
+    var spoken: String?
 }
 
 /// A labelled bar, 0...1, with its value as text.
