@@ -35,11 +35,14 @@ struct AnnotationDocument: Sendable {
     private var newTextID: Int?
     private var nextID = 1
     private var noise: AnnotationNoise
+    /// What was last copied, saved or dragged out, or the capture as it opened.
+    var clean: Snapshot
 
     init(image: CGImage, scale: CGFloat = 1, seed: UInt64 = 0) {
         self.image = image
         self.scale = max(scale, 0.1)
         noise = AnnotationNoise(seed: seed)
+        clean = Snapshot(image: image, marks: [])
     }
 
     var imageSize: CGSize { CGSize(width: image.width, height: image.height) }

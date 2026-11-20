@@ -108,6 +108,35 @@ struct IslandNoticeTest {
         hidden.post(IslandNotice(id: "a", text: "Changed"), at: 0)
         hidden.end("b", at: 0)
         precondition(hidden.announcement() == "Changed", "A covered notice whose text changed is heard on return")
+
+        var ticking = IslandNoticeQueue()
+        ticking.post(IslandNotice(id: "t", text: "a.iso · 1%", progress: IslandProgress(fraction: 0.01)), at: 0)
+        precondition(ticking.announcement() == "a.iso · 1%", "A progress is announced when it first shows")
+        ticking.post(IslandNotice(id: "t", text: "a.iso · 2%", progress: IslandProgress(fraction: 0.02)), at: 1)
+        precondition(ticking.announcement() == nil, "A progress whose numbers tick stays silent")
+        ticking.post(IslandNotice(id: "t", text: "a.iso failed", isFailure: true), at: 2)
+        precondition(ticking.announcement() == "a.iso failed", "A progress turning into its outcome is announced")
+        ticking.end("t", at: 3)
+        ticking.post(IslandNotice(id: "t", text: "b.iso · 5%", progress: IslandProgress(fraction: 0.05)), at: 3)
+        precondition(ticking.announcement() == "b.iso · 5%", "A progress posted again after its end is announced")
+
+        var quick = IslandNoticeQueue()
+        quick.post(IslandNotice(id: "ip", text: "Copied 10.0.0.2"), at: 0)
+        precondition(quick.announcement() == "Copied 10.0.0.2", "A copied address is announced")
+        quick.post(IslandNotice(id: "ip", text: "Looking Up Public IP…", progress: IslandProgress(fraction: nil)), at: 1)
+        precondition(quick.announcement() == "Looking Up Public IP…", "A progress after a result of its id is announced")
+        quick.post(IslandNotice(id: "ip", text: "Copied 1.2.3.4"), at: 2)
+        precondition(quick.announcement() == "Copied 1.2.3.4", "Its result is announced")
+        quick.post(IslandNotice(id: "ip", text: "Looking Up Public IP…", progress: IslandProgress(fraction: nil)), at: 3)
+        precondition(quick.announcement() == "Looking Up Public IP…", "The same progress run again is announced again")
+
+        var secret = IslandNoticeQueue()
+        secret.post(IslandNotice(id: "w", text: "Copied “Home”: hunter2", spokenText: "Copied Wi-Fi password"), at: 0)
+        precondition(secret.notice?.text == "Copied “Home”: hunter2" && secret.announcement() == "Copied Wi-Fi password",
+                     "A notice with spoken text shows its text and announces the spoken text")
+        secret.post(IslandNotice(id: "p", text: "Copied 1.2.3.4"), at: 0)
+        precondition(secret.notice?.spoken == "Copied 1.2.3.4" && secret.announcement() == "Copied 1.2.3.4",
+                     "A notice without spoken text announces its text")
         print("IslandNoticeTest passed")
     }
 
