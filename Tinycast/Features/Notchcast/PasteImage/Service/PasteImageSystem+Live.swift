@@ -83,11 +83,13 @@ private nonisolated enum PasteImageFinder {
         guard png.count <= PasteImagePolicy.maxImageBytes else {
             return fail(.tooLarge, step: "image", "\(png.count) bytes as PNG")
         }
-        let location = send(get(property("pURL", of: property("pins"))))
+        let location = insertionLocation()
         guard location.status == 0 else {
-            return fail(.finder(status: location.status), step: "location", "status \(location.status)")
+            return fail(.location(status: location.status), step: "location", "status \(location.status)")
         }
-        guard let folder = url(location.reply), PasteImagePolicy.accepts(frontFolder: folder, hasWindow: true) else {
+        guard let folder = PasteImagePolicy.folder(posixPath: location.path),
+              PasteImagePolicy.accepts(frontFolder: folder, hasWindow: true)
+        else {
             return fail(.noFolder, step: "location", "not a folder")
         }
         switch PasteImageSaver.save(png, into: folder, at: date, timeZone: .current, files: files) {
@@ -122,6 +124,15 @@ private nonisolated enum PasteImageFinder {
         else { return nil }
         CGImageDestinationAddImageFromSource(destination, source, 0, nil)
         return CGImageDestinationFinalize(destination) ? output as Data : nil
+    }
+
+    /// Compiled and run in this process off the main actor, as Vorssaint runs it; -1 when no number came.
+    private static func insertionLocation() -> (path: String?, status: Int) {
+        guard let script = NSAppleScript(source: PasteImagePolicy.insertionLocationScript) else { return (nil, -1) }
+        var error: NSDictionary?
+        let reply = script.executeAndReturnError(&error)
+        if let error { return (nil, error[NSAppleScript.errorNumber] as? Int ?? -1) }
+        return (reply.stringValue, 0)
     }
 
     /// Asks Finder for `URL of target of Finder window 1`, and whether that window exists when it has none.
@@ -163,7 +174,6 @@ private nonisolated enum PasteImageFinder {
         result(reply)?.stringValue.flatMap(URL.init(string:))
     }
 
-    /// `pins` is the insertion location: the front window's folder, or the Desktop when no window is open.
     private static func property(_ name: String, of owner: NSAppleEventDescriptor = .null()) -> NSAppleEventDescriptor {
         specifier("prop", "prop", NSAppleEventDescriptor(typeCode: code(name)), from: owner)
     }

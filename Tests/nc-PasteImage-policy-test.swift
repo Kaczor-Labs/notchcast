@@ -106,6 +106,25 @@ enum PasteImagePolicyTests {
         for status in [-1743, -1744, -1712, -600, -609, -10004] {
             precondition(!PasteImageFailure.meansNoFolder(status: status), "status \(status) fails at once")
         }
+        precondition(PasteImageFailure.location(status: -1728) == .noFolder, "no insertion location is no folder")
+        precondition(PasteImageFailure.location(status: -1719) == .noFolder)
+        precondition(PasteImageFailure.location(status: -1743) == .automationRefused, "Automation refused")
+        precondition(PasteImageFailure.location(status: -1712) == .finderSilent, "a timeout is no answer")
+        precondition(PasteImageFailure.location(status: -1) == .finderSilent, "an error without a number")
+        precondition(
+            PasteImagePolicy.insertionLocationScript.contains(
+                "tell application \"Finder\"\n        return POSIX path of (insertion location as alias)\n    end tell"),
+            "Vorssaint's question, word for word")
+        precondition(PasteImagePolicy.insertionLocationScript.hasPrefix("with timeout of 30 seconds\n"))
+        precondition(
+            PasteImagePolicy.folder(posixPath: "/Volumes/Disk/Shots/\n") == URL(fileURLWithPath: "/Volumes/Disk/Shots/"),
+            "Finder's POSIX path is the folder")
+        precondition(PasteImagePolicy.folder(posixPath: "/Volumes/Disk/Shots")?.hasDirectoryPath == true)
+        for path in [nil, "", " \n", "Shots/"] as [String?] {
+            precondition(PasteImagePolicy.folder(posixPath: path) == nil, "\(path ?? "nil") is no folder")
+        }
+        let trash = PasteImagePolicy.folder(posixPath: "/Volumes/Disk/.Trashes/501/")
+        precondition(!PasteImagePolicy.accepts(frontFolder: trash, hasWindow: true), "a POSIX Trash takes nothing")
     }
 
     static func keys() {

@@ -30,6 +30,11 @@ enum PasteImageFailure: Equatable, Sendable, CaseIterable {
     static func meansNoFolder(status: Int) -> Bool {
         [0, -1728, -1719, -1708].contains(status)
     }
+
+    /// The insertion location's error: no folder where `meansNoFolder` says so, else as `finder(status:)`.
+    static func location(status: Int) -> Self {
+        meansNoFolder(status: status) ? .noFolder : finder(status: status)
+    }
 }
 
 /// The element that holds the keys, read system-wide so a panel floating over Finder is seen.
@@ -50,6 +55,21 @@ enum PasteImagePolicy {
     static let maxImageBytes = 64 * 1024 * 1024
     static let timeout: TimeInterval = 30
     static let modifiers: CGEventFlags = [.maskCommand, .maskShift, .maskAlternate, .maskControl, .maskSecondaryFn]
+    /// Vorssaint's own question, word for word, inside the policy's timeout.
+    static let insertionLocationScript = """
+        with timeout of \(Int(timeout)) seconds
+            tell application "Finder"
+                return POSIX path of (insertion location as alias)
+            end tell
+        end timeout
+        """
+
+    /// Finder answers a POSIX path; anything empty or relative is no folder.
+    static func folder(posixPath: String?) -> URL? {
+        guard let path = posixPath?.trimmingCharacters(in: .whitespacesAndNewlines), path.hasPrefix("/")
+        else { return nil }
+        return URL(fileURLWithPath: path, isDirectory: true)
+    }
 
     /// The key whose Command character is "v" in the current layout, so Dvorak's ⌘V is caught too.
     static func keyCode(commandCharacter: (Int) -> String?) -> Int {
