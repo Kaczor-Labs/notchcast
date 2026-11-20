@@ -10,4 +10,9 @@ nonisolated enum CopyPathBudget {
         guard left >= minimumRead else { return nil }
         return min(cap, Float(left / .seconds(1)))
     }
+
+    /// A clipped read that failed spent the budget only when too little is now left for another.
+    static func isSpent(timeout: Float, cap: Float, leftAfter: Duration) -> Bool {
+        timeout < cap && self.timeout(left: leftAfter, cap: cap) == nil
+    }
 }
