@@ -245,7 +245,7 @@ def read_baseline(path):
     for rule, counts in baseline.items():
         if not isinstance(counts, dict) or any(type(v) is not int or v < 0 for v in counts.values()):
             raise ValueError(f'invalid baseline counts for {rule}')
-    # shortcut: retired counters stay in drift-baseline.json while the v2 base checker requires them.
+    # shortcut: v2/base's check-drift.py requires these alerts counters; cut them when it stops.
     if not set(PATTERNS) <= baseline['alerts'].keys():
         raise ValueError('baseline alerts must define every pattern counter')
     return baseline
