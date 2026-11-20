@@ -2,6 +2,7 @@
 // Copyright (C) 2026 Vorssaint
 // Adapted from Vorssaint faada18's NotchNotificationReaderCore: read budgets, stack cards and confirmed moves.
 
+import CoreGraphics
 import Foundation
 
 /// The hider's Accessibility calls; a failed read throws, so a partial tree never decides anything.
