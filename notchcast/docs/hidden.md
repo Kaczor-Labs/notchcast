@@ -49,7 +49,7 @@ Four tables in our own files, each read by a short hook in upstream's; hiding a 
 | --- | --- | --- | --- |
 | A Settings tab | `NotchcastHidden.tabs` | `SettingsTab.init(slug:)` and `SettingsSection.tabs`, one filter each; `SettingsSearchCatalog.entries`, one `.filter` | sidebar, `settings/<slug>` links, Settings search |
 | A Settings row | `NotchcastHidden.rows[tab]`, English keys | the same `.filter` in `SettingsSearchCatalog.entries`; the row's own `.notchcastHidden()` in its pane | Settings search, the pane |
-| A command | `NotchcastHiddenCommands.commands`, `CommandID`s | `AppIndex.visibleCatalogEntries` and `AppIndex.isCommandEnabled`, one added `&&` line each | launcher, compact bar, hotkeys and deeplinks (`AppCore.allowsHotKeyAction` asks `isCommandEnabled`) |
+| A command | `NotchcastHiddenCommands.commands`, `CommandID`s | `AppIndex.visibleCatalogEntries` and `AppIndex.isCommandEnabled`, one added `&&` line each | launcher, compact bar, hotkeys and deeplinks (`AppCore.allowsHotKeyAction` asks `isCommandEnabled`; `DeepLinkCoordinator.exists` answers a hidden command's link as unknown) |
 | A launcher category | `NotchcastHiddenCommands.kinds`, `AppEntry.Kind`s | `VisibilityStore.isKindEnabled`, one added `&&` line | launcher rows of the kind, and the hotkeys `allowsHotKey` gates by kind (apps, system settings, system actions, unowned commands) |
 
 - `NotchcastHiddenCommands.commands` holds raw `CommandID` strings, because harnesses compile it beside a stub `CommandID`; a stub without the case simply drops it. #1062 fills both tables, one item per PR.
