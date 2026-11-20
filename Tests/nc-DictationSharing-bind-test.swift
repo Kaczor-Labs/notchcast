@@ -66,9 +66,15 @@ struct DictationBindTest {
         ready = nil
     }
 
-    /// Off the main actor, where the reply's work runs; bytes read before EOF, a 5 s cap per read.
-    @concurrent
+    /// Blocking reads stay off the cooperative pool, which CI's strict mode cuts to one thread.
     nonisolated static func roundTrip(port: UInt16) async -> Int {
+        await withCheckedContinuation { done in
+            DispatchQueue.global().async { done.resume(returning: blockingRoundTrip(port: port)) }
+        }
+    }
+
+    /// Bytes read before EOF, a 5 s cap per read.
+    nonisolated static func blockingRoundTrip(port: UInt16) -> Int {
         var (address, length) = ipv4("127.0.0.1", port: port)
         let descriptor = socket(AF_INET, SOCK_STREAM, 0)
         guard descriptor >= 0 else { return -1 }
@@ -147,7 +153,7 @@ struct DictationBindTest {
             var text = [CChar](repeating: 0, count: Int(INET_ADDRSTRLEN))
             var inet = address.withMemoryRebound(to: sockaddr_in.self, capacity: 1) { $0.pointee.sin_addr }
             guard inet_ntop(AF_INET, &inet, &text, socklen_t(text.count)) != nil else { continue }
-            return String(cString: text)
+            return String(decoding: text.prefix { $0 != 0 }.map { UInt8(bitPattern: $0) }, as: UTF8.self)
         }
         return nil
     }
