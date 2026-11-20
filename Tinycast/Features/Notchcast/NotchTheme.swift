@@ -41,13 +41,6 @@ enum NotchTheme {
             let medium = callout.fontDescriptor.addingAttributes([.traits: weight, .featureSettings: [digits]])
             return NSFont(descriptor: medium, size: callout.pointSize) ?? callout
         }()
-        /// A song's title and artist at body size, 13 on macOS, a step over the glance (#850 D17).
-        @MainActor static let islandSongNSFont: NSFont = {
-            let body = NSFont.preferredFont(forTextStyle: .body)
-            let weight: [NSFontDescriptor.TraitKey: Any] = [.weight: NSFont.Weight.medium]
-            let medium = body.fontDescriptor.addingAttributes([.traits: weight])
-            return NSFont(descriptor: medium, size: body.pointSize) ?? body
-        }()
     }
 
     enum Colors {
