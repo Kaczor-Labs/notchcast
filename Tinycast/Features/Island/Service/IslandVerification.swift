@@ -39,12 +39,19 @@ enum IslandVerification {
     /// Lets a scene unplug and replug the test display; nil is the test display alone.
     static var screens: [NSScreen]?
 
-    /// The screen whose display id the vdisplay wrapper exports; never the main or built-in one.
+    /// The screen whose display id the caller exports, under `IslandTestDisplay`'s rule.
     static var testScreen: NSScreen? {
         guard let id = ProcessInfo.processInfo.environment["ISLAND_TEST_DISPLAY"].flatMap(UInt32.init),
-              CGDisplayIsMain(id) == 0, CGDisplayIsBuiltin(id) == 0 else { return nil }
+              IslandTestDisplay.accepts(isMain: CGDisplayIsMain(id) != 0, isBuiltin: CGDisplayIsBuiltin(id) != 0,
+                                        inGuest: inGuest) else { return nil }
         return NSScreen.screens.first { $0.islandDisplayID == id }
     }
+
+    private static let inGuest: Bool = {
+        var present: Int32 = 0
+        var size = MemoryLayout<Int32>.size
+        return sysctlbyname("kern.hv_vmm_present", &present, &size, nil, 0) == 0 && present == 1
+    }()
 
     static func require(_ condition: Bool, _ message: String) {
         guard condition else {

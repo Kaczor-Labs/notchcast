@@ -25,7 +25,11 @@ final class Target: NSView {
 let app = NSApplication.shared
 app.setActivationPolicy(.accessory)
 let testID = ProcessInfo.processInfo.environment["ISLAND_TEST_DISPLAY"].flatMap(UInt32.init)
-guard let testID, CGDisplayIsMain(testID) == 0, CGDisplayIsBuiltin(testID) == 0,
+var inGuest: Int32 = 0
+var inGuestSize = MemoryLayout<Int32>.size
+sysctlbyname("kern.hv_vmm_present", &inGuest, &inGuestSize, nil, 0)
+// IslandTestDisplay's rule: the main display only inside a VM guest, a built-in one never.
+guard let testID, CGDisplayIsBuiltin(testID) == 0, CGDisplayIsMain(testID) == 0 || inGuest == 1,
       let screen = NSScreen.screens.first(where: {
           ($0.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? NSNumber)?.uint32Value == testID
       }) else {
