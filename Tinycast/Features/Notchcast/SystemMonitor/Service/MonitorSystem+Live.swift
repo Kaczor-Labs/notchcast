@@ -88,7 +88,8 @@ enum MonitorLiveReads {
                     let info = base.advanced(by: offset).loadUnaligned(as: if_msghdr2.self)
                     var name = [CChar](repeating: 0, count: Int(IFNAMSIZ))
                     if if_indextoname(UInt32(info.ifm_index), &name) != nil {
-                        let interface = String(decoding: name.prefix { $0 != 0 }.map(UInt8.init), as: UTF8.self)
+                        let bytes = name.prefix { $0 != 0 }.map { UInt8(bitPattern: $0) }
+                        let interface = String(bytes: bytes, encoding: .utf8) ?? ""
                         if MonitorNetworkCounters.counts(interface), counters.interfaces.insert(interface).inserted {
                             counters.received &+= info.ifm_data.ifi_ibytes
                             counters.sent &+= info.ifm_data.ifi_obytes
@@ -132,6 +133,6 @@ enum MonitorLiveReads {
     nonisolated private static func name(_ pid: pid_t) -> String {
         var buffer = [UInt8](repeating: 0, count: 2 * Int(MAXCOMLEN) + 1)
         let length = proc_name(pid, &buffer, UInt32(buffer.count))
-        return length > 0 ? String(decoding: buffer.prefix(Int(length)), as: UTF8.self) : "pid \(pid)"
+        return length > 0 ? String(bytes: buffer.prefix(Int(length)), encoding: .utf8) ?? "pid \(pid)" : "pid \(pid)"
     }
 }

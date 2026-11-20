@@ -1,6 +1,7 @@
 // notchcast-sources: Tinycast/Features/Notchcast/SystemMonitor/SystemMonitorAddon.swift
 // notchcast-sources: Tinycast/Features/Notchcast/SystemMonitor/Model/*.swift
-// notchcast-sources: Tinycast/Features/Notchcast/SystemMonitor/Service/SystemMonitorModule.swift Tinycast/Features/Notchcast/SystemMonitor/Service/MonitorSystem.swift
+// notchcast-sources: Tinycast/Features/Notchcast/SystemMonitor/Service/SystemMonitorModule.swift
+// notchcast-sources: Tinycast/Features/Notchcast/SystemMonitor/Service/MonitorSystem.swift
 // notchcast-sources: Tinycast/Features/Notchcast/Core/Model/*.swift
 // notchcast-sources: Tinycast/Features/Notchcast/Core/Service/*.swift
 // notchcast-sources: Tinycast/Platform/NotificationToken.swift
@@ -169,7 +170,7 @@ struct SystemMonitorModuleTests {
         check(mac.reads == [false, true, true, true, false], "\(mac.reads)")
         check(Array(mac.sleeps.suffix(4)) == [.seconds(2), .seconds(2), .seconds(2), .seconds(15)],
               "2 s while shown, 15 s once hidden: \(mac.sleeps)")
-        guard let page = presenter.pages.last ?? nil, case .cards(let tiles) = page.blocks.first else {
+        guard let page = presenter.pages.last.flatMap(\.self), case .cards(let tiles) = page.blocks.first else {
             return check(false, "the page shows tiles")
         }
         check(tiles.cards.allSatisfy { !$0.dimmed }, "every tile filled once two detail reads came in")
