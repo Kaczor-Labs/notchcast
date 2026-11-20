@@ -21,6 +21,8 @@ enum AirDropReply { case sent, cancelled, hold }
 final class FakeSystem {
     var clipboard: String?
     var copies: [(text: String, concealed: Bool)] = []
+    /// How many copies were made when history was told to read the board first.
+    var prepares: [Int] = []
     var copyWorks = true
     var browser: String?
     var browserError: (any Error)?
@@ -35,7 +37,7 @@ final class FakeSystem {
     var shares: [[URL]] = []
 
     func reset() {
-        clipboard = nil; copies = []; copyWorks = true; browser = nil; browserError = nil; browserReads = 0
+        clipboard = nil; copies = []; prepares = []; copyWorks = true; browser = nil; browserError = nil; browserReads = 0
         requests = []; reply = (Data("https://tinyurl.com/abc123".utf8), 200); fetchError = nil; holdFetch = false
         files = []; sharingAvailable = true; airDropReply = .sent; shares = []
     }
@@ -130,7 +132,9 @@ final class Rig {
         let hub = NotchcastTapHub(syntheticTag: 0x54494E59, isTrusted: { true }, makeSession: { FakeSession($0) })
         controller = NotchcastController(
             addons: [SmallCommandsAddon.self], defaults: defaults, hub: hub,
-            dictation: FakeDictation(), presenter: presenter)
+            dictation: FakeDictation(),
+            clipboard: NotchcastClipboardMutation(prepare: { fake.prepares.append(fake.copies.count) }, synchronize: { _ in }),
+            presenter: presenter)
         controller.start()
     }
 
@@ -202,6 +206,7 @@ enum SmallCommandsModuleTests {
         ran = await rig.run("generate-password")
         precondition(ran, "password runs")
         precondition(fake.copies.count == 1 && fake.copies[0].concealed, "password copy is concealed")
+        precondition(fake.prepares == [0], "history reads the user's last copy before the password replaces it")
         precondition(fake.copies[0].text.count == 24, "password length")
         rig.expect("Password Copied", failure: false, symbol: "checkmark", "password")
         fake.copyWorks = false
@@ -219,6 +224,7 @@ enum SmallCommandsModuleTests {
         precondition(sent == endpoint + "https%3A%2F%2Fexample.com%2Fpage%3Fid%3D7", "cleaned link sent: \(sent)")
         precondition(fake.copies.last.map { $0.text == "https://tinyurl.com/abc123" && !$0.concealed } == true,
                      "short link copied plainly")
+        precondition(fake.prepares == [0], "history reads the user's last copy before the short link replaces it")
         rig.expect("Short Link Copied", failure: false, symbol: "checkmark", "shorten from clipboard")
 
         // Shorten: browser fallback.
