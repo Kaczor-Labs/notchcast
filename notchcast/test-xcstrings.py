@@ -173,6 +173,19 @@ class CatalogTests(unittest.TestCase):
         self.assertFalse(check(dict(A={}), {}, '', ''))
         self.assertFalse(check({}, dict(Listed={}), '', '', ['Listed']))
 
+    def test_chords_need_a_declaration(self):
+        undeclared = runpy.run_path(str(ROOT / 'check-fork-strings.py'))['undeclared_chords']
+        with tempfile.TemporaryDirectory() as directory:
+            folder = Path(directory) / 'Feature'
+            folder.mkdir()
+            table = folder / 'NotchcastFeature.xcstrings'
+            keys = {'⌘X then ⌘V moves files.': {}, 'Hyper+R renames.': {}, 'Plain text.': {}}
+            self.assertEqual(len(undeclared({table: keys})), 3)
+            (folder / 'FeatureAddon.swift').write_text('// notchcast-system-keys: ⌘X ⌘V Hyper\n')
+            self.assertEqual(undeclared({table: keys}), [])
+            self.assertEqual(len(undeclared({folder / 'Notchcast.xcstrings': keys})), 3)
+            self.assertEqual(len(undeclared({table: {'⌃⌥⇧⌘R renames.': {}}})), 1)
+
     def test_git_operations(self):
         for operation, catalog_path in itertools.product(
                 ('branch-first', 'main-first', 'rebase', 'cherry-pick'),

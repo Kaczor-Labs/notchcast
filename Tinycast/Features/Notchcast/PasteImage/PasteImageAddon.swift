@@ -1,4 +1,5 @@
 // notchcast-addon-order: 180
+// notchcast-system-keys: ⌘V
 import Foundation
 
 enum PasteImageAddon: NotchcastAddon {
