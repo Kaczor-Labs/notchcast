@@ -3,12 +3,10 @@ import Foundation
 struct MediaDownloadRunner: DownloadRunner {
     /// Wi-Fi and iPhone bonding as the module decides it; the default never bonds.
     struct Bonding: Sendable {
-        /// True when the option is on and both interfaces are up, so the size is worth asking for.
-        var isPossible: @MainActor @Sendable () -> Bool = { false }
-        /// aria2c's extra flags for a job of this size; a nil size takes the job's iPhone mark away.
-        var begin: @MainActor @Sendable (_ job: String, _ bytes: Int64?) -> [String] = { _, _ in [] }
-        /// The server's own size for a direct link, asked only when yt-dlp could not tell.
-        var remoteBytes: @Sendable (_ source: String) async -> Int64? = { _ in nil }
+        /// aria2c's extra flags for this job, empty unless the option is on and both interfaces are up.
+        var begin: @MainActor @Sendable (_ job: String) -> [String] = { _ in [] }
+        /// Takes the job's iPhone mark away.
+        var end: @MainActor @Sendable (_ job: String) -> Void = { _ in }
     }
 
     let format: MediaArguments.Format
@@ -24,15 +22,7 @@ struct MediaDownloadRunner: DownloadRunner {
         guard context.tools.find(.ffmpeg) != nil else { throw DownloadToolMissing(tool: .ffmpeg) }
         try FileManager.default.createDirectory(at: context.destination, withIntermediateDirectories: true)
         let aria2 = await aria2Enabled() ? context.tools.find(.aria2c)?.path : nil
-        var bonded: [String] = []
-        if aria2 != nil, await bonding.isPossible() {
-            let size = try? await context.spawn(
-                executable: executable, arguments: MediaArguments.size(source: job.source, format: format))
-            var bytes = size.flatMap { MediaArguments.bytes($0.output) }
-            if bytes == nil { bytes = await bonding.remoteBytes(job.source) }
-            try Task.checkCancellation()
-            bonded = await bonding.begin(job.id, bytes)
-        }
+        let bonded = aria2 != nil ? await bonding.begin(job.id) : []
         try Task.checkCancellation()
         func attempt(aria2Path: String?, restart: Bool = false) async throws -> DownloadProcessResult {
             let (stream, continuation) = AsyncStream<MediaOutput.Progress>.makeStream()
@@ -55,7 +45,7 @@ struct MediaDownloadRunner: DownloadRunner {
             try Task.checkCancellation()
             guard MediaArguments.retryNatively(stderr: failure.result.errors,
                                                source: job.source, usedAria2: aria2 != nil) else { throw failure }
-            if !bonded.isEmpty { _ = await bonding.begin(job.id, nil) }
+            if !bonded.isEmpty { await bonding.end(job.id) }
             result = try await attempt(aria2Path: nil, restart: true)
         }
         try Task.checkCancellation()
