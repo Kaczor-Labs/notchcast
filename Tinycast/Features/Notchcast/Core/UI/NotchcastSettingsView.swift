@@ -64,7 +64,12 @@ private struct NotchcastSwitchRows: View {
         if preferences.isEnabled(item.id) {
             ForEach(controller.slots.flatMap { $0.addon.commands }.filter { $0.switchID == item.id }) { command in
                 let shown = preferences.showsInLauncher(command.id)
-                SettingsRow(title: command.name, labelOpacity: shown ? 1 : 0.45) {
+                // Not SettingsRow: its one-line title truncates beside the three controls.
+                HStack(spacing: Theme.Spacing.lg) {
+                    Text(command.name)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .opacity(shown ? 1 : 0.45)
+                    Spacer(minLength: Theme.Spacing.lg)
                     AliasField(key: command.id, name: command.name)
                     ShortcutRecorder(action: .notchcastCommand(entryID: command.id))
                     Toggle("Show in launcher", isOn: Binding(
