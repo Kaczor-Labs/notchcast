@@ -9,6 +9,8 @@ enum NotchTheme {
     enum Radius {
         /// A menu panel is concentric with its rows: menu row 18 plus the list inset 8, as the island outline.
         static let islandMenu: CGFloat = Theme.Radius.menuRow + Theme.Spacing.md
+        /// A song's 16-point cover in the pill's wings, where `thumbnail` would nearly round it off.
+        static let islandCover: CGFloat = 4
     }
 
     enum Size {
@@ -38,6 +40,13 @@ enum NotchTheme {
                                                              .selectorIdentifier: kMonospacedNumbersSelector]
             let medium = callout.fontDescriptor.addingAttributes([.traits: weight, .featureSettings: [digits]])
             return NSFont(descriptor: medium, size: callout.pointSize) ?? callout
+        }()
+        /// A song's title and artist at body size, 13 on macOS, a step over the glance (#850 D17).
+        @MainActor static let islandSongNSFont: NSFont = {
+            let body = NSFont.preferredFont(forTextStyle: .body)
+            let weight: [NSFontDescriptor.TraitKey: Any] = [.weight: NSFont.Weight.medium]
+            let medium = body.fontDescriptor.addingAttributes([.traits: weight])
+            return NSFont(descriptor: medium, size: body.pointSize) ?? body
         }()
     }
 

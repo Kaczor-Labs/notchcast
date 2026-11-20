@@ -204,3 +204,50 @@ struct IslandCardMeter: Equatable, Sendable {
     var warning = false
     var note: String?
 }
+
+/// What any player shows on the island: Spotify now, the any-player source (#930) later.
+struct IslandNowPlaying: Equatable, Sendable {
+    var title: String
+    var artist: String?
+    var artwork: Data?
+    var time: IslandMediaTime?
+    var isPlaying: Bool
+    /// Changes with the song, so a new one announces itself once; empty falls back to the names.
+    var id = ""
+    /// How a pill without a notch fits "title · artist" longer than its cap (D15).
+    var overflow = IslandSongOverflow.widen
+    /// In the user's liked songs; nil when the player cannot tell, so no heart shows.
+    var liked: Bool?
+    /// 0...1; nil hides the volume bar.
+    var volume: Double?
+    /// The player takes a seek on the bar.
+    var seekable = false
+    var upNext: [IslandQueuedSong] = []
+
+    /// Only what the pill draws, so a change to the page alone never redraws it.
+    var glance: IslandNowPlaying {
+        IslandNowPlaying(title: title, artist: artist, artwork: artwork, time: nil, isPlaying: isPlaying, id: id,
+                         overflow: overflow)
+    }
+
+    var songID: String { id.isEmpty ? title + "\u{1F}" + (artist ?? "") : id }
+
+    /// VoiceOver's value for the pill: the full names and the state, never cut.
+    var accessibilityValue: String {
+        let state = isPlaying ? String(localized: "Playing", table: "Notchcast") : String(localized: "Paused")
+        return [title, artist ?? "", state].filter { !$0.isEmpty }.joined(separator: ", ")
+    }
+}
+
+/// A song waiting after this one.
+struct IslandQueuedSong: Equatable, Sendable {
+    var id: String
+    var title: String
+    var artist: String?
+}
+
+/// D15: a pill without a notch either widens to the song's line or keeps its cap and scrolls the line.
+enum IslandSongOverflow: String, Sendable, CaseIterable {
+    case widen
+    case scroll
+}

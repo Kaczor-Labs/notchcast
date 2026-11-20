@@ -178,6 +178,7 @@ final class IslandController: NSObject {
         metrics.compact.maxSlotWidth = NotchTheme.Size.islandHeadlineMaxWidth
         metrics.compact.maxWidth = next.canvas.width
         metrics.compact.balance = 0
+        metrics.compact.radius = next.notchRadius.map(Double.init)
         let clock = FrameClock(frameSource: source)
         clock.timeScale = Self.motionSpeed
         let surface = IslandSurface<CGSize>(

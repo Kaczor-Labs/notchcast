@@ -5,7 +5,7 @@ import Foundation
 struct IslandHover: Equatable, Sendable {
     /// As fast as a pointer crossing the zone on its way to the menu bar allows (#850 D26).
     static let openDelay: TimeInterval = 0.1
-    /// Long enough to slip off the edge and back without the island closing under the pointer (D26).
+    /// As short as the open delay, so the island closes as soon as the pointer leaves it (#850 D26).
     static let closeDelay: TimeInterval = 0.1
 
     /// What the pointer and the rest of the app look like at one instant.

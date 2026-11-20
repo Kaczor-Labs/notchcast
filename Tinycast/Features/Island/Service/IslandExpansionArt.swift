@@ -13,17 +13,18 @@ struct IslandExpansionArt {
 
     init(_ glance: IslandGlance, frosted: Bool) {
         self.init(glyph: GlanceArt.glyph(glance.symbol, tone: Theme.Colors.textPrimary.islandInk(frosted: frosted)),
-                  title: glance.title, detail: glance.countdown, frosted: frosted)
+                  title: glance.title, detail: glance.countdown, font: NotchTheme.Typography.islandGlanceNSFont,
+                  frosted: frosted)
     }
 
     /// D16: the cover stands where the meeting shows its glyph.
-    init(_ song: IslandNowPlaying, frosted: Bool) {
-        self.init(glyph: IslandCover.image(song.artwork, side: IslandSongArt.cell, frosted: frosted),
-                  title: song.title, detail: song.artist ?? "", frosted: frosted)
+    init(_ song: IslandNowPlaying, cover: NSImage, frosted: Bool) {
+        self.init(glyph: cover,
+                  title: song.title, detail: song.artist ?? "", font: NotchTheme.Typography.islandSongNSFont,
+                  frosted: frosted)
     }
 
-    private init(glyph: NSImage?, title: String, detail: String, frosted: Bool) {
-        let font = NotchTheme.Typography.islandGlanceNSFont
+    private init(glyph: NSImage?, title: String, detail: String, font: NSFont, frosted: Bool) {
         self.glyph = glyph
         self.title = NSAttributedString(string: title, attributes: [.font: font,
             .foregroundColor: Theme.Colors.textPrimary.islandInk(frosted: frosted)])

@@ -57,33 +57,31 @@ struct IslandSongTest {
     /// D16: below a notch only, once per new song, never for the first song seen.
     static func songChange() {
         var change = IslandSongChange(seconds: 2.4)
-        check(!change.update(song, notch: true, at: 0), "the first song only arms it")
-        check(!change.update(song, notch: true, at: 1), "the same song again is no change")
+        check(!change.update(song, notch: true), "the first song only arms it")
+        check(!change.update(song, notch: true), "the same song again is no change")
         var paused = song
         paused.isPlaying = false
-        check(!change.update(paused, notch: true, at: 1.5), "pausing is no change")
+        check(!change.update(paused, notch: true), "pausing is no change")
         var next = song
         next.id = "b"
-        check(change.update(next, notch: true, at: 2), "a new song on a notch shows")
-        check(change.shown == "b" && abs((change.remaining(at: 3) ?? 0) - 1.4) < 1e-9, "for one message dwell")
-        change.expire(at: 3)
-        check(change.shown == "b", "not before its dwell")
-        change.expire(at: 4.4)
-        check(change.shown == nil && change.remaining(at: 5) == nil, "gone after it")
+        check(change.update(next, notch: true), "a new song on a notch shows")
+        check(change.shown == "b" && change.seconds == 2.4, "for one message dwell")
+        change.cut()
+        check(change.shown == nil, "gone after it")
         next.id = "c"
-        check(!change.update(next, notch: false, at: 5), "never without a notch: the pill already names it")
+        check(!change.update(next, notch: false), "never without a notch: the pill already names it")
         next.id = "d"
-        check(change.update(next, notch: true, at: 6), "a notch again shows the next one")
+        check(change.update(next, notch: true), "a notch again shows the next one")
         change.cut()
         check(change.shown == nil, "a level, notice, meeting or the open island cuts it")
-        check(!change.update(nil, notch: true, at: 7) && change.shown == nil, "clearing shows nothing")
+        check(!change.update(nil, notch: true) && change.shown == nil, "clearing shows nothing")
         next.id = "e"
-        check(change.update(next, notch: true, at: 8), "a song after a clear is a change")
+        check(change.update(next, notch: true), "a song after a clear is a change")
         var named = IslandNowPlaying(title: "One", artist: "A", artwork: nil, time: nil, isPlaying: true)
         var byName = IslandSongChange()
-        _ = byName.update(named, notch: true, at: 0)
+        _ = byName.update(named, notch: true)
         named.title = "Two"
-        check(byName.update(named, notch: true, at: 1), "without an id the names tell songs apart")
+        check(byName.update(named, notch: true), "without an id the names tell songs apart")
     }
 
     static func voiceOver() {

@@ -97,6 +97,8 @@ public struct IslandMetrics: Sendable, Codable, Equatable {
         public var maxWidth: Double
         /// Least share of the longer side's extent the shorter reaches. 0 fits each alone.
         public var balance: Double
+        /// The pill's corner radius; nil is upstream's capsule, half the height. A hanging notch pill sets the cutout's.
+        public var radius: Double?
 
         public init(
             height: Double,
@@ -105,7 +107,8 @@ public struct IslandMetrics: Sendable, Codable, Equatable {
             innerPadding: InnerPadding,
             maxSlotWidth: Double,
             maxWidth: Double,
-            balance: Double
+            balance: Double,
+            radius: Double? = nil
         ) {
             self.height = height
             self.sensorWidth = sensorWidth
@@ -114,6 +117,7 @@ public struct IslandMetrics: Sendable, Codable, Equatable {
             self.maxSlotWidth = maxSlotWidth
             self.maxWidth = maxWidth
             self.balance = balance
+            self.radius = radius
         }
     }
 

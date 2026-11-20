@@ -1,52 +1,5 @@
 import Foundation
 
-/// What any player shows on the island: Spotify now, the any-player source (#930) later.
-struct IslandNowPlaying: Equatable, Sendable {
-    var title: String
-    var artist: String?
-    var artwork: Data?
-    var time: IslandMediaTime?
-    var isPlaying: Bool
-    /// Changes with the song, so a new one announces itself once; empty falls back to the names.
-    var id = ""
-    /// How a pill without a notch fits "title · artist" longer than its cap (D15).
-    var overflow = IslandSongOverflow.widen
-    /// In the user's liked songs; nil when the player cannot tell, so no heart shows.
-    var liked: Bool?
-    /// 0...1; nil hides the volume bar.
-    var volume: Double?
-    /// The player takes a seek on the bar.
-    var seekable = false
-    var upNext: [IslandQueuedSong] = []
-
-    /// Only what the pill draws, so a change to the page alone never redraws it.
-    var glance: IslandNowPlaying {
-        IslandNowPlaying(title: title, artist: artist, artwork: artwork, time: nil, isPlaying: isPlaying, id: id,
-                         overflow: overflow)
-    }
-
-    var songID: String { id.isEmpty ? title + "\u{1F}" + (artist ?? "") : id }
-
-    /// VoiceOver's value for the pill: the full names and the state, never cut.
-    var accessibilityValue: String {
-        let state = isPlaying ? String(localized: "Playing", table: "Notchcast") : String(localized: "Paused")
-        return [title, artist ?? "", state].filter { !$0.isEmpty }.joined(separator: ", ")
-    }
-}
-
-/// A song waiting after this one.
-struct IslandQueuedSong: Equatable, Sendable {
-    var id: String
-    var title: String
-    var artist: String?
-}
-
-/// D15: a pill without a notch either widens to the song's line or keeps its cap and scrolls the line.
-enum IslandSongOverflow: String, Sendable, CaseIterable {
-    case widen
-    case scroll
-}
-
 /// The line of title and artist on a pill without a notch; past its cap it either cuts or scrolls.
 struct IslandSongLine: Equatable, Sendable {
     let width: Double
@@ -89,14 +42,13 @@ enum IslandEqualizer {
 /// D16: a new song shows below a notch for one message dwell; never without a notch, never the first.
 struct IslandSongChange: Equatable, Sendable {
     private(set) var shown: String?
-    private(set) var until: TimeInterval = 0
     private var last: String?
     let seconds: TimeInterval
 
     init(seconds: TimeInterval = IslandNotice.messageSeconds) { self.seconds = seconds }
 
     /// The first song seen only arms it, so a launch never announces what was already loaded.
-    mutating func update(_ song: IslandNowPlaying?, notch: Bool, at now: TimeInterval) -> Bool {
+    mutating func update(_ song: IslandNowPlaying?, notch: Bool) -> Bool {
         let id = song?.songID
         defer { last = id ?? last }
         guard let id, let last, id != last, notch else {
@@ -104,17 +56,10 @@ struct IslandSongChange: Equatable, Sendable {
             return false
         }
         shown = id
-        until = now + seconds
         return true
     }
 
-    func remaining(at now: TimeInterval) -> TimeInterval? { shown == nil ? nil : max(until - now, 0) }
-
-    mutating func expire(at now: TimeInterval) {
-        if now >= until { shown = nil }
-    }
-
-    /// A level, a notice, a meeting or the open island cuts it short; it does not come back.
+    /// Its dwell's end, or a level, notice, meeting or the open island; it does not come back.
     mutating func cut() { shown = nil }
 }
 
