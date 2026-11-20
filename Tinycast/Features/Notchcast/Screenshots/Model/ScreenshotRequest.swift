@@ -18,7 +18,9 @@ enum ScreenshotRequest: Equatable, Sendable {
 
     static func failureMessage(_ error: any Error) -> String {
         let failure = error as NSError
-        if failure.domain == NSCocoaErrorDomain && (512..<1024).contains(failure.code) {
+        // A folder deleted after it was chosen fails as "no such file", not as a write error.
+        if failure.domain == NSCocoaErrorDomain
+            && (failure.code == CocoaError.fileNoSuchFile.rawValue || (512..<1024).contains(failure.code)) {
             return String(localized: "Could not save the screenshot.", table: "NotchcastScreenshots")
         }
         return switch error as? Failure {
@@ -44,7 +46,7 @@ enum ScreenshotBackupKeys {
     static let folder = "notchcast.screenshot.folder"
 }
 
-/// v1's naming, so files from both versions sort together on the Desktop.
+/// v1's naming, so files from both versions sort together in one folder.
 enum ScreenshotFileName {
     static func name(date: Date, timeZone: TimeZone, collision: Int = 0) -> String {
         let formatter = DateFormatter()

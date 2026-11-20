@@ -75,10 +75,10 @@ final class PlainPasteEngine {
             html: board.htmlText)
     }
 
-    /// Writes the plain text in place of the original; the caller restores any earlier paste first.
-    func lend(_ text: String) -> Outcome {
+    /// Lends text read at count `readAt`, refused if the board moved; restore earlier pastes first.
+    func lend(_ text: String, readAt changeCount: Int) -> Outcome {
         prepareWrite()
-        guard let snapshot = snapshot() else { return .refused }
+        guard let snapshot = snapshot(), snapshot.changeCount == changeCount else { return .refused }
         let temporary = [[
             PlainPasteEntry(type: "public.utf8-plain-text", data: Data(text.utf8)),
             PlainPasteEntry(type: board.ownMarker, data: Data()),

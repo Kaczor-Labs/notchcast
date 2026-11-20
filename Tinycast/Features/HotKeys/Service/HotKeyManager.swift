@@ -163,7 +163,8 @@ final class HotKeyManager {
 
     var boundCustomWindowSizeIDs: [UUID] { boundIDs(key: boundCustomWindowSizeKey) }
 
-    var boundQuickActionIDs: [UUID] { boundIDs(key: boundQuickActionKey) }
+    /// Quick Actions is hidden (notchcast/docs/hidden.md), so a stored binding registers no chord.
+    var boundQuickActionIDs: [UUID] { [] }
 
     /// Apple Shortcuts is hidden (notchcast/docs/hidden.md), so a stored binding registers no chord.
     var boundAppleShortcutIDs: [UUID] { [] }
