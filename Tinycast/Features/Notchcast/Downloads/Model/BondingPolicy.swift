@@ -19,20 +19,11 @@ nonisolated struct BondedPair: Equatable, Sendable {
 
 /// When a download rides Wi-Fi and a plugged-in iPhone together; pure, so a harness passes interfaces.
 nonisolated enum BondingPolicy {
-    enum Job: Equatable, Sendable {
-        case torrent
-        /// Nil when the size could not be learned, which never bonds.
-        case download(bytes: Int64?)
-    }
-
-    static let bigDownloadBytes: Int64 = 200_000_000
     static let markSymbol = "iphone"
 
     /// The pair to hand aria2c, or nil when the job runs as it always did.
-    static func pair(for job: Job, enabled: Bool, interfaces: [BondingInterface]) -> BondedPair? {
-        guard enabled else { return nil }
-        if case .download(let bytes) = job, bytes ?? 0 <= bigDownloadBytes { return nil }
-        return pair(in: interfaces)
+    static func pair(enabled: Bool, interfaces: [BondingInterface]) -> BondedPair? {
+        enabled ? pair(in: interfaces) : nil
     }
 
     static func pair(in interfaces: [BondingInterface]) -> BondedPair? {
