@@ -138,12 +138,13 @@ final class AgentsModule: NotchcastModule {
         preferences.sources(home: system.home).compactMap { source in
             let reading = readings[source.name]
             if source == .codex, reading == nil || reading?.state == .missing { return nil }
-            return AgentLocalAccount(name: source.name, provider: source.provider, reading: reading)
+            let folder: String? = if case .claude(_, let directory) = source { directory } else { nil }
+            return AgentLocalAccount(name: source.name, provider: source.provider, reading: reading, folder: folder)
         }
     }
 
     func post() {
-        let board = AgentBoard(machineName: machineName, local: locals, feed: feed, now: system.now())
+        let board = AgentBoard(home: system.home, machineName: machineName, local: locals, feed: feed, now: system.now())
         context.presenter.setPage(AgentPage.page(board), id: AgentPage.id) { [weak self] action in
             if action == IslandPage.refreshAction { self?.refresh() }
         }
