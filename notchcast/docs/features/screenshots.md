@@ -1,6 +1,6 @@
 # Screenshots and the Capture Editor
 
-The Screenshots add-on (`Tinycast/Features/Notchcast/Screenshots/`, switch `screenshot`, Settings › Notchcast › Capture) captures an area, a window or a display, and its Capture Editor annotates a capture before it is copied or saved (#936). Both share one module, `ScreenshotsModule`, and one seam to the Mac, `ScreenshotSystem`. The editor is an adaptation of Vorssaint's screenshot editor (GPL-3.0-or-later), cut to the tools below; each derived file carries its notice and a line in `notchcast/licenses/borrowed.md`.
+The Screenshots add-on (`Tinycast/Features/Notchcast/Screenshots/`, switch `screenshot`, Settings › Notchcast › Capture) captures an area, a window or a display, and its Capture Editor annotates a capture before it is copied or saved. Both share one module, `ScreenshotsModule`, and one seam to the Mac, `ScreenshotSystem`. The editor is an adaptation of Vorssaint's screenshot editor (GPL-3.0-or-later), cut to the tools below; each derived file carries its notice and a line in `notchcast/licenses/borrowed.md`.
 
 ## Invariants
 
