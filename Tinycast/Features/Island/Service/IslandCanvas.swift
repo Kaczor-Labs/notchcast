@@ -168,16 +168,39 @@ final class IslandCanvas: NSView {
         } else if let glance {
             GlanceArt(glance, notch: notched, frosted: frosted)
         } else if let song {
-            IslandSongArt(song, notch: notched, frosted: frosted, still: still)
+            IslandSongArt(song, notch: notched, frosted: frosted, still: still, cover: cover(for: song, frosted: frosted),
+                          since: songSince(song))
         } else if !statuses.isEmpty {
             IslandStatusArt(statuses, notch: notched, frosted: frosted)
         } else { nil }
         self.glance = art
         expansion = if level != nil || notice != nil { nil } else if let glance {
             expanded ? IslandExpansionArt(glance, frosted: frosted) : nil
-        } else if let song, songChange { IslandExpansionArt(song, frosted: frosted) } else { nil }
+        } else if let song, songChange {
+            IslandExpansionArt(song, cover: cover(for: song, frosted: frosted), frosted: frosted)
+        } else { nil }
         if expansion != nil { leaving = nil }
         animate((art as? IslandSongArt)?.animates == true)
+    }
+
+    private var songCover: (song: String, artwork: Data?, frosted: Bool, scale: CGFloat, image: NSImage)?
+    private var songStart: (song: String, at: CFTimeInterval)?
+
+    /// One decode and downscale per song, cover and look; a rebuild or a frame reuses it.
+    private func cover(for song: IslandNowPlaying, frosted: Bool) -> NSImage {
+        if let cached = songCover, cached.song == song.songID, cached.frosted == frosted, cached.scale == scale,
+           cached.artwork == song.artwork { return cached.image }
+        var image = NSImage()
+        effectiveAppearance.performAsCurrentDrawingAppearance {
+            image = IslandCover.image(song.artwork, side: IslandSongArt.cell, scale: scale, frosted: frosted)
+        }
+        songCover = (song.songID, song.artwork, frosted, scale, image)
+        return image
+    }
+
+    private func songSince(_ song: IslandNowPlaying) -> CFTimeInterval {
+        if songStart?.song != song.songID { songStart = (song.songID, CACurrentMediaTime()) }
+        return songStart?.at ?? 0
     }
 
     /// Reduce Motion or Show animations off: the meter and the line stand still.

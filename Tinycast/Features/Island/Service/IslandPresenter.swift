@@ -3,7 +3,7 @@ import Observation
 
 /// Renders levels, notices, status and the meeting expansion on the resting pill.
 @MainActor
-final class IslandPresenter: IslandPresenting, IslandSongPresenting {
+final class IslandPresenter: IslandPresenting {
     private var dwell = IslandLevelDwell()
     private var dwellTask: Task<Void, Never>?
     private weak var pill: IslandController?
@@ -131,13 +131,13 @@ final class IslandPresenter: IslandPresenting, IslandSongPresenting {
         song = still
         let resting = AppCore.shared.island.resting
         resting?.song = song
-        if songChange.update(song, notch: resting?.notchWidth != nil, at: now()), songQuiet {
+        if songChange.update(song, notch: resting?.notchWidth != nil), songQuiet {
             songTask?.cancel()
-            songTask = Task { [weak self, now, sleep, seconds = songChange.seconds] in
+            songTask = Task { [weak self, sleep, seconds = songChange.seconds] in
                 try? await sleep(seconds)
                 guard !Task.isCancelled, let self else { return }
-                self.songChange.expire(at: now())
-                AppCore.shared.island.resting?.songChange = self.songChange.shown != nil
+                self.songChange.cut()
+                AppCore.shared.island.resting?.songChange = false
             }
         } else if !songQuiet {
             songChange.cut()
@@ -168,6 +168,7 @@ final class IslandPresenter: IslandPresenting, IslandSongPresenting {
         controller.notice = resting ? notices.notice : nil
         controller.statuses = resting ? statuses : []
         controller.song = resting ? song : nil
+        controller.songChange = resting && songChange.shown != nil
     }
 
     /// A look change repaints a band already up, which would otherwise keep the old look to its fade.

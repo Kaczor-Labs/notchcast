@@ -8,7 +8,9 @@ struct IslandSongArt: PillArt {
     let animates: Bool
     private let song: IslandNowPlaying
     private let notch: Bool
-    private let cover: NSImage?
+    private let cover: NSImage
+    /// When this song first showed, so its line scrolls from its own start, not mid-way.
+    private let since: CFTimeInterval
     private let ink: NSColor
     private let frosted: Bool
     private let line: NSAttributedString
@@ -22,13 +24,15 @@ struct IslandSongArt: PillArt {
     static let scrollSpeed = 30.0
     static let scrollPause = 1.5
 
-    init(_ song: IslandNowPlaying, notch: Bool, frosted: Bool, still: Bool) {
+    /// `cover` is `IslandCover.image` for this song, scaled once by the canvas rather than on every frame.
+    init(_ song: IslandNowPlaying, notch: Bool, frosted: Bool, still: Bool, cover: NSImage, since: CFTimeInterval = 0) {
         self.song = song
         self.notch = notch
         self.frosted = frosted
-        cover = song.artwork.flatMap(NSImage.init(data:))
+        self.cover = cover
+        self.since = since
         ink = Theme.Colors.textPrimary.islandInk(frosted: frosted)
-        let font = NotchTheme.Typography.islandGlanceNSFont
+        let font = NotchTheme.Typography.islandSongNSFont
         let text = NSMutableAttributedString(string: song.title, attributes: [.font: font, .foregroundColor: ink])
         if let artist = song.artist, !artist.isEmpty {
             text.append(NSAttributedString(string: " · " + artist, attributes: [.font: font,
@@ -54,18 +58,17 @@ struct IslandSongArt: PillArt {
     private static var lineChrome: Double { (pillEnd + gap + cell) * 2 }
 
     func draw(in pill: CGRect) {
-        let time = animates ? CACurrentMediaTime() : 0
+        let time = animates ? CACurrentMediaTime() - since : 0
         let end = notch ? Self.notchEnd : Self.pillEnd
         let y = pill.midY - Self.cell / 2
-        IslandCover.draw(cover, in: CGRect(x: pill.minX + end, y: y, width: Self.cell, height: Self.cell),
-                         frosted: frosted)
+        cover.draw(in: CGRect(x: pill.minX + end, y: y, width: Self.cell, height: Self.cell))
         drawGlyph(CGRect(x: pill.maxX - end - Self.cell, y: y, width: Self.cell, height: Self.cell), at: time)
         guard !notch else { return }
         let start = pill.minX + end + Self.cell + Self.gap
         let height = line.size().height
         let box = CGRect(x: start, y: pill.midY - height / 2, width: pill.maxX - end - Self.cell - Self.gap - start,
                          height: height)
-        guard fit.scrolls, let context = NSGraphicsContext.current?.cgContext else {
+        guard fit.scrolls, animates, let context = NSGraphicsContext.current?.cgContext else {
             return line.draw(with: box, options: [.usesLineFragmentOrigin, .truncatesLastVisibleLine])
         }
         let width = line.size().width
@@ -100,7 +103,7 @@ struct IslandSongArt: PillArt {
 /// A song's cover in the island; a tile with a note while it loads, and a 1 pt inside line on every cover.
 @MainActor
 enum IslandCover {
-    static let radius = Theme.Spacing.xs
+    static let radius = NotchTheme.Radius.islandCover
 
     static func draw(_ cover: NSImage?, in rect: CGRect, frosted: Bool) {
         let shape = NSBezierPath(roundedRect: rect, xRadius: radius, yRadius: radius)
@@ -127,12 +130,20 @@ enum IslandCover {
         edge.stroke()
     }
 
-    /// The cover as one image, for the two-line expansion that draws its glyph as an image.
-    static func image(_ data: Data?, side: CGFloat, frosted: Bool) -> NSImage {
-        let cover = data.flatMap(NSImage.init(data:))
-        return NSImage(size: CGSize(width: side, height: side), flipped: false) { rect in
-            draw(cover, in: rect, frosted: frosted)
-            return true
-        }
+    /// The cover decoded and drawn once at `side` points and `scale` pixels a point, so a frame only blits it.
+    static func image(_ data: Data?, side: CGFloat, scale: CGFloat, frosted: Bool) -> NSImage {
+        let pixels = Int((side * scale).rounded(.up))
+        let image = NSImage(size: CGSize(width: side, height: side))
+        guard let bitmap = NSBitmapImageRep(bitmapDataPlanes: nil, pixelsWide: pixels, pixelsHigh: pixels,
+                                            bitsPerSample: 8, samplesPerPixel: 4, hasAlpha: true, isPlanar: false,
+                                            colorSpaceName: .deviceRGB, bytesPerRow: 0, bitsPerPixel: 0),
+              let context = NSGraphicsContext(bitmapImageRep: bitmap) else { return image }
+        bitmap.size = image.size
+        NSGraphicsContext.saveGraphicsState()
+        NSGraphicsContext.current = context
+        draw(data.flatMap(NSImage.init(data:)), in: CGRect(origin: .zero, size: image.size), frosted: frosted)
+        NSGraphicsContext.restoreGraphicsState()
+        image.addRepresentation(bitmap)
+        return image
     }
 }
