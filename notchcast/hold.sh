@@ -5,7 +5,8 @@
 # own PR at its start (so the first lander is never refused at the end) and releases it at exit; set refuses over another
 # owner's live hold unless --handover.
 #   notchcast/hold.sh set [--handover] <owner> <minutes> | release | show
-# land.sh sources this file for check_hold, hold_claim and hold_renew_claimed; the caller defines refuse.
+# land.sh sources this file for check_hold, hold_claim and hold_renew_claimed (the caller defines refuse), and
+# land.sh and train.sh for land_lease.
 source "$(dirname "${BASH_SOURCE[0]}")/config.env"
 hold_repo=$FORK_REPO
 
@@ -126,6 +127,21 @@ hold_turn() {
         said=1
         sleep "${NOTCHCAST_HOLD_POLL_SECONDS:-30}"
     done
+}
+
+# Landing is the queue's where private.env names NOTCHCAST_LAND_LOCK (README, "Private hooks"): a run lands only under
+# the lease NOTCHCAST_LAND_LEASE names, taken (or renewed) here, or forced from a terminal. Sets land_forced.
+land_forced=
+land_lease() {
+    [ -n "${NOTCHCAST_LAND_LOCK:-}" ] || return 0
+    if [ "${NOTCHCAST_LAND_FORCE:-}" = 1 ] && [ -t 0 ]; then
+        land_forced=1
+        echo 'FORCED: landing outside the queue' >&2
+        return 0
+    fi
+    # Word splitting is the point: the hook is a command with its arguments.
+    [ -n "${NOTCHCAST_LAND_LEASE:-}" ] && $NOTCHCAST_LAND_LOCK take "$NOTCHCAST_LAND_LEASE" >&2 \
+        || { echo "REFUSED: landing is the queue's: sign off the PR and wait" >&2; exit 1; }
 }
 
 if [ "${BASH_SOURCE[0]}" = "$0" ]; then
