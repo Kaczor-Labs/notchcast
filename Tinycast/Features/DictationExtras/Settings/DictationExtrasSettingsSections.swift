@@ -69,13 +69,10 @@ struct DictationExtrasSettingsSections: View {
     /// The AI tab is hidden, so this is the one way to add the providers cleanup picks from.
     private var providersRow: some View {
         SettingsRow(
-            title: String(localized: "AI providers", table: "Notchcast"),
+            title: LocalizedStringResource("AI providers", table: "Notchcast"),
             subtitle: String(localized: "Connect the models cleanup can use.", table: "Notchcast"),
             anchor: .dictationCleanup
         ) {
-            IconTile(symbol: SettingsTab.ai.systemImage, tint: SettingsTab.ai.tint)
-                .frame(width: SettingsListMetrics.iconSize, height: SettingsListMetrics.iconSize)
-        } trailing: {
             Button("Manage…") { providersPresented = true }
                 .accessibilityLabel(String(localized: "Manage AI providers", table: "Notchcast"))
         }

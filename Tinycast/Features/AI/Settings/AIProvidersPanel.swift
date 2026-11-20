@@ -305,7 +305,7 @@ struct AIProvidersPanel: View {
         } header: {
             Text("Status")
         } footer: {
-            Text("Choose the default model on the AI pane.")
+            Text("Choose the model cleanup uses in Dictation › Cleanup.", tableName: "Notchcast")
                 .font(.caption)
                 .foregroundStyle(.secondary)
         }
