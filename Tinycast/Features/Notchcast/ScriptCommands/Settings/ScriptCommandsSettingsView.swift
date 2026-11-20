@@ -64,9 +64,22 @@ private struct ScriptCommandRow: View {
 
     var body: some View {
         let shown = preferences.showsInLauncher(entryID)
-        SettingsRow(title: name, subtitle: row.script.isEmpty ? nil : row.script) {
+        // Not SettingsRow: its one-line title truncates beside the row's controls.
+        HStack(spacing: Theme.Spacing.lg) {
             Image(systemName: ScriptCommandsModule.symbol)
-        } trailing: {
+            VStack(alignment: .leading, spacing: Theme.Spacing.xxs) {
+                Text(name)
+                    .fixedSize(horizontal: false, vertical: true)
+                if !row.script.isEmpty {
+                    Text(row.script)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                        .help(row.script)
+                }
+            }
+            Spacer(minLength: Theme.Spacing.lg)
             if module.running.contains(row.id) {
                 ProgressView()
                     .controlSize(.small)
@@ -80,6 +93,7 @@ private struct ScriptCommandRow: View {
                     Text("Show in launcher", tableName: "NotchcastScriptCommands")
                 }
                 .toggleStyle(.checkbox)
+                .fixedSize()
                 .launcherVisibilityHelp()
                 .accessibilityLabel(String(localized: "Show \(name) in the launcher", table: "NotchcastScriptCommands"))
             }
