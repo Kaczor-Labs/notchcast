@@ -59,6 +59,8 @@ Reference: HIG Live Activities, "When the background is dark — for example, in
 | Element | Rule | Token |
 | --- | --- | --- |
 | Island outline | Fixed at every interface scale (1, 1.1, 1.2). | `Theme.Radius.panel` (26) |
+| Closed pill beside a notch | The wings' corners are the camera cutout's own, 0.34 of the notch height (about 11 on a 32-point notch), not the capsule's half height; without a notch the pill stays a capsule. | `IslandLayout.notchRadius` → the engine's `IslandMetrics.Compact.radius` |
+| Song cover in the closed pill | A 16-point square with 4-point corners, where the concentric rule would make a circle. | `NotchTheme.Radius.islandCover` (§15) |
 | Any shape inside an island surface | Concentric: inner radius = outer radius − the inset between them, read from `metrics.radius`. Launcher rows `metrics.radius.row` (18), menu rows `metrics.radius.menuRow` (18), keycaps `metrics.radius.keyCap` (10), dialog `metrics.radius.panel`, buttons and HUDs `Capsule()`. A menu panel is menu row + list inset = 26. | `metrics.radius.*`; menu panel → `NotchTheme.Radius.islandMenu` (§15) |
 
 Today `PopoverMenu` uses `metrics.radius.menuPanel` (16), smaller than the 18-point rows it holds. Hook A3.
@@ -214,6 +216,7 @@ Each row is an open break that a §16 hook finds. A fixed break leaves the table
 | `NotchTheme.Size.islandLevelCell`, `islandLevelTrack` | 24 and 96 | §4 level art | `IslandLevelArt` reads them instead of the rest pill's height and width |
 | `Theme.Typography.indicatorGlyphSize` → `metrics.typography.indicatorGlyph` | 10 | §6 Quicklinks list indicator glyph (`QuicklinkListView`) | — |
 | `Theme.Typography.removeGlyphSize` → `metrics.typography.removeGlyph` | 9, semibold | §6 composer chip remove glyph (`ChatComposerChips`) | — |
+| `NotchTheme.Radius.islandCover` | 4 | §3 a song's cover in the closed pill | `thumbnail` (6) nearly rounds a 16-point cover off |
 | `NotchTheme.Size.islandArtwork` | 64 (2 × `Theme.Size.resultRowIcon`) | §17 the Player page's cover | no media size existed; a row icon is too small to read a cover |
 | `NotchTheme.Size.islandMeterThin`, `islandMeterThick` | 3 and 6 | §17 a card meter's bar | `volumeTrackHeight` is one height, and the deciding limit must read heavier |
 | `NotchTheme.Colors.islandWarning` | OBSIDIAN `Theme.yellow` `#fbbf24`, both looks | §17 a limit running out faster than its window passes | the first warning ink on the island; `Frosted.warning` is a muted text ink, not a state |
@@ -270,7 +273,7 @@ The open island (hover, or a click that pins it) shows pages: one per add-on wit
 | Motion | The outline grows to the page through the engine's spring (`surface.expand`, `contentKey` "page"), as the launcher does; no view animation of its own. | `IslandController.motionSpeed` |
 | Forms | Same page in both forms: it hangs from the island top, below the notch on a notched display, from the pill elsewhere. | §10 |
 | Look | No fill of its own: the backdrop paints Black or Frosted behind the clear page panel; ink resolves through `\.islandFrosted`. | §1, §6 |
-| Keys | A click on the bare island opens the first tab pinned whenever a page exists, even while a notice or status with its own tap shows (its tap moves to the notice row); a click on a page pins; pinned, ←/→ and 1–9 pick tabs, Esc closes, ⌘R refreshes the page (on Home, every page), ⌘P toggles the pin. A horizontal two-finger swipe turns one tab, and one more for every further 80 points of the same drag. | `IslandPageKey`, `IslandPageSwipe` |
+| Keys | A click on the bare island opens the first tab pinned whenever a page exists, even while a notice or status with its own tap shows (its tap moves to the notice row); a click on a page pins; pinned, ←/→ and 1–9 pick tabs, Esc closes, ⌘R refreshes the page (on Home, every page), ⌘P toggles the pin; on a page that takes keys (`IslandPage.takesKeys`, the Player page) space and the four arrows are that page's own (the Player: play or pause, previous, next, volume up and down) and 1–9 and a swipe still pick tabs. A horizontal two-finger swipe turns one tab, and one more for every further 80 points of the same drag. | `IslandPageKey`, `IslandPageSwipe` |
 
 Deviations, numbered for review:
 
