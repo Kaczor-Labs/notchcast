@@ -44,6 +44,10 @@ enum ScreenTextRecognitionTests {
                      "the fixture page keeps its lines and paragraph: \(String(describing: text))")
         let blank = await recognized(page([]))
         precondition(blank == nil, "a page with no text has none")
+        guard let warmUpPage = ScreenTextRecognizer.warmUpPage() else { fatalError("the warm-up page draws") }
+        let warm = await recognized(warmUpPage)
+        precondition(warm == "Notchcast text", "the warm-up page has text, so it loads the model: \(String(describing: warm))")
+        await ScreenTextRecognizer.warmUp(preferredLanguages: ["en-US"])
 
         print("nc-Screenshots-ocr-test: ok")
     }
