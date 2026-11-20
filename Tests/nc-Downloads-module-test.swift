@@ -322,9 +322,9 @@ struct DownloadsModuleTest {
         for on in [true, false] {
             preferences.set("downloadsUseIPhone", on: on)
             try? FileManager.default.removeItem(at: arguments)
-            fakes.clipboard = "https://example.com/clip"
+            fakes.clipboard = "https://example.com/clip-\(on)"
             DownloadsAddon.commands.first { $0.slug == "download-video" }!.run(context)
-            try await eventually { FileManager.default.fileExists(atPath: arguments.path) }
+            try await eventually { module.downloads.queue?.jobs.allSatisfy(\.state.isFinished) == true }
             let line = try String(contentsOf: arguments, encoding: .utf8)
             expect(line.contains("--multiple-interface=en0,en7") == on,
                    "the same switch \(on ? "bonds" : "leaves alone") a video download of any size")

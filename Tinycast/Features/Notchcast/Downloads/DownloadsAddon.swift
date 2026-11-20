@@ -50,7 +50,7 @@ enum DownloadsAddon: NotchcastAddon {
                 table: "NotchcastDownloads"),
             category: .filesDownloads, dependencies: ["torrents"]),
         NotchcastSwitch(
-            id: DownloadsModule.bondingSwitchID,
+            id: "downloadsUseIPhone",
             title: String(localized: "Use Wi-Fi and a plugged-in iPhone together", table: "NotchcastDownloads"),
             subtitle: [
                 String(
