@@ -1,21 +1,44 @@
 {
   "color-space-for-untagged-svg-colors": "display-p3",
-  "fill": {
-    "linear-gradient": [
-      "extended-srgb:0.37255,0.38824,0.41569,1.00000",
-      "extended-srgb:0.04314,0.04706,0.05490,1.00000"
-    ],
-    "orientation": {
-      "start": {
-        "x": 0.5,
-        "y": 0
-      },
-      "stop": {
-        "x": 0.5,
-        "y": 1
+  "fill-specializations": [
+    {
+      "value": {
+        "linear-gradient": [
+          "extended-srgb:0.37255,0.38824,0.41569,1.00000",
+          "extended-srgb:0.04314,0.04706,0.05490,1.00000"
+        ],
+        "orientation": {
+          "start": {
+            "x": 0.5,
+            "y": 0
+          },
+          "stop": {
+            "x": 0.5,
+            "y": 1
+          }
+        }
+      }
+    },
+    {
+      "appearance": "dark",
+      "value": {
+        "linear-gradient": [
+          "extended-srgb:0.37255,0.38824,0.41569,1.00000",
+          "extended-srgb:0.04314,0.04706,0.05490,1.00000"
+        ],
+        "orientation": {
+          "start": {
+            "x": 0.5,
+            "y": 0
+          },
+          "stop": {
+            "x": 0.5,
+            "y": 1
+          }
+        }
       }
     }
-  },
+  ],
   "groups": [
     {
       "blend-mode": "normal",
