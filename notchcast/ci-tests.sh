@@ -20,6 +20,18 @@ if [ -n "${NOTCHCAST_SWIFTC_CACHE:-}" ]; then
   ln -sf "$TOOLS/notchcast/swiftc-cache.py" "$RUNNER_TEMP/swiftc-shim/swiftc"
   export PATH="$RUNNER_TEMP/swiftc-shim:$PATH"
 fi
+if [ "$(uname -s)" = Darwin ]; then
+  # A fresh VM session stays Light until a reboot; FormInputTests must render Dark, as the app (#1205).
+  NOTCHCAST_DARK_OBJECT="${RUNNER_TEMP:-${TMPDIR:-/tmp}}/notchcast-dark.o"
+  triple=$(swiftc -print-target-info | python3 -c 'import json, sys; print(json.load(sys.stdin)["target"]["triple"])')
+  clang -fmodules -x objective-c -target "$triple" -c -o "$NOTCHCAST_DARK_OBJECT" - <<'OBJC'
+@import AppKit;
+__attribute__((constructor)) static void notchcastDark(void) {
+  NSApplication.sharedApplication.appearance = [NSAppearance appearanceNamed:NSAppearanceNameDarkAqua];
+}
+OBJC
+  export NOTCHCAST_DARK_OBJECT
+fi
 # Harnesses that fail for good, one per line, for harness-select.py misses (pr.yml).
 failures=${RUNNER_TEMP:+$RUNNER_TEMP/harness-failures}
 record() { if [ -n "$failures" ]; then echo "$1" >> "$failures"; fi; }
