@@ -8,6 +8,7 @@ final class CaptureEditorPanel: NSPanel, AnimatedPanel {
     private static let screenFraction: CGFloat = 0.8
     private static let centerLift: CGFloat = 0.04
     private let session: CaptureEditorSession
+    private var lastPointerActivity = -TimeInterval.infinity
 
     /// Opens the editor on the screen under the pointer; the returned closure closes it without answering.
     static func open(
@@ -57,9 +58,17 @@ final class CaptureEditorPanel: NSPanel, AnimatedPanel {
     override var canBecomeMain: Bool { false }
 
     override func sendEvent(_ event: NSEvent) {
+        if [.leftMouseDown, .leftMouseDragged, .leftMouseUp].contains(event.type) {
+            lastPointerActivity = ProcessInfo.processInfo.systemUptime
+        }
         guard event.type == .keyDown, let key = Self.key(event),
             let action = AnnotationKeyAction.action(
-                for: key, modifiers: Self.modifiers(event), in: session.document)
+                for: key, modifiers: Self.modifiers(event), isRepeat: event.isARepeat,
+                postedCopy: AnnotationKeyAction.isPostedCopy(
+                    sourcePID: event.cgEvent?.getIntegerValueField(.eventSourceUnixProcessID) ?? 0,
+                    ownPID: Int64(ProcessInfo.processInfo.processIdentifier),
+                    now: ProcessInfo.processInfo.systemUptime, lastPointer: lastPointerActivity),
+                in: session.document)
         else { return super.sendEvent(event) }
         session.perform(action)
     }
