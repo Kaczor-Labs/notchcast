@@ -1,4 +1,5 @@
 // notchcast-addon-order: 210
+// notchcast-readme: Launcher Extras: your own shell scripts with the result in the island
 // notchcast-new-switch-ids: scriptCommands
 import SwiftUI
 

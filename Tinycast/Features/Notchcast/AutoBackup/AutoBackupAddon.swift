@@ -1,4 +1,5 @@
 // notchcast-addon-order: 130
+// notchcast-readme: Mac Tweaks: back up your settings on change and once a day
 import SwiftUI
 
 // notchcast-new-switch-ids: autoBackupSettings
