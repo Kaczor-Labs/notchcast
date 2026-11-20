@@ -39,12 +39,12 @@ struct NotchcastGlobeHint: View {
         if let globeOwner {
             Text(String(localized: "The Globe key is also used by \(globeOwner). Change that shortcut.", table: "Notchcast"))
                 .font(.caption)
-                .foregroundStyle(.orange)
+                .foregroundStyle(Theme.Colors.warning)
         }
         if !isTrusted {
             Text(String(localized: "Dictation needs Accessibility access to see the Globe key.", table: "Notchcast"))
                 .font(.caption)
-                .foregroundStyle(.orange)
+                .foregroundStyle(Theme.Colors.warning)
         }
     }
 }
