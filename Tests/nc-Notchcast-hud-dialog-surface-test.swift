@@ -157,6 +157,7 @@ struct VolumeSlider: View {
 
 struct SnippetArgumentFields: View {
     let state: SnippetArgumentsState
+    var onSubmit: () -> Void = {}
     var body: some View { EmptyView() }
 }
 

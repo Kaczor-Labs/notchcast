@@ -5,7 +5,7 @@
 // notchcast-sources: Tinycast/DesignSystem/ModalActionButtonStyle.swift Tinycast/DesignSystem/SymbolImage.swift
 // notchcast-sources: Tinycast/DesignSystem/Tooltip.swift Tinycast/DesignSystem/PopoverMenu.swift
 // notchcast-sources: Tinycast/Windows/HUD/MessageHUDView.swift Tinycast/Windows/Dialog/DialogView.swift
-// notchcast-sources: Tinycast/Windows/Dialog/DialogRequest.swift Tinycast/Windows/Dialog/DialogChip.swift
+// notchcast-sources: Tinycast/Windows/Dialog/DialogRequest.swift
 // notchcast-sources: Tinycast/Features/Island/Model/IslandPresentation.swift
 // notchcast-sources: Tinycast/Features/Island/Model/IslandHover.swift
 // notchcast-sources: Tinycast/Features/Notchcast/IslandButtonFill.swift
@@ -368,12 +368,6 @@ struct NotchcastIslandAuditRenderTest {
                     defaultIndex: 1, cancelIndex: 0),
                 width: 420, onChoose: { _ in })
         }
-        render("08-dialog-chips") {
-            HStack(spacing: 8) {
-                DialogChip(title: "Rest", selected: false, onTap: {})
-                DialogChip(title: "Selected", selected: true, onTap: {})
-            }
-        }
         renderHosted("09-popover-menu", size: CGSize(width: 360, height: 300), desk: true) {
             PopoverMenu(
                 header: "Notchcast",
@@ -591,6 +585,7 @@ struct VolumeSlider: View {
 
 struct SnippetArgumentFields: View {
     let state: SnippetArgumentsState
+    var onSubmit: () -> Void = {}
     var body: some View { EmptyView() }
 }
 

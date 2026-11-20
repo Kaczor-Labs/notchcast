@@ -398,6 +398,48 @@ class ReplayTests(unittest.TestCase):
     def test_resolution_does_not_mask_later_failure(self):
         self.scenario(later_conflict=True)
 
+    def deletion(self, fix):
+        """Upstream deletes a file our commit edits; the stored fix takes the deletion, or not."""
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            def git(*args):
+                return CI.run("git", *args, cwd=root)
+            def commit(message, files, removed=()):
+                for name, text in files.items():
+                    (root / name).parent.mkdir(parents=True, exist_ok=True)
+                    (root / name).write_text(text)
+                for name in removed:
+                    git("rm", "-q", name)
+                git("add", ".")
+                git("commit", "-qm", message)
+                return git("rev-parse", "HEAD")
+            git("init", "-q")
+            git("config", "user.name", "Test")
+            git("config", "user.email", "test@example.com")
+            git("config", "core.hooksPath", "/dev/null")
+            base = commit("base", {"chip": "base\n", "keep": "base\n"})
+            ours = commit("ours", {"chip": "ours\n", "keep": "ours\n"})
+            git("checkout", "-q", "--detach", base)
+            upstream = commit("upstream", {}, removed=["chip"])
+            git("update-ref", "refs/remotes/upstream/main", upstream)
+            git("checkout", "-q", "--detach", ours)
+            commit("stored fix", {"notchcast/replay-fixes/ours.patch": fix})
+            if fix.startswith("diff"):
+                CI.replay(root, upstream, check=True)
+                self.assertFalse((root / "chip").exists())
+                self.assertEqual((root / "keep").read_text(), "ours\n")
+            else:
+                with self.assertRaises(CI.Conflict) as caught:
+                    CI.replay(root, upstream, check=True)
+                self.assertEqual(caught.exception.files, ["chip"])
+
+    def test_fix_takes_upstream_deletion(self):
+        self.deletion("diff --git a/chip b/chip\ndeleted file mode 100644\n--- a/chip\n+++ /dev/null\n"
+                      "@@ -1 +0,0 @@\n-ours\n")
+
+    def test_deletion_without_fix_raises_conflict(self):
+        self.deletion("invalid patch\n")
+
     def adaptation(self, patch, adapted=None, path="scope"):
         """Our commit adds a key and picks cleanly; upstream adds a list of every key that lacks it, which no
         conflict reveals. The stored adaptation for our commit adds it there."""
