@@ -22,7 +22,7 @@ struct ScreenshotsSettingsView: View {
 }
 
 let scratch = FileManager.default.temporaryDirectory.appending(path: "nc-Screenshots-editor-test.\(UUID())")
-let desktopFolder = scratch.appending(path: "Desktop")
+let downloadsFolder = scratch.appending(path: "Downloads")
 let fixedDate = Date(timeIntervalSince1970: 1_763_290_800)
 let editLast = "command:nc-edit-last-screenshot"
 let area = "command:nc-screenshot-area"
@@ -66,6 +66,10 @@ final class EditorFake {
     var scales: [CGFloat] = []
     var finish: (@MainActor (CaptureEditorOutcome) -> Void)?
     var closes = 0
+    var saveAsNames: [String] = []
+    var saveAsURL: URL?
+    var questions: [String] = []
+    var confirms = false
 
     func pick(_ request: ScreenshotRequest) {
         let answer = answer
@@ -96,7 +100,11 @@ extension ScreenshotSystem {
         writeText: { _ in true },
         recognizeText: { _ in [] },
         openScreenRecordingSettings: {},
-        desktop: { desktopFolder },
+        downloads: { downloadsFolder },
+        chooseSaveFile: { name in
+            fake.saveAsNames.append(name)
+            return fake.saveAsURL
+        },
         select: { _, _, completion in
             fake.answer = completion
             fake.signals.fire("select")
@@ -172,7 +180,7 @@ func annotated(_ image: CGImage) -> AnnotationDocument {
 enum ScreenshotsEditorTests {
     @MainActor
     static func main() async {
-        precondition((try? FileManager.default.createDirectory(at: desktopFolder, withIntermediateDirectories: true)) != nil)
+        precondition((try? FileManager.default.createDirectory(at: downloadsFolder, withIntermediateDirectories: true)) != nil)
         defer { try? FileManager.default.removeItem(at: scratch) }
         let suite = "nc-Screenshots-editor-test.\(UUID())"
         let defaults = UserDefaults(suiteName: suite)!
@@ -218,6 +226,8 @@ enum ScreenshotsEditorTests {
         fake.finish?(.copy(annotated(capture)))
         await signals.wait("clipboard")
         await signals.wait("close")
+        await signals.wait("notice")
+        precondition(presenter.posts.last?.text == "Copied", "the island says Copied")
         let pasted = fake.clipboard.last!
         precondition(fake.clipboard.count == 2 && pngWidth(pasted) == 120, "Copy puts the whole capture on the clipboard")
         precondition(isRed(pixel(pasted, 60, 45)), "the pasted image has the arrow")
@@ -236,12 +246,62 @@ enum ScreenshotsEditorTests {
         fake.clipboardWorks = true
         fake.finish?(.save(annotated(capture)))
         await signals.wait("close")
-        let saved = (try? FileManager.default.contentsOfDirectory(atPath: desktopFolder.path(percentEncoded: false))) ?? []
+        let saved = (try? FileManager.default.contentsOfDirectory(atPath: downloadsFolder.path(percentEncoded: false))) ?? []
         let name = ScreenshotFileName.name(date: fixedDate, timeZone: .current)
         precondition(saved == [name], "Save writes to the screenshots folder, v1 name, got \(saved)")
-        let file = try? Data(contentsOf: desktopFolder.appending(path: name))
+        let file = try? Data(contentsOf: downloadsFolder.appending(path: name))
         precondition(file.map { isRed(pixel($0, 60, 45)) } == true, "the saved file has the arrow")
         precondition(fake.clipboard.count == 2, "Save leaves the clipboard alone")
+        await signals.wait("notice")
+        precondition(presenter.posts.last?.text == "Saved to Downloads", "the island names the folder")
+
+        controller.context(forSwitch: "screenshot")?.confirmDestructive = { title, _, _ in
+            fake.questions.append(title)
+            fake.signals.fire("question")
+            return fake.confirms
+        }
+        precondition(controller.run(entryID: editLast))
+        await signals.wait("edit")
+        let closes = fake.closes
+        fake.finish?(.close(AnnotationDocument(image: fake.edited.last!)))
+        await signals.wait("close")
+        precondition(fake.questions.isEmpty && fake.closes == closes + 1, "closing with nothing drawn asks nothing")
+        precondition(controller.run(entryID: editLast))
+        await signals.wait("edit")
+        fake.finish?(.close(annotated(capture)))
+        await signals.wait("question")
+        precondition(fake.questions == ["Discard this screenshot's edits?"] && fake.finish != nil
+                     && fake.closes == closes + 1, "closing with marks asks, and Cancel keeps the editor open")
+        var exported = annotated(capture)
+        exported.markExported()
+        fake.finish?(.close(exported))
+        await signals.wait("close")
+        precondition(fake.questions.count == 1, "work already copied, saved or dragged out closes without asking")
+        precondition(controller.run(entryID: editLast))
+        await signals.wait("edit")
+        fake.confirms = true
+        fake.finish?(.close(annotated(capture)))
+        await signals.wait("question")
+        await signals.wait("close")
+        let files = { (try? FileManager.default.contentsOfDirectory(atPath: downloadsFolder.path(percentEncoded: false))) ?? [] }
+        precondition(fake.questions.count == 2 && fake.clipboard.count == 2 && files() == [name],
+                     "Discard closes it and writes nothing")
+
+        precondition(controller.run(entryID: editLast))
+        await signals.wait("edit")
+        fake.saveAsURL = nil
+        fake.finish?(.saveAs(annotated(capture)))
+        precondition(fake.saveAsNames == [name] && fake.finish != nil, "Save As offers the v1 name; Cancel keeps it open")
+        let chosen = scratch.appending(path: "Chosen")
+        precondition((try? FileManager.default.createDirectory(at: chosen, withIntermediateDirectories: true)) != nil)
+        fake.saveAsURL = chosen.appending(path: "Picked.png")
+        fake.finish?(.saveAs(annotated(capture)))
+        await signals.wait("close")
+        await signals.wait("notice")
+        let picked = try? Data(contentsOf: chosen.appending(path: "Picked.png"))
+        precondition(picked.map { isRed(pixel($0, 60, 45)) } == true && files() == [name],
+                     "Save As writes where the panel points, with the arrow")
+        precondition(presenter.posts.last?.text == "Saved to Chosen", "and the island names that folder")
 
         precondition(controller.run(entryID: editLast))
         await signals.wait("edit")
