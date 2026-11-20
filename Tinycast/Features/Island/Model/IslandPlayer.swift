@@ -136,3 +136,11 @@ enum IslandPlayerPage {
             takesKeys: true)
     }
 }
+
+extension IslandNowPlaying {
+    /// VoiceOver's value for the pill: the full names and the state, never cut.
+    var accessibilityValue: String {
+        let state = isPlaying ? String(localized: "Playing", table: "Notchcast") : String(localized: "Paused")
+        return [title, artist ?? "", state].filter { !$0.isEmpty }.joined(separator: ", ")
+    }
+}

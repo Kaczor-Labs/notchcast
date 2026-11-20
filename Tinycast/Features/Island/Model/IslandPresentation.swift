@@ -235,12 +235,6 @@ struct IslandNowPlaying: Equatable, Sendable {
     }
 
     var songID: String { id.isEmpty ? title + "\u{1F}" + (artist ?? "") : id }
-
-    /// VoiceOver's value for the pill: the full names and the state, never cut.
-    var accessibilityValue: String {
-        let state = isPlaying ? String(localized: "Playing", table: "Notchcast") : String(localized: "Paused")
-        return [title, artist ?? "", state].filter { !$0.isEmpty }.joined(separator: ", ")
-    }
 }
 
 /// A song waiting after this one.
