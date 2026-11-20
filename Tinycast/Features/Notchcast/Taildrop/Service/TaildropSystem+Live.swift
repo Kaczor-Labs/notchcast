@@ -3,7 +3,7 @@ import Synchronization
 
 extension TaildropSystem {
     static let live = TaildropSystem(
-        cli: { TaildropProcess.cliPaths.first(where: FileManager.default.isExecutableFile(atPath:)) },
+        cli: { TaildropSend.cliPaths.first(where: FileManager.default.isExecutableFile(atPath:)) },
         run: { try await TaildropProcess.run($0, $1) },
         finderSelection: { try await TaildropFinder.selection() },
         isFolder: { path in
@@ -21,12 +21,6 @@ extension TaildropSystem {
 
 /// One tool run to its end, off the caller's thread; cancelling the task terminates the tool.
 private nonisolated enum TaildropProcess {
-    /// The CLI inside the Tailscale app, which matches the running daemon, then Homebrew's.
-    static let cliPaths = [
-        "/Applications/Tailscale.app/Contents/MacOS/Tailscale",
-        "/opt/homebrew/bin/tailscale", "/usr/local/bin/tailscale",
-    ]
-
     /// Shared by the launch, the cancel handler and the stderr reader, which run on three threads.
     private final class Run: Sendable {
         let launch = Mutex((started: false, cancelled: false))

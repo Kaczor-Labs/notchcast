@@ -244,6 +244,8 @@ enum TaildropModuleTests {
 
     @MainActor
     static func engine() async {
+        precondition(TaildropSend.cliPaths.first?.hasPrefix("/Applications/Tailscale.app/") == true,
+                     "the app's CLI, which matches its daemon, is tried before Homebrew's")
         world.reset()
         world.set { $0.cli = nil }
         var failed = await failure { _ = try await TaildropSend.targets(world.system) }
