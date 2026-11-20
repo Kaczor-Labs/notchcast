@@ -181,7 +181,7 @@ def measure(root, upstream, gates):
             registered = ADDON_ORDER.search(ours[path])
             for match in DECL.finditer(clean[path]):
                 attrs, mods, kind, name = match.groups()
-                # The generated NotchcastRegistry lists it, and merges keep main's copy of that file.
+                # The generated registry lists it, and merges keep main's copy of that file.
                 if registered and re.match(r'\s*:\s*NotchcastAddon\b', clean[path][match.end():]):
                     continue
                 if 'override' in mods or any(a in attrs for a in SKIP_ATTR):

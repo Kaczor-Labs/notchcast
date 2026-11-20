@@ -1,5 +1,5 @@
 // notchcast-addon-order: 170
-// notchcast-readme: Mac Tweaks: move files in Finder with ⌘X and ⌘V and rename them from the launcher
+// notchcast-readme: Mac Tweaks: move files in Finder with ⌘X and ⌘V and rename them in the launcher
 // notchcast-system-keys: ⌘X ⌘V
 import Foundation
 

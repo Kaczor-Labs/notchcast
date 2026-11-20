@@ -1,6 +1,7 @@
 // notchcast-new-switch-ids: agentsUsage
 // notchcast-addon-order: 230
-// notchcast-readme: Agents: Agents in the Island, a page with how much of each Claude and Codex plan is left
+// notchcast-readme: Agents: Agents in the Island
+// notchcast-readme: Agents: a page with how much of each Claude and Codex plan is left
 import SwiftUI
 
 /// Every AI plan's usage on one island page (#1128); off by default.
