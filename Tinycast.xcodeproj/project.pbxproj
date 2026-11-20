@@ -236,7 +236,6 @@
 		2B46A9ED85FA2271E96E79DD /* PasteImageModule.swift in Sources */ = {isa = PBXBuildFile; fileRef = BD0D2E5A7ED7FFAF7C4139A1 /* PasteImageModule.swift */; };
 		2B7F05EB671F1477514782E9 /* NotchcastSurfaces+Live.swift in Sources */ = {isa = PBXBuildFile; fileRef = F750538C191E55710AD59FED /* NotchcastSurfaces+Live.swift */; };
 		2BAB66BA5D8DF99378E38A9D /* IslandHelp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8BE935D471C3D6A8E6ACCBB6 /* IslandHelp.swift */; };
-		2BC65EFDEB6282AC607180C6 /* IslandSongArt.swift in Sources */ = {isa = PBXBuildFile; fileRef = 22BF9B1CE4F6348D7E5B0281 /* IslandSongArt.swift */; };
 		2BEBF78104855A7E0014D223 /* UnitDef.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4E153308EF724D552155C4D2 /* UnitDef.swift */; };
 		2C10DA95FE350DCC9BE1A078 /* DayWeather.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8452BA3A8E34D51ECB06C2A0 /* DayWeather.swift */; };
 		2C213EFF8B135570256C555D /* QuitProtectionAddon.swift in Sources */ = {isa = PBXBuildFile; fileRef = E150D59ECBCB4730206FA01F /* QuitProtectionAddon.swift */; };
@@ -546,7 +545,6 @@
 		5B4762FEEA8774AB115F8B80 /* IslandController+Accessibility.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5242FC9174E8721BBD5A91FC /* IslandController+Accessibility.swift */; };
 		5B5BCDD482A9058D38C49314 /* CalcUnits.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC67BADEB6FEC76C88585361 /* CalcUnits.swift */; };
 		5B90A314CF4801995EA0EE01 /* ExtensionHostBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = 38765BC6C35D03659655BD2B /* ExtensionHostBridge.swift */; };
-		5BE1984393D9C4CDF092C40C /* LastPlayer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4A269EA8034B2189B82372F5 /* LastPlayer.swift */; };
 		5BF11E6F921BF8ED5CA10878 /* AutoJoinPolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = A65353481F5F8684CB8A6BC8 /* AutoJoinPolicy.swift */; };
 		5C2CC1C182330355C917CB27 /* MiddleClickTouchSource.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0C340FF3A82FA53949BE188B /* MiddleClickTouchSource.swift */; };
 		5C801A9043908577FB99A555 /* DialogView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 32733B27AE0BD75742D1394F /* DialogView.swift */; };
@@ -1706,7 +1704,6 @@
 		222F9EE432F608B5C907E7C2 /* MCPOAuth.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MCPOAuth.swift; sourceTree = "<group>"; };
 		22701685D1187235DA195F3B /* LauncherOrder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LauncherOrder.swift; sourceTree = "<group>"; };
 		22A8DE6BF938107F70AB0E6D /* QuitProtectionModule.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuitProtectionModule.swift; sourceTree = "<group>"; };
-		22BF9B1CE4F6348D7E5B0281 /* IslandSongArt.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IslandSongArt.swift; sourceTree = "<group>"; };
 		23591B301A183579098AA019 /* OnboardingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingView.swift; sourceTree = "<group>"; };
 		236934966557373B61455B3C /* FolderPicker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FolderPicker.swift; sourceTree = "<group>"; };
 		23820E6267DE9D3741541600 /* SoloistInstaller.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SoloistInstaller.swift; sourceTree = "<group>"; };
@@ -1955,7 +1952,6 @@
 		49655861D4B37B66F9B22A78 /* SettingsSyncSource.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsSyncSource.swift; sourceTree = "<group>"; };
 		49E8194DC4F75C103DA35F3D /* WindowManagementFileFormat.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WindowManagementFileFormat.swift; sourceTree = "<group>"; };
 		49F5F1643583C259A45D8D9E /* ShortenLinkPolicy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShortenLinkPolicy.swift; sourceTree = "<group>"; };
-		4A269EA8034B2189B82372F5 /* LastPlayer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LastPlayer.swift; sourceTree = "<group>"; };
 		4A93BF11B823786E8B468B05 /* AIConnectionKeyPolicy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIConnectionKeyPolicy.swift; sourceTree = "<group>"; };
 		4AA61A2FAF4E49E466DA8F37 /* SettingsTab.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsTab.swift; sourceTree = "<group>"; };
 		4AB00BBB28FEFC0C7A756235 /* RecordSyncSource.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecordSyncSource.swift; sourceTree = "<group>"; };
@@ -4044,7 +4040,6 @@
 				521E1E3BE86E4EED0727105B /* IslandPresenting.swift */,
 				2987F4E86DCED646B9115DC2 /* IslandProfileScenes.swift */,
 				A32B962953B556D1E477586E /* IslandScenes.swift */,
-				22BF9B1CE4F6348D7E5B0281 /* IslandSongArt.swift */,
 				9C8E9BAFEF329AD5A61A297C /* IslandSurface+Expand.swift */,
 				4FF3CBA45374F542F44A4D56 /* IslandUpdateActivity.swift */,
 				387C0EC3A941C5FEDE9A09B8 /* IslandUpdateScenes.swift */,
@@ -4932,7 +4927,6 @@
 		8552303F73B9C471184DC74C /* Model */ = {
 			isa = PBXGroup;
 			children = (
-				4A269EA8034B2189B82372F5 /* LastPlayer.swift */,
 				CB48BB8C2C8876E9DC575DD1 /* MusicLaunchPolicy.swift */,
 				A8EEE20EACEF2637173C10FA /* MusicLaunchTrigger.swift */,
 			);
@@ -6925,7 +6919,7 @@
 			isa = PBXProject;
 			attributes = {
 				BuildIndependentTargetsInParallel = YES;
-				LastUpgradeCheck = 1600;
+				LastUpgradeCheck = 1430;
 				TargetAttributes = {
 					0832DCD58DEA01602328CCE7 = {
 						DevelopmentTeam = "";
@@ -7816,7 +7810,6 @@
 				7DC135C446AE222F2454B4B8 /* IslandProfileScenes.swift in Sources */,
 				B8B1E01E54FD1C6CFC9A7F60 /* IslandScenes.swift in Sources */,
 				A982CF7F12FA1619DA103D85 /* IslandScreenSelection.swift in Sources */,
-				2BC65EFDEB6282AC607180C6 /* IslandSongArt.swift in Sources */,
 				DA186C991B43A44DEA20E862 /* IslandSurface+Expand.swift in Sources */,
 				85C86D9E9E892FADDFD2C343 /* IslandTestDisplay.swift in Sources */,
 				A731A2DD9DFBB0B43FA104F6 /* IslandUpdateActivity.swift in Sources */,
@@ -7832,7 +7825,6 @@
 				A8F34B293EDC769BE6C643B9 /* KeyboardRemapper.swift in Sources */,
 				067A064C013F0F66208E7DB1 /* KeychainSecretStore.swift in Sources */,
 				A4F6F73389B35161E7A37588 /* KillProcessSession.swift in Sources */,
-				5BE1984393D9C4CDF092C40C /* LastPlayer.swift in Sources */,
 				DEBCF434AB244DAD43DB8A6A /* LaunchAtLogin.swift in Sources */,
 				C4B9E9B3E965BFDFD31EDC3D /* LauncherCoordinator.swift in Sources */,
 				40F2DB9EDB967834222B85DB /* LauncherFileFormat.swift in Sources */,
