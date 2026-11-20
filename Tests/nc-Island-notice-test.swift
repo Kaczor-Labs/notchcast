@@ -109,6 +109,17 @@ struct IslandNoticeTest {
         hidden.end("b", at: 0)
         precondition(hidden.announcement() == "Changed", "A covered notice whose text changed is heard on return")
 
+        var ticking = IslandNoticeQueue()
+        ticking.post(IslandNotice(id: "t", text: "a.iso · 1%", progress: IslandProgress(fraction: 0.01)), at: 0)
+        precondition(ticking.announcement() == "a.iso · 1%", "A progress is announced when it first shows")
+        ticking.post(IslandNotice(id: "t", text: "a.iso · 2%", progress: IslandProgress(fraction: 0.02)), at: 1)
+        precondition(ticking.announcement() == nil, "A progress whose numbers tick stays silent")
+        ticking.post(IslandNotice(id: "t", text: "a.iso failed", isFailure: true), at: 2)
+        precondition(ticking.announcement() == "a.iso failed", "A progress turning into its outcome is announced")
+        ticking.end("t", at: 3)
+        ticking.post(IslandNotice(id: "t", text: "b.iso · 5%", progress: IslandProgress(fraction: 0.05)), at: 3)
+        precondition(ticking.announcement() == "b.iso · 5%", "A progress posted again after its end is announced")
+
         var secret = IslandNoticeQueue()
         secret.post(IslandNotice(id: "w", text: "Copied “Home”: hunter2", spokenText: "Copied Wi-Fi password"), at: 0)
         precondition(secret.notice?.text == "Copied “Home”: hunter2" && secret.announcement() == "Copied Wi-Fi password",

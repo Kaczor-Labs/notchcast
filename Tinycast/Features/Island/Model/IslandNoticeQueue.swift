@@ -68,10 +68,11 @@ struct IslandNoticeQueue: Sendable {
         run(at: now)
     }
 
-    /// Each text of an id is heard once, so a returning notice or a phase coming back stays quiet.
+    /// Each text of an id is heard once; a progress only when it first shows, not as its numbers tick.
     mutating func announcement() -> String? {
         guard let top = entries.indices.last else { return nil }
         let notice = entries[top].notice
+        if notice.progress != nil, !entries[top].heard.isEmpty { return nil }
         return entries[top].heard.insert(notice.spoken).inserted ? notice.spoken : nil
     }
 
