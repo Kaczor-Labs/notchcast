@@ -42,6 +42,11 @@ class MergeWordsTests(unittest.TestCase):
         self.assertEqual(self.merge(LIST, 'A="one two new"\nB="x"\n', 'A="one two new"\nB="x"\n'),
                          (0, 'A="one two new"\nB="x"\n'))
 
+    def test_one_name_added_by_both_sides_among_others_conflicts(self):
+        code, text = self.merge(LIST, 'A="one two new ours-test"\nB="x"\n', 'A="one two new theirs-test"\nB="x"\n')
+        self.assertEqual(code, 1)
+        self.assertIn('A="one two new ours-test"\n=======\nA="one two new theirs-test"\n', text)
+
     def test_a_removed_name_stays_removed(self):
         self.assertEqual(self.merge('A="one two three"\n', 'A="one three"\n', 'A="one two three four"\n'),
                          (0, 'A="one three four"\n'))

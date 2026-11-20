@@ -4,7 +4,8 @@
 The same three-way merge git does, on words instead of lines, so two sides that each add a name to one line
 merge. Where both sides add different words at one place inside a line, ours go first. Anything else git would
 call a conflict (a word both sides changed, a word one side removed beside the other's addition, whole lines both
-added at one place) is left to git's own line merge, so a real conflict looks as it always did.
+added at one place, the same name added by both sides at one place among other words) is left to git's own line
+merge, so a real conflict looks as it always did.
 """
 import json
 from pathlib import Path
@@ -14,7 +15,12 @@ import sys
 import tempfile
 
 # A list separator is its own word, so a name added before a closing quote or after a comma changes no other word.
-WORD = re.compile(r'''[^\s"',;|()]+|\s+|.''')
+NAME = r'''[^\s"',;|()]+'''
+WORD = re.compile(NAME + r'|\s+|.')
+
+
+def names(words):
+    return {word for word in words if re.fullmatch(NAME, word)}
 
 
 def merged(base, ours, theirs):
@@ -42,6 +48,8 @@ def merged(base, ours, theirs):
         elif line.startswith('>>>>>>>'):
             added = conflict['ours'] + conflict['theirs']
             if conflict['base'] or any('\n' in word or '\r' in word for word in added):
+                return None
+            if names(conflict['ours']) & names(conflict['theirs']):
                 return None
             text += added
             side = None
