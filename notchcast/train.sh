@@ -288,12 +288,13 @@ pick_batch() {
             | "\($pr.number) \(. // $pr.isDraft) \($pr.headRefOid) \($why)"' |
         while read -r pr draft head why; do
             echo "$pr@$head" >> "$scratch/heads"
-            # It waits on a PR the queue can still pick: open, signed off, not dropped, its build not red.
+            # It waits on a PR the queue can still pick: open, signed off, not dropped, its build not red, not refused hosted.
             if [[ "$draft" == behind:* ]]; then
                 other=${draft##*:}
                 draft=${draft#behind:}
                 draft=${draft%%:*}
-                if [[ "$(check_run "$other" build)" =~ ^(success|pending|none|skipped)$ ]]; then draft=dropped; fi
+                if [[ "$(check_run "$other" build)" =~ ^(success|pending|none|skipped)$ ]] \
+                    && ! grep -q "^hosted $config_key .*@$other\( \|\$\)" "$refused_file" 2>/dev/null; then draft=dropped; fi
             fi
             if [ "$draft" = dropped ]; then
                 why=${why%%: *}

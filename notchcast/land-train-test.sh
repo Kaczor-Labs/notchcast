@@ -1109,6 +1109,24 @@ queue
     || queue_fail 'a PR waited behind a PR that was red alone'
 echo 'PASS: a PR left out behind a PR of the batch is taken again once that PR cannot be picked'
 
+# #2 conflicts with #1, which land.sh refuses for good on the isolated runner and then on a hosted train.
+fixture
+open_pr 1 pr-one 'Add one' src/shared.txt
+open_pr 2 pr-two 'Add two' src/shared.txt
+mkdir -p "$HOME/.config/notchcast"
+echo 'notchcast_notify() { cat >> "$FIXTURE/notified"; }' > "$HOME/.config/notchcast/private.env"
+ISOLATED='other toolchain|' MAC_RUNNER=fixture-mac queue
+grep -q '^DROPPED #2: conflicts with #1 in the landing batch ' "$FIXTURE/train-output" && grep -q '^REFUSED FOR GOOD #1: ' "$FIXTURE/train-output" \
+    || queue_fail '#2 was not left out behind #1, or #1 was not refused for good on the isolated runner'
+ISOLATED='other toolchain|' MAC_RUNNER=fixture-mac queue
+grep -q '^queue: batch 1$' "$FIXTURE/train-output" && grep -q '^REFUSED FOR GOOD #1: .*; the queue leaves these PRs out ' "$FIXTURE/train-output" \
+    || queue_fail '#1 was not trained hosted alone and refused for good again'
+ISOLATED='fixture toolchain|' MAC_RUNNER=fixture-mac queue
+rm "$HOME/.config/notchcast/private.env"
+[ "$status" -eq 0 ] && grep -q '^queue: #1 left out: ' "$FIXTURE/train-output" && grep -q '^queue: batch 2$' "$FIXTURE/train-output" \
+    && grep -q '^LANDED #2$' "$FIXTURE/train-output" || queue_fail 'a PR waited behind a PR refused for good on a hosted train'
+echo 'PASS: a PR left out behind a PR of the batch is taken again once land.sh refused that PR for good on a hosted train'
+
 # Batch of 2: #3 is signed off 30 s ago, so it does not take the holder's place.
 tangled
 echo LAND_BATCH_SIZE=2 >> notchcast/config.env
