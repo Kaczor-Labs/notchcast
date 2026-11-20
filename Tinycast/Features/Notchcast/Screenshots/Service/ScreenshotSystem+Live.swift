@@ -4,6 +4,7 @@
 
 import AppKit
 import ScreenCaptureKit
+import UniformTypeIdentifiers
 
 extension ScreenshotSystem {
     static let live = ScreenshotSystem(
@@ -33,8 +34,19 @@ extension ScreenshotSystem {
             else { return }
             NSWorkspace.shared.open(url)
         },
-        desktop: {
-            try FileManager.default.url(for: .desktopDirectory, in: .userDomainMask, appropriateFor: nil, create: false)
+        downloads: {
+            try FileManager.default.url(
+                for: .downloadsDirectory, in: .userDomainMask, appropriateFor: nil, create: false)
+        },
+        chooseSaveFile: { name in
+            let panel = NSSavePanel()
+            panel.allowedContentTypes = [.png]
+            panel.nameFieldStringValue = name
+            panel.canCreateDirectories = true
+            // The editor floats; a panel at the normal level would open behind it.
+            panel.level = .modalPanel
+            NSApp.activate()
+            return panel.runModal() == .OK ? panel.url : nil
         },
         select: { frozen, windows, completion in
             let surface = ScreenshotSelectionSurface(frozen: frozen, windows: windows, completion: completion)

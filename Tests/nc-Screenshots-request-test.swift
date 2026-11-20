@@ -28,6 +28,8 @@ enum ScreenshotsRequestTests {
         precondition(ScreenshotRequest.failureMessage(Failure.encodingFailed) == "Could not capture the screen.")
         precondition(ScreenshotRequest.failureMessage(Failure.noText) == "No text found in the selected area.")
         precondition(ScreenshotRequest.failureMessage(CocoaError(.fileWriteNoPermission)) == "Could not save the screenshot.")
+        precondition(ScreenshotRequest.failureMessage(CocoaError(.fileNoSuchFile)) == "Could not save the screenshot.",
+                     "a chosen folder deleted since is a failed save")
         precondition(ScreenshotRequest.failureMessage(URLError(.badURL)) == "Could not capture the screen.")
 
         let date = Date(timeIntervalSince1970: 1_763_290_800)
