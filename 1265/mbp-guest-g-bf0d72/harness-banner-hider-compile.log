@@ -1,0 +1,72 @@
+14 hidden-feature harnesses not run (HIDDEN_TESTS, notchcast/config.env)
+[1/3] FAIL  nc-Accessories-banner-hider-test did not compile
+[2/3] ok    nc-SystemNotices-module-test   0.2s  (compile 6.1s)
+[3/3] ok    nc-Accessories-module-test   0.3s  (compile 7.1s)
+
+--- nc-Accessories-banner-hider-test ---
+Tinycast/Features/Notchcast/Accessories/Model/AccessoryBannerHiderCore.swift:127:24: error: value of type 'CGRect' has no member 'isNull'
+125 |     private func hide(_ window: Access.Element, kept: Bool) -> Bool {
+126 |         let screens = access.screens()
+127 |         guard !screens.isNull, let read = frame(of: window), let frame = read, frame.intersects(screens),
+    |                        `- error: value of type 'CGRect' has no member 'isNull'
+128 |               !records.contains(where: { access.same($0.window, window) }) else { return false }
+129 |         let away = CGPoint(x: screens.minX - frame.width - 1_000, y: screens.minY - frame.height - 1_000)
+
+Tinycast/Features/Notchcast/Accessories/Model/AccessoryBannerHiderCore.swift:127:86: error: value of type 'CGRect' has no member 'intersects'
+125 |     private func hide(_ window: Access.Element, kept: Bool) -> Bool {
+126 |         let screens = access.screens()
+127 |         guard !screens.isNull, let read = frame(of: window), let frame = read, frame.intersects(screens),
+    |                                                                                      `- error: value of type 'CGRect' has no member 'intersects'
+128 |               !records.contains(where: { access.same($0.window, window) }) else { return false }
+129 |         let away = CGPoint(x: screens.minX - frame.width - 1_000, y: screens.minY - frame.height - 1_000)
+
+Tinycast/Features/Notchcast/Accessories/Model/AccessoryBannerHiderCore.swift:129:39: error: value of type 'CGRect' has no member 'minX'
+127 |         guard !screens.isNull, let read = frame(of: window), let frame = read, frame.intersects(screens),
+128 |               !records.contains(where: { access.same($0.window, window) }) else { return false }
+129 |         let away = CGPoint(x: screens.minX - frame.width - 1_000, y: screens.minY - frame.height - 1_000)
+    |                                       `- error: value of type 'CGRect' has no member 'minX'
+130 |         guard access.move(window, to: away) else { return false }
+131 |         // The move happened: keep its origin before any read that may fail, so the window is never lost.
+
+Tinycast/Features/Notchcast/Accessories/Model/AccessoryBannerHiderCore.swift:129:52: error: value of type 'CGRect' has no member 'width'
+127 |         guard !screens.isNull, let read = frame(of: window), let frame = read, frame.intersects(screens),
+128 |               !records.contains(where: { access.same($0.window, window) }) else { return false }
+129 |         let away = CGPoint(x: screens.minX - frame.width - 1_000, y: screens.minY - frame.height - 1_000)
+    |                                                    `- error: value of type 'CGRect' has no member 'width'
+130 |         guard access.move(window, to: away) else { return false }
+131 |         // The move happened: keep its origin before any read that may fail, so the window is never lost.
+
+Tinycast/Features/Notchcast/Accessories/Model/AccessoryBannerHiderCore.swift:129:78: error: value of type 'CGRect' has no member 'minY'
+127 |         guard !screens.isNull, let read = frame(of: window), let frame = read, frame.intersects(screens),
+128 |               !records.contains(where: { access.same($0.window, window) }) else { return false }
+129 |         let away = CGPoint(x: screens.minX - frame.width - 1_000, y: screens.minY - frame.height - 1_000)
+    |                                                                              `- error: value of type 'CGRect' has no member 'minY'
+130 |         guard access.move(window, to: away) else { return false }
+131 |         // The move happened: keep its origin before any read that may fail, so the window is never lost.
+
+Tinycast/Features/Notchcast/Accessories/Model/AccessoryBannerHiderCore.swift:129:91: error: value of type 'CGRect' has no member 'height'
+127 |         guard !screens.isNull, let read = frame(of: window), let frame = read, frame.intersects(screens),
+128 |               !records.contains(where: { access.same($0.window, window) }) else { return false }
+129 |         let away = CGPoint(x: screens.minX - frame.width - 1_000, y: screens.minY - frame.height - 1_000)
+    |                                                                                           `- error: value of type 'CGRect' has no member 'height'
+130 |         guard access.move(window, to: away) else { return false }
+131 |         // The move happened: keep its origin before any read that may fail, so the window is never lost.
+
+Tinycast/Features/Notchcast/Accessories/Model/AccessoryBannerHiderCore.swift:160:24: error: value of type 'CGRect' has no member 'isNull'
+158 |     private func placement(of window: Access.Element) -> Placement {
+159 |         let screens = access.screens()
+160 |         guard !screens.isNull, let read = frame(of: window) else { return .unknown }
+    |                        `- error: value of type 'CGRect' has no member 'isNull'
+161 |         guard let frame = read else { return .gone }
+162 |         return frame.intersects(screens) ? .onScreen : .offScreen
+
+Tinycast/Features/Notchcast/Accessories/Model/AccessoryBannerHiderCore.swift:162:22: error: value of type 'CGRect' has no member 'intersects'
+160 |         guard !screens.isNull, let read = frame(of: window) else { return .unknown }
+161 |         guard let frame = read else { return .gone }
+162 |         return frame.intersects(screens) ? .onScreen : .offScreen
+    |                      `- error: value of type 'CGRect' has no member 'intersects'
+163 |     }
+164 | 
+
+FAILED  1 of 3 harness(es) failed in 8s: nc-Accessories-banner-hider-test
+pref-sweep: removed 2 leftover test preference suites

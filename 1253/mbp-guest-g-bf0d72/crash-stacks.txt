@@ -1,0 +1,39 @@
+# Notchcast 0.12.15.pr1265.3899472f crash 173838 (guest)
+{'codes': '0x0000000000000001, 0x00000001917ceab8', 'rawCodes': [1, 6735850168], 'type': 'EXC_BREAKPOINT', 'signal': 'SIGTRAP'}
+thread 3 queue app.notchcast.system-notices.vpn
+  libdispatch.dylib _dispatch_assert_queue_fail
+  libdispatch.dylib dispatch_assert_queue$V2.cold.1
+  libdispatch.dylib dispatch_assert_queue
+  libswift_Concurrency.dylib _swift_task_checkIsolatedSwift
+  libswift_Concurrency.dylib swift_task_isCurrentExecutorWithFlagsImpl(swift::SerialExecutorRef, swift::swift_task_is_current_executor_flag)
+  Notchcast ?
+  SystemConfiguration rlsPerform
+  SystemConfiguration __SCDynamicStoreSetDispatchQueue_block_invoke_2
+  libdispatch.dylib _dispatch_call_block_and_release
+  libdispatch.dylib _dispatch_client_callout
+  libdispatch.dylib _dispatch_lane_serial_drain
+  libdispatch.dylib _dispatch_lane_invoke
+  libdispatch.dylib _dispatch_root_queue_drain_deferred_wlh
+  libdispatch.dylib _dispatch_workloop_worker_thread
+  libsystem_pthread.dylib _pthread_wqthread
+  libsystem_pthread.dylib start_wqthread
+
+# Notchcast 0.12.15.pr1265.3899472f crash 174028 (guest)
+{'codes': '0x0000000000000001, 0x00000001917ceab8', 'rawCodes': [1, 6735850168], 'type': 'EXC_BREAKPOINT', 'signal': 'SIGTRAP'}
+thread 5 queue app.notchcast.system-notices.vpn
+  libdispatch.dylib _dispatch_assert_queue_fail
+  libdispatch.dylib dispatch_assert_queue$V2.cold.1
+  libdispatch.dylib dispatch_assert_queue
+  libswift_Concurrency.dylib _swift_task_checkIsolatedSwift
+  libswift_Concurrency.dylib swift_task_isCurrentExecutorWithFlagsImpl(swift::SerialExecutorRef, swift::swift_task_is_current_executor_flag)
+  Notchcast ?
+  SystemConfiguration rlsPerform
+  SystemConfiguration __SCDynamicStoreSetDispatchQueue_block_invoke_2
+  libdispatch.dylib _dispatch_call_block_and_release
+  libdispatch.dylib _dispatch_client_callout
+  libdispatch.dylib _dispatch_lane_serial_drain
+  libdispatch.dylib _dispatch_lane_invoke
+  libdispatch.dylib _dispatch_root_queue_drain_deferred_wlh
+  libdispatch.dylib _dispatch_workloop_worker_thread
+  libsystem_pthread.dylib _pthread_wqthread
+  libsystem_pthread.dylib start_wqthread
