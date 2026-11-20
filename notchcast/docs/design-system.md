@@ -273,7 +273,7 @@ The open island (hover, or a click that pins it) shows pages: one per add-on wit
 
 | Element | Rule | Token |
 | --- | --- | --- |
-| Structure | A tab bar, then the notice row while one shows, then the page body. One page with data: no Home and no tab bar, hover opens that page. Two or more: Home first, then pages by `order` (Agents 0, Player 10, System 20, Day 30). A page with no data posts nil and leaves no tab. | `IslandPageDeck` |
+| Structure | A tab bar, then the notice row while one shows, then the page body. One page with data: no Home and no tab bar, hover opens that page. Two or more: Home first, then pages by `order` (Agents 0, Player 10, System 20, Day 30). A page with no data posts nil and leaves no tab. None, on a bare island (no notice, status or meeting glance): hover and a click open Home with one line, "Nothing to show", drawn as the menus' empty state (§8). | `IslandPageDeck` |
 | Tab | `BarButton(isSelected:)` with a `SymbolImage` and the title; the selected tab uses the button's selected fill. | `metrics.typography.bar`, `Theme.Typography.menuSymbolSize` |
 | Badge | A count of things waiting for the user, a compact outline keycap after the tab title; badged pages lead Home, tabs never reorder. | `KeyCapChip(.outline, .compact)` |
 | Notice row | What the resting island shows (the live notice, else the last status unless the meeting glance shows) heads the open page on every tab, so a page never hides it; drawn as a `row` block, a button running the notice's or status's own tap when it has one. | `IslandPageDeck.notice`, `IslandPageRowView` |
