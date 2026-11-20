@@ -443,7 +443,8 @@ train 1 2
 [ "$(origin rev-parse refs/heads/train/1-2)" = "$train_sha" ] && [ "$(origin rev-parse "$train_sha~2")" = "$base" ] \
     && [ "$(origin rev-parse "$train_sha^2")" = "$(jq -r .headRefOid "$FIXTURE/pr-2.json")" ] || fail 'train/1-2 is not main plus each head'
 [ "$(grep -c -- '--ref train/1-2' "$FIXTURE/dispatched")" -eq 4 ] && [ "$(grep -c "base=$base" "$FIXTURE/dispatched")" -eq 3 ] \
-    && [ "$(grep -c 'hosted=true' "$FIXTURE/dispatched")" -eq 1 ] && grep -q '^workflow run pr.yml .*hosted=true' "$FIXTURE/dispatched" \
+    && [ "$(grep -c 'hosted=true' "$FIXTURE/dispatched")" -eq 2 ] && grep -q '^workflow run pr.yml .*hosted=true' "$FIXTURE/dispatched" \
+    && grep -q '^workflow run proof.yml .*hosted=true' "$FIXTURE/dispatched" \
     || fail "dispatched '$(paste -sd'|' "$FIXTURE/dispatched")'"
 echo "$train_sha" > "$FIXTURE/green"
 draft 1
@@ -502,30 +503,32 @@ HEAD_CHECKS=failure land --train-run "$second" 2
     && [ "$(origin rev-parse 'main^{tree}')" = "$(origin rev-parse "$second^{tree}")" ] || fail "the train built on a train landed '$(landed)'"
 echo 'PASS: a train built on a running train tip lands after that train, as the tree it tested, and never before'
 
-# While the repository variable names a runner the train's Mac job goes there, and land.sh judges that run's record.
+# While the repository variable names a runner the train's Mac jobs, PR's and Proof's, go there, and land.sh judges that run's record.
 fixture
 open_pr 1 pr-h 'Add H' src/hosted.txt
 MAC_RUNNER=fixture-mac NOTCHCAST_TRAIN_MAC=hosted train 1
 [ "$status" -eq 0 ] && grep -q '^workflow run pr.yml .*hosted=true' "$FIXTURE/dispatched" \
-    && grep -q '^train: train/1 has its Mac job on the hosted runner$' "$FIXTURE/train-output" || fail 'NOTCHCAST_TRAIN_MAC=hosted did not keep the train hosted'
+    && grep -q '^workflow run proof.yml .*hosted=true' "$FIXTURE/dispatched" \
+    && grep -q '^train: train/1 has its Mac jobs on the hosted runner$' "$FIXTURE/train-output" || fail 'NOTCHCAST_TRAIN_MAC=hosted did not keep the train hosted'
 origin push --quiet . --delete train/1 2>/dev/null || origin update-ref -d refs/heads/train/1
 rm "$FIXTURE/dispatched"
 OFFLINE=1 MAC_RUNNER=fixture-mac train 1
 [ "$status" -eq 0 ] && grep -q '^workflow run pr.yml .*hosted=true' "$FIXTURE/dispatched" \
-    && grep -q '^train: no runner labelled fixture-mac is online, so the Mac job is hosted$' "$FIXTURE/train-output" \
+    && grep -q '^workflow run proof.yml .*hosted=true' "$FIXTURE/dispatched" \
+    && grep -q '^train: no runner labelled fixture-mac is online, so the Mac jobs are hosted$' "$FIXTURE/train-output" \
     || fail 'a train went to a named runner that is offline'
 echo 'PASS: a train stays hosted while no runner with the named label is online'
 origin push --quiet . --delete train/1 2>/dev/null || origin update-ref -d refs/heads/train/1
 rm "$FIXTURE/dispatched"
 MAC_RUNNER=fixture-mac train 1
-[ "$status" -eq 0 ] && grep -q '^workflow run pr.yml .*hosted=true' "$FIXTURE/dispatched" \
+[ "$status" -eq 0 ] && grep -q '^workflow run pr.yml .*hosted=true' "$FIXTURE/dispatched" && grep -q '^workflow run proof.yml .*hosted=true' "$FIXTURE/dispatched" \
     && grep -q '^train: it selects hosted-only harnesses (hosted-test), which land.sh trusts only from a hosted run' "$FIXTURE/train-output" \
-    && grep -q '^train: train/1 has its Mac job on the hosted runner$' "$FIXTURE/train-output" || { cat "$FIXTURE/train-output"; fail 'a train that selects a hosted-only harness went to the named runner'; }
+    && grep -q '^train: train/1 has its Mac jobs on the hosted runner$' "$FIXTURE/train-output" || { cat "$FIXTURE/train-output"; fail 'a train that selects a hosted-only harness went to the named runner'; }
 echo 'PASS: a train that selects a hosted-only harness runs hosted even while a named runner is online'
 fixture
 open_pr 1 pr-b 'Add B' src/b.txt
 SELECT_FAILS=1 MAC_RUNNER=fixture-mac train 1
-[ "$status" -eq 0 ] && grep -q '^workflow run pr.yml .*hosted=true' "$FIXTURE/dispatched" \
+[ "$status" -eq 0 ] && grep -q '^workflow run pr.yml .*hosted=true' "$FIXTURE/dispatched" && grep -q '^workflow run proof.yml .*hosted=true' "$FIXTURE/dispatched" \
     && grep -q 'changed-harnesses.sh failed' "$FIXTURE/train-output" || { cat "$FIXTURE/train-output"; fail 'a train whose harness selection failed went to the named runner'; }
 echo 'PASS: a train whose harness selection fails runs hosted'
 # A PR that makes a harness hosted-only: the tip's list counts, not only the caller's checkout.
@@ -540,14 +543,14 @@ git push --quiet origin pr-n pr-n:refs/pull/1/head
 jq -n --arg head "$(git rev-parse HEAD)" '{number: 1, createdAt: "2026-01-01T00:00:00Z", comments: [], state: "OPEN", isDraft: false, headRefOid: $head, headRefName: "pr-n", baseRefName: "main", isCrossRepository: false, title: "Add N", body: "Drift tooling: fixture adds a hosted-only harness", labels: []}' > "$FIXTURE/pr-1.json"
 git switch --quiet main
 MAC_RUNNER=fixture-mac train 1
-[ "$status" -eq 0 ] && grep -q '^workflow run pr.yml .*hosted=true' "$FIXTURE/dispatched" \
+[ "$status" -eq 0 ] && grep -q '^workflow run pr.yml .*hosted=true' "$FIXTURE/dispatched" && grep -q '^workflow run proof.yml .*hosted=true' "$FIXTURE/dispatched" \
     && grep -q 'hosted-only harnesses (new-test)' "$FIXTURE/train-output" || { cat "$FIXTURE/train-output"; fail 'a PR that adds a hosted-only harness went to the named runner'; }
 echo "PASS: a harness the PR itself makes hosted-only sends the train hosted"
 fixture
 open_pr 1 pr-b 'Add B' src/b.txt
 MAC_RUNNER=fixture-mac train 1
-[ "$status" -eq 0 ] && [ -n "$train_sha" ] && grep -q '^workflow run pr.yml ' "$FIXTURE/dispatched" && ! grep -q 'hosted=true' "$FIXTURE/dispatched" \
-    && grep -q '^train: train/1 has its Mac job on the isolated runner$' "$FIXTURE/train-output" || fail "with a runner named the train dispatched '$(paste -sd'|' "$FIXTURE/dispatched")'"
+[ "$status" -eq 0 ] && [ -n "$train_sha" ] && [ "$(grep -c '^workflow run ' "$FIXTURE/dispatched")" -eq 4 ] && ! grep -q 'hosted=true' "$FIXTURE/dispatched" \
+    && grep -q '^train: train/1 has its Mac jobs on the isolated runner$' "$FIXTURE/train-output" || fail "with a runner named the train dispatched '$(paste -sd'|' "$FIXTURE/dispatched")'"
 echo "$train_sha" > "$FIXTURE/green"
 ISOLATED='other toolchain|' land --train-run "$train_sha" 1
 [ "$status" -eq 1 ] && grep -q "^REFUSED: the isolated run .* tested this tree with 'other toolchain'" "$FIXTURE/output" && untouched \
