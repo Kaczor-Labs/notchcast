@@ -18,6 +18,26 @@ struct ClaudeLaunch: Equatable, Sendable {
 
     var isDefault: Bool { directory.isEmpty }
 
+    /// Settings' name for a folder until one is typed: "Claude", or "claude_team" for `.claude_team`.
+    static func defaultName(directory: String) -> String {
+        directory.isEmpty ? "Claude" : String(URL(filePath: directory).lastPathComponent.trimmingPrefix("."))
+    }
+
+    /// Claude Code names its Keychain entry by a hash of this exact text, so `/a/` and `/a` are two sign-ins.
+    static func trimmed(_ directory: String) -> String {
+        var directory = directory
+        while directory.count > 1, directory.hasSuffix("/") { directory.removeLast() }
+        return directory
+    }
+
+    /// One config folder however it is written: `~` against `home`, empty as `~/.claude`.
+    static func path(_ folder: String, home: URL) -> String {
+        let folder = folder.isEmpty ? "~/.claude" : folder
+        let home = trimmed(home.path(percentEncoded: false))
+        let expanded = folder == "~" ? home : folder.hasPrefix("~/") ? home + folder.dropFirst() : folder
+        return trimmed(expanded)
+    }
+
     func configurationURL(home: URL) -> URL {
         isDefault ? home.appending(path: ".claude", directoryHint: .isDirectory)
             : URL(fileURLWithPath: directory, isDirectory: true)
@@ -33,7 +53,7 @@ struct ClaudeLaunch: Equatable, Sendable {
             Self.optOuts.contains($0.key) || (!$0.key.hasPrefix("CLAUDE_") && !$0.key.hasPrefix("ANTHROPIC_"))
         }
         environment.removeValue(forKey: "CLAUDECODE")
-        if !isDefault { environment["CLAUDE_CONFIG_DIR"] = directory }
+        if !isDefault { environment["CLAUDE_CONFIG_DIR"] = Self.trimmed(directory) }
         environment["DISABLE_AUTOUPDATER"] = "1"
         guard let settings,
             let json = (try? JSONSerialization.jsonObject(with: settings)) as? [String: Any],

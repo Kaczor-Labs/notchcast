@@ -90,10 +90,12 @@ struct AgentAccount: Codable, Equatable, Sendable {
     var windows: [AgentWindow]
     var extraUsage: AgentExtraUsage?
     var resetCredits: AgentResetCredits?
+    /// The gate's Claude config folder as T3 writes it, such as `~/.claude_team`; absent in older feeds.
+    var folder: String?
 
     init(
         name: String, provider: String, checkedAt: Date, state: AgentAccountState, windows: [AgentWindow] = [],
-        extraUsage: AgentExtraUsage? = nil, resetCredits: AgentResetCredits? = nil
+        extraUsage: AgentExtraUsage? = nil, resetCredits: AgentResetCredits? = nil, folder: String? = nil
     ) {
         self.name = name
         self.provider = provider
@@ -102,6 +104,7 @@ struct AgentAccount: Codable, Equatable, Sendable {
         self.windows = windows
         self.extraUsage = extraUsage
         self.resetCredits = resetCredits
+        self.folder = folder
     }
 }
 

@@ -7,6 +7,7 @@ struct AgentsSettingsView: View {
     @State private var machineName = ""
     @State private var accounts: [AgentsClaudeAccount] = []
     @State private var feedFolder: String?
+    @State private var refused = false
     @FocusState private var focus: Field?
     private static let anchor = NotchcastSettingsSearch.anchor(.agents)
 
@@ -34,6 +35,11 @@ struct AgentsSettingsView: View {
         } label: {
             SettingsRowTitle(Self.anchor, LocalizedStringResource("Claude accounts", table: "NotchcastAgents"))
             Text("Each is a Claude Code config folder, read with its own sign-in.", tableName: "NotchcastAgents")
+        }
+        .alert(Text("Choose a Claude Code folder", tableName: "NotchcastAgents"), isPresented: $refused) {
+        } message: {
+            Text("Your home folder isn’t one. Choose the folder Claude Code signs in with, such as .claude_team.",
+                 tableName: "NotchcastAgents")
         }
         ForEach($accounts) { $account in
             LabeledContent {
@@ -115,12 +121,14 @@ struct AgentsSettingsView: View {
     }
 
     private func addAccount() {
-        guard let url = Self.pickFolder(from: URL(fileURLWithPath: NSHomeDirectory())) else { return }
-        let path = url.path(percentEncoded: false)
-        let isDefault = url.standardizedFileURL == URL(fileURLWithPath: NSHomeDirectory()).appending(path: ".claude")
-            .standardizedFileURL
-        let name = isDefault ? AgentsPreferences.defaultAccount.name : String(url.lastPathComponent.trimmingPrefix("."))
-        accounts.append(AgentsClaudeAccount(name: name, directory: isDefault ? "" : path))
+        let home = URL(fileURLWithPath: NSHomeDirectory())
+        guard let url = Self.pickFolder(from: home) else { return }
+        let path = ClaudeLaunch.trimmed(url.path(percentEncoded: false))
+        // With nothing selected the panel answers with the folder it shows, home at first: never a config folder.
+        guard path != "/", path != ClaudeLaunch.path("~", home: home) else { return refused = true }
+        guard !accounts.contains(where: { ClaudeLaunch.path($0.directory, home: home) == path }) else { return }
+        let directory = path == ClaudeLaunch.path("", home: home) ? "" : path
+        accounts.append(AgentsClaudeAccount(name: ClaudeLaunch.defaultName(directory: directory), directory: directory))
         saveAccounts()
     }
 
