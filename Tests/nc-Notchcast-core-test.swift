@@ -545,7 +545,7 @@ struct NotchcastCoreTest {
         check("each tab holds its categories",
               NotchcastPane.allCases.map(\.categories)
                 == [[], [.agents], [.keyboardMouse], [.displaySound, .music], [.capture], [.launcher], [.filesDownloads],
-                   [.power], [.macTweaks]])
+                   [.power], [.notices], [.macTweaks]])
         check("no category sits in two tabs", NotchcastCategory.allCases.allSatisfy { category in
             NotchcastPane.allCases.filter { $0.categories.contains(category) }.count <= 1
         })
@@ -553,7 +553,9 @@ struct NotchcastCoreTest {
         check("a placed category resolves to the tab that holds it",
               placed.allSatisfy { NotchcastPane.holding($0).categories.contains($0) })
         check("a category with no tab yet shows nowhere",
-              NotchcastPane.shown(registered: [.notices, .betweenMacs]) == [.island])
+              NotchcastPane.shown(registered: [.betweenMacs]) == [.island])
+        check("System notices lands in its own tab, between Power and Mac Tweaks",
+              NotchcastPane.shown(registered: [.macTweaks, .notices, .power]) == [.island, .power, .notices, .macTweaks])
         check("Low disk warning and iPhone backup land in their own tabs",
               NotchcastPane.shown(registered: [.macTweaks, .power]) == [.island, .power, .macTweaks])
         check("with no add-on only Island shows", NotchcastPane.shown(registered: []) == [.island])
