@@ -59,7 +59,7 @@ final class IPhoneBackupStore {
         context.preferences.set(IPhoneBackupAddon.switchID, on: false)
     }
 
-    /// On but not in effect at launch: a question never answered, so the switch goes off without asking.
+    /// On but not in effect at launch: a question never answered, so the switch goes off unasked.
     func dropUnanswered() {
         let current: IPhoneBackupPolicy.Value?
         do { current = try system.read() } catch { return }

@@ -562,6 +562,17 @@ enum IPhoneBackupModuleTests {
         fake.readFails = false
         rig.finish()
 
+        // A corrupt journal at launch keeps the switch as it was and the journal's bytes.
+        reset(.bool(false))
+        let corrupt = "nc-IPhoneBackup-test.\(UUID())"
+        UserDefaults(suiteName: corrupt)!.set(true, forKey: IPhoneBackupAddon.switchID)
+        let garbage = Data("not a journal".utf8)
+        plantJournal(garbage)
+        rig = Rig(suite: corrupt)
+        precondition(rig.isOn && fake.writes.isEmpty, "a corrupt journal at launch decides nothing")
+        precondition(journalOnDisk() == garbage, "a corrupt journal at launch is kept")
+        rig.finish()
+
         // A v1 journal of the wrong type is corrupt, not absent: nothing is written, the value is kept.
         reset(.bool(false))
         rig = Rig()
