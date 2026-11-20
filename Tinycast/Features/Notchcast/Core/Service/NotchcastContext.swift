@@ -35,6 +35,7 @@ final class NotchcastContext {
     let preferences: NotchcastPreferences
     let presenter: any IslandPresenting
     let now: @MainActor () -> Date
+    let surfaces: NotchcastSurfaces
     let settingsBackup: any NotchcastSettingsBackup
     let calendar: NotchcastCalendar
     private let hub: NotchcastTapHub
@@ -52,8 +53,12 @@ final class NotchcastContext {
     private(set) var commands: [NotchcastCommand] = []
     /// Returns true to claim a URL or file opened with the app (a link clicked, a document opened).
     private(set) var openURL: (@MainActor (URL) -> Bool)?
+    private(set) var launcherShown: (@MainActor () -> Void)?
     /// Notchcast's own yes/no dialog, never `NSAlert`; nil where no app runs, as in harnesses.
     var confirm: (@MainActor @Sendable (_ title: String, _ message: String?, _ confirmTitle: String) async -> Bool)?
+    /// The same dialog with a destructive confirm button, for a step that loses something.
+    var confirmDestructive:
+        (@MainActor @Sendable (_ title: String, _ message: String?, _ confirmTitle: String) async -> Bool)?
 
     init(
         defaults: UserDefaults, preferences: NotchcastPreferences, presenter: any IslandPresenting,
@@ -61,6 +66,7 @@ final class NotchcastContext {
         now: @escaping @MainActor () -> Date,
         onTapsChanged: @escaping @MainActor () -> Void, onCommandsChanged: @escaping @MainActor () -> Void = {},
         recovery: NotchcastContext? = nil, clipboard: NotchcastClipboardMutation = .none,
+        surfaces: NotchcastSurfaces = NotchcastSurfaces(),
         settingsBackup: any NotchcastSettingsBackup = NotchcastNoSettingsBackup(),
         calendar: NotchcastCalendar = NotchcastCalendar()
     ) {
@@ -73,6 +79,7 @@ final class NotchcastContext {
         self.settingsBackup = settingsBackup
         self.onTapsChanged = onTapsChanged
         self.onCommandsChanged = onCommandsChanged
+        self.surfaces = surfaces
         self.clipboard = clipboard
         recoveryContext = recovery
         self.calendar = calendar
@@ -115,6 +122,9 @@ final class NotchcastContext {
         openURL = handler
     }
 
+    /// Runs each time the launcher opens, so a module can refresh what its commands list.
+    func handleLauncherShown(_ handler: (@MainActor () -> Void)?) { launcherShown = handler }
+
     /// Stock Dictation's text for a file; `.busy` while the user dictates or another one runs.
     func transcribe(_ audioURL: URL) async throws -> String { try await transcription.transcribe(audioURL) }
 
@@ -142,7 +152,16 @@ final class NotchcastContext {
         commands.removeAll()
         unavailableCommands = []
         openURL = nil
+        launcherShown = nil
     }
+}
+
+/// What the app lends an add-on's own panel; the inert defaults paint Black.
+@MainActor
+struct NotchcastSurfaces {
+    /// The user's Interface Size, as `InterfaceMetrics(scale:)` takes it.
+    var interfaceScale: () -> Double = { 1 }
+    var isFrosted: () -> Bool = { false }
 }
 
 /// The stock settings backup (Backup › Export's file) as the core sees it; `NotchcastCore` injects it.

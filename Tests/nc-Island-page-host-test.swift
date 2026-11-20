@@ -55,7 +55,7 @@ final class StubHover {
 @MainActor final class StubSize { let metrics = InterfaceMetrics.standard }
 @MainActor final class StubCanvas { var onMenu: (() -> Void)? }
 
-/// A resting island with no screen: the host counts it as open and builds no window.
+/// A resting island with no screen: hover opens on it, then the render closes it with no window.
 @MainActor
 final class IslandController {
     static let paletteLevel = NSWindow.Level.floating
@@ -75,6 +75,7 @@ struct IslandPageHostTest {
     static func main() {
         let host = IslandPageHost()
         let resting = IslandController()
+        bare(resting)
         var told: [String] = []
         func heard() -> [String] { defer { told = [] }; return told }
         func page(_ id: String) -> IslandPage {
@@ -107,6 +108,17 @@ struct IslandPageHostTest {
         precondition(host.deck.notice == nil && tapped == 1, "an ended notice leaves no row and no tap")
         showPage(host, resting: resting, page: page)
         print("PASS IslandPageHostTest")
+    }
+
+    /// A bare island opens an empty Home (#884); a notice or a meeting glance keeps its own form.
+    static func bare(_ resting: IslandController) {
+        let host = IslandPageHost()
+        precondition(host.hover(true, on: resting) && host.deck.selection == .home,
+                     "hover on a bare island opens Home with no page")
+        host.hover(false, on: resting)
+        precondition(!host.hover(true, on: resting, glance: true), "a meeting glance keeps its expansion")
+        host.show(IslandNotice(id: "update", text: "Update ready"), onTap: nil)
+        precondition(!host.hover(true, on: resting), "a notice keeps the pill's long form")
     }
 
     /// A command opens the island pinned on its page (#1128): the pin waits out the launcher, then picks the tab.

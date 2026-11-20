@@ -8,6 +8,7 @@
 // notchcast-sources: Tinycast/Features/Notchcast/SmallCommands/Service/SmallCommandsSystem.swift
 // notchcast-sources: Tinycast/Features/Notchcast/SmallCommands/Service/AirDropService.swift
 // notchcast-sources: Tests/NotchcastDictationFixture.swift
+// notchcast-reads: Tinycast/Features/Notchcast/SmallCommands/NotchcastSmallCommands.xcstrings
 
 import AppKit
 import CoreGraphics

@@ -19,21 +19,13 @@ nonisolated struct CopyPathReader: Sendable {
     /// How many tabs are selected in a Gecko browser's focused window.
     let selectedTabs: @Sendable (_ pid: Int32) async throws -> Int
     /// The text a Gecko browser's own Share › Copy Links put on the clipboard; nil when it wrote nothing.
-    let browserCopy: @Sendable (_ pid: Int32) async throws -> CopyPathBrowserCopy?
-}
-
-/// What the browser wrote to the clipboard, and the change count of that write.
-nonisolated struct CopyPathBrowserCopy: Equatable, Sendable {
-    let text: String
-    let changeCount: Int
+    let browserCopy: @Sendable (_ pid: Int32) async throws -> String?
 }
 
 /// The text to copy; `links` counts the tab links in it, 0 on every route but selected tabs.
 nonisolated struct CopyPathCopy: Equatable, Sendable {
     let text: String
     var links = 0
-    /// The browser's own write to the clipboard, which this copy replaces.
-    var browserChangeCount: Int?
 }
 
 /// A permission the user refused; the notice names it and the matching Settings pane opens.
@@ -108,14 +100,14 @@ nonisolated enum CopyPathResolver {
             let selected = try await reader.selectedTabs(pid)
             guard selected >= 2 else { return nil }
             try Task.checkCancellation()
-            guard let copy = try await reader.browserCopy(pid) else { return nil }
-            let links = copy.text.split(whereSeparator: \.isNewline).compactMap {
+            guard let text = try await reader.browserCopy(pid) else { return nil }
+            let links = text.split(whereSeparator: \.isNewline).compactMap {
                 webLink($0.trimmingCharacters(in: .whitespaces))
             }
             // Gecko's active tab is always selected, so a list without it or longer than the selection is stale.
             guard !links.isEmpty, links.count <= selected, page.flatMap(webLink).map(links.contains) != false
             else { return nil }
-            return CopyPathCopy(text: links.joined(separator: "\n"), links: links.count, browserChangeCount: copy.changeCount)
+            return CopyPathCopy(text: links.joined(separator: "\n"), links: links.count)
         } catch let error where error is CopyPathFailure || error is CancellationError {
             throw error
         } catch {
@@ -152,7 +144,7 @@ nonisolated enum CopyPathResolver {
     static func webLink(_ raw: String) -> String? {
         guard let url = URL(string: raw), ["http", "https"].contains(url.scheme?.lowercased() ?? ""),
             let host = url.host(), !host.isEmpty else { return nil }
-        return CopyPathLinkCleaner.clean(raw)
+        return NotchcastLinkCleaner.clean(raw)
     }
 
     private static func trimmed(_ path: String) -> String {

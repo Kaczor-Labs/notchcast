@@ -1,4 +1,5 @@
 // notchcast-sources: Tinycast/Features/Notchcast/CopyPath/Model/*.swift
+// notchcast-sources: Tinycast/Features/Notchcast/Core/Model/NotchcastLinkCleaner.swift
 
 import Foundation
 
@@ -58,8 +59,7 @@ func reader(
         },
         browserCopy: { pid in
             reads.names.append("copy \(pid)")
-            guard try passes(statuses["copy"], ax: true, denied: .accessibility), let copy else { return nil }
-            return CopyPathBrowserCopy(text: copy, changeCount: 42)
+            return try passes(statuses["copy"], ax: true, denied: .accessibility) ? copy : nil
         })
 }
 
@@ -161,7 +161,7 @@ func selectedTabCases() async throws {
     let three = "https://example.com/?a=1\nhttps://example.org/?b=2\nhttps://example.net/?c=3"
     let reads = Reads()
     let copied = try await resolveCopy(zen, reader(web: page, tabs: 3, copy: bench, reads: reads))
-    precondition(copied == CopyPathCopy(text: three, links: 3, browserChangeCount: 42), "3 tabs: \(String(describing: copied))")
+    precondition(copied == CopyPathCopy(text: three, links: 3), "3 tabs: \(String(describing: copied))")
     precondition(reads.names == ["web 14", "tabs 14", "copy 14"], "page, count, then the browser's copy: \(reads.names)")
 
     let one = Reads()
@@ -173,10 +173,10 @@ func selectedTabCases() async throws {
           "3 selected but no copy falls to the page")
     let mixed = "https://a.org/?utm_medium=x\r\n\r\nfile:///home/tester/x.html\r\nabout:blank\r\n  https://b.org/  \r\n"
     let cleaned = try await resolveCopy(zen, reader(web: "https://b.org/", tabs: 3, copy: mixed))
-    precondition(cleaned == CopyPathCopy(text: "https://a.org/\nhttps://b.org/", links: 2, browserChangeCount: 42),
+    precondition(cleaned == CopyPathCopy(text: "https://a.org/\nhttps://b.org/", links: 2),
                  "CRLF, blank and non-web lines drop: \(String(describing: cleaned))")
     let lone = try await resolveCopy(zen, reader(web: nil, tabs: 3, copy: "https://b.org/\nfile:///x"))
-    precondition(lone == CopyPathCopy(text: "https://b.org/", links: 1, browserChangeCount: 42),
+    precondition(lone == CopyPathCopy(text: "https://b.org/", links: 1),
                  "one web link left is one link: \(String(describing: lone))")
     check(try await resolve(zen, reader(web: nil, tabs: 2, copy: "https://a.org/\nhttps://b.org/")),
           "https://a.org/\nhttps://b.org/", "an empty active tab with 2 selected web tabs copies the 2")
@@ -357,6 +357,16 @@ func statusMapping() throws {
     }
 }
 
+func budget() {
+    let timeout = CopyPathBudget.timeout
+    precondition(timeout(.seconds(3), 1) == 1, "plenty left: the cap")
+    precondition(timeout(.milliseconds(250), 1) == 0.25, "less than the cap: what is left")
+    precondition(timeout(.milliseconds(10), 1) == 0.01, "the minimum still reads")
+    for left: Duration in [.microseconds(9_999), .microseconds(400), .zero, .milliseconds(-5)] {
+        precondition(timeout(left, 1) == nil, "\(left) left: no read, never AX's 6 s default")
+    }
+}
+
 func folding() {
     let fold = { CopyPathResolver.fold($0, home) }
     check(fold("/home/tester"), "~", "home itself")
@@ -370,7 +380,7 @@ func folding() {
 }
 
 func cleaning() {
-    let clean = CopyPathLinkCleaner.clean
+    let clean: (String) -> String = { NotchcastLinkCleaner.clean($0) }
     check(clean("https://x.org/p?a=1&b=2#f"), "https://x.org/p?a=1&b=2#f", "nothing to strip: unchanged")
     check(clean("https://x.org/p?utm_source=a&utm_medium=b"), "https://x.org/p", "all stripped drops the ?")
     check(clean("https://x.org/p?UTM_Campaign=a&b=1"), "https://x.org/p?b=1", "names compare case-insensitively")
@@ -380,11 +390,14 @@ func cleaning() {
     check(clean("https://x.org/p?q=a+b;c%2F&&mc_eid=1#a?utm_x=1"), "https://x.org/p?q=a+b;c%2F&#a?utm_x=1",
           "other bytes stay; the fragment is never touched")
     check(clean("https://x.org/#?utm_source=1"), "https://x.org/#?utm_source=1", "a ? after # is fragment")
-    for name in CopyPathLinkCleaner.trackingNames {
+    for name in NotchcastLinkCleaner.trackingNames {
         check(clean("https://x.org/?\(name)=1&k=v"), "https://x.org/?k=v", "\(name) strips")
     }
-    precondition(CopyPathLinkCleaner.trackingNames.count == 19, "the issue's 19 names")
-    precondition(!CopyPathLinkCleaner.isTracking("ref") && !CopyPathLinkCleaner.isTracking("utm"), "near misses stay")
+    precondition(NotchcastLinkCleaner.trackingNames.count == 25, "the issue's 19 names and Vorssaint's 6 more")
+    check(clean("https://x.org/p?\u{301}a=1&gclid=2"), "https://x.org/p?\u{301}a=1", "a combining mark hides no ?")
+    check(clean("https://youtu.be/a?si=1&t=30"), "https://youtu.be/a?t=30", "a site's own tracker strips there")
+    check(clean("https://x.org/p?si=1"), "https://x.org/p?si=1", "and stays elsewhere")
+    precondition(!NotchcastLinkCleaner.isTracking("ref") && !NotchcastLinkCleaner.isTracking("utm"), "near misses stay")
 }
 
 @main
@@ -398,8 +411,9 @@ enum CopyPathResolverTests {
         try await documentCases()
         try await stopCases()
         try statusMapping()
+        budget()
         folding()
         cleaning()
-        print("PASS: copy path resolves Finder, browsers, Gecko pages and selected tabs, documents, timeouts, home and links")
+        print("PASS: copy path: Finder, browsers, Gecko pages, selected tabs, documents, timeouts, budgets, links")
     }
 }

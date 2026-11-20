@@ -16,7 +16,7 @@ Each section states one normative rule per element with its token, and one refer
 | Questions (dialogs) | + 4 | `DialogController`, `DialogView` |
 | Update flow (pill, notice, Try Again) | footer, notice, dialog | `UpdatePill`, `IslandLiveState`, `UpdateCoordinator` |
 
-Off the island and out of scope: the Settings window (stock, native macOS, §11), Notes, Camera, AI chat panels, Dictation, Screenshots' Capture Editor and every other stock floating panel, which keep upstream's content → `panelScrim` → `GlassEffectView` recipe from `docs/ui.md`. `Features/Extensions/` is never touched. A view shared between a palette screen and an out-of-scope panel (`ChatTranscriptView`, `AIEmptyState`, `ChatSuggestionChips`) follows the island rules everywhere it is used; the panel's own `AIChat*` files keep upstream's recipe.
+Off the island and out of scope: the Settings window (stock, native macOS, §11), Notes, Camera, AI chat panels, Dictation, Screenshots' Capture Editor, Screen Recording's trimmer and every other stock floating panel, which keep upstream's content → `panelScrim` → `GlassEffectView` recipe from `docs/ui.md`. `Features/Extensions/` is never touched. A view shared between a palette screen and an out-of-scope panel (`ChatTranscriptView`, `AIEmptyState`, `ChatSuggestionChips`) follows the island rules everywhere it is used; the panel's own `AIChat*` files keep upstream's recipe.
 
 Reference: HIG Live Activities, "Live Activities in the Dynamic Island use a black opaque background."
 
@@ -260,7 +260,7 @@ Run from the repo root with `bash`, after ``I=$(find Tinycast/Palette Tinycast/F
 | A13 | §10 HUD and dialog | `grep -rnE '\{ glow \}\|strokeBorder\|panelScrim' Tinycast/Windows/HUD Tinycast/Windows/Dialog` | 5 |
 | A14 | §10 update glyph | `grep -rn 'symbol: "arrow.down.circle", recovery' Tinycast/Features/Updates/UI/UpdateCoordinator.swift` | 1 |
 | A15 | §11 settings | `grep -rnE 'formStyle\(\|NotchTheme\.' $(grep -rlE 'struct [A-Za-z]+SettingsView' Tinycast/Features/Notchcast) \| grep -v 'formStyle(.grouped)'` | 0 |
-| A16 | §12 add-ons | `grep -rnE ': NSPanel\|NSHostingView\(\|NSWindow\(' Tinycast/Features/Notchcast --include='*.swift' \| grep -v '/Screenshots/'` | 0 |
+| A16 | §12 add-ons | `grep -rnE ': NSPanel\|NSHostingView\(\|NSWindow\(' Tinycast/Features/Notchcast --include='*.swift' \| grep -vE '/Screenshots/\|/ScreenRecording/UI/Recording(SelectionSurface\|Trimmer)\.swift'` | 0 |
 | A17 | §1 shadow | `grep -rnE 'hasShadow = true' Tinycast/Palette/PalettePanel.swift Tinycast/Palette/MenuPanel.swift Tinycast/Windows/HUD/HUDPanel.swift Tinycast/Windows/Dialog/DialogPanel.swift Tinycast/Features/Island` (window shadows stay off; Frosted's lift is a layer shadow in `IslandFrost`) | 4 |
 | A18 | §6 glyph | `grep -rnE 'Image\(systemName' $I` | 39 |
 | A19 | §1 look on Frosted | `./Scripts/run-tests.sh nc-Notchcast-frosted-guard-test \| grep -c '^FAIL'` (an `islandSurface` fill outside a look branch, an `NSColor(token)` ink) | 0 |
@@ -273,7 +273,7 @@ The open island (hover, or a click that pins it) shows pages: one per add-on wit
 
 | Element | Rule | Token |
 | --- | --- | --- |
-| Structure | A tab bar, then the notice row while one shows, then the page body. One page with data: no Home and no tab bar, hover opens that page. Two or more: Home first, then pages by `order` (Agents 0, Player 10, System 20, Day 30). A page with no data posts nil and leaves no tab. | `IslandPageDeck` |
+| Structure | A tab bar, then the notice row while one shows, then the page body. One page with data: no Home and no tab bar, hover opens that page. Two or more: Home first, then pages by `order` (Agents 0, Player 10, System 20, Day 30). A page with no data posts nil and leaves no tab. None, on a bare island (no notice, status or meeting glance): hover and a click open Home with one line, "Nothing to show", drawn as the menus' empty state (§8). | `IslandPageDeck` |
 | Tab | `BarButton(isSelected:)` with a `SymbolImage` and the title; the selected tab uses the button's selected fill. | `metrics.typography.bar`, `Theme.Typography.menuSymbolSize` |
 | Badge | A count of things waiting for the user, a compact outline keycap after the tab title; badged pages lead Home, tabs never reorder. | `KeyCapChip(.outline, .compact)` |
 | Notice row | What the resting island shows (the live notice, else the last status unless the meeting glance shows) heads the open page on every tab, so a page never hides it; drawn as a `row` block, a button running the notice's or status's own tap when it has one. | `IslandPageDeck.notice`, `IslandPageRowView` |

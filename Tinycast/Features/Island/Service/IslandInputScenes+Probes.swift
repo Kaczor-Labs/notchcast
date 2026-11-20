@@ -88,14 +88,9 @@ extension IslandInputScenes {
               "WS just outside the palette island edge (\(name)) reaches no own window")
     }
 
-    private static func visibleWindows() -> Set<ObjectIdentifier> {
-        Set(NSApp.windows.filter(\.isVisible).map(ObjectIdentifier.init))
-    }
-
     static func hover(controller: IslandController) async {
         let point = centre(controller)
         let start = CGPoint(x: point.x - 300, y: point.y - 150)
-        let windows = visibleWindows()
         let before = helperClicks()
         await move(start)
         await IslandVerification.pause(0.3)
@@ -108,7 +103,7 @@ extension IslandInputScenes {
         await IslandVerification.pause(0.5)
         check(abs(cursor.x - point.x) < 1 && abs(cursor.y - point.y) < 1, "WS hover: cursor rests on the pill")
         check(core.island.hover.isOpen, "WS hover opens the island")
-        check(visibleWindows() == windows, "WS hover adds no window")
+        check(controller.page?.isVisible == true, "WS hover on the bare island opens Home (#884)")
         check(!paletteVisible && menuPanel == nil, "WS hover opens neither the launcher nor the menu")
         check(helperClicks() == before, "WS hover sends no click")
         await click(point, right: true)

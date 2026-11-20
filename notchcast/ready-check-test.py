@@ -18,7 +18,7 @@ COVERED = {
     ("pr.yml:route", "A harness-only run is never a train's"): "dispatched harness-only runs only",
     ("pr.yml:route", "actions/checkout"): "lane planning; no gate",
     ("pr.yml:route", "Lanes the diff needs"): "picks the jobs below; ready-check.sh runs them all",
-    ("pr.yml:route", "Harnesses the diff needs"): "shadow selection; reports, gates nothing",
+    ("pr.yml:route", "Harnesses the diff needs"): "picks what a PR run's mac job runs; ready-check.sh runs the whole suite",
     ("pr.yml:mac", "actions/checkout"): "the shared clone at HEAD",
     ("pr.yml:mac", "./tools/notchcast/actions/xcode"): "ci-build.sh's xcode step",
     ("pr.yml:mac", "The harness runner's own Xcode"): "dispatched harness-only runs only",
@@ -118,6 +118,16 @@ class CoverageTest(unittest.TestCase):
                 self.assertRegex(ci_tests, rf"export .*\b{name}={value.strip(chr(39))}\b")
 
 
+class SelectionTest(unittest.TestCase):
+    def test_only_a_pull_request_runs_a_selection_and_it_keeps_its_own_cache(self):
+        text = WORKFLOW.read_text()
+        self.assertIn("  NOTCHCAST_HARNESS_SELECT: ${{ github.event_name == 'pull_request' && 'on' || 'shadow' }}\n", text)
+        self.assertIn("      harness-only: ${{ steps.select.outputs.only }}\n", text)
+        tests = next(text for job, text in steps(WORKFLOW, 6) if signature(text) == "./tools/notchcast/actions/tests")
+        self.assertIn("  only: ${{ needs.route.outputs.harness-only }}\n", tests)
+        self.assertIn("  cache: ${{ inputs.harness_runner == '' && (needs.route.outputs.harness-only == '' && 'pr-0of1' || 'pr-select') || '' }}", tests)
+
+
 # The one way to a self-hosted Mac (README Runners): a dispatch, which no fork can start; unset, it is xcode-27.
 GATED_MAC = ("${{ github.event_name == 'workflow_dispatch' && !inputs.hosted && vars.NOTCHCAST_MAC_RUNNER "
              "|| 'xcode-27' }}")
@@ -125,8 +135,8 @@ GATED_MAC = ("${{ github.event_name == 'workflow_dispatch' && !inputs.hosted && 
 HARNESS_MAC = ("${{ github.event_name == 'workflow_dispatch' && (inputs.harness_runner || !inputs.hosted "
                "&& vars.NOTCHCAST_MAC_RUNNER) || 'xcode-27' }}")
 HARNESS_ONLY, FULL_RUN = "inputs.harness_runner != ''", "inputs.harness_runner == ''"
-# Only jobs that hold no secret and launch no app; a workflow outside this map is hosted-only.
-GATED_JOBS = {"pr.yml": 1, "main-harnesses.yml": 1}
+# Only jobs that hold no secret, sign with no identity and push nothing; a workflow outside this map is hosted-only.
+GATED_JOBS = {"pr.yml": 1, "main-harnesses.yml": 1, "proof.yml": 1}
 # Every macOS job (README Runners): it runs xcodebuild, compiles harnesses, signs or launches the app. Anything else is Linux.
 MAC_JOBS = {"pr.yml": 1, "main-harnesses.yml": 1, "delete-check.yml": 1, "proof.yml": 1, "snapshot.yml": 2, "sync.yml": 1,
             "sync-release.yml": 2, "test-build.yml": 2}
@@ -160,9 +170,25 @@ class RunnerTest(unittest.TestCase):
         self.assertEqual(gated, GATED_JOBS, "only these jobs may leave the hosted images, behind the fork gate")
         self.assertEqual(mac, MAC_JOBS, "a new macOS job needs a reason a Linux job cannot meet")
 
+    def test_a_train_passes_its_lane_to_every_workflow_that_can_leave_the_hosted_images(self):
+        for name in GATED_JOBS:
+            self.assertRegex((ROOT / ".github/workflows" / name).read_text(),
+                             r"\n      hosted:\n        description: .*\n        type: boolean\n        default: false\n", name)
+        train = (ROOT / "notchcast/train.sh").read_text()
+        dispatched = re.search(r"^workflows='(.*)'$", train, re.M)[1].split()
+        self.assertEqual(re.search(r"^mac_workflows='(.*)'$", train, re.M)[1].split(), [name for name in dispatched if name in GATED_JOBS])
+
+    def test_proof_refuses_a_working_mac_before_anything_else(self):
+        first = next(text for job, text in steps(ROOT / ".github/workflows/proof.yml", 6) if job == "proof")
+        self.assertEqual(signature(first), "Refuse a working Mac")
+        self.assertEqual(field(first, "if"), "runner.environment != 'github-hosted'")
+        self.assertIn('[ "${NOTCHCAST_ISOLATED_RUNNER:-}" = 1 ] && exit 0\n'
+                      '  echo "::error::Proof launches the app: hosted or isolated runner only"\n  exit 1', first)
+
     def test_a_working_mac_proves_no_tree_and_an_isolated_one_records_under_its_own_name(self):
         found = {(job, signature(text)): text for job, text in steps(WORKFLOW, 6)}
-        proves = "needs.route.outputs.build == 'true' && needs.mac.outputs.kind != 'working'"
+        proves = ("needs.route.outputs.build == 'true' && needs.mac.outputs.kind != 'working'"
+                  " && needs.route.outputs.harness-only == ''")
         for step in ("Record the tested tree", "actions/upload-artifact"):
             self.assertEqual(field(found["build", step], "if"), proves, step)
         text = WORKFLOW.read_text()
@@ -213,7 +239,7 @@ class RunnerTest(unittest.TestCase):
                          "steps.runner.outputs.kind == 'isolated' && needs.route.outputs.build == 'true'")
         tests = found["mac", "./tools/notchcast/actions/tests"]
         self.assertEqual(field(tests, "if"), f"needs.route.outputs.build == 'true' || {HARNESS_ONLY}")
-        self.assertIn("cache: ${{ inputs.harness_runner == '' && 'pr-0of1' || '' }}", tests)
+        self.assertIn("cache: ${{ inputs.harness_runner == '' && (needs.route.outputs.harness-only == '' && 'pr-0of1' || 'pr-select') || '' }}", tests)
         self.assertEqual((ROOT / "notchcast/actions/tests/action.yml").read_text().count("inputs.cache != ''"), 3,
                          "no cache: the restore, the cache folder and the finish step")
         # No other job runs, the build check least of all: land.sh reads it, and train.sh a train run's conclusion.

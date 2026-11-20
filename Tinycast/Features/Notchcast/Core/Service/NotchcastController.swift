@@ -35,6 +35,7 @@ final class NotchcastController {
     init(
         addons: [any NotchcastAddon.Type], defaults: UserDefaults, hub: NotchcastTapHub,
         dictation: any NotchcastTranscribing, clipboard: NotchcastClipboardMutation = .none,
+        surfaces: NotchcastSurfaces = NotchcastSurfaces(),
         settingsBackup: any NotchcastSettingsBackup = NotchcastNoSettingsBackup(),
         presenter: any IslandPresenting, now: @escaping @MainActor () -> Date = { Date() },
         calendar: NotchcastCalendar = NotchcastCalendar()
@@ -49,7 +50,8 @@ final class NotchcastController {
                 transcription: transcription, now: now,
                 onTapsChanged: { [weak self] in self?.applyTaps() },
                 onCommandsChanged: { [weak self] in if self?.isRunning == true { self?.publishCommands() } },
-                recovery: recovery, clipboard: clipboard, settingsBackup: settingsBackup, calendar: calendar)
+                recovery: recovery, clipboard: clipboard, surfaces: surfaces,
+                settingsBackup: settingsBackup, calendar: calendar)
         }
         slots = addons.map { addon in
             let recovery = makeContext()
@@ -106,6 +108,10 @@ final class NotchcastController {
     /// False when no add-on claims the URL; a running module goes before any recovery.
     func open(_ url: URL) -> Bool {
         slots.contains { $0.context.openURL?(url) == true } || slots.contains { $0.recovery.openURL?(url) == true }
+    }
+
+    func launcherShown() {
+        for slot in slots { slot.context.launcherShown?() }
     }
 
     func context(forSwitch id: String) -> NotchcastContext? {

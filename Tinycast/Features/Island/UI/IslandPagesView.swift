@@ -20,6 +20,12 @@ struct IslandPagesView: View {
             }
             if let page = deck.current {
                 IslandPageBody(blocks: page.blocks) { act(page.id, $0) }
+            } else if deck.pages.isEmpty, deck.notice == nil {
+                Text("Nothing to show")
+                    .font(metrics.typography.menuRow)
+                    .foregroundStyle(Theme.Colors.textTertiary)
+                    .frame(height: metrics.size.menuRowHeight)
+                    .padding(.horizontal, metrics.spacing.md)
             } else {
                 VStack(spacing: metrics.spacing.xxs) {
                     ForEach(deck.homeLines, id: \.id) { page in
