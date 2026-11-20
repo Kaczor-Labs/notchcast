@@ -112,7 +112,7 @@ struct IslandMedia: Equatable, Sendable {
     var seekable = false
     /// 0...1; set, a volume bar under the transport sends `IslandMedia.volumeAction` with the level.
     var volume: Double?
-    /// What plays next, listed beside the player under "Up Next"; a row with an id plays it.
+    /// What plays next, listed beside the player under "Up Next" as plain rows.
     var upNext: [IslandPageRow] = []
 
     static let seekAction = "media.seek"

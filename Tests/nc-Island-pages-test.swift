@@ -239,6 +239,9 @@ struct IslandPagesTest {
         precondition(routed.map(\.page) == Array(repeating: "player", count: 5)
                      && routed.map(\.action) == ["key.left", "key.right", "key.up", "key.down", "key.space"],
                      "a page that takes keys gets space and the arrows (#850 D27)")
+        precondition([Key.step(1), .step(-1)].allSatisfy(\.repeatsOnPage)
+                     && ![Key.move(-1), .move(1), .space].contains(where: \.repeatsOnPage),
+                     "a held arrow skips one song per press; a held up or down keeps stepping the volume")
         precondition([Key.close, .pin, .refresh, .number(1)].allSatisfy { deck.pageAction(for: $0) == nil },
                      "Escape, the pin, refresh and numbers stay the deck's")
     }

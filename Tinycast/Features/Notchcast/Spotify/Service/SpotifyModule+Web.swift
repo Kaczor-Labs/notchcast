@@ -60,26 +60,31 @@ extension SpotifyModule {
 
     func signOut() {
         web?.signOut()
-        liked = nil
+        likeTask?.cancel()
+        likedState = nil
     }
 
+    /// A newer track's check replaces the older one, so a late answer never lands on another song.
     func refreshLiked() {
-        guard let web, web.isSignedIn, let uri = playback.track?.id else { liked = nil; return }
-        Task {
+        likeTask?.cancel()
+        guard let web, web.isSignedIn, let uri = playback.track?.id else { likedState = nil; return }
+        likeTask = Task {
             let saved = try? await web.isSaved(uri)
-            guard playback.track?.id == uri else { return }
-            liked = saved
+            guard !Task.isCancelled, playback.track?.id == uri else { return }
+            likedState = saved.map { (uri, $0) }
         }
     }
 
+    /// Ignored until this track's state is known; a click also drops the check it would race.
     func toggleLike() {
         guard let web, let uri = playback.track?.id, let current = liked else { return }
-        liked = !current
+        likeTask?.cancel()
+        likedState = (uri, !current)
         Task {
             do {
                 try await web.setSaved(!current, uri: uri)
             } catch {
-                if playback.track?.id == uri { liked = current }
+                if likedState?.uri == uri { likedState = (uri, current) }
             }
         }
     }

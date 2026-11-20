@@ -7,6 +7,9 @@
     "A notch always decides where the island sits." : {
 
     },
+    "Add to Liked Songs" : {
+
+    },
     "Agents" : {
       "shouldTranslate" : false
     },
@@ -191,9 +194,6 @@
 
     },
     "Resting the pointer on the island opens what it shows." : {
-
-    },
-    "Save to Liked Songs" : {
 
     },
     "Search past dictations…" : {

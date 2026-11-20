@@ -28,7 +28,7 @@ final class SpotifyPlayerPage: IslandPlayerSource {
         let artwork = cover.flatMap { $0.url == track.artworkURL ? $0.data : nil }
         let overflow = module.context.defaults.string(forKey: Self.overflowKey).flatMap(IslandSongOverflow.init)
         var playing = Self.nowPlaying(playback, track: track, artwork: artwork, overflow: overflow ?? .widen)
-        playing.liked = module.liked
+        playing.liked = module.likedState?.liked
         module.context.presenter.showPlayer(playing, source: self)
         if let url = track.artworkURL, url != cover?.url, url != loading?.url { load(url) }
     }

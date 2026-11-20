@@ -23,10 +23,13 @@ final class SpotifyModule: NotchcastModule {
     var signingIn = false
     var isSignedIn = false
     var clientID: String
-    /// Whether the current song is in Liked Songs; nil while unknown or signed out.
-    var liked: Bool? {
-        didSet { if liked != oldValue { onPlayback?(playback, playback) } }
+    /// Liked Songs as last known for one track, keyed as Aural keys it; shown until the next answer.
+    var likedState: (uri: String, liked: Bool)? {
+        didSet { if likedState?.uri != oldValue?.uri || likedState?.liked != oldValue?.liked { onPlayback?(playback, playback) } }
     }
+    /// The current song's liked state; nil while unknown for it or signed out, so a click waits.
+    var liked: Bool? { likedState.flatMap { $0.uri == playback.track?.id ? $0.liked : nil } }
+    @ObservationIgnored var likeTask: Task<Void, Never>?
     @ObservationIgnored var web: SpotifyWeb?
     @ObservationIgnored private var volume: SpotifyVolumeMemory
     /// Set the moment Soloist is spawned or adopted, so stop and quit never leave it running.
@@ -278,5 +281,13 @@ final class SpotifyModule: NotchcastModule {
         guard running else { return }
         supervision.stop()
         supervise()
+    }
+
+    /// The Player page, or a report while no song is loaded, so the command never looks broken.
+    func expandPlayer() {
+        guard playback.track == nil else { return context.presenter.showPage(id: IslandPlayerPage.id) }
+        context.presenter.post(IslandNotice(id: "spotify.nothingPlaying", symbol: "music.note",
+                                            text: String(localized: "Nothing is playing", table: "NotchcastSpotify")),
+                               onTap: nil)
     }
 }

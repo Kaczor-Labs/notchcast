@@ -119,7 +119,7 @@ enum IslandPlayerPage {
             liked ? IslandPageButton(id: IslandPlayerControl.like.rawValue, symbol: "heart.fill",
                                      label: String(localized: "Remove from Liked Songs", table: "Notchcast"))
                   : IslandPageButton(id: IslandPlayerControl.like.rawValue, symbol: "heart",
-                                     label: String(localized: "Save to Liked Songs", table: "Notchcast"))
+                                     label: String(localized: "Add to Liked Songs", table: "Notchcast"))
         }
         let upNext = playing.upNext.map { IslandPageRow(title: $0.title, detail: $0.artist) }
         return IslandPage(

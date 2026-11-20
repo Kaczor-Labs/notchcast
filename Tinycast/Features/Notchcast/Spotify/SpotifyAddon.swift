@@ -19,7 +19,7 @@ enum SpotifyAddon: NotchcastAddon { // drift: keep the generated NotchcastRegist
         NotchcastCommand(slug: "spotify-expand-player",
                          name: String(localized: "Expand Player", table: "NotchcastSpotify"),
                          symbol: "music.note", switchID: "spotify", keywords: ["spotify", "music", "now playing"]) {
-            $0.presenter.showPage(id: IslandPlayerPage.id)
+            $0.module(SpotifyModule.self)?.expandPlayer()
         },
     ]
 

@@ -131,8 +131,14 @@ struct IslandPageBar: View {
     var step = 0.0
     var change: ((Double) -> Void)?
     @Environment(\.metrics) private var metrics
+    /// The drag's fraction while it lasts, so the fill follows the pointer before the player answers.
+    @State private var dragged: Double?
+    @State private var sent: ContinuousClock.Instant?
+    /// As Aural's `VolumeSlider`: a drag sends at most this often, and its exact end on release.
+    static let sendInterval = Duration.milliseconds(100)
 
     var body: some View {
+        let fraction = dragged ?? self.fraction
         let bar = Capsule()
             .fill(Theme.Colors.border)
             .overlay(alignment: .leading) {
@@ -148,9 +154,20 @@ struct IslandPageBar: View {
             GeometryReader { proxy in
                 bar.frame(maxHeight: .infinity)
                     .contentShape(Rectangle())
-                    .gesture(DragGesture(minimumDistance: 0).onEnded { drag in
-                        change(min(max(drag.location.x / max(proxy.size.width, 1), 0), 1))
-                    })
+                    .gesture(DragGesture(minimumDistance: 0)
+                        .onChanged { drag in
+                            let value = min(max(drag.location.x / max(proxy.size.width, 1), 0), 1)
+                            dragged = value
+                            let now = ContinuousClock.now
+                            guard sent.map({ now - $0 >= Self.sendInterval }) ?? true else { return }
+                            sent = now
+                            change(value)
+                        }
+                        .onEnded { drag in
+                            change(min(max(drag.location.x / max(proxy.size.width, 1), 0), 1))
+                            dragged = nil
+                            sent = nil
+                        })
             }
             .frame(height: metrics.size.menuRowHeight / 2)
             .accessibilityElement(children: .ignore)

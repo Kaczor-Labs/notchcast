@@ -146,6 +146,9 @@ enum IslandPageKey: Equatable, Sendable {
     static let spaceBar: UInt16 = 49
     static let escape: UInt16 = 53
 
+    /// A held ↑ or ↓ keeps stepping the volume; a held arrow or space acts once per press, never per repeat.
+    var repeatsOnPage: Bool { if case .step = self { true } else { false } }
+
     /// What a page that takes keys gets for this key instead of the deck; nil keeps it the deck's.
     var action: String? {
         switch self {

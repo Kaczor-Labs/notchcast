@@ -139,6 +139,7 @@ final class IslandPageHost {
         guard let key = IslandPageKey(keyCode: event.keyCode, characters: event.charactersIgnoringModifiers ?? "",
                                       command: event.modifierFlags.contains(.command)) else { return false }
         if let target = deck.pageAction(for: key) {
+            guard !event.isARepeat || key.repeatsOnPage else { return true }
             act(page: target.page, action: target.action)
             keyOnPin()
             return true

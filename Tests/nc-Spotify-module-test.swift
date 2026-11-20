@@ -368,6 +368,9 @@ struct SpotifyModuleTests {
         fake.now = build.noticeDate.addingTimeInterval(-60)
         let (module, presenter) = make(fake, defaults: defaults)
         module.start()
+        module.expandPlayer()
+        check(presenter.log.last == "post spotify.nothingPlaying Nothing is playing",
+              "Expand Player with no song says so rather than nothing (#850)")
         await settle()
         check(!presenter.log.contains { $0.hasPrefix("post spotify.expiry") }, "quiet before the last week")
         guard let wake = fake.wakes.first(where: { $0.date == build.noticeDate }) else { return check(false, "wakes") }
@@ -405,6 +408,15 @@ struct SpotifyModuleTests {
         check(module.liked == false, "the heart answers at once")
         await settle()
         check(module.liked == true && fake.requests.last == "DELETE /v1/me/library", "and returns when Spotify fails")
+        fake.answers = [(200, "[false]")]
+        let second = trackJSON.replacingOccurrences(of: "spotify:track:1", with: "spotify:track:2")
+        fake.event?(event(#"{"type":"playback_state","status":"playing","item":\#(second),"is_active":true}"#))
+        check(module.liked == nil && module.likedState?.liked == true, "the last song's heart shows but is not this one's")
+        let asked = fake.requests.count
+        module.toggleLike()
+        check(fake.requests.count == asked && module.liked == nil, "a click waits until this song is known (Aural)")
+        await settle()
+        check(module.liked == false, "then the answer is this song's")
         fake.answers = [(401, ""), (400, #"{"error":"invalid_grant"}"#)]
         module.refreshLiked()
         await settle()
