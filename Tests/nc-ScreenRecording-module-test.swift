@@ -360,7 +360,14 @@ enum ScreenRecordingModuleTests {
         }
         let ended = folder("ended")
         let orphan = clip(in: ended, seconds: 10)
-        let stub = clip(in: ended, seconds: 0)
+        let stub = ended.appending(path: "\(UUID().uuidString).mov")
+        precondition((try? Data().write(to: stub)) != nil)
+        let zero = clip(in: ended, seconds: 0)
+        let unreadable = ended.appending(path: "\(UUID().uuidString).mov")
+        precondition((try? Data("not a movie".utf8).write(to: unreadable)) != nil)
+        // A folder another copy is still claiming is hidden until it is locked.
+        let claiming = folder(".\(UUID().uuidString)")
+        let claimed = clip(in: claiming, seconds: 10)
         let copied = ended.appending(path: "Copied.mov")
         writeClip(copied, seconds: 10)
         let quiet = folder("quiet")
@@ -377,17 +384,20 @@ enum ScreenRecordingModuleTests {
         let recovery = rig.controller.context(forSwitch: "recording")?.recovery(ScreenRecordingRecovery.self)
         await recovery?.settled()
         let moved = names(in: desktopFolder).filter { !before.contains($0) }
-        check("a clip left by a run that ended moves to the recording folder", !exists(orphan) && moved.count == 1
-              && moved.first?.hasSuffix(".mov") == true)
+        check("a clip left by a run that ended moves to the recording folder", !exists(orphan) && moved.count == 2
+              && moved.allSatisfy { $0.hasSuffix(".mov") })
+        check("a clip whose length cannot be read is recovered, not deleted", !exists(unreadable))
+        check("a hidden folder is never taken for an ended run's", exists(claimed))
         check("a clip another running copy is still writing stays where it is", exists(live))
         check("and so does this run's own", exists(own))
-        check("a stub with nothing recorded is deleted, not recovered", !exists(stub))
+        check("a stub that is not a movie yet is deleted, not recovered", !exists(stub))
+        check("a clip whose length reads 0 is deleted, not recovered", !exists(zero))
         check("a copied export stays, and its folder with it", exists(copied))
         check("an ended run's empty folder is removed", !exists(quiet))
         let notice = "Recovered a recording from the last session."
         check("one notice says so", rig.presenter.posts.map(\.text) == [notice])
         rig.presenter.taps[notice]?()
-        check("and its tap shows the file", fake.revealed.last?.lastPathComponent == moved.first)
+        check("and its tap shows the file", moved.contains(fake.revealed.last?.lastPathComponent ?? ""))
         rig.finish()
 
         let again = Rig()
