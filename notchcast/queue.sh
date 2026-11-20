@@ -9,7 +9,12 @@ cd "$1"
 echo "queue: tick $(date '+%Y-%m-%d %H:%M:%S %Z')"
 # Fixed per machine, so a killed or rebooted queue takes its own lease back at the next tick.
 holder="queue@$(hostname -s)"
-$NOTCHCAST_LAND_LOCK take "$holder" || { echo 'queue: the land lease is held; next tick'; exit 0; }
+if ! taken=$($NOTCHCAST_LAND_LOCK take "$holder" 2>&1); then
+    echo "$taken"
+    [[ "$taken" != *' is held by '* ]] || { echo 'queue: the land lease is held; next tick'; exit 0; }
+    echo 'queue: could not take the land lease' >&2
+    exit 1
+fi
 scratch=$(mktemp -d)
 release() {
     $NOTCHCAST_LAND_LOCK drop "$holder" || echo 'WARN: could not drop the land lease; it expires by itself' >&2
@@ -21,4 +26,8 @@ trap 'exit 1' HUP INT TERM
 git fetch -q origin main
 git worktree add --quiet --detach "$scratch/tree" origin/main
 cd "$scratch/tree"
-NOTCHCAST_LAND_LEASE=$holder bash notchcast/train.sh --queue
+# In the background: bash runs a trap only between foreground commands, and the train must get the stop to scrap.
+NOTCHCAST_LAND_LEASE=$holder bash notchcast/train.sh --queue &
+train=$!
+trap 'kill -TERM "$train" 2>/dev/null; wait "$train"; exit 143' HUP INT TERM
+wait "$train"

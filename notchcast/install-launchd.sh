@@ -177,6 +177,7 @@ install_prune() {
 install_queue() {
     agent notchcast.queue queue \
         '<key>StartInterval</key><integer>180</integer>
+<key>ExitTimeOut</key><integer>120</integer>
 <key>ProcessType</key><string>Background</string>
 <key>EnvironmentVariables</key><dict><key>PATH</key><string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string></dict>' \
         "$(named_job 'Notchcast landing queue' /bin/bash "$TOOLS/queue.sh" "$(main_checkout)")"

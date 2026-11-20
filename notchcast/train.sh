@@ -232,8 +232,8 @@ ready_since() {
 }
 # The first LAND_BATCH_SIZE open PRs on main, oldest sign-off first. Signed off is ready, or a draft labelled land;
 # its build must be green on its head (a draft may have none: the train run is its build). A PR a batch already
-# found red alone waits for a new head. While the newest sign-off is younger than LAND_SETTLE_SECONDS it prints
-# only a "queue: waits" line, so PRs signed off close together ride one train.
+# found red alone waits for a new head. While the newest sign-off of the batch is younger than LAND_SETTLE_SECONDS it
+# prints only a "queue: waits" line, so PRs signed off close together ride one train.
 pick_batch() {
     local pr draft head created verdict since newest age
     gh pr list -R "$FORK_REPO" --state open --base main -L 200 --json number,isDraft,labels,headRefOid,createdAt,comments \
@@ -246,8 +246,9 @@ pick_batch() {
                 || { echo "queue: #$pr waits, build is $verdict on ${head:0:8}" >&2; continue; }
             since=$(ready_since "$pr")
             echo "${since:-$created} $pr"
-        done | sort > "$scratch/signed"
-    newest=$(tail -1 "$scratch/signed")
+        done | sort > "$scratch/signed" || return 1
+    # Only the batch's own: sign-offs behind a full batch must not hold it back.
+    newest=$(sed -n "1,${LAND_BATCH_SIZE}p" "$scratch/signed" | tail -1)
     if [ -n "$newest" ]; then
         age=$((${NOTCHCAST_NOW:-$(date +%s)} - $(jq -rn --arg at "${newest% *}" '$at | fromdateiso8601')))
         [ "$age" -ge "$LAND_SETTLE_SECONDS" ] || { echo "queue: waits, #${newest#* } signed off $age s ago"; return 0; }
@@ -332,8 +333,14 @@ while [ ${#queue[@]} -gt 0 ]; do
         [ "$stacked" = "$train" ] || status=1
         [ -n "$stacked" ] || continue
         branch=$(train_branch $stacked)
-        [ -z "$(git ls-remote origin "refs/heads/$branch")" ] \
+        leftover=$(git ls-remote origin "refs/heads/$branch" | cut -f1)
+        [ -z "$leftover" ] || [ -n "$auto" ] \
             || refuse "origin already has $branch; land it or delete it: git push origin --delete $branch"
+        if [ -n "$leftover" ]; then
+            # The lease makes one queue, so it is an earlier tick's: one kept by NOT LANDED would jam every tick.
+            echo "train: $branch is left from an earlier run; scrapping it"
+            scrap_train "$branch" "$leftover"
+        fi
         preflight
         built+=("$branch $tip $runner $stacked")
     done
