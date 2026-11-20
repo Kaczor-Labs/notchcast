@@ -40,7 +40,8 @@ struct IslandPagesTest {
     }
 
     static func tabs() {
-        precondition(IslandPageDeck().tabs.isEmpty && IslandPageDeck().selection == nil, "no module, no page at all")
+        precondition(IslandPageDeck().tabs == [.home] && IslandPageDeck().selection == .home
+            && !IslandPageDeck().showsTabBar && IslandPageDeck().current == nil, "no module: an empty Home, no tab bar")
         let three = deck(page("day", order: 30), page("player", order: 10), page("agents", order: 0))
         precondition(three.tabs == [.home, .page("agents"), .page("player"), .page("day")], "Home, then by order")
         precondition(three.showsTabBar, "two or more pages get the tab bar")
@@ -127,8 +128,14 @@ struct IslandPagesTest {
     /// #1005's rule: a page never hides a notice, and a page is always one click away.
     static func notice() {
         precondition(!IslandPageDeck().opensOnClick, "with no page a click still runs the pill's own tap")
+        precondition(IslandPageDeck().opens(glance: false), "a bare island opens Home with no page (#884)")
+        precondition(!IslandPageDeck().opens(glance: true), "with no page a meeting glance keeps its expansion")
+        var status = IslandPageDeck()
+        status.show(IslandNotice(id: "hover.timer", symbol: "timer", text: "Timer"), tappable: false)
+        precondition(!status.opens(glance: false), "with no page a notice or status keeps the pill's long form")
         var three = deck(page("agents", order: 0), page("player", order: 10), page("day", order: 30))
         precondition(three.opensOnClick, "with a page a bare click opens it, whatever the pill shows")
+        precondition(three.opens(glance: true), "a page opens whatever the pill shows")
         let ready = IslandNotice(id: "update", symbol: "arrow.down.circle", text: "Update ready")
         three.show(ready, tappable: true)
         precondition(three.notice == IslandPageRow(id: IslandPageDeck.noticeID, symbol: "arrow.down.circle",

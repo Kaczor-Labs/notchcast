@@ -21,10 +21,10 @@ struct IslandPageDeck: Equatable, Sendable {
         }
     }
 
-    /// One page shows alone, with no Home and no tab bar; two or more get Home first.
+    /// One page shows alone, with no tab bar; two or more get Home first; none, an empty Home.
     var tabs: [Tab] {
         switch pages.count {
-        case 0: []
+        case 0: [.home]
         case 1: [.page(pages[0].id)]
         default: [.home] + pages.map { .page($0.id) }
         }
@@ -59,6 +59,9 @@ struct IslandPageDeck: Equatable, Sendable {
 
     /// With a page, a click on the resting island opens it; the notice's own tap moves to its row.
     var opensOnClick: Bool { !pages.isEmpty }
+
+    /// Hover or a pin opens the pages while one exists, and Home on a bare island (#884, #975).
+    func opens(glance: Bool) -> Bool { !pages.isEmpty || (notice == nil && !glance) }
 
     /// Hover always opens on the first tab, never where the last visit left off.
     mutating func open() { chosen = nil }
