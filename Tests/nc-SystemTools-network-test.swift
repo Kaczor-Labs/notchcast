@@ -114,6 +114,7 @@ enum SystemToolsNetworkTests {
         fake.passwordReads = []
         fake.passwords = [:]
         fake.savedNetworks = []
+        fake.pickers = 0
     }
 
     static func currentWiFiPassword() async {
