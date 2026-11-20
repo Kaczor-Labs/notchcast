@@ -1,6 +1,8 @@
 // notchcast-sources: Tinycast/Features/DictationSharing/Model/DictationServerHTTP.swift Tinycast/Features/DictationSharing/Model/DictationServerUpload.swift
 // notchcast-sources: Tinycast/Features/DictationSharing/Model/DictationServerQueue.swift Tinycast/Features/Dictation/Model/DictationLanguage.swift
+// notchcast-sources: Tinycast/Features/DictationSharing/Model/DictationServerClients.swift
 // notchcast-sources: Tinycast/Features/Notchcast/Core/Service/NotchcastTranscription.swift Tests/NotchcastDictationFixture.swift
+// notchcast-linux-ok
 import Foundation
 
 /// A fixed byte stream, so token generation is checked without real randomness.
@@ -17,6 +19,9 @@ private struct CountingGenerator: RandomNumberGenerator {
 private final class Log {
     var admitted = false
     var order: [Int] = []
+    var waits: [Duration] = []
+
+    func waited(_ duration: Duration) { waits.append(duration) }
 }
 
 @main
@@ -41,6 +46,9 @@ struct DictationServerTest {
         routes()
         authorizes()
         parsesForms()
+        sniffsContainers()
+        refusesLongAudio()
+        removesStagedUploads()
         readsInChunks()
         encodesResponses()
         makesTokens()
@@ -50,6 +58,10 @@ struct DictationServerTest {
         await queueDropsCancelledWaiter()
         await userWinsRunningRequest()
         await passesLanguage()
+        await headHasShorterDeadline()
+        countsClients()
+        await clientLeavingCancelsTranscription()
+        await clientStayingGetsAnswer()
         print(failures == 0 ? "PASS DictationServerTest (\(checks) checks)" : "FAILED \(failures)/\(checks)")
         if failures > 0 { exit(1) }
     }
@@ -161,7 +173,8 @@ struct DictationServerTest {
         return body + Data("--\(boundary)--\r\n".utf8)
     }
 
-    static let audio = Data([0x52, 0x49, 0x46, 0x46, 0x0D, 0x0A, 0x2D, 0x2D, 0x00, 0xFF])
+    /// A WAV header whose size field holds CRLF and dashes, so framing bytes inside the audio are kept.
+    static let audio = Data("RIFF".utf8) + Data([0x0D, 0x0A, 0x2D, 0x2D]) + Data("WAVE".utf8) + Data([0x00, 0xFF])
 
     static func upload(_ parts: [(name: String, filename: String?, content: Data)])
         -> Result<DictationServerUpload, DictationServerResponse>
@@ -192,6 +205,47 @@ struct DictationServerTest {
               (try? DictationServerUpload.parse(form([("file", "a.wav", audio)]), boundary: "other").get()) == nil)
     }
 
+    static func sniffsContainers() {
+        let starts: [(String, Data)] = [
+            ("flac", Data("fLaC".utf8)), ("ogg", Data("OggS".utf8)), ("mp3 with a tag", Data("ID3".utf8)),
+            ("mp3 frame", Data([0xFF, 0xFB, 0x90])), ("m4a", Data([0, 0, 0, 0x20]) + Data("ftypM4A ".utf8)),
+            ("webm", Data([0x1A, 0x45, 0xDF, 0xA3])),
+        ]
+        for (name, start) in starts {
+            check("a \(name) start is audio", DictationServerUpload.isAudioContainer(start + Data(repeating: 0, count: 8)))
+        }
+        check("RIFF without WAVE is not", !DictationServerUpload.isAudioContainer(Data("RIFF\0\0\0\0AVI ".utf8)))
+        check("a script named .wav is refused before decoding",
+              upload([("file", "a.wav", Data("#!/bin/sh\necho".utf8))]) == .failure(.unsupportedFormat))
+        check("a file shorter than any signature is refused",
+              upload([("file", "a.mp3", Data([0xFF]))]) == .failure(.unsupportedFormat))
+    }
+
+    static func refusesLongAudio() {
+        let rate = 16_000.0
+        let limit = Int64(DictationServerHTTP.maximumAudioSeconds) * 16_000
+        check("an hour of audio is served", DictationServerUpload.refusal(frames: limit, sampleRate: rate) == nil)
+        check("a frame over an hour is 413",
+              DictationServerUpload.refusal(frames: limit + 1, sampleRate: rate) == .tooLong)
+        check("seven hours at a low rate is 413",
+              DictationServerUpload.refusal(frames: 7 * 3_600 * 8_000, sampleRate: 8_000) == .tooLong)
+        check("no frames is unreadable", DictationServerUpload.refusal(frames: 0, sampleRate: rate) == .unreadable)
+        check("no sample rate is unreadable", DictationServerUpload.refusal(frames: 10, sampleRate: 0) == .unreadable)
+    }
+
+    static func removesStagedUploads() {
+        let manager = FileManager.default
+        let directory = URL.temporaryDirectory.appending(path: "nc-dictation-staged-\(UUID().uuidString)")
+        try? manager.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? manager.removeItem(at: directory) }
+        for name in ["app.dictation-request-1.wav", "app.dictation-request-2", "dev.dictation-request-3", "keep.txt"] {
+            _ = manager.createFile(atPath: directory.appending(path: name).path(percentEncoded: false), contents: Data())
+        }
+        DictationServerUpload.removeStaged(in: directory, prefix: "app.dictation-request-")
+        let left = Set((try? manager.contentsOfDirectory(atPath: directory.path(percentEncoded: false))) ?? [])
+        check("only this build's leftover uploads are removed", left == ["dev.dictation-request-3", "keep.txt"])
+    }
+
     static func readsInChunks() {
         let body = form([("file", "a.wav", audio)])
         let fields = goodFields.map { $0.hasPrefix("Content-Length") ? "Content-Length: \(body.count)" : $0 }
@@ -206,11 +260,13 @@ struct DictationServerTest {
         let expecting = head(["POST \(DictationServerHTTP.transcriptionsPath) HTTP/1.1"] + fields + ["Expect: 100-continue"])
         check("Expect: 100-continue asks for the interim reply", continued.feed(expecting) == .sendContinue)
         check("then it wants exactly the body", continued.wanted == body.count)
+        check("and counts the head as read", continued.hasHead)
         check("the body after it completes the form", continued.feed(body) == .form(body: body, boundary: boundary))
 
         var refused = DictationServerReader(token: "other", port: port)
         let early = refused.feed(head(["POST \(DictationServerHTTP.transcriptionsPath) HTTP/1.1"] + fields))
         check("a wrong token is answered from the head alone", early == .respond(.unauthorized))
+        check("a refused head never counts as read", !refused.hasHead)
 
         var models = DictationServerReader(token: token, port: port)
         let list = head(["GET \(DictationServerHTTP.modelsPath) HTTP/1.1"] + goodFields.prefix(2))
@@ -356,5 +412,60 @@ struct DictationServerTest {
         _ = try? await runner.transcribe(URL(fileURLWithPath: "/a.wav"), language: DictationLanguage.polish.rawValue)
         _ = try? await runner.transcribe(URL(fileURLWithPath: "/b.wav"))
         check("a request's language reaches Dictation, and nil keeps the user's", fake.languages == ["Polish", nil])
+    }
+
+    // MARK: Connections
+
+    static func headHasShorterDeadline() async {
+        let idle = Log()
+        try? await DictationServerHTTP.expire(headRead: { false }) { await idle.waited($0) }
+        check("a connection that never sends its head expires at the head deadline",
+              idle.waits == [DictationServerHTTP.headDeadline])
+        let uploading = Log()
+        try? await DictationServerHTTP.expire(headRead: { true }) { await uploading.waited($0) }
+        check("a body in progress gets the whole read deadline",
+              uploading.waits == [DictationServerHTTP.headDeadline,
+                                  DictationServerHTTP.readDeadline - DictationServerHTTP.headDeadline])
+        check("the head deadline is the shorter one", DictationServerHTTP.headDeadline < DictationServerHTTP.readDeadline)
+    }
+
+    static func countsClients() {
+        let clients = DictationServerClients(capacity: 2)
+        check("clients up to the cap are admitted", clients.admit() && clients.admit())
+        check("one over the cap is dropped", !clients.admit() && clients.active == 2)
+        clients.release()
+        check("a finished client frees exactly one slot", clients.admit() && !clients.admit())
+    }
+
+    /// As the server runs it: the transcription races the connection's close.
+    static func clientLeavingCancelsTranscription() async {
+        let fake = FakeDictation()
+        fake.holds = true
+        let runner = NotchcastTranscriptionRunner(dictation: fake)
+        let (closed, client) = AsyncStream<Void>.makeStream()
+        let request = Task {
+            await DictationServerClients.answer({
+                (try? await runner.transcribe(URL(fileURLWithPath: "/clip.wav"))) ?? "refused"
+            }, unless: { for await _ in closed {} })
+        }
+        await settle()
+        check("the request reached the model", fake.calls.count == 1)
+        client.finish()
+        await settle()
+        fake.release()
+        check("a client that leaves gets no answer", await request.value == nil)
+        await settle()
+        check("its transcription let go of the model", !fake.modelBusy)
+        fake.holds = false
+        fake.result = .success("next")
+        check("the next request is not refused busy",
+              (try? await runner.transcribe(URL(fileURLWithPath: "/next.wav"))) == "next")
+    }
+
+    static func clientStayingGetsAnswer() async {
+        let (open, client) = AsyncStream<Void>.makeStream()
+        let answer = await DictationServerClients.answer({ "text" }, unless: { for await _ in open {} })
+        check("a client that stays gets the answer", answer == "text")
+        client.finish()
     }
 }
