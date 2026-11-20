@@ -182,6 +182,7 @@ class RunnerTest(unittest.TestCase):
         first = next(text for job, text in steps(ROOT / ".github/workflows/proof.yml", 6) if job == "proof")
         self.assertEqual(signature(first), "Refuse a working Mac")
         self.assertEqual(field(first, "if"), "runner.environment != 'github-hosted'")
+        self.assertIsNone(field(first, "continue-on-error"), "a guard that may fail lets a working Mac through")
         self.assertIn('[ "${NOTCHCAST_ISOLATED_RUNNER:-}" = 1 ] && exit 0\n'
                       '  echo "::error::Proof launches the app: hosted or isolated runner only"\n  exit 1', first)
 

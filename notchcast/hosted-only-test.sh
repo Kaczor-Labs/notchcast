@@ -73,6 +73,13 @@ for where in NOTHING=1 RUNNER_ENVIRONMENT=github-hosted 'RUNNER_ENVIRONMENT=self
 done
 echo 'PASS: a GitHub-hosted runner, an isolated one and a local run ignore NOTCHCAST_RUNNER_SKIP_TESTS'
 # Nothing the repository runs may claim to be the isolated runner: only that runner's service environment does.
-setters=$(cd "$root" && git grep -lE 'NOTCHCAST_ISOLATED_RUNNER[]}"]*=' -- . ':!notchcast/hosted-only-test.sh' ':!*.md' || true)
+# Shell and Python assign with =, YAML's env: with a colon; a ${VAR:-} read is neither.
+setter='NOTCHCAST_ISOLATED_RUNNER([]}"'"'"']*[[:space:]]*=|["'"'"']?[[:space:]]*:([^-]|$))'
+for line in 'NOTCHCAST_ISOLATED_RUNNER=1' '      NOTCHCAST_ISOLATED_RUNNER: 1' '"NOTCHCAST_ISOLATED_RUNNER": "1"' \
+    'os.environ["NOTCHCAST_ISOLATED_RUNNER"] = "1"' ': "${NOTCHCAST_ISOLATED_RUNNER:=1}"'; do
+    grep -qE "$setter" <<< "$line" || { echo "FAIL: the setter check misses: $line"; exit 1; }
+done
+! grep -qE "$setter" <<< '[ "${NOTCHCAST_ISOLATED_RUNNER:-}" = 1 ]' || { echo 'FAIL: the setter check flags a read'; exit 1; }
+setters=$(cd "$root" && git grep -lE "$setter" -- . ':!notchcast/hosted-only-test.sh' ':!*.md' || true)
 [ -z "$setters" ] || { echo "FAIL: NOTCHCAST_ISOLATED_RUNNER is set in: $setters"; exit 1; }
 echo 'PASS: no workflow or script sets NOTCHCAST_ISOLATED_RUNNER'
