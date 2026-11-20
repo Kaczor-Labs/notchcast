@@ -24,6 +24,7 @@ enum TimersModuleTests {
         countdownRings()
         nearestAndMenu()
         relaunch()
+        zoneChange()
         stopTimer()
         badInput()
         launcherDispatch()
@@ -120,6 +121,28 @@ enum TimersModuleTests {
         fourth.stop()
     }
 
+    /// #1096 live: a zone change while running moves the alarm to the same clock time on the next pass.
+    static func zoneChange() {
+        let rig = Rig()
+        defer { rig.close() }
+        let module = rig.module()
+        module.start()
+        module.start("07:30 wake")
+        guard let wake = TimerStore(defaults: rig.defaults).load().first else { return check("alarm set", false) }
+        rig.zone = TimeZone(identifier: "Europe/London")!
+        module.refresh()
+        let moved = TimerStore(defaults: rig.defaults).load().first
+        check("the running alarm follows to 07:30 London", moved?.end == wake.end + 3600
+              && moved?.zone == "Europe/London")
+        rig.now = wake.end
+        module.refresh()
+        check("so 07:30 Warsaw passes without a ring", rig.chimes == 0 && rig.island.status?.text == "1h00")
+        rig.now = wake.end + 3600
+        module.refresh()
+        check("and it rings at 07:30 London", rig.chimes == 1)
+        module.stop()
+    }
+
     static func stopTimer() {
         let rig = Rig()
         defer { rig.close() }
@@ -185,6 +208,7 @@ final class Rig {
     let defaults: UserDefaults
     let island = TimersPresenter()
     var now: Date
+    var zone = TimeZone(identifier: "Europe/Warsaw")!
     var chimes = 0
 
     init() {
@@ -202,11 +226,13 @@ final class Rig {
             defaults: defaults, preferences: NotchcastPreferences(defaults: defaults, switches: TimersAddon.switches),
             presenter: island, hub: hub, transcription: NotchcastTranscriptionRunner(dictation: FakeDictation()),
             now: { [unowned self] in now }, onTapsChanged: {})
-        var calendar = Calendar(identifier: .gregorian)
-        calendar.timeZone = TimeZone(identifier: "Europe/Warsaw")!
         // The tick never wakes on its own: each check calls `refresh` after moving the clock.
         let environment = TimersModule.Environment(
-            calendar: { calendar }, sleep: { [unowned self] _ in try await park() },
+            calendar: { [unowned self] in
+                var calendar = Calendar(identifier: .gregorian)
+                calendar.timeZone = zone
+                return calendar
+            }, sleep: { [unowned self] _ in try await park() },
             chime: { [unowned self] in chimes += 1 })
         return TimersModule(context: context, environment: environment)
     }

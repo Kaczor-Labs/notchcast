@@ -27,6 +27,8 @@ enum ScreenshotsRequestTests {
         precondition(ScreenshotRequest.failureMessage(Failure.targetUnavailable) == "Capture area is unavailable.")
         precondition(ScreenshotRequest.failureMessage(Failure.encodingFailed) == "Could not capture the screen.")
         precondition(ScreenshotRequest.failureMessage(Failure.noText) == "No text found in the selected area.")
+        precondition(ScreenshotRequest.failureMessage(Failure.recognitionFailed) == "Could not read text from the selection.",
+                     "a recognition error never blames the capture")
         precondition(ScreenshotRequest.failureMessage(CocoaError(.fileWriteNoPermission)) == "Could not save the screenshot.")
         precondition(ScreenshotRequest.failureMessage(CocoaError(.fileNoSuchFile)) == "Could not save the screenshot.",
                      "a chosen folder deleted since is a failed save")
