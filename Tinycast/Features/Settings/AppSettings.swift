@@ -459,7 +459,8 @@ final class AppSettings {
         didSet { defaults.set(mcpEnabled, forKey: Key.mcpEnabled.rawValue) }
     }
     var aiEnabled: Bool {
-        didSet { defaults.set(aiEnabled, forKey: Key.aiEnabled.rawValue) }
+        get { false }
+        set { _ = newValue }
     }
 
     var customCommandsEnabled: Bool {
@@ -881,7 +882,6 @@ final class AppSettings {
             defaults.object(forKey: Key.notesShowsFormattingBar.rawValue) == nil
             || defaults.bool(forKey: Key.notesShowsFormattingBar.rawValue)
         notesFolder = defaults.string(forKey: Key.notesFolder.rawValue)
-        aiEnabled = defaults.bool(forKey: Key.aiEnabled.rawValue)
         mcpEnabled = defaults.bool(forKey: Key.mcpEnabled.rawValue)
         // These default on, so absence must be distinguished from a stored `false`.
         customCommandsShowInLauncher =

@@ -15,6 +15,8 @@ enum NotchcastHiddenCommands {
         "command:show-notes",
         "command:create-note",
         "command:search-notes",
+        "command:ai-chat",
+        "command:ai-chat-window",
     ].compactMap(CommandID.init(rawValue:)))
     /// Read as off whatever `hiddenLauncherKinds` stores; a kind can only be forced off, never on.
     static var kinds: Set<AppEntry.Kind> = [

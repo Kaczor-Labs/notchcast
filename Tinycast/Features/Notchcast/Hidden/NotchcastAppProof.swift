@@ -27,7 +27,7 @@ enum NotchcastAppProof {
         for key in [AppSettingsKey.extensionsEnabled, .showInMenuBar, .notesShowsInMenuBar,
                     .paletteDraggable, .supportReminders, .navigationEnabled, .quickActionsEnabled,
                     .customCommandsEnabled, .calendarShowInLauncher, .autoJoinMeetings, .cameraPreview,
-                    .notesEnabled] {
+                    .notesEnabled, .aiEnabled, .mcpEnabled] {
             defaults.set(true, forKey: key.rawValue)
         }
         defaults.set(false, forKey: AppSettingsKey.openOnCursorScreen.rawValue)
@@ -54,6 +54,8 @@ enum NotchcastAppProof {
         settings.autoJoinMeetings = true
         settings.cameraPreview = true
         settings.notesEnabled = true
+        settings.aiEnabled = true
+        settings.mcpEnabled = true
         let visibility = VisibilityStore(defaults: defaults)
         visibility.setKindEnabled(true, for: .systemSettings)
         check(!settings.extensionsEnabled, "extensionsEnabled reads off")
@@ -73,6 +75,10 @@ enum NotchcastAppProof {
         check(!settings.customCommandsEnabled, "customCommandsEnabled reads off")
         check(!visibility.isKindEnabled(.systemSettings), "System Settings in the launcher reads off")
         check(!AppCore.shared.appIndex.isCommandEnabled(.support), "Support command reads disabled")
+        check(!settings.aiEnabled, "aiEnabled reads off")
+        check(!AppCore.shared.mcpCoordinator.isActive, "MCP stays inert with AI off")
+        check(!AppCore.shared.appIndex.isCommandEnabled(.quickAI), "Quick AI command reads disabled")
+        check(!AppCore.shared.appIndex.isCommandEnabled(.aiChat), "AI Chat command reads disabled")
         check(!settings.calendarShowInLauncher, "calendarShowInLauncher reads off")
         check(!settings.autoJoinMeetings, "autoJoinMeetings reads off")
         check(!settings.cameraPreview, "cameraPreview reads off")
