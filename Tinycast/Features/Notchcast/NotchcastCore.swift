@@ -42,7 +42,8 @@ final class NotchcastCore {
         let tabs = Dictionary(
             controller.switches.map { ($0.id, NotchcastPane.holding($0.category)) },
             uniquingKeysWith: { first, _ in first })
-        controller.onCommandsChanged = { [weak core, weak controller] commands in
+        controller.onCommandsChanged = { [weak self, weak core, weak controller] commands in
+            self?.launcherHides?.include(Set(commands.map(\.id)))
             core?.appIndex.extraCommandEntries = (controller?.launcherCommands(commands) ?? []).map {
                 AppEntry(notchcastCommand: $0.id, name: $0.name, symbol: $0.symbol, keywords: $0.keywords,
                          owner: .notchcast(tabs[$0.switchID] ?? .island))
@@ -66,6 +67,11 @@ final class NotchcastCore {
             return NotchcastArgumentAccessory.make(
                 entry: entry, title: title, vm: core.palette, metrics: core.settings.interfaceSize.metrics,
                 focus: focus, onSubmit: onSubmit)
+        }
+        let stockLauncherShown = core.paletteCoordinator.onLauncherShown
+        core.paletteCoordinator.onLauncherShown = { [weak controller] in
+            stockLauncherShown?()
+            controller?.launcherShown()
         }
         launcherHides = NotchcastLauncherHides(
             visibility: core.visibility, preferences: controller.preferences, commandIDs: Set(commands.map(\.id)))
