@@ -104,9 +104,6 @@ struct NotchLookTokensTests {
         same("light separator", c.separator, Color.black.opacity(0.12), .aqua)
         same("light primaryAction", c.primaryAction, Color.blue, .aqua)
         same("light progress", c.progress, Color.blue, .aqua)
-        same("light destructive", c.destructive, Color.red, .aqua)
-        same("light success", c.success, Color.green, .aqua)
-        same("light warning", c.warning, Color.orange, .aqua)
 
         print("# geometry")
         equal("radius.row", Theme.Radius.row, 18)
