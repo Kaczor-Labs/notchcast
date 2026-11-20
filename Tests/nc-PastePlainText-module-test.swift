@@ -25,12 +25,17 @@ final class FakeBoard: PlainPasteBoard {
     var nilType: String?
     /// Another app copies while the snapshot is being read.
     var bumpsDuringRead = false
+    /// Another app copies right after the text is read, before the snapshot.
+    var bumpsAfterText = false
     /// Writes that clear the board and then fail.
     var writeFailures = 0
     let ownMarker = "com.tinycast.internal"
 
     var types: [String] { items.flatMap { $0.map(\.type) } }
-    var string: String? { entry("public.utf8-plain-text").map { utf8($0) } }
+    var string: String? {
+        defer { if bumpsAfterText { changeCount += 1 } }
+        return entry("public.utf8-plain-text").map { utf8($0) }
+    }
     func rtfText() -> String? {
         rtfReads += 1
         return entry("public.rtf").map { "rtf:" + utf8($0) }
@@ -206,6 +211,7 @@ func reset() {
     board.rtfReads = 0
     board.nilType = nil
     board.bumpsDuringRead = false
+    board.bumpsAfterText = false
     board.writeFailures = 0
     fake.pastes = []
     fake.timers = []
@@ -231,6 +237,7 @@ enum PastePlainTextModuleTests {
         snapshotRefusal()
         writeFailure()
         wiring()
+        readGap()
         nativeRoute()
         heldKeys()
         keystrokeGuard()
@@ -321,8 +328,9 @@ enum PastePlainTextModuleTests {
 
     @MainActor
     static func lend(_ engine: PlainPasteEngine) -> PlainPasteEngine.Outcome {
+        let changeCount = engine.changeCount
         guard let text = engine.text() else { preconditionFailure("the clipboard holds text") }
-        return engine.lend(text)
+        return engine.lend(text, readAt: changeCount)
     }
 
     @MainActor
@@ -374,6 +382,11 @@ enum PastePlainTextModuleTests {
         board.bumpsDuringRead = true
         precondition(lend(engine) == .refused, "a copy made during the read refuses the paste")
         precondition(board.ownWrites == 0 && !engine.isRestorePending, "and nothing is written")
+        board.bumpsDuringRead = false
+        board.copy([("public.utf8-plain-text", "Old")])
+        board.bumpsAfterText = true
+        precondition(lend(engine) == .refused, "a copy between the text read and the snapshot refuses the paste")
+        precondition(board.ownWrites == 0 && !engine.isRestorePending, "so the older text is never pasted")
     }
 
     @MainActor
@@ -401,6 +414,19 @@ enum PastePlainTextModuleTests {
         precondition(lend(engine) == .refused, "a failed temporary write refuses the paste")
         precondition(board.items == original && !engine.isRestorePending, "and puts the original back")
         precondition(fake.history.last == "sync \(board.changeCount)", "baselining history on it")
+    }
+
+    @MainActor
+    static func readGap() {
+        reset()
+        let rig = Rig(on: true)
+        fake.board.copy(styled)
+        fake.board.bumpsAfterText = true
+        precondition(rig.run(), "on: the command runs")
+        fake.fireAll()
+        precondition(fake.pastes.isEmpty && fake.board.ownWrites == 0,
+                     "a copy landing right after the text read pastes nothing, never the older text")
+        rig.finish()
     }
 
     @MainActor
