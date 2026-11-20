@@ -10,8 +10,9 @@ struct PasteImageSystem: Sendable {
     let clipboardImage: @MainActor @Sendable () -> PasteImageClip?
     /// Nil when the focus cannot be read.
     let focus: @Sendable () async -> PasteImageFocus?
-    /// Converts to PNG and has Finder place it, off the main actor; false on any failure.
-    let save: @Sendable (PasteImageClip, Date) async -> Bool
+    /// Converts to PNG and writes it where Finder would paste, off the main actor; nil once saved.
+    let save: @Sendable (PasteImageClip, Date) async -> PasteImageFailure?
     /// Posts ⌘V back to whatever holds the keys, tagged so no tap of ours takes it again.
     let replay: @MainActor @Sendable (_ keyCode: Int) -> Void
+    let openAutomationSettings: @MainActor @Sendable () -> Void
 }
