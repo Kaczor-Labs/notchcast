@@ -10,12 +10,18 @@ final class PasteImageModule: NotchcastModule {
     }
 
     static let noticeID = "pasteImage"
-    static let failureText = [
-        String(localized: "Cannot paste image here.", table: "NotchcastPasteImage"),
-        String(
-            localized: "Choose a writable Finder folder and allow Automation access in System Settings.",
-            table: "NotchcastPasteImage"),
-    ].joined(separator: " ")
+
+    /// Each fits the island's one line of about 40 characters whole.
+    static func text(for failure: PasteImageFailure) -> String {
+        switch failure {
+        case .noFolder: String(localized: "Open a folder to paste the image.", table: "NotchcastPasteImage")
+        case .automationRefused: String(localized: "Allow Automation access for Finder.", table: "NotchcastPasteImage")
+        case .finderSilent: String(localized: "Finder did not answer.", table: "NotchcastPasteImage")
+        case .unreadable: String(localized: "The copied image could not be read.", table: "NotchcastPasteImage")
+        case .tooLarge: String(localized: "The copied image is too large.", table: "NotchcastPasteImage")
+        case .notSaved: String(localized: "The image could not be saved here.", table: "NotchcastPasteImage")
+        }
+    }
 
     private let context: NotchcastContext
     private let system: PasteImageSystem
@@ -113,17 +119,18 @@ final class PasteImageModule: NotchcastModule {
                 system.replay(keyCode)
                 return finish()
             }
-            let saved = await system.save(clip, date)
+            let failure = await system.save(clip, date)
             guard !Task.isCancelled else { return }
-            finish(failed: !saved)
+            finish(failure: failure)
         }
     }
 
-    private func finish(failed: Bool = false) {
+    private func finish(failure: PasteImageFailure? = nil) {
         work = nil
         state.gate.withLock { $0.isSaving = false }
-        guard failed else { return }
+        guard let failure else { return }
         context.presenter.post(
-            IslandNotice(id: Self.noticeID, symbol: "photo", text: Self.failureText, isFailure: true), onTap: nil)
+            IslandNotice(id: Self.noticeID, symbol: "photo", text: Self.text(for: failure), isFailure: true),
+            onTap: failure == .automationRefused ? system.openAutomationSettings : nil)
     }
 }
