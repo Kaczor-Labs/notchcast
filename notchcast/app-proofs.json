@@ -21,5 +21,11 @@
     "Tinycast/Features/CloudSync/*",
     "Tinycast/Features/Notchcast/Hidden/*",
     "Tinycast/Migrations/*"
+  ],
+  "hidden-hotkeys": [
+    "Tinycast/App/AppCore.swift",
+    "Tinycast/Features/HotKeys/Service/HotKeyManager.swift",
+    "Tinycast/Features/Settings/AppSettings.swift",
+    "Tinycast/Features/Notchcast/Hidden/*"
   ]
 }

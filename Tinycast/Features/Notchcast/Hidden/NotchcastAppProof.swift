@@ -1,3 +1,4 @@
+import Carbon.HIToolbox
 import Foundation
 
 /// In-app checks `notchcast/app-proof.py` runs headless through `NOTCHCAST_PROOF`; no window opens.
@@ -14,6 +15,7 @@ enum NotchcastAppProof {
         case "hidden-settings": hiddenSettings()
         case "addon-launcher": addonLauncher()
         case "icloud-sync-off": iCloudSyncOff()
+        case "hidden-hotkeys": hiddenHotKeys()
         default: fail("unknown proof \(name)")
         }
         print("PROOF PASS \(name)")
@@ -77,6 +79,31 @@ enum NotchcastAppProof {
         core.cloudSyncCoordinator.appIndexDidScan()
         check(core.cloudSyncCoordinator.status == .off, "the sync engine never starts")
         check(!SettingsSection.allCases.flatMap(\.tabs).contains(.iCloudSync), "iCloud Sync is not in Settings")
+    }
+
+    /// #1285: the shipped gate refuses each hidden feature's chord, and none blocks the recorder.
+    private static func hiddenHotKeys() {
+        defer { UserDefaults.standard.removePersistentDomain(forName: bundleID) }
+        let core = AppCore.shared
+        let forcedOff: [HotKeyAction] = [
+            .appleShortcut(id: UUID()), .extensionCommand(entryID: "proof.extension"), .quickAction(id: UUID()),
+            .settingsPane(bundleID: "proof.pane"), .command(.support),
+        ]
+        for action in forcedOff {
+            check(!core.allowsHotKeyAction(action), "\(action.defaultsKey) is refused by the hotkey gate")
+        }
+        let hidden = forcedOff + [.command(.switchWindows), .command(.fixGrammar)]
+        let visible = HotKeyAction.systemAction(id: SystemAction.ID.allCases[0])
+        // A proof registers nothing with Carbon.
+        core.hotKeys.allowsAction = { _ in false }
+        let keys = [kVK_ANSI_1, kVK_ANSI_2, kVK_ANSI_3, kVK_ANSI_4, kVK_ANSI_5, kVK_ANSI_6, kVK_ANSI_7, kVK_ANSI_8]
+        for (action, key) in zip(hidden + [visible], keys) {
+            let binding = HotKeyBinding.combo(KeyShortcut(carbonKeyCode: key, carbonModifiers: controlKey | optionKey))
+            core.hotKeys.setBinding(binding, for: action)
+            check(core.hotKeys.binding(for: action) == binding, "\(action.defaultsKey) holds a stored chord")
+            let owner = core.hotKeys.conflictOwner(of: binding, excluding: .togglePalette)
+            check((owner == nil) == (action != visible), "\(action.defaultsKey) owns its chord only when visible")
+        }
     }
 
     /// #868: the shipped wiring lists an add-on command by name and alias over an earlier hide.
