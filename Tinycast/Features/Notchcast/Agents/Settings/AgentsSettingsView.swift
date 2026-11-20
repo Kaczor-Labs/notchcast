@@ -106,8 +106,7 @@ struct AgentsSettingsView: View {
         var seen: Set = [AgentsSource.codex.name]
         accounts = accounts.compactMap { account in
             var account = account
-            account.name = account.name.trimmingCharacters(in: .whitespaces)
-            if account.name.isEmpty { account.name = AgentsPreferences.defaultAccount.name }
+            account.name = ClaudeLaunch.name(account.name, directory: account.directory)
             while seen.contains(account.name) { account.name += " 2" }
             seen.insert(account.name)
             return account
@@ -124,7 +123,7 @@ struct AgentsSettingsView: View {
         let home = URL(fileURLWithPath: NSHomeDirectory())
         guard let url = Self.pickFolder(from: home) else { return }
         let path = ClaudeLaunch.trimmed(url.path(percentEncoded: false))
-        // With nothing selected the panel answers with the folder it shows, home at first: never a config folder.
+        // With nothing selected the panel returns the folder it shows, at first home.
         guard path != "/", path != ClaudeLaunch.path("~", home: home) else { return refused = true }
         guard !accounts.contains(where: { ClaudeLaunch.path($0.directory, home: home) == path }) else { return }
         let directory = path == ClaudeLaunch.path("", home: home) ? "" : path

@@ -18,12 +18,18 @@ struct ClaudeLaunch: Equatable, Sendable {
 
     var isDefault: Bool { directory.isEmpty }
 
-    /// Settings' name for a folder until one is typed: "Claude", or "claude_team" for `.claude_team`.
+    /// A folder's untyped name, which the board replaces with the gate's: "claude_team".
     static func defaultName(directory: String) -> String {
         directory.isEmpty ? "Claude" : String(URL(filePath: directory).lastPathComponent.trimmingPrefix("."))
     }
 
-    /// Claude Code names its Keychain entry by a hash of this exact text, so `/a/` and `/a` are two sign-ins.
+    /// A cleared name goes back to the folder's default, so it counts as untyped again.
+    static func name(_ typed: String, directory: String) -> String {
+        let typed = typed.trimmingCharacters(in: .whitespaces)
+        return typed.isEmpty ? defaultName(directory: directory) : typed
+    }
+
+    /// Claude Code hashes this exact text into its Keychain entry name, so `/a/` misses `/a`.
     static func trimmed(_ directory: String) -> String {
         var directory = directory
         while directory.count > 1, directory.hasSuffix("/") { directory.removeLast() }

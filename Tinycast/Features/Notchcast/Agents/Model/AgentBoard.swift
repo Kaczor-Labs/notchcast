@@ -69,7 +69,7 @@ struct AgentBoard: Equatable, Sendable {
 
     var isEmpty: Bool { columns.isEmpty && other.isEmpty }
 
-    /// A Claude card's session and two weeklies, so no card outgrows the slot the board was drawn for.
+    /// Window meters per card, Extra usage aside, so no card outgrows the slot the board drew.
     static let meterCap = 3
 
     init(home: URL, machineName: String, local: [AgentLocalAccount], feed: AgentFeedRead, now: Date) {
@@ -233,7 +233,8 @@ struct AgentBoard: Equatable, Sendable {
         }
         let extra = account.extraUsage.flatMap(extraMeter)
         let spokenWindows = windows.map { spoken($0, now: now) } + [extra.map { "\($0.label), \($0.value), \($0.trailing ?? "")" }]
-        let (meters, more) = capped(windows.map { meter($0, now: now) } + [extra].compactMap(\.self))
+        let (shown, more) = capped(windows.map { meter($0, now: now) })
+        let meters = shown + [extra].compactMap(\.self)
         return AgentCard(
             title: account.name, hollow: false,
             body: .meters(meters),
@@ -241,10 +242,11 @@ struct AgentBoard: Equatable, Sendable {
             spoken: ([account.name, credit] + spokenWindows + [caption]).compactMap(\.self).joined(separator: ". "))
     }
 
-    /// Past the cap, the meters with least left stay in order and the rest become one line.
+    /// Past the cap, warned meters and then the lowest stay in order; one line counts the rest.
     private static func capped(_ meters: [AgentMeter]) -> ([AgentMeter], String?) {
         guard meters.count > meterCap else { return (meters, nil) }
-        let kept = Set(meters.indices.sorted { (meters[$0].fraction, $0) < (meters[$1].fraction, $1) }.prefix(meterCap))
+        let rank = { (index: Int) in (meters[index].warning ? 0 : 1, meters[index].fraction, index) }
+        let kept = Set(meters.indices.sorted { rank($0) < rank($1) }.prefix(meterCap))
         let hidden = meters.indices.filter { !kept.contains($0) }.map { meters[$0] }
         let count = hidden.count
         let lowest = hidden.min { $0.fraction < $1.fraction }?.value ?? ""

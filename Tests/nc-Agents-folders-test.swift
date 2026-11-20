@@ -46,6 +46,8 @@ func folders() {
         && ClaudeLaunch.path("/srv/c", home: home) == "/srv/c", "folders compare as one path")
     check(ClaudeLaunch.defaultName(directory: "") == "Claude"
         && ClaudeLaunch.defaultName(directory: "/home/me/.claude_team/") == "claude_team", "Settings' default names")
+    check(ClaudeLaunch.name(" ", directory: "~/.claude_team") == "claude_team" && ClaudeLaunch.name(" Team ", directory: "")
+        == "Team", "a cleared name becomes the folder's default, a typed one is trimmed")
     print("folders: ok")
 }
 
@@ -83,6 +85,9 @@ func boardMatchesFolders() throws {
     typed[1].name = "Team"
     let named = AgentBoard(home: home, machineName: "MBP", local: typed, feed: feed, now: now)
     check(named.columns[0].cards.map(\.title) == ["C3", "Team"], "a typed name stays: \(named.columns[0].cards.map(\.title))")
+    typed[1].name = ClaudeLaunch.name("  ", directory: "~/.claude_team")
+    let cleared = AgentBoard(home: home, machineName: "MBP", local: typed, feed: feed, now: now)
+    check(cleared.columns[0].cards.map(\.title) == ["C3", "C4"], "a cleared name is untyped again")
     let elsewhere = AgentBoard(home: home, machineName: "MBA", local: local, feed: feed, now: now)
     check(elsewhere.columns.map { $0.cards.count } == [2, 2], "folders match only in this Mac's own column")
     let old = AgentBoard(home: home, machineName: "MBP", local: local, feed: try gate(nil, nil), now: now)
@@ -121,6 +126,17 @@ func cardCap() {
     let three = AgentBoard.card(account("C1", "claude", [session(10, resetsIn: hour), weekly(20, resetsIn: day),
                                                           weekly(30, resetsIn: day, scope: "Fable")]), now: now)
     check(meters(three).count == 3 && three.caption == nil, "a card at the cap is drawn whole")
+    var budget = account("C2", "claude", [session(10, resetsIn: hour), weekly(20, resetsIn: day),
+                                           weekly(30, resetsIn: day, scope: "Fable")])
+    budget.extraUsage = AgentExtraUsage(used: 90, limit: 100, currency: "USD")
+    let extra = AgentBoard.card(budget, now: now)
+    check(meters(extra).count == 4 && extra.caption == nil, "Extra usage stays outside the cap")
+    let burning = AgentBoard.card(account("C5", "claude", [
+        session(45, resetsIn: 4.5 * hour), weekly(70, resetsIn: 1.75 * day), weekly(60, resetsIn: 1.75 * day, scope: "Fable"),
+        weekly(50, resetsIn: 1.75 * day, scope: "Sonnet"),
+    ]), now: now)
+    check(meters(burning).first?.label == "Session" && meters(burning).first?.warning == true,
+          "the warning meter is never the one hidden: \(meters(burning).map(\.label))")
     print("card cap: ok")
 }
 
