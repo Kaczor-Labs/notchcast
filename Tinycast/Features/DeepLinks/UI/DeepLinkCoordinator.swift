@@ -160,10 +160,11 @@ final class DeepLinkCoordinator {
         }
     }
 
-    /// The catalogs' rows always exist; a row you made is known by the name it resolves to.
+    /// A catalog row exists unless hidden; a row you made is known by the name it resolves to.
     private func exists(_ action: HotKeyAction) -> Bool {
         switch action {
-        case .command, .systemAction, .windowCommand: true
+        case .command(let id): !NotchcastHiddenCommands.commands.contains(id)
+        case .systemAction, .windowCommand: true
         default: hotKeys.displayName?(action) != nil
         }
     }
