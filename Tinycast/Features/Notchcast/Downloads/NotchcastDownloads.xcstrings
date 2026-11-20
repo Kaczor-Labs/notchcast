@@ -25,13 +25,13 @@
     "Use Wi-Fi and a plugged-in iPhone together" : {
 
     },
-    "Downloads over 200 MB use both while the iPhone shares Personal Hotspot over USB." : {
-
-    },
-    "Every torrent uses both while the iPhone shares Personal Hotspot over USB." : {
-
-    },
     "Wi-Fi + iPhone" : {
+
+    },
+    "Torrents and Fast Downloads use both while the iPhone shares Personal Hotspot over USB." : {
+
+    },
+    "This uses mobile data." : {
 
     },
     "iPhone · %@" : {
