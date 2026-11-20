@@ -16,6 +16,7 @@
 // notchcast-sources: Tinycast/Features/Island/Model/IslandKeyline.swift Tinycast/Features/Island/Model/IslandLook.swift
 // notchcast-sources: Tinycast/Features/Island/Service/IslandCanvas.swift
 // notchcast-sources: Tinycast/Features/Island/Service/IslandExpansionArt.swift
+// notchcast-sources: Tinycast/Features/Island/Service/IslandSongArt.swift Tinycast/Features/Island/Model/IslandPlayer.swift
 // notchcast-sources: Tinycast/Platform/Images/IconCache.swift
 // notchcast-sources: Tinycast/Features/Notchcast/NotchMenuInk.swift
 // notchcast-sources: Tinycast/Features/Island/Model/IslandLiveState.swift
@@ -236,6 +237,9 @@ struct NotchcastIslandAuditRenderTest {
                     notch: notch)
             compact("884-08-download-\(form)-\(look)", IslandNoticeArt(download, notch: notch, frosted: frosted),
                     notch: notch)
+            renderSong(form: form, look: look, notch: notch,
+                       island: { island($0, width: $1, body: $2, notch: $3, radius: $4, $5) },
+                       compact: { compact($0, $1, notch: $2) })
             for (step, top, statuses) in [("07-status", nil, [ready]), ("09-download", download, [])] {
                 let notice = hovered(top, statuses)
                 if notch {
@@ -247,6 +251,49 @@ struct NotchcastIslandAuditRenderTest {
                             IslandNoticeArt(notice, notch: false, frosted: frosted), notch: false)
                 }
             }
+        }
+    }
+
+    /// #850's song glance: no song, playing, paused, cover loading, long names, and the song change.
+    static func renderSong(form: String, look: String, notch: Bool,
+                           island: (String, CGFloat, CGFloat, Bool, CGFloat, @escaping (CGRect) -> Void) -> Void,
+                           compact: (String, IslandSongArt, Bool) -> Void) {
+        let cover = NSImage(size: CGSize(width: 64, height: 64), flipped: false) { rect in
+            NSGradient(colors: [.systemOrange, .systemPink, .systemPurple])?.draw(in: rect, angle: 45)
+            return true
+        }
+        let art = cover.tiffRepresentation.flatMap(NSBitmapImageRep.init(data:))?
+            .representation(using: .png, properties: [:])
+        let song = IslandNowPlaying(title: "Paper Lanterns", artist: "Juno Vale", artwork: art, time: nil,
+                                    isPlaying: true, id: "a")
+        let rest = notch ? 185.0 : NotchTheme.Size.islandRest.width
+        island("850-00-no-song-\(form)-\(look)", rest, notch ? 0 : NotchTheme.Size.islandRest.height, notch,
+               notch ? 10 : 12) { _ in }
+        compact("850-01-song-playing-\(form)-\(look)",
+                IslandSongArt(song, notch: notch, frosted: frosted, still: true), notch)
+        var paused = song
+        paused.isPlaying = false
+        compact("850-02-song-paused-\(form)-\(look)",
+                IslandSongArt(paused, notch: notch, frosted: frosted, still: true), notch)
+        var loading = song
+        loading.artwork = nil
+        compact("850-03-song-cover-loading-\(form)-\(look)",
+                IslandSongArt(loading, notch: notch, frosted: frosted, still: true), notch)
+        var long = song
+        long.title = "Everything Everywhere at Once (Extended Midnight Version)"
+        long.artist = "Juno Vale, The Paper Lanterns Orchestra"
+        for overflow in IslandSongOverflow.allCases where !notch {
+            long.overflow = overflow
+            compact("850-04-song-long-\(overflow.rawValue)-\(form)-\(look)",
+                    IslandSongArt(long, notch: notch, frosted: frosted, still: true), notch)
+        }
+        guard notch else { return }
+        for (name, playing) in [("850-05-song-change", song), ("850-06-song-change-long", long)] {
+            let change = IslandExpansionArt(playing, frosted: frosted)
+            let glance = IslandSongArt(playing, notch: true, frosted: frosted, still: true)
+            island("\(name)-\(form)-\(look)",
+                   max(change.size.width, 185 + 2 * (Theme.Spacing.lg + Theme.Spacing.md) + glance.layout.leading
+                       + glance.layout.trailing), change.size.height, true, Theme.Radius.panel) { change.draw(in: $0) }
         }
     }
 

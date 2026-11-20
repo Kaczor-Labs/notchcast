@@ -17,6 +17,7 @@ enum SpotifyAddon: NotchcastAddon { // drift: keep the generated NotchcastRegist
 
     static let settings = [
         NotchcastSettingsRow(switchID: "spotify") { AnyView(SpotifySettingsView(context: $0)) },
+        NotchcastSettingsRow(switchID: "spotify") { AnyView(SpotifyIslandRows(context: $0)) },
     ]
 
     static func makeModule(_ context: NotchcastContext) -> (any NotchcastModule)? {

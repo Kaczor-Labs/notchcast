@@ -3,7 +3,7 @@ import Observation
 
 /// Renders levels, notices, status and the meeting expansion on the resting pill.
 @MainActor
-final class IslandPresenter: IslandPresenting {
+final class IslandPresenter: IslandPresenting, IslandSongPresenting {
     private var dwell = IslandLevelDwell()
     private var dwellTask: Task<Void, Never>?
     private weak var pill: IslandController?
@@ -22,6 +22,9 @@ final class IslandPresenter: IslandPresenting {
     private var statusTaps: [String: @MainActor () -> Void] = [:]
     private(set) var menus: [Menu] = []
     let pages = IslandPageHost()
+    private var song: IslandNowPlaying?
+    private var songChange = IslandSongChange()
+    private var songTask: Task<Void, Never>?
     private let now: @MainActor () -> TimeInterval
     private let sleep: @MainActor (TimeInterval) async throws -> Void
 
@@ -120,6 +123,41 @@ final class IslandPresenter: IslandPresenting {
 
     func showPage(id: String) { pages.showPage(id: id) }
 
+    /// The glance draws no running time, so a position sync alone never redraws the pill.
+    func setSong(_ next: IslandNowPlaying?) {
+        var still = next
+        still?.time = nil
+        guard still != song else { return }
+        song = still
+        let resting = AppCore.shared.island.resting
+        resting?.song = song
+        if songChange.update(song, notch: resting?.notchWidth != nil, at: now()), songQuiet {
+            songTask?.cancel()
+            songTask = Task { [weak self, now, sleep, seconds = songChange.seconds] in
+                try? await sleep(seconds)
+                guard !Task.isCancelled, let self else { return }
+                self.songChange.expire(at: now())
+                AppCore.shared.island.resting?.songChange = self.songChange.shown != nil
+            }
+        } else if !songQuiet {
+            songChange.cut()
+        }
+        resting?.songChange = songChange.shown != nil
+    }
+
+    /// A meeting, a level, a notice or the open island outranks the song change and cuts it (D7, D16).
+    private var songQuiet: Bool {
+        AppCore.shared.island.resting?.glance == nil && notices.notice == nil && dwell.level == nil && !pages.isOpen
+            && expansion.showing == nil
+    }
+
+    private func cutSongChange() {
+        guard songChange.shown != nil, !songQuiet else { return }
+        songChange.cut()
+        songTask?.cancel()
+        AppCore.shared.island.resting?.songChange = false
+    }
+
     private var shownNotice: IslandNotice? {
         IslandHover.notice(top: notices.notice, statuses: statuses, glance: AppCore.shared.island.resting?.glance != nil,
                            level: dwell.level != nil, hovered: hoverOpensPill)
@@ -129,6 +167,7 @@ final class IslandPresenter: IslandPresenting {
     func restore(_ controller: IslandController, resting: Bool) {
         controller.notice = resting ? notices.notice : nil
         controller.statuses = resting ? statuses : []
+        controller.song = resting ? song : nil
     }
 
     /// A look change repaints a band already up, which would otherwise keep the old look to its fade.
@@ -179,6 +218,7 @@ final class IslandPresenter: IslandPresenting {
             #endif
         }
         updateExpansion()
+        cutSongChange()
         noticeTask?.cancel()
         noticeTask = notices.remaining(at: time).map(expireWhenDwelled)
     }
@@ -302,5 +342,6 @@ final class IslandPresenter: IslandPresenting {
         dwellTask?.cancel()
         expansionTask?.cancel()
         noticeTask?.cancel()
+        songTask?.cancel()
     }
 }

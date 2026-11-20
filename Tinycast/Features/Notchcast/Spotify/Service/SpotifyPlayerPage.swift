@@ -5,6 +5,8 @@ import Foundation
 final class SpotifyPlayerPage: IslandPlayerSource {
     /// A cover larger than this is not a cover; the page keeps its glyph.
     static let maxCoverBytes = 4 << 20
+    /// "Long song names" (D15): how a pill without a notch fits a long title and artist.
+    static let overflowKey = "spotifyLongSongNames"
 
     private weak var module: SpotifyModule?
     private var cover: (url: URL, data: Data)?
@@ -22,7 +24,9 @@ final class SpotifyPlayerPage: IslandPlayerSource {
             return module.context.presenter.showPlayer(nil, source: self)
         }
         let artwork = cover.flatMap { $0.url == track.artworkURL ? $0.data : nil }
-        module.context.presenter.showPlayer(Self.nowPlaying(playback, track: track, artwork: artwork), source: self)
+        let overflow = module.context.defaults.string(forKey: Self.overflowKey).flatMap(IslandSongOverflow.init)
+        module.context.presenter.showPlayer(Self.nowPlaying(playback, track: track, artwork: artwork,
+                                                            overflow: overflow ?? .widen), source: self)
         if let url = track.artworkURL, url != cover?.url, url != loading?.url { load(url) }
     }
 
@@ -35,13 +39,15 @@ final class SpotifyPlayerPage: IslandPlayerSource {
         }
     }
 
-    static func nowPlaying(_ playback: SpotifyPlayback, track: SpotifyTrack, artwork: Data?) -> IslandNowPlaying {
+    static func nowPlaying(_ playback: SpotifyPlayback, track: SpotifyTrack, artwork: Data?,
+                           overflow: IslandSongOverflow = .widen) -> IslandNowPlaying {
         let position = playback.position
         let time = track.durationMs > 0 ? IslandMediaTime(
             elapsed: Double(position.positionMs) / 1000, duration: Double(track.durationMs) / 1000,
             rate: position.speed, sampledAt: position.timestamp) : nil
         return IslandNowPlaying(title: track.title, artist: track.artists.isEmpty ? nil : track.artistLine,
-                                artwork: artwork, time: time, isPlaying: playback.isPlaying)
+                                artwork: artwork, time: time, isPlaying: playback.isPlaying, id: track.id,
+                                overflow: overflow)
     }
 
     /// One cover at a time, over the module's private Web API session; a newer song's cover wins.
