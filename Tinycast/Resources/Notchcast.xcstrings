@@ -148,7 +148,7 @@
     "Notchcast could not read its token from the Keychain." : {
 
     },
-    "Notchcast could not save a new token in the Keychain." : {
+    "Notchcast could not save a new token in the Keychain. The current token still works." : {
 
     },
     "Notices" : {

@@ -25,6 +25,7 @@ HUB = 'Tinycast/Features/Notchcast/Core/NotchcastFeature.swift'  # One line per 
 RULES = {'1': ('boundaries', 'core-lookups', 'upstream-folders'),
          '2': ('file-size',), '3': ('dead', 'test-only'), '4': ('clones', 'constants')}
 WAIVER = re.compile(r'// drift: keep \S.*$')
+ADDON_ORDER = re.compile(r'^// notchcast-addon-order:', re.M)
 IDENT = re.compile(r'[A-Za-z_]\w*')
 DECL = re.compile(r'^[ \t]*((?:@\w+(?:\([^)\n]*\))?\s+)*)'
                   r'((?:(?:public|private|fileprivate|internal|final|nonisolated|static|class|'
@@ -177,8 +178,12 @@ def measure(root, upstream, gates):
         test_tokens = Counter(word for text in tests.values() for word in IDENT.findall(text))
         declarations = Counter(m[4] for text in clean.values() for m in DECL.finditer(text))
         for path in ours:
+            registered = ADDON_ORDER.search(ours[path])
             for match in DECL.finditer(clean[path]):
                 attrs, mods, kind, name = match.groups()
+                # The generated registry lists it, and merges keep main's copy of that file.
+                if registered and re.match(r'\s*:\s*NotchcastAddon\b', clean[path][match.end():]):
+                    continue
                 if 'override' in mods or any(a in attrs for a in SKIP_ATTR):
                     continue
                 if kind in ('func', 'let', 'var') and not {'static', 'class'} & set(mods.split()) and match.group().startswith((' ', '\t')):
@@ -240,7 +245,7 @@ def read_baseline(path):
     for rule, counts in baseline.items():
         if not isinstance(counts, dict) or any(type(v) is not int or v < 0 for v in counts.values()):
             raise ValueError(f'invalid baseline counts for {rule}')
-    # shortcut: retired counters stay in drift-baseline.json while the v2 base checker requires them.
+    # shortcut: v2/base's check-drift.py requires these alerts counters; cut them when it stops.
     if not set(PATTERNS) <= baseline['alerts'].keys():
         raise ValueError('baseline alerts must define every pattern counter')
     return baseline

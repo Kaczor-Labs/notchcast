@@ -16,24 +16,9 @@ final class NotchcastCore {
         let hub = NotchcastTapHub(
             syntheticTag: Paster.tinycastEventTag, isTrusted: { AXIsProcessTrusted() },
             makeSession: NotchcastTapThread.start)
-        let surfaces = NotchcastSurfaces(
-            interfaceScale: { [weak core] in core.map { Double($0.settings.interfaceSize.metrics.scale) } ?? 1 },
-            isFrosted: { [weak core] in core?.island.frosted(on: nil) ?? false })
-        let history = core.clipboardManager
         controller = NotchcastController(
             addons: addons, defaults: defaults, hub: hub, dictation: NotchcastDictationBridge(core: core),
-            clipboard: NotchcastClipboardMutation(
-                prepare: { history.prepareForTinycastPasteboardMutation() },
-                synchronize: { history.synchronizeAfterTinycastPasteboardMutation(changeCount: $0) }),
-            surfaces: surfaces, settingsBackup: NotchcastSettingsBackupBridge(core: core),
-            presenter: core.islandPresenter,
-            calendar: NotchcastCalendar(
-                events: { [weak core] in
-                    (core?.calendarStore.events ?? []).filter { !$0.isDeclined }.map {
-                        NotchcastEvent(id: $0.id, title: $0.title, start: $0.start, end: $0.end, isAllDay: $0.isAllDay)
-                    }
-                },
-                showSchedule: { [weak core] in core?.calendarCoordinator.showSchedule() }))
+            services: NotchcastServices(core: core), presenter: core.islandPresenter)
         dictationServer = DictationServer(
             defaults: defaults, settings: core.settings, coordinator: core.dictationCoordinator,
             runner: controller.transcription)

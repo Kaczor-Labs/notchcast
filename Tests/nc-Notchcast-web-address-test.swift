@@ -58,7 +58,8 @@ enum NotchcastWebAddressTests {
             kind: .systemSettings)
         store.setItemVisible(true, forKey: CommandID.openInBrowser.rawValue)
         store.setKindEnabled(false, for: .command)
-        check("nothing ships forced", NotchcastHiddenCommands.kinds.isEmpty)
+        check("System Settings ships forced", NotchcastHiddenCommands.kinds.contains(.systemSettings))
+        NotchcastHiddenCommands.kinds = []
         check("unforced, System Settings is on as stored", store.isVisible(pane))
         NotchcastHiddenCommands.kinds = [.systemSettings, .command]
         store.setKindEnabled(true, for: .systemSettings)

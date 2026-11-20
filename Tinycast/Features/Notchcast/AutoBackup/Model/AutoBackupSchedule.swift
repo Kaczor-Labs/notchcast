@@ -9,6 +9,8 @@ struct AutoBackupSchedule: Codable, Equatable, Sendable {
     static let keepRange = 1...50
     static let folderName = "Notchcast Backups"
     static let fileExtension = "tinycast"
+    /// The first backup waits this long after switching on, so a folder can be chosen first.
+    static let firstDelay: TimeInterval = minimumGap
 
     /// Paths this Mac wrote, oldest first: rotation deletes nothing else.
     var written: [String] = []
@@ -17,6 +19,7 @@ struct AutoBackupSchedule: Codable, Equatable, Sendable {
     var lastCheck: Date?
     var pendingChange: Date?
     var isFailing = false
+    var firstDue: Date?
 
     enum Action: Equatable, Sendable {
         case skip
@@ -25,14 +28,20 @@ struct AutoBackupSchedule: Codable, Equatable, Sendable {
 
     mutating func noteChange(at now: Date) { pendingChange = now }
 
+    mutating func noteStart(at now: Date) {
+        guard lastWrite == nil, (firstDue ?? .distantPast) <= now else { return }
+        firstDue = now.addingTimeInterval(Self.firstDelay)
+    }
+
     /// A change waits out the debounce and the gap since the last write; without one, a daily check.
     func due() -> Date {
         let daily = (lastCheck ?? .distantPast).addingTimeInterval(Self.checkInterval)
-        guard let pendingChange else { return daily }
-        let settled = max(
-            pendingChange.addingTimeInterval(Self.debounce),
-            (lastWrite ?? .distantPast).addingTimeInterval(Self.minimumGap))
-        return min(settled, daily)
+        let next = pendingChange.map { change in
+            min(max(change.addingTimeInterval(Self.debounce),
+                    (lastWrite ?? .distantPast).addingTimeInterval(Self.minimumGap)), daily)
+        } ?? daily
+        guard lastWrite == nil, let firstDue else { return next }
+        return max(next, firstDue)
     }
 
     /// nil before `due()`; skips when the settings match the last backup and that file is still there.

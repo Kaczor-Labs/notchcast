@@ -18,10 +18,13 @@ struct IslandNotice: Equatable, Sendable {
     var isFailure = false
     /// Unset, a notice dwells as the stock message HUD does; a failure dwells longer (design §10).
     var seconds: TimeInterval?
+    /// What VoiceOver says instead of `text`, when the text shows something it must not read aloud.
+    var spokenText: String?
 
     static let messageSeconds: TimeInterval = 2.4
     static let failureSeconds: TimeInterval = 4
 
+    var spoken: String { spokenText ?? text }
     var dwell: TimeInterval { seconds ?? (isFailure ? Self.failureSeconds : Self.messageSeconds) }
     /// On a notch, its text expands below the notch; otherwise it keeps to the wings (design §10).
     var isHeadline: Bool { progress?.headline ?? true }
@@ -154,6 +157,8 @@ struct IslandPageRow: Equatable, Sendable {
     var title: String
     var detail: String?
     var trailing: String?
+    /// What VoiceOver reads instead of the row, as a notice's `spokenText`.
+    var spoken: String?
 }
 
 /// A labelled bar, 0...1, with its value as text.

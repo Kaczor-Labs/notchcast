@@ -1,4 +1,5 @@
 // notchcast-addon-order: 180
+// notchcast-readme: Downloads: ⌘V in a Finder window saves a copied image there as a PNG
 // notchcast-system-keys: ⌘V
 import Foundation
 

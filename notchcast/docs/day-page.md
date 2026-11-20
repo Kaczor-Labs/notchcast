@@ -1,6 +1,6 @@
 # Day page
 
-The Day add-on (`Tinycast/Features/Notchcast/Day/`, switch `dayPage`, "Day in the Island" in Settings › Notchcast › Mac Tweaks, off by default) puts a Day page in the open island: the weather now and for the next five hours, the user's market quotes, and today's events (#978, decisions 946-7 and 946-10). It is an add-on under [addons.md](addons.md): one folder and one registry line.
+The Day add-on (`Tinycast/Features/Notchcast/Day/`, switch `dayPage`, "Day in the Island" in Settings › Notchcast › Mac Tweaks, off by default) puts a Day page in the open island: the weather now and for the next five hours, the user's market quotes, and today's events. It is an add-on under [addons.md](addons.md): one folder and one registry line.
 
 ## Invariants
 

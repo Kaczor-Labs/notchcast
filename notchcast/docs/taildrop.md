@@ -33,4 +33,4 @@ Why a listing failed is read from `BackendState` in `tailscale status --json`, n
 
 ## The Finder selection
 
-Read through the core's `NotchcastAppleEvents.finderSelection` ([addons.md](addons.md) §2): Apple Events to Finder, one for `selection` and then one per selected item for its `URL`, 5 s each, off the main actor. The first use asks for the Automation grant for Finder; a refusal is its own failure state. No Finder, no selection or a timeout all read as nothing selected. Only local file URLs pass.
+Read through the core's `NotchcastAppleEvents.finderSelection` ([doors/apple-events.md](doors/apple-events.md)): Apple Events to Finder, one for `selection` and then one per selected item for its `URL`, 5 s each, off the main actor. The first use asks for the Automation grant for Finder; a refusal (`NotchcastAppleEvents.refused`) is its own failure state. No Finder, no selection or a timeout all read as nothing selected. Only local file URLs pass.

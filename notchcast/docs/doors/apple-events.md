@@ -1,0 +1,3 @@
+# Door: Apple Events
+
+**Apple Events** to another app go through `NotchcastAppleEvents` (`Core/Service/`): `values(bundleID, path, refusing:)` sends one `core/getd` read, 5 s, and `finderSelection(refusing:)` returns Finder's selection as file URLs. Both are synchronous, so the add-on calls them off the main actor. A failed read hands its status to the add-on's `refusing` closure and reads as empty unless that throws, so each add-on keeps its own failure states; every add-on maps -1743 and -1744 to its Automation-refused state (`refused` holds both; Copy Path and Paste Image keep their own literals), `timedOut` is -1712. It is in Core because Copy Path, Taildrop and Small Commands all read Finder (§1: two folders never share code).
