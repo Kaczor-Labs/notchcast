@@ -21,9 +21,11 @@ final class RecordingWriter: @unchecked Sendable {
     private var lastVideoSample: CMSampleBuffer?
     private var lastVideoTime = CMTime.zero
     private var failed = false
+    private let onFailure: @Sendable () -> Void
     private(set) var videoFrameCount = 0
 
-    init(url: URL, width: Int, height: Int, codec: RecordingOptions.Codec, systemAudio: Bool, microphone: Bool) throws {
+    init(url: URL, width: Int, height: Int, codec: RecordingOptions.Codec, systemAudio: Bool, microphone: Bool,
+         onFailure: @escaping @Sendable () -> Void = {}) throws {
         let writer = try AVAssetWriter(outputURL: url, fileType: .mov)
         // Fragments keep a recording that outlives a crash readable.
         writer.movieFragmentInterval = CMTime(seconds: 10, preferredTimescale: 600)
@@ -43,6 +45,7 @@ final class RecordingWriter: @unchecked Sendable {
         writer.add(videoInput)
         self.writer = writer
         self.videoInput = videoInput
+        self.onFailure = onFailure
         systemAudioInput = systemAudio ? Self.addAudioInput(to: writer) : nil
         microphoneInput = microphone ? Self.addAudioInput(to: writer) : nil
     }
@@ -132,10 +135,7 @@ final class RecordingWriter: @unchecked Sendable {
             guard videoInput.isReadyForMoreMediaData,
                 let retimed = RecordingSampleTiming.retimed(sampleBuffer, to: time)
             else { return }
-            guard videoInput.append(retimed) else {
-                failed = true
-                return
-            }
+            guard videoInput.append(retimed) else { return fail() }
             videoFrameCount += 1
             lastVideoSample = sampleBuffer
             lastVideoTime = time
@@ -152,7 +152,14 @@ final class RecordingWriter: @unchecked Sendable {
             let interleaved = RecordingAudioSample.interleaved(sampleBuffer, converter: &converter),
             let retimed = RecordingSampleTiming.retimed(interleaved, to: time)
         else { return }
-        if !input.append(retimed) { failed = true }
+        if !input.append(retimed) { fail() }
+    }
+
+    /// Reported when it happens, so the recording ends then instead of failing only at the stop.
+    private func fail() {
+        guard !failed else { return }
+        failed = true
+        onFailure()
     }
 
     /// The last frame is written once more at the stop, so a still screen keeps its length.

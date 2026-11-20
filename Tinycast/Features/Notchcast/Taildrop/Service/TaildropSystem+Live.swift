@@ -3,7 +3,7 @@ import Synchronization
 
 extension TaildropSystem {
     static let live = TaildropSystem(
-        cli: { TaildropProcess.cliPaths.first(where: FileManager.default.isExecutableFile(atPath:)) },
+        cli: { TaildropSend.cliPaths.first(where: FileManager.default.isExecutableFile(atPath:)) },
         run: { try await TaildropProcess.run($0, $1) },
         finderSelection: { try await TaildropFinder.selection() },
         isFolder: { path in
@@ -21,11 +21,11 @@ extension TaildropSystem {
 
 /// One tool run to its end, off the caller's thread; cancelling the task terminates the tool.
 private nonisolated enum TaildropProcess {
-    /// The CLI inside the Tailscale app, which matches the running daemon, then Homebrew's.
-    static let cliPaths = [
-        "/Applications/Tailscale.app/Contents/MacOS/Tailscale",
-        "/opt/homebrew/bin/tailscale", "/usr/local/bin/tailscale",
-    ]
+    /// Bad bytes become U+FFFD, so one invalid byte never drops the whole output.
+    private static func text(_ data: Data) -> String {
+        // swiftlint:disable:next optional_data_string_conversion
+        String(decoding: data, as: UTF8.self)
+    }
 
     /// Shared by the launch, the cancel handler and the stderr reader, which run on three threads.
     private final class Run: Sendable {
@@ -58,10 +58,10 @@ private nonisolated enum TaildropProcess {
                     // Both pipes drain at once: a tool blocked on a full stderr would never close stdout.
                     let draining = DispatchGroup()
                     DispatchQueue.global().async(group: draining) {
-                        let text = String(decoding: errors.readDataToEndOfFile(), as: UTF8.self)
+                        let text = text(errors.readDataToEndOfFile())
                         run.errors.withLock { $0 = text }
                     }
-                    let text = String(decoding: output.readDataToEndOfFile(), as: UTF8.self)
+                    let text = text(output.readDataToEndOfFile())
                     draining.wait()
                     process.waitUntilExit()
                     continuation.resume(returning: TaildropOutput(
@@ -81,13 +81,11 @@ private nonisolated enum TaildropProcess {
 
 /// Finder's selection through the core's Apple Event reader, off the caller's actor.
 private nonisolated enum TaildropFinder {
-    private static let automationDenied = -1743
-
     /// No Finder, no such object or a timeout all read as nothing selected.
     @concurrent
     static func selection() async throws -> [String] {
         try NotchcastAppleEvents.finderSelection { status in
-            if status == automationDenied { throw TaildropFailure.finderAutomation }
+            if NotchcastAppleEvents.refused.contains(status) { throw TaildropFailure.finderAutomation }
         }
     }
 }
