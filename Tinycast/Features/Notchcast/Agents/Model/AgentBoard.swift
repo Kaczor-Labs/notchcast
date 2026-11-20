@@ -41,6 +41,8 @@ struct AgentLocalAccount: Equatable, Sendable {
     var name: String
     var provider: String
     var reading: AgentAccount?
+    /// Read on another machine and passed on by the feed, so it arrives older.
+    var remote = false
 }
 
 enum AgentFeedRead: Equatable, Sendable {
@@ -53,6 +55,8 @@ enum AgentFeedRead: Equatable, Sendable {
 
 struct AgentBoard: Equatable, Sendable {
     static let staleAfter: TimeInterval = 10 * 60
+    /// A feed reading is up to 10 min old when pushed, plus a 5 min push and T3's own delay.
+    static let feedStaleAfter: TimeInterval = 25 * 60
 
     var columns: [AgentColumn]
     var other: [AgentCard]
@@ -67,13 +71,16 @@ struct AgentBoard: Equatable, Sendable {
         let loaded: AgentFeed? = if case .loaded(let feed) = feed { feed } else { nil }
         var machines = (loaded?.machines ?? []).map { machine in
             (name: machine.name, accounts: machine.accounts.map {
-                AgentLocalAccount(name: $0.name, provider: $0.provider, reading: $0)
+                AgentLocalAccount(name: $0.name, provider: $0.provider, reading: $0, remote: true)
             })
         }
+        let shared = loaded?.shared ?? []
+        let copies = local.map { Self.copy(of: $0, local: local, shared: shared) }
+        let own = zip(local, copies).filter { $1 == nil }.map(\.0)
         if let index = machines.firstIndex(where: { $0.name == machineName }) {
-            machines[index].accounts = Self.merge(local: local, feed: machines[index].accounts.compactMap(\.reading))
+            machines[index].accounts = Self.merge(local: own, feed: machines[index].accounts, now: now)
         } else {
-            machines.insert((machineName, local), at: 0)
+            machines.insert((machineName, own), at: 0)
         }
         var columns: [AgentColumn] = []
         var accounts: [AgentAccount] = []
@@ -86,29 +93,45 @@ struct AgentBoard: Equatable, Sendable {
             let spent = spentLast ? Set(readings.filter { $0.isSpent(now: now) }.map(\.name)) : []
             let ordered = machine.accounts.filter { !spent.contains($0.name) }
                 + machine.accounts.filter { spent.contains($0.name) }
-            columns.append(AgentColumn(title: machine.name, cards: ordered.map { account in
-                account.reading.map { Self.card($0, now: now) } ?? Self.reading(account)
-            }))
+            columns.append(AgentColumn(title: machine.name, cards: ordered.map { Self.card($0, now: now) }))
         }
         self.columns = columns
-        let shared = loaded?.shared ?? []
-        other = shared.map { Self.card($0, now: now) }
-        homeLine = Self.homeLine(accounts + shared, now: now)
+        let others = shared.enumerated().map { index, account in
+            let remote = AgentLocalAccount(name: account.name, provider: account.provider, reading: account, remote: true)
+            return zip(local, copies).first { $1 == index }.map { Self.pick($0.0, remote, now: now) } ?? remote
+        }
+        other = others.map { Self.card($0, now: now) }
+        homeLine = Self.homeLine(accounts + others.compactMap(\.reading), now: now)
         footnote = Self.footnote(feed)
     }
 
-    /// The fresher of this Mac's own reading and the feed's copy wins, matched by name.
-    private static func merge(local: [AgentLocalAccount], feed: [AgentAccount]) -> [AgentLocalAccount] {
-        var merged = local.map { account in
-            guard let copy = feed.first(where: { $0.name == account.name }) else { return account }
-            var account = account
-            if account.reading.map({ $0.checkedAt < copy.checkedAt }) ?? true { account.reading = copy }
-            return account
-        }
-        for account in feed where !local.contains(where: { $0.name == account.name }) {
-            merged.append(AgentLocalAccount(name: account.name, provider: account.provider, reading: account))
-        }
-        return merged
+    /// This Mac and the feed's writer name an account each their own way, so one of a provider matches too.
+    private static func copy(of account: AgentLocalAccount, local: [AgentLocalAccount], shared: [AgentAccount]) -> Int? {
+        let same = shared.indices.filter { shared[$0].provider == account.provider }
+        if let named = same.first(where: { shared[$0].name == account.name }) { return named }
+        let alone = same.count == 1 && local.count(where: { $0.provider == account.provider }) == 1
+        return alone ? same.first : nil
+    }
+
+    /// This Mac's accounts, each merged with the feed's copy by name, then the feed's own.
+    private static func merge(local: [AgentLocalAccount], feed: [AgentLocalAccount], now: Date) -> [AgentLocalAccount] {
+        local.map { account in feed.first { $0.name == account.name }.map { pick(account, $0, now: now) } ?? account }
+            + feed.filter { copy in !local.contains { $0.name == copy.name } }
+    }
+
+    /// This Mac's reading wins unless failed, or stale beside a fresher copy; the other fills in what it lacks.
+    private static func pick(_ own: AgentLocalAccount, _ copy: AgentLocalAccount, now: Date) -> AgentLocalAccount {
+        guard let mine = own.reading, let theirs = copy.reading else { return own.reading == nil ? copy : own }
+        let stale = now.timeIntervalSince(mine.checkedAt) > staleAfter
+        var winner = mine.state != .ok || (stale && theirs.checkedAt > mine.checkedAt) ? copy : own
+        var reading = winner.remote ? theirs : mine
+        let loser = winner.remote ? mine : theirs
+        reading.name = copy.name
+        reading.resetCredits = reading.resetCredits ?? loser.resetCredits
+        reading.extraUsage = reading.extraUsage ?? loser.extraUsage
+        winner.name = copy.name
+        winner.reading = reading
+        return winner
     }
 
     static func providerName(_ provider: String) -> String {
@@ -127,7 +150,12 @@ struct AgentBoard: Equatable, Sendable {
             dimmed: false, caption: nil)
     }
 
-    static func card(_ account: AgentAccount, now: Date) -> AgentCard {
+    private static func card(_ account: AgentLocalAccount, now: Date) -> AgentCard {
+        account.reading.map { card($0, now: now, staleAfter: account.remote ? feedStaleAfter : staleAfter) }
+            ?? reading(account)
+    }
+
+    static func card(_ account: AgentAccount, now: Date, staleAfter: TimeInterval = staleAfter) -> AgentCard {
         let tool = tool(account.provider)
         let notice: (String, String)? =
             switch account.state {
