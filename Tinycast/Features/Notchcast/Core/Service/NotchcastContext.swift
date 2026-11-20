@@ -11,6 +11,21 @@ struct NotchcastClipboardMutation {
     static let none = NotchcastClipboardMutation(prepare: {}, synchronize: { _ in })
 }
 
+/// One calendar occurrence, as stock Calendar holds it.
+struct NotchcastEvent: Equatable, Sendable {
+    var id: String
+    var title: String
+    var start: Date
+    var end: Date
+    var isAllDay: Bool
+}
+
+/// Stock Calendar behind the core's door: the events it holds and its My Schedule screen.
+struct NotchcastCalendar {
+    var events: @MainActor () -> [NotchcastEvent] = { [] }
+    var showSchedule: @MainActor () -> Void = {}
+}
+
 /// The only door from an add-on to the app: one per add-on, owned by the controller.
 /// Observable so a settings row sees the module attach, which lands a turn after its switch.
 @MainActor
@@ -22,6 +37,7 @@ final class NotchcastContext {
     let now: @MainActor () -> Date
     let surfaces: NotchcastSurfaces
     let settingsBackup: any NotchcastSettingsBackup
+    let calendar: NotchcastCalendar
     private let hub: NotchcastTapHub
     private let transcription: NotchcastTranscriptionRunner
     private let onTapsChanged: @MainActor () -> Void
@@ -51,7 +67,8 @@ final class NotchcastContext {
         onTapsChanged: @escaping @MainActor () -> Void, onCommandsChanged: @escaping @MainActor () -> Void = {},
         recovery: NotchcastContext? = nil, clipboard: NotchcastClipboardMutation = .none,
         surfaces: NotchcastSurfaces = NotchcastSurfaces(),
-        settingsBackup: any NotchcastSettingsBackup = NotchcastNoSettingsBackup()
+        settingsBackup: any NotchcastSettingsBackup = NotchcastNoSettingsBackup(),
+        calendar: NotchcastCalendar = NotchcastCalendar()
     ) {
         self.defaults = defaults
         self.preferences = preferences
@@ -65,6 +82,7 @@ final class NotchcastContext {
         self.surfaces = surfaces
         self.clipboard = clipboard
         recoveryContext = recovery
+        self.calendar = calendar
     }
 
     var isAccessibilityTrusted: Bool { hub.isTrusted }

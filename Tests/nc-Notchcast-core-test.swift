@@ -516,9 +516,14 @@ struct NotchcastCoreTest {
         let core = FileManager.default.contents(atPath: path).flatMap { String(data: $0, encoding: .utf8) } ?? ""
         let calls = core.components(separatedBy: "NotchcastController(").dropFirst()
         check("NotchcastCore builds one controller", calls.count == 1)
+        func arguments(_ tail: String) -> String {
+            var depth = 1
+            return String(tail.prefix { depth += $0 == "(" ? 1 : $0 == ")" ? -1 : 0; return depth > 0 })
+        }
         check("NotchcastCore hands the controller the island presenter",
               calls.allSatisfy {
-                  $0.components(separatedBy: ")\n")[0].hasSuffix("presenter: core.islandPresenter")
+                  arguments($0).components(separatedBy: ",").contains { $0.trimmingCharacters(in: .whitespacesAndNewlines)
+                      == "presenter: core.islandPresenter" }
               })
         check("NotchcastCore hands the controller stock Dictation",
               calls.allSatisfy { $0.contains("dictation: NotchcastDictationBridge(core: core)") })
