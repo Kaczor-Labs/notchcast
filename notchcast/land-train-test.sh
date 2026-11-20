@@ -40,7 +40,8 @@ case "$*" in
         sha=$*
         sha=${sha#*commits/}
         if grep -qxF "${sha%%/*}" "$FIXTURE/red" 2>/dev/null; then echo failure
-        elif grep -qxF "${sha%%/*}" "$FIXTURE/green" 2>/dev/null; then echo success; else echo "${HEAD_CHECKS:-success}"; fi ;;
+        elif grep -qxF "${sha%%/*}" "$FIXTURE/green" 2>/dev/null; then echo success
+        elif grep -qxF "${sha%%/*}" "$FIXTURE/skipped" 2>/dev/null; then echo skipped; else echo "${HEAD_CHECKS:-success}"; fi ;;
     'workflow run '*)
         [[ -z "${DISPATCH_FAILS:-}" || "$*" != *"--ref $DISPATCH_FAILS "* ]] || { echo 'HTTP 422' >&2; exit 1; }
         python3 -c 'import os; print(os.getsid(0))' > "$FIXTURE/sid"
@@ -190,7 +191,8 @@ fixture() {
     base=$(git rev-parse HEAD)
     : > "$PASSES"
 }
-# open_pr <number> <branch> <title> <path>...: a ready PR on origin whose head writes its title into each path.
+# open_pr <number> <branch> <title> <path>...: a ready PR on origin whose head writes its title into each path, with
+# the labels PR_LABELS names (a JSON array, none by default).
 open_pr() {
     local number=$1 branch=$2 title=$3 path
     shift 3
@@ -202,7 +204,8 @@ open_pr() {
     git commit --quiet -m "$title"
     git push --quiet origin "$branch" "$branch:refs/pull/$number/head"
     jq -n --arg head "$(git rev-parse HEAD)" --arg branch "$branch" --arg title "$title" --argjson number "$number" \
-        '{number: $number, createdAt: "2026-01-0\($number)T00:00:00Z", comments: [], state: "OPEN", isDraft: false, headRefOid: $head, headRefName: $branch, baseRefName: "main", isCrossRepository: false, title: $title, body: "", labels: []}' \
+        --argjson labels "${PR_LABELS:-[]}" \
+        '{number: $number, createdAt: "2026-01-0\($number)T00:00:00Z", comments: [], state: "OPEN", isDraft: false, headRefOid: $head, headRefName: $branch, baseRefName: "main", isCrossRepository: false, title: $title, body: "", labels: $labels}' \
         > "$FIXTURE/pr-$number.json"
     git switch --quiet main
 }
@@ -441,6 +444,7 @@ train() {
 }
 draft() { jq '.isDraft = true' "$FIXTURE/pr-$1.json" > "$FIXTURE/pr.json" && mv "$FIXTURE/pr.json" "$FIXTURE/pr-$1.json"; }
 label() { jq '.labels += [{name: "land"}]' "$FIXTURE/pr-$1.json" > "$FIXTURE/pr.json" && mv "$FIXTURE/pr.json" "$FIXTURE/pr-$1.json"; }
+unlabel() { jq '.labels = []' "$FIXTURE/pr-$1.json" > "$FIXTURE/pr.json" && mv "$FIXTURE/pr.json" "$FIXTURE/pr-$1.json"; }
 untouched() { [ "$(origin rev-parse main)" = "$base" ] && [ ! -e "$FIXTURE/closed" ] && [ ! -e "$FIXTURE/hold" ]; }
 
 fixture
@@ -796,8 +800,10 @@ queue() {
     NOTCHCAST_TRAIN_POLL=0 bash notchcast/train.sh --queue > "$FIXTURE/train-output" 2>&1 || status=$?
 }
 queue_fail() { cat "$FIXTURE/train-output"; echo "FAIL: $1"; exit 1; }
+# From here on each fixture PR is signed off: labelled land, the only thing the queue takes.
+export PR_LABELS='[{"name": "land"}]'
 
-# #2 was marked ready before #1 was opened; #3 is red on its head, #4 an unlabelled draft, #5 is past the batch size.
+# #2 was labelled land before #1 was opened; #3 is red on its head, #4 ready but unlabelled, #5 past the batch size.
 fixture
 echo LAND_BATCH_SIZE=2 >> notchcast/config.env
 open_pr 1 pr-b 'Add B' src/b.txt
@@ -807,7 +813,7 @@ open_pr 4 pr-d 'Add D' src/d.txt
 open_pr 5 pr-a 'Add A' src/a.txt
 echo 2025-12-01T00:00:00Z > "$FIXTURE/ready-2"
 jq -r .headRefOid "$FIXTURE/pr-3.json" > "$FIXTURE/red"
-draft 4
+unlabel 4
 queue
 [ "$status" -eq 0 ] && grep -q '^queue: batch 2 1$' "$FIXTURE/train-output" && grep -q '^LANDED #2 1$' "$FIXTURE/train-output" \
     && grep -q '^open PRs: 5/25$' "$FIXTURE/train-output" \
@@ -818,6 +824,26 @@ queue
 [ "$(cut -d' ' -f1 "$FIXTURE/closed" | paste -sd' ' -)" = '2 1' ] && [ -z "$(origin for-each-ref refs/heads/train/)" ] && [ ! -e "$FIXTURE/comments" ] \
     || queue_fail 'the green batch did not close exactly its PRs and delete its branch'
 echo 'PASS: --queue stacks the oldest signed-off green PRs up to the batch size, runs them once and lands one commit per PR'
+
+# Only land is a sign-off (#1203): (a) #4 ready, unlabelled; (b) #2 a labelled draft whose build is skipped;
+# (c) #1 ready, labelled, green; (d) #3 ready, labelled, red. A ready PR's own skipped build still holds it.
+fixture
+open_pr 1 pr-b 'Add B' src/b.txt
+open_pr 2 pr-c 'Add C' src/c.txt
+open_pr 3 pr-one 'Add one' src/one.txt
+open_pr 4 pr-d 'Add D' src/d.txt
+open_pr 5 pr-a 'Add A' src/a.txt
+unlabel 4
+draft 2
+jq -r .headRefOid "$FIXTURE/pr-2.json" "$FIXTURE/pr-5.json" > "$FIXTURE/skipped"
+jq -r .headRefOid "$FIXTURE/pr-3.json" > "$FIXTURE/red"
+queue
+[ "$status" -eq 0 ] && grep -q '^queue: batch 1 2$' "$FIXTURE/train-output" && grep -q '^LANDED #1 2$' "$FIXTURE/train-output" \
+    && grep -q "^queue: #3 waits, build is failure on " "$FIXTURE/train-output" \
+    && grep -q "^queue: #5 waits, build is skipped on " "$FIXTURE/train-output" && ! grep -q '#4' "$FIXTURE/train-output" \
+    || queue_fail 'the queue took a PR without land, or held a labelled draft whose build was skipped'
+[ "$(landed)" = 'Notchcast: Add B (#1)|Notchcast: Add C (#2)' ] || queue_fail "the land-only batch landed '$(landed)'"
+echo 'PASS: --queue takes only PRs labelled land: a green ready one and a draft with a skipped build ride, red or unlabelled wait'
 
 # Bench-only: a harness in both lists passes in no VM, so only a maintainer's bench-ok comment at the head proves it.
 head_of() { jq -r .headRefOid "$FIXTURE/pr-$1.json"; }
@@ -1173,6 +1199,7 @@ fixture
 open_pr 1 pr-b 'Add B' src/b.txt
 open_pr 2 pr-tool 'Tool' notchcast/hold.sh
 draft 2
+unlabel 2
 train 1 2
 grep -q "^DROPPED #2: dropped from the landing batch: drift tooling or land.sh changed: the PR body needs a line Drift tooling: <reason>; draft #2 has no land label" "$FIXTURE/train-output" \
     && [ -n "$train_sha" ] || { cat "$FIXTURE/train-output"; fail 'a dropped PR did not get every reason in one pass'; }
