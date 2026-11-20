@@ -44,7 +44,7 @@ struct AgentsBoardRenderTest {
                      "this Mac's two folders are the gate's two cards")
         let antigravity = after.other.first { $0.title == "Antigravity" }
         guard case .meters(let meters)? = antigravity?.body else { preconditionFailure("Antigravity has meters") }
-        precondition(meters.count == AgentBoard.meterCap && antigravity?.caption == "2 more, lowest 100% left",
+        precondition(meters.count == AgentBoard.meterCap && antigravity?.caption == "2 more, none under 100% left",
                      "five windows show as three meters and one line")
         var heights: [String: CGFloat] = [:]
         for frosted in [false, true] {
