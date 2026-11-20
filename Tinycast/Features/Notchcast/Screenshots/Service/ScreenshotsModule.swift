@@ -262,7 +262,10 @@ final class ScreenshotsModule: NotchcastModule {
         do {
             await warmUp?.value
             try Task.checkCancellation()
-            let lines = try await system.recognizeText(image)
+            guard let lines = try? await system.recognizeText(image) else {
+                try Task.checkCancellation()
+                throw ScreenshotRequest.Failure.recognitionFailed
+            }
             try Task.checkCancellation()
             guard let joined = ScreenText.join(lines) else { throw ScreenshotRequest.Failure.noText }
             guard system.writeText(joined) else { throw ScreenshotRequest.Failure.clipboardFailed }
