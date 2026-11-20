@@ -8,11 +8,13 @@ enum AgentPage {
     static let order = 0
     static let gridColumns = 3
 
-    static func page(_ board: AgentBoard) -> IslandPage {
+    /// `firstRead`: an account is still on its first read, so an empty board may yet fill (Codex).
+    static func page(_ board: AgentBoard, firstRead: Bool = false) -> IslandPage {
         let none = String(localized: "No plans found", table: "NotchcastAgents")
+        let reading = String(localized: "Reading…", table: "NotchcastAgents")
         var blocks: [IslandPageBlock] = []
         if board.isEmpty {
-            blocks.append(.row(IslandPageRow(
+            blocks.append(.row(firstRead ? IslandPageRow(symbol: "magnifyingglass", title: reading) : IslandPageRow(
                 symbol: "magnifyingglass", title: none,
                 detail: String(localized: "Add a Claude account in Settings › Notchcast › Agents.", table: "NotchcastAgents"))))
         }
@@ -24,10 +26,9 @@ enum AgentPage {
                                                  cards: board.other.map(card))))
         }
         if let footnote = board.footnote { blocks.append(.row(IslandPageRow(symbol: "info.circle", title: footnote))) }
-        let reading = String(localized: "Reading…", table: "NotchcastAgents")
         return IslandPage(
             id: id, title: String(localized: "Agents", table: "NotchcastAgents"), symbol: symbol, order: order,
-            line: IslandPageLine(symbol: symbol, text: board.homeLine ?? (board.isEmpty ? none : reading)),
+            line: IslandPageLine(symbol: symbol, text: board.homeLine ?? (board.isEmpty && !firstRead ? none : reading)),
             blocks: blocks)
     }
 
