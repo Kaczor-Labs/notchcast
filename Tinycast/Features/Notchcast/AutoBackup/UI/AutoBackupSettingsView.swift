@@ -8,9 +8,16 @@ struct AutoBackupSettingsView: View {
     @State private var keep = AutoBackupSchedule.defaultKeep
     @State private var backups: [URL] = []
     @State private var restoring: URL?
+    /// Changes with every backup the module writes, so the list refreshes while the pane is open.
+    @State private var schedule: Data?
     private static let anchor = NotchcastSettingsSearch.anchor(.macTweaks)
 
     private var preferences: AutoBackupPreferences { AutoBackupPreferences(defaults: context.defaults) }
+
+    private struct Listing: Equatable {
+        let folder: String?
+        let schedule: Data?
+    }
 
     var body: some View {
         LabeledContent {
@@ -36,8 +43,12 @@ struct AutoBackupSettingsView: View {
                 "Settings saved in \(file.deletingPathExtension().lastPathComponent) replace the current ones.",
                 tableName: "NotchcastAutoBackup")
         }
-        .task(id: chosenFolder) { await reload() }
+        .task(id: Listing(folder: chosenFolder, schedule: schedule)) { await reload() }
+        .onReceive(
+            NotificationCenter.default.publisher(for: UserDefaults.didChangeNotification, object: context.defaults)
+        ) { _ in readSchedule() }
         .onAppear {
+            readSchedule()
             chosenFolder = preferences.chosenFolder
             keep = preferences.keep
         }
@@ -66,6 +77,10 @@ struct AutoBackupSettingsView: View {
                 Text(verbatim: file.deletingPathExtension().lastPathComponent)
             }
         }
+    }
+
+    private func readSchedule() {
+        schedule = context.defaults.data(forKey: AutoBackupPreferences.scheduleKey)
     }
 
     private func reload() async {
