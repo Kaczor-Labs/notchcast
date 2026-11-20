@@ -89,13 +89,14 @@ stack() {
     [ "$merged" -eq 0 ] || exit 1
     git -C "$scratch/tree" rev-parse HEAD > "$scratch/tip"
 }
-# Merges PRs $2... onto $1 into $tip and sets stacked to the PRs that merged. One that refuses is dropped and told
-# why in a PR comment (a conflict names the earlier PR of the train that touched the file), and the rest goes on.
+# Merges PRs $2... onto $1 into $tip and sets stacked to the PRs that merged. One that refuses is dropped, and the
+# rest goes on; tell_drops says why (a conflict names the earlier PR of the train that touched the file).
 build_train() {
     local pr code reason files other commit conflict
     tip=$1
     stacked=
     : > "$scratch/merges"
+    : > "$scratch/drops"
     shift
     for pr in "$@"; do
         # A subshell with its own errexit, so a refusal ends this PR and not the run.
@@ -125,9 +126,38 @@ build_train() {
         else
             reason="dropped from the landing batch: ${reason:-its merge onto main failed}"
         fi
+        printf '%s %s\n' "$pr" "$reason" >> "$scratch/drops"
+    done
+}
+# Prints and comments the drops of the last build_train, the one the train keeps.
+tell_drops() {
+    local pr reason
+    while read -r pr reason; do
         echo "DROPPED #$pr: $reason"
         gh pr comment "$pr" -R "$FORK_REPO" --body "$reason" >/dev/null || echo "WARN: could not comment on #$pr" >&2
-    done
+    done < "$scratch/drops"
+}
+notify() {
+    [ ! -f "$HOME/.config/notchcast/private.env" ] || source "$HOME/.config/notchcast/private.env"
+    ! declare -F notchcast_notify >/dev/null || printf 'Notchcast: %s\n' "$1" | notchcast_notify || echo 'WARN: notify failed' >&2
+}
+# PR $1 waits for an isolated runner, for reason $2: a comment the first time at its head, and after an hour a
+# second one and a notify line, so a runner that never comes online is not only in the queue's log.
+tell_wait() {
+    local pr=$1 head comments first note late age
+    head=$(< "$scratch/head-$pr")
+    note="Waits for an isolated runner at its head $head: $2. The queue tries it again each tick."
+    late="Still waits for an isolated runner at its head $head after an hour: is a runner labelled NOTCHCAST_MAC_RUNNER online?"
+    comments=$(gh pr view "$pr" -R "$FORK_REPO" --json comments) || { echo "WARN: could not read the comments of #$pr" >&2; return 0; }
+    first=$(jq -r --arg note "$note" '[.comments[] | select(.body == $note)][0].createdAt // empty' <<< "$comments")
+    if [ -z "$first" ]; then
+        gh pr comment "$pr" -R "$FORK_REPO" --body "$note" >/dev/null || echo "WARN: could not comment on #$pr" >&2
+        return 0
+    fi
+    age=$((${NOTCHCAST_NOW:-$(date +%s)} - $(jq -rn --arg at "$first" '$at | fromdateiso8601')))
+    [ "$age" -ge 3600 ] && ! jq -e --arg late "$late" 'any(.comments[]; .body == $late)' <<< "$comments" >/dev/null || return 0
+    gh pr comment "$pr" -R "$FORK_REPO" --body "$late" >/dev/null || echo "WARN: could not comment on #$pr" >&2
+    notify "#$pr: $late"
 }
 # Every one must finish green on the train's tip; all but Design take the train's base, as a PR run has it.
 workflows='pr.yml proof.yml design.yml leaks.yml'
@@ -143,14 +173,6 @@ if [ "${NOTCHCAST_TRAIN_MAC:-}" != hosted ] && [ -n "$label" ]; then
 fi
 # HOSTED_ONLY_TESTS of the tree in the current directory, every line that sets it.
 hosted_only_list() { sed -n 's/^HOSTED_ONLY_TESTS="\(.*\)"$/\1/p' notchcast/config.env | paste -sd' ' -; }
-# The harnesses of the tree here in both HOSTED_ONLY_TESTS and CI_SKIP_TESTS, tags included: only an isolated runner
-# runs one, and land.sh refuses a landing it selects that no isolated run proved.
-isolated_only_list() {
-    (source notchcast/config.env
-    comm -12 <(tr ' ' '\n' <<< "$HOSTED_ONLY_TESTS" | sort -u) <(tr ' ' '\n' <<< "$CI_SKIP_TESTS" | sort -u) | paste -sd' ' -)
-}
-# Those of the names $1 listed in file $2.
-listed_in() { grep -xF -f <(tr ' ' '\n' <<< "$1" | grep .) "$2" | sort -u | paste -sd' ' - || true; }
 # Before the push, for the train just built ($tip on $base, its merges in $scratch/merges): refuses one whose run
 # land.sh could not find, and sets runner, where its Mac jobs go: hosted when only a hosted run proves it, isolated
 # when it selects an isolated-only harness. With the Mac jobs hosted, a PR that selects one is refused, or under
@@ -189,6 +211,7 @@ preflight() {
             reason="#$pr selects $isolated_only, which only an isolated runner can run, and this train's Mac jobs are hosted"
             [ -n "$auto" ] || refuse "$reason: train it while a runner labelled NOTCHCAST_MAC_RUNNER is online"
             echo "WAITS #$pr: $reason; the queue tries it again next tick"
+            tell_wait "$pr" "$reason"
             waits="$waits${waits:+ }$pr"
         done < "$scratch/merges"
         return 0
@@ -349,12 +372,15 @@ while [ ${#queue[@]} -gt 0 ]; do
     built=()
     for train in "${queue[@]}"; do
         build_train "$base" $train
-        [ "$stacked" = "$train" ] || status=1
+        # A PR dropped for a conflict with a waiting one gets another try, so the batch is rebuilt without them.
         while [ -n "$stacked" ]; do
             preflight
             [ -n "$waits" ] || break
-            build_train "$base" $(tr ' ' '\n' <<< "$stacked" | grep -vxF -f <(tr ' ' '\n' <<< "$waits") || true)
+            train=$(tr ' ' '\n' <<< "$train" | grep -vxF -f <(tr ' ' '\n' <<< "$waits") | paste -sd' ' - || true)
+            build_train "$base" $train
         done
+        tell_drops
+        [ "$stacked" = "$train" ] || status=1
         [ -n "$stacked" ] || continue
         branch=$(train_branch $stacked)
         [ -z "$(git ls-remote origin "refs/heads/$branch")" ] \
