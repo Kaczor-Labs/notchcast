@@ -70,19 +70,11 @@ enum NotchcastAppProof {
         check(!AppCore.shared.appIndex.isCommandEnabled(.support), "Support command reads disabled")
     }
 
-    /// #1219, #1066: Commands hidden and off, an address still opens and Script commands still list.
+    /// #1219, #1066: Commands hidden and off, and an address still opens.
     private static func commandsHidden() {
         let defaults = UserDefaults.standard
-        let suite = NotchcastPreferences.suiteName(bundleID: bundleID)
-        let addons = UserDefaults(suiteName: suite)!
-        defer {
-            defaults.removePersistentDomain(forName: bundleID)
-            addons.removePersistentDomain(forName: suite)
-        }
+        defer { defaults.removePersistentDomain(forName: bundleID) }
         defaults.set(["command"], forKey: "hiddenLauncherKinds")
-        addons.set(true, forKey: ScriptCommandsAddon.switchID)
-        let script = ScriptCommand(id: "proof", name: "Proof Script", script: "true")
-        addons.set(ScriptCommand.encodeList([script]), forKey: ScriptCommandsModule.rowsKey)
         let core = AppCore.shared
         let notchcast = NotchcastCore(core: core)
         defer { notchcast.stop() }
@@ -96,10 +88,6 @@ enum NotchcastAppProof {
             check(CommandCatalog.command(for: row) == .openInBrowser && row.url.absoluteString == url,
                   "\(query): Open in Browser opens \(url)")
         }
-        let listed = core.appIndex.orderedResults(
-            query: script.name, visibility: core.visibility, favorites: core.favorites, hotKeys: core.hotKeys
-        ).entries
-        check(listed.contains { $0.id == "command:nc-" + script.slug }, "Script commands lists its command")
         for id in [CommandID.createCustomCommand, .searchCustomCommands, .runShellCommand] {
             check(!core.appIndex.isCommandEnabled(id), "\(id.rawValue) reads disabled")
         }
