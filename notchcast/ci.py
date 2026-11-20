@@ -23,6 +23,7 @@ files, so those never conflict and never travel in our diffs. Two commits are ma
 new ones never land, and "Notchcast: generated files", always last, which rewrites GENERATED (`regenerate`).
 Catalog conflicts merge by key; other conflicts use per-file diffs from the replay tip in main's
 replay-fixes/<lowercase subject, non-alphanumerics hyphenated>[.<base label>].patch (the first that applies) or fail.
+A fix that deletes a file upstream deleted and our commit edits takes upstream's deletion.
 A commit with patches of the same name in replay-adaptations/ gets the first that applies after its pick, however
 the pick went; one already in the commit counts unless a copy of a hunk's old lines remains, and then, or when a patch's
 quoted lines match nowhere so none applies, the replay fails on that commit.
@@ -565,10 +566,14 @@ def replay(tree, onto, check=False):
                     covered = {entry.split("\t", 2)[2] for entry in paths.stdout.split("\0") if entry}
                     if not expected or paths.returncode or covered != expected:
                         continue
+                    # Taking upstream's deletion of a file our commit edits: the fix deletes our version.
+                    deletes = set(re.findall(r"^--- a/(.+)\n\+\+\+ /dev/null$", patch, re.M))
                     for path in expected:
                         if subprocess.run(["git", "cat-file", "-e", f"HEAD:{path}"], cwd=tree,
                                           stderr=subprocess.DEVNULL).returncode == 0:
                             run("git", "checkout", "HEAD", "--", path, cwd=tree)
+                        elif path in deletes:
+                            run("git", "checkout", sha, "--", path, cwd=tree)
                         else:
                             run("git", "rm", "-q", "-f", "--ignore-unmatch", "--", path, cwd=tree)
                     # git apply is all-or-nothing, so a fix for another base leaves the tree for the next one.

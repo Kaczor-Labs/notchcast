@@ -1,6 +1,6 @@
 // notchcast-hosted-only
 // notchcast-sources: Tinycast/DesignSystem/BarButton.swift Tinycast/DesignSystem/ModalActionButtonStyle.swift
-// notchcast-sources: Tinycast/Windows/Dialog/DialogChip.swift Tinycast/Features/Notchcast/IslandButtonFill.swift
+// notchcast-sources: Tinycast/Features/Notchcast/IslandButtonFill.swift
 // notchcast-sources: Tinycast/DesignSystem/Theme.swift Tinycast/Platform/Appearance.swift
 // notchcast-sources: Tinycast/DesignSystem/InterfaceMetrics.swift
 // notchcast-sources: Tinycast/DesignSystem/Tooltip.swift Tinycast/DesignSystem/KeyCapChip.swift Tinycast/Platform/Images/IconCache.swift
@@ -51,10 +51,6 @@ struct IslandButtonsTest {
         centre(of: Button(action: {}) { blank }.buttonStyle(.modalAction(role, fillsWidth: false)), onIsland: onIsland)
     }
 
-    static func chip(selected: Bool, onIsland: Bool) -> Pixel {
-        centre(of: DialogChip(title: "", selected: selected, onTap: {}), onIsland: onIsland)
-    }
-
     static func main() {
         _ = NSApplication.shared
         let cap = paint(NotchTheme.Colors.keyCapFill)
@@ -77,10 +73,6 @@ struct IslandButtonsTest {
         }
         precondition(!bare(modal(.primary, onIsland: true)), "a role button keeps its tint")
         precondition(!bare(modal(.destructive, onIsland: true)), "a destructive button keeps its tint")
-        precondition(bare(chip(selected: false, onIsland: true)), "island DialogChip is bare at rest")
-        precondition(same(chip(selected: true, onIsland: true), cap), "island DialogChip selected is keyCapFill")
-        precondition(same(chip(selected: false, onIsland: false), surface), "stock DialogChip keeps controlSurface")
-        precondition(same(chip(selected: true, onIsland: false), selection), "stock DialogChip selected keeps selection")
 
         precondition(bare(barButton(selected: false, onIsland: false)), "stock BarButton is bare at rest")
         precondition(same(barButton(selected: true, onIsland: false), selection), "stock BarButton selected keeps selection")

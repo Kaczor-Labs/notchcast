@@ -1,0 +1,13 @@
+diff --git a/Tinycast/Features/HotKeys/Service/HotKeyManager.swift b/Tinycast/Features/HotKeys/Service/HotKeyManager.swift
+index 7d839f210..f5af4205d 100644
+--- a/Tinycast/Features/HotKeys/Service/HotKeyManager.swift
++++ b/Tinycast/Features/HotKeys/Service/HotKeyManager.swift
+@@ -128,7 +128,7 @@ final class HotKeyManager {
+ 
+     /// Never pruned at launch: not-installed-yet and gone are indistinguishable there.
+     var boundExtensionCommandEntryIDs: [String] {
+-        []
++        defaults.stringArray(forKey: boundExtensionCommandKey) ?? []
+     }
+ 
+     /// Bundle IDs holding a per-app hotkey, so `start()` knows which records to load.

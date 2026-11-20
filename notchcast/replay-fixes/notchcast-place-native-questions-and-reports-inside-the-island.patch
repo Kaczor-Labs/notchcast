@@ -1,0 +1,13 @@
+diff --git a/Tinycast/Windows/Dialog/DialogController.swift b/Tinycast/Windows/Dialog/DialogController.swift
+index 382121ecc..983fa1997 100644
+--- a/Tinycast/Windows/Dialog/DialogController.swift
++++ b/Tinycast/Windows/Dialog/DialogController.swift
+@@ -149,7 +149,7 @@ final class DialogController: NSObject, NSWindowDelegate {
+             }
+             self.panel = panel
+             accessory = request.accessory
+-            place(panel)
++            AppCore.shared.island.overlays.placeQuestion(panel)
+             // Non-activating like the palette: key focus without pulling the user out.
+             panel.makeKeyAndOrderFront(nil)
+             panel.orderFrontRegardless()
