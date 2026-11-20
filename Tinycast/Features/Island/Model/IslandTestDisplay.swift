@@ -1,6 +1,6 @@
-/// Verify runs never take a real Mac's own screen; a VM guest has only its main display to give.
+/// Verify runs only inside a VM guest, so never on a real Mac's screen; a built-in display never.
 enum IslandTestDisplay {
-    static func accepts(isMain: Bool, isBuiltin: Bool, inGuest: Bool) -> Bool {
-        !isBuiltin && (!isMain || inGuest)
+    static func accepts(isBuiltin: Bool, inGuest: Bool) -> Bool {
+        inGuest && !isBuiltin
     }
 }

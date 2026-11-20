@@ -42,8 +42,8 @@ enum IslandVerification {
     /// The screen whose display id the caller exports, under `IslandTestDisplay`'s rule.
     static var testScreen: NSScreen? {
         guard let id = ProcessInfo.processInfo.environment["ISLAND_TEST_DISPLAY"].flatMap(UInt32.init),
-              IslandTestDisplay.accepts(isMain: CGDisplayIsMain(id) != 0, isBuiltin: CGDisplayIsBuiltin(id) != 0,
-                                        inGuest: inGuest) else { return nil }
+              IslandTestDisplay.accepts(isBuiltin: CGDisplayIsBuiltin(id) != 0, inGuest: inGuest)
+        else { return nil }
         return NSScreen.screens.first { $0.islandDisplayID == id }
     }
 

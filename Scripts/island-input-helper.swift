@@ -28,8 +28,8 @@ let testID = ProcessInfo.processInfo.environment["ISLAND_TEST_DISPLAY"].flatMap(
 var inGuest: Int32 = 0
 var inGuestSize = MemoryLayout<Int32>.size
 sysctlbyname("kern.hv_vmm_present", &inGuest, &inGuestSize, nil, 0)
-// IslandTestDisplay's rule: the main display only inside a VM guest, a built-in one never.
-guard let testID, CGDisplayIsBuiltin(testID) == 0, CGDisplayIsMain(testID) == 0 || inGuest == 1,
+// IslandTestDisplay's rule: only inside a VM guest, a built-in display never.
+guard let testID, inGuest == 1, CGDisplayIsBuiltin(testID) == 0,
       let screen = NSScreen.screens.first(where: {
           ($0.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? NSNumber)?.uint32Value == testID
       }) else {
