@@ -766,6 +766,7 @@
 		8855C67C7EE196E3F9EDE778 /* KeyCapChip.swift in Sources */ = {isa = PBXBuildFile; fileRef = C5BA06E4CC7E8D40E3285F16 /* KeyCapChip.swift */; };
 		887D962AB9C40BDEA079ABF7 /* NoteMarkdownEditing.swift in Sources */ = {isa = PBXBuildFile; fileRef = E53B9481E7AF078575634387 /* NoteMarkdownEditing.swift */; };
 		88B611047A870DB521EEB422 /* CalcMath.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7E0169384D8B376D4811D9D0 /* CalcMath.swift */; };
+		88F51241A75470998F9A418D /* TorrentDefaultHandler.swift in Sources */ = {isa = PBXBuildFile; fileRef = AEF575DA35B74AE7AA843B18 /* TorrentDefaultHandler.swift */; };
 		8921D962E6637C2EDB7508A5 /* CalcExpressionParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = 934DBE501F116131DC1BF5CE /* CalcExpressionParser.swift */; };
 		892BC929694397CE828BB583 /* CaptionText.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3BD4708308682C5985AADD81 /* CaptionText.swift */; };
 		89872774514D83EC2BD60F1E /* CommandCatalog.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5F0A68B2040582996EFBA877 /* CommandCatalog.swift */; };
@@ -1046,6 +1047,7 @@
 		BA81E5DE22F944417665D90D /* FeatureCommandsSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = F082FD6A3AC234F43735715D /* FeatureCommandsSection.swift */; };
 		BA835EDCB6D17DE6BFE2D39E /* DialogTextField.swift in Sources */ = {isa = PBXBuildFile; fileRef = 97F7A18CE243DB037673EB63 /* DialogTextField.swift */; };
 		BAD4BEF8041665ACCF1CE460 /* ScheduleView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F64FC06CB10BDF8CD044D64 /* ScheduleView.swift */; };
+		BAD5405A8C710B0CDDBCD7B3 /* TorrentDefaultPolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = 61545BC1CAB67A751E10806C /* TorrentDefaultPolicy.swift */; };
 		BB1277D988169C0829374ACC /* QuickActionPanelState.swift in Sources */ = {isa = PBXBuildFile; fileRef = E8E97E59C7338458DB797507 /* QuickActionPanelState.swift */; };
 		BB2C2D498E194356672DBF66 /* DownloadRunner.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1E0FB6BEFCF117CC7C7B5424 /* DownloadRunner.swift */; };
 		BB4ED6E8BDDE27DE7815A226 /* ChatComposerTextView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7C343C0FEA2652D8E82E04B /* ChatComposerTextView.swift */; };
@@ -1126,6 +1128,7 @@
 		CAA66E6328E014CDD038E13F /* NotchcastLinkCleaner.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4010630FFE2010DAB1AE9274 /* NotchcastLinkCleaner.swift */; };
 		CAAD92C659DB6164343F296D /* SmallCommandsModule.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6DD6AE01B31D2A5AAD216106 /* SmallCommandsModule.swift */; };
 		CAE4C44A9D2EC4AC51FD3150 /* UninstallTarget.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7EBAD0766FF9BFC6A4396474 /* UninstallTarget.swift */; };
+		CAF93E1795DBA2DFF23834D2 /* TorrentDefaultHandler+Live.swift in Sources */ = {isa = PBXBuildFile; fileRef = 011B4E26A0844044584F4480 /* TorrentDefaultHandler+Live.swift */; };
 		CB1ED71D3B9C9644195F8170 /* FinderToolsFocus.swift in Sources */ = {isa = PBXBuildFile; fileRef = C74ED35CDC7C46C7FCC5F27D /* FinderToolsFocus.swift */; };
 		CB35B7D87CB8FCFF26A7BED4 /* FileSystemWatcher.swift in Sources */ = {isa = PBXBuildFile; fileRef = 992A05290190AFEBA0C525CA /* FileSystemWatcher.swift */; };
 		CB63F246DCA043AD44361466 /* IslandPillScenes.swift in Sources */ = {isa = PBXBuildFile; fileRef = A85328F5C3BBA195271D8424 /* IslandPillScenes.swift */; };
@@ -1489,6 +1492,7 @@
 		00C316C63D69D59DD6355A7F /* NotchcastAppleEvents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotchcastAppleEvents.swift; sourceTree = "<group>"; };
 		00CF6A57ECFDA17248393EA8 /* RaycastScriptImport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RaycastScriptImport.swift; sourceTree = "<group>"; };
 		00ECBD55353C83A7F4E93592 /* MCPSettingsSection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MCPSettingsSection.swift; sourceTree = "<group>"; };
+		011B4E26A0844044584F4480 /* TorrentDefaultHandler+Live.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "TorrentDefaultHandler+Live.swift"; sourceTree = "<group>"; };
 		019026FBB9FF1F8FB08515B7 /* ScreenText.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScreenText.swift; sourceTree = "<group>"; };
 		01DDF667686C091024C18445 /* ScreenshotExclusion.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScreenshotExclusion.swift; sourceTree = "<group>"; };
 		025D7D760DE2FD02C0D7D9D2 /* ColorFormat.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ColorFormat.swift; sourceTree = "<group>"; };
@@ -2026,6 +2030,7 @@
 		607E7B669817BFC39B12C12D /* SettingsEditorPresenter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsEditorPresenter.swift; sourceTree = "<group>"; };
 		60CCB1A47E0022BAEDD1EE96 /* CalculatorHistoryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalculatorHistoryView.swift; sourceTree = "<group>"; };
 		60D4D2146CE38403B2DDB072 /* CustomQuickActionStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CustomQuickActionStore.swift; sourceTree = "<group>"; };
+		61545BC1CAB67A751E10806C /* TorrentDefaultPolicy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TorrentDefaultPolicy.swift; sourceTree = "<group>"; };
 		61627D4B71894281B1E19F10 /* RecordingTrimmer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecordingTrimmer.swift; sourceTree = "<group>"; };
 		6181DE79E5BF20CEDE9953F4 /* SoloistLaunchRules.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SoloistLaunchRules.swift; sourceTree = "<group>"; };
 		61A317A58738F92D0324E92B /* AgentsSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentsSettingsView.swift; sourceTree = "<group>"; };
@@ -2467,6 +2472,7 @@
 		AE84DFF9848A07B10E3296BB /* NotchcastSmallCommands.xcstrings */ = {isa = PBXFileReference; lastKnownFileType = text.json.xcstrings; path = NotchcastSmallCommands.xcstrings; sourceTree = "<group>"; };
 		AE8E49E5D98087ECB64D286B /* QuicklinkEditorScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuicklinkEditorScreen.swift; sourceTree = "<group>"; };
 		AEEB022D080E6DAF703D8132 /* SystemActionsSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SystemActionsSettingsView.swift; sourceTree = "<group>"; };
+		AEF575DA35B74AE7AA843B18 /* TorrentDefaultHandler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TorrentDefaultHandler.swift; sourceTree = "<group>"; };
 		AF1101170E0F54997FBE87EF /* AgentsModule.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentsModule.swift; sourceTree = "<group>"; };
 		AF2143449E19CC0A2B9E7B00 /* IslandScreenSelection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IslandScreenSelection.swift; sourceTree = "<group>"; };
 		AF815AC6BE00722DB83B15CD /* MCPTransport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MCPTransport.swift; sourceTree = "<group>"; };
@@ -3309,6 +3315,8 @@
 				C93DD7443BA60342D466865C /* MediaDownloadRunner.swift */,
 				BA7C64511404401B7367B0C5 /* PublicWebAddress.swift */,
 				388BA5B27396FFBC06D7BA66 /* PublicWebProxy.swift */,
+				AEF575DA35B74AE7AA843B18 /* TorrentDefaultHandler.swift */,
+				011B4E26A0844044584F4480 /* TorrentDefaultHandler+Live.swift */,
 				A724BF7F034F3255BDFD1A98 /* TorrentIslandBridge.swift */,
 				9950CC2E10EA24F279C589DF /* TorrentManager.swift */,
 				7B2026232C36997D908716DF /* TorrentManager+Live.swift */,
@@ -6024,6 +6032,7 @@
 				E727A765219FD06A22F77811 /* MediaFailure.swift */,
 				B8173FF2A1054B05D5AC7065 /* MediaOutput.swift */,
 				098DD9D7AD1219A22E4185D3 /* TorrentBencode.swift */,
+				61545BC1CAB67A751E10806C /* TorrentDefaultPolicy.swift */,
 				1DC120E8DBE5917841FA3D5A /* TorrentInput.swift */,
 				3CE7302C22AA92219E4E58F0 /* TorrentIslandPolicy.swift */,
 				C0BE179B65019C6A91244ACA /* TorrentJob.swift */,
@@ -8125,6 +8134,9 @@
 				2C8F7F5073D77EDC1070E639 /* ToolRunner.swift in Sources */,
 				867B82EDC8A12BBC51592786 /* Tooltip.swift in Sources */,
 				1B1B27B8A05A60F6F77E4F50 /* TorrentBencode.swift in Sources */,
+				CAF93E1795DBA2DFF23834D2 /* TorrentDefaultHandler+Live.swift in Sources */,
+				88F51241A75470998F9A418D /* TorrentDefaultHandler.swift in Sources */,
+				BAD5405A8C710B0CDDBCD7B3 /* TorrentDefaultPolicy.swift in Sources */,
 				46E5D0D2E25784526723D83B /* TorrentInput.swift in Sources */,
 				01BA15CE24A31207906F53CE /* TorrentIslandBridge.swift in Sources */,
 				3CE0A661F50D20426EF5E4B7 /* TorrentIslandPolicy.swift in Sources */,
