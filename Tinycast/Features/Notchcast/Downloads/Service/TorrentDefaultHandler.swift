@@ -109,12 +109,10 @@ final class TorrentDefaultHandler {
                     localized: "Notchcast could not become the default torrent app.", table: "NotchcastDownloads"),
                 isFailure: true), onTap: nil)
         case .handBack(let targets):
-            var kept = TorrentDefaultPolicy.Record()
             for kind in TorrentDefaultKind.allCases {
-                guard let app = targets[kind], await system.setDefault(app, kind) != nil else { continue }
-                kept[kind] = record?[kind]
+                if let app = targets[kind] { _ = await system.setDefault(app, kind) }
             }
-            record = kept.isEmpty ? nil : kept
+            record = nil
         }
     }
 }

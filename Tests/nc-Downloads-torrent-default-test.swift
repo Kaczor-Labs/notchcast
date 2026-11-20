@@ -31,6 +31,7 @@ struct TorrentDefaultTest {
         await noAria2c()
         await refusedOnce()
         await movedElsewhere()
+        await refusedHandBack()
         await quitHandsNothingBack()
         await quickToggles()
         print("Torrent default: claim once with aria2c, hand back only what is still ours, quit keeps it")
@@ -116,6 +117,24 @@ struct TorrentDefaultTest {
         await settle()
         expect(mac.calls == ["file→\(transmission)"], "only the kind still ours is handed back")
         expect(mac.current[.magnet] == qbittorrent, "one moved elsewhere is left alone")
+    }
+
+    private static func refusedHandBack() async {
+        let mac = FakeLaunchServices(current: [.magnet: transmission, .file: transmission])
+        let harness = Harness(mac, on: true)
+        harness.handler.start()
+        await settle()
+        mac.refuse = true
+        harness.preferences.set("torrents", on: false)
+        await settle()
+        expect(harness.record == nil, "a refused hand-back still forgets the record")
+        mac.refuse = false
+        mac.calls = []
+        mac.current = [.magnet: transmission, .file: transmission]
+        harness.preferences.set("torrents", on: true)
+        await settle()
+        expect(mac.calls == ["magnet→\(own)", "file→\(own)"], "so the next switch-on claims again")
+        harness.handler.stop()
     }
 
     private static func quitHandsNothingBack() async {

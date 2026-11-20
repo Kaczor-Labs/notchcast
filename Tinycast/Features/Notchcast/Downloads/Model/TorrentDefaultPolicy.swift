@@ -20,7 +20,7 @@ enum TorrentDefaultPolicy {
         case none
         /// Saved before the claims, so a refused claim is never retried.
         case claim(Record)
-        /// Give each kind to its app; the record is forgotten for every kind that did not fail.
+        /// Give each kind to its app, then forget the record even if one fails, so switch-on claims again.
         case handBack([TorrentDefaultKind: String])
     }
 
