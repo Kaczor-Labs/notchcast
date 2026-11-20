@@ -12,7 +12,7 @@ The Agents add-on (`Tinycast/Features/Notchcast/Agents/`, switch `agentsUsage`, 
 - **Feed readings dim later.** A card read on this Mac dims after 10 min (`AgentBoard.staleAfter`); one from the feed after 25 min (`feedStaleAfter`): up to 10 min old when pushed, a 5 min push, and T3's own delay.
 - **Numbers read left.** "55% left", the fill what is left.
 
-`Tests/nc-Agents-model-test.swift` holds the board against a feed cut from `gate.py feed` (`boardWithGateFeed`) and the folder match (`boardMatchesFolders`); `Tests/nc-Agents-board-render-test.swift` (hosted-only) renders the MBP's board before and after the match and checks it fits the island.
+`Tests/nc-Agents-model-test.swift` holds the board against a feed cut from `gate.py feed` (`boardWithGateFeed`), `Tests/nc-Agents-folders-test.swift` the folder match and the meter cap; `Tests/nc-Agents-board-render-test.swift` (hosted-only) renders the MBP's board before and after the match and checks it fits the island.
 
 ## Hand test
 
