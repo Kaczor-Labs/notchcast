@@ -75,7 +75,7 @@ Four tables in our own files, each read by a short hook in upstream's; hiding a 
 - iCloud Sync: `CloudSyncTests`.
 - Support: `SupportTests`.
 - Navigation: `WindowSwitchTests`, `MenuSearchTests`.
-- Quick Actions: `QuickActionTests`, `TextDiffTests` and `TextDiffPerformanceTests` (the result panel's diff engine). `CompactBarTests`, `FallbackTests`, `HotKeyTests`, `DeepLinkTests` and `LauncherSettingsFileTests` keep running: they compile Quick Actions model files only as dependencies.
+- Quick Actions: `QuickActionTests` and `TextDiffTests` (the result panel's diff engine; `TextDiffPerformanceTests` is index-only upstream and never runs). `CompactBarTests`, `FallbackTests`, `HotKeyTests`, `DeepLinkTests` and `LauncherSettingsFileTests` keep running: they compile Quick Actions model files only as dependencies.
 - Custom Commands: `CustomCommandTests`, `CustomCommandListTests`.
 - Notes: `NotesTests`, `NotesEditorTests`, `NotesEditorPerformanceTests`.
 
