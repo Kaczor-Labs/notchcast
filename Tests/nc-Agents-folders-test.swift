@@ -88,6 +88,11 @@ func boardMatchesFolders() throws {
     typed[1].name = ClaudeLaunch.name("  ", directory: "~/.claude_team")
     let cleared = AgentBoard(home: home, machineName: "MBP", local: typed, feed: feed, now: now)
     check(cleared.columns[0].cards.map(\.title) == ["C3", "C4"], "a cleared name is untyped again")
+    let twice = local + [AgentLocalAccount(name: "Again", provider: "claude", reading: nil, folder: "~/.claude")]
+    let shared = AgentBoard(home: home, machineName: "MBP", local: twice, feed: feed, now: now)
+    check(shared.columns[0].cards.map(\.title) == ["C3", "C4", "Again"]
+          && shared.columns[0].cards[2].body == .notice(glyph: nil, headline: "Reading…"),
+          "#1193: two saved accounts on one folder take the gate's card once: \(shared.columns[0].cards)")
     let elsewhere = AgentBoard(home: home, machineName: "MBA", local: local, feed: feed, now: now)
     check(elsewhere.columns.map { $0.cards.count } == [2, 2], "folders match only in this Mac's own column")
     let old = AgentBoard(home: home, machineName: "MBP", local: local, feed: try gate(nil, nil), now: now)
@@ -118,8 +123,10 @@ func cardCap() {
     let card = AgentBoard.card(five, now: now)
     check(meters(card).map(\.label) == ["Session · gemini", "Session · 3p", "Weekly · gemini"],
           "the three with least left, in order: \(meters(card).map(\.label))")
-    check(card.caption == "2 more, lowest 100% left", "the rest in one line: \(String(describing: card.caption))")
+    check(card.caption == "2 more, none under 100% left", "the rest in one line: \(String(describing: card.caption))")
     check(card.spoken?.contains("Weekly · gemini-argon-wtu") == true, "VoiceOver still reads every window")
+    let four = account("Antigravity", "antigravity", Array(five.windows.prefix(4)))
+    check(AgentBoard.card(four, now: now).caption == "1 more, 100% left", "one hidden meter reads as one")
     var old = five
     old.checkedAt = now.addingTimeInterval(-20 * minute)
     check(AgentBoard.card(old, now: now).caption == "Updated 20 min ago", "an old reading's caption comes first")

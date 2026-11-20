@@ -4,7 +4,7 @@
 
 import Foundation
 
-/// One calendar occurrence as the Day page reads it.
+/// Core's `NotchcastEvent` as Model sees it: that type lives in the Service door, outside Model.
 struct DayEvent: Equatable, Sendable {
     var id: String
     var title: String
