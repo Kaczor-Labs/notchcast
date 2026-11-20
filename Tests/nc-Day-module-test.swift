@@ -2,14 +2,8 @@
 // notchcast-sources: Tinycast/Features/Notchcast/Day/Model/*.swift
 // notchcast-sources: Tinycast/Features/Notchcast/Day/Service/*.swift
 // notchcast-sources: Tinycast/Features/Notchcast/Core/Model/*.swift
-// notchcast-sources: Tinycast/Features/Notchcast/Core/Service/NotchcastAddon.swift
-// notchcast-sources: Tinycast/Features/Notchcast/Core/Service/NotchcastContext.swift
-// notchcast-sources: Tinycast/Features/Notchcast/Core/Service/NotchcastTranscription.swift
-// notchcast-sources: Tinycast/Features/Notchcast/Core/Service/NotchcastPreferences.swift
-// notchcast-sources: Tinycast/Features/Notchcast/Core/Service/NotchcastTap.swift
-// notchcast-sources: Tinycast/Features/Notchcast/Core/Service/NotchcastTapHub.swift
-// notchcast-sources: Tinycast/Features/Notchcast/Core/Service/NotchcastTapRouter.swift
-// notchcast-sources: Tinycast/Features/Notchcast/Core/Service/NotchcastTapThread.swift
+// notchcast-sources: Tinycast/Features/Notchcast/Core/Service/*.swift
+// notchcast-sources: Tinycast/Platform/NotificationToken.swift
 // notchcast-sources: Tinycast/Features/Island/Model/IslandPresentation.swift
 // notchcast-sources: Tinycast/Features/Island/Service/IslandPresenting.swift
 // notchcast-sources: Tests/NotchcastTapFixtures.swift
@@ -152,7 +146,8 @@ struct DayModuleTests {
             defaults: defaults, preferences: NotchcastPreferences(defaults: defaults, switches: DayAddon.switches),
             presenter: presenter, hub: hub, transcription: NotchcastTranscriptionRunner(dictation: FakeDictation()),
             now: { world.now }, onTapsChanged: {},
-            calendar: NotchcastCalendar(events: { world.events }, showSchedule: { world.scheduleOpens += 1 }))
+            services: NotchcastServices(
+                calendar: NotchcastCalendar(events: { world.events }, showSchedule: { world.scheduleOpens += 1 })))
         let module = DayModule(context: context, fetch: { await world.get($0) }, sleep: { try await world.sleep($0) },
                                calendar: DayFixtures.calendar, locale: DayFixtures.locale)
         return (module, context)
