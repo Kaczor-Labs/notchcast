@@ -1,9 +1,12 @@
 {
   "sourceLanguage" : "en",
   "strings" : {
+    "Couldn't Resume the Last Player" : {},
     "Couldn't Stop Apple Music Opening" : {},
+    "Play key resumes the last player" : {},
     "Prevent media keys from launching Apple Music." : {},
-    "Stop Apple Music opening on media keys" : {}
+    "Stop Apple Music opening on media keys" : {},
+    "When nothing is playing, the play key resumes the app you played last, such as Spotify." : {}
   },
   "version" : "1.0"
 }

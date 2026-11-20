@@ -19,14 +19,19 @@ struct MusicBlockModuleTests {
         switchShape()
         lifecycle()
         tapLiveness()
-        print("Music block module: v1 switch id, one tap per start, blocks only while the tap is live")
+        resume()
+        print("Music block module: v1 switch id, one tap per start, blocks only while the tap is live, resumes the last player")
     }
 
     @MainActor
     static func switchShape() {
-        precondition(MusicBlockAddon.switches.map(\.id) == ["musicBlockAppleMusic"], "the v1 raw value stays")
+        precondition(MusicBlockAddon.switches.map(\.id) == ["musicBlockAppleMusic", "musicBlockResumeLastPlayer"],
+                     "the v1 raw value stays")
         let entry = MusicBlockAddon.switches[0]
         precondition(entry.defaultEnabled && entry.category == .music && entry.requiredGrants == [.accessibility])
+        let resume = MusicBlockAddon.switches[1]
+        precondition(resume.defaultEnabled && resume.dependencies == [entry.id] && resume.category == .music,
+                     "on by default, and only while the block is on")
     }
 
     @MainActor
@@ -118,6 +123,65 @@ extension MusicBlockModuleTests {
         pressPlay()
         precondition(!launch(104), "while the tap is not live, no launch is blocked")
         precondition(presenter.log.isEmpty, "a launch left alone posts nothing")
+    }
+}
+
+extension MusicBlockModuleTests {
+    @MainActor
+    static func resume() {
+        let suite = "nc-musicblock-module-test.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suite)!
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let system = FakeSystem()
+        let subscriptions = Subscriptions(system.makeHub())
+        let preferences = NotchcastPreferences(defaults: defaults, switches: MusicBlockAddon.switches)
+        let context = NotchcastContext(
+            defaults: defaults, preferences: preferences, presenter: RecordingPresenter(), hub: subscriptions.hub,
+            transcription: NotchcastTranscriptionRunner(dictation: FakeDictation()),
+            now: { .now }, onTapsChanged: {})
+        var running: Set<String> = ["com.spotify.client"]
+        var played: [String] = []
+        let module = MusicBlockModule(
+            context: context, gestureAge: { .infinity }, isMusicRunning: { false },
+            isRunning: { running.contains($0) }, play: { played.append($0.bundleID); return true })
+        module.start()
+        defer { module.stop() }
+        let tap = context.wantedTaps[0].tap
+        subscriptions.add(tap)
+        guard case .observe(let deliver) = tap.handler else { preconditionFailure("observed") }
+        func press(_ code: Int) {
+            let ns = NSEvent.otherEvent(
+                with: .systemDefined, location: .zero, modifierFlags: [], timestamp: 0, windowNumber: 0, context: nil,
+                subtype: 8, data1: code << 16 | 0x0A << 8, data2: -1)!
+            let event = ns.cgEvent!
+            event.timestamp = CGEventTimestamp(ProcessInfo.processInfo.systemUptime * 1_000_000_000)
+            deliver(NotchcastTapEvent(type: event.type, event: event, syntheticTag: syntheticTag))
+        }
+        var pid: pid_t = 200
+        func pressThenLaunch(_ code: Int = 16) -> Bool {
+            press(code)
+            pid += 1
+            let music = FakeMusic(pid)
+            module.launched(music)
+            RunLoop.main.run(until: Date().addingTimeInterval(0.05))
+            return music.stopped
+        }
+
+        precondition(pressThenLaunch() && played.isEmpty, "no player heard yet: Music is stopped, nothing plays")
+        module.heard("com.spotify.client.PlaybackStateChanged", state: "Paused")
+        precondition(pressThenLaunch() && played.isEmpty, "a pause names no player")
+        module.heard("com.spotify.client.PlaybackStateChanged", state: "Playing")
+        precondition(defaults.string(forKey: LastPlayer.storeKey) == "com.spotify.client", "remembered across runs")
+        precondition(pressThenLaunch() && played == ["com.spotify.client"], "play resumes Spotify in Music's place")
+        precondition(pressThenLaunch(17) && played.count == 1, "next blocks Music but resumes nothing")
+        running = []
+        precondition(pressThenLaunch() && played.count == 1, "a quit player is never launched")
+        running = ["com.spotify.client"]
+        preferences.set("musicBlockResumeLastPlayer", on: false)
+        precondition(pressThenLaunch() && played.count == 1, "the option off leaves only the block")
+        preferences.set("musicBlockResumeLastPlayer", on: true)
+        module.heard("com.apple.Music.playerInfo", state: "Playing")
+        precondition(pressThenLaunch() && played.count == 1, "Music played last: it is blocked, never resumed")
     }
 }
 
