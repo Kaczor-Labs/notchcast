@@ -3,6 +3,7 @@
     "Tinycast/App/TinycastApp.swift",
     "Tinycast/Features/Settings/AppSettings.swift",
     "Tinycast/Features/Settings/AppSettingsKey.swift",
+    "Tinycast/Features/Launcher/UI/FallbackCoordinator.swift",
     "Tinycast/Features/Notchcast/Hidden/*"
   ],
   "addon-launcher": [

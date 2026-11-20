@@ -65,6 +65,9 @@ enum NotchcastAppProof {
         check(!visibility.isKindEnabled(.systemSettings), "System Settings in the launcher reads off")
         check(!AppCore.shared.appIndex.isCommandEnabled(.support), "Support command reads disabled")
         check(!AppCore.shared.appIndex.isCommandEnabled(.showNotes), "Show Notes command reads disabled")
+        let fallbacks = AppCore.shared.fallbackCoordinator
+        check(!fallbacks.available.isEmpty && fallbacks.entries(for: "swift").isEmpty,
+              "the launcher shows no fallback section for a typed query")
     }
 
     /// #910: a stored iCloud Sync switch reads off and the sync engine never starts.
