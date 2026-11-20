@@ -58,10 +58,10 @@ private nonisolated enum TaildropProcess {
                     // Both pipes drain at once: a tool blocked on a full stderr would never close stdout.
                     let draining = DispatchGroup()
                     DispatchQueue.global().async(group: draining) {
-                        let text = String(decoding: errors.readDataToEndOfFile(), as: UTF8.self)
+                        let text = String(bytes: errors.readDataToEndOfFile(), encoding: .utf8) ?? ""
                         run.errors.withLock { $0 = text }
                     }
-                    let text = String(decoding: output.readDataToEndOfFile(), as: UTF8.self)
+                    let text = String(bytes: output.readDataToEndOfFile(), encoding: .utf8) ?? ""
                     draining.wait()
                     process.waitUntilExit()
                     continuation.resume(returning: TaildropOutput(
@@ -81,13 +81,11 @@ private nonisolated enum TaildropProcess {
 
 /// Finder's selection through the core's Apple Event reader, off the caller's actor.
 private nonisolated enum TaildropFinder {
-    private static let automationDenied = -1743
-
     /// No Finder, no such object or a timeout all read as nothing selected.
     @concurrent
     static func selection() async throws -> [String] {
         try NotchcastAppleEvents.finderSelection { status in
-            if status == automationDenied { throw TaildropFailure.finderAutomation }
+            if NotchcastAppleEvents.refused.contains(status) { throw TaildropFailure.finderAutomation }
         }
     }
 }
