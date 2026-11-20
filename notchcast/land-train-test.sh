@@ -15,6 +15,7 @@ cat > "$scratch/bin/gh" <<'STUB'
 case "$*" in
     # The real --jq filter over every fixture PR.
     'pr list '*)
+        [ -z "${PRLIST_FAILS:-}" ] || { echo 'HTTP 502' >&2; exit 1; }
         base=$*
         base=${base#*--base }
         [[ "$*" == *' --base '* ]] || base=
@@ -60,6 +61,10 @@ case "$*" in
     # A dispatched train run is red when its branch train/<a>-<b> names a PR in RED_PRS.
     'run list '*workflow_dispatch*)
         if [ -n "${KILL_TRAIN:-}" ]; then kill -TERM "$(cat "$FIXTURE/train-pid")"; echo pending; exit 0; fi
+        # STOP_QUEUE: the first verdict stops the queue tick around the train; later ones are green.
+        if [ -n "${STOP_QUEUE:-}" ] && [ ! -e "$FIXTURE/stopped" ]; then
+            : > "$FIXTURE/stopped"; kill -TERM "$(cat "$FIXTURE/queue-pid")"; echo pending; exit 0
+        fi
         branch=$*
         branch=${branch#*-b train/}
         # PENDING_TRAINS: trains still running; asked about one, the stub leaves $FIXTURE/waiting.
@@ -90,7 +95,7 @@ esac
 STUB
 printf '#!/bin/sh\nexit 0\n' > "$scratch/bin/swiftc"
 chmod +x "$scratch/bin/gh" "$scratch/bin/swiftc"
-cp "$root"/notchcast/{land.sh,train.sh,merge.sh,merge-words.py,local-build-status.sh,drift-gates.sh,sync-wait.sh,hold.sh,config.env,fork-point.sh,land-tooling.txt,ci.py,app-proof.py,app-proofs.json} "$seed/notchcast/"
+cp "$root"/notchcast/{land.sh,train.sh,merge.sh,merge-words.py,local-build-status.sh,drift-gates.sh,sync-wait.sh,hold.sh,config.env,fork-point.sh,land-tooling.txt,ci.py,app-proof.py,app-proofs.json,queue.sh} "$seed/notchcast/"
 for name in check-drift.py check-drift-test.py; do
     printf '#!/usr/bin/env python3\n' > "$seed/notchcast/$name"
 done
@@ -160,6 +165,8 @@ mkdir "$seed/notchcast/docs"
 echo '| Launcher | F1 One | F9 Nine |' > "$seed/notchcast/docs/addons.md"
 : > "$seed/Tinycast/Features/Notchcast/Core/NotchcastFeature.swift"
 export HOME="$scratch/home" PATH="$scratch/bin:$PATH" NOTCHCAST_LAND_TOOLS=test
+# train.sh --queue's clock: every sign-off in the fixture is older than its settle time unless a test sets one.
+export NOTCHCAST_NOW=$(jq -n '"2026-03-01T00:00:00Z" | fromdateiso8601')
 # The fixture's harnesses are stubs, so every train here lands as on a Mac, which runs each one.
 export NOTCHCAST_PLATFORM=Darwin
 identify() { git config user.name "$MAINTAINER_NAME"; git config user.email "$MAINTAINER_EMAIL"; }
@@ -1022,6 +1029,144 @@ grep -q "^GREEN train/1 " "$log" && grep -q '^train: exit 0$' "$log" || { cat "$
 [ "$(cat "$FIXTURE/sid")" != "$(python3 -c 'import os; print(os.getsid(0))')" ] || fail 'the detached train shares the starting session'
 rm "$log"
 echo 'PASS: train.sh --detach runs the train in its own session and logs it to the end'
+
+# Batch size 1: #1 signed off long ago, #2 30 s ago; only the batch's own sign-off holds it back.
+fixture
+echo LAND_BATCH_SIZE=1 >> notchcast/config.env
+open_pr 1 pr-b 'Add B' src/b.txt
+open_pr 2 pr-c 'Add C' src/c.txt
+echo 2026-03-01T10:00:00Z > "$FIXTURE/ready-1"
+echo 2026-03-01T10:09:30Z > "$FIXTURE/ready-2"
+NOTCHCAST_NOW=$(jq -n '"2026-03-01T10:10:00Z" | fromdateiso8601') queue
+[ "$status" -eq 0 ] && grep -q '^queue: batch 1$' "$FIXTURE/train-output" && [ "$(landed)" = 'Notchcast: Add B (#1)' ] \
+    || queue_fail 'a fresh sign-off behind a full batch held the batch back'
+echo 'PASS: the settle time counts only the sign-offs of the batch it takes, so a stream behind a full batch cannot stall it'
+
+fixture
+open_pr 1 pr-b 'Add B' src/b.txt
+PRLIST_FAILS=1 queue
+[ "$status" -eq 1 ] && ! grep -q '^queue: no open PR' "$FIXTURE/train-output" && [ ! -e "$FIXTURE/dispatched" ] && untouched \
+    || queue_fail 'a failed PR listing read as nothing to land'
+echo 'PASS: --queue fails when it cannot list the open PRs, never reports an idle queue'
+
+# The land lease (#1161): private.env names a stub lock hook that logs each call and refuses while LOCK_EXIT is 1.
+cat > "$scratch/bin/land-lock" <<'STUB'
+#!/bin/bash
+echo "$*" >> "$FIXTURE/lock-log"
+[ "${LOCK_EXIT:-0}" -eq 0 ] || { echo 'gate: land is held by queue@other until 12:00' >&2; exit 1; }
+[ -z "${LOCK_BROKEN:-}" ] || { echo 'ssh: connect to host home: Connection refused' >&2; exit 255; }
+# LOCK_FAIL_AT=<n>: the n-th call fails, as when the gate's home is out of reach for a moment.
+[ "$(wc -l < "$FIXTURE/lock-log")" -ne "${LOCK_FAIL_AT:-0}" ] || { echo 'gate: land is held by hand@other until 12:00' >&2; exit 1; }
+STUB
+chmod +x "$scratch/bin/land-lock"
+mkdir -p "$HOME/.config/notchcast"
+echo 'NOTCHCAST_LAND_LOCK="land-lock land"' > "$HOME/.config/notchcast/private.env"
+holder="queue@$(hostname -s)"
+tick() {
+    status=0
+    NOTCHCAST_TRAIN_POLL=0 bash -c 'echo $$ > "$FIXTURE/queue-pid"; exec bash notchcast/queue.sh "$1"' _ "$FIXTURE/work" \
+        > "$FIXTURE/train-output" 2>&1 || status=$?
+}
+at() { jq -n --arg at "$1" '$at | fromdateiso8601'; }
+
+# Two PRs signed off 60 s apart: a tick 30 s after the second takes none, one 3 min after it lands both in one train.
+fixture
+open_pr 1 pr-b 'Add B' src/b.txt
+open_pr 2 pr-c 'Add C' src/c.txt
+echo 2026-03-01T10:00:00Z > "$FIXTURE/ready-1"
+echo 2026-03-01T10:01:00Z > "$FIXTURE/ready-2"
+NOTCHCAST_NOW=$(at 2026-03-01T10:01:30Z) tick
+[ "$status" -eq 0 ] && grep -q '^queue: waits, #2 signed off 30 s ago$' "$FIXTURE/train-output" && [ ! -e "$FIXTURE/dispatched" ] && untouched \
+    && [ "$(paste -sd'|' "$FIXTURE/lock-log")" = "land take $holder|land take $holder|land drop $holder" ] \
+    || queue_fail 'a tick inside the settle time took a batch, or did not hold and drop the lease'
+rm "$FIXTURE/lock-log"
+NOTCHCAST_NOW=$(at 2026-03-01T10:04:00Z) tick
+[ "$status" -eq 0 ] && grep -q '^queue: batch 1 2$' "$FIXTURE/train-output" && grep -q '^LANDED #1 2$' "$FIXTURE/train-output" \
+    && ! grep -q REFUSED "$FIXTURE/train-output" || queue_fail 'a tick after the settle time did not land both in one train'
+[ "$(landed)" = 'Notchcast: Add B (#1)|Notchcast: Add C (#2)' ] && [ "$(grep -c -- '--ref train/1-2\( \|$\)' "$FIXTURE/dispatched")" -eq 4 ] \
+    && [ "$(wc -l < "$FIXTURE/dispatched")" -eq 4 ] || queue_fail "the settled batch landed '$(landed)' from '$(paste -sd'|' "$FIXTURE/dispatched")'"
+[ "$(paste -sd'|' "$FIXTURE/lock-log")" = "land take $holder|land take $holder|land take $holder|land drop $holder" ] \
+    || queue_fail "the queue's lease calls were '$(paste -sd'|' "$FIXTURE/lock-log")'"
+[ "$(git worktree list | wc -l)" -eq 1 ] || queue_fail 'the tick left a worktree behind'
+echo 'PASS: PRs signed off a minute apart wait out the settle time and land in one train under the queue lease, dropped at exit'
+
+fixture
+open_pr 1 pr-b 'Add B' src/b.txt
+LOCK_EXIT=1 tick
+[ "$status" -eq 0 ] && grep -q '^queue: the land lease is held; next tick$' "$FIXTURE/train-output" && [ ! -e "$FIXTURE/dispatched" ] && untouched \
+    && [ "$(cat "$FIXTURE/lock-log")" = "land take $holder" ] || queue_fail 'a tick under a foreign lease ran a train or dropped the lease'
+echo 'PASS: a tick while another holds the land lease runs nothing and leaves that lease alone'
+
+fixture
+open_pr 1 pr-b 'Add B' src/b.txt
+NOTCHCAST_LAND_LEASE=hand@test train 1
+[ "$status" -eq 0 ] && grep -q '^GREEN train/1 ' "$FIXTURE/train-output" && [ "$(cat "$FIXTURE/lock-log")" = 'land take hand@test' ] \
+    || queue_fail 'a train under a granted lease did not run'
+NOTCHCAST_LAND_LEASE=hand@test land --train-run "$train_sha" 1
+[ "$status" -eq 0 ] && [ "$(landed)" = 'Notchcast: Add B (#1)' ] && [ "$(paste -sd'|' "$FIXTURE/lock-log")" = 'land take hand@test|land take hand@test' ] \
+    || fail 'land.sh under a granted lease did not land, or did not renew it'
+rm "$FIXTURE/lock-log"
+land --check "$base" "$(origin rev-parse main)"
+[ "$status" -eq 0 ] && grep -q '^PASS: merged-tree harnesses$' "$FIXTURE/output" || fail 'land.sh --check needed a lease'
+land --guard
+[ "$status" -eq 0 ] && [ ! -e "$FIXTURE/lock-log" ] || fail 'land.sh --guard needed a lease, or --check or --guard called the hook'
+echo 'PASS: under the lock hook a granted lease trains and lands, renewing it; --check and --guard need none'
+
+fixture
+open_pr 1 pr-b 'Add B' src/b.txt
+status=0
+NOTCHCAST_LAND_FORCE=1 NOTCHCAST_TRAIN_POLL=0 python3 -c 'import os, pty, sys; sys.exit(os.waitstatus_to_exitcode(pty.spawn(sys.argv[1:])))' \
+    bash notchcast/train.sh --queue > "$FIXTURE/train-output" 2>&1 < /dev/null || status=$?
+[ "$status" -eq 0 ] && grep -q '^FORCED: landing outside the queue' "$FIXTURE/train-output" && grep -q '^LANDED #1' "$FIXTURE/train-output" \
+    && [ "$(landed)" = 'Notchcast: Add B (#1)' ] && [ ! -e "$FIXTURE/lock-log" ] || queue_fail 'a train forced from a terminal did not land'
+echo 'PASS: a train forced from a terminal lands without the lease, its land.sh forced too'
+
+# The third take (land.sh's renewal) is refused: tick 1 keeps its green train/1, tick 2 scraps it and lands.
+fixture
+open_pr 1 pr-b 'Add B' src/b.txt
+LOCK_FAIL_AT=3 tick
+[ "$status" -eq 1 ] && grep -q '^NOT LANDED #1' "$FIXTURE/train-output" && [ -n "$(origin for-each-ref refs/heads/train/1)" ] && untouched \
+    && [ "$(tail -1 "$FIXTURE/lock-log")" = "land drop $holder" ] || queue_fail 'a refused renewal at landing did not keep its train and drop the lease'
+tick
+[ "$status" -eq 0 ] && grep -q '^train: train/1 is left from an earlier run; scrapping it$' "$FIXTURE/train-output" && grep -q '^LANDED #1$' "$FIXTURE/train-output" \
+    && [ "$(landed)" = 'Notchcast: Add B (#1)' ] && [ -z "$(origin for-each-ref refs/heads/train/)" ] \
+    || queue_fail 'a train branch left by an earlier tick jammed the queue'
+echo "PASS: a tick whose renewal is refused at landing leaves no jam: the next tick scraps the leftover train branch and lands"
+
+# TERM to the tick while its train waits on CI: the train scraps its branch, then the tick drops the lease and its tree.
+fixture
+open_pr 1 pr-b 'Add B' src/b.txt
+STOP_QUEUE=1 tick
+[ "$status" -eq 143 ] && grep -q '^train: scrapping train/1, which has no verdict' "$FIXTURE/train-output" && grep -q '^train: exit 143$' "$FIXTURE/train-output" \
+    && [ -z "$(origin for-each-ref refs/heads/train/)" ] && untouched && [ "$(git worktree list | wc -l)" -eq 1 ] \
+    && [ "$(paste -sd'|' "$FIXTURE/lock-log")" = "land take $holder|land take $holder|land drop $holder" ] \
+    || queue_fail 'a stopped tick did not stop its train, scrap its branch and drop the lease'
+echo 'PASS: a tick stopped mid-train stops the train, which scraps its branch, then drops the lease and removes its tree'
+
+fixture
+open_pr 1 pr-b 'Add B' src/b.txt
+git remote set-url origin "$FIXTURE/no-such-origin.git"
+tick
+git remote set-url origin "$FIXTURE/origin.git"
+[ "$status" -ne 0 ] && [ "$(paste -sd'|' "$FIXTURE/lock-log")" = "land take $holder|land drop $holder" ] && [ "$(git worktree list | wc -l)" -eq 1 ] \
+    && [ ! -e "$FIXTURE/dispatched" ] || queue_fail 'a tick whose fetch failed kept the lease'
+echo 'PASS: a tick whose fetch fails still drops the lease'
+
+fixture
+open_pr 1 pr-b 'Add B' src/b.txt
+LOCK_BROKEN=1 tick
+[ "$status" -eq 1 ] && grep -q '^queue: could not take the land lease$' "$FIXTURE/train-output" && grep -q 'Connection refused' "$FIXTURE/train-output" \
+    && ! grep -q 'is held' "$FIXTURE/train-output" && [ ! -e "$FIXTURE/dispatched" ] && untouched \
+    || queue_fail 'a failing hook was logged as a held lease'
+echo 'PASS: a hook that fails is logged as a failure, exit 1, never as a held lease'
+
+rm -f "$HOME/.config/notchcast/private.env"
+fixture
+open_pr 1 pr-b 'Add B' src/b.txt
+tick
+[ "$status" -eq 1 ] && grep -q '^queue: no NOTCHCAST_LAND_LOCK in private.env' "$FIXTURE/train-output" && [ ! -e "$FIXTURE/dispatched" ] && untouched \
+    || queue_fail 'a queue without the lock hook ran'
+echo 'PASS: queue.sh runs nothing without the lock hook'
 
 # Last: a killed lander can leave children behind.
 for signal in TERM HUP; do
