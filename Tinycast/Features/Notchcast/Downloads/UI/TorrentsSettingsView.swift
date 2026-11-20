@@ -25,6 +25,13 @@ struct TorrentsSettingsView: View {
                 aria2c = module.environment.tools.find(.aria2c)
                 looked = true
             }
+            if let handler = context.recovery(TorrentOpenFallback.self)?.defaultApp {
+                LabeledContent {
+                    Text(handler.defaultAppNames.joined(separator: ", "))
+                } label: {
+                    Text("Default torrent app", tableName: "NotchcastDownloads")
+                }
+            }
             let bonded = module.bonding.torrentsBonded
             ForEach(module.torrents.jobs.reversed()) { job in
                 TorrentJobRow(job: job, module: module, bonded: bonded)

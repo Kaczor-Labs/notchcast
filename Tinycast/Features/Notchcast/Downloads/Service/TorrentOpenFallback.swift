@@ -4,9 +4,12 @@ import Foundation
 @MainActor
 final class TorrentOpenFallback: NotchcastModule {
     private let context: NotchcastContext
+    /// Lives here, not in the module, which stops with the last Downloads switch and at quit.
+    let defaultApp: TorrentDefaultHandler
 
-    init(context: NotchcastContext) {
+    init(context: NotchcastContext, system: TorrentDefaultHandler.System) {
         self.context = context
+        defaultApp = TorrentDefaultHandler(context: context, switchID: DownloadsModule.torrentsSwitchID, system: system)
     }
 
     func start() {
@@ -15,9 +18,11 @@ final class TorrentOpenFallback: NotchcastModule {
             DownloadsModule.post(.notRunning, to: context.presenter)
             return true
         }
+        defaultApp.start()
     }
 
     func stop() {
         context.handleOpenURL(nil)
+        defaultApp.stop()
     }
 }
