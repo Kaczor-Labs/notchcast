@@ -71,7 +71,8 @@ struct IslandNoticeQueue: Sendable {
     /// Each text of an id is heard once, so a returning notice or a phase coming back stays quiet.
     mutating func announcement() -> String? {
         guard let top = entries.indices.last else { return nil }
-        return entries[top].heard.insert(entries[top].notice.text).inserted ? entries[top].notice.text : nil
+        let notice = entries[top].notice
+        return entries[top].heard.insert(notice.spoken).inserted ? notice.spoken : nil
     }
 
     private mutating func settle(at now: TimeInterval) {

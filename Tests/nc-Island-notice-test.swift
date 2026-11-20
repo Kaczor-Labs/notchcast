@@ -108,6 +108,14 @@ struct IslandNoticeTest {
         hidden.post(IslandNotice(id: "a", text: "Changed"), at: 0)
         hidden.end("b", at: 0)
         precondition(hidden.announcement() == "Changed", "A covered notice whose text changed is heard on return")
+
+        var secret = IslandNoticeQueue()
+        secret.post(IslandNotice(id: "w", text: "Copied “Home”: hunter2", spokenText: "Copied Wi-Fi password"), at: 0)
+        precondition(secret.notice?.text == "Copied “Home”: hunter2" && secret.announcement() == "Copied Wi-Fi password",
+                     "A notice with spoken text shows its text and announces the spoken text")
+        secret.post(IslandNotice(id: "p", text: "Copied 1.2.3.4"), at: 0)
+        precondition(secret.notice?.spoken == "Copied 1.2.3.4" && secret.announcement() == "Copied 1.2.3.4",
+                     "A notice without spoken text announces its text")
         print("IslandNoticeTest passed")
     }
 
