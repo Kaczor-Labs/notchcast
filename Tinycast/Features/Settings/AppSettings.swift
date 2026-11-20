@@ -462,7 +462,8 @@ final class AppSettings {
     }
 
     var customCommandsEnabled: Bool {
-        didSet { defaults.set(customCommandsEnabled, forKey: Key.customCommandsEnabled.rawValue) }
+        get { false }
+        set { _ = newValue }
     }
 
     /// With the feature on, controls only whether its launcher section appears.
@@ -480,7 +481,8 @@ final class AppSettings {
 
     /// Off out of the box: on means Tinycast may read a selection anywhere and type over it.
     var quickActionsEnabled: Bool {
-        didSet { defaults.set(quickActionsEnabled, forKey: Key.quickActionsEnabled.rawValue) }
+        get { false }
+        set { _ = newValue }
     }
 
     var snippetsShowInLauncher: Bool {
@@ -881,13 +883,11 @@ final class AppSettings {
         notesFolder = defaults.string(forKey: Key.notesFolder.rawValue)
         aiEnabled = defaults.bool(forKey: Key.aiEnabled.rawValue)
         mcpEnabled = defaults.bool(forKey: Key.mcpEnabled.rawValue)
-        customCommandsEnabled = defaults.bool(forKey: Key.customCommandsEnabled.rawValue)
         // These default on, so absence must be distinguished from a stored `false`.
         customCommandsShowInLauncher =
             defaults.object(forKey: Key.customCommandsShowInLauncher.rawValue) == nil
             || defaults.bool(forKey: Key.customCommandsShowInLauncher.rawValue)
         snippetsEnabled = defaults.bool(forKey: Key.snippetsEnabled.rawValue)
-        quickActionsEnabled = defaults.bool(forKey: Key.quickActionsEnabled.rawValue)
         snippetsShowInLauncher =
             defaults.object(forKey: Key.snippetsShowInLauncher.rawValue) == nil
             || defaults.bool(forKey: Key.snippetsShowInLauncher.rawValue)
