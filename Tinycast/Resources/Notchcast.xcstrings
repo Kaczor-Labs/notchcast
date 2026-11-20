@@ -79,9 +79,6 @@
     "Every saved dictation goes. This can't be undone." : {
 
     },
-    "Files & Downloads" : {
-      "shouldTranslate" : false
-    },
     "Fix punctuation, numbers and filler words before pasting. Return pastes it as spoken." : {
 
     },
