@@ -125,6 +125,8 @@ func cardCap() {
           "the three with least left, in order: \(meters(card).map(\.label))")
     check(card.caption == "2 more, none under 100% left", "the rest in one line: \(String(describing: card.caption))")
     check(card.spoken?.contains("Weekly · gemini-argon-wtu") == true, "VoiceOver still reads every window")
+    let four = account("Antigravity", "antigravity", Array(five.windows.prefix(4)))
+    check(AgentBoard.card(four, now: now).caption == "1 more, 100% left", "one hidden meter reads as one")
     var old = five
     old.checkedAt = now.addingTimeInterval(-20 * minute)
     check(AgentBoard.card(old, now: now).caption == "Updated 20 min ago", "an old reading's caption comes first")

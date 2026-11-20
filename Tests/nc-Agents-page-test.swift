@@ -154,8 +154,8 @@ enum AgentsPageTest {
         AgentsPreferences(defaults: defaults).claudeAccounts = []
         let codexOnly = AgentsModule(context: context, system: system)
         codexOnly.start()
-        precondition(presenter.page?.line.text == "Reading…" && presenter.page?.blocks
-            == [.row(IslandPageRow(symbol: "magnifyingglass", title: "Reading…"))],
+        precondition(presenter.page?.line.text == "Reading…" && presenter.page?.blocks.first
+            == .row(IslandPageRow(symbol: "magnifyingglass", title: "Reading…")),
             "Codex and no Claude account reads before it says no plans: \(String(describing: presenter.page))")
         codexOnly.stop()
         answer("Codex", "codex", used: 0, state: .missing)

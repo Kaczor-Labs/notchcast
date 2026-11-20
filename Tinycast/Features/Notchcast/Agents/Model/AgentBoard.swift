@@ -253,7 +253,8 @@ struct AgentBoard: Equatable, Sendable {
         let hidden = meters.indices.filter { !kept.contains($0) }.map { meters[$0] }
         let count = hidden.count
         let lowest = hidden.min { $0.fraction < $1.fraction }?.value ?? ""
-        let line = String(localized: "\(count) more, none under \(lowest)", table: "NotchcastAgents")
+        let line = count == 1 ? String(localized: "1 more, \(lowest)", table: "NotchcastAgents")
+            : String(localized: "\(count) more, none under \(lowest)", table: "NotchcastAgents")
         return (meters.indices.filter(kept.contains).map { meters[$0] }, line)
     }
 

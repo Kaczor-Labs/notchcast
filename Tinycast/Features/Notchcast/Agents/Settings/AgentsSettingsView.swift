@@ -122,8 +122,8 @@ struct AgentsSettingsView: View {
         let home = URL(fileURLWithPath: NSHomeDirectory())
         guard let url = Self.pickFolder(from: home) else { return }
         let path = ClaudeLaunch.trimmed(url.path(percentEncoded: false))
-        // With nothing selected the panel returns the folder it shows, at first home.
         let shown = Self.display(path)
+        // With nothing selected the panel returns the folder it shows, at first home.
         guard path != "/", path != ClaudeLaunch.path("~", home: home) else {
             return refusal = [
                 String(localized: "\(shown) isn’t a Claude Code folder.", table: "NotchcastAgents"),

@@ -16,6 +16,7 @@
     "%lld reset credits" : {},
     "%lld%% left" : {},
     "1 %@ reset credit" : {},
+    "1 more, %@" : {},
     "1 reset credit" : {},
     "Add a Claude account in Settings › Notchcast › Agents." : {},
     "Add…" : {},
