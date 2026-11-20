@@ -127,10 +127,10 @@ enum NotchcastCommandAliasTests {
             return index.apps.contains { $0.id == CommandID.fixture.rawValue }
         }
         let index = AppIndex(ranking: ranking, aliases: aliases)
-        check("the shipped hidden-command set is empty", NotchcastHiddenCommands.commands.isEmpty)
-        check("a stock command is listed and enabled while the set is empty", listed() && index.isCommandEnabled(.fixture))
-        NotchcastHiddenCommands.commands = [.fixture]
-        defer { NotchcastHiddenCommands.commands = [] }
+        let shipped = NotchcastHiddenCommands.commands
+        check("a stock command is listed and enabled while not in the set", listed() && index.isCommandEnabled(.fixture))
+        NotchcastHiddenCommands.commands = shipped.union([.fixture])
+        defer { NotchcastHiddenCommands.commands = shipped }
         check("a hidden command is not listed", !listed())
         check("a hidden command is disabled", !index.isCommandEnabled(.fixture))
     }
