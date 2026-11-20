@@ -101,9 +101,10 @@ nonisolated enum CopyPathResolver {
             guard selected >= 2 else { return nil }
             try Task.checkCancellation()
             guard let text = try await reader.browserCopy(pid) else { return nil }
-            let links = text.split(whereSeparator: \.isNewline).compactMap {
-                webLink($0.trimmingCharacters(in: .whitespaces))
-            }
+            let lines = text.split(whereSeparator: \.isNewline).map { $0.trimmingCharacters(in: .whitespaces) }
+            var links = lines.compactMap(webLink)
+            // An empty active tab and local tabs: Share already put their file links on the clipboard.
+            if links.isEmpty, page == nil { links = lines.filter { localPath($0) != nil } }
             // Gecko's active tab is always selected, so a list without it or longer than the selection is stale.
             guard !links.isEmpty, links.count <= selected, page.flatMap(webLink).map(links.contains) != false
             else { return nil }
