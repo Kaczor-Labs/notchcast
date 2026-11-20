@@ -208,7 +208,7 @@ enum FinderToolsModuleTests {
         precondition(!rig.controller.run(entryID: "command:nc-finder-rename"), "rename command off with its switch")
         rig.finish()
 
-        let rename = Rig(enabled: [FinderToolsAddon.renameSwitchID])
+        let rename = Rig(enabled: ["finderRename"])
         fake.posted = []
         precondition(rename.session == nil, "rename alone installs no tap, so ⌃⌥⇧⌘R and ⌘X pass")
         precondition(rename.controller.run(entryID: "command:nc-finder-rename"), "the rename command runs")

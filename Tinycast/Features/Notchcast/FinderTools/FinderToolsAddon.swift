@@ -4,11 +4,10 @@ import Foundation
 
 enum FinderToolsAddon: NotchcastAddon {
     static let cutPasteSwitchID = "finderCutPaste"
-    static let renameSwitchID = "finderRename"
 
     static let switches = [
         NotchcastSwitch(
-            id: cutPasteSwitchID,
+            id: "finderCutPaste",
             title: String(localized: "Cut and paste in Finder", table: "NotchcastFinderTools"),
             subtitle: String(
                 localized: "⌘X then ⌘V moves files instead of copying them.", table: "NotchcastFinderTools"),
@@ -16,7 +15,7 @@ enum FinderToolsAddon: NotchcastAddon {
             requiredGrants: [.accessibility]
         ),
         NotchcastSwitch(
-            id: renameSwitchID,
+            id: "finderRename",
             title: String(localized: "Quick rename in Finder", table: "NotchcastFinderTools"),
             subtitle: String(
                 localized: "Rename the selected file or folder from the launcher or with a shortcut you choose.",
@@ -29,15 +28,15 @@ enum FinderToolsAddon: NotchcastAddon {
     static let commands = [
         NotchcastCommand(
             slug: "finder-cut", name: String(localized: "Cut Files in Finder", table: "NotchcastFinderTools"),
-            symbol: "scissors", switchID: cutPasteSwitchID, keywords: ["move", "cut"],
+            symbol: "scissors", switchID: "finderCutPaste", keywords: ["move", "cut"],
             run: { $0.module(FinderToolsModule.self)?.run(.cut) }),
         NotchcastCommand(
             slug: "finder-paste", name: String(localized: "Paste Files in Finder", table: "NotchcastFinderTools"),
-            symbol: "doc.on.clipboard", switchID: cutPasteSwitchID, keywords: ["move", "paste"],
+            symbol: "doc.on.clipboard", switchID: "finderCutPaste", keywords: ["move", "paste"],
             run: { $0.module(FinderToolsModule.self)?.run(.paste) }),
         NotchcastCommand(
             slug: "finder-rename", name: String(localized: "Rename in Finder", table: "NotchcastFinderTools"),
-            symbol: "pencil", switchID: renameSwitchID, keywords: ["rename", "file"],
+            symbol: "pencil", switchID: "finderRename", keywords: ["rename", "file"],
             run: { $0.module(FinderToolsModule.self)?.run(.rename) }),
     ]
 
