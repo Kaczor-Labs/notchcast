@@ -51,7 +51,6 @@ enum IslandVerification {
     static let stock = false
 }
 
-
 /// #977's acceptance set: the System page and Home, normal and hot, and the closed island's hot glyph,
 /// in both forms on Black and Frosted. `NC_AUDIT_RENDERS` names the folder, else the audit harness's own.
 @MainActor
