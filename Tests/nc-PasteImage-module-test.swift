@@ -27,21 +27,22 @@ final class FakeSystem {
     var image: PasteImageClip? = png
     var focus: PasteImageFocus? = PasteImageFocus(pid: 7, role: "AXOutline")
     var hold = false
-    var saveWorks = true
+    var failure: PasteImageFailure?
     var saves: [Date] = []
     var replays: [Int] = []
+    var automationOpens = 0
 
     func reset() {
         finder = 7; finderReads = 0; characters = [9: "v"]; types = ["public.png"]; image = png
         focus = PasteImageFocus(pid: 7, role: "AXOutline")
-        hold = false; saveWorks = true; saves = []; replays = []
+        hold = false; failure = nil; saves = []; replays = []; automationOpens = 0
     }
 
-    func save(_ clip: PasteImageClip, _ date: Date) async -> Bool {
+    func save(_ clip: PasteImageClip, _ date: Date) async -> PasteImageFailure? {
         precondition(clip == png, "the clipboard image is what is saved")
         saves.append(date)
         while hold && !Task.isCancelled { await Task.yield() }
-        return saveWorks
+        return failure
     }
 }
 
@@ -59,7 +60,8 @@ extension PasteImageSystem {
         clipboardImage: { fake.image },
         focus: { await fake.focus },
         save: { await fake.save($0, $1) },
-        replay: { fake.replays.append($0) }
+        replay: { fake.replays.append($0) },
+        openAutomationSettings: { fake.automationOpens += 1 }
     )
 }
 
@@ -81,8 +83,12 @@ final class FakeSession: NotchcastTapSession {
 @MainActor
 final class RecordingPresenter: IslandPresenting {
     var posts: [IslandNotice] = []
+    var taps: [(@MainActor () -> Void)?] = []
     func showLevel(_ level: IslandLevel) {}
-    func post(_ notice: IslandNotice, onTap: (@MainActor () -> Void)?) { posts.append(notice) }
+    func post(_ notice: IslandNotice, onTap: (@MainActor () -> Void)?) {
+        posts.append(notice)
+        taps.append(onTap)
+    }
     func end(notice id: String) {}
     func setStatus(_ status: IslandStatus?, for id: String, onTap: (@MainActor () -> Void)?) {}
     func setMenuRows(_ rows: [IslandMenuRow], owner: String, onSelect: @escaping @MainActor (String) -> Void) {}
@@ -204,21 +210,49 @@ enum PasteImageModuleTests {
         await until("save starts") { fake.saves.count == 2 }
         precondition(rig.send(9) == .pass, "a ⌘V while saving is a normal ⌘V")
         precondition(rig.send(9, repeat: true) == .pass && rig.send(9, down: false) == .pass, "and passes whole")
-        fake.saveWorks = false
+        fake.failure = .notSaved
         fake.hold = false
         await until("failure shows") { rig.module?.work == nil && !rig.presenter.posts.isEmpty }
         let notice = rig.presenter.posts[0]
         precondition(notice.isFailure && notice.id == "pasteImage", "one failure notice")
-        precondition(
-            notice.text == "Cannot paste image here. Choose a writable Finder folder and allow Automation access "
-                + "in System Settings.", "the issue's failure text: \(notice.text)")
-        fake.saveWorks = true
-        await rig.paste("after a failure") { fake.saves.count == 3 }
-        precondition(rig.presenter.posts.count == 1, "the next paste works")
+        precondition(notice.text == "The image could not be saved here.", "its own text: \(notice.text)")
+        precondition(rig.presenter.taps[0] == nil, "only the Automation notice takes a click")
+
+        let texts: [PasteImageFailure: String] = [
+            .noFolder: "Open a folder to paste the image.",
+            .automationRefused: "Allow Automation access for Finder.",
+            .finderSilent: "Finder did not answer.",
+            .unreadable: "The copied image could not be read.",
+            .tooLarge: "The copied image is too large.",
+            .notSaved: "The image could not be saved here.",
+        ]
+        precondition(Set(texts.keys) == Set(PasteImageFailure.allCases), "every failure has its text here")
+        for failure in PasteImageFailure.allCases {
+            let posts = rig.presenter.posts.count
+            fake.failure = failure
+            await rig.paste("\(failure)") { rig.presenter.posts.count == posts + 1 }
+            let shown = rig.presenter.posts[posts]
+            precondition(shown.isFailure && shown.id == "pasteImage", "\(failure): one failure notice")
+            precondition(shown.text == texts[failure], "\(failure): \(shown.text)")
+            precondition(shown.text.count <= 35, "\(failure) fits the island whole")
+            precondition((rig.presenter.taps[posts] != nil) == (failure == .automationRefused), "\(failure): click")
+            if let tap = rig.presenter.taps[posts] {
+                tap()
+                precondition(fake.automationOpens == 1, "the click opens Automation settings")
+            }
+        }
+        precondition(fake.replays.count == 4, "a failed save never gives ⌘V back")
+
+        fake.failure = nil
+        let shown = rig.presenter.posts.count
+        let saved = fake.saves.count
+        await rig.paste("after a failure") { fake.saves.count == saved + 1 }
+        precondition(rig.presenter.posts.count == shown, "the next paste works")
 
         fake.finder = nil
+        let beforeLeft = fake.saves.count
         await rig.paste("Finder left") { fake.replays.count == 5 }
-        precondition(fake.saves.count == 3, "Finder left the front before the tap heard of it: ⌘V goes back")
+        precondition(fake.saves.count == beforeLeft, "Finder left the front before the tap heard of it: ⌘V goes back")
 
         await rig.activate()
         precondition(rig.send(9) == .pass, "outside Finder ⌘V passes")
@@ -226,8 +260,10 @@ enum PasteImageModuleTests {
         await rig.activate()
 
         fake.hold = true
+        fake.failure = .notSaved
+        let postsBeforeOff = rig.presenter.posts.count
         precondition(rig.send(9) == .swallow, "a held key")
-        await until("held save") { fake.saves.count == 4 }
+        await until("held save") { fake.saves.count == beforeLeft + 1 }
         let beforeReset = fake.finderReads
         guard case .reenable(let ids) = rig.session!.router.receive(
             type: .tapDisabledByTimeout, event: CGEvent(source: nil)!)
@@ -241,7 +277,7 @@ enum PasteImageModuleTests {
         rig.controller.preferences.set("pasteImage", on: false)
         await until("switch off") { rig.module == nil }
         await task?.value
-        precondition(rig.presenter.posts.count == 1, "a paste cut off by switch-off posts nothing")
+        precondition(rig.presenter.posts.count == postsBeforeOff, "a paste cut off by switch-off posts nothing")
         precondition(rig.hub.subscriberCount == 0 && rig.session?.isRunning == false, "switch off removes the tap")
         rig.finish()
 
