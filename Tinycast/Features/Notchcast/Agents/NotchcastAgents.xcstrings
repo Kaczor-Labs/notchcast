@@ -1,6 +1,8 @@
 {
   "sourceLanguage" : "en",
   "strings" : {
+    "%@ is already listed, so it wasn’t added again." : {},
+    "%@ isn’t a Claude Code folder." : {},
     "%@ not found" : {},
     "%@ of %@" : {},
     "%lld %@ reset credits" : {},
@@ -9,7 +11,7 @@
     "%lld h" : {},
     "%lld h %lld min" : {},
     "%lld min" : {},
-    "%lld more, lowest %@" : {},
+    "%lld more, none under %@" : {},
     "%lld percent left" : {},
     "%lld reset credits" : {},
     "%lld%% left" : {},
@@ -20,7 +22,7 @@
     "Agents" : {},
     "Agents page" : {},
     "Back in %@" : {},
-    "Choose a Claude Code folder" : {},
+    "Choose the folder Claude Code signs in with, such as .claude_team." : {},
     "Choose…" : {},
     "Claude accounts" : {},
     "Couldn’t read usage" : {},
@@ -28,6 +30,7 @@
     "Each is a Claude Code config folder, read with its own sign-in." : {},
     "Extra usage" : {},
     "Feed folder" : {},
+    "Folder not added" : {},
     "Limit" : {},
     "Limit used up" : {},
     "Monthly" : {},
@@ -58,7 +61,6 @@
     "Updated %@ ago" : {},
     "Weekly" : {},
     "Weekly limit used up" : {},
-    "Your home folder isn’t one. Choose the folder Claude Code signs in with, such as .claude_team." : {},
     "in %@" : {},
     "resets in %@" : {},
     "runs out in %@" : {}
