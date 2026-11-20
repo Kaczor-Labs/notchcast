@@ -395,11 +395,11 @@ struct SpotifyModuleTests {
         await module.signIn()
         check(module.isSignedIn && fake.tokens?.refreshToken == "R", "tokens land in the Keychain")
         check(fake.opened.last?.host() == "accounts.spotify.com", "the browser opens Spotify's sign-in")
-        fake.event?(event(#"{"type":"playback_state","status":"playing","item":\#(trackJSON),"is_active":true}"#))
         fake.answers = [(200, "[true]")]
-        module.refreshLiked()
+        fake.event?(event(#"{"type":"playback_state","status":"playing","item":\#(trackJSON),"is_active":true}"#))
         await settle()
-        check(module.liked == true && fake.requests.last == "GET /v1/me/library/contains", "liked state")
+        check(module.liked == true && fake.requests.last == "GET /v1/me/library/contains",
+              "a new song asks whether it is liked (#850)")
         fake.answers = [(500, "")]
         module.toggleLike()
         check(module.liked == false, "the heart answers at once")

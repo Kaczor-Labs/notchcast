@@ -24,7 +24,9 @@ final class SpotifyModule: NotchcastModule {
     var isSignedIn = false
     var clientID: String
     /// Whether the current song is in Liked Songs; nil while unknown or signed out.
-    var liked: Bool?
+    var liked: Bool? {
+        didSet { if liked != oldValue { onPlayback?(playback, playback) } }
+    }
     @ObservationIgnored var web: SpotifyWeb?
     @ObservationIgnored private var volume: SpotifyVolumeMemory
     /// Set the moment Soloist is spawned or adopted, so stop and quit never leave it running.

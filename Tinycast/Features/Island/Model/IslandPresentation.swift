@@ -62,6 +62,8 @@ struct IslandPage: Equatable, Sendable {
     /// The page summed up in one Home line.
     var line: IslandPageLine
     var blocks: [IslandPageBlock]
+    /// Set, space and the four arrows on this page go to `onAction` as `IslandPageKey.action` ids.
+    var takesKeys = false
 
     /// What Command-R sends to `onAction`; every page refreshes its data on it.
     static let refreshAction = "refresh"
@@ -104,6 +106,29 @@ struct IslandMedia: Equatable, Sendable {
     var subtitle: String?
     var time: IslandMediaTime?
     var buttons: [IslandPageButton]
+    /// A toggle beside the title, such as a heart; nil draws none.
+    var like: IslandPageButton?
+    /// A click or drag on the bar sends `IslandMedia.seekAction` with the fraction.
+    var seekable = false
+    /// 0...1; set, a volume bar under the transport sends `IslandMedia.volumeAction` with the level.
+    var volume: Double?
+    /// What plays next, listed beside the player under "Up Next"; a row with an id plays it.
+    var upNext: [IslandPageRow] = []
+
+    static let seekAction = "media.seek"
+    static let volumeAction = "media.volume"
+
+    /// "<action>:<fraction>", the one string `onAction` carries; `value(of:in:)` reads it back.
+    static func action(_ name: String, _ fraction: Double) -> String {
+        "\(name):\(min(max(fraction, 0), 1))"
+    }
+
+    static func value(of name: String, in id: String) -> Double? {
+        guard id.hasPrefix(name + ":"), let value = Double(id.dropFirst(name.count + 1)), value.isFinite else {
+            return nil
+        }
+        return min(max(value, 0), 1)
+    }
 }
 
 /// "At `sampledAt` it was `elapsed` seconds in, moving at `rate`", so the bar runs without updates.

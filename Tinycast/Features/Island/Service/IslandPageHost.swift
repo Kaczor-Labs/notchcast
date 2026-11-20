@@ -138,6 +138,11 @@ final class IslandPageHost {
     private func key(_ event: NSEvent) -> Bool {
         guard let key = IslandPageKey(keyCode: event.keyCode, characters: event.charactersIgnoringModifiers ?? "",
                                       command: event.modifierFlags.contains(.command)) else { return false }
+        if let target = deck.pageAction(for: key) {
+            act(page: target.page, action: target.action)
+            keyOnPin()
+            return true
+        }
         switch key {
         case .move(let step): deck.move(by: step)
         case .number(let number): deck.select(number: number)
@@ -146,6 +151,7 @@ final class IslandPageHost {
         case .refresh:
             let shown = deck.current.map { [$0] } ?? deck.pages
             for page in shown { act(page: page.id, action: IslandPage.refreshAction) }
+        case .space, .step: return false
         }
         if isOpen { render() }
         keyOnPin()

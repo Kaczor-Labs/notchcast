@@ -11,6 +11,19 @@ struct IslandNowPlaying: Equatable, Sendable {
     var id = ""
     /// How a pill without a notch fits "title · artist" longer than its cap (D15).
     var overflow = IslandSongOverflow.widen
+    /// In the user's liked songs; nil when the player cannot tell, so no heart shows.
+    var liked: Bool?
+    /// 0...1; nil hides the volume bar.
+    var volume: Double?
+    /// The player takes a seek on the bar.
+    var seekable = false
+    var upNext: [IslandQueuedSong] = []
+
+    /// Only what the pill draws, so a change to the page alone never redraws it.
+    var glance: IslandNowPlaying {
+        IslandNowPlaying(title: title, artist: artist, artwork: artwork, time: nil, isPlaying: isPlaying, id: id,
+                         overflow: overflow)
+    }
 
     var songID: String { id.isEmpty ? title + "\u{1F}" + (artist ?? "") : id }
 
@@ -19,6 +32,13 @@ struct IslandNowPlaying: Equatable, Sendable {
         let state = isPlaying ? String(localized: "Playing", table: "Notchcast") : String(localized: "Paused")
         return [title, artist ?? "", state].filter { !$0.isEmpty }.joined(separator: ", ")
     }
+}
+
+/// A song waiting after this one.
+struct IslandQueuedSong: Equatable, Sendable {
+    var id: String
+    var title: String
+    var artist: String?
 }
 
 /// D15: a pill without a notch either widens to the song's line or keeps its cap and scrolls the line.
@@ -98,12 +118,40 @@ struct IslandSongChange: Equatable, Sendable {
     mutating func cut() { shown = nil }
 }
 
-/// The player page's buttons; the raw value is the id its page sends back.
+/// The player page's buttons and keys; the raw value is the id its page sends back.
 enum IslandPlayerControl: String, Sendable {
     case previous = "player.previous"
     case playPause = "player.playPause"
     case next = "player.next"
+    case like = "player.like"
     case refresh = "refresh"
+    case volumeUp = "key.up"
+    case volumeDown = "key.down"
+}
+
+/// What the player page asks of its player: a control, or a seek or volume as a fraction.
+enum IslandPlayerAction: Equatable, Sendable {
+    case control(IslandPlayerControl)
+    case seek(Double)
+    case volume(Double)
+
+    /// Space and the arrows on the page are the transport (#850 D27).
+    init?(id: String) {
+        if let control = IslandPlayerControl(rawValue: id) {
+            self = .control(control)
+        } else if let fraction = IslandMedia.value(of: IslandMedia.seekAction, in: id) {
+            self = .seek(fraction)
+        } else if let fraction = IslandMedia.value(of: IslandMedia.volumeAction, in: id) {
+            self = .volume(fraction)
+        } else {
+            switch id {
+            case "key.space": self = .control(.playPause)
+            case "key.left": self = .control(.previous)
+            case "key.right": self = .control(.next)
+            default: return nil
+            }
+        }
+    }
 }
 
 /// The Player page (#975): artwork, title, artist, time and transport, and its Home line.
@@ -122,11 +170,20 @@ enum IslandPlayerPage {
                                     label: String(localized: "Previous Track"))
         let skip = IslandPageButton(id: IslandPlayerControl.next.rawValue, symbol: "forward.fill",
                                     label: String(localized: "Next Track"))
+        let like = playing.liked.map { liked in
+            liked ? IslandPageButton(id: IslandPlayerControl.like.rawValue, symbol: "heart.fill",
+                                     label: String(localized: "Remove from Liked Songs", table: "Notchcast"))
+                  : IslandPageButton(id: IslandPlayerControl.like.rawValue, symbol: "heart",
+                                     label: String(localized: "Save to Liked Songs", table: "Notchcast"))
+        }
+        let upNext = playing.upNext.map { IslandPageRow(title: $0.title, detail: $0.artist) }
         return IslandPage(
             id: id, title: String(localized: "Player", table: "Notchcast"), symbol: "music.note", order: order,
             line: IslandPageLine(symbol: "music.note", artwork: playing.artwork, text: playing.title,
                                  detail: playing.artist, buttons: [toggle, skip]),
             blocks: [.media(IslandMedia(artwork: playing.artwork, title: playing.title, subtitle: playing.artist,
-                                        time: playing.time, buttons: [back, toggle, skip]))])
+                                        time: playing.time, buttons: [back, toggle, skip], like: like,
+                                        seekable: playing.seekable, volume: playing.volume, upNext: upNext))],
+            takesKeys: true)
     }
 }
