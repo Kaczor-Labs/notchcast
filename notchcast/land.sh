@@ -423,19 +423,36 @@ isolated_proof() {
 # Not covered without an Xcode build of this tree: code no selected harness compiles (UI, AppCore wiring,
 # resources); the PR build covered each head alone, and Sync and Snapshot follow on main.
 harnesses() {
-    local commit proof= names why tested= unproven= skipped isolated= left=
+    local commit proof= names why tested= unproven= skipped isolated= left= bench i=0 pr wanted
     : > "$scratch/linux"
     for commit in $(git rev-list --reverse "$base..HEAD"); do
+        i=$((i + 1))
         if [ "$platform" = linux ]; then
             TMPDIR="$scratch/tmp" "$selector" --linux "$scratch/linux-one" "$commit^" "$commit"
             cat "$scratch/linux-one" >> "$scratch/linux"
         else
             TMPDIR="$scratch/tmp" "$selector" "$commit^" "$commit"
-        fi
+        fi > "$scratch/selected-$i"
+        cat "$scratch/selected-$i"
     done | sort -u > "$scratch/selected"
     [ -s "$scratch/selected" ] || refuse 'no harness selected for the merged tree'
     names=$(< "$scratch/selected")
     landed_from=mac
+    # Main's lists and the merged tree's: a PR that puts a new harness in both had its own hosted run skip it.
+    bench=$(listed_in "$(cd "$(dirname "$selector")/.." && bench_only_list) $(bench_only_list)" "$scratch/selected")
+    if [ -n "$bench" ] && [ "$check" -eq 0 ]; then
+        # The chain holds one squash per PR of the train, in its order.
+        for i in "${!train[@]}"; do
+            pr=${train[$i]}
+            wanted=$(listed_in "$bench" "$scratch/selected-$((i + 1))")
+            [ -z "$wanted" ] || wanted=$(bench_wanted "$pr" "$(jq -r .headRefOid "$scratch/pr-$pr.json")" "$wanted")
+            [ -z "$wanted" ] || refuse "#$pr $wanted"
+        done
+        echo "harnesses: a bench check on the MBP's real screen proved $bench at each head that selects it"
+        grep -vxF -f <(tr ' ' '\n' <<< "$bench") "$scratch/selected" > "$scratch/selected-rest" || true
+        mv "$scratch/selected-rest" "$scratch/selected"
+        names=$(< "$scratch/selected")
+    fi
     # run-tests.sh skips these here (test-harnesses.sh), so only a hosted run of this exact tree proves them;
     # a Linux landing never proves one itself, whatever runner it is on.
     { [ "$platform" = mac ] && { [ "${RUNNER_ENVIRONMENT:-}" = github-hosted ] || [ "${NOTCHCAST_ISOLATED_RUNNER:-}" = 1 ]; }; } \
