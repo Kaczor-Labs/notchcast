@@ -37,10 +37,6 @@ struct DownloadsMediaTest {
         precondition(!MediaArguments.retryNatively(stderr: "HTTP Error 403", source: "https://example.com", usedAria2: true))
         let restarted = MediaArguments.download(source: source, destination: destination, format: .video, restart: true)
         precondition(restarted.contains("--no-continue"))
-        let sizing = MediaArguments.size(source: source, format: .video)
-        precondition(sizing.contains("%(filesize,filesize_approx)s") && !sizing.contains("--paths"))
-        precondition(MediaArguments.bytes("WARNING\n524288000\n") == 524_288_000 && MediaArguments.bytes("NA") == nil
-                     && MediaArguments.bytes("") == nil && MediaArguments.bytes("0") == nil)
         let manual = MediaArguments.captions(source: source, destination: destination, automatic: false)
         let automatic = MediaArguments.captions(source: source, destination: destination, automatic: true)
         precondition(manual.contains("all,-live_chat") && !manual.contains("en"))
@@ -168,9 +164,7 @@ struct DownloadsMediaTest {
             --write-subs) mode=manual;;
             --write-auto-subs) mode=auto;;
             --sub-langs) shift; language="$1";;
-            --print) shift
-              case "$1" in '%(filesize'*) cat "${0%/*}/size"; exit 0;; esac
-              [ "$1" != '%(language)s' ] || mode=metadata;;
+            --print) shift; [ "$1" != '%(language)s' ] || mode=metadata;;
           esac
           source="$1"
           shift
@@ -214,20 +208,13 @@ struct DownloadsMediaTest {
         try FileManager.default.createSymbolicLink(at: root.appending(path: "aria2c"), withDestinationURL: tool)
         try await aria2(root, context: context, job: job, enabled: false, expected: false)
         try await aria2(root, context: context, job: job, enabled: true, expected: true)
-        let cases: [(size: String, remote: Int64?, possible: Bool, expected: Bool)] = [
-            ("50000000", nil, true, false), ("500000000", nil, true, true), ("NA", nil, true, false),
-            ("NA", 500_000_000, true, true), ("50000000", 500_000_000, true, false), ("500000000", nil, false, false),
-        ]
-        for (size, remote, possible, expected) in cases {
-            try size.write(to: root.appending(path: "size"), atomically: true, encoding: .utf8)
-            let runner = MediaDownloadRunner(format: .video, aria2Enabled: { true }, bonding: .init(
-                isPossible: { possible },
-                begin: { _, bytes in (bytes ?? 0) > 200_000_000 ? ["--multiple-interface=en0,en7"] : [] },
-                remoteBytes: { _ in remote }))
+        for (aria2, bonded) in [(true, true), (true, false), (false, false)] {
+            let runner = MediaDownloadRunner(format: .video, aria2Enabled: { aria2 }, bonding: .init(
+                begin: { _ in bonded ? ["--multiple-interface=en0,en7"] : [] }))
             _ = try await runner.run(job, context: context)
             let arguments = try String(contentsOf: root.appending(path: "arguments"), encoding: .utf8)
-            precondition(arguments.contains("-k 1M --file-allocation=none --multiple-interface=en0,en7") == expected,
-                         "#925: yt-dlp says \(size), the server \(remote ?? 0), possible \(possible): bonded \(expected)")
+            precondition(arguments.contains("-k 1M --file-allocation=none --multiple-interface=en0,en7") == bonded,
+                         "#1183: aria2c \(aria2), both interfaces \(bonded): bonded \(bonded), with no size asked")
         }
         let captions = TranscriptDownloadRunner(rateLimitPause: .zero)
         let transcript = try await captions.run(job, context: context)
