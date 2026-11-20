@@ -4,7 +4,7 @@
 import SwiftUI
 
 /// The Day page in the island (#978): weather, market quotes and today's events; off by default.
-enum DayAddon: NotchcastAddon { // drift: keep the generated NotchcastRegistry lists it
+enum DayAddon: NotchcastAddon {
     static let switches = [
         NotchcastSwitch(
             id: "dayPage",

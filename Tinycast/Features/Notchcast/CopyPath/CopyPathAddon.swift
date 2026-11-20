@@ -1,4 +1,5 @@
 // notchcast-addon-order: 160
+// notchcast-readme: Launcher Extras: Copy Path for Finder files, browser links and documents
 import Foundation
 
 enum CopyPathAddon: NotchcastAddon {
