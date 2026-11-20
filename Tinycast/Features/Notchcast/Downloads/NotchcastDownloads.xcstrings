@@ -100,7 +100,13 @@
     "aria2c" : {
 
     },
-    "Download magnet links and torrent files to ~/Downloads with aria2c." : {
+    "Default app for magnet links and .torrent files; downloads them to ~/Downloads with aria2c." : {
+
+    },
+    "Default torrent app" : {
+
+    },
+    "Notchcast could not become the default torrent app." : {
 
     },
     "Upload as much as you downloaded before stopping. Off stops sharing once complete." : {

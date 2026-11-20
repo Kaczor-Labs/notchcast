@@ -39,7 +39,7 @@ enum DownloadsAddon: NotchcastAddon {
             id: "torrents",
             title: String(localized: "Torrents", table: "NotchcastDownloads"),
             subtitle: String(
-                localized: "Download magnet links and torrent files to ~/Downloads with aria2c.",
+                localized: "Default app for magnet links and .torrent files; downloads them to ~/Downloads with aria2c.",
                 table: "NotchcastDownloads"),
             category: .filesDownloads),
         NotchcastSwitch(
@@ -81,7 +81,7 @@ enum DownloadsAddon: NotchcastAddon {
     }
 
     static func makeRecovery(_ context: NotchcastContext) -> (any NotchcastModule)? {
-        TorrentOpenFallback(context: context)
+        TorrentOpenFallback(context: context, system: .live())
     }
 }
 
