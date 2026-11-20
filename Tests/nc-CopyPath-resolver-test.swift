@@ -181,6 +181,12 @@ func selectedTabCases() async throws {
     check(try await resolve(zen, reader(web: nil, tabs: 2, copy: "https://a.org/\nhttps://b.org/")),
           "https://a.org/\nhttps://b.org/", "an empty active tab with 2 selected web tabs copies the 2")
     check(try await resolve(zen, reader(web: nil, tabs: 3, copy: "\n")), nil, "only empty tabs selected: nothing")
+    let files = "file:///home/tester/a.html\nfile:///home/tester/b.html"
+    let local = try await resolveCopy(zen, reader(web: nil, tabs: 3, copy: files + "\r\nfile://server/c.html\n"))
+    precondition(local == CopyPathCopy(text: files, links: 2),
+                 "an empty active tab with local tabs copies their file links, as Share left them: \(String(describing: local))")
+    check(try await resolve(zen, reader(web: page, tabs: 2, copy: files)), "https://example.com/?a=1",
+          "local links without the active web page are a stale list: the page wins")
     check(try await resolve(zen, reader(web: page, tabs: 2, copy: bench)), "https://example.com/?a=1",
           "more links than selected tabs is a stale list: the page wins")
     check(try await resolve(zen, reader(web: page, tabs: 2, copy: "https://example.org/?b=2\nhttps://example.net/?c=3")),
@@ -365,6 +371,10 @@ func budget() {
     for left: Duration in [.microseconds(9_999), .microseconds(400), .zero, .milliseconds(-5)] {
         precondition(timeout(left, 1) == nil, "\(left) left: no read, never AX's 6 s default")
     }
+    let isSpent = CopyPathBudget.isSpent
+    precondition(isSpent(0.25, 1, .microseconds(400)), "a clipped read failing at the deadline spent the budget")
+    precondition(!isSpent(0.25, 1, .milliseconds(200)), "a clipped read failing early is Unavailable, not budget")
+    precondition(!isSpent(1, 1, .zero), "a read at the full cap that fails is Unavailable")
 }
 
 func folding() {
