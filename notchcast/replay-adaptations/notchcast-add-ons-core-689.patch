@@ -1,0 +1,13 @@
+diff --git a/Tinycast/App/AppCore.swift b/Tinycast/App/AppCore.swift
+index cfc54306c..95eab1833 100644
+--- a/Tinycast/App/AppCore.swift
++++ b/Tinycast/App/AppCore.swift
+@@ -545,7 +545,7 @@ final class AppCore {
+             return settings.quicklinksEnabled && quicklinks.quicklink(id: id)?.isEnabled == true
+         case .appleShortcut: return settings.appleShortcutsEnabled
+         case .extensionCommand: return settings.extensionsEnabled
+-        case .togglePalette, .app, .settingsPane, .systemAction: return true
++        case .togglePalette, .app, .settingsPane, .systemAction, .notchcastCommand: return true
+         }
+     }
+ 
