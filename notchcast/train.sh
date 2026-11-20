@@ -81,6 +81,7 @@ stack() {
     pr_title=$(jq -r '.title // ""' <<< "$metadata")
     pr_body=$(jq -r '.body // ""' <<< "$metadata")
     git -C "$top" fetch -q origin "refs/pull/$2/head"
+    git -C "$top" rev-parse FETCH_HEAD > "$scratch/head-$2"  # the head it merges is the one the bench record must name
     echo "train: #$2 ${head:0:8} onto ${1:0:8}" >&2
     # The merge runs even for an unlabelled draft, so one pass names every reason a PR would be dropped for.
     set +e
@@ -143,7 +144,6 @@ tell_drops() {
     done < "$scratch/drops"
 }
 notify() {
-    [ ! -f "$HOME/.config/notchcast/private.env" ] || source "$HOME/.config/notchcast/private.env"
     ! declare -F notchcast_notify >/dev/null || printf 'Notchcast: %s\n' "$1" | notchcast_notify || echo 'WARN: notify failed' >&2
 }
 # PR $1 is held for reason $2: one comment and one notify line per head and reason, never one per tick.
@@ -151,7 +151,8 @@ tell_wait() {
     local pr=$1 note
     note="Held out of the landing batch at its head $(< "$scratch/head-$pr"): #$pr $2. The queue tries it again each tick."
     gh pr view "$pr" -R "$FORK_REPO" --json comments | jq -e --arg note "$note" 'any(.comments[]; .body == $note)' >/dev/null && return 0
-    gh pr comment "$pr" -R "$FORK_REPO" --body "$note" >/dev/null || echo "WARN: could not comment on #$pr" >&2
+    # No comment, no notify: the comment is what marks it told, so a failed one is tried again next tick.
+    gh pr comment "$pr" -R "$FORK_REPO" --body "$note" >/dev/null || { echo "WARN: could not comment on #$pr" >&2; return 0; }
     notify "$note"
 }
 # Every one must finish green on the train's tip; all but Design take the train's base, as a PR run has it.

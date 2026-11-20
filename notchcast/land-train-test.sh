@@ -822,20 +822,23 @@ echo 'PASS: --queue stacks the oldest signed-off green PRs up to the batch size,
 # Bench-only: a harness in both lists passes in no VM, so only a maintainer's bench-ok comment at the head proves it.
 head_of() { jq -r .headRefOid "$FIXTURE/pr-$1.json"; }
 wanted() { echo "needs a bench check of $1 on the MBP's real screen: comment \`bench-ok $1 $2\`"; }
-# bench_ok <pr> <sha> [<association>]: a comment whose first line records a bench check of form-input-test at <sha>.
-bench_ok() {
-    jq --arg body "$(printf 'bench-ok form-input-test %s\nChecked on the MBP.' "$2")" --arg as "${3:-OWNER}" \
-        '.comments += [{body: $body, authorAssociation: $as}]' "$FIXTURE/pr-$1.json" > "$FIXTURE/pr.json" && mv "$FIXTURE/pr.json" "$FIXTURE/pr-$1.json"
+# comment <pr> <body> [<association>]; bench_ok <pr> <sha> [<association>]: a first line recording a bench check at <sha>.
+comment() {
+    jq --arg body "$2" --arg as "${3:-OWNER}" '.comments += [{body: $body, authorAssociation: $as}]' "$FIXTURE/pr-$1.json" > "$FIXTURE/pr.json" \
+        && mv "$FIXTURE/pr.json" "$FIXTURE/pr-$1.json"
 }
+bench_ok() { comment "$1" "$(printf 'bench-ok form-input-test %s\nChecked on the MBP.' "$2")" "${3:-}"; }
 fixture
 open_pr 1 pr-f 'Add F' src/form-input.txt src/hosted.txt
 bench_ok 1 "$(head_of 1)" NONE
 bench_ok 1 "$(git rev-parse "$base")"
+comment 1 "$(printf 'Quoting the hold note:\nbench-ok form-input-test %s' "$(head_of 1)")"
+comment 1 "bench-ok form-input-test $(head_of 1) after a look"
 for platform in Darwin Linux; do
     NOTCHCAST_PLATFORM=$platform TESTED=1 ISOLATED='fixture toolchain|' land 1
     [ "$status" -eq 1 ] && grep -qxF "REFUSED: #1 $(wanted form-input-test "$(head_of 1)")" "$FIXTURE/output" \
         && ! grep -q -e SKIPPED -e ROUTED "$FIXTURE/output" && untouched && [ ! -s "$PASSES" ] \
-        || fail "on $platform land.sh took an isolated run, an outsider's or an old head's record for a bench check"
+        || fail "on $platform land.sh took an isolated run, an outsider's, an old head's or a non-first-line record for a bench check"
 done
 echo 'PASS: land.sh refuses a bench-only harness with no maintainer bench-ok at the head, whatever runs tested the tree'
 for platform in Darwin Linux; do
