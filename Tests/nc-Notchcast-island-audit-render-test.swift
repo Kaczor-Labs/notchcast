@@ -234,9 +234,6 @@ struct NotchcastIslandAuditRenderTest {
         var long = song
         long.title = "Everything Everywhere at Once (Extended Midnight Version)"
         long.artist = "Juno Vale, The Paper Lanterns Orchestra"
-        func songCover(_ song: IslandNowPlaying, _ frosted: Bool) -> NSImage {
-            IslandCover.image(song.artwork, side: IslandSongArt.cell, scale: 2, frosted: frosted)
-        }
         let look = frosted ? "frosted" : "black"
         for notch in [false, true] {
             let form = notch ? "notch" : "nonotch"
@@ -254,9 +251,9 @@ struct NotchcastIslandAuditRenderTest {
                             _ change: (inout IslandNowPlaying) -> Void = { _ in }) {
                 var shown = base
                 change(&shown)
-                let art = IslandSongArt(shown, notch: notch, frosted: frosted, still: true,
-                                        cover: songCover(shown, frosted))
-                compact("850-\(step)-\(form)-\(look)", art, notch: notch)
+                let cover = IslandCover.image(shown.artwork, side: IslandSongArt.cell, scale: 2, frosted: frosted)
+                compact("850-\(step)-\(form)-\(look)", IslandSongArt(shown, notch: notch, frosted: frosted, still: true,
+                                                                     cover: cover), notch: notch)
             }
             island("850-00-no-song-\(form)-\(look)", width: notch ? 185 : NotchTheme.Size.islandRest.width,
                    body: notch ? 0 : NotchTheme.Size.islandRest.height, notch: notch, radius: notch ? 10 : 12) { _ in }
@@ -267,9 +264,10 @@ struct NotchcastIslandAuditRenderTest {
                 songGlance("04-song-long-\(overflow.rawValue)", long) { $0.overflow = overflow }
             }
             for (name, playing) in [("850-05-song-change", song), ("850-06-song-change-long", long)] where notch {
-                let change = IslandExpansionArt(playing, cover: songCover(playing, frosted), frosted: frosted)
-                let width = compactWidth(IslandSongArt(playing, notch: true, frosted: frosted, still: true,
-                                                       cover: songCover(playing, frosted)), notch: true)
+                let cover = IslandCover.image(playing.artwork, side: IslandSongArt.cell, scale: 2, frosted: frosted)
+                let change = IslandExpansionArt(playing, cover: cover, frosted: frosted)
+                let width = compactWidth(IslandSongArt(playing, notch: true, frosted: frosted, still: true, cover: cover),
+                                         notch: true)
                 island("\(name)-\(form)-\(look)", width: max(change.size.width, width), body: change.size.height,
                        notch: true, radius: Theme.Radius.panel) { change.draw(in: $0) }
             }
