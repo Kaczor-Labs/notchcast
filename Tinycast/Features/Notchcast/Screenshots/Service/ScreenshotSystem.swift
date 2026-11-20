@@ -16,12 +16,14 @@ struct ScreenshotSystem: Sendable {
     let writeText: @MainActor @Sendable (String) -> Bool
     let recognizeText: @Sendable (CGImage) async throws -> [ScreenTextLine]
     let openScreenRecordingSettings: @MainActor @Sendable () -> Void
-    let desktop: @Sendable () throws -> URL
+    let downloads: @Sendable () throws -> URL
+    /// The system save panel for Save As; nil when it is cancelled.
+    let chooseSaveFile: @MainActor @Sendable (_ suggestedName: String) -> URL?
     /// Shows the selection surface; the returned closure closes it, which answers nil.
     let select: @MainActor @Sendable (
         [ScreenshotFrozenDisplay], [ScreenshotWindow], @escaping @MainActor (ScreenshotRequest?) -> Void
     ) -> @MainActor () -> Void
-    /// Opens the editor on a capture and its pixels per point; it answers per Copy, Save or Escape.
+    /// Opens the editor on a capture and its pixels per point; it answers per way out.
     let edit: @MainActor @Sendable (CGImage, CGFloat, @escaping @MainActor (CaptureEditorOutcome) -> Void)
         -> @MainActor () -> Void
 }

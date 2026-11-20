@@ -20,7 +20,10 @@ final class CaptureEditorSession {
         switch action {
         case .copy: finish(.copy(document.finished()))
         case .save: finish(.save(document.finished()))
+        case .saveAs: finish(.saveAs(document.finished()))
+        case .close: finish(.close(document.finished()))
         case .discard: finish(.discard)
+        case .ignore: break
         default: document.apply(action)
         }
     }
