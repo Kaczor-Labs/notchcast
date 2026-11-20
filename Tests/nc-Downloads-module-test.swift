@@ -38,6 +38,8 @@
 // notchcast-sources: Tinycast/Features/Notchcast/Downloads/Service/TorrentManager.swift
 // notchcast-sources: Tinycast/Features/Notchcast/Downloads/Service/TorrentSession.swift
 // notchcast-sources: Tinycast/Features/Notchcast/Downloads/Service/TorrentOpenFallback.swift
+// notchcast-sources: Tinycast/Features/Notchcast/Downloads/Model/TorrentDefaultPolicy.swift
+// notchcast-sources: Tinycast/Features/Notchcast/Downloads/Service/TorrentDefaultHandler.swift
 // notchcast-sources: Tinycast/Features/Notchcast/Downloads/Model/TorrentBencode.swift
 // notchcast-sources: Tinycast/Features/Notchcast/Downloads/Model/TorrentMetainfo.swift
 // notchcast-sources: Tinycast/Features/Notchcast/Downloads/Model/TorrentInput.swift
@@ -397,4 +399,12 @@ private final class BondedEngine: TorrentSession {
 extension DownloadsModule.Environment {
     /// The app's real environment is never built here: the addon's makeModule is not called.
     static func live() -> Self { fatalError("the harness builds its own environment") }
+}
+
+extension TorrentDefaultHandler.System {
+    /// Inert: the harness never touches the Mac's real default apps.
+    static func live() -> Self {
+        Self(own: "", holder: { _ in .init(current: nil, candidates: []) }, setDefault: { _, _ in nil },
+             hasAria2c: { false }, name: { _ in nil })
+    }
 }
