@@ -6,3 +6,6 @@ notchcast/docs/addons.md merge=notchcast-words
 notchcast/README.public.md merge=notchcast-words
 # Add-on PRs each append credit lines to the same place; a union merge keeps both.
 notchcast/licenses/borrowed.md merge=union
+# Each add-on door is one line in each of these two files; a union merge keeps both sides' doors.
+Tinycast/Features/Notchcast/Core/Service/NotchcastServices.swift merge=union
+Tinycast/Features/Notchcast/NotchcastServices+Live.swift merge=union
