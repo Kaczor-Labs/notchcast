@@ -61,8 +61,8 @@ final class PastePlainTextModule: NotchcastModule {
         restoreTimer = nil
         restore()
         guard let engine else { return }
-        let text = engine.text()
         let changeCount = engine.changeCount
+        let text = engine.text()
         schedule(Self.focusDelay) { $0.deliver(text, expecting: changeCount) }
     }
 
@@ -71,7 +71,7 @@ final class PastePlainTextModule: NotchcastModule {
         guard let engine, engine.changeCount == changeCount else { return }
         guard let text else { return awaitRelease(expecting: changeCount, restores: false) }
         if system.pressMatchStyle() { return }
-        switch engine.lend(text) {
+        switch engine.lend(text, readAt: changeCount) {
         case .refused:
             restore()
             notify(String(localized: "Couldn't read the clipboard, so nothing was pasted.", table: "NotchcastPastePlainText"))
