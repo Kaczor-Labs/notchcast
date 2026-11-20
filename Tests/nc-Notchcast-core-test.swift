@@ -527,6 +527,11 @@ struct NotchcastCoreTest {
               })
         check("NotchcastCore hands the controller stock Dictation",
               calls.allSatisfy { $0.contains("dictation: NotchcastDictationBridge(core: core)") })
+        check("NotchcastCore hands the controller clipboard history's door, never the no-op default",
+              calls.allSatisfy {
+                  arguments($0).contains("prepare: { history.prepareForTinycastPasteboardMutation() }")
+                      && arguments($0).contains("history.synchronizeAfterTinycastPasteboardMutation(changeCount: $0)")
+              } && core.contains("let history = core.clipboardManager"))
         check("nc command entries are owned by their add-on tab, never gated by stock Commands",
               core.contains("owner: .notchcast(tabs[$0.switchID]"))
         let viewPath = "Tinycast/Features/Notchcast/Core/UI/NotchcastSettingsView.swift"
