@@ -65,7 +65,7 @@ Four tables in our own files, each read by a short hook in upstream's; hiding a 
 
 ## Harnesses
 
-`HIDDEN_TESTS` in `notchcast/config.env` lists the upstream harnesses whose whole subject is a hidden item. `notchcast/test-harnesses.sh` drops them from every whole-suite run (PR and Main harnesses CI, Sync, `land.sh`, local `./Scripts/run-tests.sh`) and `notchcast/changed-harnesses.sh` never selects them; naming one still runs it (`./Scripts/run-tests.sh ExtensionTests`). The files stay in `Tests/` and in upstream's `Scripts/run-tests.sh`, so sync is untouched. A harness that also covers visible code (`CalendarTests`, `PalettePlacementTests`, `AppearanceTests`, `InterfaceSizeTests`, and `LanguageTests`, which guards the English plurals, labels and app-name override) keeps running.
+`HIDDEN_TESTS` in `notchcast/config.env` lists the upstream harnesses whose whole subject is a hidden item. `notchcast/test-harnesses.sh` drops them from every whole-suite run (PR and Main harnesses CI, Sync, `land.sh`, local `./Scripts/run-tests.sh`) and `notchcast/changed-harnesses.sh` never selects them; naming one still runs it (`./Scripts/run-tests.sh ExtensionTests`). The files stay in `Tests/` and in upstream's `Scripts/run-tests.sh`, so sync is untouched. A harness that also covers visible code (`CalendarTests`, `PalettePlacementTests`, `AppearanceTests`, `InterfaceSizeTests`, `CustomCommandTests`, the only harness of `Tinycast/Platform/PseudoTerminal.swift`, which the Script Commands add-on runs, and `LanguageTests`, which guards the English plurals, labels and app-name override) keeps running.
 
 - Extensions: `ExtensionTests` (with `ExtensionFetchTests` and `ExtensionTests+MenuBar` compiled into it), `ExtensionAccessoryTests`, `ExtensionCleanupTests`, `ExtensionFormTests` (with `ExtensionListKeyTests`), `ExtensionIconTests`, `ExtensionImageSizeTests`, `ExtensionMetadataTests`, `ExtensionRefreshTests`, `ExtensionSignInTests`, `ExtensionStoreTests`, `ExtensionVersionTests`, and `SymbolsTests` (the SF Symbol catalog only the extension appearance picker reads).
 - Apple Shortcuts: `AppleShortcutTests`.
@@ -73,7 +73,7 @@ Four tables in our own files, each read by a short hook in upstream's; hiding a 
 - Support: `SupportTests`.
 - Navigation: `WindowSwitchTests`, `MenuSearchTests`.
 - Quick Actions: `QuickActionTests` and `TextDiffTests` (the result panel's diff engine; `TextDiffPerformanceTests` is index-only upstream and never runs). `CompactBarTests`, `FallbackTests`, `HotKeyTests`, `DeepLinkTests` and `LauncherSettingsFileTests` keep running: they compile Quick Actions model files only as dependencies.
-- Custom Commands: `CustomCommandTests`, `CustomCommandListTests`.
+- Custom Commands: `CustomCommandListTests`.
 
 No CI step serves only a hidden item: CodeQL's JavaScript scan skips the Raycast runtime (`Scripts/raycast-runtime/`, `Tinycast/Resources/RaycastRuntime.generated.js`, `Tests/ext-fixtures/`), the Generated workflow sets up no Node and never rebuilds that runtime (it stays upstream's).
 
