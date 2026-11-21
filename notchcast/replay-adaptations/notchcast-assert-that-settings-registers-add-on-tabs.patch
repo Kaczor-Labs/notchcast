@@ -204,11 +204,10 @@ index add3c06b0..8bf82dc77 100644
 
  struct SpotifyIslandRows: View {
 diff --git a/Tinycast/App/AppCore+SettingsProcess.swift b/Tinycast/App/AppCore+SettingsProcess.swift
-index 312ec8573..56981cdeb 100644
+index 312ec8573..2d2825cd8 100644
 --- a/Tinycast/App/AppCore+SettingsProcess.swift
 +++ b/Tinycast/App/AppCore+SettingsProcess.swift
-@@ -3,9 +3,20 @@ import Foundation
- /// What the main app and Settings' own process share, and the work only the main app can run.
+@@ -4,7 +4,19 @@ import Foundation
  extension AppCore {
      func makeSharedStateMirror(send: @escaping (SharedChange) -> Void) -> SharedStateMirror {
          SharedStateMirror(
@@ -217,7 +216,8 @@ index 312ec8573..56981cdeb 100644
 +            localDefaultsKeys: Set([
 +                AppSettingsKey.snippetsEnabled, .clipboardTextSearchEnabled, .dictationEnabled,
 +                .dictationCleansUp, .dictationKeepsHistory, .extensionsEnabled, .mcpEnabled, .quickActionsEnabled,
-+                .allowedDeepLinks,
++                .allowedDeepLinks, .calendarEnabled, .autoJoinMeetings, .cameraPreview, .aiEnabled, .aiWebSearch,
++                .aiSystemPromptEnabled, .settingsFileEnabled, .iCloudSyncEnabled,
 +            ].map(\.rawValue)),
 +            notchcastDefaults: notchcastDefaults, notchcastDomain: notchcastDefaultsDomain,
 +            localNotchcastKeys: Set(notchcast?.controller.switches.map(\.id) ?? []),
@@ -228,7 +228,6 @@ index 312ec8573..56981cdeb 100644
      }
 
      /// Exhaustive, so a new domain fails to build until both roles know how to re-read it.
-     private func sharedDomain(_ domain: SharedDomain) -> SharedStateMirror.Domain {
 diff --git a/Tinycast/App/AppCore.swift b/Tinycast/App/AppCore.swift
 index 379d04147..6521783e5 100644
 --- a/Tinycast/App/AppCore.swift
