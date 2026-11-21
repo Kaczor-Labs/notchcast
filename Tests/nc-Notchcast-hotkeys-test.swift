@@ -33,6 +33,7 @@ struct NotchcastHotKeysTests {
         let defaults = UserDefaults(suiteName: domain)!
         defer { defaults.removePersistentDomain(forName: domain) }
         let manager = HotKeyManager(defaults: defaults)
+        manager.activate()
         let center = HotKeyCenter.current!
         var ran: [String] = []
         var palette = 0
@@ -73,6 +74,7 @@ struct NotchcastHotKeysTests {
         let defaults = UserDefaults(suiteName: domain)!
         defer { defaults.removePersistentDomain(forName: domain) }
         let manager = HotKeyManager(defaults: defaults)
+        manager.activate()
         let center = HotKeyCenter.current!
         var ran: [String] = []
         manager.onRunNotchcastCommand = { ran.append($0) }
@@ -90,6 +92,7 @@ struct NotchcastHotKeysTests {
         check("each chord ran exactly its own command", ran == commands.map(\.0))
         let relaunched = HotKeyManager(defaults: defaults)
         relaunched.extraActions = actions
+        relaunched.activate()
         let relaunchedCenter = HotKeyCenter.current!
         check("both chords are registered again after a relaunch",
               relaunchedCenter !== center && actions.allSatisfy { relaunchedCenter.entries[$0.defaultsKey] != nil })
@@ -114,9 +117,11 @@ struct NotchcastHotKeysTests {
         }
         let relaunched = HotKeyManager(defaults: defaults)
         relaunched.allowsAction = { !hidden.contains($0) }
-        relaunched.start(
+        relaunched.load(
             customCommandIDs: [customCommand], quicklinkIDs: [quicklink], windowLayoutIDs: [],
             windowRoomIDs: [], customWindowSizeIDs: [], quickActionIDs: [quickAction])
+        check("loading bindings registers nothing", HotKeyCenter.current!.entries.isEmpty)
+        relaunched.activate()
         let entries = HotKeyCenter.current!.entries
         check("a stored quicklink chord registers after a relaunch",
               entries[HotKeyAction.quicklink(id: quicklink).defaultsKey] != nil)
@@ -141,9 +146,10 @@ struct NotchcastHotKeysTests {
         manager.setBinding(quicklinkCombo, for: quicklink)
         let relaunched = HotKeyManager(defaults: defaults)
         relaunched.allowsAction = { $0 != hidden }
-        relaunched.start(
+        relaunched.load(
             customCommandIDs: [], quicklinkIDs: [quicklinkID], windowLayoutIDs: [],
             windowRoomIDs: [], customWindowSizeIDs: [], quickActionIDs: [])
+        relaunched.activate()
         check("unhidden, the stored chord names its owner",
               relaunched.conflictOwner(of: combo, excluding: .togglePalette) != nil)
         relaunched.isHidden = { $0 == hidden }

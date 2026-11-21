@@ -17,6 +17,7 @@
     "Choose…" : {},
     "Copy Output" : {},
     "Copy the last output of %@" : {},
+    "Couldn’t load the last output." : {},
     "Delete" : {},
     "Delete %@" : {},
     "Delete “%@”?" : {},
