@@ -14,6 +14,7 @@ from unittest import mock
 
 ROOT = Path(__file__).resolve().parent.parent
 WORKFLOW = ROOT / ".github/workflows/pr.yml"
+SWIFT_ACTION = ROOT / ".github/actions/linux-swift/action.yml"
 SCRIPT = ROOT / "notchcast/ready-check.sh"
 # Every step of pr.yml and of the local actions it uses, and how ready-check.sh covers it.
 COVERED = {
@@ -124,10 +125,9 @@ class CoverageTest(unittest.TestCase):
         self.assertRegex(env(ruby)["RUBY_VERSION"], r"^'\d+\.\d+\.\d+'$")
         self.assertRegex(env(ruby)["RUBY_SHA256"], r"^[a-f0-9]{64}$")
         self.assertIn('"$RUBY_SHA256" "$archive" | sha256sum --check', ruby)
-        swift = (ROOT / ".github/actions/linux-swift/action.yml").read_text()
+        swift = SWIFT_ACTION.read_text()
         self.assertRegex(swift, r"version=\d+\.\d+\.\d+'")
         self.assertRegex(swift, r"sha256=[a-f0-9]{64}'")
-        self.assertIn('"$SWIFT_SHA256" "$archive" | sha256sum --check', swift)
 
     def test_the_build_lane_is_ci_build(self):
         lane = next(text for scope, text in self.all_steps() if signature(text) == "Shared PR build lane")
@@ -139,12 +139,16 @@ class CoverageTest(unittest.TestCase):
         self.assertIn("bash notchcast/ci-build.sh", script)
 
     def test_the_linux_toolchain_is_verified_before_use_even_from_the_cache(self):
-        install = next(text for scope, text in self.all_steps() if signature(text) == "Install the pinned Swift toolchain")
-        script = install
+        action = {signature(text): text for _, text in steps(SWIFT_ACTION, 4)}
+        script = action["Install the pinned Swift toolchain"]
         check = script.index('printf \'%s  %s\\n\' "$SWIFT_SHA256" "$archive" | sha256sum --check')
         self.assertLess(script.index("fi"), check, "the check must run on a cache hit too")
         self.assertLess(check, script.index("tar "), "the archive must be verified before it is unpacked")
-        self.assertRegex(WORKFLOW.read_text(), r"key: swift-.*\$\{\{ env\.SWIFT_VERSION \}\}-\$\{\{ env\.SWIFT_SHA256 \}\}")
+        version = "${{ steps.pin.outputs.version }}"
+        sha256 = "${{ steps.pin.outputs.sha256 }}"
+        self.assertEqual(env(script)["SWIFT_VERSION"], version)
+        self.assertEqual(env(script)["SWIFT_SHA256"], sha256)
+        self.assertIn(f"key: swift-ubuntu24.04-${{{{ runner.arch }}}}-{version}-{sha256}", action["actions/cache"])
 
     def test_the_harness_step_matches_ci_build(self):
         ci_build = (ROOT / "notchcast/ci-build.sh").read_text()
