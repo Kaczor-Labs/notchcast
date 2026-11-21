@@ -105,7 +105,7 @@ SELECTED_LOG = "\n".join([
     log_line("##[endgroup]"),
     log_line("notchcast-core-test"),
     log_line("nc-Clock-model-test"),
-    "harnesses\tRun harnesses, retry failures alone\t2026-11-09T10:05:00.1Z not-a-harness",
+    "harnesses\tRun harnesses\t2026-11-09T10:05:00.1Z not-a-harness",
 ])
 
 
