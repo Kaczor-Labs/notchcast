@@ -422,7 +422,7 @@ struct DownloadsWebpageTest {
         var page: [String: Any] = ["markdown": markdown, "source": "local",
                                    "metadata": metadata.merging(["statusCode": status]) { a, _ in a }]
         page.merge(extra) { _, b in b }
-        return try! JSONSerialization.data(withJSONObject: ["success": true, "data": page])
+        return (try? JSONSerialization.data(withJSONObject: ["success": true, "data": page])) ?? Data()
     }
 
     static func firecrawlDecoding() {
