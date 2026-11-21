@@ -6,6 +6,10 @@ import Observation
 @Observable
 final class DictationExtrasCoordinator {
     let history = DictationHistoryStore()
+    /// Hooks Notchcast's island sets; unset, cleanup reports through stock's HUD as before.
+    @ObservationIgnored var cleaningUp: @MainActor () -> Void = {}
+    @ObservationIgnored var cleanupFailed: @MainActor () -> Bool = { false }
+    @ObservationIgnored var delivered: @MainActor (_ empty: Bool) -> Void = { _ in }
     /// Nil follows `DictationCleanupModelPolicy`: the installed Claude, else Codex.
     private(set) var cleanupModel: AIModelSelection?
     @ObservationIgnored private let defaults: UserDefaults
@@ -24,6 +28,7 @@ final class DictationExtrasCoordinator {
         }
         core.dictationCoordinator.didDictate = { [weak self] raw, cleaned, target in
             self?.record(raw: raw, cleaned: cleaned, target: target)
+            self?.delivered(raw.isEmpty)
         }
         observe { [weak self] in self?.applySettings() }
     }
@@ -73,14 +78,25 @@ final class DictationExtrasCoordinator {
                 switchOn: core.settings.dictationCleansUp, cleansUp: cleansUp, hasField: hasField,
                 liveTextEmpty: liveTextEmpty)
         else { return nil }
+        cleaningUp()
         let outcome = await DictationCleanupRunner.run(
             transcript, generate: generator(for: transcript, core: core),
+            usesDefaultPrompt: DictationCleanupPrompt.instructions(custom: core.settings.dictationCleanupPrompt)
+                == DictationCleanupPrompt.standard,
+            probingInstalledModels: isProbingAutomaticModels(core: core),
             deadline: { try await Task.sleep(for: DictationCleanupRunner.timeout) })
+        guard !Task.isCancelled else { return nil }
         switch outcome {
         case .cleaned(let text):
             return text
         case .skipped:
             return nil
+        case .failed(.noModel):
+            core.dictationCoordinator.showMessage(
+                String(localized: "Cleanup has no model, so the raw text was pasted", table: "Notchcast"),
+                .danger)
+        case .failed where cleanupFailed():
+            break
         case .failed(.timeout):
             core.showMessage(
                 String(localized: "Cleanup took too long, so the raw text was pasted", table: "Notchcast"),
@@ -91,6 +107,12 @@ final class DictationExtrasCoordinator {
                 tone: .danger)
         }
         return nil
+    }
+
+    private func isProbingAutomaticModels(core: AppCore) -> Bool {
+        let enabled = core.aiSettings.enabledInstalledProviders
+        return (enabled.contains(.claude) && core.installedAI.status(for: .claude).phase == .checking)
+            || (enabled.contains(.codex) && core.chatGPTSubscription.phase == .starting)
     }
 
     /// Nil when nothing can clean up; a route that cannot be built fails in the race, loudly.
@@ -181,6 +203,7 @@ final class DictationExtrasCoordinator {
             _ = settings.dictationEnabled
             _ = settings.dictationCleansUp
             _ = settings.dictationKeepsHistory
+            _ = core?.aiSettings.enabledInstalledProviders
         } onChange: { [weak self] in
             Task { @MainActor in self?.observe(apply) }
         }

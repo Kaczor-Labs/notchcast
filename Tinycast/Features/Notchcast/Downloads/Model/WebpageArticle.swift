@@ -7,12 +7,14 @@ struct WebpageArticle: Sendable {
     let source: URL
     let baseURL: URL
     let html: String
+    /// Set when a tool already wrote the Markdown, so `html` is not converted.
+    var markdownBody: String?
 
     /// `saved` is the user's own day, so a save just after local midnight is not dated yesterday.
     func markdown(saved: Date, timeZone: TimeZone) -> String {
         let date = saved.formatted(
             Date.ISO8601FormatStyle(timeZone: timeZone).year().month().day().dateSeparator(.dash))
-        let body = HTMLMarkdown.convert(html, baseURL: baseURL)
+        let body = markdownBody ?? HTMLMarkdown.convert(html, baseURL: baseURL)
         let escapedTitle = title.replacingOccurrences(of: "&", with: "&amp;").replacingOccurrences(of: "<", with: "&lt;")
         let heading = "# " + HTMLMarkdown.convert("<span>\(escapedTitle)</span>", baseURL: baseURL)
         var lines = ["---", "title: \(Self.quoted(title))", "author: \(Self.quoted(author))",

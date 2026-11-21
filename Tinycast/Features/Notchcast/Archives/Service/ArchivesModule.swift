@@ -1,6 +1,6 @@
 import Foundation
 
-/// Extracts opened archives one at a time, journalled so a relaunch resumes the queue.
+/// Extracts opened archives from a journalled queue; compresses a Finder selection, one at a time.
 @MainActor
 final class ArchivesModule: NotchcastModule {
     static let switchID = "archives"
@@ -9,12 +9,15 @@ final class ArchivesModule: NotchcastModule {
     /// Set once the archive types were claimed, so a later launch leaves the user's Finder choice alone.
     private static let claimedKey = "archivesClaimed"
     private static let noticeID = "archives.extracting"
+    private static let compressNoticeID = "archives.compressing"
 
     private let context: NotchcastContext
     private let environment: ArchivesEnvironment
     private var picker: Task<Void, Never>?
     private(set) var jobs: [ArchiveJob] = []
     private(set) var current: (job: ArchiveJob, task: Task<Void, Never>)?
+    /// `label` is nil while Finder's selection is still being read.
+    private(set) var compression: (id: UUID, label: String?, task: Task<Void, Never>)?
 
     init(context: NotchcastContext, environment: ArchivesEnvironment) {
         self.context = context
@@ -44,6 +47,9 @@ final class ArchivesModule: NotchcastModule {
         current?.task.cancel()
         current = nil
         context.presenter.end(notice: Self.noticeID)
+        compression?.task.cancel()
+        compression = nil
+        context.presenter.end(notice: Self.compressNoticeID)
     }
 
     func open(_ urls: [URL]) {
@@ -93,6 +99,80 @@ final class ArchivesModule: NotchcastModule {
     /// Waits for the queue to empty; the harness's only clock.
     func drain() async {
         while let task = current?.task { await task.value }
+    }
+
+    func drainCompression() async {
+        while let task = compression?.task { await task.value }
+    }
+
+    /// Compresses Finder's selection into one archive beside it; extraction's queue runs on meanwhile.
+    func compress(_ format: ArchiveFormat) {
+        if let compression {
+            // While the selection is still being read, a second press is the same request.
+            if let label = compression.label { report(.busy(label)) }
+            return
+        }
+        let id = UUID()
+        let (readSelection, compressor) = (environment.finderSelection, environment.compressor)
+        let task = Task { [weak self] in
+            var label: String?
+            do {
+                let plan = try ArchiveCompression.plan(
+                    format: format, selection: try await readSelection(), kind: ArchiveCompressor.kind,
+                    isWritable: ArchiveCompressor.isWritable)
+                try Task.checkCancellation()
+                label = plan.label
+                self?.compressionBegan(id, label: plan.label)
+                let made = try await compressor.compress(plan)
+                self?.compressionEnded(id, made: made)
+            } catch is CancellationError {
+                self?.compressionEnded(id, stopped: label)
+            } catch {
+                self?.compressionEnded(id, failure: error as? ArchiveFailure ?? .compressionFailed(error.localizedDescription))
+            }
+        }
+        compression = (id, nil, task)
+    }
+
+    private func compressionBegan(_ id: UUID, label: String) {
+        guard compression?.id == id else { return }
+        compression?.label = label
+        context.presenter.post(
+            IslandNotice(id: Self.compressNoticeID, symbol: "doc.zipper",
+                         text: String(localized: "Compressing \(label)", table: "NotchcastArchives"),
+                         progress: IslandProgress(fraction: nil)),
+            onTap: { [weak self] in self?.confirmStopCompression(id, label: label) })
+    }
+
+    private func compressionEnded(_ id: UUID, made: URL? = nil, failure: ArchiveFailure? = nil, stopped: String? = nil) {
+        guard compression?.id == id else { return }
+        compression = nil
+        context.presenter.end(notice: Self.compressNoticeID)
+        if let failure {
+            report(failure)
+        } else if let made {
+            post(String(localized: "Compressed \(made.lastPathComponent)", table: "NotchcastArchives"),
+                 symbol: "checkmark.circle", reveal: made)
+        } else if let stopped {
+            post(String(localized: "Stopped compressing \(stopped)", table: "NotchcastArchives"),
+                 symbol: "xmark.circle", reveal: nil)
+        }
+    }
+
+    private func confirmStopCompression(_ id: UUID, label: String) {
+        guard let confirm = context.confirm else {
+            if compression?.id == id { compression?.task.cancel() }
+            return
+        }
+        Task {
+            let title = String(localized: "Stop compressing \(label)?", table: "NotchcastArchives")
+            let message = String(
+                localized: "Nothing is kept. The selected files stay as they are.", table: "NotchcastArchives")
+            guard await confirm(title, message, String(localized: "Stop", table: "NotchcastArchives")),
+                compression?.id == id
+            else { return }
+            compression?.task.cancel()
+        }
     }
 
     private func runNext() {

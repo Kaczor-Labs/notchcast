@@ -8,9 +8,10 @@ enum IslandPillScenes {
                              "pill-menu", "pill-settings", "glance", "glance-menu", "pill-menu-quiet", "pill-settings-quiet",
                              "glance-modal", "pill-busy", "window-guard-new", "window-guard-raise",
                              "window-guard-deferred", "island-ax", "update", "notice-queue",
-                             "notice-unseen", "pill-menu-rows", "capture-sharing"]
+                             "notice-unseen", "pill-menu-rows", "capture-sharing", "dictation", "dictation-notch"]
 
     static func run(_ scene: String, core: AppCore, screen: NSScreen) async {
+        if scene == "dictation-notch" { IslandController.simulatedNotch = DictationIslandScenes.notch }
         core.island.start()
         await IslandVerification.pause(0.6)
         if scene == "capture-sharing" {
@@ -41,6 +42,7 @@ enum IslandPillScenes {
         case "install-report": await IslandInstallReportScenes.run(core: core, controller: controller)
         case "notice-queue": await IslandNoticeScenes.run(core: core, controller: controller)
         case "notice-unseen": await IslandNoticeScenes.unseen(core: core, controller: controller)
+        case "dictation", "dictation-notch": await DictationIslandScenes.run(scene: scene, core: core, controller: controller)
         default: await glance(core: core, controller: controller)
         }
         IslandScenes.pass(scene, screen: screen)
@@ -128,7 +130,7 @@ enum IslandPillScenes {
             IslandVerification.require(false, "Return on Settings opens Settings"); return
         }
         IslandVerification.require(statusItemWindows == 0, "no menu bar item exists")
-        for tab in [SettingsTab.general, .notes, .calendar] {
+        for tab in [SettingsTab.general, .calendar] {
             core.settingsCoordinator.showSettings(tab: tab)
             await IslandVerification.pause(0.7)
             still(window, name: "settings-\(tab.slug)")
@@ -310,8 +312,7 @@ enum IslandPillScenes {
                                    "Settings opens on the test display")
         let hidden = ["Show in menu bar", "Show in Menu Bar", "Calendar in Menu Bar", "Show Upcoming Events",
                       "Only show events with meetings", "Hide when there are no upcoming events", "Hide Current Event"]
-        let panes: [(SettingsTab, String)] = [(.general, "Launch at login"), (.notes, "Render Markdown"),
-                                              (.calendar, "Days to Show")]
+        let panes: [(SettingsTab, String)] = [(.general, "Launch at login"), (.calendar, "Days to Show")]
         IslandVerification.require(wakeAccessibilityTree(), "the app's own AX tree answers")
         await IslandVerification.pause(0.3)
         for (tab, shown) in panes {

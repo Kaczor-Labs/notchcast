@@ -24,6 +24,7 @@ COVERED = {
     ("pr.yml:mac", "The harness runner's own Xcode"): "dispatched harness-only runs only",
     ("pr.yml:mac", "Runner kind"): "names a self-hosted run; no gate",
     ("pr.yml:mac", "Script tests that need macOS"): "ci-build.sh's script-tests step",
+    ("pr.yml:mac", "Result of the script tests that need macOS"): "ci-build.sh's script-tests step",
     ("pr.yml:mac", "Shared PR build lane"): "ci-build.sh, unsharded",
     ("pr.yml:mac", "./tools/notchcast/actions/tests"): "ci-build.sh's harnesses step",
     ("pr.yml:mac", "Failures outside the harness selection"): "shadow selection; reports, gates nothing",
@@ -32,7 +33,8 @@ COVERED = {
     ("pr.yml:mac", "What the isolated runner proved"): "the isolated runner's stamp for its tested-tree record; no gate",
     ("pr.yml:linux-checks", "actions/checkout"): "the shared clone at HEAD",
     ("pr.yml:linux-checks", "Checks that need no Mac"): "ci-build.sh sources ci-checks.sh",
-    ("pr.yml:linux-harnesses", "Tools the Swift image lacks"): "the Swift image's setup; no gate",
+    ("pr.yml:linux-harnesses", "actions/cache"): "Linux Swift archive cache; no local step",
+    ("pr.yml:linux-harnesses", "Install the pinned Swift toolchain"): "GitHub's Linux toolchain setup; ready-check.sh uses Xcode",
     ("pr.yml:linux-harnesses", "actions/checkout"): "the shared clone at HEAD",
     ("pr.yml:linux-harnesses", "Linux-ok harnesses the diff needs"): "ci-build.sh's harnesses step runs them all on the Mac",
     ("pr.yml:script-tests", "actions/checkout"): "the shared clone at HEAD",
@@ -106,6 +108,14 @@ class CoverageTest(unittest.TestCase):
         self.assertIn("unset NOTCHCAST_HARNESSES_SHARDED", script)
         self.assertIn("bash notchcast/ci-build.sh", script)
 
+    def test_the_linux_toolchain_is_verified_before_use_even_from_the_cache(self):
+        install = next(text for scope, text in self.all_steps() if signature(text) == "Install the pinned Swift toolchain")
+        script = install
+        check = script.index('printf \'%s  %s\\n\' "$SWIFT_SHA256" "$archive" | sha256sum --check')
+        self.assertLess(script.index("fi"), check, "the check must run on a cache hit too")
+        self.assertLess(check, script.index("tar "), "the archive must be verified before it is unpacked")
+        self.assertRegex(WORKFLOW.read_text(), r"key: swift-.*\$\{\{ env\.SWIFT_VERSION \}\}-\$\{\{ env\.SWIFT_SHA256 \}\}")
+
     def test_the_harness_step_matches_ci_build(self):
         ci_build = (ROOT / "notchcast/ci-build.sh").read_text()
         self.assertIn('source "$TOOLS/notchcast/ci-xcode.sh"', ci_build)
@@ -135,6 +145,8 @@ GATED_MAC = ("${{ github.event_name == 'workflow_dispatch' && !inputs.hosted && 
 HARNESS_MAC = ("${{ github.event_name == 'workflow_dispatch' && (inputs.harness_runner || !inputs.hosted "
                "&& vars.NOTCHCAST_MAC_RUNNER) || 'xcode-27' }}")
 HARNESS_ONLY, FULL_RUN = "inputs.harness_runner != ''", "inputs.harness_runner == ''"
+# Labels a dispatch may name for a harness-only run (README Runners); free text names any runner.
+HARNESS_RUNNERS = ["", "notchcast-mba", "notchcast-mbp"]
 # Only jobs that hold no secret, sign with no identity and push nothing; a workflow outside this map is hosted-only.
 GATED_JOBS = {"pr.yml": 1, "main-harnesses.yml": 1, "proof.yml": 1}
 # Every macOS job (README Runners): it runs xcodebuild, compiles harnesses, signs or launches the app. Anything else is Linux.
@@ -144,7 +156,7 @@ MAC_JOBS = {"pr.yml": 1, "main-harnesses.yml": 1, "delete-check.yml": 1, "proof.
 
 class RunnerTest(unittest.TestCase):
     def test_every_job_runs_on_a_hosted_image(self):
-        allowed = {"ubuntu-latest", "xcode-27"}
+        allowed = {"ubuntu-24.04", "ubuntu-latest", "xcode-27"}
         gated, mac = {}, {}
         for workflow in sorted((ROOT / ".github/workflows").glob("*.y*ml")):
             lines = workflow.read_text().splitlines()
@@ -182,6 +194,7 @@ class RunnerTest(unittest.TestCase):
         first = next(text for job, text in steps(ROOT / ".github/workflows/proof.yml", 6) if job == "proof")
         self.assertEqual(signature(first), "Refuse a working Mac")
         self.assertEqual(field(first, "if"), "runner.environment != 'github-hosted'")
+        self.assertIsNone(field(first, "continue-on-error"), "a guard that may fail lets a working Mac through")
         self.assertIn('[ "${NOTCHCAST_ISOLATED_RUNNER:-}" = 1 ] && exit 0\n'
                       '  echo "::error::Proof launches the app: hosted or isolated runner only"\n  exit 1', first)
 
@@ -211,7 +224,7 @@ class RunnerTest(unittest.TestCase):
             code = expression[4:-3].replace("&&", "and").replace("||", "or").replace("!", "not ")
             return eval(re.sub(r"\b(?:github|inputs|vars)\.(\w+)", r"v['\1']", code), {"v": values})
         for event in ("pull_request", "pull_request_target", "push", "workflow_dispatch"):
-            for label in ("", "notchcast-mba"):
+            for label in HARNESS_RUNNERS:
                 for hosted in (False, True):
                     for variable in ("", "notchcast-mbp"):
                         values = {"event_name": event, "harness_runner": label, "hosted": hosted, "NOTCHCAST_MAC_RUNNER": variable}
@@ -223,6 +236,19 @@ class RunnerTest(unittest.TestCase):
                                 self.assertEqual(runner, label)
                             else:
                                 self.assertEqual(runner, runs_on(GATED_MAC, **values), "an empty input changes nothing")
+
+    def test_draft_prs_build_and_ready_status_does_not_restart_ci(self):
+        text = WORKFLOW.read_text()
+        self.assertIn("    types: [opened, synchronize, reopened]\n", text)
+        self.assertNotIn("github.event.pull_request.draft", text)
+        self.assertRegex(text, r"(?m)^  group: .*github\.event\.pull_request\.head\.label")
+        self.assertIn("  cancel-in-progress: ${{ github.ref_name != github.event.repository.default_branch }}", text)
+
+    def test_a_harness_runner_is_one_of_the_known_labels(self):
+        self.assertIn("      harness_runner:\n        description: Runner label for a harness-only macOS job (notchcast-mba, notchcast-mbp); "
+                      "no build, no proof of any tree (README, Runners)\n        type: choice\n"
+                      f"        options: [{', '.join(repr(label) if not label else label for label in HARNESS_RUNNERS)}]\n"
+                      "        default: ''\n", WORKFLOW.read_text())
 
     def test_a_harness_only_run_builds_nothing_and_proves_no_tree(self):
         found = {(job, signature(text)): text for job, text in steps(WORKFLOW, 6)}
@@ -245,8 +271,7 @@ class RunnerTest(unittest.TestCase):
         # No other job runs, the build check least of all: land.sh reads it, and train.sh a train run's conclusion.
         for job, lane in (("linux-checks", "build"), ("script-tests", "scripts"), ("linux-harnesses", "build")):
             self.assertIn(f"  {job}:\n    needs: route\n    if: needs.route.outputs.{lane} == 'true' && {FULL_RUN}\n", text)
-        self.assertIn(f"    if: ${{{{ !cancelled() && {FULL_RUN} && (github.event_name == 'workflow_dispatch' "
-                      "|| !github.event.pull_request.draft) }}\n", text)
+        self.assertIn(f"    if: ${{{{ !cancelled() && {FULL_RUN} }}}}\n", text)
         refusal = found["route", "A harness-only run is never a train's"]
         self.assertEqual(field(refusal, "if"), f"{HARNESS_ONLY} && startsWith(github.ref, 'refs/heads/train/')")
         self.assertIn("exit 1", refusal)
@@ -355,22 +380,21 @@ class BehaviourTest(unittest.TestCase):
         self.assertEqual(result.stdout.splitlines()[-1],
                          f"PASS {self.git('rev-parse', 'HEAD')[:12]} against origin/main ({self.git('rev-parse', 'base')[:12]})")
 
-    def test_pass_names_retried_and_ignored_harnesses(self):
+    def test_pass_names_ignored_harnesses(self):
         lines = self.check("base").stdout.splitlines()
-        self.assertEqual(lines[-3:-1], ["retried: none", "ignored (fails upstream too): none"])
+        self.assertEqual(lines[-2], "ignored (fails upstream too): none")
         (self.repo / "notchcast/ci-build.sh").write_text(
-            "printf '::warning::retrying %s alone\\n' BTests ATests BTests\n"
-            "echo '::warning::BTests fails on upstream abc1234 too; not ours, ignored'\n")
-        self.commit("retries")
+            "echo '::warning::BTests fails on upstream abc1234 too; not ours, ignored'\n"
+            "echo '::warning::ATests fails on upstream abc1234 too; not ours, ignored'\n")
+        self.commit("ignored")
         result = self.check("base")
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         lines = result.stdout.splitlines()
-        self.assertEqual(lines[-3:-1], ["retried: ATests BTests", "ignored (fails upstream too): BTests"])
+        self.assertEqual(lines[-2], "ignored (fails upstream too): ATests BTests")
         self.assertTrue(lines[-1].startswith("PASS "))
 
-    def test_the_parsed_lines_are_the_ones_ci_tests_prints(self):
+    def test_the_parsed_line_is_the_one_ci_tests_prints(self):
         ci_tests = (ROOT / "notchcast/ci-tests.sh").read_text()
-        self.assertIn('echo "::warning::retrying $name alone"', ci_tests)
         self.assertIn('echo "::warning::$name fails on upstream ${UPSTREAM:0:7} too; not ours, ignored"', ci_tests)
 
     def test_fail_names_the_first_failing_gate(self):

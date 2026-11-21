@@ -2,10 +2,10 @@ import Foundation
 
 /// What became of one cleanup: the text to paste, or why the raw transcript goes instead.
 enum DictationCleanupOutcome: Equatable, Sendable {
-    enum Failure: Equatable, Sendable { case error, timeout, empty }
+    enum Failure: Equatable, Sendable { case error, timeout, empty, tooLong, noModel }
 
     case cleaned(String)
-    /// Cleanup is off, Return skipped it, or no model is available: raw text, no notice.
+    /// Nothing to clean, provider probing, or cancellation: no notice.
     case skipped
     /// The reader asked for cleanup and did not get it, so the paste says so.
     case failed(Failure)
@@ -18,15 +18,24 @@ enum DictationCleanupRunner {
     static func run(
         _ transcript: String,
         generate: (@Sendable () async throws -> String)?,
+        usesDefaultPrompt: Bool = true, probingInstalledModels: Bool = false,
         deadline: @escaping @Sendable () async throws -> Void
     ) async -> DictationCleanupOutcome {
-        guard let generate, !transcript.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        guard !Task.isCancelled, !transcript.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         else { return .skipped }
+        guard let generate else {
+            return probingInstalledModels ? .skipped : .failed(.noModel)
+        }
+        let maximumLength = transcript.count * 3 / 2 + 20
         return await withTaskGroup(of: DictationCleanupOutcome?.self) { group in
             group.addTask {
                 do {
                     let text = try await generate().trimmingCharacters(in: .whitespacesAndNewlines)
-                    return text.isEmpty ? .failed(.empty) : .cleaned(text)
+                    guard !text.isEmpty else { return .failed(.empty) }
+                    guard !usesDefaultPrompt || text.count <= maximumLength else {
+                        return .failed(.tooLong)
+                    }
+                    return .cleaned(text)
                 } catch {
                     return .failed(.error)
                 }
@@ -43,7 +52,7 @@ enum DictationCleanupRunner {
                 group.cancelAll()
                 return cancelled ? .skipped : outcome
             }
-            return .failed(.error)
+            return Task.isCancelled ? .skipped : .failed(.error)
         }
     }
 }

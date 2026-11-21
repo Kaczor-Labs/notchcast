@@ -5,6 +5,7 @@ struct DictationExtrasSettingsSections: View {
     @Environment(AppCore.self) private var core
     @Environment(AppSettings.self) private var settings
     @State private var confirmingHistoryOff = false
+    @State private var providersPresented = false
 
     private var coordinator: DictationExtrasCoordinator { core.dictationExtras }
 
@@ -25,6 +26,9 @@ struct DictationExtrasSettingsSections: View {
             Button("Cancel", role: .cancel) {}
         } message: {
             Text("This can't be undone.")
+        }
+        .settingsEditorPanel(isPresented: $providersPresented) {
+            AIProvidersPanel(onDone: { providersPresented = false })
         }
     }
 
@@ -51,15 +55,34 @@ struct DictationExtrasSettingsSections: View {
                         SettingsRowTitle(.dictationCleanup, "Reasoning effort")
                     }
                 )
+                providersRow
                 promptEditor
             }
         } header: {
             SettingsSectionHeader(.dictationCleanup)
         } footer: {
             if settings.dictationCleansUp {
-                Text("The transcript is sent only to the chosen model. Notchcast keeps no log of it.",
-                     tableName: "Notchcast")
+                Text(verbatim: [
+                    String(
+                        localized: "Only the text is sent, never the audio, and only to the model chosen above.",
+                        table: "Notchcast"),
+                    String(localized: "Automatic uses the Claude or Codex command signed in on this Mac.",
+                           table: "Notchcast"),
+                    String(localized: "Notchcast keeps the text only in Dictation History.", table: "Notchcast")
+                ].joined(separator: " "))
             }
+        }
+    }
+
+    /// The AI tab is hidden, so this is the one way to add the providers cleanup picks from.
+    private var providersRow: some View {
+        SettingsRow(
+            title: LocalizedStringResource("AI providers", table: "Notchcast"),
+            subtitle: String(localized: "Connect the models cleanup can use.", table: "Notchcast"),
+            anchor: .dictationCleanup
+        ) {
+            Button("Manage…") { providersPresented = true }
+                .accessibilityLabel(String(localized: "Manage AI providers", table: "Notchcast"))
         }
     }
 
@@ -88,7 +111,7 @@ struct DictationExtrasSettingsSections: View {
         }
         guard let automatic = coordinator.automaticModel else {
             return String(
-                localized: "Turn on Claude or Codex in AI settings, or choose a model.", table: "Notchcast")
+                localized: "Add Claude or Codex in AI providers, or choose a model.", table: "Notchcast")
         }
         return String(localized: "Automatic uses \(automatic.title).", table: "Notchcast")
     }

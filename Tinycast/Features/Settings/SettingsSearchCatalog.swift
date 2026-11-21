@@ -366,7 +366,7 @@ enum SettingsSearchCatalog {
             keywords: ["ai", "punctuation", "filler", "claude", "codex",
                        String(localized: "Cleanup model", table: "Notchcast"),
                        String(localized: "Cleanup prompt", table: "Notchcast"),
-                       "reasoning effort", "AI providers"]),
+                       "reasoning effort", String(localized: "AI providers", table: "Notchcast")]),
         .init(
             .dictationHistory, LocalizedStringResource("Keep dictation history", table: "Notchcast"),
             keywords: ["recover", "lost"])

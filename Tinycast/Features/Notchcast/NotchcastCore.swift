@@ -9,6 +9,7 @@ final class NotchcastCore {
     private var trustMonitor: NotchcastTrustMonitor?
     private var launcherHides: NotchcastLauncherHides?
     private var globeTrigger: NotchcastGlobeTrigger?
+    private let dictationIsland = DictationIslandCoordinator()
 
     init(core: AppCore, addons: [any NotchcastAddon.Type] = NotchcastRegistry.addons) {
         let bundleID = Bundle.main.bundleIdentifier ?? "Notchcast"
@@ -31,6 +32,10 @@ final class NotchcastCore {
             context.confirmDestructive = { [weak core] title, message, confirmTitle in
                 await core?.confirm(title: title, message: message, symbol: nil, confirmTitle: confirmTitle) ?? false
             }
+        }
+        controller.wireAskSecret { [weak core] requester, title, message, fieldTitle, confirmTitle in
+            await core?.askSecret(
+                requester: requester, title: title, message: message, fieldTitle: fieldTitle, confirmTitle: confirmTitle)
         }
         let commands = addons.flatMap { $0.commands }
         let settingRows = addons.flatMap { $0.settings }
@@ -79,6 +84,7 @@ final class NotchcastCore {
             visibility: core.visibility, preferences: controller.preferences, commandIDs: Set(commands.map(\.id)))
         trustMonitor = NotchcastTrustMonitor(hub: hub)
         globeTrigger = NotchcastGlobeTrigger(core: core, hub: hub)
+        dictationIsland.start(core: core)
         if let seed = DictationFirstModel.seed(
             stored: UserDefaults.standard.string(forKey: AppSettingsKey.dictationModel.rawValue)),
             let model = DictationModel(rawValue: seed) { core.settings.dictationModel = model }

@@ -20,6 +20,9 @@ ALERTED="$STATE_DIR/kick.alerted"
 HEARTBEAT_SEC=3600 LAG_ALERT_MIN=40
 mkdir -p "$STATE_DIR"; touch "$STATE" "$ALERTED"
 log() { printf '%s %s\n' "$(date +%Y-%m-%dT%H:%M:%S%z)" "$*"; }
+# BSD and GNU sed and date disagree; these run the same on a Mac and on Linux.
+clear_failed() { [ "$DRY" = 1 ] || { sed -i.bak '/^kick-failed$/d' "$ALERTED" && rm -f "$ALERTED.bak"; }; }
+epoch() { python3 -c 'import datetime, sys; print(int(datetime.datetime.fromisoformat(sys.argv[1].replace("Z", "+00:00")).timestamp()))' "$1"; }
 if [ -f "$HOME/.config/notchcast/private.env" ]; then
     # shellcheck disable=SC1091
     source "$HOME/.config/notchcast/private.env"
@@ -44,7 +47,7 @@ fail() {
 sync_state="$(gh api "repos/$FORK_REPO/actions/workflows/sync.yml" --jq .state 2>&1)" || fail "reading Sync state: $sync_state"
 if [ "$sync_state" != active ]; then
     log "Sync is $sync_state; no trigger, no lag alert until it is enabled again"
-    [ "$DRY" = 1 ] || sed -i '' '/^kick-failed$/d' "$ALERTED"
+    clear_failed
     exit 0
 fi
 
@@ -70,7 +73,7 @@ if [ -n "$reason" ] || [ "$DRY" = 1 ]; then
     fi
 fi
 # The trigger works again: a later failure is told again.
-[ "$DRY" = 1 ] || sed -i '' '/^kick-failed$/d' "$ALERTED"
+clear_failed
 
 behind="$(gh api "repos/$FORK_REPO/compare/${UPSTREAM_REPO%%/*}:main...main" --jq .behind_by 2>&1)" || fail "compare: $behind"
 [ "$behind" = 0 ] && exit 0
@@ -81,13 +84,13 @@ if [ -n "$review" ]; then
     exit 0
 fi
 committed="$(gh api "repos/$UPSTREAM_REPO/commits/$upstream_main" --jq .commit.committer.date 2>&1)" || fail "commit date: $committed"
-age_min=$(( (now - $(date -j -u -f '%Y-%m-%dT%H:%M:%SZ' "$committed" +%s)) / 60 ))
+age_min=$(( (now - $(epoch "$committed")) / 60 ))
 [ "$age_min" -lt "$LAG_ALERT_MIN" ] && exit 0
 open="$(gh issue list -R "$FORK_REPO" --state open --label notchcast-sync --json number --jq length 2>&1)" || fail "issues: $open"
 [ "$open" = 0 ] || exit 0
 moved="$(gh api "repos/$FORK_REPO/compare/main...${UPSTREAM_REPO%%/*}:main" --jq '.commits[0].commit.committer.date' 2>&1)" || fail "first upstream commit: $moved"
 prs="$(gh pr list -R "$FORK_REPO" --base main --state open --limit 1000 --json number,isDraft,isCrossRepository 2>&1)" || fail "open PRs: $prs"
-moved_at="$(date -j -u -f '%Y-%m-%dT%H:%M:%SZ' "$moved" +%s)"
+moved_at="$(epoch "$moved")"
 if printf '%s' "$prs" | python3 "$HERE/ci.py" hold "$moved_at" >/dev/null; then
     log "main is $behind behind upstream ${upstream_main:0:8}: Sync holds the rebase while PRs are open"
     exit 0

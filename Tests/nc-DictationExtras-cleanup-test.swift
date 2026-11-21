@@ -58,11 +58,15 @@ enum DictationExtrasCleanupTests {
         check(outcome == .failed(.timeout), "a deadline first times out, got \(outcome)")
         check(DictationCleanupRunner.timeout == .seconds(10), "cleanup gets ten seconds")
 
-        // Nothing to clean, or nothing to clean with: raw text, no notice.
         outcome = await DictationCleanupRunner.run("raw", generate: nil, deadline: fired)
-        check(outcome == .skipped, "no model skips, got \(outcome)")
+        check(outcome == .failed(.noModel), "no model fails distinctly, got \(outcome)")
+        outcome = await DictationCleanupRunner.run(
+            "raw", generate: nil, probingInstalledModels: true, deadline: fired)
+        check(outcome == .skipped, "no model while probing stays silent, got \(outcome)")
         outcome = await DictationCleanupRunner.run(" \n", generate: { "x" }, deadline: fired)
         check(outcome == .skipped, "a blank transcript skips, got \(outcome)")
+
+        await answerLength(deadline: waits)
 
         // Escape cancels the session: the failed call reports nothing.
         let session = Task { await DictationCleanupRunner.run("raw", generate: slow, deadline: waits) }
@@ -106,5 +110,30 @@ enum DictationExtrasCleanupTests {
         }
 
         print("nc-DictationExtras-cleanup-test: all passed")
+    }
+
+    static func answerLength(deadline: @escaping @Sendable () async throws -> Void) async {
+        let raw = "yyy w poniedziałek spotkajmy się o trzeciej nie czekaj o czwartej i potem wyślijmy notatkę do zespołu"
+        let commentary = """
+            Jasne, poprawiłem interpunkcję i usunąłem słowa wypełniające. Zachowałem ostatnią godzinę podaną
+            w nagraniu i zapisałem ją cyframi. Oto gotowy tekst, który można wkleić bez dodatkowych zmian:
+            W poniedziałek spotkajmy się o 4 i potem wyślijmy notatkę do zespołu.
+            """
+        let rejected = await DictationCleanupRunner.run(raw, generate: { commentary }, deadline: deadline)
+        check(rejected == .failed(.tooLong), "long Polish commentary is rejected")
+        let custom = await DictationCleanupRunner.run(
+            raw, generate: { commentary }, usesDefaultPrompt: false, deadline: deadline)
+        check(custom == .cleaned(commentary), "a custom prompt can ask for a longer answer")
+
+        for (spoken, expected) in [
+            ("um so the meeting is at three no wait four pm", "The meeting is at 4 PM."),
+            (raw, "W poniedziałek spotkajmy się o 4 i potem wyślijmy notatkę do zespołu."),
+            ("yyy ten deadline jest na jutro at nine", "Ten deadline jest na jutro at 9."),
+            ("sto dwadzieścia złotych", "120 zł"),
+            ("👋", String(repeating: "👋", count: 21))
+        ] {
+            let outcome = await DictationCleanupRunner.run(spoken, generate: { expected }, deadline: deadline)
+            check(outcome == .cleaned(expected), "valid cleanup is kept for \(spoken)")
+        }
     }
 }

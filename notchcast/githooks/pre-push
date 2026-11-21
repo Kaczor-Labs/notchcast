@@ -2,10 +2,13 @@
 set -euo pipefail
 trap 'status=$?; echo "pre-push: REFUSED: \`$BASH_COMMAND\` exited $status" >&2' ERR
 PATH="/opt/homebrew/bin:$PATH"
-root="$(git rev-parse --show-toplevel)"
+root="$(cd "$(dirname "$0")/../.." && pwd -P)"
 # A stale upstream puts its own commits in the range, and those authors are not ours.
 git fetch -q upstream main || true
-python3 "$root/notchcast/check-drift.py" --gates 1,2,3 || echo 'WARN: drift gates fail; land.sh will refuse' >&2
+if [ -f notchcast/config.env ]; then
+    python3 "$root/notchcast/check-drift.py" --root "$PWD" --gates 1,2,3 \
+        || echo 'WARN: drift gates fail; land.sh will refuse' >&2
+fi
 while read -r _local_ref local_sha remote_ref remote_sha; do
     if [[ "$local_sha" =~ ^0+$ ]]; then
         continue

@@ -375,7 +375,8 @@ final class AppSettings {
     }
 
     var notesEnabled: Bool {
-        didSet { defaults.set(notesEnabled, forKey: Key.notesEnabled.rawValue) }
+        get { false }
+        set { _ = newValue }
     }
 
     var dictationEnabled: Bool {
@@ -458,7 +459,8 @@ final class AppSettings {
         didSet { defaults.set(mcpEnabled, forKey: Key.mcpEnabled.rawValue) }
     }
     var aiEnabled: Bool {
-        didSet { defaults.set(aiEnabled, forKey: Key.aiEnabled.rawValue) }
+        get { false }
+        set { _ = newValue }
     }
 
     var customCommandsEnabled: Bool {
@@ -843,7 +845,6 @@ final class AppSettings {
         fileSearchShowInLauncher = defaults.bool(forKey: Key.fileSearchShowInLauncher.rawValue)
         fileSearchIncludesHiddenFiles = defaults.bool(
             forKey: Key.fileSearchIncludesHiddenFiles.rawValue)
-        notesEnabled = defaults.bool(forKey: Key.notesEnabled.rawValue)
         dictationEnabled = defaults.bool(forKey: Key.dictationEnabled.rawValue)
         dictationMode =
             defaults.string(forKey: Key.dictationMode.rawValue)
@@ -881,7 +882,6 @@ final class AppSettings {
             defaults.object(forKey: Key.notesShowsFormattingBar.rawValue) == nil
             || defaults.bool(forKey: Key.notesShowsFormattingBar.rawValue)
         notesFolder = defaults.string(forKey: Key.notesFolder.rawValue)
-        aiEnabled = defaults.bool(forKey: Key.aiEnabled.rawValue)
         mcpEnabled = defaults.bool(forKey: Key.mcpEnabled.rawValue)
         // These default on, so absence must be distinguished from a stored `false`.
         customCommandsShowInLauncher =
