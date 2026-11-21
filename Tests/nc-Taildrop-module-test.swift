@@ -244,6 +244,8 @@ enum TaildropModuleTests {
 
     @MainActor
     static func engine() async {
+        precondition(TaildropSend.cliPaths.first?.hasPrefix("/Applications/Tailscale.app/") == true,
+                     "the app's CLI, which matches its daemon, is tried before Homebrew's")
         world.reset()
         world.set { $0.cli = nil }
         var failed = await failure { _ = try await TaildropSend.targets(world.system) }
@@ -432,7 +434,9 @@ enum TaildropModuleTests {
         let posts = rig.presenter.posts.count
         await rig.run("taildrop-to-pocket-phone", closing: false)
         precondition(rig.presenter.posts.count == posts && world.sends.count == 1, "one send at a time")
-        guard let click = rig.presenter.taps.last ?? nil else { preconditionFailure("the progress notice takes a click") }
+        guard let click = rig.presenter.taps.last.flatMap({ $0 }) else {
+            preconditionFailure("the progress notice takes a click")
+        }
         click()
         await until("the click cancels") { rig.last?.progress == nil }
         rig.expect("Cancelled", failure: false)

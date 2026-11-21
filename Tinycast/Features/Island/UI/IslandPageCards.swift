@@ -90,7 +90,7 @@ private struct IslandCardLayout: Layout {
     }
 }
 
-private struct IslandCardHeader: View {
+struct IslandCardHeader: View {
     let title: String
     @Environment(\.metrics) private var metrics
 

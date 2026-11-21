@@ -151,6 +151,9 @@ struct IslandPagesTest {
                    tappable: false)
         precondition(three.notice?.title == "Copied “Home”: hunter2" && three.notice?.spoken == "Copied Wi-Fi password",
                      "the open island's notice row is read as the spoken text, never the shown secret")
+        three.show(IslandNotice(id: "dictation", symbol: "mic", text: "Return to Paste",
+                                progress: IslandProgress(fraction: nil, readout: "0:07")), tappable: false)
+        precondition(three.notice?.title == "0:07  Return to Paste", "the notice row carries the readout's line")
         three.show(nil, tappable: false)
         precondition(three.notice == nil, "an ended notice leaves the page")
         var one = deck(page("player", order: 10))
@@ -227,6 +230,27 @@ struct IslandPagesTest {
         precondition(Key(keyCode: 35, characters: "p", command: true) == .pin, "Command-P pins")
         precondition(Key(keyCode: 15, characters: "r", command: false) == nil, "a bare R is left alone")
         precondition(Key(keyCode: 18, characters: "1", command: true) == nil, "Command-1 is left alone")
+        precondition(Key(keyCode: Key.spaceBar, characters: " ", command: false) == .space, "space")
+        precondition(Key(keyCode: Key.upArrow, characters: "", command: false) == .step(1), "up arrow")
+        precondition(Key(keyCode: Key.downArrow, characters: "", command: false) == .step(-1), "down arrow")
+        var deck = IslandPageDeck()
+        deck.set(page("agents", order: 0), id: "agents")
+        var player = page("player", order: 10)
+        player.takesKeys = true
+        deck.set(player, id: "player")
+        precondition(deck.pageAction(for: .move(1)) == nil, "on Home the arrows move tabs")
+        deck.select(.page("agents"))
+        precondition(deck.pageAction(for: .space) == nil, "a page that takes no keys leaves them to the deck")
+        deck.select(.page("player"))
+        let routed = [Key.move(-1), .move(1), .step(1), .step(-1), .space].compactMap { deck.pageAction(for: $0) }
+        precondition(routed.map(\.page) == Array(repeating: "player", count: 5)
+                     && routed.map(\.action) == ["key.left", "key.right", "key.up", "key.down", "key.space"],
+                     "a page that takes keys gets space and the arrows (#850 D27)")
+        precondition([Key.step(1), .step(-1)].allSatisfy(\.repeatsOnPage)
+                     && ![Key.move(-1), .move(1), .space].contains(where: \.repeatsOnPage),
+                     "a held arrow skips one song per press; a held up or down keeps stepping the volume")
+        precondition([Key.close, .pin, .refresh, .number(1)].allSatisfy { deck.pageAction(for: $0) == nil },
+                     "Escape, the pin, refresh and numbers stay the deck's")
     }
 
     static func player() {
@@ -265,6 +289,49 @@ struct IslandPagesTest {
         two.set(IslandPage(id: "agents", title: "Agents", symbol: "person.2", order: 0, badge: 1,
                            line: IslandPageLine(text: "1 waiting"), blocks: []), id: "agents")
         precondition(two.homeLines.map(\.id) == ["agents", "player"], "agents waiting come before the player")
+        playerControls(playing)
+    }
+
+    /// #850 part B: like, seek, volume, Up Next and the page's keys.
+    static func playerControls(_ playing: IslandNowPlaying) {
+        guard case .media(let bare)? = IslandPlayerPage.page(playing).blocks.first else { preconditionFailure("media") }
+        precondition(bare.like == nil && bare.volume == nil && !bare.seekable && bare.upNext.isEmpty,
+                     "a player that tells nothing more draws no heart, volume, seek or Up Next")
+        precondition(IslandPlayerPage.page(playing).takesKeys, "the Player page takes space and the arrows")
+        var full = playing
+        full.liked = false
+        full.volume = 0.4
+        full.seekable = true
+        full.upNext = [IslandQueuedSong(id: "q1", title: "Glass Harbour", artist: "Juno Vale"),
+                       IslandQueuedSong(id: "q2", title: "Low Tide", artist: nil)]
+        guard case .media(let media)? = IslandPlayerPage.page(full).blocks.first else { preconditionFailure("media") }
+        precondition(media.like?.symbol == "heart" && media.like?.id == IslandPlayerControl.like.rawValue,
+                     "an unliked song shows an empty heart")
+        full.liked = true
+        guard case .media(let liked)? = IslandPlayerPage.page(full).blocks.first else { preconditionFailure("media") }
+        precondition(liked.like?.symbol == "heart.fill" && liked.like?.label != media.like?.label,
+                     "a liked one a filled heart, named for what a click does")
+        full.liked = nil
+        full.likePending = true
+        guard case .media(let pending)? = IslandPlayerPage.page(full).blocks.first else { preconditionFailure("media") }
+        precondition(pending.like?.isEnabled == false && pending.like?.label == "Checking Liked Songs",
+                     "while the player asks, the heart is dimmed, unclickable and says it is loading (#850 B3)")
+        full.liked = false
+        full.likePending = false
+        precondition(media.volume == 0.4 && media.seekable, "volume and seek carry through")
+        precondition(media.upNext == [IslandPageRow(title: "Glass Harbour", detail: "Juno Vale"),
+                                      IslandPageRow(title: "Low Tide")], "Up Next lists what follows, unclickable")
+        precondition(full.glance == IslandNowPlaying(title: "Paper Lanterns", artist: "Juno Vale", artwork: nil,
+                                                     time: nil, isPlaying: true),
+                     "the pill sees none of the page's parts, so they never redraw it")
+        typealias Action = IslandPlayerAction
+        precondition(Action(id: IslandMedia.action(IslandMedia.seekAction, 0.25)) == .seek(0.25), "a seek")
+        precondition(Action(id: IslandMedia.action(IslandMedia.volumeAction, 1.7)) == .volume(1), "volume clamps")
+        precondition(Action(id: "media.seek:nan") == nil && Action(id: "media.seek:") == nil, "garbage is ignored")
+        precondition(Action(id: "key.space") == .control(.playPause) && Action(id: "key.left") == .control(.previous)
+                     && Action(id: "key.right") == .control(.next) && Action(id: "key.up") == .control(.volumeUp)
+                     && Action(id: "key.down") == .control(.volumeDown), "the keys are the transport and volume")
+        precondition(Action(id: IslandPage.refreshAction) == .control(.refresh), "Command-R refreshes")
     }
 
     /// The card blocks (#1128): fixed slots, a hollow card half a slot, the row four across.

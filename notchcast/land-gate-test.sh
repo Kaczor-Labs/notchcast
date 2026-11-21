@@ -23,7 +23,7 @@ case "$*" in
         esac ;;
     *statuses*)
         if [ "$LOCAL_BUILD" = success ]; then
-            printf '{"id":1,"url":"https://api.github.com/repos/kaczordodgers/notchcast/statuses/%s","state":"success"}\n' "$HEAD_SHA"
+            printf '{"id":1,"url":"https://api.github.com/repos/Kaczor-Labs/notchcast/statuses/%s","state":"success"}\n' "$HEAD_SHA"
         fi ;;
     *variable\ get\ LANDING_HOLD*)
         [ -z "${HOLD_ERROR:-}" ] || { echo 'HTTP 502: Bad Gateway' >&2; exit 1; }
@@ -126,7 +126,7 @@ for runs in 'success cancelled' 'success skipped' 'failure success cancelled'; d
     [ "$status" -eq 77 ] || { cat "$scratch/output"; echo "FAIL: build runs '$runs' refused"; exit 1; }
     echo "PASS: build runs '$runs' land: a cancelled or skipped run does not hide a green one"
 done
-for runs in 'success failure' 'success failure cancelled' 'success pending' 'cancelled' 'skipped cancelled'; do
+for runs in 'success failure' 'success failure cancelled' 'success pending' 'cancelled' 'skipped' 'skipped cancelled'; do
     build_runs $runs
     run
     grep -q 'REFUSED: build is' "$scratch/output" || { cat "$scratch/output"; echo "FAIL: build runs '$runs' accepted"; exit 1; }

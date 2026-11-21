@@ -1,0 +1,109 @@
+# Runs a tester scenario on the hosted xcode-27 VM and uploads its PNGs and logs (README, Hosted tester).
+name: Tester
+run-name: "Tester: ${{ inputs.scenario || 'all' }} on ${{ github.ref_name }}"
+on:
+  workflow_dispatch:
+    inputs:
+      scenario:
+        description: Which scenario to run
+        type: choice
+        options: [all, launcher, keychain, renders]
+        default: all
+permissions:
+  contents: read
+concurrency:
+  group: tester-${{ github.ref_name }}-${{ inputs.scenario || 'all' }}
+  cancel-in-progress: false
+env:
+  SCENARIO: ${{ inputs.scenario || 'all' }}
+jobs:
+  tester:
+    runs-on: xcode-27
+    timeout-minutes: 30
+    steps:
+      - name: Refuse anything but a hosted runner
+        if: runner.environment != 'github-hosted'
+        run: |
+          echo "::error::Tester drives the screen and replaces the keychain list: GitHub-hosted runner only"
+          exit 1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+          # fetch-upstream.sh needs a merge base with upstream for the renders harness.
+          fetch-depth: 0
+      - uses: ./notchcast/actions/xcode
+      - name: Debug build key
+        id: key
+        if: env.SCENARIO == 'all' || env.SCENARIO == 'launcher'
+        run: |
+          xcode=$(xcodebuild -version | shasum | cut -c1-12)
+          tree=$(git rev-parse HEAD:Tinycast)-$(git rev-parse HEAD:project.yml | cut -c1-12)
+          echo "prefix=tester-debug-$xcode" >> "$GITHUB_OUTPUT"
+          echo "tree=$tree" >> "$GITHUB_OUTPUT"
+      # The same tree's app: no build at all.
+      - name: Restore the Debug app
+        id: app
+        if: steps.key.outputs.tree
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
+        with:
+          path: ${{ runner.temp }}/DD/Build/Products/Debug
+          key: ${{ steps.key.outputs.prefix }}-app-${{ steps.key.outputs.tree }}
+      # Another tree: Xcode's compilation cache, content-addressed, so a fresh checkout's mtimes do not matter.
+      - name: Restore the compilation cache
+        if: steps.key.outputs.tree && steps.app.outputs.cache-hit != 'true'
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
+        with:
+          path: ${{ runner.temp }}/DD/CompilationCache.noindex
+          key: ${{ steps.key.outputs.prefix }}-cas-${{ steps.key.outputs.tree }}
+          restore-keys: ${{ steps.key.outputs.prefix }}-cas-
+      - uses: ./notchcast/actions/xcodegen
+        if: steps.key.outputs.tree && steps.app.outputs.cache-hit != 'true'
+      - name: Build Debug app
+        if: steps.key.outputs.tree && steps.app.outputs.cache-hit != 'true'
+        timeout-minutes: 20
+        run: |
+          "$XCODEGEN" generate --quiet
+          xcodebuild -project Tinycast.xcodeproj -scheme Tinycast -configuration Debug \
+            -derivedDataPath "$RUNNER_TEMP/DD" ARCHS=arm64 ONLY_ACTIVE_ARCH=YES \
+            COMPILATION_CACHE_ENABLE_CACHING=YES CODE_SIGN_IDENTITY=- CODE_SIGNING_ALLOWED=YES build -quiet
+          du -sh "$RUNNER_TEMP/DD/CompilationCache.noindex" || true
+      - name: Save the compilation cache
+        if: steps.key.outputs.tree && steps.app.outputs.cache-hit != 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
+        with:
+          path: ${{ runner.temp }}/DD/CompilationCache.noindex
+          key: ${{ steps.key.outputs.prefix }}-cas-${{ steps.key.outputs.tree }}
+      - name: Save the Debug app
+        if: steps.key.outputs.tree && steps.app.outputs.cache-hit != 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
+        with:
+          path: ${{ runner.temp }}/DD/Build/Products/Debug
+          key: ${{ steps.key.outputs.prefix }}-app-${{ steps.key.outputs.tree }}
+      - name: Launcher (launch, type, click an unselected row, Return)
+        if: steps.key.outputs.tree
+        timeout-minutes: 5
+        run: APP="$RUNNER_TEMP/DD/Build/Products/Debug/Notchcast Dev.app" OUT="$RUNNER_TEMP/out/launcher" bash notchcast/tester/launcher.sh
+      - name: Keychain (job-local keychain, KeychainSecretStore)
+        if: ${{ !cancelled() && (env.SCENARIO == 'all' || env.SCENARIO == 'keychain') }}
+        timeout-minutes: 3
+        run: OUT="$RUNNER_TEMP/out/keychain" bash notchcast/tester/keychain.sh
+      - name: Island preview renders
+        if: ${{ !cancelled() && (env.SCENARIO == 'all' || env.SCENARIO == 'renders') }}
+        timeout-minutes: 10
+        env:
+          NC_AUDIT_RENDERS: ${{ runner.temp }}/out/renders
+          NOTCHCAST_ONLY_TESTS: nc-Notchcast-island-audit-render-test
+          LIBDISPATCH_COOPERATIVE_POOL_STRICT: '1'
+          NOTCHCAST_TEST_HELPER_EXECUTABLE: '1'
+        run: |
+          mkdir -p "$NC_AUDIT_RENDERS"
+          bash notchcast/fetch-upstream.sh
+          ./Scripts/run-tests.sh
+          echo "$(ls "$NC_AUDIT_RENDERS" | wc -l | xargs) renders"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        if: ${{ !cancelled() }}
+        with:
+          name: tester-${{ env.SCENARIO }}
+          path: ${{ runner.temp }}/out
+          if-no-files-found: error
+          retention-days: 7

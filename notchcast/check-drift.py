@@ -25,6 +25,7 @@ HUB = 'Tinycast/Features/Notchcast/Core/NotchcastFeature.swift'  # One line per 
 RULES = {'1': ('boundaries', 'core-lookups', 'upstream-folders'),
          '2': ('file-size',), '3': ('dead', 'test-only'), '4': ('clones', 'constants')}
 WAIVER = re.compile(r'// drift: keep \S.*$')
+ADDON_ORDER = re.compile(r'^// notchcast-addon-order:', re.M)
 IDENT = re.compile(r'[A-Za-z_]\w*')
 DECL = re.compile(r'^[ \t]*((?:@\w+(?:\([^)\n]*\))?\s+)*)'
                   r'((?:(?:public|private|fileprivate|internal|final|nonisolated|static|class|'
@@ -177,8 +178,12 @@ def measure(root, upstream, gates):
         test_tokens = Counter(word for text in tests.values() for word in IDENT.findall(text))
         declarations = Counter(m[4] for text in clean.values() for m in DECL.finditer(text))
         for path in ours:
+            registered = ADDON_ORDER.search(ours[path])
             for match in DECL.finditer(clean[path]):
                 attrs, mods, kind, name = match.groups()
+                # The generated registry lists it, and merges keep main's copy of that file.
+                if registered and re.match(r'\s*:\s*NotchcastAddon\b', clean[path][match.end():]):
+                    continue
                 if 'override' in mods or any(a in attrs for a in SKIP_ATTR):
                     continue
                 if kind in ('func', 'let', 'var') and not {'static', 'class'} & set(mods.split()) and match.group().startswith((' ', '\t')):

@@ -118,11 +118,14 @@ struct AgentBoard: Equatable, Sendable {
         return alone ? same.first : nil
     }
 
-    /// This Mac's accounts, each merged with the feed's copy, then the feed's own.
+    /// This Mac's accounts, each merged with the feed's copy, then the feed's own; a copy merges once.
     private static func merge(local: [AgentLocalAccount], feed: [AgentLocalAccount], home: URL, now: Date)
         -> [AgentLocalAccount]
     {
-        let copies = local.map { account in feed.firstIndex { same(account, $0, home: home) } }
+        var copies: [Int?] = []
+        for account in local {
+            copies.append(feed.indices.first { !copies.contains($0) && same(account, feed[$0], home: home) })
+        }
         let merged = zip(local, copies).map { account, index -> AgentLocalAccount in
             guard let index else { return account }
             var merged = pick(account, feed[index], now: now)
@@ -250,7 +253,8 @@ struct AgentBoard: Equatable, Sendable {
         let hidden = meters.indices.filter { !kept.contains($0) }.map { meters[$0] }
         let count = hidden.count
         let lowest = hidden.min { $0.fraction < $1.fraction }?.value ?? ""
-        let line = String(localized: "\(count) more, lowest \(lowest)", table: "NotchcastAgents")
+        let line = count == 1 ? String(localized: "1 more, \(lowest)", table: "NotchcastAgents")
+            : String(localized: "\(count) more, none under \(lowest)", table: "NotchcastAgents")
         return (meters.indices.filter(kept.contains).map { meters[$0] }, line)
     }
 

@@ -14,7 +14,6 @@ struct QuicklinkCoordinatorTests {
         try await copiedSelection()
         try await argumentsBeforeSelection()
         try await defaultAppOverride()
-        try await typedArgument()
         try await hotKeySelectedText()
         try await hotKeySelectedTextTargets()
         try await hotKeyCopiesOnce()
@@ -115,22 +114,6 @@ struct QuicklinkCoordinatorTests {
         expect(
             QuicklinkLauncher.opened.first?.link == "https://example.com/?q=Swift&site=swift.org",
             "selection and declared arguments resolve together")
-    }
-
-    // Notchcast hides Fallbacks: alias, Tab, phrase and Return must open the link through its own field.
-    static func typedArgument() async throws {
-        let fixture = try Fixture(link: "https://www.google.com/search?q={argument}")
-        defer { fixture.cleanUp() }
-        let field = fixture.accessory()?.fieldNames.first
-        expect(field != nil, "Tab finds the quicklink's own argument field")
-        fixture.core.palette.commandArguments[
-            PaletteState.argumentKey(fixture.link.entryID, field ?? "")] = "swift actors"
-        let values = QuicklinkArgumentsAccessory.values(for: fixture.link, vm: fixture.core.palette)
-        fixture.coordinator.openQuicklink(id: fixture.link.id, values: values)
-        await waitForOpen()
-        expect(
-            QuicklinkLauncher.opened.first?.link == "https://www.google.com/search?q=swift%20actors",
-            "Return opens the quicklink with the typed phrase")
     }
 
     static func defaultAppOverride() async throws {

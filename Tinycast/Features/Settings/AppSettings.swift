@@ -459,7 +459,8 @@ final class AppSettings {
         didSet { defaults.set(mcpEnabled, forKey: Key.mcpEnabled.rawValue) }
     }
     var aiEnabled: Bool {
-        didSet { defaults.set(aiEnabled, forKey: Key.aiEnabled.rawValue) }
+        get { false }
+        set { _ = newValue }
     }
 
     var customCommandsEnabled: Bool {
@@ -629,7 +630,7 @@ final class AppSettings {
         didSet { defaults.set(hideCurrentEvent.rawValue, forKey: Key.hideCurrentEvent.rawValue) }
     }
 
-    /// Off means fully off: no launcher entries, and a still-registered shortcut moves nothing.
+    /// Off means fully off: no launcher entries and no registered shortcut.
     var windowManagementEnabled: Bool {
         didSet {
             defaults.set(windowManagementEnabled, forKey: Key.windowManagementEnabled.rawValue)
@@ -678,7 +679,7 @@ final class AppSettings {
         }
     }
 
-    /// Off means fully off, down to a still-registered shortcut opening nothing.
+    /// Off means fully off: no launcher entries and no registered shortcut.
     var quicklinksEnabled: Bool {
         didSet { defaults.set(quicklinksEnabled, forKey: Key.quicklinksEnabled.rawValue) }
     }
@@ -881,7 +882,6 @@ final class AppSettings {
             defaults.object(forKey: Key.notesShowsFormattingBar.rawValue) == nil
             || defaults.bool(forKey: Key.notesShowsFormattingBar.rawValue)
         notesFolder = defaults.string(forKey: Key.notesFolder.rawValue)
-        aiEnabled = defaults.bool(forKey: Key.aiEnabled.rawValue)
         mcpEnabled = defaults.bool(forKey: Key.mcpEnabled.rawValue)
         // These default on, so absence must be distinguished from a stored `false`.
         customCommandsShowInLauncher =

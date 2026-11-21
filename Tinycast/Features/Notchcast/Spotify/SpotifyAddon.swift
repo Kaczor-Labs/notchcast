@@ -1,9 +1,10 @@
 // notchcast-new-switch-ids: spotify
 // notchcast-addon-order: 165
+// notchcast-readme: Display & Sound: Spotify in the Island through Soloist
 import SwiftUI
 
 /// Spotify in the island through Soloist, Spotify's own headless player; off by default.
-enum SpotifyAddon: NotchcastAddon { // drift: keep the generated NotchcastRegistry lists it
+enum SpotifyAddon: NotchcastAddon {
     static let switchID = "spotify"
 
     static let switches = [
@@ -15,8 +16,17 @@ enum SpotifyAddon: NotchcastAddon { // drift: keep the generated NotchcastRegist
             category: .music),
     ]
 
+    static let commands = [
+        NotchcastCommand(slug: "spotify-expand-player",
+                         name: String(localized: "Expand Player", table: "NotchcastSpotify"),
+                         symbol: "music.note", switchID: "spotify", keywords: ["spotify", "music", "now playing"]) {
+            $0.module(SpotifyModule.self)?.expandPlayer()
+        },
+    ]
+
     static let settings = [
         NotchcastSettingsRow(switchID: "spotify") { AnyView(SpotifySettingsView(context: $0)) },
+        NotchcastSettingsRow(switchID: "spotify") { AnyView(SpotifyIslandRows(context: $0)) },
     ]
 
     static func makeModule(_ context: NotchcastContext) -> (any NotchcastModule)? {

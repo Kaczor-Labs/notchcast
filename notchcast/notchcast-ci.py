@@ -13,7 +13,7 @@ dispatches it prints `WAITING (not dispatched); rerun: ... --no-push`, after it 
 main-harnesses.yml is an error.
 
 First, refuse a HEAD that tracks a `*.pyc` or `__pycache__/` path, whatever its content, and a checkout whose
-core.hooksPath is not notchcast/githooks (its pushes would skip the repo's pre-push hook). Then, in order: (1) run exactly
+pre-push hook is not installed under the common git directory. Then, in order: (1) run exactly
 `git -C DIR push -u origin HEAD:refs/heads/<branch>` without LEFTHOOK* and GIT_CONFIG* variables (no force; a
 detached HEAD and main are refused) and stop when it fails; with --no-push, refuse unless origin's branch already
 equals local HEAD. Main harnesses runs only when dispatched. (2) When one of the latest 50 workflow_dispatch runs of
@@ -21,27 +21,36 @@ main-harnesses.yml has not started (queued, pending, waiting or requested), disp
 Main harnesses run already waits; rerun when it starts` and exit 4: a second waiting run would cancel the first in the
 workflow's concurrency group. A run in progress does not block; the new run waits behind it. (3) Dispatch
 main-harnesses.yml on the branch and use the workflow_run_id and html_url its response carries (never "the latest
-run"); a response without workflow_run_id is an error. (4) Poll the run with one `gh run view`
-every 60 s until it completes, then print the last ~40 lines of the failing step's log on a failure and one final line:
+run"); a response without workflow_run_id is an error. (4) Poll the run every 60 s until it completes, reading its
+check suite over GraphQL (its own hourly budget) and `gh run view` only where GraphQL cannot say; under RESERVE calls
+left in the bucket a poll used, the wait stretches by RESERVE/left with jitter, up to the reset plus 0-120 s but
+never under the usual pause, and says so (`notchcast-ci: N <bucket> calls left (<1500); next poll in S s`).
+Then print the last ~40 lines of the failing step's log on a failure and one final line:
 `PASS|FAIL <html_url> at <sha12> harnesses: <list>` (sha12 is the run's headSha; the list is the "Changed harnesses"
 step's output; `PASS (no harnesses selected) <html_url> at <sha12>` when it selected none, `harnesses: unknown` when
 the log cannot be read). A conclusion other than success or failure (cancelled, e.g. superseded in the workflow's
 concurrency group; timed_out; skipped) proves nothing: `NOPROOF <html_url> conclusion <c>; rerun`.
+A run whose log shows a skipped harness (a self-hosted runner's NOTCHCAST_RUNNER_SKIP_TESTS, or a hosted-only one)
+proves nothing for it: a success prints `NOPROOF <html_url> at <sha12> skipped harnesses: <list>; rerun on a hosted
+runner` and exits 2, a failure appends `; skipped: <list>` to its FAIL line.
 The account's API budget is shared: a poll that hits "API rate limit exceeded" prints
-`notchcast-ci: GitHub API rate limit; waiting until <HH:MM> UTC`, sleeps until the reset and retries; before the
-dispatch, fewer than 500 calls left likewise waits for the reset (`notchcast-ci: N API calls left (<500); waiting ...`).
+`notchcast-ci: GitHub API rate limit; waiting until <HH:MM> UTC`, sleeps until the reset plus a random 0-120 s, so
+pollers do not wake together, and retries; before the dispatch, fewer than 500 calls left likewise waits
+(`notchcast-ci: N API calls left (<500); waiting ...`).
 
 Exit 0: the run passed. 1: the run failed. 2: usage or infrastructure error (gh, git, a failed push, no push
 to prove), a NOPROOF run, or a run whose headSha is not the HEAD this started at (the branch moved; the verdict is
 still printed), or no --keeper. 3: still pending; rerun the printed command. 4: QUEUED, nothing dispatched; rerun once
 the waiting run starts. Overrides for tests: NOTCHCAST_CI_POLL (seconds between polls) and
 NOTCHCAST_CI_CLOCK=virtual (waits advance a counter instead of sleeping; a child process gets the virtual time
-left as its real timeout).
+left as its real timeout), NOTCHCAST_CI_NOW (the virtual clock's start, epoch seconds) and NOTCHCAST_CI_SEED (seeds
+the jitter).
 """
 import argparse
 import json
 import os
 from pathlib import Path
+import random
 import re
 import subprocess
 import sys
@@ -51,11 +60,17 @@ REPO = re.search(r"^FORK_REPO=(.+)$", (Path(__file__).resolve().parent / "config
 WORKFLOW = "main-harnesses.yml"
 KEEPER_ONLY = "Main harnesses is Keeper-only: push your branch (git push) and ask your Keeper for the harness proof"
 NOT_STARTED = ("queued", "pending", "waiting", "requested")
-HOOKS = "notchcast/githooks"
+HOOKS = "notchcast-hooks"
 STEP = "Changed harnesses"
 FAILED_LOG_LINES = 40
 MIN_API_CALLS = 500  # the hourly budget is shared with every lead's gh; never dispatch into its last calls
+RESERVE = 1500  # calls kept for land.sh and the Keepers: under it pollers spread to the reset
+WAKE_JITTER = 120  # pollers waking together at one reset would empty the new budget again
+RATE_LIMITED = re.compile(r"rate limit (?:already )?exceeded", re.I)
+RUN_QUERY = "query($id: ID!) { node(id: $id) { ... on WorkflowRun { checkSuite { status conclusion commit { oid } } } } }"
 HARNESS = re.compile(r"[\w.+-]+")
+# test-harnesses.sh's two skip lines: a runner's own NOTCHCAST_RUNNER_SKIP_TESTS, and a hosted-only harness.
+SKIPPED = re.compile(r"(?:##\[notice\]|::notice::)SKIPPED on this runner: ([\w.+-]+)|\bSKIPPED ([\w.+-]+): hosted-only:")
 
 
 class Infra(Exception):
@@ -72,7 +87,8 @@ class Queued(Exception):
 
 deadline = float("inf")
 VIRTUAL_CLOCK = os.environ.get("NOTCHCAST_CI_CLOCK") == "virtual"
-virtual_now = time.time()
+virtual_now = float(os.environ.get("NOTCHCAST_CI_NOW") or time.time())
+jitter = random.Random(os.environ.get("NOTCHCAST_CI_SEED"))
 
 
 def now():
@@ -112,34 +128,49 @@ def git(repo, *args):
     return run("git", "-C", repo, *args)
 
 
-def rate_limit(field):
-    return int(run("gh", "api", "rate_limit", "--jq", f".resources.core.{field}"))  # not counted by GitHub
+def budget(bucket):
+    """(calls left, reset epoch) of one rate-limit bucket, core (REST) or graphql; reading it is not counted."""
+    left, reset = run("gh", "api", "rate_limit", "--jq", f'.resources.{bucket} | "\\(.remaining) \\(.reset)"').split()
+    return int(left), int(reset)
 
 
-def sleep_until_reset(reason):
-    reset = rate_limit("reset")
+def sleep_until_reset(reason, bucket="core", reset=None):
+    reset = budget(bucket)[1] if reset is None else reset
     print(f"notchcast-ci: {reason}; waiting until {time.strftime('%H:%M', time.gmtime(reset))} UTC", flush=True)
-    nap(max(0, reset + 5 - now()))
+    nap(max(0, reset - now()) + jitter.uniform(0, WAKE_JITTER))
 
 
-def patient_gh(*args):
+def patient_gh(*args, bucket="core"):
     """gh, sleeping out the account's API rate limit instead of failing on it."""
     while True:
         try:
             return run("gh", *args)
         except Infra as error:
-            if "API rate limit exceeded" not in str(error):
+            if not RATE_LIMITED.search(str(error)):
                 raise
-        sleep_until_reset("GitHub API rate limit")
+        sleep_until_reset("GitHub API rate limit", bucket)
 
 
 def wait_for_api_budget():
-    while (left := rate_limit("remaining")) < MIN_API_CALLS:
-        sleep_until_reset(f"{left} API calls left (<{MIN_API_CALLS})")
+    while (state := budget("core"))[0] < MIN_API_CALLS:
+        sleep_until_reset(f"{state[0]} API calls left (<{MIN_API_CALLS})", reset=state[1])
 
 
 def poll_seconds():
     return float(os.environ.get("NOTCHCAST_CI_POLL", "60"))
+
+
+def poll_wait(bucket):
+    """The pause before the next poll: the usual one, stretched under RESERVE so every poller leaves the reserve be."""
+    left, reset = budget(bucket)
+    if left >= RESERVE:
+        return poll_seconds()
+    to_reset = max(0, reset - now())
+    stretched = poll_seconds() * RESERVE / max(left, 1)
+    wait = to_reset + jitter.uniform(0, WAKE_JITTER) if stretched >= to_reset else stretched * jitter.uniform(1, 1.25)
+    wait = max(poll_seconds(), wait)
+    print(f"notchcast-ci: {left} {bucket} calls left (<{RESERVE}); next poll in {wait:.0f} s", flush=True)
+    return wait
 
 
 def refuse_while_one_waits():
@@ -150,12 +181,29 @@ def refuse_while_one_waits():
             raise Queued(waiting["html_url"])
 
 
-def finished_run(run_id):
+def graphql_state(node_id):
+    """The run's state from its check suite over GraphQL (its own budget), or None where GraphQL cannot say."""
+    try:
+        data = json.loads(patient_gh("api", "graphql", "-f", f"query={RUN_QUERY}", "-f", f"id={node_id}",
+                                     bucket="graphql"))
+    except (Infra, ValueError):
+        return None
+    suite = ((data.get("data") or {}).get("node") or {}).get("checkSuite")
+    if not suite:
+        return None
+    return {"status": suite["status"].lower(), "conclusion": (suite["conclusion"] or "").lower() or None,
+            "headSha": suite["commit"]["oid"]}
+
+
+def finished_run(run_id, node_id):
     while True:
-        state = json.loads(patient_gh("run", "view", str(run_id), "-R", REPO, "--json", "status,conclusion,headSha"))
+        state = graphql_state(node_id) if node_id else None
+        bucket = "graphql" if state else "core"
+        if state is None:
+            state = json.loads(patient_gh("run", "view", str(run_id), "-R", REPO, "--json", "status,conclusion,headSha"))
         if state["status"] == "completed":
             return state
-        nap(poll_seconds())
+        nap(poll_wait(bucket))
 
 
 def push(repo, branch):
@@ -178,11 +226,21 @@ def dispatch(branch):
     return body["workflow_run_id"], body.get("html_url") or f"https://github.com/{REPO}/actions/runs/{body['workflow_run_id']}"
 
 
-def selected_harnesses(run_id):
-    """The names the "Changed harnesses" step printed, or None when its log or the step cannot be read."""
+def run_log(run_id):
     try:
-        log = run("gh", "run", "view", str(run_id), "-R", REPO, "--log")
+        return run("gh", "run", "view", str(run_id), "-R", REPO, "--log")
     except Infra:
+        return None
+
+
+def skipped_harnesses(log):
+    """Harnesses the run's runner skipped (a runner list or hosted-only), in log order; a skip proves nothing."""
+    return list(dict.fromkeys(a or b for a, b in SKIPPED.findall(log or "")))
+
+
+def selected_harnesses(log):
+    """The names the "Changed harnesses" step printed, or None when its log or the step cannot be read."""
+    if log is None:
         return None
     steps = []  # [is ours, lines outside groups]; gh may label every line UNKNOWN STEP
     key = in_group = None
@@ -252,11 +310,11 @@ def prove(args):
             print(f"QUEUED {waiting}: one Main harnesses run already waits; rerun when it starts")
             return 4
     try:
-        if args.run:
-            path = patient_gh("api", f"repos/{REPO}/actions/runs/{run_id}", "--jq", ".path")
-            if path.split("@")[0] != f".github/workflows/{WORKFLOW}":
-                raise Infra(f"run {run_id} is {path or 'of no workflow file'}, not {WORKFLOW}; it proves no harness")
-        return verdict(run_id, url, finished_run(run_id), head)
+        info = json.loads(patient_gh("api", f"repos/{REPO}/actions/runs/{run_id}", "--jq", "{path, node_id}"))
+        path = info.get("path") or ""
+        if args.run and path.split("@")[0] != f".github/workflows/{WORKFLOW}":
+            raise Infra(f"run {run_id} is {path or 'of no workflow file'}, not {WORKFLOW}; it proves no harness")
+        return verdict(run_id, url, finished_run(run_id, info.get("node_id")), head)
     except OutOfTime:
         print(f"PENDING {url} at {head[:12]}; rerun: {rerun} --run {run_id}")
         return 3
@@ -270,8 +328,12 @@ def refuse_unsafe_checkout(repo):
         raise Infra(f"HEAD tracks Python caches ({', '.join(caches[:5])}); git rm --cached them first")
     hooks = subprocess.run(["git", "-C", repo, "config", "--get", "core.hooksPath"], text=True,
                            capture_output=True).stdout.strip()
-    if hooks != HOOKS:
-        raise Infra(f"core.hooksPath is {hooks or 'unset'}; run `git -C {repo} config core.hooksPath {HOOKS}`")
+    expected = Path(git(repo, "rev-parse", "--path-format=absolute", "--git-common-dir")) / HOOKS
+    install = f"run notchcast/install-hooks.sh from {repo}"
+    if hooks != str(expected):
+        raise Infra(f"core.hooksPath is {hooks or 'unset'}; {install}")
+    if not (expected / "pre-push").is_file() or not os.access(expected / "pre-push", os.X_OK):
+        raise Infra(f"pre-push is missing or not executable in {expected}; {install}")
 
 
 def start_run(args, repo, branch, head):
@@ -296,7 +358,8 @@ def verdict(run_id, url, state, head):
         return 2
     passed = state["conclusion"] == "success"
     sha = state["headSha"][:12]
-    names = selected_harnesses(run_id)
+    log = run_log(run_id)
+    names, skipped = selected_harnesses(log), skipped_harnesses(log)
     if not passed:
         try:
             failed = run("gh", "run", "view", str(run_id), "-R", REPO, "--log-failed").splitlines()
@@ -304,10 +367,14 @@ def verdict(run_id, url, state, head):
             failed = [f"(failed-step log unavailable: {error})"]
         print("\n".join(failed[-FAILED_LOG_LINES:]))
     label = "PASS" if passed else "FAIL"
+    if passed and skipped:
+        print(f"NOPROOF {url} at {sha} skipped harnesses: {', '.join(skipped)}; rerun on a hosted runner")
+        return 2
     if names == []:
         print(f"{label} (no harnesses selected) {url} at {sha}")
     else:
-        print(f"{label} {url} at {sha} harnesses: {', '.join(names) if names else 'unknown'}")
+        print(f"{label} {url} at {sha} harnesses: {', '.join(names) if names else 'unknown'}"
+              + (f"; skipped: {', '.join(skipped)}" if skipped else ""))
     if state["headSha"] != head:
         print(f"notchcast-ci: the branch moved: the run tested {sha} but HEAD was {head[:12]}", file=sys.stderr)
         return 2

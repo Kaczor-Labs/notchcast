@@ -181,6 +181,7 @@ final class DictationExtrasCoordinator {
             _ = settings.dictationEnabled
             _ = settings.dictationCleansUp
             _ = settings.dictationKeepsHistory
+            _ = core?.aiSettings.enabledInstalledProviders
         } onChange: { [weak self] in
             Task { @MainActor in self?.observe(apply) }
         }

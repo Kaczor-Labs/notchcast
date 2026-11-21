@@ -6,7 +6,7 @@ nonisolated struct ArchiveProcessResult: Equatable, Sendable {
     var errors = ""
 }
 
-/// Every way an extraction stops short, each with the words the island shows.
+/// Every way an extraction or a compression stops short, each with the words the island shows.
 nonisolated enum ArchiveFailure: Error, Equatable, Sendable {
     case notArchive(String)
     case missingTool(ArchiveTool)
@@ -15,6 +15,13 @@ nonisolated enum ArchiveFailure: Error, Equatable, Sendable {
     case damaged(String)
     case password
     case failed(String)
+    case nothingSelected
+    case automationRefused
+    case severalFolders
+    case notWritable(String)
+    case notCompressible(String)
+    case busy(String)
+    case compressionFailed(String)
 
     /// HatchZip's documented exit statuses; 130 is a pause, so the caller treats it as a stop.
     static let hatchzipPaused: Int32 = 130
@@ -59,6 +66,20 @@ nonisolated enum ArchiveFailure: Error, Equatable, Sendable {
                    table: "NotchcastArchives")
         case .failed(let detail):
             detail.isEmpty ? String(localized: "Extraction failed.", table: "NotchcastArchives") : detail
+        case .nothingSelected:
+            String(localized: "Select files or folders in Finder first.", table: "NotchcastArchives")
+        case .automationRefused:
+            String(localized: "Allow Automation access to read the Finder selection.", table: "NotchcastArchives")
+        case .severalFolders:
+            String(localized: "Select items from one folder.", table: "NotchcastArchives")
+        case .notWritable(let folder):
+            String(localized: "Notchcast cannot write to \(folder).", table: "NotchcastArchives")
+        case .notCompressible(let name):
+            String(localized: "\(name) cannot be compressed.", table: "NotchcastArchives")
+        case .busy(let name):
+            String(localized: "Wait for \(name) to finish.", table: "NotchcastArchives")
+        case .compressionFailed(let detail):
+            detail.isEmpty ? String(localized: "Compression failed.", table: "NotchcastArchives") : detail
         }
     }
 }

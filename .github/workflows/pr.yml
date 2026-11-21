@@ -15,7 +15,9 @@ on:
         type: boolean
         default: false
       harness_runner:
-        description: Runner label for a harness-only macOS job (notchcast-mba); no build, no proof of any tree (README, Runners)
+        description: Runner label for a harness-only macOS job (notchcast-mba, notchcast-mbp); no build, no proof of any tree (README, Runners)
+        type: choice
+        options: ['', notchcast-mba, notchcast-mbp]
         default: ''
 
 permissions:
@@ -129,14 +131,30 @@ jobs:
         run: |
           mkdir -p "$RUNNER_TEMP/tmp" && echo "TMPDIR=$RUNNER_TEMP/tmp" >> "$GITHUB_ENV"
           sysctl -n hw.ncpu hw.memsize; uptime; vm_stat | head -8; sysctl vm.swapusage
-      # First: the shortest lane. land-test.sh serves this checkout's upstream main to its fixture remote.
+      # Niced beside the build lane, capped at 10 min, reported by their result step; each test writes only its own
+      # TMPDIR, and the build reads no git refs. land-test.sh serves this checkout's upstream main to its fixture remote.
       - name: Script tests that need macOS
         if: steps.runner.outputs.kind != 'working'
         working-directory: src
-        timeout-minutes: 10
         run: |
-          bash notchcast/fetch-upstream.sh --no-tags
-          python3 notchcast/script-tests.py --all --runner macos
+          out="$RUNNER_TEMP/macos-script-tests"
+          mkdir "$out"
+          perl -MFcntl=:flock -MPOSIX=setsid -e '
+            my ($out, $limit) = splice @ARGV, 0, 2;
+            open my $lock, ">>", "$out/lock" or die "lock: $!";
+            flock $lock, LOCK_EX or die "flock: $!";
+            defined(my $daemon = fork) or die "fork: $!";
+            exit 0 if $daemon;  # the held lock goes with the daemon: the result step waits on it, never a poll
+            setsid;
+            open STDIN, "<", "/dev/null"; open STDOUT, ">", "$out/log"; open STDERR, ">&", \*STDOUT; $| = 1;
+            defined(my $pid = fork) or die "fork: $!";
+            if (!$pid) { setpgrp(0, 0); exec @ARGV or die "exec: $!" }
+            setpgrp($pid, $pid);
+            sub finish { kill "KILL", -$pid; open my $rc, ">", "$out/rc" or die "rc: $!"; print $rc "$_[0]\n"; exit 0 }
+            $SIG{ALRM} = sub { kill "KILL", -$pid; waitpid($pid, 0); print "\nStopped: passed ${limit}s\n"; finish(124) };
+            alarm $limit; waitpid($pid, 0); alarm 0;
+            finish($? & 127 ? 128 + ($? & 127) : $? >> 8)' "$out" 600 nice -n 10 bash -c \
+            'bash notchcast/fetch-upstream.sh --no-tags && python3 notchcast/script-tests.py --all --runner macos'
       - name: Shared PR build lane
         if: needs.route.outputs.build == 'true' && inputs.harness_runner == ''
         working-directory: src
@@ -146,6 +164,16 @@ jobs:
           HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
           NOTCHCAST_HARNESSES_SHARDED: '1'
         run: bash ../tools/notchcast/ci-build.sh
+      # Also after a failed or skipped build lane; a run cancelled meanwhile never reaches it, so never passes.
+      - name: Result of the script tests that need macOS
+        if: ${{ !cancelled() && steps.runner.outputs.kind != 'working' }}
+        timeout-minutes: 10
+        run: |
+          out="$RUNNER_TEMP/macos-script-tests"
+          perl -MFcntl=:flock -e 'open my $lock, "<", shift or die "lock: $!"; flock $lock, LOCK_EX or die "flock: $!"' "$out/lock"
+          cat "$out/log"
+          rc=$(cat "$out/rc") || { echo "::error::the macOS script tests left no result"; exit 1; }
+          [ "$rc" = 0 ] || { echo "::error::macOS script tests failed ($rc)"; exit "$rc"; }
       # The whole suite (notchcast/test-harnesses.sh), or route's sure selection, after the build lane rather than in a
       # job beside it. A selection's cache is its own; a harness_runner run's is none: its key would start xcodebuild.
       - id: tests
