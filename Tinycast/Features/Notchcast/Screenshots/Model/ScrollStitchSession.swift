@@ -36,6 +36,7 @@ struct ScrollStitchSession {
     private var strips: [CGImage]
     private var footer: CGImage?
     private var previousSample: ScrollStitchMatcher.Sample
+    private var previousColour: ScrollStitchMatcher.ColourSample
     private var lastObservedSample: ScrollStitchMatcher.Sample
     private var contentSampleColumns: Range<Int>?
     private var contentPixelColumns: Range<Int>?
@@ -49,13 +50,14 @@ struct ScrollStitchSession {
 
     /// Nil when the first frame holds no picture.
     init?(first frame: CGImage, at uptime: TimeInterval, limits: Limits = Limits()) {
-        guard let first = ScrollStitchImage.content(frame), let sample = ScrollStitchImage.sample(first) else {
-            return nil
-        }
+        guard let first = ScrollStitchImage.content(frame), let sample = ScrollStitchImage.sample(first),
+            let colour = ScrollStitchImage.colourSample(first)
+        else { return nil }
         self.limits = limits
         height = first.height
         strips = [first]
         previousSample = sample
+        previousColour = colour
         lastObservedSample = sample
         startedAt = uptime
         lastChangedAt = uptime
@@ -91,8 +93,12 @@ struct ScrollStitchSession {
         case .end:
             hasUnmatchedContent = false
         case .advanced(let overlap, .forward, let columns):
-            if let ending = advance(to: current, sample: currentSample, sampleOverlap: overlap, columns: columns) {
-                return ending
+            guard let colour = ScrollStitchImage.colourSample(current) else { return .partial }
+            switch advance(to: current, sample: currentSample, colour: colour, sampleOverlap: overlap,
+                           columns: columns) {
+            case .joined: break
+            case .unverified: hasUnmatchedContent = true
+            case .ended(let ending): return ending
             }
         case .advanced(_, .backward, _):
             // Scrolling back adds nothing; a later forward scroll goes on from the furthest frame kept.
@@ -112,56 +118,65 @@ struct ScrollStitchSession {
         return ScrollStitchImage.stitch(&all)
     }
 
+    private enum Advance { case joined, unverified, ended(Ending) }
+
     private mutating func advance(
-        to current: CGImage, sample: ScrollStitchMatcher.Sample, sampleOverlap: Int, columns: Range<Int>
-    ) -> Ending? {
-        let overlap = Int((Double(sampleOverlap) / Double(sample.height) * Double(current.height)).rounded())
-        guard overlap > 0, overlap < current.height else { return .failed }
+        to current: CGImage, sample: ScrollStitchMatcher.Sample, colour: ScrollStitchMatcher.ColourSample,
+        sampleOverlap matchedOverlap: Int, columns: Range<Int>
+    ) -> Advance {
         let establishing = contentSampleColumns == nil
+        let fixedRows = establishing
+            ? ScrollStitchMatcher.fixedBottomRows(previous: previousSample, current: sample, overlap: matchedOverlap,
+                                                  contentColumns: columns)
+            : Int((Double(fixedBottomPixels) / Double(current.height) * Double(sample.height)).rounded())
+        guard let sampleOverlap = ScrollStitchMatcher.verifiedOverlap(
+            previous: previousColour, current: colour, overlap: matchedOverlap, fixedBottomRows: fixedRows)
+        else { return .unverified }
+        let overlap = Int((Double(sampleOverlap) / Double(sample.height) * Double(current.height)).rounded())
+        guard overlap > 0, overlap < current.height else { return .ended(.failed) }
         if establishing {
             // The matched columns only prove movement; every selected column is kept.
             let pixelColumns = 0..<current.width
-            let fixedRows = ScrollStitchMatcher.fixedBottomRows(
-                previous: previousSample, current: sample, overlap: sampleOverlap, contentColumns: columns)
             fixedBottomPixels = Int((Double(fixedRows) / Double(sample.height) * Double(current.height)).rounded())
             guard let revealed = ScrollStitchMatcher.newContentRows(
                 imageHeight: current.height, overlap: overlap, fixedBottomRows: fixedBottomPixels),
                 let first = ScrollStitchImage.strip(of: strips[0], columns: pixelColumns, topCrop: 0,
                                                     bottomCrop: fixedBottomPixels)
-            else { return .failed }
+            else { return .ended(.failed) }
             contentSampleColumns = columns
             contentPixelColumns = pixelColumns
             strips[0] = first
             if fixedBottomPixels > 0 {
                 guard let kept = ScrollStitchImage.strip(of: current, columns: pixelColumns,
                                                          topCrop: revealed.upperBound, bottomCrop: 0)
-                else { return .failed }
+                else { return .ended(.failed) }
                 footer = kept
             }
         }
         guard let pixelColumns = contentPixelColumns, !pixelColumns.isEmpty,
             let revealed = ScrollStitchMatcher.newContentRows(
                 imageHeight: current.height, overlap: overlap, fixedBottomRows: fixedBottomPixels)
-        else { return .failed }
+        else { return .ended(.failed) }
         let allowed = limits.height(forWidth: pixelColumns.count)
         let room = allowed - height
         let reachesLimit = revealed.count >= room
         let limit: Ending = allowed == limits.height ? .limitedByHeight : .limitedByGuard
-        guard room > 0 else { return limit }
+        guard room > 0 else { return .ended(limit) }
         let rows = revealed.lowerBound..<(revealed.lowerBound + min(revealed.count, room))
         guard let strip = ScrollStitchImage.strip(of: current, columns: pixelColumns, topCrop: rows.lowerBound,
                                                   bottomCrop: current.height - rows.upperBound)
-        else { return .failed }
+        else { return .ended(.failed) }
         if fixedBottomPixels > 0, !establishing {
             guard let kept = ScrollStitchImage.strip(of: current, columns: pixelColumns,
                                                      topCrop: current.height - fixedBottomPixels, bottomCrop: 0)
-            else { return .failed }
+            else { return .ended(.failed) }
             footer = kept
         }
         strips.append(strip)
         height += rows.count
         previousSample = sample
+        previousColour = colour
         hasUnmatchedContent = false
-        return reachesLimit ? limit : nil
+        return reachesLimit ? .ended(limit) : .joined
     }
 }

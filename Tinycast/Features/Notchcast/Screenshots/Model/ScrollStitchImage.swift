@@ -52,6 +52,24 @@ enum ScrollStitchImage {
         return drawn ? ScrollStitchMatcher.Sample(width: width, height: height, pixels: pixels) : nil
     }
 
+    /// `sample`'s columns in colour, for checking a join where grey rows look alike.
+    static func colourSample(_ image: CGImage) -> ScrollStitchMatcher.ColourSample? {
+        let width = min(256, image.width)
+        let height = image.height
+        guard width > 0, height > 0 else { return nil }
+        var pixels = [UInt8](repeating: 0, count: width * height * 4)
+        let drawn = pixels.withUnsafeMutableBytes { bytes -> Bool in
+            guard let context = CGContext(
+                data: bytes.baseAddress, width: width, height: height, bitsPerComponent: 8, bytesPerRow: width * 4,
+                space: CGColorSpaceCreateDeviceRGB(), bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)
+            else { return false }
+            context.interpolationQuality = .low
+            context.draw(image, in: CGRect(x: 0, y: 0, width: width, height: height))
+            return true
+        }
+        return drawn ? ScrollStitchMatcher.ColourSample(width: width, height: height, pixels: pixels) : nil
+    }
+
     /// Drawn into its own bitmap, because a cropped image can keep its whole source frame alive.
     static func strip(of image: CGImage, columns: Range<Int>, topCrop: Int, bottomCrop: Int) -> CGImage? {
         let height = image.height - topCrop - bottomCrop
