@@ -1,5 +1,4 @@
 #!/bin/bash
-# script-tests: macos (kick.sh's BSD sed -i and date -j)
 # shellcheck disable=SC2016
 set -euo pipefail
 ROOT=$(cd "$(dirname "$0")/.." && pwd)
@@ -29,10 +28,11 @@ chmod +x "$WORK/Scripts/run-tests.sh"
 printf '#!/bin/bash\nexit 0\n' > "$WORK/bin/git"
 chmod +x "$WORK/bin/git"
 if [ "${1:-}" = --mutate-only ]; then
-    sed -i '' 's/NOTCHCAST_ONLY_TESTS/DISABLED_ONLY_TESTS/g' "$WORK/notchcast/test-harnesses.sh"
+    sed -i.bak 's/NOTCHCAST_ONLY_TESTS/DISABLED_ONLY_TESTS/g' "$WORK/notchcast/test-harnesses.sh"
 fi
 cd "$WORK"
-export PATH="$WORK/bin:$PATH" RUNNER_TEMP="$WORK" TMPDIR="$WORK" RUNNER_ENVIRONMENT=github-hosted
+# The fixture is a Mac queue; on Linux test-harnesses.sh would narrow it to the linux-ok list.
+export PATH="$WORK/bin:$PATH" RUNNER_TEMP="$WORK" TMPDIR="$WORK" RUNNER_ENVIRONMENT=github-hosted NOTCHCAST_PLATFORM=Darwin
 unset NOTCHCAST_ONLY_TESTS NOTCHCAST_SHARD NOTCHCAST_SWIFTC_CACHE
 bash notchcast/ci-tests.sh > baseline 2>&1
 printf 'skipped on the runner: skip\n4:alpha alphabet beta gamma \n' > expected
@@ -53,7 +53,7 @@ done
 echo 'PASS: shards split the queue with every harness in exactly one; a named harness runs in any shard'
 sed '/^export PATH=/d' "$ROOT/notchcast/kick.sh" > notchcast/kick.sh
 if [ "${1:-}" = --mutate-skip ]; then
-    sed -i '' 's/if \[ "$pending" != 0 \]/if [ "$pending" = impossible ]/' notchcast/kick.sh
+    sed -i.bak 's/if \[ "$pending" != 0 \]/if [ "$pending" = impossible ]/' notchcast/kick.sh
 fi
 printf '#!/bin/bash\ncase "$*" in\n  *"actions/workflows"*) echo "${SYNC_STATE:-active}";;\n  *"commits/main"*) echo upstream;;\n  "release list"*) echo release;;\n  "run list"*) echo "${PENDING:-1}";;\n  "workflow run"*) echo dispatch >> "$CALLS";;\n  *compare*) echo 0;;\n  *) echo "unexpected gh: $*" >&2; exit 1;;\nesac\n' > bin/gh
 chmod +x bin/gh
@@ -98,8 +98,8 @@ case "$*" in
   "release list"*) echo release;;
   "run list"*) echo 0;;
   *"compare/upstream:main"*) echo 3;;
-  *"compare/main"*) date -u -v-"${MOVED_AGO:-5}"H +%Y-%m-%dT%H:%M:%SZ;;
-  *"commits/upstream"*) date -u -v-"${MOVED_AGO:-5}"H +%Y-%m-%dT%H:%M:%SZ;;
+  *"compare/main"* | *"commits/upstream"*)
+    python3 -c 'import datetime, sys; print((datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(hours=int(sys.argv[1]))).strftime("%Y-%m-%dT%H:%M:%SZ"))' "${MOVED_AGO:-5}";;
   "issue list"*) echo "${ISSUES:-0}";;
   "pr list"*"--label upstream-sync"*) echo "${REVIEW:-}";;
   "pr list"*) echo "$PRS";;

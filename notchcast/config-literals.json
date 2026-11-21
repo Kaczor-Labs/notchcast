@@ -16,7 +16,7 @@
   "notchcast/land-test.sh": {"FORK_REPO": 3, "MAINTAINER_NAME": 1, "MAINTAINER_EMAIL": 1},
   "notchcast/land-tools-test.sh": {"MAINTAINER_NAME": 1, "MAINTAINER_EMAIL": 1},
   "notchcast/merge-rules-test.sh": {"MAINTAINER_NAME": 1, "MAINTAINER_EMAIL": 1},
-  "notchcast/notchcast-ci-test.py": {"FORK_REPO": 5},
+  "notchcast/notchcast-ci-test.py": {"FORK_REPO": 4},
   "notchcast/prune-branches-test.sh": {"FORK_REPO": 1},
   "notchcast/review/upstream-review.md": {"UPSTREAM_REPO": 1, "REVIEW_CONTEXT": 1},
   "notchcast/sync-island-engine-test.py": {"MAINTAINER_NAME": 2, "MAINTAINER_EMAIL": 2},
