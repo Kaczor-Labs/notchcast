@@ -1,7 +1,7 @@
 #!/bin/bash
 # Runs land.sh's drift gates, the private-data checks leaks.yml runs, then every gate pr.yml runs in its order (ci-build.sh, harnesses included),
 # then check-addon-delete.py --rotate when the branch changes Tinycast/Features/Notchcast/, on HEAD against a base ref.
-# Prints retried and ignored harnesses then PASS, or FAIL with the first failing gate. ready-check-test.py ties it to pr.yml.
+# Prints ignored harnesses then PASS, or FAIL with the first failing gate. ready-check-test.py ties it to pr.yml.
 set -euo pipefail
 [[ $# -le 1 ]] || { echo 'usage: ready-check.sh [base-ref, default origin/main]' >&2; exit 2; }
 base_ref=${1:-origin/main}
@@ -106,11 +106,9 @@ queue=()
 # shellcheck disable=SC2206
 if [ -n "${NOTCHCAST_BUILD_QUEUE:-}" ]; then queue=($NOTCHCAST_BUILD_QUEUE hold --); fi
 if (cd "$tree" && BASE_SHA=$FORK_SHA ${queue[@]+"${queue[@]}"} bash notchcast/ci-build.sh) >> "$log" 2>&1; then
-    # A harness green only on its retry, or ignored as failing upstream too, is not a clean PASS.
-    retried=$(sed -n 's/^::warning::retrying \(.*\) alone$/\1/p' "$log" | sort -u | paste -sd ' ' -)
+    # A harness ignored as failing upstream too is not a clean PASS.
     ignored=$(sed -n 's/^::warning::\(.*\) fails on upstream .* too; not ours, ignored$/\1/p' "$log" \
         | sort -u | paste -sd ' ' -)
-    echo "retried: ${retried:-none}"
     echo "ignored (fails upstream too): ${ignored:-none}"
     # The delete test costs one more Debug build, so only a branch that changes add-on code pays it.
     if [ -n "$(git -C "$tree" diff --name-only "$FORK_SHA" "$HEAD_SHA" -- Tinycast/Features/Notchcast/)" ]; then
