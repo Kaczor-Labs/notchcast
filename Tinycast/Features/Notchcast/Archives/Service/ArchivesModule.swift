@@ -12,6 +12,7 @@ final class ArchivesModule: NotchcastModule {
 
     private let context: NotchcastContext
     private let environment: ArchivesEnvironment
+    private var picker: Task<Void, Never>?
     private(set) var jobs: [ArchiveJob] = []
     private(set) var current: (job: ArchiveJob, task: Task<Void, Never>)?
 
@@ -35,6 +36,8 @@ final class ArchivesModule: NotchcastModule {
 
     /// A switch turned off gives the archive types back; quitting the app keeps them.
     func stop() {
+        picker?.cancel()
+        picker = nil
         if !context.isEnabled(Self.switchID), context.defaults.bool(forKey: Self.defaultAppKey) {
             setDefaultApp(false)
         }
@@ -56,7 +59,15 @@ final class ArchivesModule: NotchcastModule {
         runNext()
     }
 
-    func pickAndOpen() { open(environment.pickArchives()) }
+    func pickAndOpen() {
+        guard picker == nil else { return }
+        picker = Task { [weak self, pick = environment.pickArchives] in
+            let files = await pick()
+            guard let self, !Task.isCancelled else { return }
+            self.picker = nil
+            self.open(files)
+        }
+    }
 
     func setDefaultApp(_ on: Bool) {
         context.defaults.set(on, forKey: Self.claimedKey)

@@ -50,6 +50,7 @@ final class DownloadsModule: NotchcastModule {
     let downloads: DownloadsQueueController
     let distill: DownloadsQueueController
     let torrents: TorrentManager
+    var torrentPicker: Task<Void, Never>?
     let bonding: BondingState
     private let drops: DistillDropWatcher
     let context: NotchcastContext
@@ -100,7 +101,7 @@ final class DownloadsModule: NotchcastModule {
         running = false
         if active.downloads { downloads.stop() }
         if active.distill { stopDistill() }
-        torrents.stop()
+        stopTorrents()
         active = (false, false, false)
     }
 
@@ -173,9 +174,15 @@ final class DownloadsModule: NotchcastModule {
             if enabled.distill { distill.start(configure: configureDistill) } else { stopDistill() }
         }
         if enabled.torrents != active.torrents {
-            if enabled.torrents { torrents.start() } else { torrents.stop() }
+            if enabled.torrents { torrents.start() } else { stopTorrents() }
         }
         active = enabled
+    }
+
+    private func stopTorrents() {
+        torrentPicker?.cancel()
+        torrentPicker = nil
+        torrents.stop()
     }
 
     private func configureDistill(_ queue: DownloadQueue) {
