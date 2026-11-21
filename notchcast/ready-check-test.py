@@ -15,6 +15,7 @@ from ci import config
 
 ROOT = Path(__file__).resolve().parent.parent
 WORKFLOW = ROOT / ".github/workflows/pr.yml"
+MAIN_HARNESSES = ROOT / ".github/workflows/main-harnesses.yml"
 SCRIPT = ROOT / "notchcast/ready-check.sh"
 # Every step of pr.yml and of the local actions it uses, and how ready-check.sh covers it.
 COVERED = {
@@ -141,28 +142,26 @@ class SelectionTest(unittest.TestCase):
         self.assertIn("  cache: ${{ inputs.harness_runner == '' && (needs.route.outputs.harness-only == '' && 'pr-0of1' || 'pr-select') || '' }}", tests)
 
 
-# Named runners are available only by dispatch.
+# The one way to a self-hosted Mac (README Runners): a dispatch, which no fork can start; unset, it is xcode-27.
 GATED_MAC = ("${{ github.event_name == 'workflow_dispatch' && !inputs.hosted && vars.NOTCHCAST_MAC_RUNNER "
              "|| 'xcode-27' }}")
 # pr.yml's mac job also takes the runner label a dispatch names for a harness-only run (README Runners).
-HARNESS_MAC = ("${{ github.event_name == 'workflow_dispatch' && !inputs.hosted && (inputs.harness_runner || "
-               "vars.NOTCHCAST_MAC_RUNNER) || 'xcode-27' }}")
-MAIN_HARNESSES = ROOT / ".github/workflows/main-harnesses.yml"
-POOL_MAC = "${{ needs.plan.outputs.mac-runner }}"
+HARNESS_MAC = ("${{ github.event_name == 'workflow_dispatch' && (inputs.harness_runner || !inputs.hosted "
+               "&& vars.NOTCHCAST_MAC_RUNNER) || 'xcode-27' }}")
+POOL_MAC = ("${{ needs.mac-route.outputs.mac-runner == 'notchcast-mbp' "
+            "&& 'notchcast-mbp' || 'xcode-27' }}")
 HARNESS_ONLY, FULL_RUN = "inputs.harness_runner != ''", "inputs.harness_runner == ''"
 # Labels a dispatch may name for a harness-only run (README Runners); free text names any runner.
 HARNESS_RUNNERS = ["", "notchcast-mba", "notchcast-mbp"]
 # Only jobs that hold no secret, sign with no identity and push nothing; a workflow outside this map is hosted-only.
-GATED_JOBS = {"pr.yml": 1, "proof.yml": 1}
-MAC_ROUTES = {"pr.yml": HARNESS_MAC, "proof.yml": GATED_MAC, MAIN_HARNESSES.name: POOL_MAC}
+GATED_JOBS = {"pr.yml": 1, "main-harnesses.yml": 1, "proof.yml": 1}
 # Every macOS job (README Runners): it runs xcodebuild, compiles harnesses, signs or launches the app. Anything else is Linux.
 MAC_JOBS = {"pr.yml": 1, "main-harnesses.yml": 1, "delete-check.yml": 1, "proof.yml": 1, "snapshot.yml": 2, "sync.yml": 1,
             "sync-release.yml": 2, "test-build.yml": 2, "tester.yml": 1}
 
 
 class RunnerTest(unittest.TestCase):
-    def test_only_approved_jobs_can_leave_hosted_images(self):
-        expected = dict.fromkeys(MAC_ROUTES, 1)
+    def test_every_job_runs_on_a_hosted_image(self):
         allowed = {"ubuntu-24.04", "ubuntu-latest", "xcode-27"}
         gated, mac = {}, {}
         for workflow in sorted((ROOT / ".github/workflows").glob("*.y*ml")):
@@ -171,7 +170,9 @@ class RunnerTest(unittest.TestCase):
                 match = re.match(r"(\s*)runs-on:(.*)", line)
                 if not match:
                     continue
-                gate = MAC_ROUTES.get(workflow.name)
+                gate = HARNESS_MAC if workflow.name == "pr.yml" else GATED_MAC
+                if workflow == MAIN_HARNESSES:
+                    gate = POOL_MAC
                 if match[2].strip() == gate or match[2].strip() == "xcode-27":
                     mac[workflow.name] = mac.get(workflow.name, 0) + 1
                 if match[2].strip() == gate:
@@ -186,7 +187,7 @@ class RunnerTest(unittest.TestCase):
                 with self.subTest(f"{workflow.name}:{i + 1}"):
                     self.assertTrue(labels, "runs-on has no label")
                     self.assertEqual(set(labels) - allowed, set(), "runs-on names a runner README Runners does not")
-        self.assertEqual(gated, expected, "only these jobs may leave the hosted images, behind the fork gate")
+        self.assertEqual(gated, GATED_JOBS, "only these jobs may leave the hosted images, behind the fork gate")
         self.assertEqual(mac, MAC_JOBS, "a new macOS job needs a reason a Linux job cannot meet")
 
     def test_a_train_passes_its_lane_to_every_workflow_that_can_leave_the_hosted_images(self):
@@ -237,12 +238,19 @@ class RunnerTest(unittest.TestCase):
                         values = {"event_name": event, "harness_runner": label, "hosted": hosted, "NOTCHCAST_MAC_RUNNER": variable}
                         runner = runs_on(HARNESS_MAC, **values)
                         with self.subTest(values):
-                            if event != "workflow_dispatch" or hosted:
+                            if event != "workflow_dispatch":
                                 self.assertEqual(runner, "xcode-27")
                             elif label:
                                 self.assertEqual(runner, label)
                             else:
                                 self.assertEqual(runner, runs_on(GATED_MAC, **values), "an empty input changes nothing")
+
+    def test_draft_prs_build_and_ready_status_does_not_restart_ci(self):
+        text = WORKFLOW.read_text()
+        self.assertIn("    types: [opened, synchronize, reopened]\n", text)
+        self.assertNotIn("github.event.pull_request.draft", text)
+        self.assertRegex(text, r"(?m)^  group: .*github\.event\.pull_request\.head\.label")
+        self.assertIn("  cancel-in-progress: ${{ github.ref_name != github.event.repository.default_branch }}", text)
 
     def test_a_harness_runner_is_one_of_the_known_labels(self):
         self.assertIn("      harness_runner:\n        description: Runner label for a harness-only macOS job (notchcast-mba, notchcast-mbp); "
@@ -253,9 +261,9 @@ class RunnerTest(unittest.TestCase):
     def test_a_harness_only_run_builds_nothing_and_proves_no_tree(self):
         found = {(job, signature(text)): text for job, text in steps(WORKFLOW, 6)}
         text = WORKFLOW.read_text()
-        self.assertEqual(field(found["mac", "./tools/notchcast/actions/xcode"], "if"), f"{FULL_RUN} || inputs.hosted")
+        self.assertEqual(field(found["mac", "./tools/notchcast/actions/xcode"], "if"), FULL_RUN)
         own = found["mac", "The harness runner's own Xcode"]
-        self.assertEqual((field(own, "if"), env(own)), (f"{HARNESS_ONLY} && !inputs.hosted", {"NOTCHCAST_XCODE_FROM_RUNNER": "'1'"}))
+        self.assertEqual((field(own, "if"), env(own)), (HARNESS_ONLY, {"NOTCHCAST_XCODE_FROM_RUNNER": "'1'"}))
         self.assertEqual(field(found["mac", "Shared PR build lane"], "if"), f"needs.route.outputs.build == 'true' && {FULL_RUN}")
         # working on any runner: the macOS script tests, the toolchain stamp and the tested-tree record all hang on kind.
         kind = found["mac", "Runner kind"]
@@ -271,8 +279,7 @@ class RunnerTest(unittest.TestCase):
         # No other job runs, the build check least of all: land.sh reads it, and train.sh a train run's conclusion.
         for job, lane in (("linux-checks", "build"), ("script-tests", "scripts"), ("linux-harnesses", "build")):
             self.assertIn(f"  {job}:\n    needs: route\n    if: needs.route.outputs.{lane} == 'true' && {FULL_RUN}\n", text)
-        self.assertIn(f"    if: ${{{{ !cancelled() && {FULL_RUN} && (github.event_name == 'workflow_dispatch' "
-                      "|| !github.event.pull_request.draft) }}\n", text)
+        self.assertIn(f"    if: ${{{{ !cancelled() && {FULL_RUN} }}}}\n", text)
         refusal = found["route", "A harness-only run is never a train's"]
         self.assertEqual(field(refusal, "if"), f"{HARNESS_ONLY} && startsWith(github.ref, 'refs/heads/train/')")
         self.assertIn("exit 1", refusal)
@@ -281,70 +288,116 @@ class RunnerTest(unittest.TestCase):
 
 
 class MacPoolTest(unittest.TestCase):
-    def run_step(self, name, **variables):
-        step = next(text for _, text in steps(MAIN_HARNESSES, 6) if signature(text) == name)
+    def run_route(self, *, pool="1 1800000000", tests="SafeTests", config_change=None,
+                  head_files=None, **variables):
+        step = next(text for _, text in steps(MAIN_HARNESSES, 6)
+                    if signature(text) == "Route the selected Mac harnesses")
         script = dedent(step.split("\nrun: |\n", 1)[1])
         cfg = config()
         with tempfile.TemporaryDirectory() as tmp:
-            output, github_env = Path(tmp) / "output", Path(tmp) / "env"
+            root = Path(tmp)
+
+            def git(*args):
+                return subprocess.check_output(["git", *args], cwd=root, text=True, env=fixture_env({
+                    "GIT_AUTHOR_NAME": "Test", "GIT_AUTHOR_EMAIL": "test@example.com",
+                    "GIT_COMMITTER_NAME": "Test", "GIT_COMMITTER_EMAIL": "test@example.com",
+                })).strip()
+
+            git("init", "-q")
+            (root / "notchcast").mkdir()
+            (root / "Tests").mkdir()
+            config_path = root / "notchcast/config.env"
+            config_path.write_text((ROOT / "notchcast/config.env").read_text())
+            shutil.copyfile(ROOT / "notchcast/ci-tests-test.sh", root / "notchcast/ci-tests-test.sh")
+            for name, content in {
+                "SafeTests": "// Pure harness fixture",
+                "FormInputTests": "// Listed in config.env",
+                "ClipboardTextTests": "// Listed in config.env",
+                "TaggedTests": "// notchcast-hosted-only",
+                "SkippedTests": "// notchcast-ci-skip",
+                "RiskyTests": "// NSWindow(",
+            }.items():
+                (root / f"Tests/{name}.swift").write_text(content + "\n")
+            git("add", ".")
+            git("commit", "-qm", "Main")
+            git("update-ref", "refs/remotes/origin/main", "HEAD")
+            if config_change:
+                config_path.write_text(config_change(config_path.read_text()))
+            for name, content in (head_files or {}).items():
+                (root / f"Tests/{name}.swift").write_text(content + "\n")
+            git("add", ".")
+            git("commit", "--allow-empty", "-qm", "Head")
+
+            head = git("rev-parse", "HEAD")
+            git("checkout", "-q", "--detach", "origin/main")
+            output = root / "output"
             output.touch()
-            github_env.touch()
             result = subprocess.run(
                 ["bash", "-euo", "pipefail", "-c", "date() { echo 1800000000; }\n" + script],
-                cwd=ROOT, capture_output=True, text=True,
-                env={**os.environ, "GITHUB_OUTPUT": str(output), "GITHUB_ENV": str(github_env),
-                     "RUNNER_TEMP": tmp, "GITHUB_REPOSITORY": cfg["FORK_REPO"], "GITHUB_REF_TYPE": "branch",
-                     "GITHUB_ACTOR": cfg["MAINTAINER_LOGIN"], "GITHUB_TRIGGERING_ACTOR": cfg["MAINTAINER_LOGIN"],
-                     **variables},
+                cwd=root, capture_output=True, text=True, timeout=10,
+                env=fixture_env({"LC_ALL": "C", "GITHUB_OUTPUT": str(output), "GITHUB_SHA": head,
+                                 "GITHUB_REPOSITORY": cfg["FORK_REPO"], "GITHUB_REF_TYPE": "branch",
+                                 "GITHUB_ACTOR": cfg["MAINTAINER_LOGIN"], "GITHUB_TRIGGERING_ACTOR": cfg["MAINTAINER_LOGIN"],
+                                 "POOL_FREE": pool, "TESTS": tests, **variables}),
             )
-            return result, output.read_text(), github_env.read_text()
+            self.assertEqual(result.returncode, 0, result.stderr)
+            return output.read_text()
 
     def test_only_a_maintainer_dispatch_of_a_branch_selection_can_route(self):
         workflow = MAIN_HARNESSES.read_text()
-        route = next(text for _, text in steps(MAIN_HARNESSES, 6) if signature(text) == "Route the selected Mac harnesses")
-        self.assertEqual(field(route, "if"), "github.event_name == 'workflow_dispatch' && !inputs.hosted && !inputs.all")
+        route = next(text for job, text in steps(MAIN_HARNESSES, 6)
+                     if job == "mac-route" and signature(text) == "Route the selected Mac harnesses")
+        self.assertIn("    if: ${{ !inputs.hosted && !inputs.all && vars.POOL_FREE_NOTCHCAST_MAC != '' "
+                      "&& needs.plan.outputs.tests != '' }}\n", workflow)
+        self.assertEqual(env(route)["POOL_FREE"], "${{ vars.POOL_FREE_NOTCHCAST_MAC }}")
+        self.assertIn(f"    runs-on: {POOL_MAC}\n", workflow)
+        self.assertNotIn("notchcast-mba", workflow)
+        self.assertNotIn("tested-tree", workflow)
         for key, value in (("GITHUB_REPOSITORY", "other/fork"), ("GITHUB_REF_TYPE", "tag"),
                            ("GITHUB_ACTOR", "bot"), ("GITHUB_TRIGGERING_ACTOR", "bot")):
             with self.subTest(key=key):
-                result, output, _ = self.run_step("Route the selected Mac harnesses", POOL_FREE="1 1800000000",
-                                                  TESTS="notchcast-hidden-features-test", **{key: value})
-                self.assertEqual(result.returncode, 0, result.stderr)
-                self.assertEqual(output, "")
-        self.assertEqual(env(route)["POOL_FREE"], "${{ vars.POOL_FREE_MAC }}")
-        self.assertIn("      mac-runner: ${{ steps.mac.outputs.runs-on || 'xcode-27' }}\n", workflow)
+                self.assertEqual(self.run_route(**{key: value}), "")
 
     def test_pool_requires_fresh_availability_and_equal_coverage(self):
-        for value, tests, pool in (
-            ("1 1800000000", "notchcast-hidden-features-test", True),
-            ("4 1799999821", "notchcast-hidden-features-test", True),
-            ("4 1799999820", "notchcast-hidden-features-test", False),
-            ("1 1800000001", "notchcast-hidden-features-test", False),
-            ("0 1800000000", "notchcast-hidden-features-test", False),
-            ("", "notchcast-hidden-features-test", False),
-            ("1 1800000000 extra", "notchcast-hidden-features-test", False),
-            ("1 999999999999999999999999999", "notchcast-hidden-features-test", False),
-            ("-1 1800000000", "notchcast-hidden-features-test", False),
-            ("1\n1800000000", "notchcast-hidden-features-test", False),
+        for pool, tests, use_pool in (
+            ("1 1800000000", "SafeTests ", True),
+            ("4\t1799999821", "SafeTests", True),
+            ("4 1799999820", "SafeTests", False),
+            ("1 1800000001", "SafeTests", False),
+            ("0 1800000000", "SafeTests", False),
+            ("", "SafeTests", False),
+            ("1 1800000000 extra", "SafeTests", False),
+            ("1 999999999999999999999999999", "SafeTests", False),
+            ("-1 1800000000", "SafeTests", False),
+            ("1\n1800000000", "SafeTests", False),
             ("1 1800000000", "", False),
-            ("1 1800000000", "notchcast-hidden-features-test FormInputTests", False),
-            ("1 1800000000", "notchcast-hidden-features-test nc-Notchcast-island-audit-render-test", False),
-            ("1 1800000000", "notchcast-hidden-features-test nc-Screenshots-ocr-test", False),
+            ("1 1800000000", "SafeTests FormInputTests", False),
+            ("1 1800000000", "SafeTests ClipboardTextTests", False),
+            ("1 1800000000", "SafeTests MissingTests", False),
         ):
-            with self.subTest(value=value, tests=tests):
-                result, output, _ = self.run_step("Route the selected Mac harnesses", POOL_FREE=value, TESTS=tests)
-                self.assertEqual(result.returncode, 0, result.stderr)
-                self.assertEqual(output, "runs-on=mac-pool\n" if pool else "")
+            with self.subTest(pool=pool, tests=tests):
+                self.assertEqual(self.run_route(pool=pool, tests=tests),
+                                 "runs-on=notchcast-mbp\n" if use_pool else "")
 
-    def test_a_pool_runner_cannot_pass_with_a_skipped_harness(self):
-        for skipped, status in (("FullOther TestedHarnessSuffix", 0), ("FullOther TestedHarness", 1)):
-            with self.subTest(skipped=skipped):
-                result, _, github_env = self.run_step("Verify the pool runner can run the whole selection",
-                                                     TESTS="TestedHarness", NOTCHCAST_RUNNER_SKIP_TESTS=skipped)
-                self.assertEqual(result.returncode, status, result.stderr)
-                if status:
-                    self.assertIn("::error::This pool runner skips TestedHarness", result.stdout)
-                else:
-                    self.assertRegex(github_env, r"^TMPDIR=.+/tmp\n$")
+    def test_branch_config_accepts_only_literal_list_changes(self):
+        def remove_listed(text):
+            return text.replace(" FormInputTests", "").replace('CI_SKIP_TESTS="ClipboardTextTests"', 'CI_SKIP_TESTS=""')
+
+        for test in ("FormInputTests", "ClipboardTextTests"):
+            with self.subTest(test=test):
+                self.assertEqual(self.run_route(tests=test, config_change=remove_listed), "")
+        self.assertEqual(self.run_route(config_change=remove_listed), "runs-on=notchcast-mbp\n")
+        self.assertEqual(self.run_route(config_change=lambda text: text + '\n: "$GITHUB_OUTPUT"\n'), "")
+        self.assertEqual(self.run_route(config_change=lambda text: text.replace(
+            'CI_SKIP_TESTS="ClipboardTextTests"', 'CI_SKIP_TESTS="ClipboardTextTests SafeTests"')), "")
+
+    def test_base_and_head_tags_and_risky_apis_keep_the_selection_hosted(self):
+        for test, content in (("TaggedTests", "// notchcast-hosted-only"),
+                              ("SkippedTests", "// notchcast-ci-skip"),
+                              ("RiskyTests", "// NSWindow(")):
+            with self.subTest(test=test):
+                self.assertEqual(self.run_route(tests=test, head_files={test: "// Pure harness fixture"}), "")
+                self.assertEqual(self.run_route(head_files={"SafeTests": content}), "")
 
 
 # Machine git config (init.defaultBranch, signing, url rewrites) never reaches the fixture repos.

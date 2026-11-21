@@ -4,6 +4,10 @@ import AppKit
 @MainActor
 enum IslandScenes {
     static func run(_ scene: String, core: AppCore, screen: NSScreen) async {
+        if scene == IslandDictationCleanupScene.name {
+            await IslandDictationCleanupScene.run(core: core, screen: screen)
+            return
+        }
         core.settings.compactMode = scene == "compact" || IslandNotchScenes.names.contains(scene)
         core.settings.interfaceSize = scene == "scale-1.1" ? .large : scene == "scale-1.2" ? .larger : .standard
         core.settings.quicklinksEnabled = true

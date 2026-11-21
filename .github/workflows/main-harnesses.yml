@@ -1,6 +1,6 @@
 name: Main harnesses
 
-# Dispatch only: a ready PR gets its harnesses from the PR workflow, never twice.
+# Dispatch only: PR branches get their harnesses from the PR workflow.
 on:
   workflow_dispatch:
     inputs:
@@ -20,7 +20,7 @@ on:
 permissions:
   contents: read
 
-# GitHub keeps one run going and one pending across branches, so only the Keeper dispatches.
+# One hosted Mac lane for every branch: GitHub keeps one run going and one pending, so only the Keeper dispatches.
 concurrency:
   group: main-harnesses
   cancel-in-progress: false
@@ -33,7 +33,6 @@ jobs:
     outputs:
       tests: ${{ steps.shards.outputs.tests }}
       shards: ${{ steps.shards.outputs.shards }}
-      mac-runner: ${{ steps.mac.outputs.runs-on || 'xcode-27' }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
@@ -71,70 +70,73 @@ jobs:
           fi
           echo "tests=$tests" >> "$GITHUB_OUTPUT"
           echo "shards=[$(seq -s, 0 $((shards - 1)))]" >> "$GITHUB_OUTPUT"
+  # The branch's planning scripts must never share a runner with the Mac decision.
+  mac-route:
+    needs: plan
+    if: ${{ !inputs.hosted && !inputs.all && vars.POOL_FREE_NOTCHCAST_MAC != '' && needs.plan.outputs.tests != '' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      mac-runner: ${{ steps.mac.outputs.runs-on }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: refs/heads/main
+          fetch-depth: 0
+          persist-credentials: false
       - name: Route the selected Mac harnesses
         id: mac
-        if: github.event_name == 'workflow_dispatch' && !inputs.hosted && !inputs.all
         env:
-          POOL_FREE: ${{ vars.POOL_FREE_MAC }}
-          TESTS: ${{ steps.shards.outputs.tests }}
+          LC_ALL: C
+          POOL_FREE: ${{ vars.POOL_FREE_NOTCHCAST_MAC }}
+          TESTS: ${{ needs.plan.outputs.tests }}
         shell: bash
         run: |
-          if [ -z "$POOL_FREE" ]; then
-            echo "Mac pool availability is missing"
-            exit 0
-          fi
-          if [[ ! $POOL_FREE =~ ^([0-9]+)\ ([1-9][0-9]{0,10})$ ]]; then
-            echo "Mac pool availability is malformed"
-            exit 0
-          fi
-          free=${BASH_REMATCH[1]}
-          age=$(( $(date +%s) - BASH_REMATCH[2] ))
-          if (( age < 0 || age >= 180 )); then
-            echo "Mac pool availability is stale"
-            exit 0
-          fi
-          if [[ ! $free =~ [1-9] ]]; then
-            echo "Mac pool has no free runner"
-            exit 0
-          fi
-          # Both sets change which tests run between hosted and working Macs.
-          source notchcast/config.env
-          [[ "$GITHUB_REPOSITORY" == "$FORK_REPO" && "$GITHUB_REF_TYPE" == branch &&
+          main=refs/remotes/origin/main
+          base_config=$(git show "$main:notchcast/config.env") || exit 0
+          MAINTAINER_LOGIN=$(sed -n 's/^MAINTAINER_LOGIN=\([a-zA-Z0-9-][a-zA-Z0-9-]*\)$/\1/p' <<< "$base_config")
+          fork_repo=$(sed -n 's/^FORK_REPO=\(.*\)$/\1/p' <<< "$base_config")
+          [[ "$GITHUB_REPOSITORY" == "$fork_repo" && "$GITHUB_REF_TYPE" == branch &&
              "$GITHUB_ACTOR" == "$MAINTAINER_LOGIN" && "$GITHUB_TRIGGERING_ACTOR" == "$MAINTAINER_LOGIN" ]] || exit 0
+
+          [[ "$POOL_FREE" =~ ^([1-9][0-9]{0,8})[[:blank:]]([0-9]{10})$ ]] || exit 0
+          age=$(( $(date +%s) - 10#${BASH_REMATCH[2]} ))
+          (( age >= 0 && age < 180 )) || exit 0
+
+          names='^[a-zA-Z0-9_+-]+( [a-zA-Z0-9_+-]+)* *$'
+          [[ "$TESTS" =~ $names ]] || exit 0
           read -ra selected <<< "$TESTS"
-          [ "${#selected[@]}" -gt 0 ] || exit 0
+          head_config=$(git show "$GITHUB_SHA:notchcast/config.env") || exit 0
+          list='^(HOSTED_ONLY_TESTS|CI_SKIP_TESTS)="([a-zA-Z0-9_+ -]*)"$'
+          # Changes outside the two literal lists leave the dispatched job on hosted.
+          normalize() { sed -E "s/$list/\1=/" <<< "$1"; }
+          [[ "$(normalize "$base_config")" == "$(normalize "$head_config")" ]] || exit 0
+          blocked=$(sed -En "s/$list/\2/p" <<< "$base_config"$'\n'"$head_config" | paste -sd' ' -)
+          risky=$(git show "$main:notchcast/ci-tests-test.sh" | sed -n "s/^risky='\(.*\)'$/\1/p") || exit 0
+          [[ 'NSWindow(' =~ $risky && -n "$risky" ]] || exit 0
           for test in "${selected[@]}"; do
-            case " $HOSTED_ONLY_TESTS $CI_SKIP_TESTS " in
-              *" $test "*) echo "$test requires the hosted selection"; exit 0 ;;
-            esac
+            [[ " $blocked " != *" $test "* ]] || exit 0
+            path="Tests/$test.swift"
+            for tree in "$GITHUB_SHA" "$main"; do
+              entry=$(git ls-tree "$tree" -- "$path") || exit 0
+              if [[ "$tree" == "$main" && -z "$entry" ]]; then continue; fi
+              [[ "$entry" == 100???\ blob\ * ]] || exit 0
+              harness=$(git show "$tree:$path") || exit 0
+              grep -Eaq "$risky|^// notchcast-(hosted-only|ci-skip)$" <<< "$harness" && exit 0
+              [[ $? == 1 ]] || exit 0
+            done
           done
-          echo "Mac pool reported $free free runner(s) ${age}s ago"
-          echo "runs-on=mac-pool" >> "$GITHUB_OUTPUT"
+          echo "runs-on=notchcast-mbp" >> "$GITHUB_OUTPUT"
   harnesses:
-    needs: plan
-    # An empty selection skips this job and the run still concludes success; an empty matrix would fail it.
-    if: ${{ needs.plan.outputs.shards != '[]' }}
-    runs-on: ${{ needs.plan.outputs.mac-runner }}
+    needs: [plan, mac-route]
+    if: ${{ !cancelled() && needs.plan.result == 'success' && needs.plan.outputs.shards != '[]' }}
+    runs-on: ${{ needs.mac-route.outputs.mac-runner == 'notchcast-mbp' && 'notchcast-mbp' || 'xcode-27' }}
     timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:
         shard: ${{ fromJSON(needs.plan.outputs.shards) }}
     steps:
-      - name: Verify the pool runner can run the whole selection
-        if: needs.plan.outputs.mac-runner == 'mac-pool'
-        env:
-          TESTS: ${{ needs.plan.outputs.tests }}
-        shell: bash
-        run: |
-          read -ra selected <<< "$TESTS"
-          for test in "${selected[@]}"; do
-            case " ${NOTCHCAST_RUNNER_SKIP_TESTS:-} " in
-              *" $test "*) echo "::error::This pool runner skips $test"; exit 1 ;;
-            esac
-          done
-          mkdir -p "$RUNNER_TEMP/tmp"
-          echo "TMPDIR=$RUNNER_TEMP/tmp" >> "$GITHUB_ENV"
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           path: tools
