@@ -558,7 +558,6 @@ enum IPhoneBackupModuleTests {
             rig.finish()
         }
 
-        // An unreadable preference at launch keeps the switch as it was.
         reset(.bool(true))
         let unreadable = "nc-IPhoneBackup-test.\(UUID())"
         UserDefaults(suiteName: unreadable)!.set(true, forKey: IPhoneBackupAddon.switchID)
