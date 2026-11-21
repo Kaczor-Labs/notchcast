@@ -1,0 +1,246 @@
+diff --git a/Tinycast/App/AppCore+SettingsProcess.swift b/Tinycast/App/AppCore+SettingsProcess.swift
+index 312ec8573..ed30d2dba 100644
+--- a/Tinycast/App/AppCore+SettingsProcess.swift
++++ b/Tinycast/App/AppCore+SettingsProcess.swift
+@@ -4,7 +4,12 @@ import Foundation
+ extension AppCore {
+     func makeSharedStateMirror(send: @escaping (SharedChange) -> Void) -> SharedStateMirror {
+         SharedStateMirror(
+-            domain: sharedDomain, reloadDefaults: { [weak self] in self?.reloadDefaultsStores() }, send: send)
++            domain: sharedDomain, reloadDefaults: { [weak self] in self?.reloadDefaultsStores() },
++            notchcastDefaults: notchcastDefaults, notchcastDomain: notchcastDefaultsDomain,
++            reloadNotchcastDefaults: { [weak self] in
++                self?.notchcast?.controller.preferences.reload()
++                self?.island.looks.reload()
++            }, send: send)
+     }
+ 
+     /// Exhaustive, so a new domain fails to build until both roles know how to re-read it.
+diff --git a/Tinycast/App/AppCore.swift b/Tinycast/App/AppCore.swift
+index 379d04147..6521783e5 100644
+--- a/Tinycast/App/AppCore.swift
++++ b/Tinycast/App/AppCore.swift
+@@ -26,6 +26,10 @@ final class AppCore {
+     let textInjector: TextInjector
+     let hotKeys = HotKeyManager()
+     @ObservationIgnored private(set) var notchcast: NotchcastCore?
++    var notchcastDefaultsDomain: String {
++        NotchcastPreferences.suiteName(bundleID: Bundle.main.bundleIdentifier ?? "Notchcast")
++    }
++    @ObservationIgnored private(set) lazy var notchcastDefaults = UserDefaults(suiteName: notchcastDefaultsDomain) ?? .standard
+     let dictationAudioDucker = DictationAudioDucker()
+     let dictationExtras = DictationExtrasCoordinator()
+     @ObservationIgnored private(set) lazy var dictationModels =
+@@ -457,6 +461,7 @@ final class AppCore {
+         guard let link = ProcessLink<SettingsWire.ToMainApp, SettingsWire.ToSettings>.standardIO()
+         else { return terminate() }
+         load()
++        notchcast = NotchcastCore(core: self, startsRuntime: false)
+         chatPresets.load()
+         if settings.calendarEnabled { calendarStore.start() }
+         track({ _ = $0.snippetsEnabled }, reproject: { $0.applySnippetsStoreEnabled() })
+diff --git a/Tinycast/App/SharedStateMirror.swift b/Tinycast/App/SharedStateMirror.swift
+index 0e731345c..0add8dc09 100644
+--- a/Tinycast/App/SharedStateMirror.swift
++++ b/Tinycast/App/SharedStateMirror.swift
+@@ -4,6 +4,8 @@ import Foundation
+ enum SharedChange: Codable, Sendable {
+     case defaultsEdit(SharedDefaultsEdit)
+     case defaultsState(SharedDefaultsState)
++    case notchcastDefaultsEdit(SharedDefaultsEdit)
++    case notchcastDefaultsState(SharedDefaultsState)
+     case domain(SharedDomain)
+ }
+ 
+@@ -38,6 +40,7 @@ final class SharedStateMirror {
+     }
+ 
+     private let defaultsMirror: SharedDefaultsMirror
++    private let notchcastDefaultsMirror: SharedDefaultsMirror
+     private let send: (SharedChange) -> Void
+     private let domains: [SharedDomain: Domain]
+     /// Bumped before a peer's change is re-read, so the stale observer it trips stays quiet.
+@@ -45,6 +48,7 @@ final class SharedStateMirror {
+ 
+     init(
+         domain: (SharedDomain) -> Domain, reloadDefaults: @escaping () -> Void,
++        notchcastDefaults: UserDefaults, notchcastDomain: String, reloadNotchcastDefaults: @escaping () -> Void,
+         send: @escaping (SharedChange) -> Void
+     ) {
+         domains = Dictionary(uniqueKeysWithValues: SharedDomain.allCases.map { ($0, domain($0)) })
+@@ -52,10 +56,22 @@ final class SharedStateMirror {
+         defaultsMirror = SharedDefaultsMirror(
+             role: .current, defaults: .standard, domainName: Bundle.main.bundleIdentifier ?? "",
+             reload: reloadDefaults, send: send)
++        notchcastDefaultsMirror = SharedDefaultsMirror(
++            role: .current, defaults: notchcastDefaults,
++            domainName: notchcastDomain,
++            reload: reloadNotchcastDefaults
++        ) { change in
++            switch change {
++            case .defaultsEdit(let edit): send(.notchcastDefaultsEdit(edit))
++            case .defaultsState(let state): send(.notchcastDefaultsState(state))
++            default: break
++            }
++        }
+     }
+ 
+     func start() {
+         defaultsMirror.start()
++        notchcastDefaultsMirror.start()
+         for domain in domains.keys { watch(domain) }
+     }
+ 
+@@ -63,6 +79,8 @@ final class SharedStateMirror {
+         switch change {
+         case .defaultsEdit(let edit): defaultsMirror.apply(edit)
+         case .defaultsState(let state): defaultsMirror.apply(state)
++        case .notchcastDefaultsEdit(let edit): notchcastDefaultsMirror.apply(edit)
++        case .notchcastDefaultsState(let state): notchcastDefaultsMirror.apply(state)
+         case .domain(let domain):
+             generations[domain, default: 0] += 1
+             domains[domain]?.reload()
+@@ -70,7 +88,10 @@ final class SharedStateMirror {
+         }
+     }
+ 
+-    func flush() { defaultsMirror.flush() }
++    func flush() {
++        defaultsMirror.flush()
++        notchcastDefaultsMirror.flush()
++    }
+ 
+     private func watch(_ domain: SharedDomain) {
+         guard let entry = domains[domain] else { return }
+diff --git a/Tinycast/Features/Island/Model/IslandLook.swift b/Tinycast/Features/Island/Model/IslandLook.swift
+index 0b8b66c80..a93ae6b09 100644
+--- a/Tinycast/Features/Island/Model/IslandLook.swift
++++ b/Tinycast/Features/Island/Model/IslandLook.swift
+@@ -10,7 +10,7 @@ enum IslandLook: String, CaseIterable, Sendable {
+ }
+ 
+ /// A connected display as the Look settings list it; `uuid` is nil when CoreGraphics gives none.
+-struct IslandLookDisplay: Identifiable, Equatable, Sendable {
++struct IslandLookDisplay: Identifiable, Codable, Equatable, Sendable {
+     let displayID: UInt32
+     let uuid: String?
+     let name: String
+@@ -36,6 +36,11 @@ final class IslandLookStore {
+         choices = Self.decode(defaults.object(forKey: Self.key))
+     }
+ 
++    func reload() {
++        let updated = Self.decode(defaults.object(forKey: Self.key))
++        if updated != choices { choices = updated }
++    }
++
+     /// Anything unreadable counts as never chosen, so bad data falls back to the default rule.
+     nonisolated static func decode(_ stored: Any?) -> [String: IslandLook] {
+         guard let raw = stored as? [String: Any] else { return [:] }
+diff --git a/Tinycast/Features/Island/Service/IslandCoordinator.swift b/Tinycast/Features/Island/Service/IslandCoordinator.swift
+index c136655ab..acae78152 100644
+--- a/Tinycast/Features/Island/Service/IslandCoordinator.swift
++++ b/Tinycast/Features/Island/Service/IslandCoordinator.swift
+@@ -20,8 +20,7 @@ final class IslandCoordinator: NSObject {
+     private var restingGlance: IslandGlance?
+     private(set) lazy var update = IslandUpdateActivity(core: core)
+     private(set) lazy var hover = IslandHoverTracker(core: core)
+-    private(set) lazy var looks = IslandLookStore(defaults: UserDefaults(
+-        suiteName: NotchcastPreferences.suiteName(bundleID: Bundle.main.bundleIdentifier ?? "Notchcast")) ?? .standard)
++    private(set) lazy var looks = IslandLookStore(defaults: core.notchcastDefaults)
+ 
+     init(core: AppCore) { self.core = core }
+ 
+diff --git a/Tinycast/Features/Notchcast/Core/Service/NotchcastPreferences.swift b/Tinycast/Features/Notchcast/Core/Service/NotchcastPreferences.swift
+index 6c5a1886e..412da151b 100644
+--- a/Tinycast/Features/Notchcast/Core/Service/NotchcastPreferences.swift
++++ b/Tinycast/Features/Notchcast/Core/Service/NotchcastPreferences.swift
+@@ -19,10 +19,20 @@ final class NotchcastPreferences {
+     init(defaults: UserDefaults, switches: [NotchcastSwitch]) {
+         self.defaults = defaults
+         self.switches = Dictionary(switches.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+-        stored = self.switches.keys.reduce(into: [:]) { stored, id in
+-            if let value = defaults.object(forKey: id) as? Bool { stored[id] = value }
++        stored = [:]
++        launcherHidden = []
++        reload()
++    }
++
++    func reload() {
++        let updated = switches.keys.reduce(into: [String: Bool]()) { values, id in
++            if let value = defaults.object(forKey: id) as? Bool { values[id] = value }
+         }
+-        launcherHidden = Set(defaults.stringArray(forKey: Self.launcherHiddenKey) ?? [])
++        if updated != stored { stored = updated }
++        let hidden = Set(defaults.stringArray(forKey: Self.launcherHiddenKey) ?? [])
++        guard hidden != launcherHidden else { return }
++        launcherHidden = hidden
++        onLauncherChange?()
+     }
+ 
+     /// A command's own "Show in launcher", on until the user turns it off.
+diff --git a/Tinycast/Features/Notchcast/NotchcastCore.swift b/Tinycast/Features/Notchcast/NotchcastCore.swift
+index ba16d7b33..c53997bd4 100644
+--- a/Tinycast/Features/Notchcast/NotchcastCore.swift
++++ b/Tinycast/Features/Notchcast/NotchcastCore.swift
+@@ -11,9 +11,10 @@ final class NotchcastCore {
+     private var globeTrigger: NotchcastGlobeTrigger?
+     private let dictationIsland = DictationIslandCoordinator()
+ 
+-    init(core: AppCore, addons: [any NotchcastAddon.Type] = NotchcastRegistry.addons) {
+-        let bundleID = Bundle.main.bundleIdentifier ?? "Notchcast"
+-        let defaults = UserDefaults(suiteName: NotchcastPreferences.suiteName(bundleID: bundleID)) ?? .standard
++    init(
++        core: AppCore, addons: [any NotchcastAddon.Type] = NotchcastRegistry.addons, startsRuntime: Bool = true
++    ) {
++        let defaults = core.notchcastDefaults
+         let hub = NotchcastTapHub(
+             syntheticTag: Paster.tinycastEventTag, isTrusted: { AXIsProcessTrusted() },
+             makeSession: NotchcastTapThread.start)
+@@ -42,6 +43,7 @@ final class NotchcastCore {
+             controller.switches,
+             commandWords: Dictionary(grouping: commands, by: \.switchID)
+                 .mapValues { $0.flatMap { [$0.name] + $0.keywords } })
++        guard startsRuntime else { return }
+         let launcher = core.launcherCoordinator
+         let tabs = Dictionary(
+             controller.switches.map { ($0.id, NotchcastPane.holding($0.category)) },
+diff --git a/Tinycast/Features/Settings/Service/MainAppLink.swift b/Tinycast/Features/Settings/Service/MainAppLink.swift
+index 7dace045c..e59f7e398 100644
+--- a/Tinycast/Features/Settings/Service/MainAppLink.swift
++++ b/Tinycast/Features/Settings/Service/MainAppLink.swift
+@@ -179,6 +179,8 @@ final class MainAppLink {
+             self.status = status
+             core.appIndex.adoptCommands(hidden: status.hiddenCommands, unlisted: status.unlistedCommands)
+             core.hotKeys.capture.hyperRoute = status.hyperKey.route
++            core.island.looks.displays = status.islandDisplays
++            core.hotKeys.extraActions = status.notchcastCommandIDs.map { .notchcastCommand(entryID: $0) }
+             core.hotKeys.modifierTapMonitor.adoptNeedsAccessibility(status.modifierTapsNeedAccessibility)
+         }
+     }
+diff --git a/Tinycast/Features/Settings/Service/MainAppStatus.swift b/Tinycast/Features/Settings/Service/MainAppStatus.swift
+index a718fc8e8..33522a6bf 100644
+--- a/Tinycast/Features/Settings/Service/MainAppStatus.swift
++++ b/Tinycast/Features/Settings/Service/MainAppStatus.swift
+@@ -65,4 +65,6 @@ struct MainAppStatus: Codable, Equatable, Sendable {
+     var mcpAuthentication: [UUID: MCPOAuthManager.Status] = [:]
+     var updates = Updates()
+     var extensions = Extensions()
++    var islandDisplays: [IslandLookDisplay] = []
++    var notchcastCommandIDs: [String] = []
+ }
+diff --git a/Tinycast/Features/Settings/Service/SettingsProcessController.swift b/Tinycast/Features/Settings/Service/SettingsProcessController.swift
+index d4aadd86f..cebbc4175 100644
+--- a/Tinycast/Features/Settings/Service/SettingsProcessController.swift
++++ b/Tinycast/Features/Settings/Service/SettingsProcessController.swift
+@@ -428,7 +428,9 @@ final class SettingsProcessController {
+             updates: MainAppStatus.Updates(
+                 updatesItself: updates.updatesItself, isChecking: updates.isChecking,
+                 lastCheckedAt: updates.lastCheckedAt, availableVersion: updates.availableVersion?.description),
+-            extensions: extensionsStatus())
++            extensions: extensionsStatus(),
++            islandDisplays: core.island.looks.displays,
++            notchcastCommandIDs: core.notchcast?.controller.enabledCommands.map(\.id) ?? [])
+     }
+ 
+     private func extensionsStatus() -> MainAppStatus.Extensions {
