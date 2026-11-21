@@ -65,6 +65,21 @@ if python3 "$root/notchcast/check-identity.py" history "$base" > "$scratch/outpu
 fi
 grep -q '<forbidden-name>' "$scratch/output"
 echo 'PASS: forbidden re-addition after rewrite refused'
+git switch -q --detach "$base"
+printf 'x\f@@ y\n' > shot.png
+git add shot.png
+git commit -q -m 'Fixture binary with a form feed'
+python3 "$root/notchcast/check-identity.py" history "$base"
+echo 'PASS: binary addition with a form feed before @@ scanned'
+printf 'x\f%s%s\n' private hq > hidden.png
+git add hidden.png
+git commit -q -m 'Fixture forbidden name after a form feed'
+if python3 "$root/notchcast/check-identity.py" history "$base" > "$scratch/output"; then
+    echo 'FAIL: forbidden name after a form feed accepted'
+    exit 1
+fi
+grep -q '<forbidden-name>' "$scratch/output"
+echo 'PASS: forbidden name after a form feed refused'
 git update-ref -d refs/remotes/origin/main
 if python3 "$root/notchcast/check-identity.py" history "$base" > "$scratch/output" 2>&1; then
     echo 'FAIL: missing base accepted'
