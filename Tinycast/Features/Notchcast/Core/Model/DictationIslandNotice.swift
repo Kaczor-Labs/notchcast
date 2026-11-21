@@ -4,7 +4,7 @@ extension IslandNotice {
     static let dictationID = "dictation"
 
     /// The live session's notice; nil while nothing is listening or the session is ending.
-    init?(dictation session: DictationIslandSession) {
+    init?(dictation session: DictationIslandSession, keysFocused: Bool = true) {
         switch session.phase {
         case .idle, .ending:
             return nil
@@ -13,11 +13,13 @@ extension IslandNotice {
                 session.copies
                 ? String(localized: "Return to Copy · Esc to Cancel", table: "Notchcast")
                 : String(localized: "Return to Paste · Esc to Cancel", table: "Notchcast")
+            let recording = String(localized: "Recording dictation", table: "Notchcast")
+            let spoken = String(localized: "Recording dictation, Return to finish, Escape to cancel", table: "Notchcast")
+            let showsHint = keysFocused && session.holdsKeys
             self.init(
-                id: Self.dictationID, symbol: "mic", text: hint,
+                id: Self.dictationID, symbol: "mic", text: showsHint ? hint : recording,
                 progress: IslandProgress(fraction: nil, headline: true, readout: session.elapsed),
-                spokenText: String(localized: "Recording dictation, Return to finish, Escape to cancel", table: "Notchcast"),
-                meter: session.meter)
+                spokenText: showsHint ? spoken : recording, meter: session.meter)
         case .transcribing:
             self.init(
                 id: Self.dictationID, symbol: "waveform", text: String(localized: "Transcribing", table: "Notchcast"),

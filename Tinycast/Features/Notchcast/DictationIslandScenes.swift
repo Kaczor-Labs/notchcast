@@ -36,7 +36,8 @@ enum DictationIslandScenes {
         capsule.state.levels = (0..<DictationSpectrum.barCount).map { Float($0 % 5) / 4 }
         await expect(hint, "recording-start")
         IslandVerification.require(controller.notice?.meter?.count == 4, "recording draws four bars")
-        IslandVerification.require(controller.accessibilityValue.contains("Recording dictation"),
+        let recording = String(localized: "Recording dictation", table: "Notchcast")
+        IslandVerification.require(controller.accessibilityValue.contains(recording),
                                    "VoiceOver hears the sentence, not the time")
         probe.now = 7
         capsule.state.levels = capsule.state.levels.reversed()
@@ -71,8 +72,22 @@ enum DictationIslandScenes {
 
         capsule.show()
         await expect(hint, "again")
+        let startLook = controller.canvas.look
+        let flipped: IslandLook = startLook == .black ? .frosted : .black
+        let display = controller.screen?.islandDisplayUUID
+        core.island.looks.set(flipped, uuid: display)
+        await IslandVerification.pause(0.15)
+        IslandVerification.require(controller.canvas.look == flipped, "the look flips during recording")
+        let document = NSPanel(contentRect: CGRect(x: 50, y: 50, width: 100, height: 100),
+                               styleMask: [.titled, .nonactivatingPanel], backing: .buffered, defer: false)
+        document.makeKeyAndOrderFront(nil)
+        IslandVerification.require(document.isKeyWindow, "the document takes key focus after the look changes")
+        await IslandVerification.pause(0.15)
         await IslandInputScenes.key(53)
-        IslandVerification.require(probe.cancelled == 1, "a real Escape reaches cancel")
+        IslandVerification.require(probe.cancelled == 1 || controller.notice?.text != hint,
+                                   "Escape reaches cancel after a focus loss, or the hint is gone")
+        document.orderOut(nil)
+        core.island.looks.set(startLook, uuid: display)
         island.reset(completed: false)
         await expect(nil, "cancelled")
 

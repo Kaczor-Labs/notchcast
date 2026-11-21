@@ -10,11 +10,18 @@ final class DictationIslandCoordinator {
     private var covered: @MainActor () -> Bool = { false }
     private var copies: @MainActor () -> Bool = { false }
     private let now: @MainActor () -> TimeInterval
+    private let sleep: @MainActor (Duration) async throws -> Void
+    private var ticker: Task<Void, Never>?
+    private var keysFocused = false
     private var shown: IslandNotice?
 
-    init(now: @escaping @MainActor () -> TimeInterval = { ProcessInfo.processInfo.systemUptime }) {
+    init(now: @escaping @MainActor () -> TimeInterval = { ProcessInfo.processInfo.systemUptime },
+         sleep: @escaping @MainActor (Duration) async throws -> Void = { try await Task.sleep(for: $0) }) {
         self.now = now
+        self.sleep = sleep
     }
+
+    isolated deinit { ticker?.cancel() }
 
     func start(core: AppCore) {
         let dictation = core.dictationCoordinator
@@ -51,14 +58,39 @@ final class DictationIslandCoordinator {
         controller.state.levels = Array(repeating: 0, count: controller.state.levels.count)
         clear()
         session.begin(copies: copies(), at: now())
-        post()
-        presenter?.holdKeys { [weak self] key in
+        let generation = session.generation
+        keysFocused = false
+        presenter?.holdKeys(for: IslandNotice.dictationID, onFocus: { [weak self] focused in
+            guard let self, session.generation == generation, session.holdsKeys else { return }
+            keysFocused = focused
+            post()
+        }, onKey: { [weak self, weak controller] key in
+            guard let self, session.generation == generation, session.holdsKeys else { return }
             switch key {
-            case .accept: self?.controller?.onAccept?()
-            case .cancel: self?.controller?.onCancel?()
+            case .accept: controller?.onAccept?()
+            case .cancel: controller?.onCancel?()
+            }
+        })
+        post()
+        watch(generation: generation)
+        startTicker(generation: generation)
+    }
+
+    private func startTicker(generation: Int) {
+        ticker?.cancel()
+        ticker = Task { [weak self, sleep] in
+            while !Task.isCancelled {
+                do { try await sleep(.seconds(1)) } catch { return }
+                guard !Task.isCancelled, self?.tick(generation: generation) == true else { return }
             }
         }
-        watch(generation: session.generation)
+    }
+
+    private func tick(generation: Int) -> Bool {
+        guard let state = controller?.state, state.phase == .listening,
+              session.generation == generation, session.phase == .recording else { return false }
+        if session.hear(levels: state.levels, at: now()) { post() }
+        return true
     }
 
     /// Re-arms after every change while its session lives; levels arrive about 20 times a second.
@@ -76,8 +108,12 @@ final class DictationIslandCoordinator {
 
     private func changed(generation: Int) {
         guard let state = controller?.state, session.generation == generation else { return }
-        if state.phase == .transcribing ? session.transcribe() : session.hear(levels: state.levels, at: now()) {
-            post()
+        if state.phase == .transcribing {
+            ticker?.cancel()
+            ticker = nil
+            if session.transcribe() { post() }
+        } else {
+            _ = tick(generation: generation)
         }
         watch(generation: generation)
     }
@@ -91,7 +127,7 @@ final class DictationIslandCoordinator {
 
     func delivered(empty: Bool) {
         session.delivered(empty: empty)
-        presenter?.holdKeys(nil)
+        presenter?.releaseKeys()
     }
 
     /// True when the island takes stock's report in place of its sentence under the island.
@@ -99,8 +135,10 @@ final class DictationIslandCoordinator {
 
     func reset(completed: Bool) {
         guard session.isLive else { return }
+        ticker?.cancel()
+        ticker = nil
         let settles = session.end(completed: completed)
-        presenter?.holdKeys(nil)
+        presenter?.releaseKeys()
         guard completed else { return clear() }
         guard settles else { return }
         let generation = session.generation
@@ -124,13 +162,13 @@ final class DictationIslandCoordinator {
     }
 
     private func post() {
-        guard let notice = IslandNotice(dictation: session), notice != shown else { return }
+        guard let notice = IslandNotice(dictation: session, keysFocused: keysFocused), notice != shown else { return }
         shown = notice
         presenter?.post(notice, onTap: nil)
     }
 
     #if DEBUG
     var phase: DictationIslandSession.Phase { session.phase }
-    var holdsKeys: Bool { session.holdsKeys }
+    var holdsKeys: Bool { session.holdsKeys && keysFocused }
     #endif
 }
