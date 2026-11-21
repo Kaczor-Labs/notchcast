@@ -1,6 +1,6 @@
 // notchcast-addon-order: 80
 // notchcast-readme: Downloads: video, audio, transcripts and webpages from clipboard links,
-// notchcast-readme: Downloads: with optional aria2c and transcription into a local folder;
+// notchcast-readme: Downloads: with optional aria2c and transcription into a local folder; PDF links through an installed firecrawl-local;
 // notchcast-readme: Downloads: downloads and torrents can use Wi-Fi and a USB-tethered iPhone together;
 // notchcast-readme: Downloads: optionally a copy of each note in a Markdown folder you choose,
 // notchcast-readme: Downloads: where PDF, HTML, audio and video files added while the option is on become notes and their originals go to the Trash
