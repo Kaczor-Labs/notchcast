@@ -7,6 +7,7 @@ enum NotchcastHidden {
         .systemSettings,
         .navigation,
         .quickActions,
+        .commands,
     ]
     /// The app speaks English only; `AppSettings.pinLanguage()` writes this at every launch.
     static let language = "en"
