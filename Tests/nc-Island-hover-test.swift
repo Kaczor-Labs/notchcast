@@ -183,6 +183,9 @@ struct IslandHoverTest {
                      "hovering a download brings its title out below a notch (H5)")
         let copied = IslandNotice(id: "c", symbol: "doc.on.clipboard", text: "Copied")
         precondition(shown(copied) == copied, "a showing notice keeps its look while hovered (H6)")
+        let quiet = IslandNotice(id: "q", symbol: "mic", text: "Return to Paste", quiet: true)
+        precondition(shown(quiet)?.isHeadline == true && shown(quiet, hovered: false)?.isHeadline == false,
+                     "hovering a quiet notice brings its text out below a notch (#960)")
         let status = shown(nil, [IslandStatus(id: "old", symbol: "a", text: nil, label: "Old"), ready])
         precondition(status?.text == "Update ready" && status?.symbol == "arrow.clockwise.circle"
                      && status?.isHeadline == true, "hovering status glyphs names the newest one (H4)")

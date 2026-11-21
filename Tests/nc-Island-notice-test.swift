@@ -151,7 +151,93 @@ struct IslandNoticeTest {
         picks.post(white, at: 1)
         precondition(blue != white && picks.notice?.swatch == white.swatch,
                      "A repost with a new swatch shows the new swatch on top")
+        dictation()
         print("IslandNoticeTest passed")
+    }
+
+    /// The dictation shapes: one live notice id reposted as its state changes (#960).
+    static func dictation() {
+        func recording(_ readout: String, _ meter: [Double]) -> IslandNotice {
+            IslandNotice(id: "dictation", symbol: "mic", text: "Return to Paste · Esc to Cancel",
+                         progress: IslandProgress(fraction: nil, readout: readout), meter: meter)
+        }
+        var queue = IslandNoticeQueue()
+        queue.post(recording("0:00", [0]), at: 0)
+        precondition(queue.notice?.isHeadline == true && near(queue.remaining(at: 1), 1.4)
+                     && queue.announcement() == "Return to Paste · Esc to Cancel",
+                     "Recording headlines once, for one message dwell, and is announced as it starts")
+        queue.post(recording("0:01", [0.4, 0.9]), at: 1)
+        precondition(near(queue.remaining(at: 1), 1.4) && queue.announcement() == nil
+                     && queue.notice?.progress?.readout == "0:01" && queue.notice?.meter == [0.4, 0.9],
+                     "A tick or a level reposts in place: same headline time, no new announcement")
+        queue.expire(at: 2.4)
+        precondition(queue.notice?.isHeadline == false && queue.remaining(at: 60) == nil,
+                     "After its headline, recording stays compact until it changes")
+        queue.post(recording("0:09", [0.2]), at: 9)
+        precondition(queue.notice?.isHeadline == false && queue.announcement() == nil, "A later tick stays compact")
+        let transcribing = IslandNotice(id: "dictation", symbol: "waveform", text: "Transcribing",
+                                        progress: IslandProgress(fraction: nil, headline: false))
+        queue.post(transcribing, at: 10)
+        precondition(queue.notice?.isHeadline == false && queue.remaining(at: 60) == nil
+                     && queue.notice?.meter == nil && queue.announcement() == nil,
+                     "Transcribing stays compact on the same id, without bars, and is not announced again")
+        var cleaning = transcribing
+        cleaning.symbol = "sparkles"
+        cleaning.text = "Cleaning Up"
+        queue.post(cleaning, at: 11)
+        precondition(queue.notice?.isHeadline == false && queue.remaining(at: 60) == nil,
+                     "Cleaning up stays compact on the same id")
+        let pasted = IslandNotice(id: "dictation", symbol: "checkmark", text: "Pasted", quiet: true)
+        queue.post(pasted, at: 12)
+        precondition(near(queue.remaining(at: 13), 1.4) && queue.announcement() == "Pasted" && !pasted.isHeadline,
+                     "The result dwells 2.4 s, is announced once, and a quiet one keeps beside the notch")
+        queue.expire(at: 14.4)
+        precondition(queue.notice == nil, "The result leaves after its dwell")
+        queue.post(IslandNotice(id: "dictation", symbol: "exclamationmark.triangle", text: "Dictation Failed",
+                                isFailure: true), at: 20)
+        precondition(near(queue.remaining(at: 21), 3) && queue.announcement() == "Dictation Failed",
+                     "A failure dwells 4 s and is announced once")
+        queue.post(recording("0:00", [0]), at: 30)
+        queue.end("dictation", at: 31)
+        precondition(queue.notice == nil, "Cancel ends the notice at once")
+
+        let bare = IslandNotice(id: "r", text: "", progress: IslandProgress(readout: "0:07"))
+        let empty = IslandNotice(id: "r", text: "Saved", progress: IslandProgress(readout: ""))
+        precondition(recording("0:07", []).line == "0:07  Return to Paste · Esc to Cancel" && pasted.line == "Pasted"
+                     && bare.line == "0:07" && empty.line == "Saved",
+                     "The readout leads the text by two spaces, stands alone, and an empty one is none")
+        precondition(IslandProgress.shape(of: "8:54") == "0:00" && IslandProgress.shape(of: "10:00") == "00:00",
+                     "A readout's shape counts every digit as 0")
+        precondition(IslandNotice.bars([0, 0.5, 1, 0.25, 2, .nan], count: 4, floor: 0.2) == [0.2, 1, 0.4, 0.2]
+                     && IslandNotice.bars([-1, 2, 0.25, 0], count: 4, floor: 0.2) == [0.2, 1, 0.4, 0.2]
+                     && IslandNotice.bars([], count: 4, floor: 0.2) == [0.2, 0.2, 0.2, 0.2],
+                     "Four bars sample six levels evenly, clamp them, and rest on the floor")
+        var hovered = pasted
+        hovered.quiet = false
+        precondition(hovered.isHeadline && !IslandNotice(id: "q", text: "x", quiet: true).isHeadline,
+                     "Only the quiet flag keeps a plain notice beside the notch")
+        keyLease()
+    }
+
+    /// #960: a forgotten `holdKeys(nil)` ends with the notice the hold was taken under.
+    private static func keyLease() {
+        var queue = IslandNoticeQueue()
+        var lease = IslandKeyLease()
+        queue.post(IslandNotice(id: "dictation", text: "Recording"), at: 0)
+        lease.take(during: queue.notice?.id)
+        queue.post(IslandNotice(id: "copied", text: "Copied"), at: 1)
+        queue.post(IslandNotice(id: "dictation", text: "Recording 0:01"), at: 1)
+        precondition(!lease.outlived(live: queue.holds) && lease.held && lease.owner == "dictation",
+                     "A notice over it or a repost of its own keeps the hold")
+        queue.end("dictation", at: 2)
+        precondition(lease.outlived(live: queue.holds) && lease == IslandKeyLease(),
+                     "Ending the notice it was taken under gives the keys back")
+        precondition(!lease.outlived(live: queue.holds), "A given-back hold is not given back twice")
+        lease.take(during: nil)
+        precondition(!lease.outlived(live: queue.holds) && lease.held,
+                     "A hold taken under no notice waits for nil")
+        lease.give()
+        precondition(lease == IslandKeyLease(), "nil, as after focus leaves, clears the hold and its owner")
     }
 
     private static func near(_ value: TimeInterval?, _ expected: TimeInterval) -> Bool {
