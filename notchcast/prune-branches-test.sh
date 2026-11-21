@@ -78,7 +78,7 @@ for name in dirty locked clean fail-tree; do git worktree add -q "$scratch/allow
 git worktree add -q "$scratch/outside" outside
 echo dirty > "$scratch/allowed/dirty/untracked"
 git worktree lock "$scratch/allowed/locked"
-printf '#!/bin/bash\n[[ " $* " == *" -R kaczordodgers/notchcast "* ]] || exit 1\ncase "$*" in\n*open*) echo '\''[{"headRefName":"open","baseRefName":"stood-on"}]'\'' ;;\n*) cat "%s/comments.json" ;;\nesac\n' "$scratch" > "$scratch/bin/gh"
+printf '#!/bin/bash\n[[ " $* " == *" -R Kaczor-Labs/notchcast "* ]] || exit 1\ncase "$*" in\n*open*) echo '\''[{"headRefName":"open","baseRefName":"stood-on"}]'\'' ;;\n*) cat "%s/comments.json" ;;\nesac\n' "$scratch" > "$scratch/bin/gh"
 printf '[{"number":1,"headRefName":"squash","comments":[{"author":{"login":"kaczordodgers"},"body":"Landed on main as %s by land: squash of %s onto base."}]}' "$landed" "$tip" > "$scratch/comments.json"
 number=2
 for name in other-author no-subject upstream-subject wrong-prefix; do
