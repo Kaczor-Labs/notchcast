@@ -22,6 +22,12 @@
     "Tinycast/Features/Notchcast/Hidden/*",
     "Tinycast/Migrations/*"
   ],
+  "hidden-hotkeys": [
+    "Tinycast/App/AppCore.swift",
+    "Tinycast/Features/HotKeys/Service/HotKeyManager.swift",
+    "Tinycast/Features/Settings/AppSettings.swift",
+    "Tinycast/Features/Notchcast/Hidden/*"
+  ],
   "commands-hidden": [
     "Tinycast/Features/Notchcast/Hidden/*",
     "Tinycast/Features/Notchcast/Core/*",
