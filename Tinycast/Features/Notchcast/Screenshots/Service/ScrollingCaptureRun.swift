@@ -15,7 +15,7 @@ final class ScrollingFinishFlag: Sendable {
     var isRequested: Bool { requested.withLock { $0 } }
 }
 
-/// Watches the area while it is scrolled, by its pixels alone, so wheel, keys and scroll bars all count.
+/// Watches the area by its pixels alone while it is scrolled, so wheel, keys and scroll bars count.
 enum ScrollingCaptureRun {
     struct Result: Sendable {
         let image: CGImage

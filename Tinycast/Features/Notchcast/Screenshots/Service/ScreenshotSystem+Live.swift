@@ -117,9 +117,12 @@ extension ScreenshotSystem {
             throw ScreenshotRequest.Failure.targetUnavailable
         }
         let pid = ProcessInfo.processInfo.processIdentifier
-        let filter = content.applications.first { $0.processID == pid }.map {
-            SCContentFilter(display: display, excludingApplications: [$0], exceptingWindows: [])
-        } ?? SCContentFilter(display: display, excludingWindows: [])
+        let ownWindows = content.windows.filter { $0.owningApplication?.processID == pid }
+        guard let app = content.applications.first(where: { $0.processID == pid })
+            ?? ownWindows.compactMap(\.owningApplication).first else {
+            throw ScreenshotRequest.Failure.targetUnavailable
+        }
+        let filter = SCContentFilter(display: display, excludingApplications: [app], exceptingWindows: [])
         let configuration = configuration
         configuration.sourceRect = region.rect.offsetBy(dx: -display.frame.minX, dy: -display.frame.minY)
         configuration.width = Int((region.rect.width * region.scale).rounded())

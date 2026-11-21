@@ -11,8 +11,7 @@
 import AppKit
 import SwiftUI
 
-/// #938's island states, offscreen in Dark, both forms, to PNGs in `NC_AUDIT_RENDERS`.
-/// `NC_AUDIT_LOOK=frosted` renders Frosted on its glass tint over a white wallpaper.
+/// #938's island states in Dark, both forms, to `NC_AUDIT_RENDERS`; Frosted by `NC_AUDIT_LOOK=frosted`.
 @MainActor
 @main
 struct ScrollingCaptureRenderTest {
@@ -87,7 +86,7 @@ struct ScrollingCaptureRenderTest {
         }
     }
 
-    /// Beside a notch only the glyph shows; the text comes out below it, as the island shows a notice there.
+    /// Beside a notch only the glyph shows; the text comes out below it, as a notice does.
     static func notice(_ name: String, _ notice: IslandNotice, notch: Bool) {
         guard notch else { return compact(name, IslandNoticeArt(notice, notch: false, frosted: frosted), notch: false) }
         let line = IslandHeadlineArt(notice, notch: notchSize.width, frosted: frosted)

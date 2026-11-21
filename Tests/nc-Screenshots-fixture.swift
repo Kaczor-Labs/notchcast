@@ -34,7 +34,7 @@ func page(offset: Int, seed: UInt32 = 0) -> CGImage {
                    intent: .defaultIntent)!
 }
 
-/// The run's uptime in whole microseconds, moved only by its own pauses and frames, so a wait always ends.
+/// The run's uptime in whole microseconds, moved only by its pauses and frames, so a wait ends.
 final class FakeClock: Sendable {
     private let micros = Mutex(0)
 

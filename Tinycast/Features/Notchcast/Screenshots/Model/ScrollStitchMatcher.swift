@@ -333,16 +333,19 @@ enum ScrollStitchMatcher {
         var longestRun = 0, run = 0, matchingRows = 0
         var totalDifference: Float = 0
         let threshold = Float(columns.count * 8)
-        for row in 0..<rowCount {
-            if rowDifferences[row] <= threshold {
-                totalDifference += rowDifferences[row]
-                run += 1
-                matchingRows += 1
-                longestRun = max(longestRun, run)
-            } else {
-                // A changing block counts its capped error, never as a match.
-                totalDifference += threshold
-                run = 0
+        // Indexing the array here took seconds per Retina frame in unoptimised Debug builds.
+        rowDifferences.withUnsafeBufferPointer { rows in
+            for row in 0..<rowCount {
+                if rows[row] <= threshold {
+                    totalDifference += rows[row]
+                    run += 1
+                    matchingRows += 1
+                    longestRun = max(longestRun, run)
+                } else {
+                    // A changing block counts its capped error, never as a match.
+                    totalDifference += threshold
+                    run = 0
+                }
             }
         }
         return RowMatch(longestRun: longestRun, matchingRows: matchingRows, comparedRows: rowCount,

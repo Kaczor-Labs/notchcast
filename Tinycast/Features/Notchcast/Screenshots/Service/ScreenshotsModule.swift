@@ -76,8 +76,7 @@ final class ScreenshotsModule: NotchcastModule {
         guard isIdle else { return }
         guard system.grantAccess() else { return report(ScreenshotRequest.Failure.permissionDenied) }
         scrolling = .selecting
-        run { [self] in
-            let id = operation
+        run { [self] id in
             defer { if operation == id { endScrolling() } }
             guard let region = try await selectRegion() else { return }
             let finish = ScrollingFinishFlag()
@@ -112,7 +111,7 @@ final class ScreenshotsModule: NotchcastModule {
     func editLastCapture() {
         guard isIdle else { return }
         guard let lastCapture else { return report(ScreenshotRequest.Failure.nothingToEdit) }
-        run { [self] in
+        run { [self] _ in
             guard let image = await ScreenshotFiles.decode(lastCapture.png) else {
                 throw ScreenshotRequest.Failure.encodingFailed
             }
@@ -129,7 +128,7 @@ final class ScreenshotsModule: NotchcastModule {
             if scope == .text { system.openScreenRecordingSettings() }
             return report(ScreenshotRequest.Failure.permissionDenied)
         }
-        run { [self] in
+        run { [self] _ in
             guard let shot = try await capture(scope) else { return }
             if scope == .text { return try await copyText(in: shot.image) }
             let data = try await ScreenshotFiles.png(shot.image, scale: shot.scale)
@@ -143,12 +142,12 @@ final class ScreenshotsModule: NotchcastModule {
         }
     }
 
-    private func run(_ work: @escaping @MainActor @Sendable () async throws -> Void) {
+    private func run(_ work: @escaping @MainActor @Sendable (UUID) async throws -> Void) {
         let id = UUID()
         operation = id
         session = Task {
             do {
-                try await work()
+                try await work(id)
             } catch {
                 if operation == id, !(error is CancellationError) { report(error) }
             }
@@ -351,7 +350,10 @@ final class ScreenshotsModule: NotchcastModule {
         if destination != .clipboard {
             saved = try await ScreenshotFiles.save(data, in: folder(), date: context.now(), timeZone: .current)
         }
-        try Task.checkCancellation()
+        if Task.isCancelled {
+            if let saved { try? FileManager.default.removeItem(at: saved) }
+            throw CancellationError()
+        }
         if destination != .file, !system.writeClipboard(data), saved == nil {
             throw ScreenshotRequest.Failure.clipboardFailed
         }

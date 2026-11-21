@@ -7,7 +7,7 @@ import CoreGraphics
 import CoreText
 import Foundation
 
-// #938: the scrolling capture's stitching, driven frame by frame with made-up uptimes: no capture, no sleep.
+// #938: the stitching, driven frame by frame with made-up uptimes: no capture, no sleep.
 
 typealias Session = ScrollStitchSession
 
@@ -116,7 +116,7 @@ func terminalDocument() -> CGImage {
     return context.makeImage()!
 }
 
-/// Distinct noise rows, 251 of them, so any window under 251 rows is unique; a row is copied, not computed.
+/// 251 distinct noise rows, so any window under 251 rows is unique; a row is copied, not computed.
 struct RowBank {
     let width: Int
     let rows: [[UInt8]]
@@ -175,7 +175,26 @@ func capture(_ frames: [CGImage?], limits: Session.Limits = Session.Limits(), fi
         }
     }
     guard let ending else { preconditionFailure("the session never ended") }
-    return Run(ending: ending, image: ending == .failed ? nil : session.stitched(), heights: heights, captures: served)
+    let image = ending == .failed ? nil : session.stitched()
+    precondition(session.stitched() == nil, "the session lets go of its strips once stitched")
+    return Run(ending: ending, image: image, heights: heights, captures: served)
+}
+
+/// A look every 0.1 s at `offset(tick)`, Finish from `finishTick`; answers the tick it ended on.
+func timed(finishTick: Int, offset: (Int) -> Int) -> (ending: Session.Ending, tick: Int, image: CGImage?) {
+    var session = Session(first: frame(offset: offset(0)), at: 0)!
+    for tick in 1...100 {
+        let now = Double(tick) / 10
+        switch session.next(at: now, finishRequested: tick >= finishTick) {
+        case .capture:
+            if let ending = session.take(frame(offset: offset(tick)), at: now) {
+                return (ending, tick, session.stitched())
+            }
+        case .wait: continue
+        case .end(let ending): return (ending, tick, session.stitched())
+        }
+    }
+    preconditionFailure("the timed session never ended")
 }
 
 func expect(_ run: Run, _ ending: Session.Ending, _ what: String, matches expected: CGImage? = nil,
@@ -195,6 +214,7 @@ enum ScrollStitchTests {
         matching()
         sessions()
         limits()
+        finishing()
         phases()
         regions()
         print("nc-Screenshots-stitch-test: ok")
@@ -277,6 +297,8 @@ enum ScrollStitchTests {
 
         expect(capture([frame(offset: 0), frame(offset: 42), frame(offset: 12), frame(offset: 72)]), .success,
                "scrolling back then forward never doubles a row", matches: frame(offset: 0, height: 192))
+        expect(capture([frame(offset: 0), frame(offset: 42), frame(offset: 12)]), .success,
+               "Finish right after scrolling back keeps the furthest rows", matches: frame(offset: 0, height: 162))
         expect(capture([frame(offset: 0, contentWidth: 8), frame(offset: 42, contentWidth: 8)]), .success,
                "a narrow moving column keeps the blank side", matches: frame(offset: 0, height: 162, contentWidth: 8))
         expect(capture([paddedFrame(offset: 0), paddedFrame(offset: 42), paddedFrame(offset: 72)]), .success,
@@ -327,6 +349,19 @@ enum ScrollStitchTests {
                "the strip guard ends the run", matches: frame(offset: 0, height: 140))
         expect(capture((0..<10).map { frame(offset: $0 * 10) }, limits: Session.Limits(duration: 0.25)),
                .limitedByGuard, "the time guard ends the run", matches: frame(offset: 0, height: 140))
+    }
+
+    static func finishing() {
+        let settling = timed(finishTick: 2) { min($0, 3) * 10 }
+        precondition(settling.ending == .success && settling.tick == 7,
+                     "Finish waits until the page is still for 0.22 s: \(settling.ending) at tick \(settling.tick)")
+        precondition(settling.image.map(pixels) == pixels(frame(offset: 0, height: 150)),
+                     "rows that arrive after Finish are kept")
+        let moving = timed(finishTick: 2) { $0 * 10 }
+        precondition(moving.ending == .success && moving.tick == 11,
+                     "a page that never stops ends 0.85 s after Finish: \(moving.ending) at tick \(moving.tick)")
+        precondition(moving.image.map(pixels) == pixels(frame(offset: 0, height: 220)),
+                     "a page that never stops keeps every row until the grace ends")
     }
 
     static func phases() {
