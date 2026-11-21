@@ -547,6 +547,7 @@
 		5B4762FEEA8774AB115F8B80 /* IslandController+Accessibility.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5242FC9174E8721BBD5A91FC /* IslandController+Accessibility.swift */; };
 		5B5BCDD482A9058D38C49314 /* CalcUnits.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC67BADEB6FEC76C88585361 /* CalcUnits.swift */; };
 		5B90A314CF4801995EA0EE01 /* ExtensionHostBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = 38765BC6C35D03659655BD2B /* ExtensionHostBridge.swift */; };
+		5BE1984393D9C4CDF092C40C /* LastPlayer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4A269EA8034B2189B82372F5 /* LastPlayer.swift */; };
 		5BF11E6F921BF8ED5CA10878 /* AutoJoinPolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = A65353481F5F8684CB8A6BC8 /* AutoJoinPolicy.swift */; };
 		5C2CC1C182330355C917CB27 /* MiddleClickTouchSource.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0C340FF3A82FA53949BE188B /* MiddleClickTouchSource.swift */; };
 		5C801A9043908577FB99A555 /* DialogView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 32733B27AE0BD75742D1394F /* DialogView.swift */; };
@@ -1955,6 +1956,7 @@
 		49655861D4B37B66F9B22A78 /* SettingsSyncSource.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsSyncSource.swift; sourceTree = "<group>"; };
 		49E8194DC4F75C103DA35F3D /* WindowManagementFileFormat.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WindowManagementFileFormat.swift; sourceTree = "<group>"; };
 		49F5F1643583C259A45D8D9E /* ShortenLinkPolicy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShortenLinkPolicy.swift; sourceTree = "<group>"; };
+		4A269EA8034B2189B82372F5 /* LastPlayer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LastPlayer.swift; sourceTree = "<group>"; };
 		4A93BF11B823786E8B468B05 /* AIConnectionKeyPolicy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIConnectionKeyPolicy.swift; sourceTree = "<group>"; };
 		4AA61A2FAF4E49E466DA8F37 /* SettingsTab.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsTab.swift; sourceTree = "<group>"; };
 		4AB00BBB28FEFC0C7A756235 /* RecordSyncSource.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecordSyncSource.swift; sourceTree = "<group>"; };
@@ -4934,6 +4936,7 @@
 		8552303F73B9C471184DC74C /* Model */ = {
 			isa = PBXGroup;
 			children = (
+				4A269EA8034B2189B82372F5 /* LastPlayer.swift */,
 				CB48BB8C2C8876E9DC575DD1 /* MusicLaunchPolicy.swift */,
 				A8EEE20EACEF2637173C10FA /* MusicLaunchTrigger.swift */,
 			);
@@ -7834,6 +7837,7 @@
 				A8F34B293EDC769BE6C643B9 /* KeyboardRemapper.swift in Sources */,
 				067A064C013F0F66208E7DB1 /* KeychainSecretStore.swift in Sources */,
 				A4F6F73389B35161E7A37588 /* KillProcessSession.swift in Sources */,
+				5BE1984393D9C4CDF092C40C /* LastPlayer.swift in Sources */,
 				DEBCF434AB244DAD43DB8A6A /* LaunchAtLogin.swift in Sources */,
 				C4B9E9B3E965BFDFD31EDC3D /* LauncherCoordinator.swift in Sources */,
 				40F2DB9EDB967834222B85DB /* LauncherFileFormat.swift in Sources */,
