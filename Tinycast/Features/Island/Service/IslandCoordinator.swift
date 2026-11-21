@@ -20,8 +20,7 @@ final class IslandCoordinator: NSObject {
     private var restingGlance: IslandGlance?
     private(set) lazy var update = IslandUpdateActivity(core: core)
     private(set) lazy var hover = IslandHoverTracker(core: core)
-    private(set) lazy var looks = IslandLookStore(defaults: UserDefaults(
-        suiteName: NotchcastPreferences.suiteName(bundleID: Bundle.main.bundleIdentifier ?? "Notchcast")) ?? .standard)
+    private(set) lazy var looks = IslandLookStore(defaults: core.notchcastDefaults)
 
     init(core: AppCore) { self.core = core }
 

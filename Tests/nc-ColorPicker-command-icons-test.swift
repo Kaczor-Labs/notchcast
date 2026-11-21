@@ -17,7 +17,7 @@ enum ColorPickerCommandIconTests {
 
 // The shipped `live` system and settings UI are left out: these stand in so the descriptor compiles.
 struct ColorPickerSettingsView: View {
-    init(defaults: UserDefaults, copy: @escaping @MainActor (ColorValue) -> Void) {}
+    init(defaults: UserDefaults) {}
     var body: some View { EmptyView() }
 }
 extension ColorPickerSystem {

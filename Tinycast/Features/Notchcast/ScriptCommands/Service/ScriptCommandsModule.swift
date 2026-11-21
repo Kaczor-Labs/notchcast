@@ -15,6 +15,7 @@ final class ScriptCommandsModule: NotchcastModule {
     private(set) var running: Set<String> = []
     /// The last run's full output per row, kept until the app quits.
     private(set) var outputs: [String: String] = [:]
+    private(set) var outputRevisions: [String: Int] = [:]
     private(set) var isRunning = false
 
     init(context: NotchcastContext, system: ScriptCommandsSystem) {
@@ -36,8 +37,9 @@ final class ScriptCommandsModule: NotchcastModule {
     }
 
     @discardableResult
-    func addRow() -> String {
-        let row = ScriptCommand(id: system.makeID())
+    func addRow(id: String? = nil) -> String {
+        let row = ScriptCommand(id: id ?? system.makeID())
+        guard !rows.contains(where: { $0.id == row.id }) else { return row.id }
         save(rows + [row])
         return row.id
     }
@@ -52,6 +54,7 @@ final class ScriptCommandsModule: NotchcastModule {
     func removeRow(_ id: String) {
         cancelRun(id)
         outputs[id] = nil
+        outputRevisions[id] = nil
         save(rows.filter { $0.id != id })
     }
 
@@ -87,6 +90,7 @@ final class ScriptCommandsModule: NotchcastModule {
         runs[id] = nil
         running.remove(id)
         outputs[id] = result.output
+        outputRevisions[id, default: 0] += 1
         show(ScriptReport(name: name, result: result, timeoutMinutes: timeoutMinutes), for: id)
     }
 

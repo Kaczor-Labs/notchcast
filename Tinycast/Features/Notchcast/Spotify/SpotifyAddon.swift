@@ -25,7 +25,7 @@ enum SpotifyAddon: NotchcastAddon {
     ]
 
     static let settings = [
-        NotchcastSettingsRow(switchID: "spotify") { AnyView(SpotifySettingsView(context: $0)) },
+        NotchcastSettingsRow(switchID: "spotify") { _ in AnyView(SpotifySettingsView()) },
         NotchcastSettingsRow(switchID: "spotify") { AnyView(SpotifyIslandRows(context: $0)) },
     ]
 
