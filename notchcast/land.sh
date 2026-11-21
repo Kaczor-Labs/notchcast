@@ -347,6 +347,7 @@ elif [ "${1:-}" = --check ] && [ -z "$train_run" ] && [ "$#" -eq 3 ]; then
     check=1
     base=$(git rev-parse --verify "$2^{commit}")
     head=$(git rev-parse --verify "$3^{commit}")
+    base_unprovable=$(tree_at "$base" && unprovable_list)
     # The head commit stands in for the PR.
     jq -n --arg head "$head" --arg title "$(git show -s --format=%s "$head")" --arg body "$(git show -s --format=%b "$head")" \
         '{headRefOid: $head, title: $title, body: $body}' > "$scratch/pr-check.json"
@@ -445,27 +446,51 @@ isolated_proof() {
     proof=$url
     isolated=1
 }
+refuse_unprovable() {
+    local blocked=$1 base_lists=$2 merged_lists=$3 pr selected detail= index commit added
+    if [ "$check" -eq 0 ]; then
+        for pr in "${train[@]}"; do
+            selected=$(listed_in "$blocked" "$scratch/selected-$pr")
+            [ -z "$selected" ] || detail="$detail; selected by PR #$pr ($selected)"
+        done
+        local remaining
+        remaining=$(listed_in "$merged_lists" <(tr ' ' '\n' <<< "$blocked" | grep -vxF -f <(tr ' ' '\n' <<< "$base_lists")))
+        for ((index=${#train[@]} - 1; index >= 0 && ${#remaining} > 0; index--)); do
+            pr=${train[$index]}
+            commit=$(< "$scratch/commit-$pr")
+            tree_at "$commit^"
+            local parent_lists
+            parent_lists=$(unprovable_list)
+            added=$(tr ' ' '\n' <<< "$remaining" | grep -vxF -f <(tr ' ' '\n' <<< "$parent_lists") | paste -sd' ' - || true)
+            [ -z "$added" ] || detail="$detail; added to both lists by PR #$pr ($added)"
+            remaining=$(listed_in "$parent_lists" <(tr ' ' '\n' <<< "$remaining"))
+        done
+    fi
+    refuse_for_good "no run proves $blocked: it is in both HOSTED_ONLY_TESTS and CI_SKIP_TESTS (notchcast/config.env, base or merged tree)$detail; make it pass on a hosted VM and take it out of CI_SKIP_TESTS"
+}
 # One pass on the tree at HEAD over the union of what each squash in $base..HEAD selects. Sets failed.
 # Not covered without an Xcode build of this tree: code no selected harness compiles (UI, AppCore wiring,
 # resources); the PR build covered each head alone, and Sync and Snapshot follow on main.
 harnesses() {
-    local commit proof= names why tested= unproven= skipped isolated= left= unprovable
+    local pr commit proof= names why tested= unproven= skipped isolated= left= unprovable merged_lists
     : > "$scratch/linux"
-    for commit in $(git rev-list --reverse "$base..HEAD"); do
+    for pr in "${train[@]}"; do
+        commit=$(< "$scratch/commit-$pr")
         if [ "$platform" = linux ]; then
-            TMPDIR="$scratch/tmp" "$selector" --linux "$scratch/linux-one" "$commit^" "$commit"
+            TMPDIR="$scratch/tmp" "$selector" --linux "$scratch/linux-one" "$commit^" "$commit" > "$scratch/selected-$pr"
             cat "$scratch/linux-one" >> "$scratch/linux"
         else
-            TMPDIR="$scratch/tmp" "$selector" "$commit^" "$commit"
+            TMPDIR="$scratch/tmp" "$selector" "$commit^" "$commit" > "$scratch/selected-$pr"
         fi
+        cat "$scratch/selected-$pr"
     done | sort -u > "$scratch/selected"
     [ -s "$scratch/selected" ] || refuse 'no harness selected for the merged tree'
     names=$(< "$scratch/selected")
     landed_from=mac
-    # Main's lists and the merged tree's: a PR that puts a new harness in both had its own hosted run skip it.
-    unprovable=$(listed_in "$(cd "$(dirname "$selector")/.." && unprovable_list) $(unprovable_list)" "$scratch/selected")
-    [ -z "$unprovable" ] || [ "$check" -eq 1 ] \
-        || refuse_for_good "no run proves $unprovable: it is in both HOSTED_ONLY_TESTS and CI_SKIP_TESTS (notchcast/config.env, main's or the PR's); make it pass on a hosted VM and take it out of CI_SKIP_TESTS"
+    [ "$check" -eq 1 ] || base_unprovable=$(cd "$(dirname "$selector")/.." && unprovable_list)
+    merged_lists=$(unprovable_list)
+    unprovable=$(listed_in "$base_unprovable $merged_lists" "$scratch/selected")
+    [ -z "$unprovable" ] || refuse_unprovable "$unprovable" "$base_unprovable" "$merged_lists"
     # run-tests.sh skips these here (test-harnesses.sh), so only a hosted run of this exact tree proves them;
     # a Linux landing never proves one itself, whatever runner it is on.
     { [ "$platform" = mac ] && { [ "${RUNNER_ENVIRONMENT:-}" = github-hosted ] || [ "${NOTCHCAST_ISOLATED_RUNNER:-}" = 1 ]; }; } \
