@@ -126,6 +126,7 @@ extension IslandHover {
         guard hovered, !level else { return top }
         if var top {
             top.progress?.headline = true
+            top.quiet = false
             return top
         }
         guard !glance, let status = statuses.last else { return nil }
