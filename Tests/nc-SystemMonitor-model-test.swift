@@ -25,6 +25,7 @@ struct SystemMonitorModelTests {
         page()
         hotPage()
         homeLine()
+        tones()
         print("PASSED")
     }
 
@@ -263,6 +264,37 @@ struct SystemMonitorModelTests {
         let hot = MonitorPage.line(Fix.board(cpu: 0.2, freePercent: 3), locale: Fix.locale)
         check(hot.text == "Startup disk almost full" && hot.detail == "15 GB free",
               "a hot resource leads the line: \(hot.text) \(hot.detail ?? "")")
+    }
+
+    /// Hot is a yellow glyph beside its word on the closed island and on Home; anything else inks as always.
+    static func tones() {
+        let normal = Fix.board()
+        check(MonitorPage.status(normal.heat) == nil && MonitorPage.line(normal, locale: Fix.locale).tone == nil,
+              "nothing hot, no tone")
+        let busiest = MonitorPage.line(Fix.board(cpu: 0.88, freePercent: 5), locale: Fix.locale)
+        check(busiest.text == "CPU 88%" && busiest.tone == nil, "the busiest resource that is not hot takes no tone")
+        check(MonitorPage.line(MonitorBoard(), locale: Fix.locale).tone == nil, "measuring takes no tone")
+        let cases: [(String, MonitorBoard, MonitorReading)] = [
+            ("CPU after the hold", Fix.board(cpu: 0.96, hotFor: 12),
+             Fix.reading(at: 16, busy: 1920 + 740, total: 4000, received: 12_000_000, sent: 3_000_000, detail: true,
+                         step: 3)),
+            ("memory", Fix.board(pressure: .critical),
+             Fix.reading(at: 4, busy: 430 * 2 + 430, total: 4000, received: 8_000_000, sent: 2_000_000, detail: true,
+                         step: 2)),
+            ("disk", Fix.board(freePercent: 3),
+             Fix.reading(at: 4, busy: 430 * 2 + 430, total: 4000, received: 8_000_000, sent: 2_000_000, detail: true,
+                         freePercent: 5, step: 2)),
+        ]
+        for (name, hot, cooler) in cases {
+            check(hot.heat.hot.count == 1, "\(name) alone runs hot: \(hot.heat.hot)")
+            check(MonitorPage.status(hot.heat)?.tone == .warning, "\(name): the closed glyph turns yellow")
+            check(MonitorPage.line(hot, locale: Fix.locale).tone == .warning, "\(name): the Home glyph turns yellow")
+            var cooled = hot
+            cooled.apply(cooler, processorCount: 4)
+            check(cooled.heat.hot.isEmpty, "\(name) leaves hot at its lower mark: \(cooled.heat.hot)")
+            check(MonitorPage.status(cooled.heat) == nil && MonitorPage.line(cooled, locale: Fix.locale).tone == nil,
+                  "\(name): cooled, no tone")
+        }
     }
 
     static func meter(_ card: IslandCard) -> IslandCardMeter? {
