@@ -204,31 +204,34 @@ struct IslandPagesRenderTest {
         return bitmap.representation(using: .png, properties: [:])
     }
 
-    /// The tone hops line, label, artwork; a dropped `tone:` on any hop draws the Home glyph grey.
+    /// A dropped `tone:` hop (line, label, artwork) greys the glyph; hue survives 1x antialiasing.
     static func checkTones(toned: NSBitmapImageRep, plain: NSBitmapImageRep, frosted: Bool, look: String) {
         precondition(toned.pixelsWide == plain.pixelsWide && toned.pixelsHigh == plain.pixelsHigh,
                      "a tone never resizes the Home line (\(look))")
-        func rgb(_ color: NSColor?) -> [CGFloat] {
-            guard let color = color?.usingColorSpace(.sRGB) else { return [-1, -1, -1] }
-            return [color.redComponent, color.greenComponent, color.blueComponent]
+        func hue(_ color: NSColor?) -> (hue: CGFloat, chroma: CGFloat) {
+            guard let color = color?.usingColorSpace(.sRGB) else { return (0, 0) }
+            let rgb = [color.redComponent, color.greenComponent, color.blueComponent]
+            return (color.hueComponent, rgb.max()! - rgb.min()!)
         }
-        func near(_ a: [CGFloat], _ b: [CGFloat]) -> Bool { zip(a, b).allSatisfy { abs($0 - $1) < 0.02 } }
+        func tone(_ ink: (hue: CGFloat, chroma: CGFloat), among inks: [(IslandTone, CGFloat)]) -> IslandTone? {
+            guard ink.chroma > 0.15 else { return nil }
+            return inks.first { min(abs($0.1 - ink.hue), 1 - abs($0.1 - ink.hue)) < 0.03 }?.0
+        }
         let inks = IslandTone.allCases.map { tone in
             let swatch = Rectangle().fill(tone.color).environment(\.islandFrosted, frosted)
-            return (tone, rgb(snapshot(swatch.environment(\.colorScheme, .dark), size: CGSize(width: 8, height: 8))
-                .colorAt(x: 4, y: 4)))
+            return (tone, hue(snapshot(swatch.environment(\.colorScheme, .dark), size: CGSize(width: 8, height: 8))
+                .colorAt(x: 4, y: 4)).hue)
         }
         var hits: [IslandTone: Int] = [:]
         for y in 0..<toned.pixelsHigh {
             for x in 0..<toned.pixelsWide {
-                let (before, after) = (rgb(plain.colorAt(x: x, y: y)), rgb(toned.colorAt(x: x, y: y)))
-                for (tone, ink) in inks {
-                    precondition(!near(before, ink), "an untoned Home line draws no \(tone) ink (\(look))")
-                    guard near(after, ink) else { continue }
-                    hits[tone, default: 0] += 1
-                    precondition(before.max()! - before.min()! < 0.08,
-                                 "nil inks the Home glyph grey as before, where \(tone) inks it (\(look))")
+                let (before, after) = (hue(plain.colorAt(x: x, y: y)), hue(toned.colorAt(x: x, y: y)))
+                if let stray = tone(before, among: inks) {
+                    preconditionFailure("an untoned Home line draws no \(stray) ink (\(look))")
                 }
+                guard let ink = tone(after, among: inks) else { continue }
+                hits[ink, default: 0] += 1
+                precondition(before.chroma < 0.08, "nil inks the Home glyph grey as before, where \(ink) inks it (\(look))")
             }
         }
         for tone in IslandTone.allCases {
