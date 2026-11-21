@@ -1,5 +1,6 @@
 #!/bin/bash
 set -euo pipefail
+trap 'status=$?; echo "pre-push: REFUSED: \`$BASH_COMMAND\` exited $status" >&2' ERR
 PATH="/opt/homebrew/bin:$PATH"
 root="$(git rev-parse --show-toplevel)"
 # A stale upstream puts its own commits in the range, and those authors are not ours.
@@ -16,7 +17,20 @@ while read -r _local_ref local_sha remote_ref remote_sha; do
     if [ "$(git cat-file -t "$local_sha")" = tag ]; then
         "$root/notchcast/check-identity.sh" tag "$local_sha"
     fi
-    base="$(git merge-base "$local_sha" refs/remotes/upstream/main)"
+    # A branch with no upstream history (evidence) is checked from the remote's old tip, or from its first new commit.
+    base="$(git merge-base "$local_sha" refs/remotes/upstream/main || true)"
+    if [ -z "$base" ] && [[ ! "$remote_sha" =~ ^0+$ ]] && git cat-file -e "$remote_sha^{commit}" 2>/dev/null; then
+        base=$remote_sha
+    fi
+    if [ -z "$base" ]; then
+        first="$(git rev-list --topo-order --reverse "$local_sha" --not --remotes | head -1)"
+        [ -n "$first" ] || continue
+        base="$(git rev-parse -q --verify "$first^" || true)"
+    fi
+    if [ -z "$base" ]; then
+        echo "pre-push: REFUSED: $remote_ref would add root commit ${first:0:8}, which shares no history with upstream/main or any remote branch, so the identity and leak checks have no base to start from; start the branch from a commit the remote already has" >&2
+        exit 1
+    fi
     python3 "$root/notchcast/check-commit-emails.py" "$base..$local_sha"
     "$root/notchcast/check-identity.sh" history "$base" "$local_sha"
     gitleaks git --log-opts="$base..$local_sha" --redact --no-banner --exit-code 1 .
