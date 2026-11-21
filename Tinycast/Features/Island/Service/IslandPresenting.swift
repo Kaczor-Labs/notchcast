@@ -6,6 +6,8 @@ protocol IslandPresenting: AnyObject {
     /// The one level call for every source, named by `level.source`; nothing is volume-specific.
     func showLevel(_ level: IslandLevel)
     func post(_ notice: IslandNotice, onTap: (@MainActor () -> Void)?)
+    /// Nil sends the notice back to the resting pill.
+    func place(notice id: String, on display: UInt32?)
     func end(notice id: String)
     func setStatus(_ status: IslandStatus?, for id: String, onTap: (@MainActor () -> Void)?)
     func setMenuRows(_ rows: [IslandMenuRow], owner: String, onSelect: @escaping @MainActor (String) -> Void)
@@ -31,4 +33,5 @@ extension IslandPresenting {
     func holdKeys(for notice: String, onFocus: @escaping @MainActor (Bool) -> Void,
                   onKey: @escaping @MainActor (IslandHeldKey) -> Void) { onFocus(false) }
     func releaseKeys() {}
+    func place(notice id: String, on display: UInt32?) {}
 }

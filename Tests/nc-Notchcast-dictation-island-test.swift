@@ -4,6 +4,7 @@
 // notchcast-sources: Tinycast/Features/Island/Model/IslandNoticeQueue.swift
 // notchcast-reads: Tinycast/Features/Dictation/Service/DictationCoordinator.swift
 // notchcast-reads: Tinycast/Features/DictationExtras/Service/DictationExtrasCoordinator.swift
+// notchcast-reads: Tinycast/Features/Notchcast/DictationIslandCoordinator.swift
 
 import Foundation
 
@@ -31,7 +32,34 @@ struct DictationIslandTest {
         return session.settle(generation: session.generation, covered: covered)
     }
 
+    static func checkPlacement() {
+        var session = Session()
+        check(!session.place(on: 2), "placement: idle ignores a display")
+        session.begin(copies: false, at: 0)
+        check(session.display == nil && session.place(on: 2), "placement: recording starts on the resting pill")
+        check(!session.place(on: 2) && session.display == 2, "placement: an unchanged display does not repost")
+        check(session.place(on: 3), "placement: recording follows a different display")
+        _ = session.transcribe()
+        check(session.place(on: nil) && session.display == nil, "placement: nil returns to the resting pill")
+        _ = session.cleanUp()
+        check(session.place(on: 2), "placement: cleanup takes a new display")
+        session.end(completed: true)
+        check(!session.place(on: 3) && session.display == 2, "placement: ending fixes the display")
+        _ = session.settle(generation: session.generation, covered: false)
+        check(!session.place(on: nil) && session.display == 2, "placement: a picked result does not move")
+        session.begin(copies: false, at: 1)
+        check(session.display == nil && !session.place(on: nil), "placement: begin clears the previous display")
+
+        let coordinator = (try? String(contentsOfFile: "Tinycast/Features/Notchcast/DictationIslandCoordinator.swift",
+                                       encoding: .utf8)) ?? ""
+        let stand = coordinator.components(separatedBy: "private func stand(in:").last ?? ""
+        guard let capture = stand.range(of: "captureDisplay()"), let hold = stand.range(of: "presenter?.holdKeys(")
+        else { fatalError("placement: stand must capture the display source and hold keys") }
+        check(capture.lowerBound < hold.lowerBound, "placement: stand captures the display source before holding keys")
+    }
+
     static func main() {
+        checkPlacement()
         var session = recording()
         check(session.phase == .recording && session.elapsed == "0:00", "1: begin records from 0:00")
         check(session.meter == [0, 0, 0, 0] && session.holdsKeys, "1: four bars at the floor, keys held")

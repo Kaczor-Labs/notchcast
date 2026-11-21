@@ -24,6 +24,7 @@ struct DictationIslandSession: Equatable, Sendable {
         localized: "Cleanup has no model, so the raw text was pasted", table: "Notchcast")
 
     private(set) var phase = Phase.idle
+    private(set) var display: UInt32?
     private(set) var copies = false
     /// Each bar's step, 0..<steps, so a level that moves within a step reposts nothing.
     private(set) var bars = Array(repeating: 0, count: barCount)
@@ -54,6 +55,17 @@ struct DictationIslandSession: Equatable, Sendable {
         self.copies = copies
         started = now
         holdsKeys = true
+    }
+
+    mutating func place(on display: UInt32?) -> Bool {
+        switch phase {
+        case .recording, .transcribing, .cleaningUp:
+            guard self.display != display else { return false }
+            self.display = display
+            return true
+        case .idle, .ending:
+            return false
+        }
     }
 
     /// True only when a bar's step or the elapsed second changed, so silence reposts once a second.
@@ -116,9 +128,7 @@ struct DictationIslandSession: Equatable, Sendable {
         guard isLive, !(completed && phase == .ending) else { return false }
         holdsKeys = false
         guard completed else {
-            let generation = generation
-            self = DictationIslandSession()
-            self.generation = generation
+            reset()
             return false
         }
         phase = .ending
@@ -130,9 +140,15 @@ struct DictationIslandSession: Equatable, Sendable {
         guard generation == self.generation, phase == .ending else { return nil }
         let delivery: Outcome = raw ? (copies ? .copiedRaw : .pastedRaw) : (copies ? .copied : .pasted)
         let result = outcome ?? (reached ? (cleanupModelMissing ? .noCleanupModel(copies: copies) : delivery) : .noSpeech)
-        self = DictationIslandSession()
-        self.generation = generation
+        reset()
         if case .noCleanupModel = result { return result }
         return covered ? nil : result
+    }
+
+    private mutating func reset() {
+        let (generation, display) = (generation, display)
+        self = DictationIslandSession()
+        self.generation = generation
+        self.display = display
     }
 }

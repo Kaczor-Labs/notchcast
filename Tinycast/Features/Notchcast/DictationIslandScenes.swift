@@ -1,7 +1,7 @@
 #if DEBUG
 import AppKit
 
-/// `dictation`, `dictation-notch`: each dictation state on the pill, no mic, keys via the hold.
+/// Exercises the dictation pill with injected audio levels and Return and Escape via the hold.
 @MainActor
 enum DictationIslandScenes {
     static let notch = CGSize(width: 185, height: 32)
@@ -15,7 +15,16 @@ enum DictationIslandScenes {
     static func run(scene: String, core: AppCore, controller: IslandController) async {
         let probe = Probe()
         let island = DictationIslandCoordinator(now: { probe.now })
-        island.attach(presenter: core.islandPresenter, covered: { false }, copies: { false })
+        let away = scene.hasPrefix("dictation-away")
+        let display = away ? controller.screen?.islandDisplayID : nil
+        if away {
+            IslandVerification.require(display != nil, "the non-resting pill has a display id")
+            controller.showsRest = false
+            controller.opened()
+            IslandVerification.require(!controller.backdropWindow.isVisible, "the non-resting pill starts hidden")
+        }
+        island.attach(presenter: core.islandPresenter, covered: { false }, copies: { false },
+                      typingDisplay: { display })
         defer { DictationPanelController.stand = nil }
         let capsule = DictationPanelController()
         capsule.onAccept = { probe.accepted += 1 }
@@ -27,7 +36,12 @@ enum DictationIslandScenes {
             print("DICTATION \(state) notice=\(controller.notice?.line ?? "nil") value=\(controller.accessibilityValue)"
                 + " holds=\(island.holdsKeys) key=\(NSApp.keyWindow.map { "\(type(of: $0))" } ?? "nil")")
             IslandVerification.require(controller.notice?.text == text, "\(state): the pill shows \(text ?? "nothing")")
-            if text != nil { await controller.capture("\(scene)-\(state)") }
+            if text != nil {
+                if away {
+                    IslandVerification.require(controller.backdropWindow.isVisible, "\(state): the placed pill is visible")
+                }
+                await controller.capture("\(scene)-\(state)")
+            }
         }
 
         capsule.state.phase = .transcribing
@@ -44,6 +58,11 @@ enum DictationIslandScenes {
         await expect(hint, "recording-0-07")
         IslandVerification.require(controller.notice?.progress?.readout == "0:07", "the time ticks from the clock")
         IslandVerification.require(island.holdsKeys, "the island holds the keys while recording")
+        if away {
+            let keyFrame = NSApp.keyWindow?.frame ?? .null
+            IslandVerification.require(!keyFrame.isNull && controller.backdropWindow.frame.contains(keyFrame),
+                                       "the key panel is anchored inside the placed pill's window")
+        }
         await IslandInputScenes.key(36)
         IslandVerification.require(probe.accepted == 1 && probe.cancelled == 0, "a real Return reaches accept")
 
@@ -60,6 +79,21 @@ enum DictationIslandScenes {
         IslandVerification.require(probe.cancelled == 0, "no hold is left behind after the result")
         IslandVerification.require(IslandVerification.announcements.count == heard + 2,
                                    "one announcement at the start and one for the result")
+
+        if away {
+            await IslandVerification.pause(IslandNotice.messageSeconds + 0.3)
+            IslandVerification.require(controller.notice == nil && !controller.backdropWindow.isVisible,
+                                       "the placed result expires and the pill hides")
+            capsule.onCancel = { probe.cancelled += 1; island.reset(completed: false) }
+            capsule.show()
+            await expect(hint, "again")
+            await IslandInputScenes.key(53)
+            await expect(nil, "cancelled")
+            await IslandVerification.pause(0.15)
+            IslandVerification.require(probe.cancelled == 1 && !controller.backdropWindow.isVisible,
+                                       "Escape reaches cancel and the placed pill hides")
+            return
+        }
 
         capsule.show()
         await expect(hint, "quick")
