@@ -9,6 +9,7 @@ final class DialogController: NSObject, NSWindowDelegate {
     private var panel: DialogPanel?
     private var accessory: DialogAccessory?
     private var continuation: CheckedContinuation<Int, Never>?
+    private var secureInput = SecureInputHold()
     #if DEBUG
     /// The open question, so a scene can tell which one an island tap raised.
     private(set) var shown: DialogRequest?
@@ -112,14 +113,14 @@ final class DialogController: NSObject, NSWindowDelegate {
         return state.text
     }
 
-    private func present(_ request: DialogRequest) async -> Int {
+    func present(_ request: DialogRequest) async -> Int {
         guard continuation == nil else { return request.cancelIndex }
         return await withCheckedContinuation { continuation in
             self.continuation = continuation
             onPresentationChanged(true)
             let width =
                 switch request.accessory {
-                case nil, .volume: metrics.size.dialogCompactWidth
+                case nil, .volume, .secret: metrics.size.dialogCompactWidth
                 case .snippetArguments(let arguments) where arguments.asksOnlyForChoices:
                     metrics.size.dialogCompactWidth
                 case .snippetArguments, .clipboardText: metrics.size.dialogWidth
@@ -171,12 +172,14 @@ final class DialogController: NSObject, NSWindowDelegate {
         let closing = panel
         panel = nil
         accessory = nil
+        secureInput.set(false)
         #if DEBUG
         shown = nil
         lastAnswer = index
         #endif
         closing?.delegate = nil
         closing?.onKey = nil
+        closing?.makeFirstResponder(nil)
         continuation.resume(returning: index)
         closing?.orderOut(nil)
     }
@@ -210,6 +213,7 @@ final class DialogController: NSObject, NSWindowDelegate {
     /// After AppKit's own first-responder pick, which a view's focus request can't outlast.
     func windowDidBecomeKey(_ notification: Notification) {
         guard let panel, notification.object as? NSWindow === panel else { return }
+        secureInput.set(accessory?.isSecret == true)
         // A text field must be made first responder by AppKit; SwiftUI's request for one is lost.
         if case .snippetArguments(let arguments) = accessory,
             arguments.arguments.first?.options.isEmpty == false
@@ -223,6 +227,8 @@ final class DialogController: NSObject, NSWindowDelegate {
     /// Click-away resolves as a dismissal rather than leaving an orphaned dialog behind.
     func windowDidResignKey(_ notification: Notification) {
         guard let panel, notification.object as? NSWindow === panel else { return }
+        secureInput.set(false)
+        if accessory?.isSecret == true { return }
         panel.onKey?(.cancel)
     }
 }
