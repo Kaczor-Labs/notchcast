@@ -45,10 +45,18 @@ case "$*" in
     'pr close '*)
         echo "$3 ${*: -1}" >> "$FIXTURE/closed"
         jq '.state = "CLOSED"' "$FIXTURE/pr-$3.json" > "$FIXTURE/pr.json" && mv "$FIXTURE/pr.json" "$FIXTURE/pr-$3.json" ;;
+    # runs-<sha> and workflow-runs-<sha>: the head's raw check runs and workflow runs, through the real --jq.
+    *actions/runs\?head_sha=*)
+        sha=$*
+        sha=${sha#*head_sha=}
+        [ ! -e "$FIXTURE/workflow-runs-fail-${sha%%&*}" ] || { echo '{"message":"Server Error","status":"502"}'; exit 1; }
+        jq -r "${*: -1}" "$FIXTURE/workflow-runs-${sha%%&*}" ;;
     *check-runs*)
         sha=$*
         sha=${sha#*commits/}
-        if grep -qxF "${sha%%/*}" "$FIXTURE/red" 2>/dev/null; then echo failure
+        [ ! -e "$FIXTURE/runs-fail-${sha%%/*}" ] || { echo '{"message":"Server Error","status":"502"}'; exit 1; }
+        if [ -e "$FIXTURE/runs-${sha%%/*}" ]; then jq -r "${*: -1}" "$FIXTURE/runs-${sha%%/*}"
+        elif grep -qxF "${sha%%/*}" "$FIXTURE/red" 2>/dev/null; then echo failure
         elif grep -qxF "${sha%%/*}" "$FIXTURE/green" 2>/dev/null; then echo success
         elif grep -qxF "${sha%%/*}" "$FIXTURE/skipped" 2>/dev/null; then echo skipped; else echo "${HEAD_CHECKS:-success}"; fi ;;
     'workflow run '*)
@@ -857,6 +865,46 @@ queue
     || queue_fail 'the queue took a PR without land, or held a labelled draft whose build was skipped'
 [ "$(landed)" = 'Notchcast: Add B (#1)|Notchcast: Add C (#2)' ] || queue_fail "the land-only batch landed '$(landed)'"
 echo 'PASS: --queue takes only PRs labelled land: a green ready one and a draft with a skipped build ride, red or unlabelled wait'
+
+# #1304: a dispatched build the push's pull_request run cancelled. (a) #1 a labelled draft: that run skipped build, its
+# skip timed before the cancel; (b) #2 cancelled alone; (c) #3 the cancelling run still runs; (d) #4 it went red;
+# (e) #5 the cancelled run is re-running under its own check suite; (f) #6 the runs listing errors.
+fixture
+for n in 1 2 3 4 5 6; do open_pr "$n" "pr-$n" "Add $n" "src/$n.txt"; done
+draft 1
+build_run() { printf '{"app":{"slug":"github-actions"},"check_suite":{"id":%s},"started_at":"2026-11-21T01:15:%s","status":"completed","conclusion":"%s"}' "$@"; }
+workflow_run() { printf '{"workflow_id":7,"check_suite_id":%s,"status":"%s"}' "$@"; }
+superseded() {
+    local head
+    head=$(jq -r .headRefOid "$FIXTURE/pr-$1.json")
+    echo "{\"check_runs\":[$2]}" > "$FIXTURE/runs-$head"
+    echo "{\"workflow_runs\":[$3]}" > "$FIXTURE/workflow-runs-$head"
+}
+superseded 1 "$(build_run 20 26Z cancelled),$(build_run 21 25Z skipped)" "$(workflow_run 20 completed),$(workflow_run 21 completed)"
+superseded 2 "$(build_run 30 26Z cancelled)" "$(workflow_run 30 completed)"
+superseded 3 "$(build_run 40 26Z cancelled)" "$(workflow_run 40 completed),$(workflow_run 41 in_progress)"
+superseded 4 "$(build_run 50 26Z cancelled),$(build_run 51 59Z failure)" "$(workflow_run 50 completed),$(workflow_run 51 completed)"
+superseded 5 "$(build_run 60 26Z cancelled)" "$(workflow_run 60 in_progress)"
+superseded 6 "$(build_run 70 26Z cancelled)" "$(workflow_run 70 completed),$(workflow_run 71 in_progress)"
+touch "$FIXTURE/workflow-runs-fail-$(jq -r .headRefOid "$FIXTURE/pr-6.json")"
+queue
+[ "$status" -eq 0 ] && grep -q '^queue: batch 1$' "$FIXTURE/train-output" && grep -q '^LANDED #1$' "$FIXTURE/train-output" \
+    && grep -q '^queue: #2 waits, build is cancelled on ' "$FIXTURE/train-output" \
+    && grep -q '^queue: #3 waits, build is pending on ' "$FIXTURE/train-output" \
+    && grep -q '^queue: #4 waits, build is failure on ' "$FIXTURE/train-output" \
+    && grep -q '^queue: #5 waits, build is pending on ' "$FIXTURE/train-output" \
+    && grep -q '^queue: #6 waits, build is cancelled on ' "$FIXTURE/train-output" \
+    || queue_fail 'a superseded cancelled build held a PR, or a lone cancel, a running, re-running, red or unlisted build let one through'
+echo 'PASS: --queue reads a cancelled build by the run that superseded it: skipped rides a draft, running or re-running waits pending, red waits, a listing error reads cancelled'
+
+# The check runs call fails: the queue stops non-zero, never waits on a blank or garbled verdict.
+fixture
+open_pr 1 pr-1 'Add 1' src/1.txt
+touch "$FIXTURE/runs-fail-$(jq -r .headRefOid "$FIXTURE/pr-1.json")"
+queue
+[ "$status" -ne 0 ] && ! grep -q 'waits, build is' "$FIXTURE/train-output" && ! grep -q '^LANDED' "$FIXTURE/train-output" \
+    || queue_fail "a failed check runs call left the queue going (exit $status)"
+echo 'PASS: --queue stops non-zero when the check runs call fails'
 
 # A hold for #2 cuts the green batch 1 2 to #2 in land.sh: the queue says only #2 landed and #1 is held (#1119).
 fixture
