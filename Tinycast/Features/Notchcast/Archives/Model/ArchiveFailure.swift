@@ -81,12 +81,9 @@ nonisolated enum ArchiveFailure: Error, Equatable, Sendable {
         case .password:
             String(localized: "The password was not accepted.", table: "NotchcastArchives")
         case .startedElsewhere:
-            String(localized: "This archive is partly extracted elsewhere; finish that with hatchzip first.",
-                   table: "NotchcastArchives")
+            String(localized: "Finish this extraction with hatchzip first.", table: "NotchcastArchives")
         case .resumeJournalMismatch:
-            String(
-                localized: "Put the archive and its recovery files back where they were and restore their original names.",
-                table: "NotchcastArchives")
+            String(localized: "Undo moves or renames, side files too.", table: "NotchcastArchives")
         case .failed(let detail):
             detail.isEmpty ? String(localized: "Extraction failed.", table: "NotchcastArchives") : detail
         case .nothingSelected:

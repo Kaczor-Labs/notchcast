@@ -24,6 +24,7 @@
     "Extracted %@" : {},
     "Extracting %@" : {},
     "Extraction failed." : {},
+    "Finish this extraction with hatchzip first." : {},
     "Make Notchcast the default app for archives" : {},
     "Not enough free space." : {},
     "Not enough space to keep %@" : {},
@@ -32,7 +33,6 @@
     "Off gives the archive types back to Archive Utility." : {},
     "Password" : {},
     "Password for %@" : {},
-    "Put the archive and its recovery files back where they were and restore their original names." : {},
     "Refused: %@ and %@ differ only in case." : {},
     "Refused: %@ is an absolute path." : {},
     "Refused: %@ is inside a linked folder." : {},
@@ -51,7 +51,7 @@
     "That password did not work." : {},
     "The archive is damaged." : {},
     "The password was not accepted." : {},
-    "This archive is partly extracted elsewhere; finish that with hatchzip first." : {},
+    "Undo moves or renames, side files too." : {},
     "Wait for %@ to finish." : {}
   },
   "version" : "1.0"

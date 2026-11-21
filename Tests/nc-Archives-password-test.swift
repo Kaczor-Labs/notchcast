@@ -28,7 +28,20 @@
 
 // notchcast-sources: Tests/nc-Archives-password-fixture.swift
 
-import Foundation
+// notchcast-sources: Tinycast/Platform/Appearance.swift Tinycast/DesignSystem/Theme.swift
+// notchcast-sources: Tinycast/Features/Notchcast/NotchTheme.swift
+// notchcast-sources: Tinycast/Features/Calendar/Model/*.swift
+// notchcast-sources: Tinycast/Features/Island/Model/IslandLevelDwell.swift
+// notchcast-sources: Tinycast/Features/Island/Model/PillMenuRows.swift
+// notchcast-sources: Tinycast/Features/Island/Model/IslandKeyline.swift Tinycast/Features/Island/Model/IslandLook.swift
+// notchcast-sources: Tinycast/Features/Island/Service/IslandNoticeArt.swift
+// notchcast-sources: Tinycast/Features/Island/Service/IslandCanvas.swift
+// notchcast-sources: Tinycast/Features/Island/Service/IslandExpansionArt.swift
+// notchcast-sources: Tinycast/Features/Island/Service/IslandLevelArt.swift
+// notchcast-sources: Tinycast/Features/Island/Service/IslandSongArt.swift Tinycast/Features/Island/Model/IslandPlayer.swift
+// notchcast-sources: Tinycast/Features/Island/UI/IslandTone+Ink.swift
+
+import AppKit
 import Synchronization
 
 /// Acceptance 1: one question, then list, extract and the done notice, for a ZIP and a 7z.
@@ -288,6 +301,43 @@ func realHatchZip() async throws {
     print("real HatchZip passwords: ok")
 }
 
+@MainActor
+func islandCopyFits() async throws {
+    let stem = String(repeating: "Wide filename ", count: 15) + "backup"
+    let name = stem + ".zip"
+    let rig = try Rig(answers: [wrong, right, nil], passwords: [name: right])
+    defer { rig.finish() }
+
+    await rig.extract(name)
+    await rig.extract(name)
+    check(rig.record.asks.map(\.title) == Array(repeating: "Password for \(name)", count: 3),
+          "the wrapping dialog gets the full title")
+    check(rig.record.asks.map(\.message) == [nil, "That password did not work.", nil], "retry copy is intact")
+    check(rig.presenter.texts == ["Extracting \(name)", "Extracted \(stem)", "Extracting \(name)",
+                                  "Stopped extracting \(name)"], "each notice starts with its status")
+
+    let font = NotchTheme.Typography.islandGlanceNSFont
+    let markAndGap = font.pointSize + Theme.Spacing.xs + Theme.Spacing.sm
+    func checkFits(_ text: String, in notice: IslandNotice) {
+        let width = ceil((text as NSString).size(withAttributes: [.font: font]).width)
+        for frosted in [false, true] {
+            let pill = IslandNoticeArt(notice, notch: false, frosted: frosted).layout
+            check(width <= pill.leading + pill.trailing - markAndGap, "pill clips \(text)")
+            let headline = IslandHeadlineArt(notice, notch: 1, frosted: frosted)
+            check(width <= headline.textWidth, "notch headline clips \(text)")
+        }
+    }
+    for (notice, prefix) in zip(rig.presenter.posts, ["Extracting W…", "Extracted W…", "Extracting W…",
+                                                       "Stopped extracting W…"]) {
+        checkFits(prefix, in: notice)
+    }
+    for failure in [ArchiveFailure.resumeJournalMismatch, .startedElsewhere(""), .password] {
+        let notice = IslandNotice(id: "archives.failed", symbol: "exclamationmark.triangle",
+                                  text: failure.message, isFailure: true)
+        checkFits(notice.text, in: notice)
+    }
+}
+
 @main
 enum ArchivesPasswordTest {
     @MainActor
@@ -304,6 +354,7 @@ enum ArchivesPasswordTest {
         try await switchOffWhileAsking()
         try await resumeAfterRelaunch()
         try await eachArchiveAsks()
+        try await islandCopyFits()
         try await realHatchZip()
         print("nc-Archives-password-test: ok")
     }

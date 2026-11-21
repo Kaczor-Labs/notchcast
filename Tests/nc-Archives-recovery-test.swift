@@ -80,7 +80,7 @@ func stoppedEncryptedNames(moved: Bool) async throws {
     if moved {
         check(rig.steps == ["list"] && rig.record.asks.isEmpty, "HatchZip refuses the moved archive before asking")
         check(rig.presenter.failures == [
-            "Put the archive and its recovery files back where they were and restore their original names."
+            "Undo moves or renames, side files too."
         ], "\(rig.presenter.failures)")
         check(rig.journal() == stopped && rig.visible == originalItems, "only the original stop and staging remain")
         check(try Data(contentsOf: sideFile) == sideContents, "the moved journal is untouched")
@@ -201,7 +201,7 @@ func startedElsewhere(foreignArchive: Bool) async throws {
     await rig.extract("Vault.7z")
     check(rig.visible == originalItems, "nothing moved beside the opened archive")
     check(rig.calls.filter { $0.arguments[0] == "extract" }.count == 1, "the reported path was not retried")
-    check(rig.presenter.failures == ["This archive is partly extracted elsewhere; finish that with hatchzip first."],
+    check(rig.presenter.failures == ["Finish this extraction with hatchzip first."],
           "\(rig.presenter.failures)")
     check(!rig.steps.contains("restore") && rig.journal() == [stopped], "the mismatched stopped entry stays")
     check(rig.staging == [stopped.staging.lastPathComponent], "only the fresh scratch folder is cleaned")
