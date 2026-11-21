@@ -577,7 +577,6 @@ struct PasteTarget {
 final class VolumeState {}
 final class SnippetArgumentsState {}
 final class ClipboardEditState {}
-final class SecretFieldState {}
 
 struct VolumeSlider: View {
     let state: VolumeState
@@ -594,4 +593,4 @@ struct ClipboardEditField: View {
     let state: ClipboardEditState
     var body: some View { EmptyView() }
 }
-struct DialogSecretField: View { let state: SecretFieldState; var body: some View { EmptyView() } }
+class SecretFieldState {}; struct DialogSecretField: View { let state: SecretFieldState; var body: some View { EmptyView() } }
