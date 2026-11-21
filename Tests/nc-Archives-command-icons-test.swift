@@ -4,6 +4,7 @@
 // notchcast-sources: Tinycast/Features/Notchcast/Archives/Service/ArchivesModule.swift
 // notchcast-sources: Tinycast/Features/Notchcast/Archives/Service/ArchivesEnvironment.swift
 // notchcast-sources: Tinycast/Features/Notchcast/Archives/Service/ArchiveExtractor.swift
+// notchcast-sources: Tinycast/Features/Notchcast/Archives/Service/ArchiveCompressor.swift
 // notchcast-reads: Tinycast/Features/Notchcast/NotchcastCore.swift
 import SwiftUI
 
