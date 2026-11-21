@@ -1,6 +1,6 @@
 import AppKit
 
-/// A notice in the wings; on a notch only its mark and percent or readout, since its text expands below.
+/// A notice in the wings; on a notch only its mark and percent or readout, as its text goes below.
 @MainActor
 struct IslandNoticeArt: PillArt {
     let layout: IslandGlanceLayout
@@ -21,7 +21,7 @@ struct IslandNoticeArt: PillArt {
         self.notch = notch
         mark = IslandNoticeMark(notice, frosted: frosted, still: still)
         tone = mark.tone
-        let readout = notice.progress?.readout
+        let readout = notice.progress?.reading
         let words = notch ? readout ?? notice.progress?.fraction.map(Self.percent) ?? "" : notice.line
         text = IslandNoticeMark.line(words, frosted: frosted)
         let wing = NotchTheme.Size.islandGlanceWing
@@ -67,7 +67,7 @@ struct IslandHeadlineArt {
         text = IslandNoticeMark.line(notice.line, frosted: frosted)
         let inset = NotchTheme.Spacing.islandInset
         indent = mark.isEmpty ? 0 : IslandNoticeMark.cell + Theme.Spacing.sm
-        let natural = IslandNoticeMark.width(notice.line, readout: notice.progress?.readout, frosted: frosted)
+        let natural = IslandNoticeMark.width(notice.line, readout: notice.progress?.reading, frosted: frosted)
         textWidth = min(natural, NotchTheme.Size.islandHeadlineMaxWidth - inset * 2 - indent)
         let width = max(indent + textWidth + inset * 2, notch + Theme.Radius.panel * 2)
         size = CGSize(width: width, height: ceil(text.size().height) + Theme.Spacing.lg * 2)
@@ -84,7 +84,7 @@ struct IslandHeadlineArt {
     }
 }
 
-/// What leads a notice: live bars, else its ring while the fraction is known, else a swatch, else a glyph.
+/// What leads a notice: live bars, else its ring while the fraction is known, else swatch or glyph.
 @MainActor
 private struct IslandNoticeMark {
     /// Fixed, so a progress notice that turns into a glyph one never resizes the slots.

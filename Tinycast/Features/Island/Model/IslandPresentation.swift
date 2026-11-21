@@ -35,9 +35,9 @@ struct IslandNotice: Equatable, Sendable {
     /// On a notch, its text expands below the notch; otherwise it keeps to the wings (design §10).
     var isHeadline: Bool { !quiet && (progress?.headline ?? true) }
     /// The readout leads the text, so the open page's row and the wings read alike.
-    var line: String { progress?.readout.map { text.isEmpty ? $0 : $0 + "  " + text } ?? text }
+    var line: String { progress?.reading.map { text.isEmpty ? $0 : $0 + "  " + text } ?? text }
 
-    /// Fewer bars than levels sample the levels evenly; a bar is a floor plus its level (Vorssaint).
+    /// Fewer bars than levels sample them evenly; a bar is a floor plus its level (Vorssaint).
     static func bars(_ meter: [Double], count: Int, floor: Double) -> [Double] {
         guard !meter.isEmpty, count > 0 else { return Array(repeating: floor, count: max(count, 0)) }
         return (0..<count).map { bar in
@@ -75,6 +75,8 @@ struct IslandProgress: Equatable, Sendable {
     var headline = true
     /// A short live value, such as an elapsed time; beside a notch it takes the percent's wing.
     var readout: String?
+    /// The readout, or nil when it is empty, so an empty one draws as none.
+    var reading: String? { readout?.isEmpty == false ? readout : nil }
 
     /// Every digit counts as "0", so a ticking readout resizes only as a character comes or goes.
     static func shape(of reading: String) -> String { String(reading.map { $0.isNumber ? "0" : $0 }) }
@@ -92,6 +94,29 @@ enum IslandHeldKey: Sendable {
         case 53: self = .cancel
         default: return nil
         }
+    }
+}
+
+/// Whether the island holds the keyboard, and the notice that was on top when it took it.
+struct IslandKeyLease: Equatable, Sendable {
+    private(set) var held = false
+    private(set) var owner: String?
+
+    mutating func take(during notice: String?) {
+        held = true
+        owner = notice
+    }
+
+    mutating func give() {
+        held = false
+        owner = nil
+    }
+
+    /// True once the notice it was taken under is gone, which gives it back without its caller.
+    mutating func outlived(live: (String) -> Bool) -> Bool {
+        guard held, let owner, !live(owner) else { return false }
+        give()
+        return true
     }
 }
 

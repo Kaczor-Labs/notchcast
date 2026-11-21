@@ -34,7 +34,7 @@ final class DictationCoordinator {
     /// Rewrites a finished transcript before it is pasted; nil pastes it as heard.
     @ObservationIgnored var cleanUp: @MainActor (String, Bool, Bool, Bool) async -> String? = { _, _, _, _ in nil }
     @ObservationIgnored var didDictate: @MainActor (String, String?, InjectionTarget?) -> Void = { _, _, _ in }
-    /// Hears every session end; false when it was cancelled rather than handed to the paste.
+    /// Hears every session end: false on a cancel or a failed start, true on every other end.
     @ObservationIgnored var didReset: @MainActor (_ completed: Bool) -> Void = { _ in }
     /// The field a mic button is dictating into; nil for a shortcut's session.
     private(set) var field: DictationField?

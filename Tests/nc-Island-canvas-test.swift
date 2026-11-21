@@ -78,7 +78,7 @@ struct IslandCanvasTest {
             + "and clicks hold")
     }
 
-    /// #960: a readout takes the wing, a meter takes the mark, and a notice without them draws as before.
+    /// #960: a readout takes the wing, a meter the mark, and a notice without them draws as before.
     @MainActor static func dictation() {
         let pill = CGRect(x: 0, y: 0, width: 360, height: 32)
         func recording(_ readout: String?, meter: [Double]? = [0.2, 0.9, 0.5, 0.7]) -> IslandNotice {

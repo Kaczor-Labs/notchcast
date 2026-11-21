@@ -67,7 +67,7 @@ final class IslandPresenter: IslandPresenting {
     }
 
     func holdKeys(_ onKey: (@MainActor (IslandHeldKey) -> Void)?) {
-        keyHold.hold(onKey, near: pill?.panel?.frame)
+        keyHold.hold(onKey, near: AppCore.shared.island.resting?.screenShape, during: notices.notice?.id)
     }
 
     func end(notice id: String) {
@@ -227,6 +227,7 @@ final class IslandPresenter: IslandPresenting {
         cutSongChange()
         noticeTask?.cancel()
         noticeTask = notices.remaining(at: time).map(expireWhenDwelled)
+        keyHold.noticesChanged { notices.holds($0) }
     }
 
     private func expireWhenDwelled(_ left: TimeInterval) -> Task<Void, Never> {

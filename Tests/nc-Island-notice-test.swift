@@ -201,9 +201,11 @@ struct IslandNoticeTest {
         queue.end("dictation", at: 31)
         precondition(queue.notice == nil, "Cancel ends the notice at once")
 
+        let bare = IslandNotice(id: "r", text: "", progress: IslandProgress(readout: "0:07"))
+        let empty = IslandNotice(id: "r", text: "Saved", progress: IslandProgress(readout: ""))
         precondition(recording("0:07", []).line == "0:07  Return to Paste · Esc to Cancel" && pasted.line == "Pasted"
-                     && IslandNotice(id: "r", text: "", progress: IslandProgress(readout: "0:07")).line == "0:07",
-                     "The readout leads the text by two spaces, and stands alone without text")
+                     && bare.line == "0:07" && empty.line == "Saved",
+                     "The readout leads the text by two spaces, stands alone, and an empty one is none")
         precondition(IslandProgress.shape(of: "8:54") == "0:00" && IslandProgress.shape(of: "10:00") == "00:00",
                      "A readout's shape counts every digit as 0")
         precondition(IslandNotice.bars([0, 0.5, 1, 0.25, 2, .nan], count: 4, floor: 0.2) == [0.2, 1, 0.4, 0.2]
@@ -214,6 +216,28 @@ struct IslandNoticeTest {
         hovered.quiet = false
         precondition(hovered.isHeadline && !IslandNotice(id: "q", text: "x", quiet: true).isHeadline,
                      "Only the quiet flag keeps a plain notice beside the notch")
+        keyLease()
+    }
+
+    /// #960: a forgotten `holdKeys(nil)` ends with the notice the hold was taken under.
+    private static func keyLease() {
+        var queue = IslandNoticeQueue()
+        var lease = IslandKeyLease()
+        queue.post(IslandNotice(id: "dictation", text: "Recording"), at: 0)
+        lease.take(during: queue.notice?.id)
+        queue.post(IslandNotice(id: "copied", text: "Copied"), at: 1)
+        queue.post(IslandNotice(id: "dictation", text: "Recording 0:01"), at: 1)
+        precondition(!lease.outlived(live: queue.holds) && lease.held && lease.owner == "dictation",
+                     "A notice over it or a repost of its own keeps the hold")
+        queue.end("dictation", at: 2)
+        precondition(lease.outlived(live: queue.holds) && lease == IslandKeyLease(),
+                     "Ending the notice it was taken under gives the keys back")
+        precondition(!lease.outlived(live: queue.holds), "A given-back hold is not given back twice")
+        lease.take(during: nil)
+        precondition(!lease.outlived(live: queue.holds) && lease.held,
+                     "A hold taken under no notice waits for nil")
+        lease.give()
+        precondition(lease == IslandKeyLease(), "nil, as after focus leaves, clears the hold and its owner")
     }
 
     private static func near(_ value: TimeInterval?, _ expected: TimeInterval) -> Bool {

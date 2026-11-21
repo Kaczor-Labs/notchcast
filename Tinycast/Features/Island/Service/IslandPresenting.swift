@@ -17,7 +17,7 @@ protocol IslandPresenting: AnyObject {
     func showPage(id: String)
     /// The loaded song in the resting pill, below a meeting glance; nil clears it.
     func setSong(_ song: IslandNowPlaying?)
-    /// Set, Return, Enter and Escape go to `onKey`, not the app in front; nil gives them back.
+    /// Set, Return, Enter and Escape go to `onKey`; nil, its notice's end or lost focus frees them.
     func holdKeys(_ onKey: (@MainActor (IslandHeldKey) -> Void)?)
 }
 
