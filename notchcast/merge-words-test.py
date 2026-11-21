@@ -57,6 +57,30 @@ class MergeWordsTests(unittest.TestCase):
         self.assertEqual(self.merge('| a | F1 One |\n', '| a | F1 One, F3 New |\n', '| a | F1 One, F4 New |\n'),
                          (0, '| a | F1 One, F3 New, F4 New |\n'))
 
+    def test_a_name_both_sides_added_at_different_places_lands_once(self):
+        self.assertEqual(self.merge('A="a c"\n', 'A="a b c"\n', 'A="a c b"\n'), (0, 'A="a b c"\n'))
+        self.assertEqual(self.merge('A="x, z"\n', 'A="x, y, z"\n', 'A="x, z, y"\n'), (0, 'A="x, y, z"\n'))
+
+    def test_sentences_both_sides_append_to_one_paragraph_stay_whole(self):
+        self.assertEqual(self.merge('Run the check.\n', 'Run the check. Run the suite before a push to main.\n',
+                                    'Run the check. Never run the suite on a Mac host.\n'),
+                         (0, 'Run the check. Run the suite before a push to main. Never run the suite on a Mac host.\n'))
+        self.assertEqual(self.merge('Run it.\n', 'Run it. A draft, as the card says, runs no build.\n',
+                                    'Run it. A worker, as the card says, opens a draft.\n'),
+                         (0, 'Run it. A draft, as the card says, runs no build. A worker, as the card says, opens a draft.\n'))
+
+    def test_columns_both_sides_add_to_one_table_stay_aligned(self):
+        base = '| a | b |\n|---|---|\n| 1 | 2 |\n'
+        ours = '| a | X | Z | b |\n|---|---|---|---|\n| 1 | yes | no | 2 |\n'
+        theirs = '| a | Y | b |\n|---|---|---|\n| 1 | yes | 2 |\n'
+        code, text = self.merge(base, ours, theirs)
+        self.assertEqual(code, 0)
+        self.assertEqual([row.count('|') for row in text.splitlines()], [6, 6, 6])
+
+    def test_a_quoted_value_with_a_comma_stays_whole(self):
+        self.assertEqual(self.merge('A="x"\n', 'A="x" B="1,2" C="1,3"\n', 'A="x" B="1,2" D="1,3"\n'),
+                         (0, 'A="x" B="1,2" C="1,3" B="1,2" D="1,3"\n'))
+
     def test_a_removed_name_stays_removed(self):
         self.assertEqual(self.merge('A="one two three"\n', 'A="one three"\n', 'A="one two three four"\n'),
                          (0, 'A="one three four"\n'))
