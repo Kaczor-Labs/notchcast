@@ -30,5 +30,7 @@ enum NotchcastRegistry {
         DayAddon.self,
         SystemToolsAddon.self,
         URLCleanerAddon.self,
+        SystemNoticesAddon.self,
+        AccessoriesAddon.self,
     ]
 }

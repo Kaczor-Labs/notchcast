@@ -62,8 +62,8 @@ final class IslandPageHost {
             controller = resting
         }
         if let wanted {
-            // A pin whose wait ran out never opened, so a plain hover later still opens Home.
-            if AppCore.shared.island.hover.isPinned { deck.select(wanted) }
+            // A wait that ran out leaves the wish unused: a later hover or click-pin opens Home.
+            if AppCore.shared.island.hover.isPinningFromWait { deck.select(wanted) }
             self.wanted = nil
         }
         render()
@@ -109,8 +109,11 @@ final class IslandPageHost {
         guard deck.page(id) != nil else { return }
         let tracker = AppCore.shared.island.hover
         if isOpen, deck.selection == .page(id) { return tracker.dismiss() }
-        wanted = .page(id)
-        guard let controller else { return tracker.pinWhenUncovered() }
+        guard let controller else {
+            wanted = .page(id)
+            return tracker.pinWhenUncovered()
+        }
+        deck.select(.page(id))
         tracker.pin()
         hover(true, on: controller)
     }
@@ -138,6 +141,12 @@ final class IslandPageHost {
     private func key(_ event: NSEvent) -> Bool {
         guard let key = IslandPageKey(keyCode: event.keyCode, characters: event.charactersIgnoringModifiers ?? "",
                                       command: event.modifierFlags.contains(.command)) else { return false }
+        if let target = deck.pageAction(for: key) {
+            guard !event.isARepeat || key.repeatsOnPage else { return true }
+            act(page: target.page, action: target.action)
+            keyOnPin()
+            return true
+        }
         switch key {
         case .move(let step): deck.move(by: step)
         case .number(let number): deck.select(number: number)
@@ -146,6 +155,7 @@ final class IslandPageHost {
         case .refresh:
             let shown = deck.current.map { [$0] } ?? deck.pages
             for page in shown { act(page: page.id, action: IslandPage.refreshAction) }
+        case .space, .step: return false
         }
         if isOpen { render() }
         keyOnPin()

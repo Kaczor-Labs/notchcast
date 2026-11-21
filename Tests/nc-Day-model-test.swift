@@ -298,6 +298,10 @@ struct DayModelTests {
         let allOld = Fix.now.addingTimeInterval(DayBoard.weatherInterval + DayBoard.staleGrace)
         page = DayPage.page(board, now: allOld, calendar: Fix.calendar, locale: Fix.locale)
         check(rows(page)[0].trailing == "Updated 15:31", "old weather carries its time")
+        let nextDay = DayPage.page(board, now: Fix.now.addingTimeInterval(86_400), calendar: Fix.calendar,
+                                   locale: Fix.locale)
+        check(rows(nextDay)[0].trailing == "Updated 18 Nov at 15:31",
+              "a reading from another day names it (#1173): \(String(describing: rows(nextDay).first?.trailing))")
         check(page?.line == IslandPageLine(symbol: "cloud.moon", text: "9° Mostly Clear", detail: "AAPL ▲ 0.25%"),
               "old is not failed: Home keeps both: \(String(describing: page?.line))")
         board.apply(weather: Fix.forecast, at: allOld)

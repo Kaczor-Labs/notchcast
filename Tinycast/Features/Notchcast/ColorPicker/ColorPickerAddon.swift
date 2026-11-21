@@ -1,4 +1,5 @@
 // notchcast-addon-order: 150
+// notchcast-readme: Capture: copy a color from anywhere on the screen
 import SwiftUI
 
 /// Pick any colour on screen with the system sampler; its value goes to the clipboard.
