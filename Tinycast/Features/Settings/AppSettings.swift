@@ -375,7 +375,8 @@ final class AppSettings {
     }
 
     var notesEnabled: Bool {
-        didSet { defaults.set(notesEnabled, forKey: Key.notesEnabled.rawValue) }
+        get { false }
+        set { _ = newValue }
     }
 
     var dictationEnabled: Bool {
@@ -843,7 +844,6 @@ final class AppSettings {
         fileSearchShowInLauncher = defaults.bool(forKey: Key.fileSearchShowInLauncher.rawValue)
         fileSearchIncludesHiddenFiles = defaults.bool(
             forKey: Key.fileSearchIncludesHiddenFiles.rawValue)
-        notesEnabled = defaults.bool(forKey: Key.notesEnabled.rawValue)
         dictationEnabled = defaults.bool(forKey: Key.dictationEnabled.rawValue)
         dictationMode =
             defaults.string(forKey: Key.dictationMode.rawValue)
