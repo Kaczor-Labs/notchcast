@@ -13,6 +13,8 @@ final class SecretFieldState {
         self.requester = requester
         self.fieldTitle = fieldTitle
     }
+
+    var requesterLine: String { String(localized: "Asked by \(requester) in Notchcast", table: "Notchcast") }
 }
 
 extension DialogAccessory {
@@ -56,7 +58,7 @@ struct DialogSecretField: View {
             RevealableSecureField(title: state.fieldTitle, text: $state.text, prompt: Text(state.fieldTitle))
                 .dialogTextField()
             // Ours, not the add-on's: no prompt can pass itself off as a system password dialog.
-            Text("Asked by \(state.requester) in Notchcast", tableName: "Notchcast")
+            Text(state.requesterLine)
                 .font(metrics.typography.rowTrailing)
                 .foregroundStyle(Theme.Colors.textSecondary)
         }

@@ -43,7 +43,7 @@ struct NotchcastAskSecretTest {
         let suite = "nc-Notchcast-ask-secret-test.\(UUID())"
         defer { UserDefaults().removePersistentDomain(forName: suite) }
         let addons = NotchcastController(
-            addons: [ArchivesProbe.self], defaults: UserDefaults(suiteName: suite)!,
+            addons: [ArchivesProbe.self, DownloadsProbe.self, BlankProbe.self], defaults: UserDefaults(suiteName: suite)!,
             hub: NotchcastTapHub(syntheticTag: 0x54494E59, isTrusted: { true }, makeSession: { _ in
                 fatalError("the probe declares no tap")
             }),
@@ -69,10 +69,14 @@ struct NotchcastAskSecretTest {
             check("the open dialog carries the secret accessory", false)
             return finish()
         }
-        let drawn = drawnText(in: panel)
         check(
-            "Notchcast's drawn line names the add-on from its registration, read \(drawn)",
-            drawn.contains { $0.contains("Asked by Archives in Notchcast") })
+            "the requester line names the add-on from its registration, got \(state.requesterLine)",
+            state.requesterLine == "Asked by Archives in Notchcast")
+        if let drawn = drawnText(in: panel) {
+            check(
+                "Vision reads the requester line in the drawn dialog, read \(drawn)",
+                drawn.contains { $0.contains("Asked by Archives in Notchcast") })
+        }
         check("the title is the add-on's, the requester line is not", controller.shown?.title == "Archive Password")
         let editor = panel.firstResponder as? NSTextView
         check("the hidden field has focus on open", editor?.delegate is NSSecureTextField)
@@ -154,6 +158,8 @@ struct NotchcastAskSecretTest {
         check("a stock dialog still cancels on click-away", confirmed == false)
         other.orderOut(nil)
 
+        proveRequesterIsDrawn(controller, addons.slots.map(\.context))
+
         check(
             "the pasteboard, and so clipboard history, never saw the secret",
             pasteboard.changeCount == pasteboardCount && pasteboard.string(forType: .string) == "!pw")
@@ -166,39 +172,123 @@ struct NotchcastAskSecretTest {
         await context?.askSecret?("Archive Password", "Enter the password for backup.zip.", "Password", "Extract")
     }
 
-    /// Read from the pixels: no AX client on a runner, so SwiftUI's `Text` is in no view or AX node.
-    static func drawnText(in panel: NSWindow) -> [String] {
-        guard let view = panel.contentView,
+    /// Vision on the CPU; nil, with a note, where it cannot run, as the pixel proof carries the line.
+    static func drawnText(in panel: NSWindow) -> [String]? {
+        guard let view = panel.contentView, let image = snapshot(view)?.image else { return [] }
+        var lines: [String]??
+        Task {
+            var request = RecognizeTextRequest()
+            request.usesLanguageCorrection = false
+            for (stage, devices) in request.supportedComputeStageDevices {
+                if let cpu = devices.first(where: { if case .cpu = $0 { true } else { false } }) {
+                    request.setComputeDevice(cpu, for: stage)
+                }
+            }
+            do {
+                lines = try await request.perform(on: image).compactMap { $0.topCandidates(1).first?.string }
+            } catch {
+                FileHandle.standardError.write(Data("NOTE Vision cannot run here: \(error)\n".utf8))
+                lines = .some(nil)
+            }
+        }
+        // A fresh runner compiles Vision's model on first use, which can take most of a minute.
+        spin(turns: 12_000) { lines != nil }
+        guard let lines else {
+            FileHandle.standardError.write(Data("NOTE Vision gave no answer in two minutes\n".utf8))
+            return nil
+        }
+        return lines
+    }
+
+    /// The real dialog drawn for three registered add-ons differs only in the line under the field.
+    static func proveRequesterIsDrawn(_ controller: DialogController, _ contexts: [NotchcastContext]) {
+        let renders = contexts.compactMap { requesterRender(controller, $0) }
+        guard renders.count == 3 else { return check("the dialog rendered for all three add-ons", false) }
+        let (archives, below) = renders[0]
+        for (name, other) in [("Downloads", renders[1].shot), ("an empty name", renders[2].shot)] {
+            let rows = differingRows(archives, other)
+            check("Archives and \(name) draw different pixels", rows != nil)
+            guard let rows else { continue }
+            check(
+                "Archives and \(name) differ only in one caption line under the field, rows \(rows) "
+                    + "with the field ending at \(below)",
+                rows.lowerBound >= below && rows.lowerBound <= below + 64 && rows.count <= 48)
+        }
+    }
+
+    /// The dialog at 2x on black with no focus ring or caret, and the pixel row the secret field ends on.
+    static func requesterRender(_ controller: DialogController, _ asking: NotchcastContext) -> (shot: Snapshot, below: Int)? {
+        var answer: String??
+        Task {
+            answer = await asking.askSecret?("Archive Password", "Enter the password for backup.zip.", "Password", "Extract")
+        }
+        guard let panel = spinForPanel(), let view = panel.contentView,
+            case .secret(let state)? = controller.shown?.accessory
+        else { return nil }
+        panel.makeFirstResponder(nil)
+        var shot = snapshot(view)
+        for _ in 0..<50 {
+            spin(turns: 5) { false }
+            let next = snapshot(view)
+            if next?.bytes == shot?.bytes { break }
+            shot = next
+        }
+        let field = secureField(in: view)
+        check("the secret field is an AppKit field to measure from", field != nil)
+        panel.onKey?(.cancel)
+        spin { answer != nil }
+        closed(controller, state, "requester render")
+        guard let shot, let field else { return nil }
+        let frame = view.convert(field.bounds, from: field)
+        return (shot, Int((view.isFlipped ? frame.maxY : view.bounds.height - frame.minY) * 2))
+    }
+
+    static func secureField(in view: NSView) -> NSSecureTextField? {
+        if let field = view as? NSSecureTextField { return field }
+        return view.subviews.lazy.compactMap { secureField(in: $0) }.first
+    }
+
+    struct Snapshot {
+        let image: CGImage
+        let bytes: [UInt8]
+        let bytesPerRow: Int
+    }
+
+    static func snapshot(_ view: NSView) -> Snapshot? {
+        guard
             let rep = NSBitmapImageRep(
                 bitmapDataPlanes: nil, pixelsWide: Int(view.bounds.width * 2), pixelsHigh: Int(view.bounds.height * 2),
                 bitsPerSample: 8, samplesPerPixel: 4, hasAlpha: true, isPlanar: false, colorSpaceName: .deviceRGB,
                 bytesPerRow: 0, bitsPerPixel: 0)
-        else { return [] }
+        else { return nil }
         rep.size = view.bounds.size
         view.cacheDisplay(in: view.bounds, to: rep)
         guard let drawn = rep.cgImage,
             let flat = CGContext(
                 data: nil, width: drawn.width, height: drawn.height, bitsPerComponent: 8, bytesPerRow: 0,
                 space: CGColorSpaceCreateDeviceRGB(), bitmapInfo: CGImageAlphaInfo.noneSkipLast.rawValue)
-        else { return [] }
+        else { return nil }
         let bounds = CGRect(x: 0, y: 0, width: drawn.width, height: drawn.height)
         flat.setFillColor(.black)
         flat.fill(bounds)
         flat.draw(drawn, in: bounds)
-        guard let image = flat.makeImage() else { return [] }
-        var lines: [String]?
-        Task {
-            var request = RecognizeTextRequest()
-            request.usesLanguageCorrection = false
-            do {
-                lines = try await request.perform(on: image).compactMap { $0.topCandidates(1).first?.string }
-            } catch {
-                lines = ["recognition failed: \(error)"]
-            }
+        guard let image = flat.makeImage(), let data = flat.data else { return nil }
+        let bytes = [UInt8](UnsafeRawBufferPointer(start: data, count: flat.bytesPerRow * flat.height))
+        return Snapshot(image: image, bytes: bytes, bytesPerRow: flat.bytesPerRow)
+    }
+
+    /// Top-down pixel rows where the two differ; all rows when their sizes differ, nil when identical.
+    static func differingRows(_ a: Snapshot, _ b: Snapshot) -> ClosedRange<Int>? {
+        let height = a.bytes.count / a.bytesPerRow
+        guard a.bytesPerRow == b.bytesPerRow, a.bytes.count == b.bytes.count else {
+            return 0...max(height, b.bytes.count / max(b.bytesPerRow, 1))
         }
-        // A fresh runner compiles Vision's model on first use, which can take most of a minute.
-        spin(turns: 12_000) { lines != nil }
-        return lines ?? ["recognition timed out"]
+        let rows = (0..<height).filter { row in
+            let range = row * a.bytesPerRow..<(row + 1) * a.bytesPerRow
+            return a.bytes[range] != b.bytes[range]
+        }
+        guard let first = rows.first, let last = rows.last else { return nil }
+        return first...last
     }
 
     static func closed(_ controller: DialogController, _ state: SecretFieldState, _ how: String) {
@@ -247,6 +337,14 @@ struct NotchcastAskSecretTest {
 
 enum ArchivesProbe: NotchcastAddon {
     static let switches = [NotchcastSwitch(id: "archives", title: "Archives", subtitle: "", category: .filesDownloads)]
+}
+
+enum DownloadsProbe: NotchcastAddon {
+    static let switches = [NotchcastSwitch(id: "downloads", title: "Downloads", subtitle: "", category: .filesDownloads)]
+}
+
+enum BlankProbe: NotchcastAddon {
+    static let switches = [NotchcastSwitch(id: "blank", title: "", subtitle: "", category: .filesDownloads)]
 }
 
 final class SilentPresenter: IslandPresenting {
