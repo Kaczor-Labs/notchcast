@@ -102,16 +102,19 @@ struct DictationIslandSession: Equatable, Sendable {
         return true
     }
 
-    mutating func end(completed: Bool) {
-        guard isLive else { return }
+    /// True when this end starts the settle hop; a repeat while ending starts none.
+    @discardableResult
+    mutating func end(completed: Bool) -> Bool {
+        guard isLive, !(completed && phase == .ending) else { return false }
         holdsKeys = false
-        if completed {
-            phase = .ending
-        } else {
+        guard completed else {
             let generation = generation
             self = DictationIslandSession()
             self.generation = generation
+            return false
         }
+        phase = .ending
+        return true
     }
 
     /// The result to show, or nil when covered, stale or not ending.

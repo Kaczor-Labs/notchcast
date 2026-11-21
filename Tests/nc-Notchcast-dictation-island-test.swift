@@ -9,7 +9,7 @@ func check(_ condition: Bool, _ message: String) {
     guard condition else { fatalError("nc-Notchcast-dictation-island-test: \(message)") }
 }
 
-/// #960: the island's dictation states, from the first sound to the result, against an injected clock.
+/// #960: the island's dictation states, first sound to result, against an injected clock.
 @main
 struct DictationIslandTest {
     typealias Session = DictationIslandSession
@@ -78,17 +78,25 @@ struct DictationIslandTest {
         for (text, outcome) in [(Session.noSpeech, Session.Outcome.noSpeech),
                                 (Session.pasteFailed, .pasteFailed), (Session.partLost, .partLost)] {
             var live = recording()
-            check(live.message(text, covered: false), "7: \(text) is swallowed")
             live.end(completed: true)
+            check(live.message(text, covered: false), "7: \(text) is swallowed")
             check(live.settle(generation: live.generation, covered: false) == outcome, "7, 9: \(text) gives \(outcome)")
         }
         var odd = recording()
-        check(!odd.message("The model crashed", covered: false), "7: any other text still shows")
         odd.end(completed: true)
+        check(!odd.message("The model crashed", covered: false), "7: any other text still shows")
         check(odd.settle(generation: odd.generation, covered: false) == .failed, "7: and reads as failed")
         check(!idle.message(Session.noSpeech, covered: false), "7: idle swallows nothing")
         var hidden = recording()
         check(!hidden.message(Session.noSpeech, covered: true), "7: covered swallows nothing")
+        var lost = recording()
+        _ = lost.transcribe()
+        _ = lost.cleanUp()
+        check(lost.cleanupFailed(covered: false), "7: cleanup fails first")
+        lost.delivered(empty: false)
+        lost.end(completed: true)
+        check(lost.message(Session.pasteFailed, covered: false), "7: then the paste fails")
+        check(lost.settle(generation: lost.generation, covered: false) == .pasteFailed, "7: couldn't paste wins")
 
         for step in 0...3 {
             var live = recording()
@@ -104,6 +112,11 @@ struct DictationIslandTest {
         ending.delivered(empty: false)
         ending.end(completed: true)
         check(ending.phase == .ending, "9: a completed end waits a hop")
+        var twice = ending
+        check(!twice.end(completed: true) && twice.phase == .ending, "9: a second end starts no second hop")
+        check(twice.settle(generation: twice.generation, covered: false) == .pasted, "9: the result still shows")
+        var once = recording()
+        check(once.end(completed: true), "9: the first completed end starts the hop")
         var stale = ending
         stale.begin(copies: false, at: 0)
         check(stale.settle(generation: ending.generation, covered: false) == nil && stale.phase == .recording,
@@ -111,7 +124,7 @@ struct DictationIslandTest {
         var hiddenEnd = ending
         check(hiddenEnd.settle(generation: ending.generation, covered: true) == nil && hiddenEnd.phase == .idle,
               "10: a covered result is dropped, not shown late")
-        check(ended({ $0.delivered(empty: false); _ = $0.cleanUp(); _ = $0.cleanupFailed(covered: false) })
+        check(ended({ _ = $0.cleanUp(); _ = $0.cleanupFailed(covered: false); $0.delivered(empty: false) })
               == .pastedRaw, "9: the raw flag gives pasted without cleanup")
         var copying = recording(copies: true)
         check(IslandNotice(dictation: copying)!.text == "Return to Copy · Esc to Cancel", "1: copy-only hint")

@@ -12,8 +12,7 @@
 // notchcast-sources: Tinycast/Features/Notchcast/Core/Model/DictationIslandNotice.swift
 import AppKit
 
-/// #960's closed forms: every dictation state on the resting island, both forms, Black and Frosted,
-/// to PNGs at 2x. `NC_AUDIT_RENDERS` names the folder, else the audit harness's own, which CI uploads.
+/// #960's closed dictation states, both forms and looks, 2x PNGs into `NC_AUDIT_RENDERS`.
 @MainActor
 @main
 struct DictationIslandRenderTest {
@@ -36,7 +35,7 @@ struct DictationIslandRenderTest {
         }
     }
 
-    /// The island hanging from the top edge, `body` tall below the notch, art drawn in that lower part.
+    /// The island hanging from the top edge, `body` tall below the notch, art in that lower part.
     static func island(_ name: String, width: CGFloat, body: CGFloat, notch: Bool, radius: CGFloat, frosted: Bool,
                        notchLeft: CGFloat? = nil, _ draw: @escaping (CGRect) -> Void) {
         let top = notch ? notchSize.height : 0
@@ -69,7 +68,7 @@ struct DictationIslandRenderTest {
         }
     }
 
-    /// The compact pill as the engine sizes its slots: content hugs the ends, a notch keeps the middle.
+    /// The compact pill as the engine sizes it: content hugs the ends, a notch keeps the middle.
     static func compact(_ name: String, _ art: IslandNoticeArt, notch: Bool, frosted: Bool) {
         let inner = notch ? Theme.Spacing.md : 0
         let width = (notch ? notchSize.width : 0) + 2 * (Theme.Spacing.lg + inner) + art.layout.leading
@@ -137,7 +136,7 @@ struct DictationIslandRenderTest {
                 }
             }
         }
-        let room = NotchTheme.Size.islandGlanceWing * 2 - Theme.Spacing.sm
+        let room = NotchTheme.Size.islandGlanceWing * 2 - IslandNoticeMark.cell - Theme.Spacing.sm
         print("hint room without a notch: \(room) pt")
         precondition(count == 50, "25 pictures a look")
         print("PASS rendered \(count) dictation island states to \(folder.path)")

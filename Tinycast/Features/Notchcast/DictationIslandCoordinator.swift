@@ -99,11 +99,12 @@ final class DictationIslandCoordinator {
 
     func reset(completed: Bool) {
         guard session.isLive else { return }
-        session.end(completed: completed)
+        let settles = session.end(completed: completed)
         presenter?.holdKeys(nil)
         guard completed else { return clear() }
+        guard settles else { return }
         let generation = session.generation
-        // One hop later, so the report stock raises right after `reset` in the same turn is counted.
+        // One hop later, so stock's report raised right after `reset` in the same turn is counted.
         Task { @MainActor [weak self] in self?.settle(generation: generation) }
     }
 

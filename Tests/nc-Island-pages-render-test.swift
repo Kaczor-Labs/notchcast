@@ -129,7 +129,7 @@ struct IslandPagesRenderTest {
         ]
     }
 
-    /// #960: the dictation notice heads the open page, recording over Home and a failure over a page.
+    /// #960: the dictation notice heads the open page, recording over Home, a failure over a page.
     static func dictationDecks() -> [(String, IslandPageDeck)] {
         var session = DictationIslandSession()
         session.begin(copies: false, at: 0)

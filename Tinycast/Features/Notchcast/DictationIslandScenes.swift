@@ -1,7 +1,7 @@
 #if DEBUG
 import AppKit
 
-/// `dictation`, `dictation-notch`: every dictation state on the pill with no microphone, keys through the hold.
+/// `dictation`, `dictation-notch`: each dictation state on the pill, no mic, keys via the hold.
 @MainActor
 enum DictationIslandScenes {
     static let notch = CGSize(width: 185, height: 32)
