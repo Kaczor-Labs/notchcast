@@ -253,6 +253,7 @@
 		2D40FB3C6B78FE746AB0F7EB /* WindowSwitchOrder.swift in Sources */ = {isa = PBXBuildFile; fileRef = 867B0475618A01A765AC0DC5 /* WindowSwitchOrder.swift */; };
 		2D51D92BE8EAB5440F4C8517 /* ExtensionPaletteModifiers.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7C0FB3A9CA762A7A8DB99BA6 /* ExtensionPaletteModifiers.swift */; };
 		2DAB5CECA8504A0A1D07B304 /* BondingState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7D5FECC662D3963999FC5BFD /* BondingState.swift */; };
+		2DBAD1EAE463D1922D657E9E /* IslandKeyHold.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0DB8883913B5910C9A54E1B8 /* IslandKeyHold.swift */; };
 		2DD8CAAA8060C81411018CE0 /* DownloadsActivity.swift in Sources */ = {isa = PBXBuildFile; fileRef = 59E7C815C7DABC0EC9AC5749 /* DownloadsActivity.swift */; };
 		2E05FC5D5A0C2BACE7DB8CDD /* LauncherSuggestions.swift in Sources */ = {isa = PBXBuildFile; fileRef = DFE5D670CFC618B2EAFA0868 /* LauncherSuggestions.swift */; };
 		2E0957985928EC32511A5969 /* MCPServerEditor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0814A6707E67A3BD3772E119 /* MCPServerEditor.swift */; };
@@ -1616,6 +1617,7 @@
 		0CE10C98ED01FA327AE576D5 /* IslandPlayerSource.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IslandPlayerSource.swift; sourceTree = "<group>"; };
 		0D4F22647E4E1BA19F0FC520 /* AppVersion.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppVersion.swift; sourceTree = "<group>"; };
 		0D59C9164FC098B170249CA1 /* NotchcastAccessories.xcstrings */ = {isa = PBXFileReference; lastKnownFileType = text.json.xcstrings; path = NotchcastAccessories.xcstrings; sourceTree = "<group>"; };
+		0DB8883913B5910C9A54E1B8 /* IslandKeyHold.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IslandKeyHold.swift; sourceTree = "<group>"; };
 		0DD7A98B63B9043D67012E39 /* AIThinkTagDecoder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIThinkTagDecoder.swift; sourceTree = "<group>"; };
 		0DE505A8B3E665C2C1382B48 /* ExecutablePicker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExecutablePicker.swift; sourceTree = "<group>"; };
 		0DFEBE220187043060F7F286 /* ToolRunner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ToolRunner.swift; sourceTree = "<group>"; };
@@ -4052,6 +4054,7 @@
 				EA40D342FDBBD7B0ECB827EC /* IslandInputScenes.swift */,
 				047F56A0112740EE0338495B /* IslandInputScenes+Probes.swift */,
 				C84A27BD2930EB102BD86B19 /* IslandInstallReportScenes.swift */,
+				0DB8883913B5910C9A54E1B8 /* IslandKeyHold.swift */,
 				0A9A1038D98DB3010889A962 /* IslandKeylineScenes.swift */,
 				84A92B985354A04A93714337 /* IslandLatency.swift */,
 				6ADE185EDA4520C027A812F4 /* IslandLayout+Screen.swift */,
@@ -7844,6 +7847,7 @@
 				EBE9873799B9107A3E1601F4 /* IslandInputScenes+Probes.swift in Sources */,
 				5666E043C88C485C4BCE5045 /* IslandInputScenes.swift in Sources */,
 				3874370DBA63F3E99F8CF4E0 /* IslandInstallReportScenes.swift in Sources */,
+				2DBAD1EAE463D1922D657E9E /* IslandKeyHold.swift in Sources */,
 				61400BF6517B480CB524FBBC /* IslandKeyline.swift in Sources */,
 				D4990B33C7ACAA6A5AEFC082 /* IslandKeylineScenes.swift in Sources */,
 				56136E909F312F0E6B6D1996 /* IslandLatency.swift in Sources */,
