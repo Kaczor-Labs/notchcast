@@ -4,10 +4,10 @@ name: Design
 on:
   push:
     branches: [main]
-    paths: ["**/*.swift", "notchcast/design-check.sh", "notchcast/config.env", "notchcast/fetch-upstream.sh", ".github/workflows/design.yml"]
+    paths: ["**/*.swift", "notchcast/design-check.sh", "notchcast/config.env", "notchcast/fetch-upstream.sh", ".github/workflows/design.yml", ".github/actions/linux-node/action.yml"]
   pull_request:
     branches: [main]
-    paths: ["**/*.swift", "notchcast/design-check.sh", "notchcast/config.env", "notchcast/fetch-upstream.sh", ".github/workflows/design.yml"]
+    paths: ["**/*.swift", "notchcast/design-check.sh", "notchcast/config.env", "notchcast/fetch-upstream.sh", ".github/workflows/design.yml", ".github/actions/linux-node/action.yml"]
   workflow_dispatch:
     inputs:
       hosted_linux:
@@ -44,7 +44,7 @@ jobs:
           echo "runs-on=$runner" >> "$GITHUB_OUTPUT"
   design:
     needs: route
-    runs-on: ${{ (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository || github.event_name == 'push' || github.event_name == 'workflow_dispatch' || github.event_name == 'merge_group') && needs.route.outputs.linux-runner == 'linux-pool' && 'linux-pool' || 'ubuntu-latest' }}
+    runs-on: ${{ (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository || github.event_name == 'push' || github.event_name == 'workflow_dispatch') && needs.route.outputs.linux-runner == 'linux-pool' && 'linux-pool' || 'ubuntu-latest' }}
     timeout-minutes: 10
     steps:
       - name: Prepare clean Linux workspace
@@ -59,10 +59,10 @@ jobs:
         with:
           fetch-depth: 0
           persist-credentials: false
-      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
+      - uses: ./.github/actions/linux-node
         with:
-          node-version: '22.23.5'
-          package-manager-cache: false
+          version: '22.23.5'
+          sha256: cdeb8670a0c81f51b4dc4ac61919f9b1ad917b304bf8221eb939570663d240f8
       # Findings upstream already has are the baseline; only what our commits add is reported.
       - name: ai-design-check on our changes
         run: |

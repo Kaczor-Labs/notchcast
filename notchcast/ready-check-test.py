@@ -1,10 +1,12 @@
 #!/usr/bin/env python3
 """Verify ready-check.sh covers every pr.yml step and reports PASS or the first failing gate."""
+import hashlib
 import os
 from pathlib import Path
 import re
 import shutil
 import subprocess
+import tarfile
 import tempfile
 import unittest
 from unittest import mock
@@ -44,7 +46,7 @@ COVERED = {
     ("pr.yml:script-tests", "Prepare clean Linux workspace"): "fresh runner workspace; no gate",
     ("pr.yml:script-tests", "./.github/actions/linux-python"): "pin the CI Python version; no local step",
     ("pr.yml:script-tests", "Install pinned jq"): "pin the CI jq version; no local step",
-    ("pr.yml:script-tests", "actions/setup-node"): "pin the CI Node version; no local step",
+    ("pr.yml:script-tests", "./.github/actions/linux-node"): "pin the CI Node version; no local step",
     ("pr.yml:script-tests", "actions/checkout"): "the shared clone at HEAD",
     ("pr.yml:script-tests", "Script tests"): "ci-build.sh's script-tests step",
     ("pr.yml:build", "Prepare clean Linux workspace"): "fresh runner workspace; no gate",
@@ -175,7 +177,7 @@ LINUX_JOBS = {
     "test-build.yml": {"plan": "ubuntu-latest"},
 }
 SAME_REPO = ("(github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository"
-             " || github.event_name == 'push' || github.event_name == 'workflow_dispatch' || github.event_name == 'merge_group')")
+             " || github.event_name == 'push' || github.event_name == 'workflow_dispatch')")
 
 
 def linux_runner(hosted):
@@ -227,6 +229,7 @@ class RunnerTest(unittest.TestCase):
         test_build = (WORKFLOW.parent / "test-build.yml").read_text()
         mutations = {
             "fork": ("pr.yml", pr.replace(SAME_REPO, "github.event_name == 'pull_request'", 1)),
+            "merge group": ("pr.yml", pr.replace(SAME_REPO, SAME_REPO[:-1] + " || github.event_name == 'merge_group')", 1)),
             "unguarded": ("pr.yml", pr.replace(expression, "linux-pool", 1)),
             "mac": ("pr.yml", pr.replace(HARNESS_MAC, expression, 1)),
             "signing": ("test-build.yml", test_build.replace("    runs-on: xcode-27\n    timeout-minutes: 30",
@@ -264,7 +267,7 @@ class RunnerTest(unittest.TestCase):
                 )
                 self.assertEqual(result.strip(), f"runs-on={expected}")
 
-    def test_fork_stays_hosted_even_when_route_reports_capacity(self):
+    def test_forks_and_merge_groups_stay_hosted_even_when_route_reports_capacity(self):
         expression = re.escape(SAME_REPO)
         for name, jobs in LINUX_JOBS.items():
             text = (WORKFLOW.parent / name).read_text()
@@ -279,12 +282,55 @@ class RunnerTest(unittest.TestCase):
             ("pull_request_target", "org/repo", False),
             ("push", "", True),
             ("workflow_dispatch", "", True),
-            ("merge_group", "", True),
+            ("merge_group", "", False),
         ):
             with self.subTest(event=event, head_repo=repo):
                 code = condition.replace("github.event.pull_request.head.repo.full_name", repr(repo))
                 code = code.replace("github.event_name", repr(event)).replace("github.repository", "'org/repo'")
                 self.assertEqual(eval(code, {"__builtins__": {}}), expected)
+
+    def test_node_installs_in_runner_temp_only_after_verifying_the_archive(self):
+        for name, job in (("pr.yml", "script-tests"), ("design.yml", "design")):
+            job_steps = [step for owner, step in steps(WORKFLOW.parent / name, 6) if owner == job]
+            signatures = [signature(step) for step in job_steps]
+            self.assertNotIn("actions/setup-node", signatures)
+            install = job_steps[signatures.index("./.github/actions/linux-node")]
+            self.assertRegex(install, r"(?m)^  version: '\d+\.\d+\.\d+'$")
+            self.assertRegex(install, r"(?m)^  sha256: [0-9a-f]{64}$")
+
+        action = ROOT / ".github/actions/linux-node/action.yml"
+        [(_, step)] = steps(action, 4)
+        self.assertEqual(env(step), {"NODE_VERSION": "${{ inputs.version }}", "NODE_SHA256": "${{ inputs.sha256 }}"})
+        script = step.split("run: |\n", 1)[1]
+        for valid in (False, True):
+            with self.subTest(valid=valid), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                runner_temp = root / "temp"
+                runner_temp.mkdir()
+                release = "node-v1.2.3-linux-x64"
+                binary = root / "node"
+                binary.write_text("#!/bin/bash\necho v1.2.3\n")
+                binary.chmod(0o755)
+                archive = root / "download.tar.xz"
+                with tarfile.open(archive, "w:xz") as tar:
+                    tar.add(binary, arcname=f"{release}/bin/node")
+                digest = hashlib.sha256(archive.read_bytes()).hexdigest()
+                path_file = root / "github-path"
+                result = subprocess.run(
+                    ["bash", "-e", "-c", 'curl() { cp "$NODE_FIXTURE" "$4"; }\n' + script],
+                    env={**os.environ, "NODE_VERSION": "1.2.3", "NODE_SHA256": digest if valid else "0" * 64,
+                         "NODE_FIXTURE": str(archive), "RUNNER_TEMP": str(runner_temp), "GITHUB_PATH": str(path_file),
+                         "RUNNER_TOOL_CACHE": str(root / "persistent-tools")},
+                    capture_output=True, text=True,
+                )
+                self.assertEqual(result.returncode == 0, valid, result.stdout + result.stderr)
+                self.assertEqual((runner_temp / release / "bin/node").exists(), valid)
+                self.assertFalse((root / "persistent-tools").exists())
+                if valid:
+                    self.assertIn("v1.2.3", result.stdout)
+                    self.assertEqual(path_file.read_text().strip(), str(runner_temp / release / "bin"))
+                else:
+                    self.assertFalse(path_file.exists())
 
     def test_a_train_passes_its_lane_to_every_workflow_that_can_leave_the_hosted_images(self):
         for name in GATED_JOBS:

@@ -223,7 +223,7 @@ jobs:
   linux-checks:
     needs: route
     if: needs.route.outputs.build == 'true' && inputs.harness_runner == ''
-    runs-on: ${{ (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository || github.event_name == 'push' || github.event_name == 'workflow_dispatch' || github.event_name == 'merge_group') && needs.route.outputs.linux-runner == 'linux-pool' && 'linux-pool' || 'ubuntu-latest' }}
+    runs-on: ${{ (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository || github.event_name == 'push' || github.event_name == 'workflow_dispatch') && needs.route.outputs.linux-runner == 'linux-pool' && 'linux-pool' || 'ubuntu-latest' }}
     timeout-minutes: 10
     steps:
       - name: Prepare clean Linux workspace
@@ -248,7 +248,7 @@ jobs:
   script-tests:
     needs: route
     if: needs.route.outputs.scripts == 'true' && inputs.harness_runner == ''
-    runs-on: ${{ (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository || github.event_name == 'push' || github.event_name == 'workflow_dispatch' || github.event_name == 'merge_group') && needs.route.outputs.linux-runner == 'linux-pool' && 'linux-pool' || 'ubuntu-latest' }}
+    runs-on: ${{ (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository || github.event_name == 'push' || github.event_name == 'workflow_dispatch') && needs.route.outputs.linux-runner == 'linux-pool' && 'linux-pool' || 'ubuntu-latest' }}
     timeout-minutes: 10
     steps:
       - name: Prepare clean Linux workspace
@@ -271,17 +271,17 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
       - uses: ./.github/actions/linux-python
-      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
+      - uses: ./.github/actions/linux-node
         with:
-          node-version: '24.22.3'
-          package-manager-cache: false
+          version: '24.22.3'
+          sha256: 4f2b175a6d53a5c617a80dba2676238a0688cef28c6da4eba35c7d844e66fcfb
       - name: Script tests
         run: python3 notchcast/script-tests.py --all --runner linux
   # mac also runs the selected Linux-compatible harnesses against the macOS SDK.
   linux-harnesses:
     needs: route
     if: needs.route.outputs.build == 'true' && inputs.harness_runner == ''
-    runs-on: ${{ (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository || github.event_name == 'push' || github.event_name == 'workflow_dispatch' || github.event_name == 'merge_group') && needs.route.outputs.linux-runner == 'linux-pool' && 'linux-pool' || 'ubuntu-24.04' }}
+    runs-on: ${{ (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository || github.event_name == 'push' || github.event_name == 'workflow_dispatch') && needs.route.outputs.linux-runner == 'linux-pool' && 'linux-pool' || 'ubuntu-24.04' }}
     timeout-minutes: 15
     env:
       SWIFT_VERSION: '6.4.2'
@@ -336,7 +336,7 @@ jobs:
   build:
     needs: [route, mac, linux-checks, linux-harnesses, script-tests]
     if: ${{ !cancelled() && inputs.harness_runner == '' }}
-    runs-on: ${{ (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository || github.event_name == 'push' || github.event_name == 'workflow_dispatch' || github.event_name == 'merge_group') && needs.route.outputs.linux-runner == 'linux-pool' && 'linux-pool' || 'ubuntu-latest' }}
+    runs-on: ${{ (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository || github.event_name == 'push' || github.event_name == 'workflow_dispatch') && needs.route.outputs.linux-runner == 'linux-pool' && 'linux-pool' || 'ubuntu-latest' }}
     timeout-minutes: 10
     steps:
       - name: Prepare clean Linux workspace
