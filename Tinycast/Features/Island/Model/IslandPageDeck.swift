@@ -55,7 +55,7 @@ struct IslandPageDeck: Equatable, Sendable {
 
     mutating func show(_ notice: IslandNotice?, tappable: Bool) {
         self.notice = notice.map {
-            IslandPageRow(id: tappable ? Self.noticeID : nil, symbol: $0.symbol, title: $0.text, spoken: $0.spokenText)
+            IslandPageRow(id: tappable ? Self.noticeID : nil, symbol: $0.symbol, title: $0.line, spoken: $0.spokenText)
         }
     }
 
