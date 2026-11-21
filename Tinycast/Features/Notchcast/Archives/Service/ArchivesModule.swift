@@ -150,7 +150,7 @@ final class ArchivesModule: NotchcastModule {
 
     private func confirmStopCompression(_ id: UUID, label: String) {
         guard let confirm = context.confirm else {
-            compression?.task.cancel()
+            if compression?.id == id { compression?.task.cancel() }
             return
         }
         Task {

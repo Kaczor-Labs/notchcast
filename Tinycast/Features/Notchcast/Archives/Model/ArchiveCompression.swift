@@ -30,7 +30,7 @@ nonisolated struct CompressionPlan: Equatable, Sendable {
     /// The name shown while it runs, before a free number is known.
     var label: String { stem + "." + format.rawValue }
 
-    /// ditto archives a lone file or folder itself; several items, or a link it would follow, go in as clones.
+    /// ditto zips a lone file or folder as is; several items, or a link it follows, go as clones.
     var zipsClones: Bool { format == .zip && (single == nil || single == .link) }
 }
 

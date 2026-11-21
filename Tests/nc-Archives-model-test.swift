@@ -324,6 +324,9 @@ func compressionArguments() throws {
         "--use-compress-program", "\"/opt/home brew/bin/zstd\"", "-cf", staged.path, "-C", "/x/Trip",
         "./-dash.txt", "./@at.txt", "./sub",
     ], "bsdtar runs the located zstd and reads ./ names from the folder: \(arguments(tar))")
+    let odd = ArchiveCommandLine.compress(
+        tar, tools: [tools[0], URL(filePath: "/opt/a\"b\\c/zstd")], staged: staged, clones: nil)
+    check(odd[1] == #""/opt/a\"b\\c/zstd""#, "a quote or backslash in zstd's path is escaped: \(odd[1])")
 }
 
 @main

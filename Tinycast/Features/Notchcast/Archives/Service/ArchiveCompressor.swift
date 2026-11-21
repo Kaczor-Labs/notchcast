@@ -24,7 +24,10 @@ nonisolated struct ArchiveCompressor: Sendable {
         if plan.zipsClones {
             let folder = work.appending(path: "Items", directoryHint: .isDirectory)
             try files.createDirectory(at: folder, withIntermediateDirectories: false)
-            for input in plan.inputs { try files.copyItem(at: input, to: folder.appending(path: input.lastPathComponent)) }
+            for input in plan.inputs {
+                try Task.checkCancellation()
+                try files.copyItem(at: input, to: folder.appending(path: input.lastPathComponent))
+            }
             clones = folder
         }
         try Task.checkCancellation()
@@ -38,7 +41,9 @@ nonisolated struct ArchiveCompressor: Sendable {
     }
 
     /// Renames into the first free name; one taken meanwhile moves on to the next, never over it.
-    static func publish(_ staged: URL, plan: CompressionPlan) throws -> URL {
+    static func publish(
+        _ staged: URL, plan: CompressionPlan, renameExclusive: (URL, URL) -> Int32 = renameExclusive
+    ) throws -> URL {
         // attributesOfItem does not follow a link, so a dangling one still counts as taken.
         let taken = { (name: String) in
             (try? FileManager.default.attributesOfItem(atPath: plan.folder.appending(path: name).path)) != nil
@@ -46,17 +51,29 @@ nonisolated struct ArchiveCompressor: Sendable {
         while true {
             let target = plan.folder.appending(path: ArchiveCompression.outputName(
                 stem: plan.stem, format: plan.format, taken: taken))
-            let status = staged.withUnsafeFileSystemRepresentation { from in
-                target.withUnsafeFileSystemRepresentation { to in
-                    guard let from, let to else {
-                        errno = EINVAL
-                        return Int32(-1)
-                    }
-                    return renamex_np(from, to, UInt32(RENAME_EXCL))
+            switch renameExclusive(staged, target) {
+            case 0: return target
+            case EEXIST: continue
+            // exFAT and SMB lack RENAME_EXCL; moveItem also refuses a taken name, not atomically.
+            case ENOTSUP, EINVAL:
+                do {
+                    try FileManager.default.moveItem(at: staged, to: target)
+                    return target
+                } catch CocoaError.fileWriteFileExists {
+                    continue
                 }
+            case let code: throw ArchiveFailure.compressionFailed(String(cString: strerror(code)))
             }
-            if status == 0 { return target }
-            guard errno == EEXIST else { throw ArchiveFailure.compressionFailed(String(cString: strerror(errno))) }
+        }
+    }
+
+    /// `renamex_np` with `RENAME_EXCL`: 0, else its errno.
+    static func renameExclusive(_ from: URL, _ to: URL) -> Int32 {
+        from.withUnsafeFileSystemRepresentation { from in
+            to.withUnsafeFileSystemRepresentation { to in
+                guard let from, let to else { return EINVAL }
+                return renamex_np(from, to, UInt32(RENAME_EXCL)) == 0 ? 0 : errno
+            }
         }
     }
 

@@ -86,8 +86,9 @@ nonisolated enum ArchiveCommandLine {
         case .sevenZip:
             return ["a", "-t7z", "-mx=9", "-snl", "-spd", "-bd", "-y", "--", staged.path] + plan.inputs.map(\.path)
         case .tarZstd:
-            // bsdtar splits the program on spaces, so the located zstd is quoted.
-            return ["--use-compress-program", "\"\(tools[1].path)\"", "-cf", staged.path, "-C", plan.folder.path]
+            // bsdtar splits the program on spaces and reads \ escapes, so zstd's path is quoted.
+            let zstd = tools[1].path.replacing("\\", with: "\\\\").replacing("\"", with: "\\\"")
+            return ["--use-compress-program", "\"\(zstd)\"", "-cf", staged.path, "-C", plan.folder.path]
                 + plan.inputs.map { "./" + $0.lastPathComponent }
         }
     }

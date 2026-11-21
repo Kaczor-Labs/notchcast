@@ -5,7 +5,7 @@ The Archives add-on (`Tinycast/Features/Notchcast/Archives/`), under the **Archi
 ## Invariants
 
 - **Nothing is bundled.** Every tool is the user's own install, found with `ExecutableLocator.locate`; a missing one is a failure notice naming it and its install line.
-- **Never over an existing file.** Output takes the first free name (`ArchivePlacement.freeName`: `Trip`, `Trip 2`, `Trip 3`…). Extraction moves staged items into place by rename; compression publishes with `renamex_np(RENAME_EXCL)` and moves on to the next number if a name was taken meanwhile.
+- **Never over an existing file.** Output takes the first free name (`ArchivePlacement.freeName`: `Trip`, `Trip 2`, `Trip 3`…). Extraction moves staged items into place by rename; compression publishes with `renamex_np(RENAME_EXCL)` and moves on to the next number if a name was taken meanwhile; where the disk lacks it (exFAT, SMB: `ENOTSUP`), with `FileManager.moveItem`, which also refuses a taken name but not atomically.
 - **Output lands beside the input**: extracted items beside the archive, an archive beside the selection.
 - **A stop or failure leaves nothing half-done.** Extraction keeps only what HatchZip already moved out in place; compression writes in a private folder on the output's volume (`.itemReplacementDirectory`), removed on every exit, and publishes on the main actor after checking for a stop.
 - **One extraction and one compression at a time.** Extraction is a queue journalled to `archives.json`, so a relaunch resumes it; compression is in memory only, and a second request while one runs is refused with a notice. The two run side by side.
@@ -26,6 +26,6 @@ Opening an archive with Notchcast (or "Extract Archive…") queues it. `ArchiveR
 | --- | --- | --- | --- |
 | ZIP | `ditto` | ships with macOS | `ditto -c -k --sequesterRsrc [--keepParent] <item> <out>`; several items, or a lone link, are cloned into a private folder and zipped from there, so they sit at the top level and links stay links |
 | 7z | `7zz`, else `7z` | `brew install sevenzip` | `7zz a -t7z -mx=9 -snl -spd -bd -y -- <out> <absolute paths>` |
-| .tar.zst | `bsdtar` and `zstd` | `brew install zstd` | `bsdtar --use-compress-program "<zstd>" -cf <out> -C <folder> ./<name>…`; stock bsdtar cannot write zstd itself, so the located `zstd` is passed, quoted |
+| .tar.zst | `bsdtar` and `zstd` | `brew install zstd` | `bsdtar --use-compress-program "<zstd>" -cf <out> -C <folder> ./<name>…`; stock bsdtar cannot write zstd itself, so the located `zstd` is passed, quoted, with `\` and `"` escaped |
 
 `Tests/nc-Archives-model-test.swift` covers routing, naming, refusals and every argument list; `nc-Archives-module-test.swift` drives extraction with fake tools; `nc-Archives-compress-test.swift` drives compression with fake tools. Not verified by a harness: the real tools, which only a hand run exercises.

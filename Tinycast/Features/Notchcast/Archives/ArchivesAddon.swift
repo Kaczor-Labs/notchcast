@@ -3,7 +3,7 @@
 // notchcast-new-switch-ids: archives
 import SwiftUI
 
-/// Extracts archives instead of Archive Utility and compresses a Finder selection, with the user's tools.
+/// Extracts archives in place of Archive Utility and compresses a Finder selection with your tools.
 enum ArchivesAddon: NotchcastAddon {
     static let switches = [
         NotchcastSwitch(
