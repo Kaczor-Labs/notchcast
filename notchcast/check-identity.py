@@ -83,6 +83,13 @@ def metadata(base):
     return failed
 
 
+def shares_history(ref):
+    found = subprocess.run(["git", "merge-base", ref, HEAD], capture_output=True)
+    if found.returncode > 1:
+        raise subprocess.CalledProcessError(found.returncode, found.args)
+    return found.returncode == 0
+
+
 def added_lines(base):
     failed = False
     path = None
@@ -168,6 +175,8 @@ def main():
         additions_base = "refs/remotes/origin/main"
         if pr_base := os.environ.get("GITHUB_BASE_REF"):
             additions_base = f"refs/remotes/origin/{pr_base}"
+        elif not shares_history(additions_base):
+            additions_base = base
         failed |= added_lines(additions_base)
     if args.mode in ("history", "metadata"):
         failed |= metadata(base)
