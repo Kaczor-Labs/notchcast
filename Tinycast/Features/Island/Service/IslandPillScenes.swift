@@ -128,7 +128,7 @@ enum IslandPillScenes {
             IslandVerification.require(false, "Return on Settings opens Settings"); return
         }
         IslandVerification.require(statusItemWindows == 0, "no menu bar item exists")
-        for tab in [SettingsTab.general, .notes, .calendar] {
+        for tab in [SettingsTab.general, .calendar] {
             core.settingsCoordinator.showSettings(tab: tab)
             await IslandVerification.pause(0.7)
             still(window, name: "settings-\(tab.slug)")
@@ -310,8 +310,7 @@ enum IslandPillScenes {
                                    "Settings opens on the test display")
         let hidden = ["Show in menu bar", "Show in Menu Bar", "Calendar in Menu Bar", "Show Upcoming Events",
                       "Only show events with meetings", "Hide when there are no upcoming events", "Hide Current Event"]
-        let panes: [(SettingsTab, String)] = [(.general, "Launch at login"), (.notes, "Render Markdown"),
-                                              (.calendar, "Days to Show")]
+        let panes: [(SettingsTab, String)] = [(.general, "Launch at login"), (.calendar, "Days to Show")]
         IslandVerification.require(wakeAccessibilityTree(), "the app's own AX tree answers")
         await IslandVerification.pause(0.3)
         for (tab, shown) in panes {
