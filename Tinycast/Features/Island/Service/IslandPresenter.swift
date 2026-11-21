@@ -66,9 +66,12 @@ final class IslandPresenter: IslandPresenting {
         noticesChanged()
     }
 
-    func holdKeys(_ onKey: (@MainActor (IslandHeldKey) -> Void)?) {
-        keyHold.hold(onKey, near: AppCore.shared.island.resting?.screenShape, during: notices.notice?.id)
+    func holdKeys(for notice: String, onFocus: @escaping @MainActor (Bool) -> Void,
+                  onKey: @escaping @MainActor (IslandHeldKey) -> Void) {
+        keyHold.hold(near: AppCore.shared.island.resting?.screenShape, during: notice, onFocus: onFocus, onKey: onKey)
     }
+
+    func releaseKeys() { keyHold.release() }
 
     func end(notice id: String) {
         notices.end(id, at: now())
