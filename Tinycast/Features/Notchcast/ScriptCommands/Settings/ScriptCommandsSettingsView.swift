@@ -101,18 +101,20 @@ private struct ScriptCommandRow: View {
             }
             .buttonStyle(.plain)
             .accessibilityLabel(String(localized: "Delete \(name)", table: "NotchcastScriptCommands"))
-        } controls: {
+        } fields: {
             Group {
                 AliasField(key: entryID, name: name)
                     .settingsEnabled(shown)
                 ShortcutRecorder(action: .notchcastCommand(entryID: entryID))
-                Toggle(isOn: Binding(get: { shown }, set: { preferences.setShowsInLauncher(entryID, $0) })) {
-                    NotchcastLauncherCheckboxLabel(title: Text("Show in launcher", tableName: "NotchcastScriptCommands"))
-                }
-                .toggleStyle(.checkbox)
-                .launcherVisibilityHelp()
-                .accessibilityLabel(String(localized: "Show \(name) in the launcher", table: "NotchcastScriptCommands"))
             }
+            .settingsEnabled(row.isRunnable)
+        } checkbox: {
+            Toggle(isOn: Binding(get: { shown }, set: { preferences.setShowsInLauncher(entryID, $0) })) {
+                Text("Show in launcher", tableName: "NotchcastScriptCommands")
+            }
+            .toggleStyle(.checkbox)
+            .launcherVisibilityHelp()
+            .accessibilityLabel(String(localized: "Show \(name) in the launcher", table: "NotchcastScriptCommands"))
             .settingsEnabled(row.isRunnable)
         }
     }
