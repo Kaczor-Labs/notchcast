@@ -113,6 +113,11 @@ class MergeWordsTests(unittest.TestCase):
         self.assertEqual(self.merge('ARGS="-n 1"\n', 'ARGS="-n 1 -m 1"\n', 'ARGS="-n 1 -k 1"\n'),
                          (0, 'ARGS="-n 1 -m 1 -k 1"\n'))
 
+    def test_one_name_added_by_both_sides_among_others_lands_once(self):
+        self.assertEqual(self.merge(LIST, 'A_TESTS="one two new ours-test"\nB="x"\n',
+                                    'A_TESTS="one two new theirs-test"\nB="x"\n'),
+                         (0, 'A_TESTS="one two new ours-test theirs-test"\nB="x"\n'))
+
     def test_a_removed_name_stays_removed(self):
         self.assertEqual(self.merge('A_TESTS="one two three"\n', 'A_TESTS="one three"\n', 'A_TESTS="one two three four"\n'),
                          (0, 'A_TESTS="one three four"\n'))
