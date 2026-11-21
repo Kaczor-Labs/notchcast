@@ -46,27 +46,54 @@ if [ "$status" -ne 0 ] && ls "$BIN"/*.failed >/dev/null 2>&1; then
   failed="$(for f in "$BIN"/*.failed; do basename "$f" .failed; done)"
   # Written before the upstream comparison can fail, then narrowed to the harnesses that are ours.
   for name in $failed; do cat "$BIN/$name.log"; record "$name"; done
+  if [ "$status" -ne 1 ]; then
+    echo "::error::Suite exited $status before a trusted comparison. No harness failures were excused."
+    exit "$status"
+  fi
   if [ -z "${UPSTREAM:-}" ]; then
     bash "$TOOLS/notchcast/fetch-upstream.sh" --no-tags
     UPSTREAM=$(git merge-base HEAD refs/remotes/upstream/main)
   fi
-  git worktree add -q --detach "$RUNNER_TEMP/pristine" "$UPSTREAM"
-  if [ -n "$failures" ]; then : > "$failures"; fi
+  pristine="$RUNNER_TEMP/pristine"
+  if [ -e "$pristine/.git" ]; then git worktree remove --force "$pristine"; fi
+  git worktree prune --expire now
+  git worktree add -q --detach "$pristine" "$UPSTREAM"
+  trap 'git worktree remove --force "$pristine"' EXIT
+  trap 'exit 130' INT
+  trap 'exit 143' TERM
+  trap 'exit 129' HUP
   status=0
+  unexcused=""
   for name in $failed; do
-    if [ ! -e "$RUNNER_TEMP/pristine/Tests/$name.swift" ]; then
-      echo "::error::$name fails with our commits and does not exist on upstream"; status=1; record "$name"
-      continue
-    fi
-    if (cd "$RUNNER_TEMP/pristine" && TMPDIR="$RUNNER_TEMP/pristine-tmp" && mkdir -p "$TMPDIR" && export TMPDIR \
-        && ./Scripts/run-tests.sh "$name" >/dev/null 2>&1); then
-      echo "::error::$name fails with our commits and passes on upstream ${UPSTREAM:0:7}"; status=1; record "$name"
+    reason=""
+    if [ ! -f "$pristine/Tests/$name.swift" ]; then
+      reason="does not exist on upstream"
+    elif reason=$(python3 "$TOOLS/notchcast/harness_inputs.py" --compare-pristine "$pristine" "$name" 2>&1); then
+      pristine_tmp=$(mktemp -d "$RUNNER_TEMP/pristine-tmp.XXXXXX")
+      pristine_status=0
+      (cd "$pristine" && TMPDIR="$pristine_tmp" ./Scripts/run-tests.sh "$name") > "$pristine_tmp/result" 2>&1 \
+        || pristine_status=$?
+      pristine_bin="$pristine_tmp/tinycast-harness/$name"
+      if [ "$pristine_status" -eq 0 ]; then
+        reason="passes on upstream ${UPSTREAM:0:7}"
+      elif [ "$pristine_status" -ne 1 ] || [ ! -x "$pristine_bin" ] || [ ! -f "$pristine_bin.failed" ] \
+          || ! grep -F "  $name " "$pristine_tmp/result" | grep -Eq 'assertion failed after [0-9.]+s$'; then
+        cat "$pristine_tmp/result"
+        reason="pristine upstream did not report a harness assertion failure (exit $pristine_status)"
+      fi
     else
-      echo "::warning::$name fails on upstream ${UPSTREAM:0:7} too; not ours, ignored"
+      reason=${reason:-"could not establish identical inputs"}
+    fi
+    if [ -n "$reason" ]; then
+      echo "::error::$name fails with our commits and $reason. Failure was not excused."
+      status=1
+      unexcused="$unexcused$name"$'\n'
+    else
+      echo "::warning::$name is unchanged and reports a harness failure on upstream ${UPSTREAM:0:7} too"
       if [ -n "$excused" ]; then echo "$name" >> "$excused"; fi
     fi
   done
-  git worktree remove --force "$RUNNER_TEMP/pristine"
+  if [ -n "$failures" ]; then printf '%s' "$unexcused" > "$failures"; fi
 fi
 # run-tests.sh shows a green harness's SKIP nowhere else.
 grep -h '^SKIP:' "$BIN"/*.log 2>/dev/null | sed 's/^/::notice::/' || true
