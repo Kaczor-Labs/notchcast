@@ -37,6 +37,9 @@
     "Clean up text" : {
 
     },
+    "Cleaning Up" : {
+
+    },
     "Cleanup" : {
 
     },
@@ -64,7 +67,13 @@
     "Could not listen on port %lld. Another app may be using it." : {
 
     },
+    "Couldn't Paste" : {
+
+    },
     "Delete dictation history?" : {
+
+    },
+    "Dictation Failed" : {
 
     },
     "Dictation History" : {
@@ -136,6 +145,9 @@
     "Needs Accessibility access" : {
       "shouldTranslate" : false
     },
+    "No Speech Detected" : {
+
+    },
     "No dictations yet" : {
 
     },
@@ -166,6 +178,12 @@
     "Paste Again" : {
 
     },
+    "Pasted" : {
+
+    },
+    "Pasted Without Cleanup" : {
+
+    },
     "Pause" : {
 
     },
@@ -184,6 +202,9 @@
     "Position on displays without a notch" : {
 
     },
+    "Recording dictation, Return to finish, Escape to cancel" : {
+
+    },
     "Regenerate Token" : {
 
     },
@@ -197,6 +218,12 @@
 
     },
     "Resting the pointer on the island opens what it shows." : {
+
+    },
+    "Return to Copy · Esc to Cancel" : {
+
+    },
+    "Return to Paste · Esc to Cancel" : {
 
     },
     "Search past dictations…" : {
@@ -215,6 +242,9 @@
 
     },
     "Show in screenshots and videos" : {
+
+    },
+    "Some Text Wasn't Pasted" : {
 
     },
     "Tap or hold the Globe key" : {
@@ -236,6 +266,9 @@
 
     },
     "Top edge" : {
+
+    },
+    "Transcribing" : {
 
     },
     "Turn Off and Delete" : {

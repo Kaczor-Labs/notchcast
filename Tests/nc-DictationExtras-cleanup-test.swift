@@ -1,4 +1,4 @@
-// notchcast-sources: Tinycast/Features/DictationExtras/Model/*.swift
+// notchcast-sources: Tinycast/Features/DictationExtras/Model/*.swift Tinycast/Features/Island/Model/IslandPresentation.swift
 // notchcast-sources: Tinycast/Features/Settings/Model/SettingsFileKey.swift
 
 import Foundation
