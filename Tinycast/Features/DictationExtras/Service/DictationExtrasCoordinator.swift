@@ -91,12 +91,12 @@ final class DictationExtrasCoordinator {
             return text
         case .skipped:
             return nil
+        case .failed(.noModel):
+            core.dictationCoordinator.showMessage(
+                String(localized: "Cleanup has no model, so the raw text was pasted", table: "Notchcast"),
+                .danger)
         case .failed where cleanupFailed():
             break
-        case .failed(.noModel):
-            core.showMessage(
-                String(localized: "Cleanup has no model, so the raw text was pasted", table: "Notchcast"),
-                tone: .danger)
         case .failed(.timeout):
             core.showMessage(
                 String(localized: "Cleanup took too long, so the raw text was pasted", table: "Notchcast"),

@@ -10,6 +10,7 @@ struct DictationIslandSession: Equatable, Sendable {
 
     enum Outcome: Equatable, Sendable {
         case pasted, copied, noSpeech, pastedRaw, copiedRaw, pasteFailed, partLost, failed
+        case noCleanupModel(copies: Bool)
     }
 
     static let barCount = 4
@@ -18,6 +19,9 @@ struct DictationIslandSession: Equatable, Sendable {
     static let noSpeech = String(localized: "No speech was recorded")
     static let pasteFailed = String(localized: "Couldn't paste dictation into this app")
     static let partLost = String(localized: "Couldn't paste some dictation into this app")
+
+    static let missingCleanupModel = String(
+        localized: "Cleanup has no model, so the raw text was pasted", table: "Notchcast")
 
     private(set) var phase = Phase.idle
     private(set) var copies = false
@@ -31,6 +35,7 @@ struct DictationIslandSession: Equatable, Sendable {
     /// Bumped by every `begin`, so a settle meant for an older session does nothing.
     private(set) var generation = 0
     private var started: TimeInterval = 0
+    private var cleanupModelMissing = false
 
     var isLive: Bool { phase != .idle }
     var meter: [Double] { bars.map { Double($0) / Double(Self.steps - 1) } }
@@ -95,6 +100,9 @@ struct DictationIslandSession: Equatable, Sendable {
         case DictationIslandSession.noSpeech: outcome = .noSpeech
         case DictationIslandSession.pasteFailed: outcome = .pasteFailed
         case DictationIslandSession.partLost: outcome = .partLost
+        case DictationIslandSession.missingCleanupModel:
+            guard phase == .cleaningUp else { return false }
+            cleanupModelMissing = true
         default:
             outcome = .failed
             return false
@@ -117,14 +125,14 @@ struct DictationIslandSession: Equatable, Sendable {
         return true
     }
 
-    /// The result to show, or nil when covered, stale or not ending.
+    /// Preserve the missing-model result when covered so the coordinator can show its HUD.
     mutating func settle(generation: Int, covered: Bool) -> Outcome? {
         guard generation == self.generation, phase == .ending else { return nil }
-        let result =
-            outcome
-            ?? (!reached ? .noSpeech : raw ? (copies ? .copiedRaw : .pastedRaw) : copies ? .copied : .pasted)
+        let delivery: Outcome = raw ? (copies ? .copiedRaw : .pastedRaw) : (copies ? .copied : .pasted)
+        let result = outcome ?? (reached ? (cleanupModelMissing ? .noCleanupModel(copies: copies) : delivery) : .noSpeech)
         self = DictationIslandSession()
         self.generation = generation
+        if case .noCleanupModel = result { return result }
         return covered ? nil : result
     }
 }

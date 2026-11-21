@@ -9,6 +9,7 @@ final class DictationIslandCoordinator {
     private var presenter: (any IslandPresenting)?
     private var covered: @MainActor () -> Bool = { false }
     private var copies: @MainActor () -> Bool = { false }
+    private var showMissingCleanupModelHUD: @MainActor () -> Void = {}
     private let now: @MainActor () -> TimeInterval
     private let sleep: @MainActor (Duration) async throws -> Void
     private var ticker: Task<Void, Never>?
@@ -32,6 +33,7 @@ final class DictationIslandCoordinator {
                 dictation?.field == nil && core?.settings.dictationDestination.pastes == false
             })
         let stock = dictation.showMessage
+        showMissingCleanupModelHUD = { stock(DictationIslandSession.missingCleanupModel, .danger) }
         dictation.showMessage = { [weak self] text, tone in
             if self?.message(text) != true { stock(text, tone) }
         }
@@ -147,9 +149,16 @@ final class DictationIslandCoordinator {
     }
 
     private func settle(generation: Int) {
-        if let outcome = session.settle(generation: generation, covered: covered()) {
-            shown = IslandNotice(dictation: outcome)
-            presenter?.post(IslandNotice(dictation: outcome), onTap: nil)
+        let isCovered = covered()
+        if let outcome = session.settle(generation: generation, covered: isCovered) {
+            if isCovered {
+                clear()
+                showMissingCleanupModelHUD()
+                return
+            }
+            let notice = IslandNotice(dictation: outcome)
+            shown = notice
+            presenter?.post(notice, onTap: nil)
         } else if !session.isLive {
             clear()
         }

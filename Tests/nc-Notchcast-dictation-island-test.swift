@@ -3,6 +3,7 @@
 // notchcast-sources: Tinycast/Features/Island/Model/IslandPresentation.swift
 // notchcast-sources: Tinycast/Features/Island/Model/IslandNoticeQueue.swift
 // notchcast-reads: Tinycast/Features/Dictation/Service/DictationCoordinator.swift
+// notchcast-reads: Tinycast/Features/DictationExtras/Service/DictationExtrasCoordinator.swift
 
 import Foundation
 
@@ -197,6 +198,56 @@ struct DictationIslandTest {
         _ = queue.announcement()
         queue.post(pasted, at: 2.5)
         check(queue.announcement() == nil, "14: without the end, the recording inherits the result and it is lost")
-        print("PASS: dictation island session (14 rules)")
+        missingCleanupModel()
+        print("PASS: dictation island session (15 rules)")
+    }
+
+    static func missingCleanupModel() {
+        let sentence = "Cleanup has no model, so the raw text was pasted"
+        for copies in [false, true] {
+            var session = recording(copies: copies)
+            _ = session.transcribe()
+            _ = session.cleanUp()
+
+            var unavailable = session
+            let hud = unavailable.message(sentence, covered: true) ? nil : sentence
+            unavailable.delivered(empty: false)
+            unavailable.end(completed: true)
+            check(hud == sentence && unavailable.settle(generation: unavailable.generation, covered: true) == nil,
+                  "15: a covered island leaves the original message to the HUD")
+            check(!unavailable.message(sentence, covered: false), "15: an idle island also leaves the message to the HUD")
+
+            check(session.message(sentence, covered: false), "15: the active island consumes the missing-model report")
+            session.delivered(empty: false)
+            session.end(completed: true)
+            var coveredAtDelivery = session
+            let fallback = coveredAtDelivery.settle(generation: coveredAtDelivery.generation, covered: true)
+            guard let result = session.settle(generation: session.generation, covered: false) else {
+                fatalError("15: missing-model notice is absent")
+            }
+            check(fallback == result, "15: coverage during delivery preserves the missing-model result for the HUD")
+            let notice = IslandNotice(dictation: result)
+            if !copies { check(notice.spoken == sentence, "15: VoiceOver reads the original HUD sentence") }
+            check(notice.text == (copies ? "No Cleanup Model · Copied Raw" : "No Cleanup Model · Pasted Raw")
+                  && notice.isFailure, "15: the notice names the missing model and the raw delivery")
+
+            session.begin(copies: copies, at: 200)
+            session.delivered(empty: false)
+            session.end(completed: true)
+            check(session.settle(generation: session.generation, covered: false) == (copies ? .copied : .pasted),
+                  "15: the next result has no missing-model reason")
+        }
+
+        let extras = (try? String(
+            contentsOfFile: "Tinycast/Features/DictationExtras/Service/DictationExtrasCoordinator.swift",
+            encoding: .utf8)) ?? ""
+        guard let missing = extras.range(of: "case .failed(.noModel):"),
+              let other = extras.range(of: "case .failed where cleanupFailed():"),
+              missing.upperBound < other.lowerBound else {
+            fatalError("15: missing model must be routed before generic cleanup failures")
+        }
+        let route = extras[missing.upperBound..<other.lowerBound]
+        check(route.contains("core.dictationCoordinator.showMessage(") && route.contains(sentence),
+              "15: the missing-model message is offered to the island before the HUD")
     }
 }

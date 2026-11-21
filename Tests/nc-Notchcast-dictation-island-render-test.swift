@@ -109,6 +109,8 @@ struct DictationIslandRenderTest {
             ("08-no-speech", IslandNotice(dictation: .noSpeech), false),
             ("09-pasted-without-cleanup", IslandNotice(dictation: .pastedRaw), false),
             ("09b-copied-without-cleanup", IslandNotice(dictation: .copiedRaw), false),
+            ("09c-no-model-paste", IslandNotice(dictation: .noCleanupModel(copies: false)), false),
+            ("09d-no-model-copy", IslandNotice(dictation: .noCleanupModel(copies: true)), false),
             ("10-paste-failed", IslandNotice(dictation: .pasteFailed), false),
             ("11-part-lost", IslandNotice(dictation: .partLost), false),
             ("12-failed", IslandNotice(dictation: .failed), false), ("13-recording-still", settled, true),
@@ -137,7 +139,7 @@ struct DictationIslandRenderTest {
                 }
             }
         }
-        precondition(count == 54, "27 pictures a look")
+        precondition(count == 62, "31 pictures a look")
         print("PASS rendered \(count) dictation island states to \(folder.path)")
     }
 }

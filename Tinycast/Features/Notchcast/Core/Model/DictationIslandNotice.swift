@@ -49,6 +49,12 @@ extension IslandNotice {
         case .copiedRaw:
             self.init(id: Self.dictationID, symbol: failure,
                       text: String(localized: "Copied Without Cleanup", table: "Notchcast"), isFailure: true)
+        case .noCleanupModel(let copies):
+            let text = copies
+                ? String(localized: "No Cleanup Model · Copied Raw", table: "Notchcast")
+                : String(localized: "No Cleanup Model · Pasted Raw", table: "Notchcast")
+            self.init(id: Self.dictationID, symbol: failure, text: text, isFailure: true,
+                      spokenText: copies ? nil : DictationIslandSession.missingCleanupModel)
         case .pasteFailed:
             self.init(id: Self.dictationID, symbol: failure,
                       text: String(localized: "Couldn't Paste", table: "Notchcast"), isFailure: true)

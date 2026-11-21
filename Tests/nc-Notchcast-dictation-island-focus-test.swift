@@ -138,8 +138,9 @@ enum DictationIslandFocusTest {
 @MainActor
 final class AppCore {
     final class Dictation {
+        enum Tone { case danger }
         var field: Int?
-        var showMessage: (String, Int) -> Void = { _, _ in }
+        var showMessage: (String, Tone) -> Void = { _, _ in }
         var didReset: (Bool) -> Void = { _ in }
     }
 
