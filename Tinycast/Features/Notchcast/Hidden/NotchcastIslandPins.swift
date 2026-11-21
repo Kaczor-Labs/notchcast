@@ -12,4 +12,9 @@ enum NotchcastIslandPins {
 extension View {
     /// A Settings row the island makes meaningless; `NotchcastHidden.rows` keeps it out of search.
     func notchcastHidden() -> some View { EmptyView() }
+
+    /// A row of a shared section that only some panes hide.
+    @ViewBuilder func notchcastHidden(_ hidden: Bool) -> some View {
+        if hidden { EmptyView() } else { self }
+    }
 }
