@@ -151,6 +151,9 @@ struct IslandPagesTest {
                    tappable: false)
         precondition(three.notice?.title == "Copied “Home”: hunter2" && three.notice?.spoken == "Copied Wi-Fi password",
                      "the open island's notice row is read as the spoken text, never the shown secret")
+        three.show(IslandNotice(id: "dictation", symbol: "mic", text: "Return to Paste",
+                                progress: IslandProgress(fraction: nil, readout: "0:07")), tappable: false)
+        precondition(three.notice?.title == "0:07  Return to Paste", "the notice row carries the readout's line")
         three.show(nil, tappable: false)
         precondition(three.notice == nil, "an ended notice leaves the page")
         var one = deck(page("player", order: 10))

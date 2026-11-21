@@ -158,13 +158,13 @@ final class IslandCanvas: NSView {
                            notch: notch, song: song, songChange: songChange) }
         let frosted = look == .frosted
         headline = if let notch, level == nil, let notice, notice.isHeadline {
-            IslandHeadlineArt(notice, notch: notch, frosted: frosted)
+            IslandHeadlineArt(notice, notch: notch, frosted: frosted, still: still)
         } else { nil }
         let notched = notch != nil
         let art: (any PillArt)? = if let level {
             IslandLevelArt(level, notch: notched, frosted: frosted)
         } else if let notice {
-            headline == nil ? IslandNoticeArt(notice, notch: notched, frosted: frosted) : nil
+            headline == nil ? IslandNoticeArt(notice, notch: notched, frosted: frosted, still: still) : nil
         } else if let glance {
             GlanceArt(glance, notch: notched, frosted: frosted)
         } else if let song {
