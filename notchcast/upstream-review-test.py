@@ -15,9 +15,9 @@ sys.dont_write_bytecode = True
 SPEC = importlib.util.spec_from_file_location("ci", Path(__file__).with_name("ci.py"))
 CI = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(CI)
-CONTEXT, OWNER, BOT = "test/review", "fork", "github-actions[bot]"
+CONTEXT, OWNER, BOT = "test/review", "reviewer", "github-actions[bot]"
 CFG = {"UPSTREAM_REPO": "up/stream", "FORK_REPO": "fork/repo", "TESTED_CONTEXT": "test/tested",
-       "REVIEW_CONTEXT": CONTEXT, "REVIEW_LABEL": "upstream-sync", "BASELINE_TAG": "v0.0.1"}
+       "REVIEW_CONTEXT": CONTEXT, "MAINTAINER_LOGIN": OWNER, "REVIEW_LABEL": "upstream-sync", "BASELINE_TAG": "v0.0.1"}
 REAL_RUN = CI.run
 ROOT = Path(__file__).resolve().parent.parent
 
@@ -133,7 +133,7 @@ class PlanReviewGateTests(unittest.TestCase):
                 self.assertEqual(self.plan()["rebase"], "false")
 
     def test_owner_success_moves_main(self):
-        for statuses in ([status("success", "Fork")], [status("success"), status("failure")],
+        for statuses in ([status("success", "Reviewer")], [status("success"), status("failure")],
                          [status("failure", BOT), status("success")]):
             with self.subTest(statuses=statuses):
                 self.statuses = {self.u1: statuses}
@@ -200,7 +200,7 @@ class PlanReviewGateTests(unittest.TestCase):
         self.assertLess(publish.index("Re-read the tag commit's review"), publish.index("actions/deploy-key"))
         script = textwrap.dedent(step.split("run: |\n", 1)[1])
         cfg, root = CI.config(), Path(self.scratch.name)
-        owner = cfg["FORK_REPO"].split("/")[0]
+        owner = cfg["MAINTAINER_LOGIN"]
         (root / "tools").symlink_to(ROOT)
         (root / "bin").mkdir()
         (root / "bin/gh").write_text(f'#!/bin/sh\necho "$*" >> {root}/gh-calls\ncat {root}/statuses.json\n')

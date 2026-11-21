@@ -2,7 +2,7 @@
 
 ## Reporting a vulnerability
 
-Report security problems privately through [GitHub's private vulnerability reporting](https://github.com/kaczordodgers/notchcast/security/advisories/new). Do not open a public issue.
+Report security problems privately through [GitHub's private vulnerability reporting](https://github.com/Kaczor-Labs/notchcast/security/advisories/new). Do not open a public issue.
 
 Include the Notchcast version (About Notchcast in the menu bar, or the release tag), your macOS version, the steps to reproduce and what an attacker could do with it.
 
