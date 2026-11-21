@@ -62,7 +62,18 @@ case "$PRISTINE_RESULT" in
     missing-binary) ;;
     *) touch "$bin/FixtureTests"; chmod +x "$bin/FixtureTests";;
 esac
-printf '[1/1] \033[31mFAIL\033[0m  FixtureTests             assertion failed after 0.0s\n'
+verdict='assertion failed after 0.0s'
+case "$PRISTINE_RESULT" in
+    crashed) verdict='crashed (signal 6) after 0.0s';;
+    timed-out|assertion-in-log) verdict='timed out after 300s';;
+esac
+printf '[1/1] \033[31mFAIL\033[0m  %-25s %s\n' FixtureTests "$verdict"
+printf '\n\033[31m--- FixtureTests ---\033[0m\n'
+if [ "$PRISTINE_RESULT" = assertion-in-log ]; then
+    printf '  FixtureTests assertion failed after 0.0s\n' >> "$bin/FixtureTests.log"
+    printf '[1/1] \033[31mFAIL\033[0m  FixtureTests             assertion failed after 0.0s\n' >> "$bin/FixtureTests.log"
+fi
+cat "$bin/FixtureTests.log"
 exit 1
 STUB
 git init -q
@@ -105,10 +116,21 @@ expect_red && [ ! -e reran ] || { echo 'FAIL: a passing rerun can hide the first
 run_case bad-ref 0000000000000000000000000000000000000000 assertion
 expect_red || problems=1
 
-for result in launch-error setup-error build-error missing-binary passed; do
+for result in launch-error setup-error build-error missing-binary passed crashed timed-out assertion-in-log; do
     run_case "$result" "$upstream" "$result"
     expect_red || problems=1
 done
+
+printf '# changed runner\n' >> Scripts/run-tests.sh
+run_case changed-runner "$upstream" assertion
+expect_red || problems=1
+git restore Scripts/run-tests.sh
+
+sed 's/^run FixtureTests /run -O FixtureTests /' Scripts/run-tests.sh > "$scratch/optimized-runner"
+cat "$scratch/optimized-runner" > Scripts/run-tests.sh
+run_case changed-optimization "$upstream" assertion
+expect_red || problems=1
+git restore Scripts/run-tests.sh
 
 printf '// changed harness\n' >> Tests/FixtureTests.swift
 run_case changed-harness "$upstream" assertion

@@ -68,6 +68,8 @@ if [ "$status" -ne 0 ] && ls "$BIN"/*.failed >/dev/null 2>&1; then
     reason=""
     if [ ! -f "$pristine/Tests/$name.swift" ]; then
       reason="does not exist on upstream"
+    elif ! cmp -s Scripts/run-tests.sh "$pristine/Scripts/run-tests.sh"; then
+      reason="has a different runner script from pristine upstream"
     elif reason=$(python3 "$TOOLS/notchcast/harness_inputs.py" --compare-pristine "$pristine" "$name" 2>&1); then
       pristine_tmp=$(mktemp -d "$RUNNER_TEMP/pristine-tmp.XXXXXX")
       pristine_status=0
@@ -77,7 +79,15 @@ if [ "$status" -ne 0 ] && ls "$BIN"/*.failed >/dev/null 2>&1; then
       if [ "$pristine_status" -eq 0 ]; then
         reason="passes on upstream ${UPSTREAM:0:7}"
       elif [ "$pristine_status" -ne 1 ] || [ ! -x "$pristine_bin" ] || [ ! -f "$pristine_bin.failed" ] \
-          || ! grep -F "  $name " "$pristine_tmp/result" | grep -Eq 'assertion failed after [0-9.]+s$'; then
+          || ! awk -v name="$name" '
+            /^\033\[31m--- / { exit }
+            /^\[1\/1\] \033\[31mFAIL\033\[0m  / {
+              assertion = (NF == 7 && $3 == name && $4 == "assertion" && $5 == "failed" &&
+                           $6 == "after" && $7 ~ /^[0-9]+(\.[0-9]+)?s$/)
+              exit
+            }
+            END { exit !assertion }
+          ' "$pristine_tmp/result"; then
         cat "$pristine_tmp/result"
         reason="pristine upstream did not report a harness assertion failure (exit $pristine_status)"
       fi
