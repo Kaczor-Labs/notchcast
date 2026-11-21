@@ -1025,6 +1025,13 @@ final class AppCore {
             confirmRole: confirmRole, dismissTitle: dismissTitle)
     }
 
+    func askSecret(
+        requester: String, title: String, message: String?, fieldTitle: String, confirmTitle: String
+    ) async -> String? {
+        await dialogs.askSecret(
+            requester: requester, title: title, message: message, fieldTitle: fieldTitle, confirmTitle: confirmTitle)
+    }
+
     /// A question with more than two answers; the returned index is into `options`.
     func choose(
         title: String, message: String?, symbol: String?, options: [DialogAction],

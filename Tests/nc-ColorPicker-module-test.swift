@@ -114,6 +114,8 @@ enum ColorPickerModuleTests {
         let notice = presenter.posts.last
         precondition(notice?.text == "#12ABEF" && notice?.symbol == "eyedropper" && notice?.isFailure == false,
                      "the island shows the copied value")
+        precondition(notice?.swatch == IslandSwatch(red: 0x12 / 255, green: 0xAB / 255, blue: 0xEF / 255),
+                     "the notice's swatch is the copied colour")
         precondition(defaults.string(forKey: ColorPickerHistory.defaultsKey) == "#12ABEF", "the pick is remembered")
 
         precondition(controller.run(entryID: command))
@@ -124,6 +126,8 @@ enum ColorPickerModuleTests {
         precondition(controller.run(entryID: command))
         fake.answer(srgb(255, 0, 0))
         precondition(fake.copies.last == "rgb(255, 0, 0)", "the chosen format is copied")
+        precondition(presenter.posts.last?.swatch == IslandSwatch(red: 1, green: 0, blue: 0)
+                     && presenter.posts.last?.text == "rgb(255, 0, 0)", "in rgb() the swatch is the same colour")
         precondition(defaults.string(forKey: ColorPickerHistory.defaultsKey) == "#FF0000 #12ABEF",
                      "history keeps the colour, not the notation")
 
@@ -132,6 +136,7 @@ enum ColorPickerModuleTests {
         fake.answer(srgb(0, 0, 255))
         precondition(presenter.posts.last?.text == "Could not copy to clipboard." && presenter.posts.last?.isFailure == true,
                      "a refused clipboard reports")
+        precondition(presenter.posts.last?.swatch == nil, "a failure carries no swatch")
         precondition(defaults.string(forKey: ColorPickerHistory.defaultsKey) == "#FF0000 #12ABEF",
                      "a pick that never reached the clipboard is not remembered")
         fake.copyWorks = true
@@ -141,6 +146,14 @@ enum ColorPickerModuleTests {
         defaults.set("hsl", forKey: ColorPickerFormat.defaultsKey)
         settingsCopy?(ColorPickerHistory.colors(defaults.string(forKey: ColorPickerHistory.defaultsKey) ?? "")[1])
         precondition(fake.copies.last == "hsl(198.5deg, 87.4%, 50.4%)", "a recent pick copies again in the chosen format")
+        precondition(presenter.posts.last?.swatch == IslandSwatch(red: 0x12 / 255, green: 0xAB / 255, blue: 0xEF / 255),
+                     "a recent pick's notice carries that pick's swatch")
+        defaults.set("rgb", forKey: ColorPickerFormat.defaultsKey)
+        settingsCopy?(ColorPickerHistory.colors(defaults.string(forKey: ColorPickerHistory.defaultsKey) ?? "")[1])
+        precondition(presenter.posts.last?.text == "rgb(18, 171, 239)"
+                     && presenter.posts.last?.swatch == IslandSwatch(red: 0x12 / 255, green: 0xAB / 255, blue: 0xEF / 255),
+                     "swatch and rgb() text state one colour")
+        defaults.set("hsl", forKey: ColorPickerFormat.defaultsKey)
 
         precondition(controller.run(entryID: command))
         let copies = fake.copies.count

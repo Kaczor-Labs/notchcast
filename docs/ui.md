@@ -586,7 +586,7 @@ alike.
   **↵ runs the dialog's primary action; Escape cancels**, on every dialog including destructive ones.
   Arrow keys walk the volume slider along the same 5% grid the volume commands use (`DialogPanel`
   reports `.increment` / `.decrement` and `DialogController` applies `VolumeLevel.stepped`, so the
-  panel never learns what a volume step is); click-away resolves as a dismissal. A snippet's
+  panel never learns what a volume step is); click-away dismisses, except a `.secret` field's. A snippet's
   argument prompt claims ⇥/⇧⇥ through `claimsTabKey`, so focus walks its fields in order and wraps,
   and ↑/↓ move the focused options list's choice. ↵ that commits an input method's marked text never
   confirms, and a multi-line accessory takes ↵ as a line break, so its dialog confirms on ⌘↵ and its

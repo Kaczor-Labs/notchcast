@@ -7,11 +7,13 @@
 // notchcast-sources: Tinycast/Features/Notchcast/Downloads/Model/DownloadState.swift
 // notchcast-sources: Tinycast/Features/Notchcast/Downloads/Model/DownloadTool.swift
 // notchcast-sources: Tinycast/Features/Notchcast/Downloads/Model/DownloadsWebRules.swift
+// notchcast-sources: Tinycast/Features/Notchcast/Downloads/Model/FirecrawlPage.swift
 // notchcast-sources: Tinycast/Features/Notchcast/Downloads/Model/HTMLDocument.swift
 // notchcast-sources: Tinycast/Features/Notchcast/Downloads/Model/HTMLMarkdown.swift
 // notchcast-sources: Tinycast/Features/Notchcast/Downloads/Model/WebpageArticle.swift
 // notchcast-sources: Tinycast/Features/Notchcast/Downloads/Model/WebpageExtraction.swift
 // notchcast-sources: Tinycast/Features/Notchcast/Downloads/Model/YtDlpAudio.swift
+// notchcast-sources: Tinycast/Features/Notchcast/Downloads/Service/ChildProcess.swift
 // notchcast-sources: Tinycast/Features/Notchcast/Downloads/Service/DistillNotes.swift
 // notchcast-sources: Tinycast/Features/Notchcast/Downloads/Service/DistillRunner.swift
 // notchcast-sources: Tinycast/Features/Notchcast/Downloads/Service/DownloadRunContext+Distill.swift
@@ -397,6 +399,10 @@ private final class Watched {
 
 /// Stands in for yt-dlp and ffmpeg: metadata, one audio file, then two chunks.
 private struct FakeTools: DownloadToolHost {
+    func capture(_ executable: URL, arguments: [String], limit: Int) async throws -> (status: Int32, data: Data) {
+        throw POSIXError(.ENOSYS)
+    }
+
     func find(_ tool: DownloadTool) -> URL? { URL(filePath: "/fake/" + tool.name) }
 
     func run(

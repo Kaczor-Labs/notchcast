@@ -1,0 +1,3 @@
+Archives: Service/ArchiveCompressor.swift ← vorssaint/vorssaint-utils@faada18/Sources/Vorssaint/Services/Notch/NotchFileToolsSupport.swift (GPL-3.0-or-later)
+Archives: Service/ArchiveCompressor.swift ← vorssaint/vorssaint-utils@faada18/Sources/Vorssaint/Services/Media/MediaSupport.swift (GPL-3.0-or-later)
+Archives: Model/ArchiveCompression.swift ← vorssaint/vorssaint-utils@faada18/Sources/Vorssaint/Services/Media/MediaSupport.swift (GPL-3.0-or-later)

@@ -4,11 +4,20 @@
     "A faint line around the open island in Dark." : {
 
     },
+    "A notch always decides where the island sits." : {
+
+    },
+    "Add Claude or Codex in AI providers, or choose a model." : {
+
+    },
     "Add to Liked Songs" : {
 
     },
     "Agents" : {
       "shouldTranslate" : false
+    },
+    "AI providers" : {
+
     },
     "Apps on this Mac can transcribe audio through a local OpenAI-compatible endpoint." : {
 
@@ -16,7 +25,13 @@
     "Apps using the current token stop working until they get the new one." : {
 
     },
+    "Asked by %@ in Notchcast" : {
+
+    },
     "Automatic uses %@." : {
+
+    },
+    "Automatic uses the Claude or Codex command signed in on this Mac." : {
 
     },
     "Between Macs" : {
@@ -31,10 +46,19 @@
     "Checking Liked Songs" : {
 
     },
+    "Choose the model cleanup uses in Dictation › Cleanup." : {
+
+    },
     "Clean up text" : {
 
     },
+    "Cleaning Up" : {
+
+    },
     "Cleanup" : {
+
+    },
+    "Cleanup has no model, so the raw text was pasted" : {
 
     },
     "Cleanup model" : {
@@ -52,6 +76,12 @@
     "Clear dictation history?" : {
 
     },
+    "Connect the models cleanup can use." : {
+
+    },
+    "Copied Without Cleanup" : {
+
+    },
     "Copy Raw Transcript" : {
 
     },
@@ -61,7 +91,13 @@
     "Could not listen on port %lld. Another app may be using it." : {
 
     },
+    "Couldn't Paste" : {
+
+    },
     "Delete dictation history?" : {
+
+    },
+    "Dictation Failed" : {
 
     },
     "Dictation History" : {
@@ -84,6 +120,9 @@
     },
     "Every saved dictation goes. This can't be undone." : {
 
+    },
+    "Files & Downloads" : {
+      "shouldTranslate" : false
     },
     "Fix punctuation, numbers and filler words before pasting. Return pastes it as spoken." : {
 
@@ -118,6 +157,9 @@
     "Mac Tweaks" : {
       "shouldTranslate" : false
     },
+    "Manage AI providers" : {
+
+    },
     "Menu bar bottom" : {
 
     },
@@ -129,6 +171,15 @@
     },
     "Needs Accessibility access" : {
       "shouldTranslate" : false
+    },
+    "No Cleanup Model · Copied Raw" : {
+
+    },
+    "No Cleanup Model · Pasted Raw" : {
+
+    },
+    "No Speech Detected" : {
+
     },
     "No dictations yet" : {
 
@@ -145,10 +196,16 @@
     "Notchcast could not save a new token in the Keychain. The current token still works." : {
 
     },
+    "Notchcast keeps the text only in Dictation History." : {
+
+    },
     "Notices" : {
       "shouldTranslate" : false
     },
     "Off hides every Notchcast window: the island, launcher, questions, reports and this Settings window." : {
+
+    },
+    "Only the text is sent, never the audio, and only to the model chosen above." : {
 
     },
     "Open on hover" : {
@@ -158,6 +215,12 @@
 
     },
     "Paste Again" : {
+
+    },
+    "Pasted" : {
+
+    },
+    "Pasted Without Cleanup" : {
 
     },
     "Pause" : {
@@ -178,6 +241,12 @@
     "Position on displays without a notch" : {
 
     },
+    "Recording dictation" : {
+
+    },
+    "Recording dictation, Return to finish, Escape to cancel" : {
+
+    },
     "Regenerate Token" : {
 
     },
@@ -188,6 +257,15 @@
 
     },
     "Reset to Default" : {
+
+    },
+    "Resting the pointer on the island opens what it shows." : {
+
+    },
+    "Return to Copy · Esc to Cancel" : {
+
+    },
+    "Return to Paste · Esc to Cancel" : {
 
     },
     "Search past dictations…" : {
@@ -206,6 +284,9 @@
 
     },
     "Show in screenshots and videos" : {
+
+    },
+    "Some Text Wasn't Pasted" : {
 
     },
     "Tap or hold the Globe key" : {
@@ -227,6 +308,9 @@
 
     },
     "Top edge" : {
+
+    },
+    "Transcribing" : {
 
     },
     "Turn Off and Delete" : {

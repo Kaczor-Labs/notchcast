@@ -4,7 +4,7 @@ name: PR
 on:
   pull_request:
     branches: [main]
-    types: [opened, synchronize, reopened, ready_for_review, converted_to_draft]
+    types: [opened, synchronize, reopened]
   workflow_dispatch:
     inputs:
       base:
@@ -15,7 +15,9 @@ on:
         type: boolean
         default: false
       harness_runner:
-        description: Runner label for a harness-only macOS job (notchcast-mba); no build, no proof of any tree (README, Runners)
+        description: Runner label for a harness-only macOS job (notchcast-mba, notchcast-mbp); no build, no proof of any tree (README, Runners)
+        type: choice
+        options: ['', notchcast-mba, notchcast-mbp]
         default: ''
 
 permissions:
@@ -35,7 +37,6 @@ concurrency:
 jobs:
   # On Linux: names the lanes the diff needs (notchcast/lanes.py): a skipped one still reports, and build accepts it.
   route:
-    if: github.event_name == 'workflow_dispatch' || !github.event.pull_request.draft
     runs-on: ubuntu-latest
     timeout-minutes: 5
     outputs:
@@ -129,23 +130,48 @@ jobs:
         run: |
           mkdir -p "$RUNNER_TEMP/tmp" && echo "TMPDIR=$RUNNER_TEMP/tmp" >> "$GITHUB_ENV"
           sysctl -n hw.ncpu hw.memsize; uptime; vm_stat | head -8; sysctl vm.swapusage
-      # First: the shortest lane. land-test.sh serves this checkout's upstream main to its fixture remote.
+      # Each test gets its own TMPDIR so it can run beside the Debug build.
       - name: Script tests that need macOS
         if: steps.runner.outputs.kind != 'working'
         working-directory: src
-        timeout-minutes: 10
         run: |
-          bash notchcast/fetch-upstream.sh --no-tags
-          python3 notchcast/script-tests.py --all --runner macos
+          out="$RUNNER_TEMP/macos-script-tests"
+          mkdir "$out"
+          perl -MFcntl=:flock -MPOSIX=setsid -e '
+            my ($out, $limit) = splice @ARGV, 0, 2;
+            open my $lock, ">>", "$out/lock" or die "lock: $!";
+            flock $lock, LOCK_EX or die "flock: $!";
+            defined(my $daemon = fork) or die "fork: $!";
+            exit 0 if $daemon;  # the held lock goes with the daemon: the result step waits on it, never a poll
+            setsid;
+            open STDIN, "<", "/dev/null"; open STDOUT, ">", "$out/log"; open STDERR, ">&", \*STDOUT; $| = 1;
+            defined(my $pid = fork) or die "fork: $!";
+            if (!$pid) { setpgrp(0, 0); exec @ARGV or die "exec: $!" }
+            setpgrp($pid, $pid);
+            sub finish { kill "KILL", -$pid; open my $rc, ">", "$out/rc" or die "rc: $!"; print $rc "$_[0]\n"; exit 0 }
+            $SIG{ALRM} = sub { kill "KILL", -$pid; waitpid($pid, 0); print "\nStopped: passed ${limit}s\n"; finish(124) };
+            alarm $limit; waitpid($pid, 0); alarm 0;
+            finish($? & 127 ? 128 + ($? & 127) : $? >> 8)' "$out" 600 nice -n 10 bash -c \
+            'bash notchcast/fetch-upstream.sh --no-tags && python3 notchcast/script-tests.py --all --runner macos'
       - name: Shared PR build lane
         if: needs.route.outputs.build == 'true' && inputs.harness_runner == ''
         working-directory: src
-        timeout-minutes: 20
+        timeout-minutes: 35
         env:
           BASE_SHA: ${{ github.event.pull_request.base.sha || inputs.base }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
           NOTCHCAST_HARNESSES_SHARDED: '1'
         run: bash ../tools/notchcast/ci-build.sh
+      # Also after a failed or skipped build lane; a run cancelled meanwhile never reaches it, so never passes.
+      - name: Result of the script tests that need macOS
+        if: ${{ !cancelled() && steps.runner.outputs.kind != 'working' }}
+        timeout-minutes: 10
+        run: |
+          out="$RUNNER_TEMP/macos-script-tests"
+          perl -MFcntl=:flock -e 'open my $lock, "<", shift or die "lock: $!"; flock $lock, LOCK_EX or die "flock: $!"' "$out/lock"
+          cat "$out/log"
+          rc=$(cat "$out/rc") || { echo "::error::the macOS script tests left no result"; exit 1; }
+          [ "$rc" = 0 ] || { echo "::error::macOS script tests failed ($rc)"; exit "$rc"; }
       # The whole suite (notchcast/test-harnesses.sh), or route's sure selection, after the build lane rather than in a
       # job beside it. A selection's cache is its own; a harness_runner run's is none: its key would start xcodebuild.
       - id: tests
@@ -204,17 +230,37 @@ jobs:
           persist-credentials: false
       - name: Script tests
         run: python3 notchcast/script-tests.py --all --runner linux
-  # The selected harnesses that also run on Linux (LINUX_OK_TESTS, notchcast/config.env), in the official Swift image:
-  # what a Linux worker runs before a push and land.sh on Linux trusts. mac still runs every harness.
+  # mac also runs the selected Linux-compatible harnesses against the macOS SDK.
   linux-harnesses:
     needs: route
     if: needs.route.outputs.build == 'true' && inputs.harness_runner == ''
-    runs-on: ubuntu-latest
-    container: swift:6.4.2-noble@sha256:23d9b28ad97fb1cf1999edc3a0cb265ee915ed42299a9344e7173d5a6d2b05f4
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
+    env:
+      SWIFT_VERSION: '6.4.2'
+      SWIFT_SHA256: 2e9ebec040ad459dd89a6d093a02d8314939135104850fae4d5c0f174fb3ba8c
     steps:
-      - name: Tools the Swift image lacks
-        run: apt-get update -qq && apt-get install -y -qq --no-install-recommends python3 procps
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
+        id: swift
+        with:
+          path: ${{ runner.temp }}/swift.tar.gz
+          key: swift-ubuntu24.04-${{ runner.arch }}-${{ env.SWIFT_VERSION }}-${{ env.SWIFT_SHA256 }}
+      - name: Install the pinned Swift toolchain
+        env:
+          CACHE_HIT: ${{ steps.swift.outputs.cache-hit }}
+        run: |
+          archive="$RUNNER_TEMP/swift.tar.gz"
+          release="swift-$SWIFT_VERSION-RELEASE"
+          if [ "$CACHE_HIT" != true ]; then
+            curl --fail --silent --show-error --location \
+              "https://download.swift.org/swift-$SWIFT_VERSION-release/ubuntu2404/$release/$release-ubuntu24.04.tar.gz" \
+              --output "$archive"
+          fi
+          printf '%s  %s\n' "$SWIFT_SHA256" "$archive" | sha256sum --check
+          tar --use-compress-program=pigz -xf "$archive" -C "$RUNNER_TEMP"
+          swift_bin="$RUNNER_TEMP/$release-ubuntu24.04/usr/bin"
+          "$swift_bin/swiftc" --version
+          echo "$swift_bin" >> "$GITHUB_PATH"
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           fetch-depth: 0
@@ -225,14 +271,13 @@ jobs:
           HARNESS_SELECTED: ${{ needs.route.outputs.harness-selected }}
           HARNESS_UNSURE: ${{ needs.route.outputs.harness-unsure }}
         run: |
-          git config --global --add safe.directory "$GITHUB_WORKSPACE"
           if [ -n "$HARNESS_SELECTED" ] && [ -z "$HARNESS_UNSURE" ]; then export NOTCHCAST_ONLY_TESTS="$HARNESS_SELECTED"; fi
           ./Scripts/run-tests.sh
   # land.sh reads the check named build: green only when every lane the diff needs is. A harness-only run has none:
   # its skipped build check is no proof to land.sh, and a real run's check on that head still counts (merge.sh).
   build:
     needs: [route, mac, linux-checks, linux-harnesses, script-tests]
-    if: ${{ !cancelled() && inputs.harness_runner == '' && (github.event_name == 'workflow_dispatch' || !github.event.pull_request.draft) }}
+    if: ${{ !cancelled() && inputs.harness_runner == '' }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
