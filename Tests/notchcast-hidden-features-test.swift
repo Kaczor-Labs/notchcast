@@ -13,13 +13,13 @@ struct HiddenFeaturesTest {
         let visible = SettingsSection.allCases.flatMap(\.tabs)
         for tab in [
             SettingsTab.extensions, .appleShortcuts, .iCloudSync, .systemSettings, .navigation, .quickActions,
-            .commands, .notes, .ai,
+            .commands, .notes, .ai, .fallbacks,
         ] {
             precondition(!visible.contains(tab), "Hidden tab stays out of the sidebar: \(tab.slug)")
             precondition(SettingsTab(slug: tab.slug) == nil, "settings/\(tab.slug) opens nothing")
             precondition(!SettingsSearchCatalog.entries.contains { $0.tab == tab }, "Search omits \(tab.slug)")
         }
-        for tab in [SettingsTab.backup, .about, .fallbacks, .systemActions, .calendar] {
+        for tab in [SettingsTab.backup, .about, .systemActions, .calendar] {
             precondition(visible.contains(tab), "Stock tab stays visible: \(tab.slug)")
             precondition(SettingsTab(slug: tab.slug) == tab, "settings/\(tab.slug) still opens")
             precondition(SettingsSearchCatalog.entries.contains { $0.tab == tab })

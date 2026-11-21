@@ -79,6 +79,11 @@ enum NotchcastAppProof {
         check(!visibility.isKindEnabled(.systemSettings), "System Settings in the launcher reads off")
         check(!AppCore.shared.appIndex.isCommandEnabled(.support), "Support command reads disabled")
         check(!AppCore.shared.appIndex.isCommandEnabled(.showNotes), "Show Notes command reads disabled")
+        check(!SettingsSection.allCases.flatMap(\.tabs).contains(.fallbacks) && SettingsTab(slug: "fallbacks") == nil,
+              "the Fallbacks pane is hidden")
+        let fallbacks = AppCore.shared.fallbackCoordinator
+        check(!fallbacks.available.isEmpty && fallbacks.entries(for: "swift").isEmpty,
+              "the launcher shows no fallback section for a typed query")
         check(!settings.aiEnabled, "aiEnabled reads off")
         check(!AppCore.shared.mcpCoordinator.isActive, "MCP stays inert with AI off")
         check(!AppCore.shared.appIndex.isCommandEnabled(.quickAI), "Quick AI command reads disabled")
