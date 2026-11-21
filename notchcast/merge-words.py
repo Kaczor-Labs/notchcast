@@ -26,7 +26,7 @@ LIST_NAME = r'[A-Za-z_]\w*_(?:TESTS|INPUTS)'
 OPEN_LIST = re.compile(r'(?:^|\s)' + LIST_NAME + '="[^"]*$')
 CELL = re.compile(r'^\s*\|.*\|[^|]*$')
 QUOTED_LIST = re.compile(r'^(\s*(?:export\s+)?(' + LIST_NAME + ')=")([^"\n]*)(")', re.M)
-NOT_IN_ENTRY = '"\'()`'
+NOT_IN_ENTRY = '"\'()`;'
 
 
 def entries(words, between):

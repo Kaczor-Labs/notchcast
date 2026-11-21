@@ -57,6 +57,11 @@ class MergeWordsTests(unittest.TestCase):
         self.assertEqual(self.merge('| a | F1 One |\n', '| a | F1 One, F3 New |\n', '| a | F1 One, F4 New |\n'),
                          (0, '| a | F1 One, F3 New, F4 New |\n'))
 
+    def test_a_name_both_sides_added_to_a_list_assigned_twice_lands_once(self):
+        self.assertEqual(self.merge('A_TESTS="a d"\nA_TESTS="e"\n', 'A_TESTS="a b c d"\nA_TESTS="e"\n',
+                                    'A_TESTS="a b d"\nA_TESTS="e"\n'),
+                         (0, 'A_TESTS="a b c d"\nA_TESTS="e"\n'))
+
     def test_a_name_both_sides_added_at_different_places_lands_once(self):
         self.assertEqual(self.merge('A_TESTS="a c"\n', 'A_TESTS="a b c"\n', 'A_TESTS="a c b"\n'), (0, 'A_TESTS="a b c"\n'))
         self.assertEqual(self.merge('A_TESTS="x, z"\n', 'A_TESTS="x, y, z"\n', 'A_TESTS="x, z, y"\n'), (0, 'A_TESTS="x, y, z"\n'))
@@ -85,6 +90,9 @@ class MergeWordsTests(unittest.TestCase):
         self.assertEqual(self.merge('| a | F1 One |\n', '| a | F1 One, F3 Three (beta) |\n',
                                     '| a | F1 One, F4 Four (beta) |\n'),
                          (0, '| a | F1 One, F3 Three (beta), F4 Four (beta) |\n'))
+        self.assertEqual(self.merge('| a | F1 One |\n', '| a | F1 One, F3 Three; beta |\n',
+                                    '| a | F1 One, F4 Four; beta |\n'),
+                         (0, '| a | F1 One, F3 Three; beta, F4 Four; beta |\n'))
         self.assertEqual(self.merge('| a | `f(a, b)` |\n', '| a | `f(a, b)`, `g(a, b)` |\n',
                                     '| a | `f(a, b)`, `h(a, b)` |\n'),
                          (0, '| a | `f(a, b)`, `g(a, b)`, `h(a, b)` |\n'))
