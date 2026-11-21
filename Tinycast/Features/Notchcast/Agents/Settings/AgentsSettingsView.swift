@@ -3,6 +3,7 @@ import SwiftUI
 
 /// This Mac's name, its Claude accounts and the feed folder, under the Agents page switch.
 struct AgentsSettingsView: View {
+    @Environment(MainAppLink.self) private var mainApp
     let context: NotchcastContext
     @State private var machineName = ""
     @State private var accounts: [AgentsClaudeAccount] = []
@@ -92,7 +93,7 @@ struct AgentsSettingsView: View {
     /// Every change reaches a running module at once, so the page follows Settings.
     private func save(_ change: (AgentsPreferences) -> Void) {
         change(preferences)
-        context.module(AgentsModule.self)?.settingsChanged()
+        mainApp.send(.notchcast(.refreshAgents))
     }
 
     private func saveMachineName() {

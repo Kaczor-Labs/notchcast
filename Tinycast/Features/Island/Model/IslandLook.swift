@@ -10,7 +10,7 @@ enum IslandLook: String, CaseIterable, Sendable {
 }
 
 /// A connected display as the Look settings list it; `uuid` is nil when CoreGraphics gives none.
-struct IslandLookDisplay: Identifiable, Equatable, Sendable {
+struct IslandLookDisplay: Identifiable, Codable, Equatable, Sendable {
     let displayID: UInt32
     let uuid: String?
     let name: String
@@ -34,6 +34,11 @@ final class IslandLookStore {
     init(defaults: UserDefaults) {
         self.defaults = defaults
         choices = Self.decode(defaults.object(forKey: Self.key))
+    }
+
+    func reload() {
+        let updated = Self.decode(defaults.object(forKey: Self.key))
+        if updated != choices { choices = updated }
     }
 
     /// Anything unreadable counts as never chosen, so bad data falls back to the default rule.

@@ -16,10 +16,8 @@ import SwiftUI
 
 // The shipped `live` and settings UI are left out: these stand in, so `makeModule` runs as shipped.
 
-@MainActor var settingsCopy: (@MainActor (ColorValue) -> Void)?
-
 struct ColorPickerSettingsView: View {
-    init(defaults: UserDefaults, copy: @escaping @MainActor (ColorValue) -> Void) { settingsCopy = copy }
+    init(defaults: UserDefaults) {}
     var body: some View { EmptyView() }
 }
 
@@ -141,15 +139,15 @@ enum ColorPickerModuleTests {
                      "a pick that never reached the clipboard is not remembered")
         fake.copyWorks = true
 
-        guard let context = controller.context(forSwitch: "colorPicker") else { preconditionFailure("context") }
-        _ = ColorPickerAddon.settings[0].view(context)
+        guard let module = controller.context(forSwitch: "colorPicker")?.module(ColorPickerModule.self)
+        else { preconditionFailure("Color Picker is running") }
         defaults.set("hsl", forKey: ColorPickerFormat.defaultsKey)
-        settingsCopy?(ColorPickerHistory.colors(defaults.string(forKey: ColorPickerHistory.defaultsKey) ?? "")[1])
+        module.copy(ColorPickerHistory.colors(defaults.string(forKey: ColorPickerHistory.defaultsKey) ?? "")[1])
         precondition(fake.copies.last == "hsl(198.5deg, 87.4%, 50.4%)", "a recent pick copies again in the chosen format")
         precondition(presenter.posts.last?.swatch == IslandSwatch(red: 0x12 / 255, green: 0xAB / 255, blue: 0xEF / 255),
                      "a recent pick's notice carries that pick's swatch")
         defaults.set("rgb", forKey: ColorPickerFormat.defaultsKey)
-        settingsCopy?(ColorPickerHistory.colors(defaults.string(forKey: ColorPickerHistory.defaultsKey) ?? "")[1])
+        module.copy(ColorPickerHistory.colors(defaults.string(forKey: ColorPickerHistory.defaultsKey) ?? "")[1])
         precondition(presenter.posts.last?.text == "rgb(18, 171, 239)"
                      && presenter.posts.last?.swatch == IslandSwatch(red: 0x12 / 255, green: 0xAB / 255, blue: 0xEF / 255),
                      "swatch and rgb() text state one colour")

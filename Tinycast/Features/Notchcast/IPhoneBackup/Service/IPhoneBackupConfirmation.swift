@@ -6,28 +6,27 @@ import Observation
 @Observable
 final class IPhoneBackupConfirmation {
     private(set) var isPresented = false
-    @ObservationIgnored private let store: IPhoneBackupStore
+    @ObservationIgnored private let onAnswer: @MainActor (Bool) -> Void
     @ObservationIgnored private var isAnswered = false
 
-    init(store: IPhoneBackupStore) {
-        self.store = store
+    init(onAnswer: @escaping @MainActor (Bool) -> Void) {
+        self.onAnswer = onAnswer
     }
 
-    func appear() {
-        store.refresh()
-        guard !store.isApplied else { return }
+    func appear(isApplied: Bool) {
+        guard !isApplied else { return }
         isAnswered = false
         isPresented = true
     }
 
     func accept() {
         answer()
-        store.apply()
+        onAnswer(true)
     }
 
     func cancel() {
         answer()
-        store.decline()
+        onAnswer(false)
     }
 
     /// SwiftUI may clear the binding before a button's action runs, so a dismissal waits one turn.

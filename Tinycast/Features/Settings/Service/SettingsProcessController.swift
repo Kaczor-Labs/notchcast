@@ -236,6 +236,8 @@ final class SettingsProcessController {
             if stagedBackup?.preview.id == id { discardStagedBackup() }
         case .checkForUpdates:
             core.updateCoordinator.checkForUpdates()
+        case .notchcast(let action):
+            core.performNotchcastSettingsAction(action)
         case .showSupport:
             core.supportCoordinator.showSupport()
         }
@@ -255,6 +257,7 @@ final class SettingsProcessController {
                 case .extensions(let call): reply = try await performExtension(call, report: report)
                 case .mcp(let call): reply = try await performMCP(call)
                 case .backup(let call): reply = try await performBackup(call, id: id)
+                case .notchcast(let call): reply = .notchcast(try await core.performNotchcastSettingsCall(call))
                 }
             } catch is CancellationError {
                 reply = .cancelled
@@ -265,6 +268,7 @@ final class SettingsProcessController {
             guard self.link === link, !isClosing else { return }
             mirror?.flush()
             if case .mcp = call { send(makeStatus()) }
+            if case .notchcast = call { send(makeStatus()) }
             link.send(.reply(id, reply))
         }
     }
@@ -428,7 +432,10 @@ final class SettingsProcessController {
             updates: MainAppStatus.Updates(
                 updatesItself: updates.updatesItself, isChecking: updates.isChecking,
                 lastCheckedAt: updates.lastCheckedAt, availableVersion: updates.availableVersion?.description),
-            extensions: extensionsStatus())
+            extensions: extensionsStatus(),
+            islandDisplays: core.island.looks.displays,
+            notchcastCommandIDs: core.notchcast?.controller.enabledCommands.map(\.id) ?? [],
+            notchcast: core.notchcastSettingsStatus())
     }
 
     private func extensionsStatus() -> MainAppStatus.Extensions {

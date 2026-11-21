@@ -3,6 +3,7 @@ import SwiftUI
 
 /// The folder, how many backups stay, and every backup in the folder with the stock import behind Restore.
 struct AutoBackupSettingsView: View {
+    @Environment(MainAppLink.self) private var mainApp
     let context: NotchcastContext
     @State private var chosenFolder: String?
     @State private var keep = AutoBackupSchedule.defaultKeep
@@ -35,7 +36,7 @@ struct AutoBackupSettingsView: View {
             presenting: restoring
         ) { file in
             Button(String(localized: "Cancel"), role: .cancel) { restoring = nil }
-            Button { Task { await context.settingsBackup.restore(file) } } label: {
+            Button { mainApp.send(.notchcast(.restoreAutomaticBackup(file))) } label: {
                 Text("Restore", tableName: "NotchcastAutoBackup")
             }
         } message: { file in

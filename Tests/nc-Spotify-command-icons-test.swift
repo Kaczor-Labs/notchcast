@@ -20,7 +20,6 @@ enum SpotifyCommandIconTests {
 
 // The shipped settings views and live system are left out: these stand in so the descriptor compiles.
 struct SpotifySettingsView: View {
-    init(context: NotchcastContext) {}
     var body: some View { EmptyView() }
 }
 

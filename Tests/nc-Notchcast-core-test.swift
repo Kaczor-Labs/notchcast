@@ -10,6 +10,7 @@
 // notchcast-sources: Tests/NotchcastTapFixtures.swift
 // notchcast-sources: Tests/NotchcastDictationFixture.swift
 // notchcast-reads: Tinycast/Features/Notchcast/NotchcastCore.swift
+// notchcast-reads: Tinycast/App/AppCore.swift
 // notchcast-reads: Tinycast/Features/Notchcast/NotchcastClipboard+Live.swift
 // notchcast-reads: Tinycast/Features/Notchcast/NotchcastServices+Live.swift
 // notchcast-reads: Tinycast/Features/Notchcast/Core/UI/NotchcastSettingsView.swift
@@ -233,6 +234,7 @@ struct NotchcastCoreTest {
         recoveryHandoff(defaults)
         islandPresenter(defaults)
         settingsTabs()
+        settingsProcessTabs()
         print(failures == 0 ? "PASS NotchcastCoreTest (\(checks) checks)" : "FAILED \(failures)/\(checks)")
         if failures > 0 { exit(1) }
     }
@@ -593,5 +595,23 @@ struct NotchcastCoreTest {
         check("a hidden tab's deep link opens nothing", SettingsTab(slug: "notchcast-downloads") == nil)
         check("the Capture tab opens from its own link", NotchcastPane.capture.slug == "notchcast-capture")
         check("Island's deep link always opens", SettingsTab(slug: "notchcast-island") == .notchcast(.island))
+    }
+
+    static func settingsProcessTabs() {
+        let app = FileManager.default.contents(atPath: "Tinycast/App/AppCore.swift")
+            .flatMap { String(data: $0, encoding: .utf8) } ?? ""
+        guard let startup = app.components(separatedBy: "func startSettings()").dropFirst().first?
+            .components(separatedBy: "func prepareSettingsForTermination()").first
+        else { return }
+        let core = FileManager.default.contents(atPath: "Tinycast/Features/Notchcast/NotchcastCore.swift")
+            .flatMap { String(data: $0, encoding: .utf8) } ?? ""
+        let registered = startup.contains("notchcast = NotchcastCore(core: self, startsRuntime: false)")
+            && core.contains("addons: [any NotchcastAddon.Type] = NotchcastRegistry.addons")
+            && core.contains("NotchcastPane.install(Set(controller.switches.map(\\.category)))")
+        NotchcastPane.install(registered ? Set(ProbeAddon.switches.map(\.category)) : [])
+        defer { NotchcastPane.install([]) }
+        check("Settings startup lists registered add-on tabs in sidebar order",
+              SettingsSection.notchcast.tabs == [.notchcast(.island), .notchcast(.keyboardMouse),
+                                                 .notchcast(.displaySound), .notchcast(.launcher)])
     }
 }

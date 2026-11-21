@@ -29,6 +29,7 @@ enum SettingsWire {
         case extensions(ExtensionCall)
         case mcp(MCPSettingsCall)
         case backup(BackupSettingsCall)
+        case notchcast(NotchcastSettingsCall)
     }
 
     enum Reply: Codable, Sendable {
@@ -36,6 +37,7 @@ enum SettingsWire {
         case mcp(MCPServerStatus?)
         case backupPreview(BackupPreview)
         case backupMessage(String)
+        case notchcast(NotchcastSettingsReply)
         case failure(String)
         case cancelled
     }

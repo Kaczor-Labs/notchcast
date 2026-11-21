@@ -27,7 +27,6 @@ import SwiftUI
 // The shipped `live` and settings view are left out: these stand in, so `makeModule` runs as shipped.
 
 struct BrightnessSettingsView: View {
-    init(context: NotchcastContext) {}
     var body: some View { EmptyView() }
 }
 

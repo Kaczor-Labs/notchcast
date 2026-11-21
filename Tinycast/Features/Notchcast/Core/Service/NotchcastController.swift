@@ -3,6 +3,7 @@ import Observation
 
 /// Turns the registry plus the switch state into running modules, installed taps and live commands.
 @MainActor
+@Observable
 final class NotchcastController {
     /// One registered add-on and everything the controller keeps for it.
     struct Slot {

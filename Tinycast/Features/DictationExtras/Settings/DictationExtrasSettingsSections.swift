@@ -2,12 +2,12 @@ import SwiftUI
 
 /// Dictation's Cleanup and History sections, drawn inside its pane while Dictation is on.
 struct DictationExtrasSettingsSections: View {
-    @Environment(AppCore.self) private var core
+    @Environment(MainAppLink.self) private var mainApp
     @Environment(AppSettings.self) private var settings
     @State private var confirmingHistoryOff = false
     @State private var providersPresented = false
 
-    private var coordinator: DictationExtrasCoordinator { core.dictationExtras }
+    private var status: NotchcastSettingsStatus { mainApp.status.notchcast }
 
     var body: some View {
         @Bindable var settings = settings
@@ -42,9 +42,9 @@ struct DictationExtrasSettingsSections: View {
                     tableName: "Notchcast")
             }
             AIModelSelectionRows(
-                selection: coordinator.cleanupModel,
+                selection: status.dictationCleanupModel,
                 inheritedTitle: String(localized: "Automatic"),
-                select: coordinator.selectCleanupModel,
+                select: { mainApp.send(.notchcast(.selectDictationCleanupModel($0))) },
                 modelLabel: {
                     SettingsRowTitle(
                         .dictationCleanup, LocalizedStringResource("Cleanup model", table: "Notchcast"))
@@ -104,14 +104,14 @@ struct DictationExtrasSettingsSections: View {
     }
 
     private var modelCaption: String {
-        guard coordinator.cleanupModel == nil else {
+        guard status.dictationCleanupModel == nil else {
             return String(localized: "Used for every cleanup.", table: "Notchcast")
         }
-        guard let automatic = coordinator.automaticModel else {
+        guard let automatic = status.dictationAutomaticModelTitle else {
             return String(
                 localized: "Add Claude or Codex in AI providers, or choose a model.", table: "Notchcast")
         }
-        return String(localized: "Automatic uses \(automatic.title).", table: "Notchcast")
+        return String(localized: "Automatic uses \(automatic).", table: "Notchcast")
     }
 
     private var promptEditor: some View {
@@ -154,7 +154,7 @@ struct DictationExtrasSettingsSections: View {
         Binding(
             get: { settings.dictationKeepsHistory },
             set: { keep in
-                if keep || coordinator.history.entries.isEmpty {
+                if keep || !status.hasDictationHistory {
                     settings.dictationKeepsHistory = keep
                 } else {
                     confirmingHistoryOff = true

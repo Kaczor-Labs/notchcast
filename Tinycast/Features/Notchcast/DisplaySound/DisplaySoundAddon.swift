@@ -41,7 +41,7 @@ enum DisplaySoundAddon: NotchcastAddon {
     ]
 
     static let settings = [
-        NotchcastSettingsRow(switchID: "displayBrightness") { AnyView(BrightnessSettingsView(context: $0)) },
+        NotchcastSettingsRow(switchID: "displayBrightness") { _ in AnyView(BrightnessSettingsView()) },
     ]
 
     static func makeModule(_ context: NotchcastContext) -> (any NotchcastModule)? {

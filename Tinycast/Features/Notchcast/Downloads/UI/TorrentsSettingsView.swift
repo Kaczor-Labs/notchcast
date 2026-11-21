@@ -2,13 +2,14 @@ import SwiftUI
 
 /// The aria2c check and the session's torrent jobs, under the Torrents switch.
 struct TorrentsSettingsView: View {
-    let context: NotchcastContext
+    @Environment(MainAppLink.self) private var mainApp
     @State private var aria2c: URL?
+    @State private var defaultApps: [String] = []
     @State private var looked = false
     private static let anchor = NotchcastSettingsSearch.anchor(.filesDownloads)
 
     var body: some View {
-        if let module = context.module(DownloadsModule.self) {
+        if let torrents = mainApp.status.notchcast.torrents {
             LabeledContent {
                 if let aria2c {
                     Text(aria2c.path)
@@ -22,46 +23,48 @@ struct TorrentsSettingsView: View {
                 }
             }
             .task {
-                aria2c = module.environment.tools.find(.aria2c)
+                guard case .torrentTools(let path, let apps) = try? await mainApp.callNotchcast(.inspectTorrents)
+                else { return }
+                aria2c = path
+                defaultApps = apps
                 looked = true
             }
-            if let handler = context.recovery(TorrentOpenFallback.self)?.defaultApp {
+            if looked {
                 LabeledContent {
-                    Text(handler.defaultAppNames.joined(separator: ", "))
+                    Text(defaultApps.joined(separator: ", "))
                 } label: {
                     Text("Default torrent app", tableName: "NotchcastDownloads")
                 }
             }
-            let bonded = module.bonding.torrentsBonded
-            ForEach(module.torrents.jobs.reversed()) { job in
-                TorrentJobRow(job: job, module: module, bonded: bonded)
+            ForEach(torrents.jobs.reversed()) { job in
+                TorrentJobRow(job: job, bonded: torrents.bonded)
             }
         }
     }
 }
 
 private struct TorrentJobRow: View {
-    let job: TorrentJob
-    let module: DownloadsModule
+    @Environment(MainAppLink.self) private var mainApp
+    let job: NotchcastSettingsStatus.Torrents.Job
     let bonded: Bool
 
     var body: some View {
         LabeledContent {
             HStack {
-                if !job.files.isEmpty {
-                    Button { module.torrents.reveal(job.files) } label: {
+                if job.hasFiles {
+                    Button { perform(.reveal) } label: {
                         Text("Show in Finder", tableName: "NotchcastDownloads")
                     }
                 }
                 if job.state.isActive {
-                    Button { module.torrents.cancel(job.id) } label: { Text("Cancel", tableName: "NotchcastDownloads") }
+                    Button { perform(.cancel) } label: { Text("Cancel", tableName: "NotchcastDownloads") }
                 } else {
                     if job.state != .finished {
-                        Button { module.retryTorrent(job.id) } label: {
+                        Button { perform(.retry) } label: {
                             Text("Try Again", tableName: "NotchcastDownloads")
                         }
                     }
-                    Button { module.torrents.dismiss(job.id) } label: {
+                    Button { perform(.dismiss) } label: {
                         Text("Dismiss", tableName: "NotchcastDownloads")
                     }
                 }
@@ -77,6 +80,10 @@ private struct TorrentJobRow: View {
                 }
             }
         }
+    }
+
+    private func perform(_ action: NotchcastSettingsAction.TorrentAction) {
+        mainApp.send(.notchcast(.torrent(job.id, action)))
     }
 
     private var detail: String {

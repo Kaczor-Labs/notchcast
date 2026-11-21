@@ -4,6 +4,10 @@ import Foundation
 enum SharedChange: Codable, Sendable {
     case defaultsEdit(SharedDefaultsEdit)
     case defaultsState(SharedDefaultsState)
+    case notchcastDefaultsEdit(SharedDefaultsEdit)
+    case notchcastDefaultsState(SharedDefaultsState)
+    case localDefaultsChanged
+    case localNotchcastDefaultsChanged
     case domain(SharedDomain)
 }
 
@@ -38,6 +42,7 @@ final class SharedStateMirror {
     }
 
     private let defaultsMirror: SharedDefaultsMirror
+    private let notchcastDefaultsMirror: SharedDefaultsMirror
     private let send: (SharedChange) -> Void
     private let domains: [SharedDomain: Domain]
     /// Bumped before a peer's change is re-read, so the stale observer it trips stays quiet.
@@ -45,17 +50,33 @@ final class SharedStateMirror {
 
     init(
         domain: (SharedDomain) -> Domain, reloadDefaults: @escaping () -> Void,
+        localDefaultsKeys: Set<String>,
+        notchcastDefaults: UserDefaults, notchcastDomain: String, localNotchcastKeys: Set<String>,
+        reloadNotchcastDefaults: @escaping () -> Void,
         send: @escaping (SharedChange) -> Void
     ) {
         domains = Dictionary(uniqueKeysWithValues: SharedDomain.allCases.map { ($0, domain($0)) })
         self.send = send
         defaultsMirror = SharedDefaultsMirror(
             role: .current, defaults: .standard, domainName: Bundle.main.bundleIdentifier ?? "",
-            reload: reloadDefaults, send: send)
+            localKeys: localDefaultsKeys, reload: reloadDefaults, send: send)
+        notchcastDefaultsMirror = SharedDefaultsMirror(
+            role: .current, defaults: notchcastDefaults,
+            domainName: notchcastDomain, localKeys: localNotchcastKeys,
+            reload: reloadNotchcastDefaults
+        ) { change in
+            switch change {
+            case .defaultsEdit(let edit): send(.notchcastDefaultsEdit(edit))
+            case .defaultsState(let state): send(.notchcastDefaultsState(state))
+            case .localDefaultsChanged: send(.localNotchcastDefaultsChanged)
+            default: break
+            }
+        }
     }
 
     func start() {
         defaultsMirror.start()
+        notchcastDefaultsMirror.start()
         for domain in domains.keys { watch(domain) }
     }
 
@@ -63,6 +84,10 @@ final class SharedStateMirror {
         switch change {
         case .defaultsEdit(let edit): defaultsMirror.apply(edit)
         case .defaultsState(let state): defaultsMirror.apply(state)
+        case .notchcastDefaultsEdit(let edit): notchcastDefaultsMirror.apply(edit)
+        case .notchcastDefaultsState(let state): notchcastDefaultsMirror.apply(state)
+        case .localDefaultsChanged: defaultsMirror.reloadLocal()
+        case .localNotchcastDefaultsChanged: notchcastDefaultsMirror.reloadLocal()
         case .domain(let domain):
             generations[domain, default: 0] += 1
             domains[domain]?.reload()
@@ -70,7 +95,10 @@ final class SharedStateMirror {
         }
     }
 
-    func flush() { defaultsMirror.flush() }
+    func flush() {
+        defaultsMirror.flush()
+        notchcastDefaultsMirror.flush()
+    }
 
     private func watch(_ domain: SharedDomain) {
         guard let entry = domains[domain] else { return }
@@ -103,6 +131,7 @@ final class SharedDefaultsMirror {
     private let role: ProcessRole
     private let defaults: UserDefaults
     private let domainName: String
+    private let localKeys: Set<String>
     private let reload: () -> Void
     private let send: (SharedChange) -> Void
     private var snapshot: [String: Any] = [:]
@@ -112,12 +141,14 @@ final class SharedDefaultsMirror {
     private var unacknowledged: [(revision: UInt64, patch: DefaultsPatch)] = []
 
     init(
-        role: ProcessRole, defaults: UserDefaults, domainName: String, reload: @escaping () -> Void,
+        role: ProcessRole, defaults: UserDefaults, domainName: String, localKeys: Set<String> = [],
+        reload: @escaping () -> Void,
         send: @escaping (SharedChange) -> Void
     ) {
         self.role = role
         self.defaults = defaults
         self.domainName = domainName
+        self.localKeys = localKeys
         self.reload = reload
         self.send = send
     }
@@ -137,8 +168,10 @@ final class SharedDefaultsMirror {
         pendingFlush?.cancel()
         pendingFlush = nil
         let current = defaults.persistentDomain(forName: domainName) ?? [:]
-        let patch = DefaultsPatch(from: snapshot, to: current)
+        let patch = DefaultsPatch(from: mirrored(snapshot), to: mirrored(current))
+        let localChanges = DefaultsPatch(from: snapshot, to: current).keys.intersection(localKeys)
         snapshot = current
+        if !localChanges.isEmpty, defaults.synchronize() { send(.localDefaultsChanged) }
         guard !patch.keys.isEmpty else { return }
         if role == .main {
             publish(patch.keys)
@@ -153,7 +186,7 @@ final class SharedDefaultsMirror {
         guard role == .main, let before = Self.decode(edit.before), let after = Self.decode(edit.after)
         else { return }
         flush()
-        let patch = DefaultsPatch(from: before, to: after)
+        let patch = DefaultsPatch(from: mirrored(before), to: mirrored(after))
         let values = Dictionary(
             uniqueKeysWithValues: patch.keys.compactMap { key in
                 patch.value(for: key, over: snapshot[key]).map { (key, $0) }
@@ -167,13 +200,25 @@ final class SharedDefaultsMirror {
         guard role == .settings, var values = Self.decode(state.values) else { return }
         flush()
         unacknowledged.removeAll { $0.revision <= state.acknowledgedEdit }
-        let keys = state.removed.union(values.keys)
+        values = mirrored(values)
+        let keys = state.removed.subtracting(localKeys).union(values.keys)
         for (_, patch) in unacknowledged {
             for key in keys.intersection(patch.keys) {
                 values[key] = patch.value(for: key, over: values[key])
             }
         }
         adopt(values, for: keys)
+    }
+
+    func reloadLocal() {
+        guard !localKeys.isEmpty, defaults.synchronize() else { return }
+        let current = defaults.persistentDomain(forName: domainName) ?? [:]
+        for key in localKeys { snapshot[key] = current[key] }
+        reload()
+    }
+
+    private func mirrored(_ values: [String: Any]) -> [String: Any] {
+        values.filter { !localKeys.contains($0.key) }
     }
 
     private func scheduleFlush() {

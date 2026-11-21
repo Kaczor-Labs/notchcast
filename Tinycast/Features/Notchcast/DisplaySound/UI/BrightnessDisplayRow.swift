@@ -5,9 +5,11 @@ struct BrightnessDisplayRow: View {
     let display: BrightnessDisplay
     @State private var state: BrightnessDisplayRowState
 
-    init(display: BrightnessDisplay, controller: BrightnessController) {
+    init(
+        display: BrightnessDisplay, setLevel: @escaping @MainActor (Double, BrightnessDisplay.ID) async -> BrightnessLevel?
+    ) {
         self.display = display
-        _state = State(initialValue: BrightnessDisplayRowState(display: display, controller: controller))
+        _state = State(initialValue: BrightnessDisplayRowState(display: display, setLevel: setLevel))
     }
 
     var body: some View {

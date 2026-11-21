@@ -26,6 +26,10 @@ final class AppCore {
     let textInjector: TextInjector
     let hotKeys = HotKeyManager()
     @ObservationIgnored private(set) var notchcast: NotchcastCore?
+    var notchcastDefaultsDomain: String {
+        NotchcastPreferences.suiteName(bundleID: Bundle.main.bundleIdentifier ?? "Notchcast")
+    }
+    @ObservationIgnored private(set) lazy var notchcastDefaults = UserDefaults(suiteName: notchcastDefaultsDomain) ?? .standard
     let dictationAudioDucker = DictationAudioDucker()
     let dictationExtras = DictationExtrasCoordinator()
     @ObservationIgnored private(set) lazy var dictationModels =
@@ -457,6 +461,7 @@ final class AppCore {
         guard let link = ProcessLink<SettingsWire.ToMainApp, SettingsWire.ToSettings>.standardIO()
         else { return terminate() }
         load()
+        notchcast = NotchcastCore(core: self, startsRuntime: false)
         chatPresets.load()
         if settings.calendarEnabled { calendarStore.start() }
         track({ _ = $0.snippetsEnabled }, reproject: { $0.applySnippetsStoreEnabled() })

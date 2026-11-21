@@ -17,9 +17,7 @@ enum IPhoneBackupAddon: NotchcastAddon {
     ]
 
     static let settings = [
-        NotchcastSettingsRow(switchID: switchID) {
-            AnyView(IPhoneBackupSettingsView(store: IPhoneBackupStore(context: $0, system: .live)))
-        },
+        NotchcastSettingsRow(switchID: switchID) { _ in AnyView(IPhoneBackupSettingsView()) },
     ]
 
     static func makeModule(_ context: NotchcastContext) -> (any NotchcastModule)? {
