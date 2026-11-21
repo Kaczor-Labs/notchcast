@@ -1,5 +1,5 @@
+import CoreGraphics
 import Foundation
-import ImageIO
 
 /// Runs one capture or edit at a time; a trigger while one is active, the editor included, is ignored.
 @MainActor
@@ -99,13 +99,13 @@ final class ScreenshotsModule: NotchcastModule {
                     guard let self, operation == id else { return }
                     showScrolling(height: height)
                 })
-            let data = try await Self.png(result.image, scale: region.scale)
+            let data = try await ScreenshotFiles.png(result.image, scale: region.scale)
             try Task.checkCancellation()
             lastCapture = (data, region.scale)
             let saved = try await output(data)
             try Task.checkCancellation()
             endScrolling()
-            context.presenter.post(Self.scrollingNotice(result.ending, saved: saved), onTap: nil)
+            context.presenter.post(ScreenshotNotices.scrolling(result.ending, saved: saved), onTap: nil)
         }
     }
 
@@ -113,7 +113,7 @@ final class ScreenshotsModule: NotchcastModule {
         guard isIdle else { return }
         guard let lastCapture else { return report(ScreenshotRequest.Failure.nothingToEdit) }
         run { [self] in
-            guard let image = await Self.decode(lastCapture.png) else {
+            guard let image = await ScreenshotFiles.decode(lastCapture.png) else {
                 throw ScreenshotRequest.Failure.encodingFailed
             }
             try Task.checkCancellation()
@@ -132,7 +132,7 @@ final class ScreenshotsModule: NotchcastModule {
         run { [self] in
             guard let shot = try await capture(scope) else { return }
             if scope == .text { return try await copyText(in: shot.image) }
-            let data = try await Self.png(shot.image, scale: shot.scale)
+            let data = try await ScreenshotFiles.png(shot.image, scale: shot.scale)
             try Task.checkCancellation()
             lastCapture = (data, shot.scale)
             if context.defaults.bool(forKey: Self.editAfterCaptureKey) {
@@ -238,35 +238,6 @@ final class ScreenshotsModule: NotchcastModule {
         context.presenter.setMenuRows([], owner: Self.scrollingID) { _ in }
     }
 
-    /// The editor's own Copy and Save notices; a limit or a partial run says so instead, a little longer.
-    private static func scrollingNotice(_ ending: ScrollStitchSession.Ending, saved: URL?) -> IslandNotice {
-        let reason: String? = switch ending {
-        case .limitedByHeight:
-            String(localized: "Scrolling capture reached the 20,000 pixel limit.", table: "NotchcastScreenshots")
-        case .limitedByGuard: String(localized: "Scrolling capture stopped at its limit.", table: "NotchcastScreenshots")
-        case .partial:
-            String(localized: "Kept the part before the page changed.", table: "NotchcastScreenshots")
-        case .success, .failed: nil
-        }
-        var notice = saved.map(savedNotice) ?? copiedNotice
-        if let reason {
-            notice.text = reason
-            notice.seconds = IslandNotice.failureSeconds
-        }
-        return notice
-    }
-
-    private static var copiedNotice: IslandNotice {
-        IslandNotice(id: "screenshot.copied", symbol: "camera",
-                     text: String(localized: "Copied", table: "NotchcastScreenshots"))
-    }
-
-    private static func savedNotice(_ url: URL) -> IslandNotice {
-        let name = url.deletingLastPathComponent().lastPathComponent
-        return IslandNotice(id: "screenshot.saved", symbol: "camera",
-                            text: String(localized: "Saved to \(name)", table: "NotchcastScreenshots"))
-    }
-
     private func select(_ frozen: [ScreenshotFrozenDisplay], _ windows: [ScreenshotWindow]) async
         -> ScreenshotRequest? {
         await withCheckedContinuation { continuation in
@@ -323,19 +294,19 @@ final class ScreenshotsModule: NotchcastModule {
         }
         export = Task {
             do {
-                let data = try await Self.render(document)
+                let data = try await ScreenshotFiles.render(document)
                 try Task.checkCancellation()
                 let notice: IslandNotice
                 if case .copy = outcome {
                     guard system.writeClipboard(data) else { throw ScreenshotRequest.Failure.clipboardFailed }
-                    notice = Self.copiedNotice
+                    notice = ScreenshotNotices.copied
                 } else {
                     let url = if let chosen {
-                        try await Self.write(data, to: chosen)
+                        try await ScreenshotFiles.write(data, to: chosen)
                     } else {
-                        try await Self.save(data, in: folder(), date: context.now(), timeZone: .current)
+                        try await ScreenshotFiles.save(data, in: folder(), date: context.now(), timeZone: .current)
                     }
-                    notice = Self.savedNotice(url)
+                    notice = ScreenshotNotices.saved(url)
                 }
                 try Task.checkCancellation()
                 endEditing()
@@ -378,7 +349,7 @@ final class ScreenshotsModule: NotchcastModule {
             .flatMap(ScreenshotDestination.init(rawValue:)) ?? .clipboard
         var saved: URL?
         if destination != .clipboard {
-            saved = try await Self.save(data, in: folder(), date: context.now(), timeZone: .current)
+            saved = try await ScreenshotFiles.save(data, in: folder(), date: context.now(), timeZone: .current)
         }
         try Task.checkCancellation()
         if destination != .file, !system.writeClipboard(data), saved == nil {
@@ -419,51 +390,5 @@ final class ScreenshotsModule: NotchcastModule {
         context.presenter.post(IslandNotice(
             id: "screenshot.failed", symbol: "camera", text: ScreenshotRequest.failureMessage(error),
             isFailure: true), onTap: nil)
-    }
-
-    @concurrent
-    private static func png(_ image: CGImage, scale: CGFloat) async throws -> Data {
-        do {
-            return try AnnotationRenderer.png(image, scale: scale)
-        } catch {
-            throw ScreenshotRequest.Failure.encodingFailed
-        }
-    }
-
-    @concurrent
-    private static func render(_ document: AnnotationDocument) async throws -> Data {
-        do {
-            return try AnnotationRenderer.png(document.finished())
-        } catch {
-            throw ScreenshotRequest.Failure.encodingFailed
-        }
-    }
-
-    @concurrent
-    private static func decode(_ data: Data) async -> CGImage? {
-        CGImageSourceCreateWithData(data as CFData, nil).flatMap { CGImageSourceCreateImageAtIndex($0, 0, nil) }
-    }
-
-    /// Save As writes where the save panel pointed, which already asked before replacing a file.
-    @concurrent
-    private static func write(_ data: Data, to url: URL) async throws -> URL {
-        try data.write(to: url, options: .atomic)
-        return url
-    }
-
-    @concurrent
-    static func save(_ data: Data, in folder: URL, date: Date, timeZone: TimeZone) async throws -> URL {
-        var collision = 0
-        while true {
-            try Task.checkCancellation()
-            let url = folder.appending(
-                path: ScreenshotFileName.name(date: date, timeZone: timeZone, collision: collision))
-            do {
-                try data.write(to: url, options: .withoutOverwriting)
-                return url
-            } catch CocoaError.fileWriteFileExists {
-                collision += 1
-            }
-        }
     }
 }

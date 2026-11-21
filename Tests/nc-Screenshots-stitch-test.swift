@@ -152,7 +152,7 @@ func capture(_ frames: [CGImage?], limits: Session.Limits = Session.Limits(), fi
     let finishAfter = finishAfter ?? frames.count
     var micros = 0
     var now: TimeInterval { Double(micros) / 1_000_000 }
-    guard let first = frames.first ?? nil, var session = Session(first: first, at: now, limits: limits) else {
+    guard let first = frames.first.flatMap({ $0 }), var session = Session(first: first, at: now, limits: limits) else {
         return Run(ending: .failed, image: nil, heights: [], captures: 1)
     }
     var served = 1
