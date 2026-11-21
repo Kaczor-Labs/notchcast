@@ -55,7 +55,8 @@ extension NotchcastCoreTest {
     }
 
     private static func usesNoLiveModule(_ source: String) -> Bool {
-        let directAccess = #"\.module\s*\(|\.recovery\s*\(|\.settingsBackup\.|(?:let|var) \w+: [\w.]*(?:Module|BrightnessController|IPhoneBackupStore)\b"#
+        let liveTypes = "Module|BrightnessController|IPhoneBackupStore"
+        let directAccess = #"\.module\s*\(|\.recovery\s*\(|\.settingsBackup\.|(?:let|var) \w+: [\w.]*(?:\#(liveTypes))\b"#
         return source.range(of: directAccess, options: .regularExpression) == nil
     }
 }
