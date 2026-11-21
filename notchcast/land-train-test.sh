@@ -45,10 +45,16 @@ case "$*" in
     'pr close '*)
         echo "$3 ${*: -1}" >> "$FIXTURE/closed"
         jq '.state = "CLOSED"' "$FIXTURE/pr-$3.json" > "$FIXTURE/pr.json" && mv "$FIXTURE/pr.json" "$FIXTURE/pr-$3.json" ;;
+    # runs-<sha> and workflow-runs-<sha>: the head's raw check runs and workflow runs, through the real --jq.
+    *actions/runs\?head_sha=*)
+        sha=$*
+        sha=${sha#*head_sha=}
+        jq -r "${*: -1}" "$FIXTURE/workflow-runs-${sha%%&*}" ;;
     *check-runs*)
         sha=$*
         sha=${sha#*commits/}
-        if grep -qxF "${sha%%/*}" "$FIXTURE/red" 2>/dev/null; then echo failure
+        if [ -e "$FIXTURE/runs-${sha%%/*}" ]; then jq -r "${*: -1}" "$FIXTURE/runs-${sha%%/*}"
+        elif grep -qxF "${sha%%/*}" "$FIXTURE/red" 2>/dev/null; then echo failure
         elif grep -qxF "${sha%%/*}" "$FIXTURE/green" 2>/dev/null; then echo success
         elif grep -qxF "${sha%%/*}" "$FIXTURE/skipped" 2>/dev/null; then echo skipped; else echo "${HEAD_CHECKS:-success}"; fi ;;
     'workflow run '*)
@@ -857,6 +863,31 @@ queue
     || queue_fail 'the queue took a PR without land, or held a labelled draft whose build was skipped'
 [ "$(landed)" = 'Notchcast: Add B (#1)|Notchcast: Add C (#2)' ] || queue_fail "the land-only batch landed '$(landed)'"
 echo 'PASS: --queue takes only PRs labelled land: a green ready one and a draft with a skipped build ride, red or unlabelled wait'
+
+# #1304: a dispatched build the push's pull_request run cancelled. (a) #1 a labelled draft: that run skipped build, its
+# skip timed before the cancel; (b) #2 cancelled alone; (c) #3 the cancelling run still runs; (d) #4 it went red.
+fixture
+for n in 1 2 3 4; do open_pr "$n" "pr-$n" "Add $n" "src/$n.txt"; done
+draft 1
+build_run() { printf '{"app":{"slug":"github-actions"},"check_suite":{"id":%s},"started_at":"2026-11-21T01:15:%s","status":"completed","conclusion":"%s"}' "$@"; }
+workflow_run() { printf '{"workflow_id":7,"check_suite_id":%s,"status":"%s"}' "$@"; }
+superseded() {
+    local head
+    head=$(jq -r .headRefOid "$FIXTURE/pr-$1.json")
+    echo "{\"check_runs\":[$2]}" > "$FIXTURE/runs-$head"
+    echo "{\"workflow_runs\":[$3]}" > "$FIXTURE/workflow-runs-$head"
+}
+superseded 1 "$(build_run 20 26Z cancelled),$(build_run 21 25Z skipped)" "$(workflow_run 20 completed),$(workflow_run 21 completed)"
+superseded 2 "$(build_run 30 26Z cancelled)" "$(workflow_run 30 completed)"
+superseded 3 "$(build_run 40 26Z cancelled)" "$(workflow_run 40 completed),$(workflow_run 41 in_progress)"
+superseded 4 "$(build_run 50 26Z cancelled),$(build_run 51 59Z failure)" "$(workflow_run 50 completed),$(workflow_run 51 completed)"
+queue
+[ "$status" -eq 0 ] && grep -q '^queue: batch 1$' "$FIXTURE/train-output" && grep -q '^LANDED #1$' "$FIXTURE/train-output" \
+    && grep -q '^queue: #2 waits, build is cancelled on ' "$FIXTURE/train-output" \
+    && grep -q '^queue: #3 waits, build is pending on ' "$FIXTURE/train-output" \
+    && grep -q '^queue: #4 waits, build is failure on ' "$FIXTURE/train-output" \
+    || queue_fail 'a superseded cancelled build held a PR, or a lone cancel, a running or a red build let one through'
+echo 'PASS: --queue reads a cancelled build by the run that superseded it: skipped rides a draft, running waits, red waits'
 
 # A hold for #2 cuts the green batch 1 2 to #2 in land.sh: the queue says only #2 landed and #1 is held (#1119).
 fixture
