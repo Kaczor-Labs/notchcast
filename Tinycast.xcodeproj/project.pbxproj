@@ -131,6 +131,7 @@
 		168DE28D9048567C51EAFC91 /* NotchcastScreenshots.xcstrings in Resources */ = {isa = PBXBuildFile; fileRef = EF4796D8A176DB0A0DF3A11F /* NotchcastScreenshots.xcstrings */; };
 		16A8F14D5FC9C26CA6B616FB /* MCPServerConnection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5B883E55507FA5BE11A31B54 /* MCPServerConnection.swift */; };
 		16B744C774114CAEDC3BDDF1 /* DictationPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = BE7D64F656A9DD6EE1CCC93A /* DictationPanel.swift */; };
+		16D5440C517F751C22662930 /* IslandDictationCleanupScene.swift in Sources */ = {isa = PBXBuildFile; fileRef = E709418943E996D01135C198 /* IslandDictationCleanupScene.swift */; };
 		16F81066F7B59AD44CE09261 /* ActivationPolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2575583134BE03EA9FA719CD /* ActivationPolicy.swift */; };
 		170C8ABCDB7848A9DA0A0524 /* PinnedEmojiStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 114F2E3148CA76595B795B37 /* PinnedEmojiStore.swift */; };
 		175DAAED3859A54861D8CEBC /* SnippetRepository.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7BFFB1471D30C915BBC5DCBA /* SnippetRepository.swift */; };
@@ -2905,6 +2906,7 @@
 		E67A9E1E14A2F6D498BE69DD /* MusicBlockModule.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MusicBlockModule.swift; sourceTree = "<group>"; };
 		E6BBB22DFC9F53CCCCD8010C /* ExtensionSignInSession.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExtensionSignInSession.swift; sourceTree = "<group>"; };
 		E6F27259003BDECA2054FC67 /* WindowLayoutEntryPicker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WindowLayoutEntryPicker.swift; sourceTree = "<group>"; };
+		E709418943E996D01135C198 /* IslandDictationCleanupScene.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IslandDictationCleanupScene.swift; sourceTree = "<group>"; };
 		E727A765219FD06A22F77811 /* MediaFailure.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MediaFailure.swift; sourceTree = "<group>"; };
 		E73397884822CD8D0D79B760 /* CustomCommandEditorSession.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CustomCommandEditorSession.swift; sourceTree = "<group>"; };
 		E761880A0EEE067F29AFB762 /* NotchcastTapHub.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotchcastTapHub.swift; sourceTree = "<group>"; };
@@ -4061,6 +4063,7 @@
 				5242FC9174E8721BBD5A91FC /* IslandController+Accessibility.swift */,
 				1DF2450D3A4E1B0ABD1BBBBF /* IslandController+Verification.swift */,
 				B9F8076854F4ED18552F0891 /* IslandCoordinator.swift */,
+				E709418943E996D01135C198 /* IslandDictationCleanupScene.swift */,
 				48699AE01E47DEB542051849 /* IslandExpansionArt.swift */,
 				AFB46B1446B974130984B19C /* IslandFrameSource.swift */,
 				B23D22327CE1637EF7DE65DD /* IslandFrost.swift */,
@@ -7859,6 +7862,7 @@
 				589FE6E9FD5E62A16EFF3CE4 /* IslandController+Verification.swift in Sources */,
 				4E6437A257DC61ECC7CD36C1 /* IslandController.swift in Sources */,
 				F54F75CD95D31EF6FCAAC1BB /* IslandCoordinator.swift in Sources */,
+				16D5440C517F751C22662930 /* IslandDictationCleanupScene.swift in Sources */,
 				F937F4CC1FE0EC1CBFC19D3B /* IslandExpansionArt.swift in Sources */,
 				AF77F4042A035C604BADCCD5 /* IslandFrameSource.swift in Sources */,
 				46E15AA3E2DEF220B7889CF7 /* IslandFrost.swift in Sources */,
