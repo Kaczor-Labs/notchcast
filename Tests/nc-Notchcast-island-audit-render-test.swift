@@ -597,3 +597,4 @@ struct ClipboardEditField: View {
     let state: ClipboardEditState
     var body: some View { EmptyView() }
 }
+class SecretFieldState {}; struct DialogSecretField: View { let state: SecretFieldState; var body: some View { EmptyView() } }
