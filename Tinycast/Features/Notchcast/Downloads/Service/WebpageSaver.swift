@@ -23,7 +23,7 @@ struct WebpageSaver: Sendable {
                                      stem: article.filename, suffix: ".md")
     }
 
-    /// WebKit reads no PDF, so only what it refuses as not HTML goes to an installed firecrawl-local.
+    /// WebKit reads no PDF, so only a page it refuses as not HTML may go to firecrawl-local.
     @MainActor
     private func page(_ source: URL) async throws -> WebpageArticle {
         do {

@@ -1,6 +1,6 @@
 import Foundation
 
-/// Finds the user's own yt-dlp, ffmpeg, aria2c and firecrawl-local; nothing is ever installed for them.
+/// Finds the user's own download tools; nothing is ever installed for them.
 struct DownloadToolLookup: Sendable {
     struct Reading: Sendable {
         let tool: DownloadTool
@@ -23,7 +23,7 @@ struct DownloadToolLookup: Sendable {
         var environment = parent
         environment["PATH"] = folders.map(\.path).joined(separator: ":")
         environment["HOME"] = environment["HOME"] ?? home.path
-        // firecrawl-local's default sends pages it cannot read to Firecrawl Cloud with an install ID.
+        // firecrawl-local otherwise sends pages it cannot read to Firecrawl Cloud.
         environment["FIRECRAWL_CLOUD"] = "off"
         self.environment = environment
     }
@@ -35,7 +35,7 @@ struct DownloadToolLookup: Sendable {
         return copy
     }
 
-    /// An app started from Finder gets a bare PATH, so Homebrew's and Cargo's folders are searched as well.
+    /// An app started from Finder gets a bare PATH, so Homebrew's and Cargo's folders are searched.
     static func searchDirectories(home: URL, path: String) -> [URL] {
         let paths = ["/opt/homebrew/bin", "/usr/local/bin", home.appending(path: ".local/bin").path,
                      home.appending(path: ".cargo/bin").path]

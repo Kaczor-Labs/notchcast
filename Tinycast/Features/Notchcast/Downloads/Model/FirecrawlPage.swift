@@ -23,7 +23,8 @@ nonisolated enum FirecrawlPage {
         guard let page = root["data"] as? [String: Any], let body = page["markdown"] as? String,
               page["blocked"] as? Bool != true, (page["warning"] as? String ?? "").isEmpty else { return .unusable }
         let metadata = page["metadata"] as? [String: Any] ?? [:]
-        guard let status = metadata["statusCode"] as? Int, (200..<400).contains(status),
+        guard (metadata["contentType"] as? String)?.lowercased().hasPrefix("application/pdf") == true,
+              let status = metadata["statusCode"] as? Int, (200..<400).contains(status),
               body.trimmingCharacters(in: .whitespacesAndNewlines).count >= 80 else { return .unusable }
         let host = source.host(percentEncoded: false) ?? source.absoluteString
         let title = text(metadata["title"]) ?? heading(in: body) ?? host
@@ -32,12 +33,13 @@ nonisolated enum FirecrawlPage {
                                        source: source, baseURL: source, html: "", markdownBody: body))
     }
 
-    /// A PDF's first heading is often a licence notice, so a top-level heading wins over a deeper one.
+    /// A PDF's first heading is often a licence notice, so a top-level heading wins.
     static func heading(in body: String) -> String? {
         let headings = body.split(whereSeparator: \.isNewline).compactMap { line -> (Int, String)? in
             let level = line.prefix { $0 == "#" }.count
             guard (1...6).contains(level), line.dropFirst(level).first == " " else { return nil }
-            let title = line.dropFirst(level).trimmingCharacters(in: .whitespaces)
+            let title = String(line.dropFirst(level).filter { $0 != "*" && $0 != "`" })
+                .replacing(/\s#+\s*$/, with: "").trimmingCharacters(in: .whitespaces)
             return title.isEmpty ? nil : (level, title)
         }
         return (headings.first { $0.0 <= 2 } ?? headings.first)?.1

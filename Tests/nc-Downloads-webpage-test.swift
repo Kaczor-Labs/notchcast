@@ -420,7 +420,7 @@ struct DownloadsWebpageTest {
     static func answer(markdown: String = readable, status: Int = 200, metadata: [String: Any] = [:],
                        extra: [String: Any] = [:]) -> Data {
         var page: [String: Any] = ["markdown": markdown, "source": "local",
-                                   "metadata": metadata.merging(["statusCode": status]) { a, _ in a }]
+                                   "metadata": metadata.merging(["statusCode": status, "contentType": "application/pdf"]) { a, _ in a }]
         page.merge(extra) { _, b in b }
         return (try? JSONSerialization.data(withJSONObject: ["success": true, "data": page])) ?? Data()
     }
@@ -438,7 +438,8 @@ struct DownloadsWebpageTest {
             expect(article.filename == "A Writer - A paper", "firecrawl article keeps the usual file name")
         } else { expect(false, "a good firecrawl answer is an article") }
         for (body, title) in [("#### Licence notice\n\n## Paper title\n\n" + readable, "Paper title"),
-                              ("### Only deep\n\n" + readable, "Only deep"), (readable, "example.com")] {
+                              ("### Only deep\n\n" + readable, "Only deep"), (readable, "example.com"),
+                              ("## **Bold** `code` title ##\n\n" + readable, "Bold code title")] {
             if case .article(let article) = FirecrawlPage.decode(answer(markdown: body), source: pdf) {
                 expect(article.title == title && article.author == "example.com", "firecrawl title falls back to \(title)")
             } else { expect(false, "untitled firecrawl answer is still an article") }
@@ -448,7 +449,12 @@ struct DownloadsWebpageTest {
             ("HTTP 404 with exit 0", answer(status: 404)), ("empty text", answer(markdown: " ")),
             ("short text", answer(markdown: "Too short.")), ("broken JSON", Data("{\"success\": tr".utf8)),
             ("failure", Data(#"{"success":false,"code":"TIMEOUT","error":"timed out"}"#.utf8)),
+            ("JSON", answer(metadata: ["contentType": "application/json"])),
+            ("text", answer(metadata: ["contentType": "text/plain; charset=utf-8"])),
         ]
+        if case .article = FirecrawlPage.decode(answer(metadata: ["contentType": "Application/PDF; qs=1"]), source: pdf) {
+            expect(true, "")
+        } else { expect(false, "firecrawl content type is matched without case") }
         for (name, data) in unusable {
             if case .unusable = FirecrawlPage.decode(data, source: pdf) { expect(true, "") } else {
                 expect(false, "firecrawl \(name) is not usable")
@@ -480,6 +486,9 @@ struct DownloadsWebpageTest {
         try answer(markdown: long, metadata: ["title": "Long"]).write(to: bin.appending(path: "answer.json"))
         let article = try await saver.toolPage(pdf)
         expect(article.markdownBody == long, "an answer longer than 64 KB arrives whole")
+        let saved = try await saver.write(article, saved: .now, timeZone: utc)
+        expect(FileManager.default.fileExists(atPath: saved.path), "a PDF answer is saved")
+        try FileManager.default.removeItem(at: saved)
         let arguments = try String(contentsOf: bin.appending(path: "args"), encoding: .utf8)
         expect(arguments.split(separator: "\n").contains("--public-only"), "the tool runs with --public-only")
         let cloud = try String(contentsOf: bin.appending(path: "cloud"), encoding: .utf8)
@@ -489,6 +498,14 @@ struct DownloadsWebpageTest {
                 _ = try await WebpageSaver(destination: root, tools: host).toolPage(pdf)
                 expect(false, "without firecrawl-local a PDF keeps today's error")
             } catch WebpageExtractor.Failure.unsupportedContent { expect(true, "") }
+        }
+        for type in ["application/json", "text/plain"] {
+            try answer(metadata: ["contentType": type]).write(to: bin.appending(path: "answer.json"))
+            do { _ = try await saver.toolPage(pdf); expect(false, "a \(type) answer is not saved") }
+            catch WebpageExtractor.Failure.unsupportedContent {
+                let notes = try FileManager.default.contentsOfDirectory(atPath: root.path).filter { $0.hasSuffix(".md") }
+                expect(notes.isEmpty, "a \(type) answer writes no file")
+            }
         }
         try answer(extra: ["blocked": true]).write(to: bin.appending(path: "answer.json"))
         do { _ = try await saver.toolPage(pdf); expect(false, "a blocked answer is not saved") }
