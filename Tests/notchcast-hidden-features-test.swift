@@ -12,7 +12,8 @@ struct HiddenFeaturesTest {
     static func main() {
         let visible = SettingsSection.allCases.flatMap(\.tabs)
         for tab in [
-            SettingsTab.extensions, .appleShortcuts, .iCloudSync, .systemSettings, .navigation, .quickActions, .commands, .notes,
+            SettingsTab.extensions, .appleShortcuts, .iCloudSync, .systemSettings, .navigation, .quickActions,
+            .commands, .notes, .ai,
         ] {
             precondition(!visible.contains(tab), "Hidden tab stays out of the sidebar: \(tab.slug)")
             precondition(SettingsTab(slug: tab.slug) == nil, "settings/\(tab.slug) opens nothing")
@@ -56,6 +57,9 @@ struct HiddenFeaturesTest {
         precondition(
             SettingsSearchCatalog.entries.contains { $0.tab == .dictation && $0.keywords.contains("Language") },
             "Dictation's own Language row is a separate setting and stays searchable")
+        precondition(
+            SettingsSearchCatalog.entries.contains { $0.tab == .dictation && $0.keywords.contains("AI providers") },
+            "With the AI tab hidden, Dictation's Cleanup holds the AI providers row")
         for title in ["Show animations", "Interface size", "Window mode", "Days to Show"] {
             precondition(
                 SettingsSearchCatalog.entries.contains { $0.keywords.contains(title) },
