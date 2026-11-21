@@ -15,7 +15,9 @@ on:
         type: boolean
         default: false
       harness_runner:
-        description: Runner label for a harness-only macOS job (notchcast-mba); no build, no proof of any tree (README, Runners)
+        description: Runner label for a harness-only macOS job (notchcast-mba, notchcast-mbp); no build, no proof of any tree (README, Runners)
+        type: choice
+        options: ['', notchcast-mba, notchcast-mbp]
         default: ''
 
 permissions:

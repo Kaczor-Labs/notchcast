@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Plan and run checks inside an isolated Release app."""
 import argparse
+import fcntl
 import fnmatch
 import json
 import os
@@ -11,6 +12,8 @@ import tempfile
 
 ROOT = Path(__file__).resolve().parent.parent
 REGISTRY = json.loads((ROOT / "notchcast/app-proofs.json").read_text())
+# The proof app's domain and add-on suite: a failed proof skips cleanup, and runners share a user.
+DOMAINS = ("app.notchcast.proof", "app.notchcast.proof.notchcast")
 
 
 def command(args, **kwargs):
@@ -63,11 +66,21 @@ def main():
         if info["CFBundleIdentifier"] != "app.notchcast.proof":
             parser.error("built app has the wrong proof identity")
         executable = app / "Contents/MacOS" / info["CFBundleExecutable"]
-        for name in args.checks:
-            result = subprocess.run([str(executable)], env={**os.environ, "NOTCHCAST_PROOF": name}, capture_output=True, text=True, timeout=60)
-            print(result.stdout, end="")
-            if result.returncode != 0 or f"PROOF PASS {name}" not in result.stdout.splitlines():
-                raise SystemExit(f"proof {name} failed (exit {result.returncode}): {result.stderr}")
+        lock_path = Path.home() / "Library/Caches/app.notchcast.proof.lock"
+        lock_path.parent.mkdir(parents=True, exist_ok=True)
+        with open(lock_path, "w") as lock:
+            fcntl.flock(lock, fcntl.LOCK_EX)
+            for name in args.checks:
+                prove(executable, name)
+
+
+def prove(executable, name):
+    for domain in DOMAINS:
+        subprocess.run(["defaults", "delete", domain], capture_output=True)
+    result = subprocess.run([str(executable)], env={**os.environ, "NOTCHCAST_PROOF": name}, capture_output=True, text=True, timeout=60)
+    print(result.stdout, end="")
+    if result.returncode != 0 or f"PROOF PASS {name}" not in result.stdout.splitlines():
+        raise SystemExit(f"proof {name} failed (exit {result.returncode}): {result.stderr}")
 
 
 if __name__ == "__main__":
