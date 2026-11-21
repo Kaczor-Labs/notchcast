@@ -3,6 +3,7 @@ import Foundation
 /// What a job run needs from its host. Downloads supplies it, so the job contract does not import Downloads.
 protocol DownloadToolHost: Sendable {
     func find(_ tool: DownloadTool) -> URL?
+    func capture(_ executable: URL, arguments: [String], limit: Int) async throws -> (status: Int32, data: Data)
     func run(
         _ executable: URL, arguments: [String], workingDirectory: URL?,
         onLine: @escaping @Sendable (String) -> Void

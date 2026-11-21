@@ -4,6 +4,8 @@ import Synchronization
 
 /// One tool run in its own process group, so a cancel also ends the helpers the tool spawned.
 final class ChildProcess: Sendable {
+    struct OutputLimitExceeded: Error {}
+
     private struct State {
         var started = false
         var cancelled = false
@@ -33,7 +35,36 @@ final class ChildProcess: Sendable {
 
     var pid: pid_t? { state.withLock { $0.pid } }
 
-    func run(onLine: @escaping @Sendable (String) -> Void = { _ in }) async throws -> DownloadProcessResult {
+    func run(onLine: (@Sendable (String) -> Void)? = nil) async throws -> DownloadProcessResult {
+        try await run(onLine: onLine, onOutput: nil)
+    }
+
+    func capture(limit: Int) async throws -> (status: Int32, data: Data) {
+        let capture = Capture()
+        do {
+            let result = try await run(onLine: nil) { chunk in
+                let fits = capture.state.withLock {
+                    guard chunk.count <= limit - $0.data.count else {
+                        $0.overflow = true
+                        return false
+                    }
+                    $0.data.append(chunk)
+                    return true
+                }
+                if !fits { self.cancel() }
+                return fits
+            }
+            return (result.status, capture.state.withLock { $0.data })
+        } catch is CancellationError {
+            try Task.checkCancellation()
+            if capture.state.withLock({ $0.overflow }) { throw OutputLimitExceeded() }
+            throw CancellationError()
+        }
+    }
+
+    private func run(
+        onLine: (@Sendable (String) -> Void)?, onOutput: (@Sendable (Data) -> Bool)?
+    ) async throws -> DownloadProcessResult {
         try await withTaskCancellationHandler {
             try Task.checkCancellation()
             let pipes = try (output: Self.pipe(), errors: Self.pipe())
@@ -55,7 +86,8 @@ final class ChildProcess: Sendable {
             close(pipes.output.write)
             close(pipes.errors.write)
             defer { reaper?.forget(self) }
-            let result = await collect(pid: pid, output: pipes.output.read, errors: pipes.errors.read, onLine: onLine)
+            let result = await collect(pid: pid, output: pipes.output.read, errors: pipes.errors.read,
+                                       onLine: onLine, onOutput: onOutput)
             if state.withLock({ $0.cancelled }) { throw CancellationError() }
             return result
         } onCancel: { cancel() }
@@ -109,26 +141,36 @@ final class ChildProcess: Sendable {
     }
 
     private func collect(
-        pid: pid_t, output: Int32, errors: Int32, onLine: @escaping @Sendable (String) -> Void
+        pid: pid_t, output: Int32, errors: Int32,
+        onLine: (@Sendable (String) -> Void)?, onOutput: (@Sendable (Data) -> Bool)?
     ) async -> DownloadProcessResult {
         await withCheckedContinuation { continuation in
             let group = DispatchGroup()
             let collected = Collected()
             DispatchQueue.global().async(group: group) {
+                if let onOutput {
+                    Self.drain(output, onOutput)
+                    return
+                }
                 var pending = Data()
                 Self.drain(output) { chunk in
                     collected.output.withLock { $0.append(chunk) }
+                    guard let onLine else { return true }
                     pending.append(chunk)
                     // yt-dlp redraws its progress line with a bare CR, so CR ends a line as well.
                     while let end = pending.firstIndex(where: { $0 == 0x0A || $0 == 0x0D }) {
                         if end > pending.startIndex { onLine(Self.text(pending[..<end])) }
                         pending.removeSubrange(...end)
                     }
+                    return true
                 }
-                if !pending.isEmpty { onLine(Self.text(pending)) }
+                if !pending.isEmpty { onLine?(Self.text(pending)) }
             }
             DispatchQueue.global().async(group: group) {
-                Self.drain(errors) { chunk in collected.errors.withLock { $0.append(chunk) } }
+                Self.drain(errors) { chunk in
+                    collected.errors.withLock { $0.append(chunk) }
+                    return true
+                }
             }
             DispatchQueue.global().async(group: group) { [self] in
                 var info = siginfo_t()
@@ -151,13 +193,13 @@ final class ChildProcess: Sendable {
         }
     }
 
-    private static func drain(_ fd: Int32, _ body: (Data) -> Void) {
+    private static func drain(_ fd: Int32, _ body: (Data) -> Bool) {
         defer { close(fd) }
         var buffer = [UInt8](repeating: 0, count: 16_384)
         while true {
             let count = buffer.withUnsafeMutableBytes { read(fd, $0.baseAddress, $0.count) }
             if count > 0 {
-                body(Data(buffer[..<count]))
+                if !body(Data(buffer[..<count])) { return }
             } else if count == 0 || errno != EINTR {
                 return
             }
@@ -192,6 +234,10 @@ final class ChildProcessReaper: Sendable {
         while ContinuousClock.now < deadline, children.contains(where: { $0.pid != nil }) { usleep(2_000) }
         for child in children { child.killGroup() }
     }
+}
+
+private final class Capture: Sendable {
+    let state = Mutex((data: Data(), overflow: false))
 }
 
 private final class Collected: Sendable {

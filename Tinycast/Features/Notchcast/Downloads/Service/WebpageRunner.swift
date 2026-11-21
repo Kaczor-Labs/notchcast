@@ -9,6 +9,6 @@ struct WebpageRunner: DownloadRunner {
         try Task.checkCancellation()
         guard let source = URL(string: job.source) else { throw PublicWebAddress.Refusal.invalidURL }
         try PublicWebAddress.validate(source)
-        return try await WebpageSaver(destination: context.destination).save(source)
+        return try await WebpageSaver(destination: context.destination, tools: context.tools).save(source)
     }
 }
