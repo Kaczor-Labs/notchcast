@@ -16,15 +16,15 @@ enum DictationIslandScenes {
         let probe = Probe()
         let island = DictationIslandCoordinator(now: { probe.now })
         let away = scene.hasPrefix("dictation-away")
-        let display = away ? controller.screen?.islandDisplayID : nil
+        let typingDisplayID = away ? controller.screen?.islandDisplayID : nil
         if away {
-            IslandVerification.require(display != nil, "the non-resting pill has a display id")
+            IslandVerification.require(typingDisplayID != nil, "the non-resting pill has a display id")
             controller.showsRest = false
             controller.opened()
             IslandVerification.require(!controller.backdropWindow.isVisible, "the non-resting pill starts hidden")
         }
         island.attach(presenter: core.islandPresenter, covered: { false }, copies: { false },
-                      typingDisplay: { display })
+                      typingDisplay: { typingDisplayID })
         defer { DictationPanelController.stand = nil }
         let capsule = DictationPanelController()
         capsule.onAccept = { probe.accepted += 1 }
@@ -108,8 +108,8 @@ enum DictationIslandScenes {
         await expect(hint, "again")
         let startLook = controller.canvas.look
         let flipped: IslandLook = startLook == .black ? .frosted : .black
-        let display = controller.screen?.islandDisplayUUID
-        core.island.looks.set(flipped, uuid: display)
+        let lookDisplayUUID = controller.screen?.islandDisplayUUID
+        core.island.looks.set(flipped, uuid: lookDisplayUUID)
         await IslandVerification.pause(0.15)
         IslandVerification.require(controller.canvas.look == flipped, "the look flips during recording")
         let document = NSPanel(contentRect: CGRect(x: 50, y: 50, width: 100, height: 100),
@@ -121,7 +121,7 @@ enum DictationIslandScenes {
         IslandVerification.require(probe.cancelled == 1 || controller.notice?.text != hint,
                                    "Escape reaches cancel after a focus loss, or the hint is gone")
         document.orderOut(nil)
-        core.island.looks.set(startLook, uuid: display)
+        core.island.looks.set(startLook, uuid: lookDisplayUUID)
         island.reset(completed: false)
         await expect(nil, "cancelled")
 
