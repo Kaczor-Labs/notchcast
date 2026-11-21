@@ -225,6 +225,107 @@ func plistKeys() throws {
     check(repeated.isEmpty, "Info.plist names a top-level key twice, so the first one is lost: \(repeated)")
 }
 
+/// A fake disk for planning: kinds by path, every folder writable unless listed.
+func plan(
+    _ format: ArchiveFormat, _ paths: [String], kinds: [String: ArchiveItemKind] = [:], readOnly: Set<String> = []
+) -> Result<CompressionPlan, ArchiveFailure> {
+    let urls = paths.map { $0.hasPrefix("/") ? URL(filePath: $0) : URL(string: $0)! }
+    return Result { () throws(ArchiveFailure) in
+        try ArchiveCompression.plan(
+            format: format, selection: urls, kind: { kinds[$0.path] ?? .file },
+            isWritable: { !readOnly.contains($0.path) })
+    }
+}
+
+func compressionNames() throws {
+    let two = try plan(.zip, ["/x/Trip/a.txt", "/x/Trip/b.txt"]).get()
+    check(two.stem == "Trip" && two.folder.path == "/x/Trip" && two.single == nil && two.label == "Trip.zip",
+          "several items are named after their folder and land in it: \(two)")
+    for format in ArchiveFormat.allCases {
+        check(try plan(format, ["/x/Trip/a.txt", "/x/Trip/b.txt"]).get().label == "Trip.\(format.rawValue)",
+              "\(format) names several items after their folder")
+    }
+    let notes = try plan(.zip, ["/x/notes.txt"]).get()
+    check(notes.label == "notes.txt.zip" && notes.single == .file, "one file keeps its whole name: \(notes)")
+    let photos = try plan(.sevenZip, ["file:///x/Trip/Photos/"], kinds: ["/x/Trip/Photos": .folder]).get()
+    check(photos.label == "Photos.7z" && photos.folder.path == "/x/Trip" && photos.single == .folder,
+          "Finder's folder URL ends in a slash and still names the folder: \(photos)")
+    let doubled = try plan(.zip, ["file:///x/Trip/a.txt", "/x/Trip/a.txt", "/x/Trip/./a.txt", "https://example.com/b.txt"])
+        .get()
+    check(doubled.inputs.map(\.path) == ["/x/Trip/a.txt"], "duplicates count once, web links are dropped: \(doubled)")
+
+    var existing: Set<String> = ["Trip.tar.zst", "notes.txt.zip"]
+    let taken = { existing.contains($0) }
+    check(ArchiveCompression.outputName(stem: "Trip", format: .tarZstd, taken: taken) == "Trip 2.tar.zst",
+          "the number goes before the whole extension")
+    existing.insert("Trip 2.tar.zst")
+    check(ArchiveCompression.outputName(stem: "Trip", format: .tarZstd, taken: taken) == "Trip 3.tar.zst", "and counts on")
+    check(ArchiveCompression.outputName(stem: "notes.txt", format: .zip, taken: taken) == "notes.txt 2.zip",
+          "a file's own extension stays in the stem")
+    check(ArchiveCompression.outputName(stem: "Trip", format: .zip, taken: taken) == "Trip.zip", "a free name is kept")
+
+    let ascii = String(repeating: "a", count: 250)
+    let cutASCII = ArchiveCompression.cut(ascii, format: .zip)
+    check(cutASCII.utf8.count == 247 && (cutASCII + " 999.zip").utf8.count == 255, "\(cutASCII.utf8.count) bytes")
+    let accents = String(repeating: "é", count: 125)
+    let cutAccents = ArchiveCompression.cut(accents, format: .tarZstd)
+    check(accents.hasPrefix(cutAccents) && cutAccents.utf8.count == 242 && cutAccents.count == 121,
+          "two-byte characters are kept whole: \(cutAccents.utf8.count) bytes")
+    let families = String(repeating: "👨‍👩‍👧", count: 20)
+    let cutFamilies = ArchiveCompression.cut(families, format: .sevenZip)
+    check(families.hasPrefix(cutFamilies) && cutFamilies.utf8.count <= 247 && cutFamilies.count == 13,
+          "a joined emoji is never split: \(cutFamilies.count) characters")
+    check(ArchiveCompression.cut("Trip", format: .zip) == "Trip", "a short name is untouched")
+    check(try plan(.zip, ["/x/" + ascii]).get().stem == cutASCII, "the plan cuts the name")
+}
+
+func compressionRefusals() throws {
+    let cases: [(Result<CompressionPlan, ArchiveFailure>, ArchiveFailure)] = [
+        (plan(.zip, []), .nothingSelected),
+        (plan(.zip, ["https://example.com/a.zip"]), .nothingSelected),
+        (plan(.zip, ["/x/A/a.txt", "/x/B/b.txt"]), .severalFolders),
+        (plan(.zip, ["file:///"], kinds: ["/": .folder]), .notCompressible("/")),
+        (plan(.zip, ["/x/a.txt", "/x/pipe"], kinds: ["/x/pipe": .other]), .notCompressible("pipe")),
+        (plan(.zip, ["/x/a.txt"], readOnly: ["/x"]), .notWritable("x")),
+    ]
+    for (result, expected) in cases {
+        guard case .failure(let failure) = result else { return check(false, "\(expected) refuses: \(result)") }
+        check(failure == expected, "\(expected), got \(failure)")
+    }
+    check(try plan(.zip, ["/x/link"], kinds: ["/x/link": .link]).get().zipsClones, "a lone link is zipped as a clone")
+    check(ArchiveFailure.severalFolders.message == "Select items from one folder.", ArchiveFailure.severalFolders.message)
+    check(ArchiveFailure.compressionFailed("").message == "Compression failed.", "a silent tool still says something")
+    check(ArchiveFailure.missingTool(.sevenZip).message == "7zz is not installed. Install it with: brew install sevenzip",
+          ArchiveFailure.missingTool(.sevenZip).message)
+}
+
+func compressionArguments() throws {
+    let staged = URL(filePath: "/x/.tmp/Output.zip")
+    let tools = [URL(filePath: "/bin/tool"), URL(filePath: "/opt/home brew/bin/zstd")]
+    func arguments(_ plan: CompressionPlan, clones: URL? = nil) -> [String] {
+        ArchiveCommandLine.compress(plan, tools: tools, staged: staged, clones: clones)
+    }
+    let file = try plan(.zip, ["/x/notes.txt"]).get()
+    check(arguments(file) == ["-c", "-k", "--sequesterRsrc", "/x/notes.txt", staged.path], "\(arguments(file))")
+    let folder = try plan(.zip, ["/x/Photos"], kinds: ["/x/Photos": .folder]).get()
+    check(arguments(folder) == ["-c", "-k", "--sequesterRsrc", "--keepParent", "/x/Photos", staged.path],
+          "a lone folder keeps its own name inside the ZIP: \(arguments(folder))")
+    let names = ["/x/Trip/-dash.txt", "/x/Trip/@at.txt", "/x/Trip/sub"]
+    let several = try plan(.zip, names).get()
+    check(several.zipsClones, "several items go into a ZIP as clones")
+    let clones = URL(filePath: "/x/.tmp/Items")
+    check(arguments(several, clones: clones) == ["-c", "-k", "--sequesterRsrc", clones.path, staged.path],
+          "ditto zips the clones' folder without it, so the items sit at the top: \(arguments(several, clones: clones))")
+    let seven = try plan(.sevenZip, names).get()
+    check(arguments(seven) == ["a", "-t7z", "-mx=9", "-snl", "-spd", "-bd", "-y", "--", staged.path] + names,
+          "7z takes absolute paths after --, so - and @ names stay names: \(arguments(seven))")
+    let tar = try plan(.tarZstd, names).get()
+    check(arguments(tar) == [
+        "--use-compress-program", "\"/opt/home brew/bin/zstd\"", "-cf", staged.path, "-C", "/x/Trip",
+        "./-dash.txt", "./@at.txt", "./sub",
+    ], "bsdtar runs the located zstd and reads ./ names from the folder: \(arguments(tar))")
+}
+
 @main
 enum ArchivesModelTest {
     static func main() throws {
@@ -236,6 +337,9 @@ enum ArchivesModelTest {
         failures()
         journal()
         zipNames()
+        try compressionNames()
+        try compressionRefusals()
+        try compressionArguments()
         try plistKeys()
         print("nc-Archives-model-test: ok")
     }
