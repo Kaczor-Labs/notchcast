@@ -20,6 +20,7 @@
 import AppKit
 import Carbon.HIToolbox
 import SwiftUI
+import Vision
 
 /// `askSecret` from a registered add-on's context through the real dialog, leaving no trace behind.
 @MainActor
@@ -29,7 +30,8 @@ struct NotchcastAskSecretTest {
     static let noSelection = NSRange(location: NSNotFound, length: 0)
 
     static func check(_ label: String, _ ok: Bool) {
-        if !ok { failures += 1; print("FAIL \(label)") }
+        // Stderr is unbuffered: stdout to a log file is lost when `finish` traps.
+        if !ok { failures += 1; FileHandle.standardError.write(Data("FAIL \(label)\n".utf8)) }
     }
 
     static func main() {
@@ -67,9 +69,9 @@ struct NotchcastAskSecretTest {
             check("the open dialog carries the secret accessory", false)
             return finish()
         }
-        let drawn = texts(in: panel)
+        let drawn = drawnText(in: panel)
         check(
-            "Notchcast's drawn line names the add-on from its registration, got \(drawn)",
+            "Notchcast's drawn line names the add-on from its registration, read \(drawn)",
             drawn.contains { $0.contains("Asked by Archives in Notchcast") })
         check("the title is the add-on's, the requester line is not", controller.shown?.title == "Archive Password")
         let editor = panel.firstResponder as? NSTextView
@@ -98,7 +100,7 @@ struct NotchcastAskSecretTest {
 
         panel.sendEvent(key(kVK_Return, "\r"))
         spin { answer != nil }
-        check("Return answers the typed text", answer == .some("hunter2!pw"))
+        check("Return answers the typed text, got \(shape(answer))", answer == .some("hunter2!pw"))
         closed(controller, state, "Return")
 
         // Esc cancels.
@@ -109,7 +111,7 @@ struct NotchcastAskSecretTest {
         (escPanel.firstResponder as? NSTextView)?.insertText("x", replacementRange: noSelection)
         escPanel.sendEvent(key(kVK_Escape, "\u{1b}"))
         spin { answer != nil }
-        check("Esc answers nil", answer == .some(nil))
+        check("Esc answers nil, got \(shape(answer))", answer == .some(nil))
         closed(controller, escState, "Esc")
 
         // The Cancel button and a stock dialog still dismissed by click-away.
@@ -122,7 +124,7 @@ struct NotchcastAskSecretTest {
         check("Cancel: the text was typed before cancelling", cancelState.text == "typed")
         cancelPanel.onKey?(.cancel)
         spin { answer != nil }
-        check("Cancel answers nil", answer == .some(nil))
+        check("Cancel answers nil, got \(shape(answer))", answer == .some(nil))
         closed(controller, cancelState, "Cancel")
         check("Cancel: the pasteboard is untouched", pasteboard.changeCount == pasteboardCount)
 
@@ -136,7 +138,7 @@ struct NotchcastAskSecretTest {
         check("job cancelled: the text was typed first", jobState.text == "orphan")
         job.cancel()
         spin { answer != nil }
-        check("job cancelled: the answer is nil, never the typed text", answer == .some(nil))
+        check("job cancelled: the answer is nil, never the typed text, got \(shape(answer))", answer == .some(nil))
         closed(controller, jobState, "job cancelled")
 
         var confirmed: Bool?
@@ -164,22 +166,39 @@ struct NotchcastAskSecretTest {
         await context?.askSecret?("Archive Password", "Enter the password for backup.zip.", "Password", "Extract")
     }
 
-    /// Every string the panel's views and accessibility elements expose, as VoiceOver would read them.
-    static func texts(in panel: NSWindow) -> [String] {
-        var seen = Set<ObjectIdentifier>()
-        var found: [String] = []
-        func walk(_ node: Any) {
-            guard let node = node as? NSObject & NSAccessibilityProtocol,
-                seen.insert(ObjectIdentifier(node)).inserted
-            else { return }
-            found += [node.accessibilityLabel(), node.accessibilityTitle(), node.accessibilityValue() as? String]
-                .compactMap { $0 }
-            if let field = node as? NSTextField { found.append(field.stringValue) }
-            (node.accessibilityChildren() ?? []).forEach(walk)
-            (node as? NSView)?.subviews.forEach(walk)
+    /// Read from the pixels: no AX client on a runner, so SwiftUI's `Text` is in no view or AX node.
+    static func drawnText(in panel: NSWindow) -> [String] {
+        guard let view = panel.contentView,
+            let rep = NSBitmapImageRep(
+                bitmapDataPlanes: nil, pixelsWide: Int(view.bounds.width * 2), pixelsHigh: Int(view.bounds.height * 2),
+                bitsPerSample: 8, samplesPerPixel: 4, hasAlpha: true, isPlanar: false, colorSpaceName: .deviceRGB,
+                bytesPerRow: 0, bitsPerPixel: 0)
+        else { return [] }
+        rep.size = view.bounds.size
+        view.cacheDisplay(in: view.bounds, to: rep)
+        guard let drawn = rep.cgImage,
+            let flat = CGContext(
+                data: nil, width: drawn.width, height: drawn.height, bitsPerComponent: 8, bytesPerRow: 0,
+                space: CGColorSpaceCreateDeviceRGB(), bitmapInfo: CGImageAlphaInfo.noneSkipLast.rawValue)
+        else { return [] }
+        let bounds = CGRect(x: 0, y: 0, width: drawn.width, height: drawn.height)
+        flat.setFillColor(.black)
+        flat.fill(bounds)
+        flat.draw(drawn, in: bounds)
+        guard let image = flat.makeImage() else { return [] }
+        var lines: [String]?
+        Task {
+            var request = RecognizeTextRequest()
+            request.usesLanguageCorrection = false
+            do {
+                lines = try await request.perform(on: image).compactMap { $0.topCandidates(1).first?.string }
+            } catch {
+                lines = ["recognition failed: \(error)"]
+            }
         }
-        panel.contentView.map(walk)
-        return found
+        // A fresh runner compiles Vision's model on first use, which can take most of a minute.
+        spin(turns: 12_000) { lines != nil }
+        return lines ?? ["recognition timed out"]
     }
 
     static func closed(_ controller: DialogController, _ state: SecretFieldState, _ how: String) {
@@ -202,9 +221,18 @@ struct NotchcastAskSecretTest {
         return panel
     }
 
+    /// Nil when no answer came, else whether it is nil or how long it is, never the text itself.
+    static func shape(_ answer: String??) -> String {
+        switch answer {
+        case nil: "no answer"
+        case .some(nil): "nil"
+        case .some(let text?): "\(text.count) characters"
+        }
+    }
+
     /// Turns the main run loop until `done`, capped so a broken path fails instead of hanging.
-    static func spin(_ done: () -> Bool) {
-        for _ in 0..<300 where !done() {
+    static func spin(turns: Int = 300, _ done: () -> Bool) {
+        for _ in 0..<turns where !done() {
             RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.01))
         }
     }
