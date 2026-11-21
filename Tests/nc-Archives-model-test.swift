@@ -182,7 +182,7 @@ func failures() {
     check(ArchiveFailure.tool(result(2)) == .failed("it broke"), "fallback tools fail with their words")
     let elsewhere = ArchiveProcessResult(
         status: 1, errors: "error: this archive is already partially extracted to /x. Complete or restore that extraction first")
-    check(ArchiveFailure.hatchzip(elsewhere) == .startedElsewhere, "progress HatchZip holds elsewhere is named plainly")
+    check(ArchiveFailure.hatchzip(elsewhere) == .startedElsewhere("/x"), "progress HatchZip holds elsewhere is named plainly")
 }
 
 func passwords() {
@@ -206,9 +206,13 @@ func journal() {
     check(ArchiveJob.decode(ArchiveJob.encode([job])) == [job], "the journal round-trips")
     check(ArchiveJob.decode(Data("garbage".utf8)).isEmpty, "a damaged journal resumes nothing")
     var stopped = job
-    stopped.stopped = ArchiveFingerprint(size: 7, modified: Date(timeIntervalSinceReferenceDate: 1.25))
+    stopped.stopped = ArchiveFingerprint(size: 7, stoppedAt: Date(timeIntervalSinceReferenceDate: 1.25))
     check(ArchiveJob.decode(ArchiveJob.encode([stopped])) == [stopped], "a stopped entry round-trips")
     let older = #"[{"id":"\#(job.id)","archive":"file:///tmp/a.7z","staging":"file:///tmp/.s/","inPlace":false}]"#
+    let oldStopped = older.replacingOccurrences(
+        of: #""inPlace":false"#, with: #""inPlace":false,"stopped":{"size":7,"modified":1.25}"#)
+    check(ArchiveJob.decode(Data(oldStopped.utf8)).first?.stopped == ArchiveFingerprint(size: 7),
+          "a stopped entry with the old fingerprint still decodes")
     check(ArchiveJob.decode(Data(older.utf8)).first?.stopped == nil, "a journal from before `stopped` still decodes")
 }
 

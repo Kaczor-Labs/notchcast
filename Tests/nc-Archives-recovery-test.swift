@@ -1,0 +1,156 @@
+// notchcast-sources: Tinycast/Features/Notchcast/Core/Model/*.swift
+
+// notchcast-sources: Tinycast/Features/Notchcast/Core/Service/*.swift
+
+// notchcast-sources: Tinycast/Features/Island/Model/IslandPresentation.swift
+
+// notchcast-sources: Tinycast/Features/Island/Service/IslandPresenting.swift
+
+// notchcast-sources: Tinycast/Platform/NotificationToken.swift Tinycast/Platform/ProcessExit.swift
+
+// notchcast-sources: Tinycast/Platform/ExecutableLocator.swift
+
+// notchcast-sources: Tinycast/Features/Notchcast/Archives/ArchivesAddon.swift
+
+// notchcast-sources: Tinycast/Features/Notchcast/Archives/Model/*.swift
+
+// notchcast-sources: Tinycast/Features/Notchcast/Archives/Service/ArchivesModule.swift
+
+// notchcast-sources: Tinycast/Features/Notchcast/Archives/Service/ArchivesEnvironment.swift
+
+// notchcast-sources: Tinycast/Features/Notchcast/Archives/Service/ArchiveExtractor.swift
+
+// notchcast-sources: Tinycast/Features/Notchcast/Archives/Service/ArchiveCompressor.swift
+
+// notchcast-sources: Tinycast/Features/Notchcast/Archives/Service/ArchiveProcess.swift
+
+// notchcast-sources: Tests/NotchcastDictationFixture.swift
+
+// notchcast-sources: Tests/nc-Archives-password-fixture.swift
+
+import Foundation
+
+@MainActor
+func stoppedEncryptedNames(moved: Bool) async throws {
+    var rig = try Rig(answers: [right], passwords: ["Vault.7z": right], hiddenNames: ["Vault.7z"])
+    let folder = rig.folder
+    rig.tools.state.withLock { $0.hold = ["Vault.7z"] }
+    rig.module!.open([rig.archive("Vault.7z")])
+    while !rig.tools.state.withLock({ $0.heldStarted }) { await Task.yield() }
+    let staging = rig.module!.current!.job.staging
+    rig.module!.cancel(rig.module!.current!.job.id)
+    await rig.module!.drain()
+    check(rig.steps == ["list", "list", "extract", "restore"] && rig.calls[3].environment.isEmpty, "\(rig.steps)")
+    let stopped = rig.journal()
+    check(stopped.count == 1 && stopped[0].stopped?.stoppedAt == Rig.testDate, "the stop records its time")
+    check(rig.staging == [staging.lastPathComponent] && rig.exists("Vault.7z.hatchzip"), "staging kept: \(rig.visible)")
+    check(rig.presenter.texts.last == "Stopped extracting Vault.7z", "\(rig.presenter.texts)")
+    rig.module!.cancelAll()
+    check(rig.journal().count == 1, "Cancel All Extractions keeps it")
+    rig.controller.preferences.set("archives", on: false)
+    while rig.module != nil { await Task.yield() }
+    check(rig.staging.count == 1 && rig.journal().count == 1, "switching off keeps it too")
+    rig.finish(keepingFolder: true)
+
+    let files = FileManager.default
+    let original = folder.appending(path: "Vault.7z")
+    let reopened: URL
+    if moved {
+        let subfolder = folder.appending(path: "Moved", directoryHint: .isDirectory)
+        try files.createDirectory(at: subfolder, withIntermediateDirectories: true)
+        reopened = subfolder.appending(path: "Renamed.7z")
+        try files.moveItem(at: original, to: reopened)
+        try files.moveItem(atPath: original.path + ".hatchzip", toPath: reopened.path + ".hatchzip")
+    } else {
+        reopened = original
+        try files.setAttributes([.modificationDate: Rig.testDate], ofItemAtPath: original.path)
+        let modified = try files.attributesOfItem(atPath: original.path)[.modificationDate] as? Date
+        check(modified == Rig.testDate, "the modification date changed")
+    }
+    let name = reopened.lastPathComponent
+    rig = try Rig(folder: folder, answers: [nil], passwords: [name: right], hiddenNames: [name])
+    await rig.module!.drain()
+    check(rig.module!.current == nil && rig.calls.isEmpty && rig.record.asks.isEmpty, "a relaunch asks nothing")
+    check(rig.presenter.posts.isEmpty, "and shows nothing running")
+    rig.module!.open([reopened])
+    await rig.module!.drain()
+    check(rig.record.asks.map(\.title) == ["Password for \(name)"], "opening it again asks for the current name")
+    check(rig.journal() == stopped && rig.staging.count == 1, "Cancel keeps the same entry and staging")
+    rig.record.answers = [right]
+    rig.module!.open([reopened])
+    await rig.module!.drain()
+    let extractions = rig.calls.filter { $0.arguments[0] == "extract" }
+    check(extractions.count == (moved ? 2 : 1), "only a moved archive first probes a fresh path: \(rig.steps)")
+    check(extractions.last!.arguments.contains(staging.path), "resumed into the kept staging")
+    let output = reopened.deletingPathExtension().appending(path: "b/c.txt")
+    check(files.fileExists(atPath: output.path) && rig.staging.isEmpty, "placed beside the archive's current path")
+    check(!files.fileExists(atPath: reopened.path + ".hatchzip"), "HatchZip cleared its state")
+    check(rig.record.asks.count == 2 && rig.journal().isEmpty, "resume reuses this job's answer and clears the entry")
+    rig.finish()
+}
+
+@MainActor
+func startedElsewhere() async throws {
+    let files = FileManager.default
+    let folder = files.temporaryDirectory.appending(path: "nc-archives-unknown-\(UUID())")
+    let archive = folder.appending(path: "Vault.7z")
+    var stopped = ArchiveJob(id: UUID(), archive: archive, inPlace: false)
+    stopped.stopped = ArchiveFingerprint(size: 1, stoppedAt: Rig.testDate)
+    let unknown = folder.appending(path: "Unknown output")
+    let sentinel = Data("untouched".utf8)
+    for folder in [stopped.staging, unknown] {
+        try files.createDirectory(at: folder, withIntermediateDirectories: true)
+        try sentinel.write(to: folder.appending(path: "partial.txt"))
+    }
+    try Data("archive".utf8).write(to: archive)
+    let side = archive.path + ".hatchzip"
+    try unknown.path.write(toFile: side, atomically: true, encoding: .utf8)
+    let rig = try Rig(folder: folder, answers: [right], journal: [stopped], passwords: ["Vault.7z": right])
+    defer { rig.finish() }
+    await rig.extract("Vault.7z")
+    check(rig.presenter.failures == ["This archive is partly extracted elsewhere; finish that with hatchzip first."],
+          "\(rig.presenter.failures)")
+    check(!rig.steps.contains("restore") && rig.journal() == [stopped], "the mismatched stopped entry stays")
+    check(rig.staging == [stopped.staging.lastPathComponent], "only the fresh scratch folder is cleaned")
+    for folder in [stopped.staging, unknown] {
+        check(try Data(contentsOf: folder.appending(path: "partial.txt")) == sentinel, "partial files stay untouched")
+    }
+    check(try String(contentsOfFile: side, encoding: .utf8) == unknown.path, "HatchZip's state stays untouched")
+}
+
+@MainActor
+func pruneStopped() async throws {
+    let files = FileManager.default
+    let folder = files.temporaryDirectory.appending(path: "nc-archives-prune-\(UUID())")
+    let weekAgo = Rig.testDate.addingTimeInterval(-7 * 24 * 60 * 60)
+    let older = weekAgo.addingTimeInterval(-1)
+    var entries: [ArchiveJob] = []
+    for (name, stoppedAt) in [("Expired", older), ("Boundary", weekAgo), ("Recent", weekAgo.addingTimeInterval(1)),
+                              ("Legacy", nil), ("Present", older)] {
+        let archive = folder.appending(path: "\(name).7z")
+        var job = ArchiveJob(id: UUID(), archive: archive, inPlace: false)
+        job.stopped = ArchiveFingerprint(size: 7, stoppedAt: stoppedAt)
+        try files.createDirectory(at: job.staging, withIntermediateDirectories: true)
+        try Data("partial".utf8).write(to: job.staging.appending(path: "partial.txt"))
+        if name == "Present" { try Data("archive".utf8).write(to: archive) }
+        entries.append(job)
+    }
+    let rig = try Rig(folder: folder, journal: entries, now: Rig.testDate)
+    defer { rig.finish() }
+    await rig.module!.drain()
+    check(rig.journal() == Array(entries.dropFirst()), "only the missing archive older than one week is pruned")
+    check(!files.fileExists(atPath: entries[0].staging.path), "expired staging is removed")
+    check(rig.staging.count == 4 && rig.calls.isEmpty && rig.presenter.posts.isEmpty, "other stops remain idle")
+}
+
+@main
+enum ArchivesRecoveryTest {
+    @MainActor
+    static func main() async throws {
+        try await stoppedEncryptedNames(moved: false)
+        try await stoppedEncryptedNames(moved: true)
+        try await startedElsewhere()
+        try await pruneStopped()
+        print("nc-Archives-recovery-test: ok")
+    }
+}

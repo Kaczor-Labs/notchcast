@@ -5,9 +5,8 @@ nonisolated struct ArchiveJob: Codable, Equatable, Identifiable, Sendable {
     let id: UUID
     let archive: URL
     /// A hidden folder beside the archive; the engine writes here, then the items move into place.
-    let staging: URL
+    var staging: URL
     var inPlace: Bool
-    /// Set when HatchZip kept progress it cannot discard; reopening this same file resumes into `staging`.
     var stopped: ArchiveFingerprint?
 
     init(id: UUID, archive: URL, inPlace: Bool) {
@@ -29,5 +28,5 @@ nonisolated struct ArchiveJob: Codable, Equatable, Identifiable, Sendable {
 /// Tells a stopped archive from a different file that took its name since.
 nonisolated struct ArchiveFingerprint: Codable, Equatable, Sendable {
     var size: Int64
-    var modified: Date
+    var stoppedAt: Date?
 }

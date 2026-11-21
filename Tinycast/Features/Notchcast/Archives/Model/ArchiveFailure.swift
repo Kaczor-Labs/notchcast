@@ -14,7 +14,7 @@ nonisolated enum ArchiveFailure: Error, Equatable, Sendable {
     case noSpace(String)
     case damaged(String)
     case password
-    case startedElsewhere
+    case startedElsewhere(String)
     case failed(String)
     case nothingSelected
     case automationRefused
@@ -35,9 +35,21 @@ nonisolated enum ArchiveFailure: Error, Equatable, Sendable {
         case hatchzipNoSpace: .noSpace(detail(result))
         case 4: .damaged(detail(result))
         case hatchzipPassword: .password
-        case 1 where result.errors.contains("already partially extracted to"): .startedElsewhere
+        case 1 where result.errors.contains("already partially extracted to "):
+            .startedElsewhere(partialExtractionPath(result.errors))
         default: .failed(detail(result))
         }
+    }
+
+    private static func partialExtractionPath(_ errors: String) -> String {
+        let prefix = "already partially extracted to "
+        let suffix = ". Complete or restore that extraction first"
+        for line in errors.split(whereSeparator: \.isNewline) {
+            guard let marker = line.range(of: prefix) else { continue }
+            let reported = line[marker.upperBound...]
+            return reported.hasSuffix(suffix) ? String(reported.dropLast(suffix.count)) : String(reported)
+        }
+        return ""
     }
 
     static func tool(_ result: ArchiveProcessResult) -> ArchiveFailure? {

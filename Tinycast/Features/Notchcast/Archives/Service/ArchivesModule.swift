@@ -14,7 +14,8 @@ final class ArchivesModule: NotchcastModule {
     private let context: NotchcastContext
     private let environment: ArchivesEnvironment
     private(set) var jobs: [ArchiveJob] = []
-    private(set) var current: (job: ArchiveJob, task: Task<Void, Never>)?
+    private(set) var current: (job: ArchiveJob, task: Task<Void, Never>, resuming: UUID?)?
+    private var pruning: Task<Void, Never>?
     /// `label` is nil while Finder's selection is still being read.
     private(set) var compression: (id: UUID, label: String?, task: Task<Void, Never>)?
 
@@ -25,6 +26,7 @@ final class ArchivesModule: NotchcastModule {
 
     func start() {
         jobs = ArchiveJob.decode((try? Data(contentsOf: environment.journal)) ?? Data())
+        pruneStoppedJobs()
         context.handleOpenURL { [weak self] url in
             guard let self, url.isFileURL, ArchiveRoute(fileName: url.lastPathComponent) != nil else { return false }
             open([url])
@@ -41,6 +43,8 @@ final class ArchivesModule: NotchcastModule {
         if !context.isEnabled(Self.switchID), context.defaults.bool(forKey: Self.defaultAppKey) {
             setDefaultApp(false)
         }
+        pruning?.cancel()
+        pruning = nil
         current?.task.cancel()
         current = nil
         context.presenter.end(notice: Self.noticeID)
@@ -55,16 +59,7 @@ final class ArchivesModule: NotchcastModule {
                 report(.notArchive(url.lastPathComponent))
                 continue
             }
-            if let index = jobs.firstIndex(where: { $0.archive == url }) {
-                guard let stopped = jobs[index].stopped else { continue }
-                var job = jobs.remove(at: index)
-                // The same file resumes into its kept staging, the only folder HatchZip will finish it in.
-                if stopped == ArchiveExtractor.fingerprint(url) {
-                    job.stopped = nil
-                    jobs.append(job)
-                    continue
-                }
-            }
+            guard !jobs.contains(where: { $0.archive.path == url.path && $0.stopped == nil }) else { continue }
             jobs.append(ArchiveJob(id: UUID(), archive: url, inPlace: context.defaults.bool(forKey: Self.inPlaceKey)))
         }
         save()
@@ -82,7 +77,7 @@ final class ArchivesModule: NotchcastModule {
         if current?.job.id == id {
             current?.task.cancel()
         } else {
-            jobs.removeAll { $0.id == id }
+            jobs.removeAll { $0.id == id && $0.stopped == nil }
             save()
         }
     }
@@ -97,7 +92,7 @@ final class ArchivesModule: NotchcastModule {
 
     /// Waits for the queue to empty; the harness's only clock.
     func drain() async {
-        while let task = current?.task { await task.value }
+        while let task = pruning ?? current?.task { await task.value }
     }
 
     func drainCompression() async {
@@ -174,8 +169,45 @@ final class ArchivesModule: NotchcastModule {
         }
     }
 
+    private func pruneStoppedJobs() {
+        let cutoff = environment.now().addingTimeInterval(-7 * 24 * 60 * 60)
+        let candidates = jobs.filter { job in
+            guard let stoppedAt = job.stopped?.stoppedAt else { return false }
+            return stoppedAt < cutoff
+        }
+        guard !candidates.isEmpty else { return }
+        pruning = Task { [weak self] in
+            for job in candidates {
+                let removed = await ArchiveExtractor.pruneStaging(for: job)
+                guard !Task.isCancelled, let self else { return }
+                if removed {
+                    jobs.removeAll { $0.id == job.id }
+                    save()
+                }
+            }
+            self?.pruning = nil
+            self?.runNext()
+        }
+    }
+
+    private func resumeStaging(_ job: ArchiveJob, reportedPath: String?) -> URL? {
+        guard current?.job.id == job.id, !Task.isCancelled else { return nil }
+        let entry: ArchiveJob?
+        if let reportedPath {
+            guard reportedPath.hasPrefix("/") else { return nil }
+            let path = URL(filePath: reportedPath).resolvingSymlinksInPath().path
+            entry = jobs.first { $0.stopped != nil && $0.staging.resolvingSymlinksInPath().path == path }
+        } else {
+            guard let size = ArchiveExtractor.size(job.archive) else { return nil }
+            entry = jobs.first { $0.archive.path == job.archive.path && $0.stopped?.size == size }
+        }
+        guard let entry else { return nil }
+        current?.resuming = entry.id
+        return entry.staging
+    }
+
     private func runNext() {
-        guard current == nil, let job = jobs.first(where: { $0.stopped == nil }) else { return }
+        guard pruning == nil, current == nil, let job = jobs.first(where: { $0.stopped == nil }) else { return }
         let extractor = environment.extractor
         let ask: ArchiveExtractor.AskInPlace = { [weak self] plan in await self?.askInPlace(job, plan: plan) ?? false }
         let password: ArchiveExtractor.AskPassword = { [weak self] wrong in await self?.askPassword(job, wrong: wrong) }
@@ -184,7 +216,8 @@ final class ArchivesModule: NotchcastModule {
         let task = Task { [weak self] in
             do {
                 let placed = try await extractor.extract(
-                    job, askPassword: askPassword, askInPlace: ask, onInPlace: markInPlace)
+                    job, askPassword: askPassword, askInPlace: ask, onInPlace: markInPlace,
+                    resumeStaging: { [weak self] path in await self?.resumeStaging(job, reportedPath: path) })
                 self?.finish(job, placed: placed, failure: nil)
             } catch is CancellationError {
                 await self?.stopped(job, failure: nil, extractor: extractor)
@@ -193,7 +226,7 @@ final class ArchivesModule: NotchcastModule {
                 await self?.stopped(job, failure: failure, extractor: extractor)
             }
         }
-        current = (job, task)
+        current = (job, task, nil)
         context.presenter.post(
             IslandNotice(id: Self.noticeID, symbol: "archivebox",
                          text: String(localized: "Extracting \(job.name)", table: "NotchcastArchives"),
@@ -204,22 +237,31 @@ final class ArchivesModule: NotchcastModule {
     /// A stop or failure discards or salvages the job; after a module stop it stays to resume.
     private func stopped(_ job: ArchiveJob, failure: ArchiveFailure?, extractor: ArchiveExtractor) async {
         guard current?.job.id == job.id else { return }
+        if case .startedElsewhere = failure {
+            finish(job, placed: nil, failure: failure)
+            return
+        }
+        if current?.resuming != nil {
+            finish(job, placed: nil, failure: failure, cancelled: failure == nil)
+            return
+        }
         let job = latest(job)
         // A fresh task: this one is cancelled after a stop, which would refuse `hatchzip restore`.
         let left = await Task { await extractor.abandon(job) }.value
-        finish(job, placed: left.placed, failure: failure, cancelled: failure == nil, stopped: left.stopped)
+        finish(job, placed: left.placed, failure: failure, cancelled: failure == nil, stoppedSize: left.stoppedSize)
     }
 
     private func finish(
         _ job: ArchiveJob, placed: URL?, failure: ArchiveFailure?, cancelled: Bool = false,
-        stopped: ArchiveFingerprint? = nil
+        stoppedSize: Int64? = nil
     ) {
         guard current?.job.id == job.id else { return }
+        let resumed = failure == nil && !cancelled ? current?.resuming : nil
         current = nil
-        if let stopped, let index = jobs.firstIndex(where: { $0.id == job.id }) {
-            jobs[index].stopped = stopped
+        if let stoppedSize, let index = jobs.firstIndex(where: { $0.id == job.id }) {
+            jobs[index].stopped = ArchiveFingerprint(size: stoppedSize, stoppedAt: environment.now())
         } else {
-            jobs.removeAll { $0.id == job.id }
+            jobs.removeAll { $0.id == job.id || $0.id == resumed }
         }
         save()
         context.presenter.end(notice: Self.noticeID)
