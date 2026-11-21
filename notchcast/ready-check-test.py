@@ -135,8 +135,8 @@ GATED_MAC = ("${{ github.event_name == 'workflow_dispatch' && !inputs.hosted && 
 HARNESS_MAC = ("${{ github.event_name == 'workflow_dispatch' && (inputs.harness_runner || !inputs.hosted "
                "&& vars.NOTCHCAST_MAC_RUNNER) || 'xcode-27' }}")
 HARNESS_ONLY, FULL_RUN = "inputs.harness_runner != ''", "inputs.harness_runner == ''"
-# The labels a dispatch may name for a harness-only run (README Runners); a free-text input could name any runner.
-HARNESS_RUNNERS = ["", "notchcast-mba"]
+# Labels a dispatch may name for a harness-only run (README Runners); free text names any runner.
+HARNESS_RUNNERS = ["", "notchcast-mba", "notchcast-mbp"]
 # Only jobs that hold no secret, sign with no identity and push nothing; a workflow outside this map is hosted-only.
 GATED_JOBS = {"pr.yml": 1, "main-harnesses.yml": 1, "proof.yml": 1}
 # Every macOS job (README Runners): it runs xcodebuild, compiles harnesses, signs or launches the app. Anything else is Linux.
@@ -228,7 +228,7 @@ class RunnerTest(unittest.TestCase):
                                 self.assertEqual(runner, runs_on(GATED_MAC, **values), "an empty input changes nothing")
 
     def test_a_harness_runner_is_one_of_the_known_labels(self):
-        self.assertIn("      harness_runner:\n        description: Runner label for a harness-only macOS job (notchcast-mba); "
+        self.assertIn("      harness_runner:\n        description: Runner label for a harness-only macOS job (notchcast-mba, notchcast-mbp); "
                       "no build, no proof of any tree (README, Runners)\n        type: choice\n"
                       f"        options: [{', '.join(repr(label) if not label else label for label in HARNESS_RUNNERS)}]\n"
                       "        default: ''\n", WORKFLOW.read_text())

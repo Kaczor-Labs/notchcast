@@ -12,7 +12,7 @@ import tempfile
 
 ROOT = Path(__file__).resolve().parent.parent
 REGISTRY = json.loads((ROOT / "notchcast/app-proofs.json").read_text())
-# The proof app's domain and its add-on suite: a failed proof exits before its cleanup, and runners share a user.
+# The proof app's domain and add-on suite: a failed proof skips cleanup, and runners share a user.
 DOMAINS = ("app.notchcast.proof", "app.notchcast.proof.notchcast")
 
 

@@ -9,7 +9,7 @@ import tempfile
 import unittest
 
 SCRIPT = Path(__file__).with_name("app-proof.py")
-# The fake app logs its run and whether the lock was free; `defaults` is a stub that logs, so no real domain is touched.
+# The fake app logs its run and whether the lock was free; a `defaults` stub touches no domain.
 APP = """#!/usr/bin/env python3
 import fcntl, os
 with open(os.environ["LOG"], "a") as log:

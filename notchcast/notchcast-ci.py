@@ -23,8 +23,9 @@ workflow's concurrency group. A run in progress does not block; the new run wait
 main-harnesses.yml on the branch and use the workflow_run_id and html_url its response carries (never "the latest
 run"); a response without workflow_run_id is an error. (4) Poll the run every 60 s until it completes, reading its
 check suite over GraphQL (its own hourly budget) and `gh run view` only where GraphQL cannot say; under RESERVE calls
-left in the bucket a poll used, the wait stretches by RESERVE/left with jitter, up to the reset plus 0-120 s, and says
-so (`notchcast-ci: N <bucket> calls left (<1500); next poll in S s`). Then print the last ~40 lines of the failing step's log on a failure and one final line:
+left in the bucket a poll used, the wait stretches by RESERVE/left with jitter, up to the reset plus 0-120 s but
+never under the usual pause, and says so (`notchcast-ci: N <bucket> calls left (<1500); next poll in S s`).
+Then print the last ~40 lines of the failing step's log on a failure and one final line:
 `PASS|FAIL <html_url> at <sha12> harnesses: <list>` (sha12 is the run's headSha; the list is the "Changed harnesses"
 step's output; `PASS (no harnesses selected) <html_url> at <sha12>` when it selected none, `harnesses: unknown` when
 the log cannot be read). A conclusion other than success or failure (cancelled, e.g. superseded in the workflow's
@@ -42,7 +43,8 @@ to prove), a NOPROOF run, or a run whose headSha is not the HEAD this started at
 still printed), or no --keeper. 3: still pending; rerun the printed command. 4: QUEUED, nothing dispatched; rerun once
 the waiting run starts. Overrides for tests: NOTCHCAST_CI_POLL (seconds between polls) and
 NOTCHCAST_CI_CLOCK=virtual (waits advance a counter instead of sleeping; a child process gets the virtual time
-left as its real timeout).
+left as its real timeout), NOTCHCAST_CI_NOW (the virtual clock's start, epoch seconds) and NOTCHCAST_CI_SEED (seeds
+the jitter).
 """
 import argparse
 import json
@@ -62,8 +64,8 @@ HOOKS = "notchcast-hooks"
 STEP = "Changed harnesses"
 FAILED_LOG_LINES = 40
 MIN_API_CALLS = 500  # the hourly budget is shared with every lead's gh; never dispatch into its last calls
-RESERVE = 1500  # calls left for land.sh and the Keepers: under it a poll waits longer, so pollers spread to the reset
-WAKE_JITTER = 120  # pollers that all slept to one reset would empty the new budget again on waking together
+RESERVE = 1500  # calls kept for land.sh and the Keepers: under it pollers spread to the reset
+WAKE_JITTER = 120  # pollers waking together at one reset would empty the new budget again
 RATE_LIMITED = re.compile(r"rate limit (?:already )?exceeded", re.I)
 RUN_QUERY = "query($id: ID!) { node(id: $id) { ... on WorkflowRun { checkSuite { status conclusion commit { oid } } } } }"
 HARNESS = re.compile(r"[\w.+-]+")
@@ -85,7 +87,8 @@ class Queued(Exception):
 
 deadline = float("inf")
 VIRTUAL_CLOCK = os.environ.get("NOTCHCAST_CI_CLOCK") == "virtual"
-virtual_now = time.time()
+virtual_now = float(os.environ.get("NOTCHCAST_CI_NOW") or time.time())
+jitter = random.Random(os.environ.get("NOTCHCAST_CI_SEED"))
 
 
 def now():
@@ -134,7 +137,7 @@ def budget(bucket):
 def sleep_until_reset(reason, bucket="core", reset=None):
     reset = budget(bucket)[1] if reset is None else reset
     print(f"notchcast-ci: {reason}; waiting until {time.strftime('%H:%M', time.gmtime(reset))} UTC", flush=True)
-    nap(max(0, reset - now()) + random.uniform(0, WAKE_JITTER))
+    nap(max(0, reset - now()) + jitter.uniform(0, WAKE_JITTER))
 
 
 def patient_gh(*args, bucket="core"):
@@ -164,7 +167,8 @@ def poll_wait(bucket):
         return poll_seconds()
     to_reset = max(0, reset - now())
     stretched = poll_seconds() * RESERVE / max(left, 1)
-    wait = to_reset + random.uniform(0, WAKE_JITTER) if stretched >= to_reset else stretched * random.uniform(1, 1.25)
+    wait = to_reset + jitter.uniform(0, WAKE_JITTER) if stretched >= to_reset else stretched * jitter.uniform(1, 1.25)
+    wait = max(poll_seconds(), wait)
     print(f"notchcast-ci: {left} {bucket} calls left (<{RESERVE}); next poll in {wait:.0f} s", flush=True)
     return wait
 

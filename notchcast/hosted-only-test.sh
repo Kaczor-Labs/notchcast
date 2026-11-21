@@ -72,8 +72,7 @@ for where in NOTHING=1 RUNNER_ENVIRONMENT=github-hosted 'RUNNER_ENVIRONMENT=self
     [ "$where" = NOTHING=1 ] || [ "$(grep -c '^ran ' out)" = 3 ] || fail "$where did not run the whole suite beside a runner list"
 done
 echo 'PASS: a GitHub-hosted runner, an isolated one and a local run ignore NOTCHCAST_RUNNER_SKIP_TESTS'
-# Nothing the repository runs may claim to be the isolated runner: only that runner's service environment does.
-# Shell and Python assign with =, YAML's env: with a colon; a ${VAR:-} read is neither.
+# Only the isolated runner's service sets it: no =, :=, or YAML env: setter here; ${VAR:-} reads.
 setter='NOTCHCAST_ISOLATED_RUNNER([]}"'"'"']*[[:space:]]*=|["'"'"']?[[:space:]]*:([^-]|$))'
 for line in 'NOTCHCAST_ISOLATED_RUNNER=1' '      NOTCHCAST_ISOLATED_RUNNER: 1' '"NOTCHCAST_ISOLATED_RUNNER": "1"' \
     'os.environ["NOTCHCAST_ISOLATED_RUNNER"] = "1"' ': "${NOTCHCAST_ISOLATED_RUNNER:=1}"'; do
