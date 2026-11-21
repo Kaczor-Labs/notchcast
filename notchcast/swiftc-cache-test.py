@@ -49,9 +49,9 @@ class SwiftcCacheTest(unittest.TestCase):
                               check=True).stdout
 
     def test_same_compile_is_restored_not_compiled(self):
-        self.assertEqual(self.swiftc("-swift-version", "6", "a.swift", "-o", "out"), 0)
+        self.assertEqual(self.swiftc("-swift-version", "6", "-Onone", "a.swift", "-wmo", "-o", "out"), 0)
         (self.root / "work/out").unlink()
-        self.assertEqual(self.swiftc("-swift-version", "6", "a.swift", "-o", "elsewhere"), 0)
+        self.assertEqual(self.swiftc("-swift-version", "6", "-Onone", "a.swift", "-wmo", "-o", "elsewhere"), 0)
         self.assertEqual(self.calls(), 1)
         restored = self.root / "work/elsewhere"
         self.assertEqual(restored.read_text(), "a\n")
