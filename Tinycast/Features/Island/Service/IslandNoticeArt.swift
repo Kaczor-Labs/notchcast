@@ -82,7 +82,7 @@ struct IslandHeadlineArt {
     }
 }
 
-/// What leads a notice: its ring while the fraction is known, else a glyph a failure tints.
+/// What leads a notice: its ring while the fraction is known, else a swatch, else a glyph a failure tints.
 @MainActor
 private struct IslandNoticeMark {
     /// Fixed, so a progress notice that turns into a glyph one never resizes the slots.
@@ -90,6 +90,7 @@ private struct IslandNoticeMark {
     let tone: NSColor
     private let frosted: Bool
     private let fraction: Double?
+    private let swatch: NSColor?
     private let glyph: NSImage?
 
     init(_ notice: IslandNotice, frosted: Bool) {
@@ -97,10 +98,13 @@ private struct IslandNoticeMark {
         tone = notice.isFailure
             ? IslandNoticeArt.failureTone(frosted: frosted) : Theme.Colors.textPrimary.islandInk(frosted: frosted)
         fraction = notice.progress?.fraction
-        glyph = fraction == nil ? notice.symbol.flatMap { [tone] in GlanceArt.glyph($0, tone: tone) } : nil
+        swatch = fraction == nil && !notice.isFailure
+            ? notice.swatch.map { NSColor(srgbRed: $0.red, green: $0.green, blue: $0.blue, alpha: 1) } : nil
+        glyph = fraction == nil && swatch == nil
+            ? notice.symbol.flatMap { [tone] in GlanceArt.glyph($0, tone: tone) } : nil
     }
 
-    var isEmpty: Bool { fraction == nil && glyph == nil }
+    var isEmpty: Bool { fraction == nil && swatch == nil && glyph == nil }
 
     static func line(_ string: String, frosted: Bool) -> NSAttributedString {
         let paragraph = NSMutableParagraphStyle()
@@ -112,6 +116,11 @@ private struct IslandNoticeMark {
     func draw(in box: CGRect) {
         if let fraction {
             ring(fraction, in: box.insetBy(dx: Theme.Size.hairline, dy: Theme.Size.hairline))
+        } else if let swatch {
+            let radius = IslandCover.radius
+            swatch.setFill()
+            NSBezierPath(roundedRect: box, xRadius: radius, yRadius: radius).fill()
+            IslandCover.edge(in: box, frosted: frosted)
         } else if let glyph {
             glyph.draw(in: CGRect(x: box.midX - glyph.size.width / 2, y: box.midY - glyph.size.height / 2,
                                   width: glyph.size.width, height: glyph.size.height))
@@ -153,7 +162,7 @@ struct IslandStatusArt: PillArt {
         let attributes: [NSAttributedString.Key: Any] = [.font: NotchTheme.Typography.islandGlanceNSFont,
             .foregroundColor: ink]
         var items = statuses.map { status in
-            (id: status.id, glyph: GlanceArt.glyph(status.symbol, tone: ink),
+            (id: status.id, glyph: GlanceArt.glyph(status.symbol, tone: status.tone?.ink(frosted: frosted) ?? ink),
              text: status.text.map { NSAttributedString(string: String($0.prefix(4)), attributes: attributes) })
         }
         func span(_ items: [(id: String, glyph: NSImage?, text: NSAttributedString?)]) -> CGFloat {

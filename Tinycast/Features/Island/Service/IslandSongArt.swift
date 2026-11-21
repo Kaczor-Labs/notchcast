@@ -123,6 +123,11 @@ enum IslandCover {
             }
         }
         NSGraphicsContext.restoreGraphicsState()
+        edge(in: rect, frosted: frosted)
+    }
+
+    /// The 1 pt inside line that keeps a cover, or a notice's swatch, apart from the island's black.
+    static func edge(in rect: CGRect, frosted: Bool) {
         NotchTheme.Colors.islandEdge.islandInk(frosted: frosted).setStroke()
         let edge = NSBezierPath(roundedRect: rect.insetBy(dx: 0.5, dy: 0.5), xRadius: radius - 0.5,
                                 yRadius: radius - 0.5)
