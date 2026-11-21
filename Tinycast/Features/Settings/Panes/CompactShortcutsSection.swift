@@ -84,6 +84,7 @@ struct CompactShortcutsSection: View {
     private func options(
         _ commands: [CommandID], select: @escaping (CommandID) -> Void
     ) -> some View {
+        let commands = commands.filter { !NotchcastHiddenCommands.commands.contains($0) }
         let off = commands.filter { !appIndex.isCommandEnabled($0) }
         ForEach(commands.filter(appIndex.isCommandEnabled), id: \.self) { command in
             Button {
