@@ -65,7 +65,9 @@ final class IPhoneBackupStore {
         do { current = try system.read() } catch { return }
         guard let journal = try? loadJournal(), !IPhoneBackupPolicy.isApplied(journal, current: current) else { return }
         decline()
-        restore(bounceOnFailure: false)
+        if (try? clearJournal()) != nil {
+            context.defaults.removeObject(forKey: IPhoneBackupPolicy.skipRestoreKey)
+        }
     }
 
     /// A failed write or unavailable storage keeps the capture and, by default, the switch on, so switching off retries.
@@ -94,9 +96,13 @@ final class IPhoneBackupStore {
 
     private func restoreJournal() throws {
         let journal = try loadJournal()
-        if let write = IPhoneBackupPolicy.restore(journal: journal, current: try? system.read()) {
+        if !journal.isEmpty, let write = IPhoneBackupPolicy.restore(journal: journal, current: try system.read()) {
             guard system.write(write) else { throw WriteFailed() }
         }
+        try clearJournal()
+    }
+
+    private func clearJournal() throws {
         if FileManager.default.fileExists(atPath: journalFile.path(percentEncoded: false)) {
             try FileManager.default.removeItem(at: journalFile)
         }

@@ -65,9 +65,10 @@ private struct ScriptCommandRow: View {
     // Not SettingsRow: its one-line title truncates beside the row's controls.
     var body: some View {
         let shown = preferences.showsInLauncher(entryID)
-        NotchcastCommandRowLayout {
+        NotchcastCommandRow {
             HStack(spacing: Theme.Spacing.lg) {
                 Image(systemName: ScriptCommandsModule.symbol)
+                    .fixedSize()
                 VStack(alignment: .leading, spacing: Theme.Spacing.xxs) {
                     Text(name)
                         .fixedSize(horizontal: false, vertical: true)
@@ -80,6 +81,7 @@ private struct ScriptCommandRow: View {
                             .help(row.script)
                     }
                 }
+                .frame(minWidth: NotchcastCommandRowLayout.titleMinimum, alignment: .leading)
             }
         } trailing: {
             if module.running.contains(row.id) {
@@ -98,17 +100,15 @@ private struct ScriptCommandRow: View {
             }
             .buttonStyle(.plain)
             .accessibilityLabel(String(localized: "Delete \(name)", table: "NotchcastScriptCommands"))
-        } controls: { labelsToggle in
+        } controls: {
             Group {
                 AliasField(key: entryID, name: name)
                     .settingsEnabled(shown)
                 ShortcutRecorder(action: .notchcastCommand(entryID: entryID))
                 Toggle(isOn: Binding(get: { shown }, set: { preferences.setShowsInLauncher(entryID, $0) })) {
-                    Text("Show in launcher", tableName: "NotchcastScriptCommands")
+                    NotchcastLauncherCheckboxLabel(title: Text("Show in launcher", tableName: "NotchcastScriptCommands"))
                 }
                 .toggleStyle(.checkbox)
-                .labelsVisibility(labelsToggle ? .visible : .hidden)
-                .fixedSize()
                 .launcherVisibilityHelp()
                 .accessibilityLabel(String(localized: "Show \(name) in the launcher", table: "NotchcastScriptCommands"))
             }
