@@ -46,7 +46,8 @@ final class ColorPickerModule: NotchcastModule {
         context.presenter.post(IslandNotice(
             id: Self.noticeID, symbol: Self.symbol,
             text: copied ? value : String(localized: "Could not copy to clipboard.", table: "NotchcastColorPicker"),
-            isFailure: !copied), onTap: nil)
+            isFailure: !copied,
+            swatch: copied ? IslandSwatch(red: color.red, green: color.green, blue: color.blue) : nil), onTap: nil)
         return copied
     }
 
