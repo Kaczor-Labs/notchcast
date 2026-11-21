@@ -148,7 +148,7 @@ GATED_MAC = ("${{ github.event_name == 'workflow_dispatch' && !inputs.hosted && 
 # pr.yml's mac job also takes the runner label a dispatch names for a harness-only run (README Runners).
 HARNESS_MAC = ("${{ github.event_name == 'workflow_dispatch' && (inputs.harness_runner || !inputs.hosted "
                "&& vars.NOTCHCAST_MAC_RUNNER) || 'xcode-27' }}")
-POOL_MAC = ("${{ needs.mac-route.outputs.mac-runner == 'notchcast-mbp' "
+POOL_MAC = ("${{ needs.mac-route.result == 'success' && needs.mac-route.outputs.mac-runner == 'notchcast-mbp' "
             "&& 'notchcast-mbp' || 'xcode-27' }}")
 HARNESS_ONLY, FULL_RUN = "inputs.harness_runner != ''", "inputs.harness_runner == ''"
 # Labels a dispatch may name for a harness-only run (README Runners); free text names any runner.
@@ -308,7 +308,8 @@ class MacPoolTest(unittest.TestCase):
             (root / "Tests").mkdir()
             config_path = root / "notchcast/config.env"
             config_path.write_text((ROOT / "notchcast/config.env").read_text())
-            shutil.copyfile(ROOT / "notchcast/ci-tests-test.sh", root / "notchcast/ci-tests-test.sh")
+            for name in ("ci-tests-test.sh", "ci-xcode.sh", "ci-tests.sh"):
+                shutil.copyfile(ROOT / "notchcast" / name, root / "notchcast" / name)
             for name, content in {
                 "SafeTests": "// Pure harness fixture",
                 "FormInputTests": "// Listed in config.env",
@@ -324,7 +325,9 @@ class MacPoolTest(unittest.TestCase):
             if config_change:
                 config_path.write_text(config_change(config_path.read_text()))
             for name, content in (head_files or {}).items():
-                (root / f"Tests/{name}.swift").write_text(content + "\n")
+                path = root / name
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_text(content + "\n")
             git("add", ".")
             git("commit", "--allow-empty", "-qm", "Head")
 
@@ -379,14 +382,14 @@ class MacPoolTest(unittest.TestCase):
                 self.assertEqual(self.run_route(pool=pool, tests=tests),
                                  "runs-on=notchcast-mbp\n" if use_pool else "")
 
-    def test_branch_config_accepts_only_literal_list_changes(self):
+    def test_config_must_match_main_including_the_lists(self):
         def remove_listed(text):
             return text.replace(" FormInputTests", "").replace('CI_SKIP_TESTS="ClipboardTextTests"', 'CI_SKIP_TESTS=""')
 
         for test in ("FormInputTests", "ClipboardTextTests"):
             with self.subTest(test=test):
                 self.assertEqual(self.run_route(tests=test, config_change=remove_listed), "")
-        self.assertEqual(self.run_route(config_change=remove_listed), "runs-on=notchcast-mbp\n")
+        self.assertEqual(self.run_route(config_change=remove_listed), "")
         self.assertEqual(self.run_route(config_change=lambda text: text + '\n: "$GITHUB_OUTPUT"\n'), "")
         self.assertEqual(self.run_route(config_change=lambda text: text.replace(
             'CI_SKIP_TESTS="ClipboardTextTests"', 'CI_SKIP_TESTS="ClipboardTextTests SafeTests"')), "")
@@ -396,8 +399,41 @@ class MacPoolTest(unittest.TestCase):
                               ("SkippedTests", "// notchcast-ci-skip"),
                               ("RiskyTests", "// NSWindow(")):
             with self.subTest(test=test):
-                self.assertEqual(self.run_route(tests=test, head_files={test: "// Pure harness fixture"}), "")
-                self.assertEqual(self.run_route(head_files={"SafeTests": content}), "")
+                self.assertEqual(self.run_route(tests=test, head_files={f"Tests/{test}.swift": "// Pure harness fixture"}), "")
+                self.assertEqual(self.run_route(head_files={"Tests/SafeTests.swift": content}), "")
+
+
+    def test_ci_files_must_match_main(self):
+        for path in ("notchcast/actions/xcode/action.yml", "notchcast/actions/tests/action.yml",
+                     "notchcast/ci-xcode.sh", "notchcast/ci-tests.sh", "notchcast/swiftc-cache.py",
+                     "notchcast/test-harnesses.sh", "Scripts/run-tests.sh", "json.py"):
+            with self.subTest(path=path):
+                self.assertEqual(self.run_route(head_files={path: "# Different on head"}), "")
+        self.assertEqual(self.run_route(head_files={
+            "Tests/SafeTests.swift": "// Safe test change", "Tinycast/Feature.swift": "// Product change",
+        }), "runs-on=notchcast-mbp\n")
+
+    def test_copies_of_listed_or_tagged_harnesses_stay_hosted(self):
+        for test, content in (("ClipboardTextTests", "// Listed in config.env"),
+                              ("TaggedTests", "// notchcast-hosted-only"),
+                              ("SkippedTests", "// notchcast-ci-skip")):
+            with self.subTest(test=test):
+                self.assertEqual(self.run_route(tests="RenamedTests", head_files={
+                    "Tests/RenamedTests.swift": content, f"Tests/{test}.swift": "// Changed on head",
+                }), "")
+        self.assertEqual(self.run_route(tests="RenamedTests", head_files={
+            "Tests/RenamedTests.swift": "// New content in a listed harness",
+            "Tests/ClipboardTextTests.swift": "// New content in a listed harness",
+        }), "")
+
+    def test_skipped_or_empty_route_keeps_planned_harnesses_hosted(self):
+        job = MAIN_HARNESSES.read_text().split("\n  harnesses:\n", 1)[1]
+        job = dedent(job)
+        self.assertEqual(field(job, "needs"), "[plan, mac-route]")
+        self.assertEqual(field(job, "if"),
+                         "${{ !cancelled() && needs.plan.result == 'success' && needs.plan.outputs.shards != '[]' }}")
+        self.assertEqual(field(job, "runs-on"), POOL_MAC)
+        self.assertEqual(self.run_route(pool=""), "")
 
 
 # Machine git config (init.defaultBranch, signing, url rewrites) never reaches the fixture repos.
