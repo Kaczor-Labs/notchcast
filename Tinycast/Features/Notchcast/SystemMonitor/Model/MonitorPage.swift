@@ -30,7 +30,7 @@ enum MonitorPage {
         let sample = board.sample
         if let resource = board.heat.hot.first {
             return IslandPageLine(symbol: symbol(resource), text: label(resource),
-                                  detail: value(resource, sample, locale: locale))
+                                  detail: value(resource, sample, locale: locale), tone: .warning)
         }
         let loads: [(MonitorResource, Double)] = [
             sample.cpu.map { (.cpu, $0) }, sample.memory.map { (.memory, $0.fraction) },
@@ -54,7 +54,7 @@ enum MonitorPage {
         default: String(localized: "Full", table: "NotchcastSystemMonitor")
         }
         return IslandStatus(id: id, symbol: symbol(first), text: word,
-                            label: heat.hot.map(label).joined(separator: ", "))
+                            label: heat.hot.map(label).joined(separator: ", "), tone: .warning)
     }
 
     static func symbol(_ resource: MonitorResource) -> String {
