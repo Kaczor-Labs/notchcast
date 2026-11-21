@@ -170,7 +170,7 @@ final class ArchivesModule: NotchcastModule {
     }
 
     private func pruneStoppedJobs() {
-        let cutoff = environment.now().addingTimeInterval(-7 * 24 * 60 * 60)
+        let cutoff = context.now().addingTimeInterval(-7 * 24 * 60 * 60)
         let candidates = jobs.filter { job in
             guard let stoppedAt = job.stopped?.stoppedAt else { return false }
             return stoppedAt < cutoff
@@ -190,7 +190,7 @@ final class ArchivesModule: NotchcastModule {
         }
     }
 
-    private func resumeStaging(_ job: ArchiveJob, reportedPath: String?) -> URL? {
+    private func resumeStaging(_ job: ArchiveJob, reportedPath: String?) async -> URL? {
         guard current?.job.id == job.id, !Task.isCancelled else { return nil }
         let entry: ArchiveJob?
         if let reportedPath {
@@ -202,6 +202,13 @@ final class ArchivesModule: NotchcastModule {
             entry = jobs.first { $0.archive.path == job.archive.path && $0.stopped?.size == size }
         }
         guard let entry else { return nil }
+        if reportedPath == nil, !FileManager.default.fileExists(atPath: job.archive.path + ".hatchzip") {
+            if await ArchiveExtractor.removeStaging(for: entry), current?.job.id == job.id, !Task.isCancelled {
+                jobs.removeAll { $0.id == entry.id }
+                save()
+            }
+            return nil
+        }
         current?.resuming = entry.id
         return entry.staging
     }
@@ -259,7 +266,7 @@ final class ArchivesModule: NotchcastModule {
         let resumed = failure == nil && !cancelled ? current?.resuming : nil
         current = nil
         if let stoppedSize, let index = jobs.firstIndex(where: { $0.id == job.id }) {
-            jobs[index].stopped = ArchiveFingerprint(size: stoppedSize, stoppedAt: environment.now())
+            jobs[index].stopped = ArchiveFingerprint(size: stoppedSize, stoppedAt: context.now())
         } else {
             jobs.removeAll { $0.id == job.id || $0.id == resumed }
         }

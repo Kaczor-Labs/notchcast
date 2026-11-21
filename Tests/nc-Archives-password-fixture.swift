@@ -175,7 +175,8 @@ final class Rig {
 
     init(
         folder existing: URL? = nil, hook: Bool = true, answers: [String?] = [], journal: [ArchiveJob] = [],
-        passwords: [String: String] = [:], hiddenNames: Set<String> = [], now: Date = Rig.testDate
+        passwords: [String: String] = [:], hiddenNames: Set<String> = [], now: Date = Rig.testDate,
+        extractor: ArchiveExtractor? = nil
     ) throws {
         folder = existing ?? FileManager.default.temporaryDirectory.appending(
             path: "nc-archives-pw-\(UUID())", directoryHint: .isDirectory)
@@ -197,13 +198,15 @@ final class Rig {
         record.answers = answers
         harnessEnvironment = ArchivesEnvironment(
             journal: journalURL,
-            extractor: ArchiveExtractor(locate: { tools.locate($0) }, run: { try await tools.run($0, $1, $2) }),
+            extractor: extractor ?? ArchiveExtractor(
+                locate: { tools.locate($0) }, run: { try await tools.run($0, $1, $2) }),
             compressor: ArchiveCompressor(locate: { _ in nil }, run: { _, _ in ArchiveProcessResult(status: 1) }),
-            finderSelection: { [] }, setDefaultApp: { _ in }, reveal: { _ in }, pickArchives: { [] }, now: { now })
+            finderSelection: { [] }, setDefaultApp: { _ in }, reveal: { _ in }, pickArchives: { [] })
         let hub = NotchcastTapHub(
             syntheticTag: 0x54494E59, isTrusted: { true }, makeSession: { _ in fatalError("Archives installs no tap") })
         controller = NotchcastController(
-            addons: [ArchivesAddon.self], defaults: defaults, hub: hub, dictation: FakeDictation(), presenter: presenter)
+            addons: [ArchivesAddon.self], defaults: defaults, hub: hub, dictation: FakeDictation(),
+            presenter: presenter, now: { now })
         let context = controller.context(forSwitch: "archives")!
         context.confirm = { title, _, _ in
             record.confirms.append(title)

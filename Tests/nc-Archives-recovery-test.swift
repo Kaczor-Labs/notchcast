@@ -90,6 +90,77 @@ func stoppedEncryptedNames(moved: Bool) async throws {
 }
 
 @MainActor
+func stopWithoutSideFile(_ archive: URL) throws -> ArchiveJob {
+    let files = FileManager.default
+    var job = ArchiveJob(id: UUID(), archive: archive, inPlace: false)
+    job.stopped = ArchiveFingerprint(size: ArchiveExtractor.size(archive)!, stoppedAt: Rig.testDate)
+    try files.createDirectory(at: job.staging, withIntermediateDirectories: true)
+    for name in ["a.txt", "partial.txt"] {
+        try Data("half".utf8).write(to: job.staging.appending(path: name))
+    }
+    let sideFile = URL(filePath: archive.path + ".hatchzip")
+    try Data(job.staging.path.utf8).write(to: sideFile)
+    try files.removeItem(at: sideFile)
+    return job
+}
+
+@MainActor
+func reopenWithoutSideFile(replaced: Bool) async throws {
+    let files = FileManager.default
+    let folder = files.temporaryDirectory.appending(path: "nc-archives-no-side-file-\(UUID())")
+    try files.createDirectory(at: folder, withIntermediateDirectories: true)
+    defer { try? files.removeItem(at: folder) }
+    let archive = folder.appending(path: "Vault.7z")
+    try Data("original".utf8).write(to: archive)
+    let stopped = try stopWithoutSideFile(archive)
+    if replaced {
+        try Data("replaced".utf8).write(to: archive, options: .atomic)
+        check(ArchiveExtractor.size(archive) == stopped.stopped?.size, "the replacement is the same size")
+    }
+    let rig = try Rig(folder: folder, answers: [right], journal: [stopped], passwords: ["Vault.7z": right])
+    defer { rig.finish(keepingFolder: true) }
+    await rig.extract("Vault.7z")
+    let extracts = rig.calls.filter { $0.arguments[0] == "extract" }
+    check(extracts.count == 1 && !extracts[0].arguments.contains(stopped.staging.path), "used fresh staging")
+    check(rig.exists("Vault/a.txt") && rig.exists("Vault/b/c.txt"), "placed the fresh output")
+    check(!rig.exists("Vault/partial.txt") && !rig.exists("partial.txt"), "never placed the old partial file")
+    check(rig.journal().isEmpty && rig.staging.isEmpty, "removed the stopped record and staging")
+}
+
+@MainActor
+func realHatchZipWithoutSideFile() async throws {
+    guard let hatchzip = await ExecutableLocator.locate("hatchzip") else {
+        print("SKIP real HatchZip reopen without side file: hatchzip is not installed")
+        return
+    }
+    let files = FileManager.default
+    let folder = files.temporaryDirectory.appending(path: "nc-archives-real-no-side-file-\(UUID())")
+    let source = folder.appending(path: "src")
+    try files.createDirectory(at: source, withIntermediateDirectories: true)
+    defer { try? files.removeItem(at: folder) }
+    let archive = folder.appending(path: "Vault.zip")
+    let inputs = ["a.txt", "b.txt"].map { source.appending(path: $0) }
+    for file in inputs { try Data(file.lastPathComponent.utf8).write(to: file) }
+    let zip = try await ArchiveProcess.run(URL(filePath: "/usr/bin/zip"),
+                                          ["-q", "-j", "-P", right, archive.path] + inputs.map(\.path))
+    check(zip.status == 0, "zip made the fixture: \(zip.errors)")
+    let stopped = try stopWithoutSideFile(archive)
+    let extractor = ArchiveExtractor(locate: { $0 == "hatchzip" ? hatchzip : nil },
+                                     run: { try await ArchiveProcess.run($0, $1, environment: $2) })
+    let rig = try Rig(folder: folder, answers: [right], journal: [stopped], extractor: extractor)
+    defer { rig.finish(keepingFolder: true) }
+    await rig.extract("Vault.zip")
+    check(rig.presenter.failures.isEmpty, "\(rig.presenter.failures)")
+    for file in inputs {
+        let name = file.lastPathComponent
+        let output = folder.appending(path: "Vault/\(name)")
+        check(try Data(contentsOf: output) == Data(name.utf8), "extracted fresh contents for \(name)")
+    }
+    check(!rig.exists("Vault/partial.txt") && rig.journal().isEmpty && rig.staging.isEmpty, "discarded the old stop")
+    print("real HatchZip reopen without side file: ok")
+}
+
+@MainActor
 func startedElsewhere() async throws {
     let files = FileManager.default
     let folder = files.temporaryDirectory.appending(path: "nc-archives-unknown-\(UUID())")
@@ -149,6 +220,9 @@ enum ArchivesRecoveryTest {
     static func main() async throws {
         try await stoppedEncryptedNames(moved: false)
         try await stoppedEncryptedNames(moved: true)
+        try await reopenWithoutSideFile(replaced: false)
+        try await reopenWithoutSideFile(replaced: true)
+        try await realHatchZipWithoutSideFile()
         try await startedElsewhere()
         try await pruneStopped()
         print("nc-Archives-recovery-test: ok")

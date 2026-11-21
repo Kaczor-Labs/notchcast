@@ -13,5 +13,4 @@ struct ArchivesEnvironment {
     var setDefaultApp: (Bool) -> Void
     var reveal: (URL) -> Void
     var pickArchives: () -> [URL]
-    var now: () -> Date = Date.init
 }

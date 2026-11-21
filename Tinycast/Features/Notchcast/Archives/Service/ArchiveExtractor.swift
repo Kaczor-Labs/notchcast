@@ -176,14 +176,20 @@ nonisolated struct ArchiveExtractor: Sendable {
             _ = try files.attributesOfItem(atPath: job.archive.path)
             return false
         } catch let error as CocoaError where error.code == .fileNoSuchFile || error.code == .fileReadNoSuchFile {
-            do {
-                try files.removeItem(at: job.staging)
-                return true
-            } catch let error as CocoaError {
-                return error.code == .fileNoSuchFile || error.code == .fileReadNoSuchFile
-            } catch {
-                return false
-            }
+            return await removeStaging(for: job)
+        } catch {
+            return false
+        }
+    }
+
+    @concurrent
+    static func removeStaging(for job: ArchiveJob) async -> Bool {
+        guard !Task.isCancelled else { return false }
+        do {
+            try FileManager.default.removeItem(at: job.staging)
+            return true
+        } catch let error as CocoaError {
+            return error.code == .fileNoSuchFile || error.code == .fileReadNoSuchFile
         } catch {
             return false
         }
