@@ -108,6 +108,14 @@ class CoverageTest(unittest.TestCase):
         self.assertIn("unset NOTCHCAST_HARNESSES_SHARDED", script)
         self.assertIn("bash notchcast/ci-build.sh", script)
 
+    def test_the_linux_toolchain_is_verified_before_use_even_from_the_cache(self):
+        install = next(text for scope, text in self.all_steps() if signature(text) == "Install the pinned Swift toolchain")
+        script = install
+        check = script.index('printf \'%s  %s\\n\' "$SWIFT_SHA256" "$archive" | sha256sum --check')
+        self.assertLess(script.index("fi"), check, "the check must run on a cache hit too")
+        self.assertLess(check, script.index("tar "), "the archive must be verified before it is unpacked")
+        self.assertRegex(WORKFLOW.read_text(), r"key: swift-.*\$\{\{ env\.SWIFT_VERSION \}\}-\$\{\{ env\.SWIFT_SHA256 \}\}")
+
     def test_the_harness_step_matches_ci_build(self):
         ci_build = (ROOT / "notchcast/ci-build.sh").read_text()
         self.assertIn('source "$TOOLS/notchcast/ci-xcode.sh"', ci_build)
