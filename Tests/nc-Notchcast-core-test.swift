@@ -12,6 +12,7 @@
 // notchcast-sources: Tests/NotchcastSettingsProcessFixture.swift
 // notchcast-reads: Tinycast/Features/Notchcast/NotchcastCore.swift
 // notchcast-reads: Tinycast/App/AppCore.swift
+// notchcast-reads: Tinycast/App/AppCore+SettingsProcess.swift
 // notchcast-reads: Tinycast/Features/Notchcast/Agents/Settings/AgentsSettingsView.swift
 // notchcast-reads: Tinycast/Features/Notchcast/Archives/UI/ArchivesSettingsView.swift
 // notchcast-reads: Tinycast/Features/Notchcast/AutoBackup/UI/AutoBackupSettingsView.swift
