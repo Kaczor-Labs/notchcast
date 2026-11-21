@@ -195,7 +195,7 @@ func resumeAfterRelaunch() async throws {
         try FileManager.default.createDirectory(at: job.staging, withIntermediateDirectories: true)
         try Data("archive".utf8).write(to: job.archive)
         try Data("x".utf8).write(to: job.staging.appending(path: "a.txt"))
-        try job.staging.path.write(toFile: job.archive.path + ".hatchzip", atomically: true, encoding: .utf8)
+        try FakeTools.writeJournal(archive: job.archive, output: job.staging)
         let rig = try Rig(folder: folder, answers: [answer], journal: [job], passwords: ["Photos.zip": right])
         defer { rig.finish() }
         await rig.module!.drain()

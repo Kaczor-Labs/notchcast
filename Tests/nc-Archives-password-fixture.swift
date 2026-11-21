@@ -55,6 +55,13 @@ final class FakeTools: Sendable {
 
     init(journal: URL) { self.journal = journal }
 
+    static func writeJournal(archive: URL, output: URL) throws {
+        let data = try JSONSerialization.data(withJSONObject: [
+            "parts": [[archive.path, ArchiveExtractor.size(archive) ?? 0]], "output": output.path,
+        ], options: .sortedKeys)
+        try data.write(to: URL(filePath: archive.path + ".hatchzip"))
+    }
+
     func locate(_ name: String) -> URL? { URL(filePath: "/fake/bin/\(name)") }
 
     func run(_ tool: URL, _ arguments: [String], _ environment: [String: String]) async throws -> ArchiveProcessResult {
@@ -71,6 +78,13 @@ final class FakeTools: Sendable {
             return ArchiveProcessResult(status: 0, output: "-rw-r--r--  0 me  staff  1 Jan  1 12:00 a.txt\n")
         }
         let side = archive.path + ".hatchzip"
+        let journal = (try? Data(contentsOf: URL(filePath: side)))
+            .flatMap { (try? JSONSerialization.jsonObject(with: $0)) as? [String: Any] }
+        if let journal,
+            (journal["parts"] as? [[Any]])?.first?.first as? String != archive.path
+        {
+            return ArchiveProcessResult(status: 1, errors: "error: \(side) does not belong to \(archive.path)")
+        }
         let password = state.withLock { state -> String? in
             if arguments[0] == "list", state.extractOnlyPasswords.contains(archive.lastPathComponent) { return nil }
             return state.passwords[archive.lastPathComponent]
@@ -91,14 +105,14 @@ final class FakeTools: Sendable {
         default: break
         }
         let output = URL(filePath: arguments[arguments.firstIndex(of: "-o")! + 1])
-        if let started = try? String(contentsOfFile: side, encoding: .utf8), started != output.path {
+        if let started = journal?["output"] as? String, started != output.path {
             let detail = "this archive is already partially extracted to \(started)"
             return ArchiveProcessResult(status: 1, errors: "error: \(detail). Complete or restore that extraction first")
         }
         let jobs = ArchiveJob.decode(journalled)
         state.withLock { $0.journalInPlaceAtExtract.append(jobs.first { $0.archive == archive }?.inPlace ?? false) }
         if state.withLock({ $0.hold.contains(archive.lastPathComponent) }) {
-            try output.path.write(toFile: side, atomically: true, encoding: .utf8)
+            try Self.writeJournal(archive: archive, output: output)
             try FileManager.default.createDirectory(at: output, withIntermediateDirectories: true)
             try Data("half".utf8).write(to: output.appending(path: "a.txt"))
             await withTaskCancellationHandler {

@@ -72,15 +72,34 @@ func stoppedEncryptedNames(moved: Bool) async throws {
     await rig.module!.drain()
     check(rig.module!.current == nil && rig.calls.isEmpty && rig.record.asks.isEmpty, "a relaunch asks nothing")
     check(rig.presenter.posts.isEmpty, "and shows nothing running")
+    let sideFile = URL(filePath: reopened.path + ".hatchzip")
+    let sideContents = try Data(contentsOf: sideFile)
+    let originalItems = rig.visible
     rig.module!.open([reopened])
     await rig.module!.drain()
+    if moved {
+        check(rig.steps == ["list"] && rig.record.asks.isEmpty, "HatchZip refuses the moved archive before asking")
+        check(rig.presenter.failures == [
+            "Put the archive and its recovery files back where they were and restore their original names."
+        ], "\(rig.presenter.failures)")
+        check(rig.journal() == stopped && rig.visible == originalItems, "only the original stop and staging remain")
+        check(try Data(contentsOf: sideFile) == sideContents, "the moved journal is untouched")
+        check(!files.fileExists(atPath: reopened.deletingPathExtension().path), "no output beside the moved archive")
+        check(try Data(contentsOf: staging.appending(path: "a.txt")) == Data("half".utf8), "partial output stays private")
+        rig.finish(keepingFolder: true)
+        let afterExpiry = try Rig(folder: folder, now: Rig.testDate.addingTimeInterval(7 * 24 * 60 * 60 + 1))
+        defer { afterExpiry.finish() }
+        await afterExpiry.module!.drain()
+        check(afterExpiry.journal().isEmpty && afterExpiry.staging.isEmpty, "the missing original path expires")
+        return
+    }
     check(rig.record.asks.map(\.title) == ["Password for \(name)"], "opening it again asks for the current name")
     check(rig.journal() == stopped && rig.staging.count == 1, "Cancel keeps the same entry and staging")
     rig.record.answers = [right]
     rig.module!.open([reopened])
     await rig.module!.drain()
     let extractions = rig.calls.filter { $0.arguments[0] == "extract" }
-    check(extractions.count == (moved ? 2 : 1), "only a moved archive first probes a fresh path: \(rig.steps)")
+    check(extractions.count == 1, "only one extraction: \(rig.steps)")
     check(extractions.last!.arguments.contains(staging.path), "resumed into the kept staging")
     let output = reopened.deletingPathExtension().appending(path: "b/c.txt")
     check(files.fileExists(atPath: output.path) && rig.staging.isEmpty, "placed beside the archive's current path")
@@ -98,9 +117,6 @@ func stopWithoutSideFile(_ archive: URL) throws -> ArchiveJob {
     for name in ["a.txt", "partial.txt"] {
         try Data("half".utf8).write(to: job.staging.appending(path: name))
     }
-    let sideFile = URL(filePath: archive.path + ".hatchzip")
-    try Data(job.staging.path.utf8).write(to: sideFile)
-    try files.removeItem(at: sideFile)
     return job
 }
 
@@ -161,32 +177,38 @@ func realHatchZipWithoutSideFile() async throws {
 }
 
 @MainActor
-func startedElsewhere() async throws {
+func startedElsewhere(foreignArchive: Bool) async throws {
     let files = FileManager.default
     let folder = files.temporaryDirectory.appending(path: "nc-archives-unknown-\(UUID())")
     let archive = folder.appending(path: "Vault.7z")
-    var stopped = ArchiveJob(id: UUID(), archive: archive, inPlace: false)
-    stopped.stopped = ArchiveFingerprint(size: 1, stoppedAt: Rig.testDate)
-    let unknown = folder.appending(path: "Unknown output")
+    let owner = foreignArchive ? folder.appending(path: "Other.7z") : archive
+    var stopped = ArchiveJob(id: UUID(), archive: owner, inPlace: false)
+    stopped.stopped = ArchiveFingerprint(size: foreignArchive ? 7 : 1, stoppedAt: Rig.testDate)
+    let reported = foreignArchive ? stopped.staging : folder.appending(path: "Unknown output")
     let sentinel = Data("untouched".utf8)
-    for folder in [stopped.staging, unknown] {
+    for folder in Set([stopped.staging, reported]) {
         try files.createDirectory(at: folder, withIntermediateDirectories: true)
         try sentinel.write(to: folder.appending(path: "partial.txt"))
     }
     try Data("archive".utf8).write(to: archive)
-    let side = archive.path + ".hatchzip"
-    try unknown.path.write(toFile: side, atomically: true, encoding: .utf8)
+    if foreignArchive { try Data("archive".utf8).write(to: owner) }
+    let side = URL(filePath: archive.path + ".hatchzip")
+    try FakeTools.writeJournal(archive: archive, output: reported)
+    let sideContents = try Data(contentsOf: side)
     let rig = try Rig(folder: folder, answers: [right], journal: [stopped], passwords: ["Vault.7z": right])
     defer { rig.finish() }
+    let originalItems = rig.visible
     await rig.extract("Vault.7z")
+    check(rig.visible == originalItems, "nothing moved beside the opened archive")
+    check(rig.calls.filter { $0.arguments[0] == "extract" }.count == 1, "the reported path was not retried")
     check(rig.presenter.failures == ["This archive is partly extracted elsewhere; finish that with hatchzip first."],
           "\(rig.presenter.failures)")
     check(!rig.steps.contains("restore") && rig.journal() == [stopped], "the mismatched stopped entry stays")
     check(rig.staging == [stopped.staging.lastPathComponent], "only the fresh scratch folder is cleaned")
-    for folder in [stopped.staging, unknown] {
+    for folder in Set([stopped.staging, reported]) {
         check(try Data(contentsOf: folder.appending(path: "partial.txt")) == sentinel, "partial files stay untouched")
     }
-    check(try String(contentsOfFile: side, encoding: .utf8) == unknown.path, "HatchZip's state stays untouched")
+    check(try Data(contentsOf: side) == sideContents, "HatchZip's state stays untouched")
 }
 
 @MainActor
@@ -223,7 +245,8 @@ enum ArchivesRecoveryTest {
         try await reopenWithoutSideFile(replaced: false)
         try await reopenWithoutSideFile(replaced: true)
         try await realHatchZipWithoutSideFile()
-        try await startedElsewhere()
+        try await startedElsewhere(foreignArchive: false)
+        try await startedElsewhere(foreignArchive: true)
         try await pruneStopped()
         print("nc-Archives-recovery-test: ok")
     }

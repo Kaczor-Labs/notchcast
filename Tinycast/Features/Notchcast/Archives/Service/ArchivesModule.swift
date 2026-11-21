@@ -191,18 +191,22 @@ final class ArchivesModule: NotchcastModule {
     }
 
     private func resumeStaging(_ job: ArchiveJob, reportedPath: String?) async -> URL? {
-        guard current?.job.id == job.id, !Task.isCancelled else { return nil }
-        let entry: ArchiveJob?
+        guard current?.job.id == job.id, !Task.isCancelled,
+            let size = ArchiveExtractor.size(job.archive)
+        else { return nil }
+        let path: String?
         if let reportedPath {
             guard reportedPath.hasPrefix("/") else { return nil }
-            let path = URL(filePath: reportedPath).resolvingSymlinksInPath().path
-            entry = jobs.first { $0.stopped != nil && $0.staging.resolvingSymlinksInPath().path == path }
+            path = URL(filePath: reportedPath).resolvingSymlinksInPath().path
         } else {
-            guard let size = ArchiveExtractor.size(job.archive) else { return nil }
-            entry = jobs.first { $0.archive.path == job.archive.path && $0.stopped?.size == size }
+            path = nil
+        }
+        let entry = jobs.first {
+            $0.archive.path == job.archive.path && $0.stopped?.size == size
+                && (path == nil || $0.staging.resolvingSymlinksInPath().path == path)
         }
         guard let entry else { return nil }
-        if reportedPath == nil, !FileManager.default.fileExists(atPath: job.archive.path + ".hatchzip") {
+        if !FileManager.default.fileExists(atPath: job.archive.path + ".hatchzip") {
             if await ArchiveExtractor.removeStaging(for: entry), current?.job.id == job.id, !Task.isCancelled {
                 jobs.removeAll { $0.id == entry.id }
                 save()
@@ -244,9 +248,11 @@ final class ArchivesModule: NotchcastModule {
     /// A stop or failure discards or salvages the job; after a module stop it stays to resume.
     private func stopped(_ job: ArchiveJob, failure: ArchiveFailure?, extractor: ArchiveExtractor) async {
         guard current?.job.id == job.id else { return }
-        if case .startedElsewhere = failure {
+        switch failure {
+        case .startedElsewhere, .resumeJournalMismatch:
             finish(job, placed: nil, failure: failure)
             return
+        default: break
         }
         if current?.resuming != nil {
             finish(job, placed: nil, failure: failure, cancelled: failure == nil)

@@ -15,6 +15,7 @@ nonisolated enum ArchiveFailure: Error, Equatable, Sendable {
     case damaged(String)
     case password
     case startedElsewhere(String)
+    case resumeJournalMismatch
     case failed(String)
     case nothingSelected
     case automationRefused
@@ -35,6 +36,7 @@ nonisolated enum ArchiveFailure: Error, Equatable, Sendable {
         case hatchzipNoSpace: .noSpace(detail(result))
         case 4: .damaged(detail(result))
         case hatchzipPassword: .password
+        case 1 where result.errors.contains(".hatchzip does not belong to "): .resumeJournalMismatch
         case 1 where result.errors.contains("already partially extracted to "):
             .startedElsewhere(partialExtractionPath(result.errors))
         default: .failed(detail(result))
@@ -81,6 +83,10 @@ nonisolated enum ArchiveFailure: Error, Equatable, Sendable {
         case .startedElsewhere:
             String(localized: "This archive is partly extracted elsewhere; finish that with hatchzip first.",
                    table: "NotchcastArchives")
+        case .resumeJournalMismatch:
+            String(
+                localized: "Put the archive and its recovery files back where they were and restore their original names.",
+                table: "NotchcastArchives")
         case .failed(let detail):
             detail.isEmpty ? String(localized: "Extraction failed.", table: "NotchcastArchives") : detail
         case .nothingSelected:

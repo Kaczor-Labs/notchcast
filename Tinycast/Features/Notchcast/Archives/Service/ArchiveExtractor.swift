@@ -103,6 +103,9 @@ nonisolated struct ArchiveExtractor: Sendable {
                 }
                 inPlace = true
                 await onInPlace(true)
+            case .resumeJournalMismatch:
+                removeEmptyScratch()
+                throw failure
             case .startedElsewhere(let path):
                 removeEmptyScratch()
                 guard !followedReportedPath, let staging = await resumeStaging(path) else { throw failure }
