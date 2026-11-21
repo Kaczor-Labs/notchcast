@@ -2,6 +2,7 @@
 // notchcast-sources: Tinycast/Features/Island/Model/IslandLevelDwell.swift
 // notchcast-sources: Tinycast/Features/Island/Model/PillMenuRows.swift Tinycast/Features/Calendar/Model/*.swift
 // notchcast-sources: Tinycast/Features/Island/Service/IslandController+Accessibility.swift
+// notchcast-sources: Tinycast/Features/Island/Model/IslandPlayer.swift
 import Foundation
 
 // The shipped accessibility extension compiled against just the state it reads.
@@ -13,6 +14,7 @@ final class IslandController {
     var notice: IslandNotice?
     var glance: IslandGlance?
     var statuses: [IslandStatus] = []
+    var song: IslandNowPlaying?
 }
 
 // #867: VoiceOver reads the level exactly as the pill paints it.
@@ -24,6 +26,10 @@ struct IslandLevelSpokenTest {
         precondition(island.accessibilityValue == "Brightness, 6%", "got \(island.accessibilityValue)")
         island.level?.value = 0.125
         precondition(island.accessibilityValue == "Brightness, 13%", "got \(island.accessibilityValue)")
+        island.level = nil
+        island.song = IslandNowPlaying(title: "Paper Lanterns", artist: "Juno Vale", artwork: nil, time: nil,
+                                       isPlaying: false)
+        precondition(island.accessibilityValue == "Paper Lanterns, Juno Vale, Paused", "a song after the rest (#850)")
         print("nc-Island-level-spoken-test: ok")
     }
 }

@@ -3,10 +3,10 @@ import Foundation
 
 /// When resting the pointer on the island opens it and when leaving closes it (#884).
 struct IslandHover: Equatable, Sendable {
-    /// A pointer crossing the zone on its way to the menu bar spends well under this inside it.
-    static let openDelay: TimeInterval = 0.15
-    /// Long enough to slip off the edge and back without the island closing under the pointer.
-    static let closeDelay: TimeInterval = 0.3
+    /// As fast as a pointer crossing the zone on its way to the menu bar allows (#850 D26).
+    static let openDelay: TimeInterval = 0.1
+    /// As short as the open delay, so the island closes as soon as the pointer leaves it (#850 D26).
+    static let closeDelay: TimeInterval = 0.1
 
     /// What the pointer and the rest of the app look like at one instant.
     struct Input: Equatable, Sendable {
@@ -126,6 +126,7 @@ extension IslandHover {
         guard hovered, !level else { return top }
         if var top {
             top.progress?.headline = true
+            top.quiet = false
             return top
         }
         guard !glance, let status = statuses.last else { return nil }

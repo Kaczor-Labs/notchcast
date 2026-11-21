@@ -1,0 +1,14 @@
+diff --git a/Tinycast/Features/HotKeys/Service/HotKeyManager.swift b/Tinycast/Features/HotKeys/Service/HotKeyManager.swift
+index e7a31875d..19443dbc4 100644
+--- a/Tinycast/Features/HotKeys/Service/HotKeyManager.swift
++++ b/Tinycast/Features/HotKeys/Service/HotKeyManager.swift
+@@ -164,8 +164,7 @@ final class HotKeyManager {
+ 
+     var boundCustomWindowSizeIDs: [UUID] { boundIDs(key: boundCustomWindowSizeKey) }
+ 
+-    /// Quick Actions is hidden (notchcast/docs/hidden.md), so a stored binding registers no chord.
+-    var boundQuickActionIDs: [UUID] { [] }
++    var boundQuickActionIDs: [UUID] { boundIDs(key: boundQuickActionKey) }
+ 
+     /// Pruned by `AppleShortcutCoordinator` after a successful read, never here at launch.
+     var boundAppleShortcutIDs: [UUID] { boundIDs(key: boundAppleShortcutKey) }

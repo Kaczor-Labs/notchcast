@@ -5,7 +5,7 @@ Notchcast is upstream [Tinycast](https://github.com/abue-ammar/tinycast) plus ou
 ## Where a change belongs
 
 - A bug or feature in upstream's code (launcher, clipboard, snippets, window management, AI chat, ...): report or fix it in [Tinycast](https://github.com/abue-ammar/tinycast). It reaches Notchcast with the next sync.
-- A bug or feature in Notchcast's own changes (its name, hidden Extensions, packaging and updates): open an [issue here](https://github.com/kaczordodgers/notchcast/issues/new/choose).
+- A bug or feature in Notchcast's own changes (its name, hidden Extensions, packaging and updates): open an [issue here](https://github.com/Kaczor-Labs/notchcast/issues/new/choose).
 
 ## Pull requests
 

@@ -60,7 +60,7 @@ def main():
         if pr['number'] not in landed_numbers:
             continue
         for comment in pr.get('comments', []):
-            if (comment.get('author') or {}).get('login') != CONFIG['FORK_REPO'].split('/')[0]:
+            if (comment.get('author') or {}).get('login') != CONFIG['MAINTAINER_LOGIN']:
                 continue
             for match in re.finditer(r'Landed on main as ([0-9a-f]{40})\b[^\n]*?squash of ([0-9a-f]{40})\b', comment['body']):
                 landed_tips.add((pr['headRefName'], match[2]))

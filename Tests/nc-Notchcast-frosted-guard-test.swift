@@ -5,10 +5,12 @@
 // notchcast-sources: Tinycast/Features/Island/Model/IslandLevelDwell.swift
 // notchcast-sources: Tinycast/Features/Island/Model/PillMenuRows.swift Tinycast/Features/Calendar/Model/*.swift
 // notchcast-sources: Tinycast/Features/Island/Service/IslandNoticeArt.swift
+// notchcast-sources: Tinycast/Features/Island/UI/IslandTone+Ink.swift
 // notchcast-sources: Tinycast/Features/Island/Service/IslandLevelArt.swift
 // notchcast-sources: Tinycast/Features/Island/Model/IslandKeyline.swift Tinycast/Features/Island/Model/IslandLook.swift
 // notchcast-sources: Tinycast/Features/Island/Service/IslandCanvas.swift
 // notchcast-sources: Tinycast/Features/Island/Service/IslandExpansionArt.swift
+// notchcast-sources: Tinycast/Features/Island/Service/IslandSongArt.swift Tinycast/Features/Island/Model/IslandPlayer.swift
 // notchcast-reads: Tinycast/Palette/*.swift Tinycast/Features/Island/**/*.swift Tinycast/Features/*/UI/*.swift
 // notchcast-reads: Tinycast/Windows/HUD/*.swift Tinycast/Windows/Dialog/*.swift Tinycast/DesignSystem/*.swift
 import AppKit
@@ -130,12 +132,18 @@ struct NotchcastFrostedGuardTest {
         let glance = IslandGlance(meeting, now: Date(timeIntervalSince1970: 30), locale: Locale(identifier: "en_US"))
         let notice = IslandNotice(id: "n", symbol: "arrow.down.circle", text: "Update ready")
         let status = IslandStatus(id: "t", symbol: "timer", text: "4:59", label: "Timer")
+        var swatch = IslandNotice(id: "c", symbol: "eyedropper", text: "#000000")
+        swatch.swatch = IslandSwatch(red: 0, green: 0, blue: 0)
+        var hot = IslandStatus(id: "cpu", symbol: "cpu", text: "Hot", label: "CPU hot")
+        hot.tone = .warning
         typealias Scene = (name: String, glance: IslandGlance?, level: IslandLevel?, notice: IslandNotice?,
                            statuses: [IslandStatus], expanded: Bool, notch: CGFloat?)
         let scenes: [Scene] = [
             ("headline", nil, nil, notice, [], false, 200), ("notice", nil, nil, notice, [], false, nil),
             ("status", nil, nil, nil, [status], false, nil), ("glance", glance, nil, nil, [], false, 200),
             ("expansion", glance, nil, nil, [], true, 200), ("level", nil, level, nil, [], false, nil),
+            ("swatch headline", nil, nil, swatch, [], false, 200), ("swatch notice", nil, nil, swatch, [], false, nil),
+            ("toned status", nil, nil, nil, [status, hot], false, nil),
         ]
         var failures: [String] = []
         for scene in scenes {

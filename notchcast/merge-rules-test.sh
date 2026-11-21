@@ -18,7 +18,6 @@ printf 'HOSTED_ONLY_TESTS="nc-a-test nc-b-test"\n' > notchcast/config.env
 printf '| H1 | Commands, Timers |\n' > notchcast/docs/addons.md
 printf -- '- Add-ons: Timers, Clock\n' > notchcast/README.public.md
 printf 'Timers: Model/A.swift ← x/y@1/A.swift (MIT)\n' > notchcast/licenses/borrowed.md
-printf '    TimersAddon.self,\n]\n' > Tinycast/Features/Notchcast/NotchcastRegistry.swift
 services=Tinycast/Features/Notchcast/Core/Service/NotchcastServices.swift
 live=Tinycast/Features/Notchcast/NotchcastServices+Live.swift
 cp "$root/$services" "$services"
@@ -32,8 +31,6 @@ add_addon() {
     sed -i.orig "s/Timers |/Timers, $1 |/" notchcast/docs/addons.md
     sed -i.orig "s/Clock$/Clock, $1/" notchcast/README.public.md
     printf '%s: Model/B.swift ← x/y@1/B.swift (MIT)\n' "$1" >> notchcast/licenses/borrowed.md
-    sed -i.orig '$d' Tinycast/Features/Notchcast/NotchcastRegistry.swift
-    printf '    %sAddon.self,\n]\n' "$1" >> Tinycast/Features/Notchcast/NotchcastRegistry.swift
     # A new door: one line before the struct's closing brace, one before the live init's.
     sed -i.orig '$d' "$services"
     printf '    var door%s = Notchcast%s()\n}\n' "$1" "$1" >> "$services"
@@ -57,7 +54,7 @@ git merge --quiet --no-edit Taildrop >/dev/null 2>&1 \
     || { echo "FAIL: conflict in $(git diff --name-only --diff-filter=U | tr '\n' ' ')"; exit 1; }
 for name in Spotify Taildrop; do
     for file in notchcast/config.env notchcast/docs/addons.md notchcast/README.public.md \
-        notchcast/licenses/borrowed.md Tinycast/Features/Notchcast/NotchcastRegistry.swift "$services" "$live"; do
+        notchcast/licenses/borrowed.md "$services" "$live"; do
         grep -q "$name" "$file" || { echo "FAIL: $file lost $name"; cat "$file"; exit 1; }
     done
 done

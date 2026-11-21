@@ -14,6 +14,7 @@ struct IslandNoticeQueue: Sendable {
     private(set) var paused = false
 
     var notice: IslandNotice? { entries.last?.notice }
+    func holds(_ id: String) -> Bool { entries.contains { $0.notice.id == id } }
 
     /// A repost keeps its place and restarts its dwell; a progress headlines once until ended.
     mutating func post(_ notice: IslandNotice, at now: TimeInterval) {

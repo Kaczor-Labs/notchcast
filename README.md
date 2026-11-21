@@ -3,8 +3,8 @@
 
 # Notchcast
 
-[![Release](https://img.shields.io/github/v/release/kaczordodgers/notchcast)](https://github.com/kaczordodgers/notchcast/releases/latest)
-[![Sync](https://github.com/kaczordodgers/notchcast/actions/workflows/sync.yml/badge.svg)](https://github.com/kaczordodgers/notchcast/actions/workflows/sync.yml)
+[![Release](https://img.shields.io/github/v/release/Kaczor-Labs/notchcast)](https://github.com/Kaczor-Labs/notchcast/releases/latest)
+[![Sync](https://github.com/Kaczor-Labs/notchcast/actions/workflows/sync.yml/badge.svg)](https://github.com/Kaczor-Labs/notchcast/actions/workflows/sync.yml)
 [![License: AGPL-3.0](https://img.shields.io/badge/license-AGPL--3.0-blue)](/LICENSE)
 ![macOS 26+](https://img.shields.io/badge/macOS-26%2B-lightgrey)
 
@@ -12,13 +12,13 @@ Notchcast is a macOS launcher that lives in an island at the top of your screen,
 
 **Status:** in use; a snapshot is published from every green `main`.
 
-[Download](https://github.com/kaczordodgers/notchcast/releases) · [Use it](#use-it) · [Contribute](#where-things-are)
+[Download](https://github.com/Kaczor-Labs/notchcast/releases) · [Use it](#use-it) · [Contribute](#where-things-are)
 
 ## Install
 
 You need macOS 26 or later on Apple silicon.
 
-1. Open [Releases](https://github.com/kaczordodgers/notchcast/releases) and download `Notchcast-<version>.dmg` from the newest `snapshot` pre-release. Snapshots are built from every green `main`; the releases without `snapshot` rebuild each upstream Tinycast release with our commits.
+1. Open [Releases](https://github.com/Kaczor-Labs/notchcast/releases) and download `Notchcast-<version>.dmg` from the newest `snapshot` pre-release. Snapshots are built from every green `main`; the releases without `snapshot` rebuild each upstream Tinycast release with our commits.
 2. Drag Notchcast to Applications.
 3. Builds are signed with our own self-signed certificate and are not notarized, so remove the quarantine flag once: `xattr -dr com.apple.quarantine /Applications/Notchcast.app`
 4. Open Notchcast and grant Accessibility when asked. Turn on **Launch at login** in Settings › General if you want it at every login.
@@ -39,12 +39,14 @@ The in-app updater stays off in Notchcast. To keep a Mac current, clone this rep
 - **Settings › Notchcast.** One tab per area, each add-on with its own switch; an add-on's tab shows only while that add-on is in the build.
   <!-- addon-tabs:start -->
   - **Island**: look, outline when open, open on hover, position on displays without a notch, show in screenshots and videos.
+  - **Agents**: Agents in the Island, a page with how much of each Claude and Codex plan is left.
   - **Keyboard & Mouse**: hide with ⌘M, Show Desktop with F3, Quit Protection, trackpad middle click, Paste Plain Text.
-  - **Display & Sound**: stop Apple Music opening on media keys, brightness keys for every display, volume in the island, AirPods and Beats noise control from the launcher.
-  - **Capture**: screenshots of an area, window or display, and an editor to mark one up with arrows, shapes, highlights, text, pixelation and a crop before copying, saving or dragging it out.
-  - **Launcher Extras**: small commands for passwords, short links and AirDrop, clean tracking parameters from copied links (with Clipboard History on).
-  - **Downloads**: video, audio, transcripts and webpages from clipboard links, with optional aria2c and transcription into a local folder; downloads and torrents can use Wi-Fi and a USB-tethered iPhone together; optionally a copy of each note in a Markdown folder you choose, where PDF, HTML, audio and video files added while the option is on become notes and their originals go to the Trash, Taildrop the Finder selection to another of your devices.
-  - **Mac Tweaks**: turn off iPhone auto backups, Day in the Island, a page with the weather, your market quotes and today’s events.
+  - **Display & Sound**: stop Apple Music opening on media keys, the play key resumes Spotify if you played it last, brightness keys for every display, volume in the island, AirPods and Beats noise control from the launcher, Spotify in the Island through Soloist.
+  - **Capture**: screenshots of an area, window or display, and an editor to mark one up with arrows, shapes, highlights, text, pixelation and a crop before copying, saving or dragging it out, screen recordings you trim before keeping them, copy a color from anywhere on the screen.
+  - **Launcher Extras**: small commands for passwords, short links and AirDrop, Copy Path for Finder files, browser links and documents, your own shell scripts with the result in the island, countdowns and alarms that tick in the island, clean tracking parameters from copied links (with Clipboard History on).
+  - **Downloads**: video, audio, transcripts and webpages from clipboard links, with optional aria2c and transcription into a local folder; downloads and torrents can use Wi-Fi and a USB-tethered iPhone together; optionally a copy of each note in a Markdown folder you choose, where PDF, HTML, audio and video files added while the option is on become notes and their originals go to the Trash, Taildrop the Finder selection to another of your devices, ⌘V in a Finder window saves a copied image there as a PNG, extract archives in place with HatchZip.
+  - **Power**: a warning in the island when the startup disk is nearly full.
+  - **Mac Tweaks**: turn off iPhone auto backups, back up your settings on change and once a day, move files in Finder with ⌘X and ⌘V and rename them in the launcher, Day in the Island, a page with the weather, your market quotes and today’s events, Touch ID for sudo and tools for processes, the network, IP addresses and Wi-Fi passwords, System in the Island, a page with CPU, memory, disk and network that warns when one runs hot.
   <!-- addon-tabs:end -->
 - **Add-on commands** are ordinary launcher commands: search them, and give them an alias, a hotkey or Show in launcher on the command's row in its Notchcast tab.
 
@@ -59,7 +61,7 @@ Settings can be mirrored to `~/.config/app.notchcast/settings.json`; see [settin
 You need Xcode 27 and [XcodeGen](https://github.com/yonaskolb/XcodeGen).
 
 ```sh
-git clone https://github.com/kaczordodgers/notchcast.git
+git clone https://github.com/Kaczor-Labs/notchcast.git
 cd notchcast
 xcodegen generate
 xcodebuild -project Tinycast.xcodeproj -scheme Tinycast -configuration Debug build
@@ -105,7 +107,7 @@ Read before you change things:
 | [hotspots.md](/notchcast/docs/hotspots.md) | upstream files to avoid touching |
 | [architecture.md](/docs/architecture.md), [standards.md](/docs/standards.md) | upstream's wiring and Swift rules |
 
-Contributing: [CONTRIBUTING.md](/.github/CONTRIBUTING.md). Security reports: [SECURITY.md](/.github/SECURITY.md). Bugs go in [our issues](https://github.com/kaczordodgers/notchcast/issues), not upstream's.
+Contributing: [CONTRIBUTING.md](/.github/CONTRIBUTING.md). Security reports: [SECURITY.md](/.github/SECURITY.md). Bugs go in [our issues](https://github.com/Kaczor-Labs/notchcast/issues), not upstream's.
 
 ## License
 
