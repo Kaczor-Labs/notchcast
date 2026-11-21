@@ -228,6 +228,13 @@ class RunnerTest(unittest.TestCase):
                             else:
                                 self.assertEqual(runner, runs_on(GATED_MAC, **values), "an empty input changes nothing")
 
+    def test_draft_prs_build_and_ready_status_does_not_restart_ci(self):
+        text = WORKFLOW.read_text()
+        self.assertIn("    types: [opened, synchronize, reopened]\n", text)
+        self.assertNotIn("github.event.pull_request.draft", text)
+        self.assertRegex(text, r"(?m)^  group: .*github\.event\.pull_request\.head\.label")
+        self.assertIn("  cancel-in-progress: ${{ github.ref_name != github.event.repository.default_branch }}", text)
+
     def test_a_harness_runner_is_one_of_the_known_labels(self):
         self.assertIn("      harness_runner:\n        description: Runner label for a harness-only macOS job (notchcast-mba, notchcast-mbp); "
                       "no build, no proof of any tree (README, Runners)\n        type: choice\n"
@@ -255,8 +262,7 @@ class RunnerTest(unittest.TestCase):
         # No other job runs, the build check least of all: land.sh reads it, and train.sh a train run's conclusion.
         for job, lane in (("linux-checks", "build"), ("script-tests", "scripts"), ("linux-harnesses", "build")):
             self.assertIn(f"  {job}:\n    needs: route\n    if: needs.route.outputs.{lane} == 'true' && {FULL_RUN}\n", text)
-        self.assertIn(f"    if: ${{{{ !cancelled() && {FULL_RUN} && (github.event_name == 'workflow_dispatch' "
-                      "|| !github.event.pull_request.draft) }}\n", text)
+        self.assertIn(f"    if: ${{{{ !cancelled() && {FULL_RUN} }}}}\n", text)
         refusal = found["route", "A harness-only run is never a train's"]
         self.assertEqual(field(refusal, "if"), f"{HARNESS_ONLY} && startsWith(github.ref, 'refs/heads/train/')")
         self.assertIn("exit 1", refusal)
