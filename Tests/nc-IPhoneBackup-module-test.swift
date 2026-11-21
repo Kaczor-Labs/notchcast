@@ -132,6 +132,7 @@ final class Rig {
         controller = NotchcastController(
             addons: [IPhoneBackupAddon.self], defaults: defaults, hub: hub,
             dictation: FakeDictation(), presenter: presenter)
+        fake.reads = 0
         controller.start()
     }
 
@@ -175,7 +176,6 @@ func reset(_ value: Policy.Value?) {
     fake.writes = []
     fake.failingWrites = 0
     fake.failureMutates = false
-    fake.reads = 0
     fake.failOnRead = nil
     fake.readFails = false
     fake.failingReadBacks = 0
