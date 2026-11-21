@@ -3,7 +3,7 @@
 
     ci.py plan                              decide what this run builds (conflicts are found here, on Linux)
     ci.py stage open|close <base> <upstream>  push the upstream diff for review and open its PR, or close that PR
-    ci.py reviewed <upstream>               exit 0 only while the owner's review of that upstream commit is a success
+    ci.py reviewed <upstream>               exit 0 only while the reviewer's review of that upstream commit is a success
     ci.py pin-tag <tag> <commit>            fetch upstream main and tag; fail unless the tag still peels to commit
     ci.py replay <tree> <onto>              in <tree> (our main, upstream fetched), replay our commits onto <onto>
     ci.py merge <tree> <main> <upstream>    commit <tree>'s replayed HEAD as a sync merge of main and upstream
@@ -31,7 +31,7 @@ Failures are remembered as refs/notchcast-failed/<main|release-<tag>>-<upstream 
 input is retried only when upstream or our main changes, and reported as one open issue per kind (label
 notchcast-<kind>: sync = replay onto new upstream, main = main tested as it is, release), which a newer failure with
 the same cause only retitles; notchcast/update.sh reports each issue and cause once through its notify hook.
-main moves onto upstream U only once the repo owner set a success REVIEW_CONTEXT status on U (upstream_review);
+main moves onto upstream U only once MAINTAINER_LOGIN set a success REVIEW_CONTEXT status on U (upstream_review);
 until then `stage` keeps U's diff on REVIEW_HEAD in one draft PR labelled REVIEW_LABEL. A release is signed only
 when its tagged commit is main's upstream base or carries such a status itself; a mere ancestor of U never counts."""
 import codecs
@@ -222,10 +222,10 @@ def reuse_pr_build(main, cfg):
 
 
 def upstream_review(sha, cfg):
-    """State of the repo owner's newest REVIEW_CONTEXT status on upstream sha in our repo, or None. Statuses by any
+    """State of MAINTAINER_LOGIN's newest REVIEW_CONTEXT status on upstream sha in our repo, or None. Statuses by any
     other account, the Actions bot included, never count, so no workflow token can pass the gate."""
     repo = cfg["FORK_REPO"]
-    owner = repo.split("/")[0].lower()
+    owner = cfg["MAINTAINER_LOGIN"].lower()
     try:
         pages = json.loads(run("gh", "api", "--paginate", "--slurp", f"repos/{repo}/commits/{sha}/statuses?per_page=100"))
     except (subprocess.CalledProcessError, ValueError) as error:
@@ -238,7 +238,7 @@ def upstream_review(sha, cfg):
 
 
 def reviewed(sha):
-    """Exit 0 only while the owner's review of upstream sha is a success: the main push re-reads plan's verdict."""
+    """Exit 0 only while MAINTAINER_LOGIN's review of upstream sha is a success: the main push re-reads plan's verdict."""
     state = upstream_review(sha, config())
     print(f"review of upstream {sha[:10]}: {state or 'none'}")
     sys.exit(0 if state == "success" else 1)
