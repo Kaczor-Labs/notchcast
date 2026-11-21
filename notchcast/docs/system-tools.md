@@ -26,7 +26,7 @@ A Notchcast add-on (`Tinycast/Features/Notchcast/SystemTools/`) behind one switc
 | `Model/NetworkInfoPolicy` | Reads `networksetup`'s Wi-Fi device and saved networks, and checks the public-IP reply. |
 | `Model/SudoTouchIDPolicy` | The `sudo_local` state (off, on, set up by hand), its transform, and whether `sudo` still includes it. |
 | `Model/NetworkQualityResult` | Parses `networkQuality -c` (`dl_throughput`, `ul_throughput`, `responsiveness`, `error_code`) into "↓ 278 Mbps  ↑ 21.4 Mbps  1,234 RPM". |
-| `Service/LiveProcesses` | libproc readings of the user's processes and the quit itself. |
+| `Service/LiveProcesses` | the user's processes from core `NotchcastProcesses`, their libproc details and the quit itself. |
 | `Service/KillProcessSession` | One open picker: readings, query, selection by pid, and the quit. Rows are sorted when the query changes and once when the first CPU figures arrive; later refreshes only update figures, so no row moves under the pointer. When the selected process is gone the picker closes with an "Already Quit" notice rather than moving the selection. |
 | `Service/SystemToolsModule` | Opens the picker; runs, cancels and reports the network test. |
 | `Service/SystemToolsModule+Addresses` | The address and Wi-Fi password commands: one lookup at a time, each answer shown and copied. |

@@ -17,21 +17,16 @@ enum LiveProcesses {
     @concurrent
     static func read(uid: uid_t, apps: [App]) async -> [ProcessSample] {
         let byPID = Dictionary(apps.map { ($0.pid, $0) }, uniquingKeysWith: { first, _ in first })
-        var timebase = mach_timebase_info_data_t()
-        let capacity = proc_listallpids(nil, 0)
-        guard mach_timebase_info(&timebase) == KERN_SUCCESS, capacity > 0 else { return [] }
-        var pids = [pid_t](repeating: 0, count: Int(capacity) + 32)
-        let count = pids.withUnsafeMutableBytes { proc_listallpids($0.baseAddress, Int32($0.count)) }
-        return pids.prefix(min(Int(max(count, 0)), pids.count)).compactMap { pid in
-            guard let info = bsdInfo(pid), info.pbi_uid == uid, let usage = rusage(pid) else { return nil }
-            let total = usage.ri_user_time.addingReportingOverflow(usage.ri_system_time)
-            guard !total.overflow, let cpu = ProcessListPolicy.nanoseconds(
-                ticks: total.partialValue, numerator: timebase.numer, denominator: timebase.denom) else { return nil }
+        guard let timebase = NotchcastProcesses.timebase() else { return [] }
+        return NotchcastProcesses.pids().compactMap { pid in
+            guard let info = bsdInfo(pid), info.pbi_uid == uid, let usage = NotchcastProcesses.usage(pid),
+                  let cpu = ProcessListPolicy.nanoseconds(
+                      ticks: usage.cpuTicks, numerator: timebase.numer, denominator: timebase.denom) else { return nil }
             let app = byPID[pid]
             return ProcessSample(
                 pid: pid, start: start(info), name: app?.name ?? name(info), path: path(pid),
                 isApp: app?.isRegular == true, bundlePath: app?.bundlePath, cpuNanoseconds: cpu,
-                memoryBytes: usage.ri_phys_footprint)
+                memoryBytes: usage.footprint)
         }
     }
 
@@ -58,16 +53,6 @@ enum LiveProcesses {
         guard pid > 0, proc_pidinfo(pid, PROC_PIDTBSDINFO, 0, &info, size) == size,
               info.pbi_status != UInt32(SZOMB) else { return nil }
         return info
-    }
-
-    private static func rusage(_ pid: pid_t) -> rusage_info_current? {
-        var usage = rusage_info_current()
-        let status = withUnsafeMutablePointer(to: &usage) { pointer in
-            pointer.withMemoryRebound(to: rusage_info_t?.self, capacity: 1) {
-                proc_pid_rusage(pid, RUSAGE_INFO_CURRENT, $0)
-            }
-        }
-        return status == 0 ? usage : nil
     }
 
     private static func start(_ info: proc_bsdinfo) -> UInt64 {
