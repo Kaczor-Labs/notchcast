@@ -19,6 +19,8 @@ COVERED = {
     ("pr.yml:route", "actions/checkout"): "lane planning; no gate",
     ("pr.yml:route", "Lanes the diff needs"): "picks the jobs below; ready-check.sh runs them all",
     ("pr.yml:route", "Harnesses the diff needs"): "picks what a PR run's mac job runs; ready-check.sh runs the whole suite",
+    ("pr.yml:mac-route", "actions/checkout"): "shadow route; no gate",
+    ("pr.yml:mac-route", "Where mac would run"): "shadow route: prints, gates nothing",
     ("pr.yml:mac", "actions/checkout"): "the shared clone at HEAD",
     ("pr.yml:mac", "./tools/notchcast/actions/xcode"): "ci-build.sh's xcode step",
     ("pr.yml:mac", "The harness runner's own Xcode"): "dispatched harness-only runs only",
