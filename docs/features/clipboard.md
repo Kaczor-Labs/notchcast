@@ -2,6 +2,8 @@
 
 ## Invariants
 
+- **A Notchcast password question suspends clipboard capture for its entire presentation.** Closing the question discards any unpolled copy from that time. Only submitting the question removes existing exact text matches, including pins and entries outside the loaded window, from memory and SQLite together with their owned side files. The submitted password is used for the comparison in memory.
+
 - **`clipboardEnabled` ships on, the only feature switch that does.** Absence of the key therefore
   has to outrank a stored `false` in `AppSettings.init`, and off means fully off: the poller stops,
   the SQLite file closes, the launcher commands and their shortcuts go, and Tab skips the screen.

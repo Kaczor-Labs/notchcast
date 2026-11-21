@@ -244,6 +244,7 @@ final class AppIndex {
 
 @MainActor
 final class ClipboardManager {
+    func setSecretPromptOpen(_ isOpen: Bool) {}
     func start() {}
     func stop() {}
     func prepareForTinycastPasteboardMutation() {}

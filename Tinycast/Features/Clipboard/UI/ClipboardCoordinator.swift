@@ -1,7 +1,9 @@
 import AppKit
+import os
 
 @MainActor
 final class ClipboardCoordinator {
+    private static let logger = Logger(subsystem: "com.tinycast", category: "Clipboard")
     private let clipboardStore: ClipboardStore
     private let clipboardManager: ClipboardManager
     private let settings: AppSettings
@@ -51,6 +53,17 @@ final class ClipboardCoordinator {
         core.applyClipboardTextSearch()
         // Deferred off the launch path: the palette fills in behind the SQLite read and prune.
         Task { clipboardStore.load() }
+    }
+
+    func beginSecretPrompt() {
+        clipboardManager.setSecretPromptOpen(true)
+    }
+
+    func endSecretPrompt(submitted secret: String?) {
+        if !clipboardStore.removeEntries(matchingSubmittedSecret: secret) {
+            Self.logger.error("Could not remove matching clipboard history entries")
+        }
+        clipboardManager.setSecretPromptOpen(false)
     }
 
     func followSearchResults(query: String, previous: [ClipboardItem], current: [ClipboardItem]) {

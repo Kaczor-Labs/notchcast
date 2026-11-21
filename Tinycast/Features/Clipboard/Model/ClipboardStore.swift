@@ -4,6 +4,22 @@ import SQLite3
 // Spelled as the C macro in sqlite3.h, which isn't imported into Swift.
 private let SQLITE_TRANSIENT = unsafeBitCast(-1, to: sqlite3_destructor_type.self)
 
+struct ClipboardCapturePolicy {
+    var lastChangeCount = 0
+    private(set) var isSecretPromptOpen = false
+
+    mutating func setSecretPromptOpen(_ isOpen: Bool, changeCount: Int) {
+        isSecretPromptOpen = isOpen
+        if !isOpen { lastChangeCount = changeCount }
+    }
+
+    mutating func shouldCapture(changeCount: Int, isPaused: Bool) -> Bool {
+        guard !isPaused, changeCount != lastChangeCount else { return false }
+        lastChangeCount = changeCount
+        return !isSecretPromptOpen
+    }
+}
+
 struct ClipboardItem: Identifiable, Hashable, Sendable {
     enum Kind: String, Sendable { case text, image, file }
 
@@ -454,6 +470,39 @@ final class ClipboardStore {
         }
         items.removeAll { $0.id == item.id }
         deleteBlob(item)
+    }
+
+    @discardableResult
+    func removeEntries(matchingSubmittedSecret secret: String?) -> Bool {
+        guard let secret else { return true }
+        let wasClosed = db == nil
+        defer { if wasClosed { closeDatabase() } }
+        guard !wasClosed || openDatabase() else { return false }
+        guard sqlite3_exec(db, "PRAGMA secure_delete = ON", nil, nil, nil) == SQLITE_OK,
+            let stmt = prepare("DELETE FROM items WHERE text = ? COLLATE BINARY RETURNING id, image_path")
+        else { return false }
+
+        let bound = sqlite3_bind_text(stmt, 1, secret, Int32(secret.utf8.count), SQLITE_TRANSIENT)
+        var deletedIDs: Set<UUID> = []
+        var ownedPaths: [String] = []
+        var status = bound == SQLITE_OK ? sqlite3_step(stmt) : bound
+        while status == SQLITE_ROW {
+            if let id = Self.columnString(stmt, 0).flatMap(UUID.init(uuidString:)) {
+                deletedIDs.insert(id)
+            }
+            if let path = Self.columnString(stmt, 1), owns(path) { ownedPaths.append(path) }
+            status = sqlite3_step(stmt)
+        }
+        sqlite3_finalize(stmt)
+        guard status == SQLITE_DONE else { return false }
+
+        for path in ownedPaths { Self.removeBlob(atPath: path) }
+        if !deletedIDs.isEmpty {
+            textSearchMatches.removeAll { deletedIDs.contains($0.id) }
+            items.removeAll { deletedIDs.contains($0.id) }
+            sqlite3_wal_checkpoint_v2(db, nil, SQLITE_CHECKPOINT_TRUNCATE, nil, nil)
+        }
+        return true
     }
 
     /// A pin is a deliberate keep, so it outlives the bulk clear; `remove` is the way to drop one.
