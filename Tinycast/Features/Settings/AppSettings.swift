@@ -548,9 +548,8 @@ final class AppSettings {
     }
 
     var calendarShowInLauncher: Bool {
-        didSet {
-            defaults.set(calendarShowInLauncher, forKey: Key.calendarShowInLauncher.rawValue)
-        }
+        get { false }
+        set { _ = newValue }
     }
 
     var calendarLauncherLimit: CalendarLauncherLimit {
@@ -570,7 +569,8 @@ final class AppSettings {
 
     /// Arms the app to open meeting links unattended, so only the Calendar pane's switch writes it.
     var autoJoinMeetings: Bool {
-        didSet { defaults.set(autoJoinMeetings, forKey: Key.autoJoinMeetings.rawValue) }
+        get { false }
+        set { _ = newValue }
     }
 
     var autoJoinConfirms: Bool {
@@ -586,7 +586,8 @@ final class AppSettings {
 
     /// Doubles as camera consent, so only the Calendar pane's switch writes it.
     var cameraPreview: Bool {
-        didSet { defaults.set(cameraPreview, forKey: Key.cameraPreview.rawValue) }
+        get { false }
+        set { _ = newValue }
     }
 
     /// Nil opens meeting links in the default browser.
@@ -1038,9 +1039,6 @@ final class AppSettings {
             defaults.stringArray(forKey: Key.extensionCustomSearchPaths.rawValue) ?? []
         // Opt-in, like extensions: until it is asked for, EventKit is never loaded.
         calendarEnabled = defaults.bool(forKey: Key.calendarEnabled.rawValue)
-        calendarShowInLauncher =
-            defaults.object(forKey: Key.calendarShowInLauncher.rawValue) == nil
-            || defaults.bool(forKey: Key.calendarShowInLauncher.rawValue)
         calendarLauncherLimit =
             defaults.object(forKey: Key.calendarLauncherLimit.rawValue)
             .flatMap { $0 as? Int }
@@ -1051,12 +1049,10 @@ final class AppSettings {
             ?? .todayAndTomorrow
         joinWindowMinutes =
             JoinWindow(rawValue: defaults.integer(forKey: Key.joinWindowMinutes.rawValue)) ?? .five
-        autoJoinMeetings = defaults.bool(forKey: Key.autoJoinMeetings.rawValue)
         autoJoinConfirms =
             defaults.object(forKey: Key.autoJoinConfirms.rawValue) == nil
             || defaults.bool(forKey: Key.autoJoinConfirms.rawValue)
         autoJoinNamedProvidersOnly = defaults.bool(forKey: Key.autoJoinNamedProvidersOnly.rawValue)
-        cameraPreview = defaults.bool(forKey: Key.cameraPreview.rawValue)
         meetingBrowserBundleID = defaults.string(forKey: Key.meetingBrowser.rawValue)
         // Both default to their zero case, so an unset key needs no presence check.
         menuBarEvents =

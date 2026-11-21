@@ -16,7 +16,8 @@ struct CalendarSettingsView: View {
                 isEnabled: enabledBinding,
                 showsInLauncher: $settings.calendarShowInLauncher,
                 showsIcon: true,
-                showsHeader: false)
+                showsHeader: false,
+                hidesLauncherToggle: true)
 
             Section {
                 Picker(selection: $settings.calendarLauncherLimit) {
@@ -28,6 +29,7 @@ struct CalendarSettingsView: View {
                 }
             }
             .settingsEnabled(settings.calendarEnabled && settings.calendarShowInLauncher)
+            .notchcastHidden()
 
             if settings.calendarEnabled, store.access == .notDetermined {
                 Section {
@@ -62,20 +64,24 @@ struct CalendarSettingsView: View {
                     SettingsRowTitle(.calendarJoining, "Auto Join Meetings")
                     Text("As they start.")
                 }
+                .notchcastHidden()
                 Toggle(isOn: $settings.autoJoinNamedProvidersOnly) {
                     SettingsRowTitle(.calendarJoining, "Only join known meeting services")
                 }
                 .toggleStyle(.checkbox)
                 .settingsEnabled(settings.autoJoinMeetings)
+                .notchcastHidden()
                 Toggle(isOn: $settings.autoJoinConfirms) {
                     SettingsRowTitle(.calendarJoining, "Confirm before joining")
                 }
                 .toggleStyle(.checkbox)
                 .settingsEnabled(settings.autoJoinMeetings)
+                .notchcastHidden()
                 Toggle(isOn: $settings.cameraPreview) {
                     SettingsRowTitle(.calendarJoining, "Camera Preview")
                     Text("Before joining a meeting.")
                 }
+                .notchcastHidden()
                 MeetingBrowserPicker(selection: $settings.meetingBrowserBundleID)
             } header: {
                 SettingsSectionHeader(.calendarJoining)
@@ -139,6 +145,7 @@ struct CalendarSettingsView: View {
 
             FeatureCommandsSection(owner: .calendar, anchor: .calendarCommands)
                 .settingsEnabled(settings.calendarEnabled)
+                .notchcastHidden()
 
             CalendarPickerSection()
                 .settingsEnabled(settings.calendarEnabled)
