@@ -175,7 +175,7 @@ def main():
         additions_base = "refs/remotes/origin/main"
         if pr_base := os.environ.get("GITHUB_BASE_REF"):
             additions_base = f"refs/remotes/origin/{pr_base}"
-        elif not shares_history(additions_base):
+        if not shares_history(additions_base):
             additions_base = base
         failed |= added_lines(additions_base)
     if args.mode in ("history", "metadata"):
