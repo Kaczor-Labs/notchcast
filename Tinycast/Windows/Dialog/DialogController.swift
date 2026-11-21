@@ -184,6 +184,12 @@ final class DialogController: NSObject, NSWindowDelegate {
         closing?.orderOut(nil)
     }
 
+    /// Cancels the open question only while it still is `state`'s, so a stopped job's prompt closes.
+    func dismissSecret(_ state: SecretFieldState) {
+        guard case .secret(let open) = accessory, open === state else { return }
+        panel?.onKey?(.cancel)
+    }
+
     private var metrics: InterfaceMetrics { settings.interfaceSize.metrics }
 
     private func hostingView(_ view: some View, width: CGFloat, minHeight: CGFloat) -> NSView {

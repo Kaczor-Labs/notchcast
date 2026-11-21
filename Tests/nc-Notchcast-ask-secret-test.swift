@@ -3,7 +3,10 @@
 // notchcast-sources: Tinycast/Windows/Dialog/DialogView.swift Tinycast/Windows/Dialog/DialogRequest.swift
 // notchcast-sources: Tinycast/Windows/Dialog/DialogTextField.swift
 // notchcast-sources: Tinycast/Features/Notchcast/Core/UI/DialogSecretField.swift
-// notchcast-sources: Tinycast/Features/Notchcast/Core/Service/SecureInputHold.swift
+// notchcast-sources: Tinycast/Features/Notchcast/Core/Model/*.swift Tinycast/Features/Notchcast/Core/Service/*.swift
+// notchcast-sources: Tinycast/Features/Island/Model/IslandPresentation.swift
+// notchcast-sources: Tinycast/Features/Island/Service/IslandPresenting.swift Tinycast/Platform/NotificationToken.swift
+// notchcast-sources: Tests/NotchcastDictationFixture.swift
 // notchcast-sources: Tinycast/DesignSystem/RevealableSecureField.swift Tinycast/DesignSystem/Interaction/Motion.swift
 // notchcast-sources: Tinycast/DesignSystem/Interaction/AnimatedPanel.swift Tinycast/Platform/ScreenTarget.swift
 // notchcast-sources: Tinycast/Platform/WindowLevel.swift Tinycast/Platform/Appearance.swift
@@ -18,8 +21,7 @@ import AppKit
 import Carbon.HIToolbox
 import SwiftUI
 
-/// `askSecret` through the real controller and panel: the answer and Cancel paths, focus, paste,
-/// click-away, Secure Input on while key and off after every close, and no trace left behind.
+/// `askSecret` from a registered add-on's context through the real dialog, leaving no trace behind.
 @MainActor
 @main
 struct NotchcastAskSecretTest {
@@ -36,6 +38,20 @@ struct NotchcastAskSecretTest {
         NSApp.appearance = NSAppearance(named: .darkAqua)
         NSApp.activate()
         let controller = DialogController(settings: AppSettings(), onPresentationChanged: { _ in })
+        let suite = "nc-Notchcast-ask-secret-test.\(UUID())"
+        defer { UserDefaults().removePersistentDomain(forName: suite) }
+        let addons = NotchcastController(
+            addons: [ArchivesProbe.self], defaults: UserDefaults(suiteName: suite)!,
+            hub: NotchcastTapHub(syntheticTag: 0x54494E59, isTrusted: { true }, makeSession: { _ in
+                fatalError("the probe declares no tap")
+            }),
+            dictation: FakeDictation(), presenter: SilentPresenter())
+        addons.wireAskSecret { [controller] requester, title, message, fieldTitle, confirmTitle in
+            await controller.askSecret(
+                requester: requester, title: title, message: message, fieldTitle: fieldTitle,
+                confirmTitle: confirmTitle)
+        }
+        context = addons.slots[0].context
         let pasteboard = NSPasteboard.general
         pasteboard.clearContents()
         pasteboard.setString("!pw", forType: .string)
@@ -51,7 +67,10 @@ struct NotchcastAskSecretTest {
             check("the open dialog carries the secret accessory", false)
             return finish()
         }
-        check("Notchcast's line names the asking add-on", state.requester == "Archives")
+        let drawn = texts(in: panel)
+        check(
+            "Notchcast's drawn line names the add-on from its registration, got \(drawn)",
+            drawn.contains { $0.contains("Asked by Archives in Notchcast") })
         check("the title is the add-on's, the requester line is not", controller.shown?.title == "Archive Password")
         let editor = panel.firstResponder as? NSTextView
         check("the hidden field has focus on open", editor?.delegate is NSSecureTextField)
@@ -60,6 +79,9 @@ struct NotchcastAskSecretTest {
         NSApp.sendAction(#selector(NSText.paste(_:)), to: nil, from: nil)
         spin { state.text == "hunter2!pw" }
         check("typing and ⌘V's paste reach the field, got \(state.text.count) characters", state.text == "hunter2!pw")
+        panel.makeFirstResponder(nil)
+        check("the field let go of focus while the dialog stays key", panel.isKeyWindow && panel.firstResponder === panel)
+        check("Secure Input holds while the key dialog's field has no focus", IsSecureEventInputEnabled())
 
         let other = NSPanel(
             contentRect: NSRect(x: 0, y: 0, width: 80, height: 80), styleMask: [.titled, .nonactivatingPanel],
@@ -95,10 +117,27 @@ struct NotchcastAskSecretTest {
         Task { answer = await ask(controller) }
         guard let cancelPanel = spinForPanel() else { return finish() }
         guard case .secret(let cancelState)? = controller.shown?.accessory else { return finish() }
+        (cancelPanel.firstResponder as? NSTextView)?.insertText("typed", replacementRange: noSelection)
+        spin { cancelState.text == "typed" }
+        check("Cancel: the text was typed before cancelling", cancelState.text == "typed")
         cancelPanel.onKey?(.cancel)
         spin { answer != nil }
         check("Cancel answers nil", answer == .some(nil))
         closed(controller, cancelState, "Cancel")
+        check("Cancel: the pasteboard is untouched", pasteboard.changeCount == pasteboardCount)
+
+        // The asking job is cancelled while the dialog is open with text typed.
+        answer = nil
+        let job = Task { answer = await ask(controller) }
+        guard let jobPanel = spinForPanel() else { return finish() }
+        guard case .secret(let jobState)? = controller.shown?.accessory else { return finish() }
+        (jobPanel.firstResponder as? NSTextView)?.insertText("orphan", replacementRange: noSelection)
+        spin { jobState.text == "orphan" }
+        check("job cancelled: the text was typed first", jobState.text == "orphan")
+        job.cancel()
+        spin { answer != nil }
+        check("job cancelled: the answer is nil, never the typed text", answer == .some(nil))
+        closed(controller, jobState, "job cancelled")
 
         var confirmed: Bool?
         Task {
@@ -106,11 +145,11 @@ struct NotchcastAskSecretTest {
                 title: "Delete?", message: nil, symbol: nil, tone: .neutral, confirmTitle: "Delete",
                 confirmRole: .destructive)
         }
-        guard spinForPanel() != nil else { return finish() }
+        guard let stockPanel = spinForPanel() else { return finish() }
+        check("a stock dialog holds no Secure Input while key", stockPanel.isKeyWindow && !IsSecureEventInputEnabled())
         other.makeKeyAndOrderFront(nil)
         spin { confirmed != nil }
         check("a stock dialog still cancels on click-away", confirmed == false)
-        check("a stock dialog never holds Secure Input", !IsSecureEventInputEnabled())
         other.orderOut(nil)
 
         check(
@@ -119,10 +158,28 @@ struct NotchcastAskSecretTest {
         finish()
     }
 
+    static var context: NotchcastContext?
+
     static func ask(_ controller: DialogController) async -> String? {
-        await controller.askSecret(
-            requester: "Archives", title: "Archive Password", message: "Enter the password for backup.zip.",
-            fieldTitle: "Password", confirmTitle: "Extract")
+        await context?.askSecret?("Archive Password", "Enter the password for backup.zip.", "Password", "Extract")
+    }
+
+    /// Every string the panel's views and accessibility elements expose, as VoiceOver would read them.
+    static func texts(in panel: NSWindow) -> [String] {
+        var seen = Set<ObjectIdentifier>()
+        var found: [String] = []
+        func walk(_ node: Any) {
+            guard let node = node as? NSObject & NSAccessibilityProtocol,
+                seen.insert(ObjectIdentifier(node)).inserted
+            else { return }
+            found += [node.accessibilityLabel(), node.accessibilityTitle(), node.accessibilityValue() as? String]
+                .compactMap { $0 }
+            if let field = node as? NSTextField { found.append(field.stringValue) }
+            (node.accessibilityChildren() ?? []).forEach(walk)
+            (node as? NSView)?.subviews.forEach(walk)
+        }
+        panel.contentView.map(walk)
+        return found
     }
 
     static func closed(_ controller: DialogController, _ state: SecretFieldState, _ how: String) {
@@ -158,6 +215,18 @@ struct NotchcastAskSecretTest {
             characters: characters, charactersIgnoringModifiers: characters, isARepeat: false,
             keyCode: UInt16(code))!
     }
+}
+
+enum ArchivesProbe: NotchcastAddon {
+    static let switches = [NotchcastSwitch(id: "archives", title: "Archives", subtitle: "", category: .filesDownloads)]
+}
+
+final class SilentPresenter: IslandPresenting {
+    func showLevel(_ level: IslandLevel) {}
+    func post(_ notice: IslandNotice, onTap: (@MainActor () -> Void)?) {}
+    func end(notice id: String) {}
+    func setStatus(_ status: IslandStatus?, for id: String, onTap: (@MainActor () -> Void)?) {}
+    func setMenuRows(_ rows: [IslandMenuRow], owner: String, onSelect: @escaping @MainActor (String) -> Void) {}
 }
 
 /// The controller reads only the interface size; the island places the panel itself.

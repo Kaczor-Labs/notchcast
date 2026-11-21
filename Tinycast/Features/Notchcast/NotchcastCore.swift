@@ -23,23 +23,18 @@ final class NotchcastCore {
             defaults: defaults, settings: core.settings, coordinator: core.dictationCoordinator,
             runner: controller.transcription)
         NotchcastPane.install(Set(controller.switches.map(\.category)))
-        for slot in controller.slots {
-            let requester = slot.addon.switches.first?.title ?? String(describing: slot.addon)
-            for context in [slot.context, slot.recovery] {
-                context.confirm = { [weak core] title, message, confirmTitle in
-                    await core?.confirm(title: title, message: message, symbol: nil, confirmTitle: confirmTitle,
-                                        tone: .neutral, confirmRole: .standard) ?? false
-                }
-                context.confirmDestructive = { [weak core] title, message, confirmTitle in
-                    await core?.confirm(
-                        title: title, message: message, symbol: nil, confirmTitle: confirmTitle) ?? false
-                }
-                context.askSecret = { [weak core] title, message, fieldTitle, confirmTitle in
-                    await core?.askSecret(
-                        requester: requester, title: title, message: message, fieldTitle: fieldTitle,
-                        confirmTitle: confirmTitle)
-                }
+        for context in controller.slots.flatMap({ [$0.context, $0.recovery] }) {
+            context.confirm = { [weak core] title, message, confirmTitle in
+                await core?.confirm(title: title, message: message, symbol: nil, confirmTitle: confirmTitle,
+                                    tone: .neutral, confirmRole: .standard) ?? false
             }
+            context.confirmDestructive = { [weak core] title, message, confirmTitle in
+                await core?.confirm(title: title, message: message, symbol: nil, confirmTitle: confirmTitle) ?? false
+            }
+        }
+        controller.wireAskSecret { [weak core] requester, title, message, fieldTitle, confirmTitle in
+            await core?.askSecret(
+                requester: requester, title: title, message: message, fieldTitle: fieldTitle, confirmTitle: confirmTitle)
         }
         let commands = addons.flatMap { $0.commands }
         NotchcastSettingsSearch.install(

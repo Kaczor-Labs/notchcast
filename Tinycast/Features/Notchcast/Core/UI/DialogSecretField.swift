@@ -2,6 +2,7 @@ import Observation
 import SwiftUI
 
 /// The typed text lives here until `askSecret` returns, never in the request's title or message.
+@MainActor
 @Observable
 final class SecretFieldState {
     let requester: String
@@ -23,7 +24,7 @@ extension DialogAccessory {
 }
 
 extension DialogController {
-    /// Hidden text for `requester`, named in Notchcast's own line; nil on Cancel or Esc.
+    /// Hidden text for `requester`, named in Notchcast's own line; nil on Cancel, Esc or task cancel.
     func askSecret(
         requester: String, title: String, message: String?, fieldTitle: String, confirmTitle: String
     ) async -> String? {
@@ -35,7 +36,12 @@ extension DialogController {
                 DialogAction(title: String(localized: "Cancel"), role: .cancel)
             ],
             defaultIndex: 0, cancelIndex: 1, accessory: .secret(state))
-        let answer = await present(request) == 0 ? state.text : nil
+        let index = await withTaskCancellationHandler {
+            await present(request)
+        } onCancel: {
+            Task { @MainActor [weak self] in self?.dismissSecret(state) }
+        }
+        let answer = index == 0 && !Task.isCancelled ? state.text : nil
         state.text = ""
         return answer
     }
