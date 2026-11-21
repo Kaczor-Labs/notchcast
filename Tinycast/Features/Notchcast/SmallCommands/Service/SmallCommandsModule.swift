@@ -78,7 +78,7 @@ final class SmallCommandsModule: NotchcastModule {
 
     private func copyPassword() throws -> String {
         let password = try RandomPasswordEngine.make(randomBytes: system.randomBytes)
-        guard system.copy(password, true) else { throw SmallCommandsFailure.copyFailed }
+        guard copy(password, concealed: true) else { throw SmallCommandsFailure.copyFailed }
         return String(localized: "Password Copied", table: "NotchcastSmallCommands")
     }
 
@@ -101,8 +101,14 @@ final class SmallCommandsModule: NotchcastModule {
         guard let short = ShortenLinkPolicy.shortLink(reply: reply.body, status: reply.status) else {
             throw SmallCommandsFailure.shortenFailed
         }
-        guard system.copy(short, false) else { throw SmallCommandsFailure.copyFailed }
+        guard copy(short, concealed: false) else { throw SmallCommandsFailure.copyFailed }
         return String(localized: "Short Link Copied", table: "NotchcastSmallCommands")
+    }
+
+    /// No `synchronizeClipboard` after: these copies belong in history like any stock copy.
+    private func copy(_ text: String, concealed: Bool) -> Bool {
+        context.prepareClipboardMutation()
+        return system.copy(text, concealed)
     }
 
     private func shareSelection() async throws -> String {

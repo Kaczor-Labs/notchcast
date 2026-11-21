@@ -4,6 +4,9 @@
     "A faint line around the open island in Dark." : {
 
     },
+    "Add to Liked Songs" : {
+
+    },
     "Agents" : {
       "shouldTranslate" : false
     },
@@ -24,6 +27,9 @@
     },
     "Capture" : {
       "shouldTranslate" : false
+    },
+    "Checking Liked Songs" : {
+
     },
     "Clean up text" : {
 
@@ -136,7 +142,7 @@
     "Notchcast could not read its token from the Keychain." : {
 
     },
-    "Notchcast could not save a new token in the Keychain." : {
+    "Notchcast could not save a new token in the Keychain. The current token still works." : {
 
     },
     "Notices" : {
@@ -163,6 +169,9 @@
     "Player" : {
 
     },
+    "Playing" : {
+
+    },
     "Port" : {
 
     },
@@ -173,6 +182,9 @@
 
     },
     "Regenerate the token?" : {
+
+    },
+    "Remove from Liked Songs" : {
 
     },
     "Reset to Default" : {
@@ -221,6 +233,9 @@
 
     },
     "Turn on Claude or Codex in AI settings, or choose a model." : {
+
+    },
+    "Up Next" : {
 
     },
     "Updated to %@" : {

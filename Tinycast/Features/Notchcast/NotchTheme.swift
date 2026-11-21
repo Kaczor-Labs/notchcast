@@ -9,6 +9,8 @@ enum NotchTheme {
     enum Radius {
         /// A menu panel is concentric with its rows: menu row 18 plus the list inset 8, as the island outline.
         static let islandMenu: CGFloat = Theme.Radius.menuRow + Theme.Spacing.md
+        /// A song's 16-point cover in the pill's wings, where `thumbnail` would nearly round it off.
+        static let islandCover: CGFloat = 4
     }
 
     enum Size {

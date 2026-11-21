@@ -40,7 +40,7 @@ fail() {
     exit 1
 }
 
-# Sync switched off on purpose (gh workflow disable, e.g. #871's stopgap): nothing to start and lag is expected.
+# Sync switched off on purpose (gh workflow disable): nothing to start and lag is expected.
 sync_state="$(gh api "repos/$FORK_REPO/actions/workflows/sync.yml" --jq .state 2>&1)" || fail "reading Sync state: $sync_state"
 if [ "$sync_state" != active ]; then
     log "Sync is $sync_state; no trigger, no lag alert until it is enabled again"

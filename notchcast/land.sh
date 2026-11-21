@@ -26,6 +26,30 @@ source "$(dirname "$0")/local-build-status.sh"
 selector="$(cd "$(dirname "$0")" && pwd)/changed-harnesses.sh"
 cd "$(git rev-parse --show-toplevel)"
 source "$(dirname "$0")/merge.sh"
+# Succeeds, and says so, when an open PR's head still contains commit $1 (cut from or merged branch $2).
+held_by() {
+    local expected=$1 name=$2 heads pr oid refs=() status
+    heads=$(gh pr list -R "$FORK_REPO" --state open --limit 1000 --json number,headRefOid --jq '.[] | "\(.number) \(.headRefOid)"') \
+        || { echo "WARN: kept origin/$name: cannot list open PRs" >&2; return 0; }
+    while read -r pr oid; do
+        [ -n "$oid" ] && [ "$oid" != "$expected" ] && ! git cat-file -e "$oid^{commit}" 2>/dev/null || continue
+        refs+=("refs/pull/$pr/head")
+    done <<< "$heads"
+    [ "${#refs[@]}" -eq 0 ] || git fetch -q origin "${refs[@]}" \
+        || { echo "WARN: kept origin/$name: cannot fetch the open PRs' heads" >&2; return 0; }
+    while read -r pr oid; do
+        [ -n "$oid" ] && [ "$oid" != "$expected" ] || continue
+        status=0
+        git merge-base --is-ancestor "$expected" "$oid" 2>/dev/null || status=$?
+        case $status in
+            0) echo "kept origin/$name: open PR #$pr stands on it"; return 0 ;;
+            1) ;;
+            # A head force-pushed since the listing is not here to compare, so the branch stays.
+            *) echo "WARN: kept origin/$name: cannot tell whether open PR #$pr stands on it" >&2; return 0 ;;
+        esac
+    done <<< "$heads"
+    return 1
+}
 delete_head() {
     local name=$1 expected=$2 fork=${3:-false} remote local_head stacked pr kept=
     [ "$fork" = false ] || return 0
@@ -42,7 +66,7 @@ delete_head() {
                 kept=1
             fi
         done
-        [ -n "$kept" ] || git push origin --delete "$name" || echo "WARN: could not delete origin/$name" >&2
+        [ -n "$kept" ] || held_by "$expected" "$name" || git push origin --delete "$name" || echo "WARN: could not delete origin/$name" >&2
     fi
     local_head=$(git rev-parse --verify "refs/heads/$name" 2>/dev/null) || return 0
     if [ "$local_head" = "$expected" ]; then
@@ -425,36 +449,23 @@ isolated_proof() {
 # Not covered without an Xcode build of this tree: code no selected harness compiles (UI, AppCore wiring,
 # resources); the PR build covered each head alone, and Sync and Snapshot follow on main.
 harnesses() {
-    local commit proof= names why tested= unproven= skipped isolated= left= bench i=0 pr wanted
+    local commit proof= names why tested= unproven= skipped isolated= left= unprovable
     : > "$scratch/linux"
     for commit in $(git rev-list --reverse "$base..HEAD"); do
-        i=$((i + 1))
         if [ "$platform" = linux ]; then
             TMPDIR="$scratch/tmp" "$selector" --linux "$scratch/linux-one" "$commit^" "$commit"
             cat "$scratch/linux-one" >> "$scratch/linux"
         else
             TMPDIR="$scratch/tmp" "$selector" "$commit^" "$commit"
-        fi > "$scratch/selected-$i"
-        cat "$scratch/selected-$i"
+        fi
     done | sort -u > "$scratch/selected"
     [ -s "$scratch/selected" ] || refuse 'no harness selected for the merged tree'
     names=$(< "$scratch/selected")
     landed_from=mac
     # Main's lists and the merged tree's: a PR that puts a new harness in both had its own hosted run skip it.
-    bench=$(listed_in "$(cd "$(dirname "$selector")/.." && bench_only_list) $(bench_only_list)" "$scratch/selected")
-    if [ -n "$bench" ] && [ "$check" -eq 0 ]; then
-        # The chain holds one squash per PR of the train, in its order.
-        for i in "${!train[@]}"; do
-            pr=${train[$i]}
-            wanted=$(listed_in "$bench" "$scratch/selected-$((i + 1))")
-            [ -z "$wanted" ] || wanted=$(bench_wanted "$pr" "$(jq -r .headRefOid "$scratch/pr-$pr.json")" "$wanted")
-            [ -z "$wanted" ] || refuse "#$pr $wanted"
-        done
-        echo "harnesses: a bench check on the MBP's real screen proved $bench at each head that selects it"
-        grep -vxF -f <(tr ' ' '\n' <<< "$bench") "$scratch/selected" > "$scratch/selected-rest" || true
-        mv "$scratch/selected-rest" "$scratch/selected"
-        names=$(< "$scratch/selected")
-    fi
+    unprovable=$(listed_in "$(cd "$(dirname "$selector")/.." && unprovable_list) $(unprovable_list)" "$scratch/selected")
+    [ -z "$unprovable" ] || [ "$check" -eq 1 ] \
+        || refuse_for_good "no run proves $unprovable: it is in both HOSTED_ONLY_TESTS and CI_SKIP_TESTS (notchcast/config.env, main's or the PR's); make it pass on a hosted VM and take it out of CI_SKIP_TESTS"
     # run-tests.sh skips these here (test-harnesses.sh), so only a hosted run of this exact tree proves them;
     # a Linux landing never proves one itself, whatever runner it is on.
     { [ "$platform" = mac ] && { [ "${RUNNER_ENVIRONMENT:-}" = github-hosted ] || [ "${NOTCHCAST_ISOLATED_RUNNER:-}" = 1 ]; }; } \

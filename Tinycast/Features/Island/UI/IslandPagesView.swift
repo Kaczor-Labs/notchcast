@@ -75,7 +75,8 @@ struct IslandPageLineView: View {
     var body: some View {
         HStack(spacing: metrics.spacing.xs) {
             Button(action: open) {
-                IslandPageLabel(symbol: line.symbol, artwork: line.artwork, title: line.text, detail: line.detail)
+                IslandPageLabel(symbol: line.symbol, artwork: line.artwork, title: line.text, detail: line.detail,
+                                tone: line.tone)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .contentShape(Rectangle())
             }
@@ -98,11 +99,12 @@ struct IslandPageLabel: View {
     let artwork: Data?
     let title: String
     let detail: String?
+    var tone: IslandTone?
     @Environment(\.metrics) private var metrics
 
     var body: some View {
         HStack(spacing: metrics.spacing.md) {
-            IslandPageArtwork(symbol: symbol, artwork: artwork, side: metrics.size.resultRowIcon)
+            IslandPageArtwork(symbol: symbol, artwork: artwork, side: metrics.size.resultRowIcon, tone: tone)
             VStack(alignment: .leading, spacing: 0) {
                 Text(title).font(metrics.typography.rowTitle).foregroundStyle(Theme.Colors.textPrimary)
                 if let detail {
@@ -122,6 +124,7 @@ struct IslandPageArtwork: View {
     let artwork: Data?
     let side: CGFloat
     var radius: CGFloat?
+    var tone: IslandTone?
     @Environment(\.metrics) private var metrics
 
     var body: some View {
@@ -134,7 +137,7 @@ struct IslandPageArtwork: View {
                     .accessibilityHidden(true)
             } else if let symbol {
                 SymbolImage(name: symbol, size: metrics.scaled(Theme.Typography.menuSymbolSize), monochrome: true)
-                    .foregroundStyle(Theme.Colors.textSecondary)
+                    .foregroundStyle(tone?.color ?? Theme.Colors.textSecondary)
             }
         }
         .frame(width: side, height: side)
@@ -152,6 +155,8 @@ struct IslandPageIconButton: View {
             SymbolImage(name: button.symbol, size: metrics.scaled(Theme.Typography.menuSymbolSize), monochrome: true)
                 .foregroundStyle(Theme.Colors.textPrimary)
         }
+        .disabled(!button.isEnabled)
+        .opacity(button.isEnabled ? 1 : NotchTheme.Opacity.disabled)
         .accessibilityLabel(button.label)
         .tooltip(button.label)
     }

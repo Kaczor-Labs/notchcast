@@ -21,6 +21,7 @@ struct NotchcastHotKeysTests {
         for includesShift in [false, true] { secureInputFollowsExtraActions(includesShift: includesShift) }
         shippedCommandsTakeHotKeys()
         hiddenFeatureBindingsStayUnregistered()
+        hiddenChordsOwnNothing()
         print("\(checks) add-on hotkey checks; \(failures) failures")
         if failures > 0 { exit(1) }
         print("PASSED")
@@ -94,26 +95,64 @@ struct NotchcastHotKeysTests {
               relaunchedCenter !== center && actions.allSatisfy { relaunchedCenter.entries[$0.defaultsKey] != nil })
     }
 
-    /// Apple Shortcuts and Extensions are hidden: a stored chord for either registers nothing at launch.
+    /// A refused stored chord stays unregistered, Custom Commands too; `hidden-hotkeys` pins AppCore.
     static func hiddenFeatureBindingsStayUnregistered() {
         let domain = "tinycast.notchcast-hotkeys-test.\(UUID())"
         let defaults = UserDefaults(suiteName: domain)!
         defer { defaults.removePersistentDomain(forName: domain) }
         let quicklink = UUID()
-        let hidden: [HotKeyAction] = [.appleShortcut(id: UUID()), .extensionCommand(entryID: "ext.cmd")]
+        let quickAction = UUID()
+        let customCommand = UUID()
+        let hidden: [HotKeyAction] = [
+            .appleShortcut(id: UUID()), .extensionCommand(entryID: "ext.cmd"), .quickAction(id: quickAction),
+            .customCommand(id: customCommand),
+        ]
         let manager = HotKeyManager(defaults: defaults)
-        for (action, key) in zip(hidden + [.quicklink(id: quicklink)], [kVK_ANSI_3, kVK_ANSI_4, kVK_ANSI_5]) {
+        let keys = [kVK_ANSI_3, kVK_ANSI_4, kVK_ANSI_6, kVK_ANSI_7, kVK_ANSI_5]
+        for (action, key) in zip(hidden + [.quicklink(id: quicklink)], keys) {
             manager.setBinding(.combo(KeyShortcut(carbonKeyCode: key, carbonModifiers: controlKey)), for: action)
         }
         let relaunched = HotKeyManager(defaults: defaults)
+        relaunched.allowsAction = { !hidden.contains($0) }
         relaunched.start(
-            customCommandIDs: [], quicklinkIDs: [quicklink], windowLayoutIDs: [],
-            windowRoomIDs: [], customWindowSizeIDs: [], quickActionIDs: [])
+            customCommandIDs: [customCommand], quicklinkIDs: [quicklink], windowLayoutIDs: [],
+            windowRoomIDs: [], customWindowSizeIDs: [], quickActionIDs: [quickAction])
         let entries = HotKeyCenter.current!.entries
         check("a stored quicklink chord registers after a relaunch",
               entries[HotKeyAction.quicklink(id: quicklink).defaultsKey] != nil)
         for action in hidden {
             check("\(action.defaultsKey): its chord stays unregistered", entries[action.defaultsKey] == nil)
         }
+        check("the hidden custom command keeps its stored chord",
+              defaults.object(forKey: HotKeyAction.customCommand(id: customCommand).defaultsKey) != nil)
+    }
+    /// #1285: a chord a hidden feature stored before the hide neither blocks the recorder nor takes a tap.
+    static func hiddenChordsOwnNothing() {
+        let domain = "tinycast.notchcast-hotkeys-test.\(UUID())"
+        let defaults = UserDefaults(suiteName: domain)!
+        defer { defaults.removePersistentDomain(forName: domain) }
+        let quicklinkID = UUID()
+        let quicklink = HotKeyAction.quicklink(id: quicklinkID)
+        let hidden = HotKeyAction.appleShortcut(id: UUID())
+        let combo = HotKeyBinding.combo(KeyShortcut(carbonKeyCode: kVK_ANSI_7, carbonModifiers: controlKey))
+        let quicklinkCombo = HotKeyBinding.combo(KeyShortcut(carbonKeyCode: kVK_ANSI_8, carbonModifiers: controlKey))
+        let manager = HotKeyManager(defaults: defaults)
+        manager.setBinding(combo, for: hidden)
+        manager.setBinding(quicklinkCombo, for: quicklink)
+        let relaunched = HotKeyManager(defaults: defaults)
+        relaunched.allowsAction = { $0 != hidden }
+        relaunched.start(
+            customCommandIDs: [], quicklinkIDs: [quicklinkID], windowLayoutIDs: [],
+            windowRoomIDs: [], customWindowSizeIDs: [], quickActionIDs: [])
+        check("unhidden, the stored chord names its owner",
+              relaunched.conflictOwner(of: combo, excluding: .togglePalette) != nil)
+        relaunched.isHidden = { $0 == hidden }
+        check("a hidden feature's stored chord blocks no recording",
+              relaunched.conflictOwner(of: combo, excluding: .togglePalette) == nil)
+        check("a visible stored chord still names its owner",
+              relaunched.conflictOwner(of: quicklinkCombo, excluding: .togglePalette) != nil)
+        relaunched.setBinding(combo, for: .togglePalette)
+        check("the freed chord registers for the new owner",
+              HotKeyCenter.current!.entries[HotKeyAction.togglePalette.defaultsKey]?.shortcut == combo.shortcut)
     }
 }

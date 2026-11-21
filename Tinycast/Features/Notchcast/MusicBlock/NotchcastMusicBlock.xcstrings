@@ -1,8 +1,12 @@
 {
   "sourceLanguage" : "en",
   "strings" : {
+    "Allow Automation access for %@." : {},
+    "Couldn't resume %@." : {},
     "Couldn't Stop Apple Music Opening" : {},
-    "Stop Apple Music opening on media keys" : {}
+    "Play key resumes the last player" : {},
+    "Stop Apple Music opening on media keys" : {},
+    "When nothing is playing, the play key resumes Spotify if you played it last." : {}
   },
   "version" : "1.0"
 }

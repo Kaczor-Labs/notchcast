@@ -45,14 +45,7 @@ enum ScreenTextRecognizer {
     @concurrent
     static func lines(in image: CGImage, preferredLanguages: [String]) async throws -> [ScreenTextLine] {
         var request = RecognizeTextRequest()
-        request.recognitionLevel = .accurate
-        request.usesLanguageCorrection = true
-        let languages = languages(preferredLanguages, supported: request.supportedRecognitionLanguages)
-        if languages.isEmpty {
-            request.automaticallyDetectsLanguage = true
-        } else {
-            request.recognitionLanguages = languages
-        }
+        configure(&request, preferredLanguages: preferredLanguages, supported: request.supportedRecognitionLanguages)
         let observations = try await request.perform(on: image)
         try Task.checkCancellation()
         return observations.compactMap { observation in
@@ -60,6 +53,16 @@ enum ScreenTextRecognizer {
                 ScreenTextLine(text: $0.string, box: observation.boundingBox.cgRect)
             }
         }
+    }
+
+    /// Detection stays on so a third language still reads; the user's languages are only hints.
+    static func configure(_ request: inout RecognizeTextRequest, preferredLanguages: [String],
+                          supported: [Locale.Language]) {
+        request.recognitionLevel = .accurate
+        request.usesLanguageCorrection = true
+        request.automaticallyDetectsLanguage = true
+        let languages = languages(preferredLanguages, supported: supported)
+        if !languages.isEmpty { request.recognitionLanguages = languages }
     }
 
     /// Each preferred language Vision reads, in the user's order, matched by language code.

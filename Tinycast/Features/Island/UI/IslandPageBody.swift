@@ -21,13 +21,30 @@ struct IslandPageBody: View {
     }
 }
 
-/// The player's block: large artwork, title and artist, the running time, then transport.
+/// The player's block: artwork, title and artist with the like toggle, the running time, transport and
+/// volume; Up Next beside it when anything is queued.
 struct IslandMediaView: View {
     let media: IslandMedia
     let act: (String) -> Void
     @Environment(\.metrics) private var metrics
 
     var body: some View {
+        HStack(alignment: .top, spacing: metrics.spacing.xl) {
+            player
+            if !media.upNext.isEmpty {
+                VStack(alignment: .leading, spacing: metrics.spacing.xxs) {
+                    IslandCardHeader(title: String(localized: "Up Next", table: "Notchcast"))
+                    ForEach(Array(media.upNext.enumerated()), id: \.offset) { _, row in
+                        IslandPageRowView(row: row, act: act)
+                    }
+                }
+                .frame(width: NotchTheme.Size.islandHeadlineMaxWidth, alignment: .leading)
+            }
+        }
+        .padding(metrics.spacing.md)
+    }
+
+    private var player: some View {
         VStack(spacing: metrics.spacing.md) {
             HStack(spacing: metrics.spacing.xl) {
                 // Concentric with the island's fixed outline, two `md` insets in from its edge (design §3).
@@ -44,11 +61,17 @@ struct IslandMediaView: View {
                 .lineLimit(1)
                 .truncationMode(.tail)
                 .frame(maxWidth: NotchTheme.Size.islandHeadlineMaxWidth, alignment: .leading)
+                if let like = media.like {
+                    Spacer(minLength: 0)
+                    IslandPageIconButton(button: like) { act(like.id) }
+                }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             if let time = media.time {
                 TimelineView(.periodic(from: time.sampledAt, by: 1)) { context in
-                    IslandMediaTimeView(time: time, now: context.date)
+                    IslandMediaTimeView(time: time, now: context.date,
+                                        seek: media.seekable ? { act(IslandMedia.action(IslandMedia.seekAction, $0)) }
+                                                             : nil)
                 }
             }
             HStack(spacing: metrics.spacing.md) {
@@ -56,8 +79,21 @@ struct IslandMediaView: View {
                     IslandPageIconButton(button: button) { act(button.id) }
                 }
             }
+            if let volume = media.volume {
+                HStack(spacing: metrics.spacing.md) {
+                    SymbolImage(name: "speaker.fill", size: metrics.scaled(Theme.Typography.menuSymbolSize),
+                                monochrome: true)
+                    IslandPageBar(fraction: volume, step: 0.1, live: true) {
+                        act(IslandMedia.action(IslandMedia.volumeAction, $0))
+                    }
+                    .accessibilityLabel(String(localized: "Volume"))
+                    .accessibilityValue(volume.formatted(.percent.precision(.fractionLength(0))))
+                    SymbolImage(name: "speaker.wave.3.fill", size: metrics.scaled(Theme.Typography.menuSymbolSize),
+                                monochrome: true)
+                }
+                .foregroundStyle(Theme.Colors.textSecondary)
+            }
         }
-        .padding(metrics.spacing.md)
     }
 }
 
@@ -65,20 +101,22 @@ struct IslandMediaView: View {
 struct IslandMediaTimeView: View {
     let time: IslandMediaTime
     let now: Date
+    /// Set, a click or drag on the bar seeks to that fraction.
+    var seek: ((Double) -> Void)?
     @Environment(\.metrics) private var metrics
 
     var body: some View {
         let elapsed = time.elapsed(at: now)
         HStack(spacing: metrics.spacing.md) {
-            Text(Self.clock(elapsed))
-            IslandPageBar(fraction: time.fraction(at: now))
-            Text("-" + Self.clock(max(time.duration - elapsed, 0)))
+            Text(Self.clock(elapsed)).accessibilityHidden(true)
+            IslandPageBar(fraction: time.fraction(at: now), step: time.duration > 0 ? 10 / time.duration : 0,
+                          change: seek)
+                .accessibilityLabel(String(localized: "Elapsed", table: "Notchcast"))
+                .accessibilityValue(Self.clock(elapsed) + " / " + Self.clock(time.duration))
+            Text("-" + Self.clock(max(time.duration - elapsed, 0))).accessibilityHidden(true)
         }
         .font(metrics.typography.rowTrailing.monospacedDigit())
         .foregroundStyle(Theme.Colors.textSecondary)
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel(String(localized: "Elapsed", table: "Notchcast"))
-        .accessibilityValue(Self.clock(elapsed) + " / " + Self.clock(time.duration))
     }
 
     static func clock(_ seconds: TimeInterval) -> String {
@@ -86,13 +124,25 @@ struct IslandMediaTimeView: View {
     }
 }
 
-/// A track and its fill from the leading edge, as the volume HUD draws it.
+/// A track and its fill from the leading edge, as the volume HUD draws it; with `change`, a slider.
 struct IslandPageBar: View {
     let fraction: Double
+    /// What VoiceOver's increment and decrement move by.
+    var step = 0.0
+    /// Sends while the drag lasts, as volume does; otherwise only on release, so a seek happens once.
+    var live = false
+    var change: ((Double) -> Void)?
     @Environment(\.metrics) private var metrics
+    /// The drag's fraction while it lasts, so the fill follows the pointer before the player answers.
+    @State private var dragged: Double?
+    @State private var sent: ContinuousClock.Instant?
+    @State private var trailing: Task<Void, Never>?
+    /// A live drag sends at most this often (Aural's `VolumeSlider`), its last value once still.
+    static let sendInterval = Duration.milliseconds(100)
 
     var body: some View {
-        Capsule()
+        let fraction = dragged ?? self.fraction
+        let bar = Capsule()
             .fill(Theme.Colors.border)
             .overlay(alignment: .leading) {
                 GeometryReader { proxy in
@@ -102,7 +152,51 @@ struct IslandPageBar: View {
             }
             .frame(maxWidth: .infinity)
             .frame(height: metrics.size.volumeTrackHeight)
-            .accessibilityHidden(true)
+        if let change {
+            // The track is a few points tall, so the whole row height takes the click.
+            GeometryReader { proxy in
+                bar.frame(maxHeight: .infinity)
+                    .contentShape(Rectangle())
+                    .gesture(DragGesture(minimumDistance: 0)
+                        .onChanged { drag in
+                            let value = min(max(drag.location.x / max(proxy.size.width, 1), 0), 1)
+                            dragged = value
+                            guard live else { return }
+                            trailing?.cancel()
+                            let now = ContinuousClock.now
+                            let wait = sent.map { Self.sendInterval - (now - $0) } ?? .zero
+                            guard wait > .zero else {
+                                sent = now
+                                return change(value)
+                            }
+                            trailing = Task {
+                                try? await Task.sleep(for: wait)
+                                guard !Task.isCancelled else { return }
+                                sent = .now
+                                change(value)
+                            }
+                        }
+                        .onEnded { drag in
+                            trailing?.cancel()
+                            trailing = nil
+                            change(min(max(drag.location.x / max(proxy.size.width, 1), 0), 1))
+                            dragged = nil
+                            sent = nil
+                        })
+            }
+            .onDisappear { trailing?.cancel() }
+            .frame(height: metrics.size.menuRowHeight / 2)
+            .accessibilityElement(children: .ignore)
+            .accessibilityAdjustableAction { direction in
+                switch direction {
+                case .increment: change(fraction + step)
+                case .decrement: change(fraction - step)
+                @unknown default: break
+                }
+            }
+        } else {
+            bar.accessibilityElement(children: .ignore)
+        }
     }
 }
 
@@ -130,8 +224,10 @@ struct IslandPageRowView: View {
                 .background(RoundedRectangle(cornerRadius: metrics.radius.row, style: .continuous)
                     .fill(hovered ? Theme.Colors.rowHover : Color.clear))
                 .onHover { hovered = $0 }
+                .accessibilityLabel(Text(verbatim: row.spoken ?? ""), isEnabled: row.spoken != nil)
         } else {
-            label.accessibilityElement(children: .combine)
+            label.accessibilityElement(children: row.spoken == nil ? .combine : .ignore)
+                .accessibilityLabel(Text(verbatim: row.spoken ?? ""), isEnabled: row.spoken != nil)
         }
     }
 }

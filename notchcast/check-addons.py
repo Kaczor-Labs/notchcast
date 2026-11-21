@@ -1,11 +1,14 @@
 #!/usr/bin/env python3
 """Gate the add-on system's upstream footprint and its folder boundaries (notchcast/docs/addons.md §3, §5).
 
-The caller names the mode, or passes --branch to derive it (ci-build.sh does). Core mode (v2/addons-core[-<n>]): the
+The caller names the mode, or passes --branch to derive it (ci-checks.sh does): core by name, feature for any other
+v2/addons-* or a branch that adds an add-on or touches one add-on's folder, else none (always none with an
+empty branch name or a train/* one, whose diff merges several PRs). Core mode: the
 upstream paths the branch changes against the base stay within notchcast/addons-budget.env. Feature mode
 (v2/addons-<feature>): the branch owns the folders whose add-on file gains its `// notchcast-addon-order:` line
 (or, with none, the one folder it touches), and every changed path is inside an owned folder, an owned
-Tests/nc-<Folder>-*.swift or an owned notchcast/licenses/borrowed/<Folder>.txt. Every mode runs two guards. The
+Tests/nc-<Folder>-*.swift, an owned notchcast/docs/features/<folder>.md (case and hyphens ignored) or an owned
+notchcast/licenses/borrowed/<Folder>.txt. Every mode runs two guards. The
 shared-list guard fails a hand edit of a list made from the add-ons' own files: the generated registry, an entry
 in notchcast/licenses/borrowed.md, a phrase on a README tab line, a fork harness named in a config.env harness list.
 The reference guard fails when a line the fork added outside an add-on's folder names that add-on's switch
@@ -28,6 +31,7 @@ GUARD_EXEMPT = re.compile(r'^Tests/nc-Notchcast-[^/]*\.swift$')
 REGISTRY_LINE = re.compile(r'^\s*(\w+)\.self,\s*$')
 BORROWED = 'notchcast/licenses/borrowed.md'
 BORROWED_DIR = 'notchcast/licenses/borrowed/'
+FEATURE_DOC_DIR = 'notchcast/docs/features/'
 BORROWED_LINE = re.compile(r'^(\w+): \S+ ← \S+/\S+ \([^)]+\)$')
 # Any entry shape, so a line the strict pattern misses still fails; the header is prose.
 CREDIT_LIKE = re.compile(r'^\s*`?[\w-]+`?:\s')
@@ -145,8 +149,13 @@ def borrowed_changes(root, base, head, owned, changed):
     return problems
 
 
-def feature_gate(root, base, head, changed):
-    owned = ordered_folders(root, base, head, changed)
+def doc_key(path):
+    """notchcast/docs/features/screen-recording.md -> screenrecording, matched against a lowercased folder."""
+    return path[len(FEATURE_DOC_DIR):].removesuffix('.md').replace('-', '').lower()
+
+
+def feature_gate(root, base, head, changed, owned=None):
+    owned = ordered_folders(root, base, head, changed) if owned is None else owned
     touched = sorted({f for f in map(folder_of, changed) if f})
     if not owned and len(touched) == 1:
         owned = set(touched)
@@ -157,8 +166,10 @@ def feature_gate(root, base, head, changed):
             continue
         if any(path.startswith(f'Tests/nc-{f}-') and path.endswith('.swift') for f in folders):
             continue
-        problems.append(f'{path}: outside the add-on folders {folders or "(none)"}; '
-                        'a feature branch touches only its folders, its tests and its licence list')
+        if path.startswith(FEATURE_DOC_DIR) and doc_key(path) in {f.lower() for f in folders}:
+            continue
+        problems.append(f'{path}: outside the add-on folders {folders or "(none)"}; a feature branch touches '
+                        'only its folders, its tests, its feature doc and its licence list')
     return problems, f"feature folders: {', '.join(folders) or '(none)'}"
 
 
@@ -320,12 +331,15 @@ def guard(root, upstream, head):
     return problems
 
 
-def run(root, base, head, upstream, mode):
+def run(root, base, head, upstream, mode, branch=''):
     changed = [p for p in git('diff', '--name-only', f'{base}...{head}', root=root).splitlines() if p]
+    owned = None
+    if not mode:
+        mode, owned = mode_for_branch(branch, root, base, head, changed)
     if mode == 'core':
         problems, summary = core_gate(root, base, head, upstream, changed)
     elif mode == 'feature':
-        problems, summary = feature_gate(root, base, head, changed)
+        problems, summary = feature_gate(root, base, head, changed, owned)
     else:
         problems, summary = [], 'no add-on gate'
     problems += shared_lists(root, base, head, changed)
@@ -337,10 +351,17 @@ def run(root, base, head, upstream, mode):
 CORE_BRANCH = re.compile(r'v2/addons-core(-[0-9]+)?')
 
 
-def mode_for_branch(branch):
+def mode_for_branch(branch, root, base, head, changed):
+    """(mode, owned or None); an empty or train/* name is none: its diff merges several PRs."""
     if CORE_BRANCH.fullmatch(branch):
-        return 'core'
-    return 'feature' if branch.startswith('v2/addons-') else 'none'
+        return 'core', None
+    if branch.startswith('v2/addons-'):
+        return 'feature', None
+    if not branch or branch.startswith('train/'):
+        return 'none', None
+    owned = ordered_folders(root, base, head, changed)
+    touched = {folder_of(path) for path in changed} - {None}
+    return ('feature' if len(touched) == 1 or owned else 'none'), owned
 
 
 def main():
@@ -355,7 +376,7 @@ def main():
     args = parser.parse_args()
     try:
         upstream = args.upstream or git('merge-base', args.head, 'refs/remotes/upstream/main', root=args.root).strip()
-        problems = run(args.root, args.base, args.head, upstream, args.mode or mode_for_branch(args.branch))
+        problems = run(args.root, args.base, args.head, upstream, args.mode, args.branch or '')
     except (Tooling, OSError, ValueError) as error:
         print(f'add-on gate: tooling failure, not a contract breach: {error}', file=sys.stderr)
         return 2
