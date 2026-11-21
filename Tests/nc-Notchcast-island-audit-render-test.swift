@@ -8,7 +8,6 @@
 // notchcast-sources: Tinycast/Windows/HUD/MessageHUDView.swift Tinycast/Windows/Dialog/DialogView.swift
 // notchcast-sources: Tinycast/Windows/Dialog/DialogRequest.swift
 // notchcast-sources: Tinycast/Features/Island/Model/IslandPresentation.swift
-// notchcast-sources: Tinycast/Features/Island/Model/IslandNoticeFit.swift
 // notchcast-sources: Tinycast/Features/Island/Model/IslandHover.swift
 // notchcast-sources: Tinycast/Features/Notchcast/IslandButtonFill.swift
 // notchcast-sources: Tinycast/Features/Island/Model/IslandLevelDwell.swift

@@ -5,4 +5,4 @@ Island: Service/IslandNoticeArt.swift swatch ← vorssaint/vorssaint-utils@faada
 Island: Model/IslandPresentation.swift IslandNotice.bars ← vorssaint/vorssaint-utils@faada18/Sources/Vorssaint/Services/Notch/NotchAudioLevelSupport.swift:115-121 and UI/Notch/NotchEqualizerBars.swift:199-204 (GPL-3.0-or-later)
 Island: Model/IslandPresentation.swift IslandProgress.shape ← vorssaint/vorssaint-utils@faada18/Sources/Vorssaint/Services/Notch/NotchAgentSupport.swift:277-279 (GPL-3.0-or-later)
 Island: Service/IslandNoticeArt.swift cap-width measurement and wrapping to fit ← vorssaint/vorssaint-utils@9075c62/Sources/Vorssaint/Services/Notch/NotchNotificationSupport.swift:222-256 (GPL-3.0-or-later)
-Island: Model/IslandNoticeFit.swift fitted width and rounding slack ← vorssaint/vorssaint-utils@9075c62/Sources/Vorssaint/Services/Notch/NotchNotificationSupport.swift:243-254, 281-290 (GPL-3.0-or-later)
+Island: Model/IslandPresentation.swift fitted width and rounding slack ← vorssaint/vorssaint-utils@9075c62/Sources/Vorssaint/Services/Notch/NotchNotificationSupport.swift:243-254, 281-290 (GPL-3.0-or-later)
