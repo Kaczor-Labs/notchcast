@@ -107,18 +107,13 @@ enum MonitorLiveReads {
 
     /// Every process libproc lets this user read (another user's needs root); only the rows listed get a name.
     nonisolated static func processes(previous: [Int32: UInt64]) -> [MonitorProcessTime] {
-        var timebase = mach_timebase_info_data_t()
-        let capacity = proc_listallpids(nil, 0)
-        guard mach_timebase_info(&timebase) == KERN_SUCCESS, timebase.denom > 0, capacity > 0 else { return [] }
-        var pids = [pid_t](repeating: 0, count: Int(capacity) + 32)
-        let count = pids.withUnsafeMutableBytes { proc_listallpids($0.baseAddress, Int32($0.count)) }
-        let times = pids.prefix(min(Int(max(count, 0)), pids.count)).compactMap { pid -> MonitorProcessTime? in
-            guard pid > 0, let usage = rusage(pid) else { return nil }
-            let ticks = usage.ri_user_time.addingReportingOverflow(usage.ri_system_time)
-            let scaled = ticks.partialValue.multipliedFullWidth(by: UInt64(timebase.numer))
-            guard !ticks.overflow, scaled.high < UInt64(timebase.denom) else { return nil }
+        guard let timebase = NotchcastProcesses.timebase(), timebase.denom > 0 else { return [] }
+        let times = NotchcastProcesses.pids().compactMap { pid -> MonitorProcessTime? in
+            guard let usage = NotchcastProcesses.usage(pid) else { return nil }
+            let scaled = usage.cpuTicks.multipliedFullWidth(by: UInt64(timebase.numer))
+            guard scaled.high < UInt64(timebase.denom) else { return nil }
             let nanoseconds = UInt64(timebase.denom).dividingFullWidth(scaled).quotient
-            return MonitorProcessTime(pid: pid, cpuNanoseconds: nanoseconds, footprint: usage.ri_phys_footprint)
+            return MonitorProcessTime(pid: pid, cpuNanoseconds: nanoseconds, footprint: usage.footprint)
         }
         let listed = Set(MonitorBoard.ranked(times, since: previous).map(\.pid))
         return times.map { process in
@@ -126,16 +121,6 @@ enum MonitorLiveReads {
             if listed.contains(process.pid) { process.name = name(process.pid) }
             return process
         }
-    }
-
-    nonisolated private static func rusage(_ pid: pid_t) -> rusage_info_current? {
-        var usage = rusage_info_current()
-        let status = withUnsafeMutablePointer(to: &usage) { pointer in
-            pointer.withMemoryRebound(to: rusage_info_t?.self, capacity: 1) {
-                proc_pid_rusage(pid, RUSAGE_INFO_CURRENT, $0)
-            }
-        }
-        return status == 0 ? usage : nil
     }
 
     nonisolated private static func name(_ pid: pid_t) -> String {
