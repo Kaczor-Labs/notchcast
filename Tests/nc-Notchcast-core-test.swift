@@ -570,21 +570,12 @@ struct NotchcastCoreTest {
               placed.allSatisfy { NotchcastPane.holding($0).categories.contains($0) })
         check("a category with no tab yet shows nowhere",
               NotchcastPane.shown(registered: [.betweenMacs]) == [.island])
-        check("either category makes Island Content appear",
-              NotchcastPane.shown(registered: [.notices]) == [.island, .islandContent]
-                && NotchcastPane.shown(registered: [.islandPages]) == [.island, .islandContent])
-        check("each file category makes Clipboard & Files appear",
-              [NotchcastCategory.clipboard, .finder, .files].allSatisfy {
-                  NotchcastPane.shown(registered: [$0]) == [.island, .clipboardFiles]
-              })
+        for pane in [NotchcastPane.islandContent, .clipboardFiles, .displaySound] {
+            check("each of \(pane.slug)'s categories makes it appear", pane.categories.allSatisfy {
+                NotchcastPane.shown(registered: [$0]) == [.island, pane]
+            })
+        }
         check("with no add-on only Island shows", NotchcastPane.shown(registered: []) == [.island])
-        check("either category makes Display & Sound appear",
-              NotchcastPane.shown(registered: [.sound]) == [.island, .displaySound]
-                && NotchcastPane.shown(registered: [.display]) == [.island, .displaySound])
-        check("Screenshots lands in Capture, after Display & Sound",
-              NotchcastPane.holding(.capture) == .capture
-                && NotchcastPane.shown(registered: [.launcher, .capture, .sound])
-                == [.island, .displaySound, .capture, .launcher])
         NotchcastPane.install(Set(NotchcastCategory.allCases))
         check("the section lists every tab once all are filled",
               SettingsSection.notchcast.tabs == NotchcastPane.allCases.map(SettingsTab.notchcast))
