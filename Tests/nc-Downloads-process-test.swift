@@ -45,7 +45,9 @@ struct DownloadsProcessTest {
         expect(lookup.environment["PATH"] == [first.path, second.path].joined(separator: ":"), "child PATH uses search folders")
         let directories = DownloadToolLookup.searchDirectories(home: root, path: "/custom/bin:/usr/local/bin:/bin:.")
         expect(directories.map(\.path) == ["/opt/homebrew/bin", "/usr/local/bin",
-                                          root.appending(path: ".local/bin").path, "/custom/bin", "/bin"], "lookup order")
+                                          root.appending(path: ".local/bin").path, root.appending(path: ".cargo/bin").path,
+                                          "/custom/bin", "/bin"], "lookup order")
+        expect(lookup.environment["FIRECRAWL_CLOUD"] == "off", "firecrawl-local never falls back to its cloud")
         let missing = DownloadTool(name: "absent", installCommand: "brew install absent")
         let absent = try await lookup.lookup(missing)
         expect(absent.path == nil, "missing tool reading")
