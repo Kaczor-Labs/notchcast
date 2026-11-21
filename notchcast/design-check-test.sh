@@ -15,6 +15,7 @@ esac
 STUB
 cat > "$scratch/bin/npx" <<'STUB'
 #!/bin/bash
+[ "$3" = test ] || exit 1
 case " $* " in
     *' --write-baseline '*) echo '{}' > .ai-design-check-baseline.json ;;
     *) exit "$CHECK_STATUS" ;;
@@ -26,7 +27,7 @@ chmod +x "$scratch/bin/"*
 export PATH="$scratch/bin:$PATH" FIXTURE="$scratch/repo" TMPDIR="$scratch/tmp"
 for expected in 0 7; do
     actual=0
-    CHECK_STATUS=$expected bash notchcast/design-check.sh base || actual=$?
+    CHECK_STATUS=$expected bash "$scratch/repo/notchcast/design-check.sh" base || actual=$?
     [ "$actual" -eq "$expected" ] || { echo "FAIL: status $actual, expected $expected"; exit 1; }
     [ -z "$(ls -A "$TMPDIR")" ] || { echo "FAIL: archived scratch trees leaked (status $expected)"; exit 1; }
 done
