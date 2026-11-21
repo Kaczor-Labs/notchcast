@@ -25,6 +25,7 @@ final class IslandPresenter: IslandPresenting {
     private var song: IslandNowPlaying?
     private var songChange = IslandSongChange()
     private var songTask: Task<Void, Never>?
+    private let keyHold = IslandKeyHold()
     private let now: @MainActor () -> TimeInterval
     private let sleep: @MainActor (TimeInterval) async throws -> Void
 
@@ -63,6 +64,10 @@ final class IslandPresenter: IslandPresenting {
         noticeTaps[notice.id] = onTap
         if !observing { observePlacement() }
         noticesChanged()
+    }
+
+    func holdKeys(_ onKey: (@MainActor (IslandHeldKey) -> Void)?) {
+        keyHold.hold(onKey, near: pill?.panel?.frame)
     }
 
     func end(notice id: String) {

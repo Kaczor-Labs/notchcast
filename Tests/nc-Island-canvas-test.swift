@@ -71,10 +71,92 @@ struct IslandCanvasTest {
         precondition(short.textWidth == ceil(short.text.size().width) && short.size.width > notch + Theme.Radius.panel * 2,
                      "A headline under the cap keeps its natural width")
         clicks()
+        dictation()
         swatches()
         tones()
         print("Island canvas: headline, fade-out, expansion, cover, notch switch, percent, headline cap, swatch, tone "
             + "and clicks hold")
+    }
+
+    /// #960: a readout takes the wing, a meter takes the mark, and a notice without them draws as before.
+    @MainActor static func dictation() {
+        let pill = CGRect(x: 0, y: 0, width: 360, height: 32)
+        func recording(_ readout: String?, meter: [Double]? = [0.2, 0.9, 0.5, 0.7]) -> IslandNotice {
+            IslandNotice(id: "dictation", symbol: "mic", text: "Return to Paste · Esc to Cancel",
+                         progress: IslandProgress(fraction: nil, headline: false, readout: readout), meter: meter)
+        }
+        func wing(_ readout: String) -> Double {
+            IslandNoticeArt(recording(readout), notch: true, frosted: false).layout.trailing
+        }
+        var download = IslandNotice(id: "d", symbol: "arrow.down.circle", text: "Guide.pdf",
+                                    progress: IslandProgress(fraction: 0.29, headline: false))
+        let percent = IslandNoticeArt(download, notch: true, frosted: false).layout.trailing
+        download.progress?.readout = "1:23:45"
+        precondition(IslandNoticeArt(download, notch: true, frosted: false).layout.trailing > percent,
+                     "Beside a notch a readout takes the percent's wing")
+        precondition(wing("0:07") == wing("8:54") && wing("8:54") == wing("9:59") && wing("10:00") > wing("9:59")
+                     && wing("10:00") == wing("59:59"),
+                     "The readout's wing keeps one width while it ticks and grows once at 10:00")
+
+        var lineOnly = recording(nil, meter: nil)
+        lineOnly.text = "0:07  Return to Paste · Esc to Cancel"
+        precondition(IslandNoticeArt(recording("0:07"), notch: false, frosted: false).layout
+                     == IslandNoticeArt(lineOnly, notch: false, frosted: false).layout,
+                     "Without a notch the wings carry the readout, two spaces, then the text")
+        let headline = IslandHeadlineArt(recording("0:07"), notch: 200, frosted: false)
+        precondition(headline.text.string == "0:07  Return to Paste · Esc to Cancel"
+                     && headline.size == IslandHeadlineArt(recording("8:54"), notch: 200, frosted: false).size,
+                     "Below the notch the line leads with the readout and keeps its width while it ticks")
+
+        let glyph = recording("0:07", meter: nil)
+        for frosted in [false, true] {
+            let bars = pixels(IslandNoticeArt(recording("0:07"), notch: false, frosted: frosted), in: pill)
+            precondition(bars != pixels(IslandNoticeArt(glyph, notch: false, frosted: frosted), in: pill)
+                && bars != pixels(IslandNoticeArt(recording("0:07", meter: [0.1, 0.1]), notch: false,
+                                                  frosted: frosted), in: pill),
+                "A meter draws live bars in place of the glyph, moving with its levels")
+            precondition(pixels(IslandNoticeArt(recording("0:07"), notch: false, frosted: frosted, still: true), in: pill)
+                == pixels(IslandNoticeArt(glyph, notch: false, frosted: frosted), in: pill),
+                "A still island draws the notice's symbol instead of the bars")
+        }
+        var ring = recording("0:07")
+        ring.progress?.fraction = 0.5
+        var bareRing = ring
+        bareRing.meter = nil
+        precondition(pixels(IslandNoticeArt(ring, notch: false, frosted: false), in: pill)
+            != pixels(IslandNoticeArt(bareRing, notch: false, frosted: false), in: pill), "A meter takes the ring's place")
+
+        let canvas = IslandCanvas()
+        canvas.still = true
+        canvas.show(glance: nil, level: nil, notice: recording("0:07"), statuses: [], expanded: false, notch: nil)
+        precondition(pixels(canvas.glance!, in: pill) == pixels(IslandNoticeArt(glyph, notch: false, frosted: false),
+                                                                 in: pill), "The canvas hands its stillness to the art")
+
+        let pasted = IslandNotice(id: "dictation", symbol: "checkmark", text: "Pasted", quiet: true)
+        canvas.show(glance: nil, level: nil, notice: pasted, statuses: [], expanded: false, notch: 200)
+        let cell = NotchTheme.Typography.islandGlanceNSFont.pointSize + Theme.Spacing.xs
+        precondition(canvas.headline == nil && (canvas.glance as? IslandNoticeArt)?.layout.trailing == cell,
+                     "On a notch a quiet result is its glyph beside the notch, never a headline")
+        var loud = pasted
+        loud.quiet = false
+        canvas.show(glance: nil, level: nil, notice: loud, statuses: [], expanded: false, notch: 200)
+        precondition(canvas.headline != nil, "Without the flag the same result headlines below the notch")
+        precondition(pixels(IslandNoticeArt(pasted, notch: false, frosted: false), in: pill)
+            == pixels(IslandNoticeArt(loud, notch: false, frosted: false), in: pill), "Quiet changes nothing without a notch")
+
+        let existing = [IslandNotice(id: "c", symbol: "doc.on.clipboard", text: "Copied"), download, bareRing,
+                        IslandNotice(id: "f", symbol: "xmark", text: "Failed", isFailure: true)]
+        for notice in existing {
+            var plain = notice
+            plain.progress?.readout = nil
+            for notched in [false, true] {
+                let moving = IslandNoticeArt(plain, notch: notched, frosted: false)
+                let still = IslandNoticeArt(plain, notch: notched, frosted: false, still: true)
+                precondition(moving.layout == still.layout && pixels(moving, in: pill) == pixels(still, in: pill),
+                             "Without a meter, stillness leaves a notice's layout and pixels as they were")
+            }
+            precondition(plain.line == plain.text, "Without a readout the line is the text")
+        }
     }
 
     static let blue = IslandSwatch(red: 18 / 255, green: 171 / 255, blue: 239 / 255)

@@ -114,8 +114,11 @@ final class DictationPanelController {
     private var panel: DictationPanel?
     var onAccept: (() -> Void)?
     var onCancel: (() -> Void)?
+    /// Set, it stands in for the capsule: `show()` calls it and never builds the panel.
+    static var stand: (@MainActor (DictationPanelController) -> Void)?
 
     func show() {
+        if let stand = Self.stand { return stand(self) }
         let screen = NSScreen.main ?? NSScreen.screens.first
         guard let frame = screen?.visibleFrame else { return }
         let panel =

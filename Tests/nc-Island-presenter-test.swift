@@ -52,7 +52,22 @@ struct IslandPresenterTest {
         island.end(notice: "sync")
         precondition(island.notice == nil && island.calls.last == .end(notice: "sync"), "end(notice:) removes")
         precondition(island.calls.count == 11)
-        print("Island presenter: the fake records calls in order and clears status, menu rows and notices")
+
+        var held: [IslandHeldKey] = []
+        island.holdKeys { held.append($0) }
+        island.press(.accept)
+        island.press(.cancel)
+        island.holdKeys(nil)
+        island.press(.accept)
+        precondition(island.calls.suffix(2) == [.holdKeys(true), .holdKeys(false)] && held == [.accept, .cancel],
+                     "holdKeys is recorded, its handler hears the keys, and nil lets them go")
+        precondition(IslandHeldKey(keyCode: 36) == .accept && IslandHeldKey(keyCode: 76) == .accept
+                     && IslandHeldKey(keyCode: 53) == .cancel && IslandHeldKey(keyCode: 49) == nil,
+                     "Return and keypad Enter accept, Escape cancels, any other key is not held")
+        let silent: any IslandPresenting = SilentIslandPresenter()
+        silent.holdKeys { _ in }
+        silent.holdKeys(nil)
+        print("Island presenter: the fake records calls in order and clears status, menu rows, notices and held keys")
     }
 }
 
@@ -65,12 +80,14 @@ final class RecordingIslandPresenter: IslandPresenting {
         case end(notice: String)
         case setStatus(IslandStatus?, id: String)
         case setMenuRows([IslandMenuRow], owner: String)
+        case holdKeys(Bool)
     }
 
     private(set) var calls: [Call] = []
     private(set) var notice: IslandNotice?
     private(set) var statuses: [String: IslandStatus] = [:]
     private var onTap: (@MainActor () -> Void)?
+    private var onKey: (@MainActor (IslandHeldKey) -> Void)?
     private var menus: [(owner: String, onSelect: @MainActor (String) -> Void)] = []
     var menuOwners: [String] { menus.map(\.owner) }
 
@@ -104,6 +121,22 @@ final class RecordingIslandPresenter: IslandPresenting {
         }
     }
 
+    func holdKeys(_ onKey: (@MainActor (IslandHeldKey) -> Void)?) {
+        calls.append(.holdKeys(onKey != nil))
+        self.onKey = onKey
+    }
+
     func tapNotice() { onTap?() }
+    func press(_ key: IslandHeldKey) { onKey?(key) }
     func select(_ rowID: String, owner: String) { menus.first { $0.owner == owner }?.onSelect(rowID) }
+}
+
+/// Implements only the required calls, so `holdKeys` falls to the protocol's empty default.
+@MainActor
+final class SilentIslandPresenter: IslandPresenting {
+    func showLevel(_ level: IslandLevel) {}
+    func post(_ notice: IslandNotice, onTap: (@MainActor () -> Void)?) {}
+    func end(notice id: String) {}
+    func setStatus(_ status: IslandStatus?, for id: String, onTap: (@MainActor () -> Void)?) {}
+    func setMenuRows(_ rows: [IslandMenuRow], owner: String, onSelect: @escaping @MainActor (String) -> Void) {}
 }

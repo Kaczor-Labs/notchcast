@@ -14,7 +14,7 @@ final class DictationCoordinator {
     private let cues = DictationCueRunner()
     private let panel = DictationPanelController()
     private let injector: TextInjector
-    private let showMessage: (String, DialogTone) -> Void
+    @ObservationIgnored var showMessage: (String, DialogTone) -> Void
     private let confirmEnable: () async -> Bool
     private var phase: Phase = .idle
     @ObservationIgnored private var token = UUID()
@@ -34,6 +34,8 @@ final class DictationCoordinator {
     /// Rewrites a finished transcript before it is pasted; nil pastes it as heard.
     @ObservationIgnored var cleanUp: @MainActor (String, Bool, Bool, Bool) async -> String? = { _, _, _, _ in nil }
     @ObservationIgnored var didDictate: @MainActor (String, String?, InjectionTarget?) -> Void = { _, _, _ in }
+    /// Hears every session end; false when it was cancelled rather than handed to the paste.
+    @ObservationIgnored var didReset: @MainActor (_ completed: Bool) -> Void = { _ in }
     /// The field a mic button is dictating into; nil for a shortcut's session.
     private(set) var field: DictationField?
 
@@ -412,6 +414,7 @@ final class DictationCoordinator {
     }
 
     private func reset(cancelTranscription: Bool = true) {
+        didReset(!cancelTranscription)
         token = UUID()
         if cancelTranscription { transcriptionTask?.cancel() }
         liveTask?.cancel()
