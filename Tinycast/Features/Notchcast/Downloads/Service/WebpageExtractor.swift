@@ -1,8 +1,14 @@
 import Foundation
+import Network
 import WebKit
 
 @MainActor
 final class WebpageExtractor: NSObject, WKNavigationDelegate {
+    enum Page {
+        case article(WebpageArticle)
+        case pdf(URL)
+    }
+
     enum Failure: LocalizedError {
         case inUse, unavailable(Int), unsupportedContent, blocked, noContent, tooLarge, timedOut, renderFailed
 
@@ -22,7 +28,7 @@ final class WebpageExtractor: NSObject, WKNavigationDelegate {
     }
 
     private var webView: WKWebView?
-    private var continuation: CheckedContinuation<Void, any Error>?
+    private var continuation: CheckedContinuation<HTTPURLResponse?, any Error>?
     private var operationID: UUID?
     private var loaded = false
     private let lookup: PublicWebAddress.Lookup
@@ -31,7 +37,7 @@ final class WebpageExtractor: NSObject, WKNavigationDelegate {
         self.lookup = lookup
     }
 
-    func extract(_ source: URL) async throws -> WebpageArticle {
+    func extract(_ source: URL) async throws -> Page {
         guard operationID == nil else { throw Failure.inUse }
         try PublicWebAddress.validate(source)
         try Task.checkCancellation()
@@ -60,8 +66,9 @@ final class WebpageExtractor: NSObject, WKNavigationDelegate {
                 view.stopLoading()
             }
             defer { timeout.cancel() }
+            let nonHTML: HTTPURLResponse?
             do {
-                try await withCheckedThrowingContinuation { (pending: CheckedContinuation<Void, any Error>) in
+                nonHTML = try await withCheckedThrowingContinuation { pending in
                     continuation = pending
                     view.load(URLRequest(url: source, cachePolicy: .reloadIgnoringLocalCacheData, timeoutInterval: 60))
                 }
@@ -71,6 +78,12 @@ final class WebpageExtractor: NSObject, WKNavigationDelegate {
                 throw error
             }
             try Task.checkCancellation()
+            if let nonHTML {
+                view.stopLoading()
+                return try await Self.classify(nonHTML) {
+                    try await Self.hasPDFSignature($0, proxy: proxyConfiguration)
+                }
+            }
             try await Task.sleep(for: .milliseconds(750))
             let value = try await view.callAsyncJavaScript(WebpageExtraction.script, arguments: [:],
                                                            in: nil, contentWorld: .defaultClient)
@@ -85,7 +98,7 @@ final class WebpageExtractor: NSObject, WKNavigationDelegate {
             let baseURL = (fields["baseURL"] as? String).flatMap(URL.init(string:)) ?? view.url ?? source
             let article = WebpageArticle(title: title, author: author, published: fields["published"] as? String,
                                          source: source, baseURL: baseURL, html: html)
-            return article
+            return .article(article)
         } onCancel: {
             Task { @MainActor [weak self] in
                 guard let self, self.operationID == id else { return }
@@ -114,18 +127,22 @@ final class WebpageExtractor: NSObject, WKNavigationDelegate {
             finish(.failure(Failure.unavailable(response.statusCode)))
             return .cancel
         }
-        guard navigationResponse.canShowMIMEType,
-              ["text/html", "application/xhtml+xml"].contains(navigationResponse.response.mimeType ?? "") else {
-            finish(.failure(Failure.unsupportedContent))
-            return .cancel
+        if navigationResponse.canShowMIMEType,
+           ["text/html", "application/xhtml+xml"].contains(navigationResponse.response.mimeType ?? "") {
+            return .allow
         }
-        return .allow
+        if let response = navigationResponse.response as? HTTPURLResponse {
+            finish(.success(response))
+        } else {
+            finish(.failure(Failure.unsupportedContent))
+        }
+        return .cancel
     }
 
     func webView(_ webView: WKWebView, didFinish navigation: WKNavigation?) {
         guard webView === self.webView else { return }
         loaded = true
-        finish(.success(()))
+        finish(.success(nil))
     }
 
     func webView(_ webView: WKWebView, didFail navigation: WKNavigation?, withError error: any Error) {
@@ -149,7 +166,41 @@ final class WebpageExtractor: NSObject, WKNavigationDelegate {
             ? (.performDefaultHandling, nil) : (.cancelAuthenticationChallenge, nil)
     }
 
-    private func finish(_ result: Result<Void, any Error>) {
+    static func classify(_ response: HTTPURLResponse, probe: (URL) async throws -> Bool) async throws -> Page {
+        guard (200..<300).contains(response.statusCode), let url = response.url else {
+            throw Failure.unsupportedContent
+        }
+        try PublicWebAddress.validate(url)
+        if FirecrawlPage.isPDF(response.mimeType) { return .pdf(url) }
+        let hasSignature = (try? await probe(url)) == true
+        try Task.checkCancellation()
+        guard hasSignature else { throw Failure.unsupportedContent }
+        return .pdf(url)
+    }
+
+    private static func hasPDFSignature(_ url: URL, proxy: ProxyConfiguration) async throws -> Bool {
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.urlCache = nil
+        configuration.proxyConfigurations = [proxy]
+        configuration.timeoutIntervalForResource = 10
+        let session = URLSession(configuration: configuration)
+        defer { session.invalidateAndCancel() }
+        var request = URLRequest(url: url, timeoutInterval: 10)
+        request.setValue("bytes=0-4", forHTTPHeaderField: "Range")
+        let (bytes, response) = try await session.bytes(for: request)
+        guard let response = response as? HTTPURLResponse, (200..<300).contains(response.statusCode),
+              response.statusCode != 206 ||
+                  response.value(forHTTPHeaderField: "Content-Range")?.hasPrefix("bytes 0-") == true else {
+            return false
+        }
+        var iterator = bytes.makeAsyncIterator()
+        for expected in FirecrawlPage.signature {
+            guard try await iterator.next() == expected else { return false }
+        }
+        return true
+    }
+
+    private func finish(_ result: Result<HTTPURLResponse?, any Error>) {
         continuation?.resume(with: result)
         continuation = nil
     }

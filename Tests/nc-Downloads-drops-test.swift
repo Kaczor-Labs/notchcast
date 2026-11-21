@@ -7,6 +7,7 @@
 // notchcast-sources: Tinycast/Features/Notchcast/Downloads/Model/DownloadState.swift
 // notchcast-sources: Tinycast/Features/Notchcast/Downloads/Model/DownloadTool.swift
 // notchcast-sources: Tinycast/Features/Notchcast/Downloads/Model/DownloadsWebRules.swift
+// notchcast-sources: Tinycast/Features/Notchcast/Downloads/Model/FirecrawlPage.swift
 // notchcast-sources: Tinycast/Features/Notchcast/Downloads/Model/HTMLDocument.swift
 // notchcast-sources: Tinycast/Features/Notchcast/Downloads/Model/HTMLMarkdown.swift
 // notchcast-sources: Tinycast/Features/Notchcast/Downloads/Model/WebpageArticle.swift
