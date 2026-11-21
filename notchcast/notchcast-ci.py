@@ -13,7 +13,7 @@ dispatches it prints `WAITING (not dispatched); rerun: ... --no-push`, after it 
 main-harnesses.yml is an error.
 
 First, refuse a HEAD that tracks a `*.pyc` or `__pycache__/` path, whatever its content, and a checkout whose
-core.hooksPath is not notchcast/githooks (its pushes would skip the repo's pre-push hook). Then, in order: (1) run exactly
+pre-push hook is not installed under the common git directory. Then, in order: (1) run exactly
 `git -C DIR push -u origin HEAD:refs/heads/<branch>` without LEFTHOOK* and GIT_CONFIG* variables (no force; a
 detached HEAD and main are refused) and stop when it fails; with --no-push, refuse unless origin's branch already
 equals local HEAD. Main harnesses runs only when dispatched. (2) When one of the latest 50 workflow_dispatch runs of
@@ -51,7 +51,7 @@ REPO = re.search(r"^FORK_REPO=(.+)$", (Path(__file__).resolve().parent / "config
 WORKFLOW = "main-harnesses.yml"
 KEEPER_ONLY = "Main harnesses is Keeper-only: push your branch (git push) and ask your Keeper for the harness proof"
 NOT_STARTED = ("queued", "pending", "waiting", "requested")
-HOOKS = "notchcast/githooks"
+HOOKS = "notchcast-hooks"
 STEP = "Changed harnesses"
 FAILED_LOG_LINES = 40
 MIN_API_CALLS = 500  # the hourly budget is shared with every lead's gh; never dispatch into its last calls
@@ -270,8 +270,12 @@ def refuse_unsafe_checkout(repo):
         raise Infra(f"HEAD tracks Python caches ({', '.join(caches[:5])}); git rm --cached them first")
     hooks = subprocess.run(["git", "-C", repo, "config", "--get", "core.hooksPath"], text=True,
                            capture_output=True).stdout.strip()
-    if hooks != HOOKS:
-        raise Infra(f"core.hooksPath is {hooks or 'unset'}; run `git -C {repo} config core.hooksPath {HOOKS}`")
+    expected = Path(git(repo, "rev-parse", "--path-format=absolute", "--git-common-dir")) / HOOKS
+    install = f"run notchcast/install-hooks.sh from {repo}"
+    if hooks != str(expected):
+        raise Infra(f"core.hooksPath is {hooks or 'unset'}; {install}")
+    if not (expected / "pre-push").is_file() or not os.access(expected / "pre-push", os.X_OK):
+        raise Infra(f"pre-push is missing or not executable in {expected}; {install}")
 
 
 def start_run(args, repo, branch, head):
