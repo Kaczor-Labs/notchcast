@@ -921,16 +921,28 @@ echo 'PASS: under a hold for one PR of the batch, --queue prints that only it la
 
 # Unprovable: a harness in both lists passes in no VM, so land.sh refuses for good a PR that selects one.
 head_of() { jq -r .headRefOid "$FIXTURE/pr-$1.json"; }
-refused() { echo "REFUSED: no run proves $1: it is in both HOSTED_ONLY_TESTS and CI_SKIP_TESTS (notchcast/config.env, main's or the PR's); make it pass on a hosted VM and take it out of CI_SKIP_TESTS"; }
+refused() { echo "REFUSED: no run proves $1: it is in both HOSTED_ONLY_TESTS and CI_SKIP_TESTS (notchcast/config.env, base or merged tree)$2; make it pass on a hosted VM and take it out of CI_SKIP_TESTS"; }
 for platform in Darwin Linux; do
     fixture
     open_pr 1 pr-f 'Add F' src/form-input.txt src/hosted.txt
     NOTCHCAST_PLATFORM=$platform TESTED=1 land 1
-    [ "$status" -eq 3 ] && grep -qxF "$(refused form-input-test)" "$FIXTURE/output" \
+    [ "$status" -eq 3 ] && grep -qxF "$(refused form-input-test "; selected by PR #1 (form-input-test)")" "$FIXTURE/output" \
         && ! grep -q -e SKIPPED -e ROUTED "$FIXTURE/output" && untouched && [ ! -s "$PASSES" ] \
         || fail "on $platform land.sh did not refuse for good a harness no run proves"
 done
 echo 'PASS: land.sh refuses for good a harness in both lists, whatever runs tested the tree, on a Mac and on Linux'
+
+fixture
+open_pr 1 pr-b 'Add B' src/b.txt
+open_pr 2 pr-f 'Add F' src/form-input.txt
+NOTCHCAST_PLATFORM=Darwin land --check "$base" "$(head_of 2)"
+[ "$status" -eq 3 ] && grep -q '^REFUSED: no run proves form-input-test:' "$FIXTURE/output" \
+    && untouched && [ ! -s "$PASSES" ] || fail 'land.sh --check did not refuse a harness in both lists'
+TESTED=1 land 1 2
+[ "$status" -eq 3 ] && grep -q 'selected by PR #2 (form-input-test)' "$FIXTURE/output" \
+    && ! grep -q 'selected by PR #1' "$FIXTURE/output" && untouched \
+    || fail 'refused batch did not name the PR that selected the harness'
+echo 'PASS: --check refuses a harness in both lists and a refused landing names the selecting PR'
 # list_change <title> <line> <path>...: PR #1 appends <line> to config.env (the last line sets a list) and writes each path.
 list_change() {
     local title=$1 line=$2
@@ -939,7 +951,7 @@ list_change() {
     for path in "$@"; do echo "$title" > "$path"; done
     echo "$line" >> notchcast/config.env
     git add "$@" notchcast/config.env
-    git commit --quiet -m "$title"
+    git commit --quiet -m "$title" -m 'Drift tooling: fixture changes a harness list'
     git push --quiet origin pr-l pr-l:refs/pull/1/head
     jq -n --arg head "$(git rev-parse HEAD)" --arg title "$title" '{number: 1, createdAt: "2026-01-01T00:00:00Z", comments: [], state: "OPEN", isDraft: false, headRefOid: $head, headRefName: "pr-l", baseRefName: "main", isCrossRepository: false, title: $title, body: "Drift tooling: fixture changes a harness list", labels: []}' > "$FIXTURE/pr-1.json"
     git switch --quiet main
@@ -948,8 +960,12 @@ list_change() {
 fixture
 list_change 'Add F' 'CI_SKIP_TESTS="clipboard-text-test"' src/form-input.txt
 TESTED=1 land 1
-[ "$status" -eq 3 ] && grep -qxF "$(refused form-input-test)" "$FIXTURE/output" && untouched \
+[ "$status" -eq 3 ] && grep -qxF "$(refused form-input-test "; selected by PR #1 (form-input-test)")" "$FIXTURE/output" && untouched \
     || fail 'a harness unprovable on main landed'
+git switch --quiet pr-l
+NOTCHCAST_PLATFORM=Darwin land --check "$base" HEAD
+[ "$status" -eq 3 ] && grep -qxF "$(refused form-input-test "")" "$FIXTURE/output" && [ ! -s "$PASSES" ] \
+    || fail 'land.sh --check ignored the overlap in its base ref'
 # The PR's lists: a new harness it puts in both lists had its own hosted run skip it.
 fixture
 list_change 'Add X' 'CI_SKIP_TESTS="clipboard-text-test form-input-test x-test"' src/x.txt Tests/x-test.swift
@@ -960,9 +976,18 @@ git push --quiet origin pr-l pr-l:refs/pull/1/head
 jq --arg head "$(git rev-parse HEAD)" '.headRefOid = $head' "$FIXTURE/pr-1.json" > "$FIXTURE/pr.json" && mv "$FIXTURE/pr.json" "$FIXTURE/pr-1.json"
 git switch --quiet main
 TESTED=1 land 1
-[ "$status" -eq 3 ] && grep -qxF "$(refused x-test)" "$FIXTURE/output" && untouched \
+[ "$status" -eq 3 ] && grep -qxF "$(refused x-test "; selected by PR #1 (x-test); added to both lists by PR #1 (x-test)")" "$FIXTURE/output" && untouched \
     || fail 'a harness the PR makes unprovable landed'
 echo "PASS: land.sh takes the unprovable set from main's lists and the PR's"
+
+fixture
+list_change 'Add hosted-test to CI_SKIP_TESTS' 'CI_SKIP_TESTS="clipboard-text-test form-input-test hosted-test"'
+open_pr 2 pr-h 'Change hosted-test input' src/hosted.txt
+TESTED=1 land 1 2
+[ "$status" -eq 3 ] && grep -q 'selected by PR #2 (hosted-test)' "$FIXTURE/output" \
+    && grep -q 'added to both lists by PR #1 (hosted-test)' "$FIXTURE/output" && untouched \
+    || fail 'refused batch did not name the PR that put the selected harness in both lists'
+echo 'PASS: a refused landing names the PR that added the overlap and the PR that selected the harness'
 # A green train land.sh refuses for good (exit 3) is recorded at its heads, with the runner it ran on and main's
 # config.env. Both such refusals judge an isolated record, so the next tick trains the batch hosted; only a batch
 # refused on a hosted train is left out, until a head or config.env changes. Here the isolated record has a toolchain
