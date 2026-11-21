@@ -69,7 +69,9 @@ enum IslandVerification {
         app.appearance = NSAppearance(named: .darkAqua)
         delegate = IslandVerificationDelegate()
         app.delegate = delegate
-        DispatchQueue.global().asyncAfter(deadline: .now() + 9) { _exit(124) }
+        let scene = ProcessInfo.processInfo.environment["ISLAND_SCENE"]
+        let watchdog = scene == IslandDictationCleanupScene.name ? 20 : 9
+        DispatchQueue.global().asyncAfter(deadline: .now() + .seconds(watchdog)) { _exit(124) }
         app.run()
     }
 
