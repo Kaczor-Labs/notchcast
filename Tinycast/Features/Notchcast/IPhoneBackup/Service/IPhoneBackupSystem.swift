@@ -6,4 +6,5 @@ struct IPhoneBackupSystem: Sendable {
     let write: @MainActor @Sendable (IPhoneBackupPolicy.Write) -> Bool
     let journalFolder: URL
     var readFile: @Sendable (URL) throws -> Data = { try Data(contentsOf: $0) }
+    var removeFile: @MainActor @Sendable (URL) throws -> Void = { try FileManager.default.removeItem(at: $0) }
 }

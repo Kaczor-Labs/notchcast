@@ -72,6 +72,7 @@ private struct ScriptCommandRow: View {
                 VStack(alignment: .leading, spacing: Theme.Spacing.xxs) {
                     Text(name)
                         .fixedSize(horizontal: false, vertical: true)
+                        .opacity(shown ? 1 : 0.45)
                     if !row.script.isEmpty {
                         Text(row.script)
                             .font(.caption)
