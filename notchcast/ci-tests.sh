@@ -89,7 +89,7 @@ if [ "$status" -ne 0 ] && ls "$BIN"/*.failed >/dev/null 2>&1; then
       status=1
       unexcused="$unexcused$name"$'\n'
     else
-      echo "::warning::$name is unchanged and reports a harness failure on upstream ${UPSTREAM:0:7} too"
+      echo "::warning::$name fails on upstream ${UPSTREAM:0:7} too; not ours, ignored"
       if [ -n "$excused" ]; then echo "$name" >> "$excused"; fi
     fi
   done
