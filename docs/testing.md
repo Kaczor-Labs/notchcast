@@ -7,16 +7,19 @@ is a set of standalone harnesses, and the manual half is the sweep at the bottom
 
 The mechanical bar, in one place so it cannot drift. All five pass before a change is finished.
 
-| Check                                              | Command                                                                              |
+| Check                                              | Verification                                                                         |
 | -------------------------------------------------- | ------------------------------------------------------------------------------------ |
-| The harnesses                                      | `./Scripts/run-tests.sh`                                                             |
+| The harnesses                                      | Hosted PR run for the pushed head passes the required harnesses.                    |
 | Lint, settings search, translations and migrations | `./Scripts/lint.sh`                                                                  |
 | Pure-layer purity                                  | `grep -rln 'import AppKit\|import SwiftUI\|import Cocoa' Tinycast/Features/*/Model/` |
-| A clean build                                      | `xcodebuild … -configuration Debug CODE_SIGNING_ALLOWED=NO`, zero **new** warnings   |
+| A clean build                                      | Hosted PR run for the pushed head finds zero **new** Debug warnings when routed.   |
 | Docs still true                                    | any doc your change made wrong, fixed in the same commit                             |
 
-There is no CI: every item is on you, run locally. Each is expanded below; the manual sweep at the
-end of this file is the sixth, judged by what you touched.
+A green [PR workflow](../.github/workflows/pr.yml) run for the pushed head covers the Debug build and the harnesses the diff requires, including on drafts. Its hosted `mac` job reports new Debug build warnings against the PR base and fails on any increase. The `route` job decides which checks the diff needs.
+
+Run lint and the Model import grep locally. The hosted Debug build lane also runs lint, and the import grep is a separate local check. Fix any docs your change makes inaccurate in the same commit.
+
+Build locally or in a guest for guest tries and screen checks, and when verification needs signed or Release packaging, TCC grants, a real display or a harness the hosted VM skips. Choose manual checks from the sweep below based on what you changed.
 
 ## The harnesses
 
@@ -25,10 +28,7 @@ end of this file is the sixth, judged by what you touched.
 ./Scripts/run-tests.sh CalcTests    # just one, while iterating
 ```
 
-On Linux the suite runs only the harnesses listed in `LINUX_OK_TESTS` (`notchcast/config.env`), names the
-mac-only ones it skipped, and still runs any single harness you name. Before a push from a Linux machine,
-run the harnesses the branch changed there; the command is in
-[notchcast/README.md](../notchcast/README.md#linux).
+On Linux the suite runs the harnesses listed in `LINUX_OK_TESTS` (`notchcast/config.env`), names the mac-only ones it skipped, and still runs any single harness you name. For local iteration, see the [Linux runner commands](../notchcast/README.md#linux).
 
 `AppleIntelligenceTests` runs deterministic checks by default. Its real model generation is opt-in:
 
@@ -243,7 +243,7 @@ when touching a pure file:
 
 ## Build and size checks
 
-A clean build is part of the bar; nothing builds the app for you, so this is on you.
+The hosted PR workflow verifies the Debug build when routed. Use these commands when a guest or Mac build is needed for manual verification or Release size checks.
 
 ```sh
 xcodegen generate                 # only after editing project.yml

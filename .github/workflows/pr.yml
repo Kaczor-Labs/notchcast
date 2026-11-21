@@ -4,7 +4,7 @@ name: PR
 on:
   pull_request:
     branches: [main]
-    types: [opened, synchronize, reopened, ready_for_review, converted_to_draft]
+    types: [opened, synchronize, reopened]
   workflow_dispatch:
     inputs:
       base:
@@ -37,7 +37,6 @@ concurrency:
 jobs:
   # On Linux: names the lanes the diff needs (notchcast/lanes.py): a skipped one still reports, and build accepts it.
   route:
-    if: github.event_name == 'workflow_dispatch' || !github.event.pull_request.draft
     runs-on: ubuntu-latest
     timeout-minutes: 5
     outputs:
@@ -131,8 +130,7 @@ jobs:
         run: |
           mkdir -p "$RUNNER_TEMP/tmp" && echo "TMPDIR=$RUNNER_TEMP/tmp" >> "$GITHUB_ENV"
           sysctl -n hw.ncpu hw.memsize; uptime; vm_stat | head -8; sysctl vm.swapusage
-      # Niced beside the build lane, capped at 10 min, reported by their result step; each test writes only its own
-      # TMPDIR, and the build reads no git refs. land-test.sh serves this checkout's upstream main to its fixture remote.
+      # Each test gets its own TMPDIR so it can run beside the Debug build.
       - name: Script tests that need macOS
         if: steps.runner.outputs.kind != 'working'
         working-directory: src
@@ -158,7 +156,7 @@ jobs:
       - name: Shared PR build lane
         if: needs.route.outputs.build == 'true' && inputs.harness_runner == ''
         working-directory: src
-        timeout-minutes: 20
+        timeout-minutes: 35
         env:
           BASE_SHA: ${{ github.event.pull_request.base.sha || inputs.base }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
@@ -232,8 +230,7 @@ jobs:
           persist-credentials: false
       - name: Script tests
         run: python3 notchcast/script-tests.py --all --runner linux
-  # The selected harnesses that also run on Linux (LINUX_OK_TESTS, notchcast/config.env), with the official Swift release:
-  # what a Linux worker runs before a push and land.sh on Linux trusts. mac still runs every harness.
+  # mac also runs the selected Linux-compatible harnesses against the macOS SDK.
   linux-harnesses:
     needs: route
     if: needs.route.outputs.build == 'true' && inputs.harness_runner == ''
@@ -280,7 +277,7 @@ jobs:
   # its skipped build check is no proof to land.sh, and a real run's check on that head still counts (merge.sh).
   build:
     needs: [route, mac, linux-checks, linux-harnesses, script-tests]
-    if: ${{ !cancelled() && inputs.harness_runner == '' && (github.event_name == 'workflow_dispatch' || !github.event.pull_request.draft) }}
+    if: ${{ !cancelled() && inputs.harness_runner == '' }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:

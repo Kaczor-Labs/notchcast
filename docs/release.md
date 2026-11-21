@@ -48,8 +48,7 @@ Removing that line would reintroduce exactly those three problems. See
 
 ## Pull request review
 
-There is no CI workflow and no automated reviewer, so the whole bar in
-[testing.md](testing.md#definition-of-done) is run locally before a PR is opened.
+Follow [the definition of done](testing.md#definition-of-done) for hosted build and harness proof, local checks and manual verification.
 
 ## Releasing
 

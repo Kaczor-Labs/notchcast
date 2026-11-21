@@ -30,9 +30,28 @@ step build
         sleep 1
     done
 ) >/dev/null 2>&1 &
-xcodebuild -project Tinycast.xcodeproj -scheme Tinycast -configuration Debug \
-    -jobs "${CHAD_BUILD_QUEUE_JOBS:-4}" -derivedDataPath "$RUNNER_TEMP/DerivedData" \
-    CODE_SIGNING_ALLOWED=NO build -quiet
+debug_build() {
+    xcodebuild -project Tinycast.xcodeproj -scheme Tinycast -configuration Debug \
+        -jobs "${CHAD_BUILD_QUEUE_JOBS:-4}" -derivedDataPath "$1/DerivedData" \
+        CODE_SIGNING_ALLOWED=NO build -quiet 2>&1 | tee "$1/build.log"
+}
+debug_build "$RUNNER_TEMP"
+step build-warnings
+baseline=$(mktemp -d "$RUNNER_TEMP/warning-base.XXXXXX")
+: > "$baseline/build.log"
+if grep -Eq '(^|[[:space:]])warning: ' "$RUNNER_TEMP/build.log"; then
+    base=${BASE_SHA:-$(git merge-base origin/main HEAD)}
+    echo "Building the warning baseline at $base"
+    mkdir "$baseline/src"
+    git archive -o "$baseline/src.tar" "$base"
+    tar -xf "$baseline/src.tar" -C "$baseline/src"
+    if ! (cd "$baseline/src" && "$XCODEGEN" generate --quiet && debug_build "$baseline"); then
+        echo "::warning::baseline build failed"
+        : > "$baseline/build.log"
+    fi
+fi
+python3 "$TOOLS/notchcast/build-warnings.py" "$baseline/build.log" "$RUNNER_TEMP/build.log" \
+    "$baseline/src" "$PWD"
 step identity
 bash "$TOOLS/notchcast/check-identity.sh" app "$RUNNER_TEMP/DerivedData/Build/Products/Debug/$APP_NAME Dev.app"
 step name-override
