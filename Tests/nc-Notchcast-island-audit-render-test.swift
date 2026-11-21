@@ -11,8 +11,7 @@
 // notchcast-sources: Tinycast/Features/Notchcast/IslandButtonFill.swift
 // notchcast-sources: Tinycast/Features/Island/Model/IslandLevelDwell.swift
 // notchcast-sources: Tinycast/Features/Island/Model/PillMenuRows.swift Tinycast/Features/Calendar/Model/*.swift
-// notchcast-sources: Tinycast/Features/Island/Service/IslandNoticeArt.swift
-// notchcast-sources: Tinycast/Features/Island/UI/IslandTone+Ink.swift
+// notchcast-sources: Tinycast/Features/Island/Service/IslandNoticeArt.swift Tinycast/Features/Island/UI/IslandTone+Ink.swift
 // notchcast-sources: Tinycast/Features/Island/Service/IslandLevelArt.swift
 // notchcast-sources: Tinycast/Features/Island/Model/IslandKeyline.swift Tinycast/Features/Island/Model/IslandLook.swift
 // notchcast-sources: Tinycast/Features/Island/Service/IslandCanvas.swift
@@ -120,17 +119,11 @@ struct NotchcastIslandAuditRenderTest {
     static func renderArt(_ name: String, _ art: some PillArt) {
         let width = art.layout.leading + art.layout.trailing + 2 * Theme.Spacing.lg
         let size = CGSize(width: max(width, NotchTheme.Size.islandRest.width), height: 36)
-        let image = NSImage(size: CGSize(width: size.width + 32, height: size.height + 32), flipped: false) { rect in
+        writeArt(name, size: CGSize(width: size.width + 32, height: size.height + 32)) { rect in
             let pill = CGRect(x: 16, y: 16, width: size.width, height: size.height)
             paintPill(rect, pill: NSBezierPath(roundedRect: pill, xRadius: size.height / 2, yRadius: size.height / 2))
             art.draw(in: pill)
-            return true
         }
-        var proposed = CGRect(origin: .zero, size: image.size)
-        let scaled = NSImage(size: image.size)
-        scaled.addRepresentations(image.representations)
-        write(name, image.cgImage(forProposedRect: &proposed, context: nil,
-                                  hints: [.ctm: AffineTransform(scale: 2)]))
     }
 
     /// Black's pill on a grey desk; Frosted's glass tint over a white wallpaper, as the canvas fills it.
@@ -423,11 +416,8 @@ struct NotchcastIslandAuditRenderTest {
             renderArt("13-status-\(form)", IslandStatusArt(
                 [IslandStatus(id: "u", symbol: "arrow.clockwise.circle", text: nil, label: "Update ready")],
                 notch: notch, frosted: frosted))
-            for tone in IslandTone.allCases {
-                renderArt("13t-status-\(tone)-\(form)", IslandStatusArt(
-                    [IslandStatus(id: "cpu", symbol: "cpu", text: "Hot", label: "CPU running hot", tone: tone)],
-                    notch: notch, frosted: frosted))
-            }
+            for tone in IslandTone.allCases { renderArt("13t-status-\(tone)-\(form)", IslandStatusArt([IslandStatus(id: "cpu",
+                symbol: "cpu", text: "Hot", label: "CPU running hot", tone: tone)], notch: notch, frosted: frosted)) }
             renderArt("14-level-\(form)", IslandLevelArt(
                 IslandLevel(source: "volume", symbol: "speaker.wave.2.fill", label: "Volume", value: 0.6),
                 notch: notch, frosted: frosted))
@@ -456,20 +446,14 @@ struct NotchcastIslandAuditRenderTest {
         renderHeadline("21-headline-failed-notch", IslandHeadlineArt(
             IslandNotice(id: "d", symbol: "exclamationmark.arrow.circlepath", text: "Update failed",
                          isFailure: true, seconds: 4), notch: 200, frosted: frosted))
-        let swatches = [("s", "island", "#12ABEF", 0x12ABEF), ("t", "black", "#000000", 0x000000),
-                        ("u", "white", "#FFFFFF", 0xFFFFFF), ("v", "graphite", "#1C1D20", 0x1C1D20)]
-        func swatched(_ text: String, _ hex: Int) -> IslandNotice {
-            IslandNotice(id: "pick", symbol: "eyedropper", text: text, swatch: IslandSwatch(
-                red: Double(hex >> 16 & 0xFF) / 255, green: Double(hex >> 8 & 0xFF) / 255, blue: Double(hex & 0xFF) / 255))
+        for (key, text, hex) in [("10s-notice-swatch-blue", "#12ABEF", 0x12ABEF), ("10t-notice-swatch-black", "#000000", 0),
+                                 ("10u-notice-swatch-white", "#FFFFFF", 0xFFFFFF), ("10v-notice-swatch-graphite", "#1C1D20",
+                                 0x1C1D20), ("10w-notice-swatch-rgb", "rgb(18, 171, 239)", 0x12ABEF)] {
+            let notice = IslandNotice(id: "pick", symbol: "eyedropper", text: text, swatch: IslandSwatch(red: Double(hex >> 16)
+                / 255, green: Double(hex >> 8 & 0xFF) / 255, blue: Double(hex & 0xFF) / 255))
+            renderArt("\(key)-island", IslandNoticeArt(notice, notch: false, frosted: frosted))
+            renderHeadline("21\(key.dropFirst(2))-notch", IslandHeadlineArt(notice, notch: 200, frosted: frosted))
         }
-        for (letter, name, text, hex) in swatches {
-            renderArt("10\(letter)-notice-swatch-\(name)-island", IslandNoticeArt(swatched(text, hex), notch: false,
-                                                                                frosted: frosted))
-            renderHeadline("21\(letter)-headline-swatch-\(name)-notch", IslandHeadlineArt(swatched(text, hex), notch: 200,
-                                                                                       frosted: frosted))
-        }
-        renderArt("10w-notice-swatch-rgb-island", IslandNoticeArt(swatched("rgb(18, 171, 239)", 0x12ABEF), notch: false,
-                                                                  frosted: frosted))
         let meeting = MeetingEvent(id: "m", title: "Standup", start: Date(timeIntervalSince1970: 600),
             end: Date(timeIntervalSince1970: 2400), isAllDay: false, isDeclined: false, calendarID: "c",
             calendarName: "Work", calendarColor: nil, calendarItemID: "i", link: nil)
