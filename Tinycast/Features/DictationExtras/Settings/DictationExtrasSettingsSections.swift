@@ -62,7 +62,13 @@ struct DictationExtrasSettingsSections: View {
         } header: {
             SettingsSectionHeader(.dictationCleanup)
         } footer: {
-            Text("The transcript is sent only to the chosen model. Notchcast keeps no log of it.", tableName: "Notchcast")
+            Text(verbatim: [
+                String(localized: "Only the text is sent, never the audio, and only to the model chosen above.",
+                       table: "Notchcast"),
+                String(localized: "Automatic uses the Claude or Codex command signed in on this Mac.",
+                       table: "Notchcast"),
+                String(localized: "Notchcast keeps the text only in Dictation History.", table: "Notchcast")
+            ].joined(separator: " "))
         }
     }
 
