@@ -12,7 +12,7 @@ import tempfile
 import unittest
 
 CI = Path(__file__).resolve().parent / "notchcast-ci.py"
-URL = "https://github.com/kaczordodgers/notchcast/actions/runs/777"
+URL = "https://github.com/Kaczor-Labs/notchcast/actions/runs/777"
 FAKE_GH = '''#!/usr/bin/env python3
 import json, os, sys
 from pathlib import Path
@@ -206,9 +206,9 @@ class CiTests(unittest.TestCase):
         self.assertEqual(result.stdout.splitlines()[-1], self.passed())
         calls = self.calls()
         dispatch = next(c for c in calls if "-X" in c)
-        self.assertIn("repos/kaczordodgers/notchcast/actions/workflows/main-harnesses.yml/dispatches", dispatch)
+        self.assertIn("repos/Kaczor-Labs/notchcast/actions/workflows/main-harnesses.yml/dispatches", dispatch)
         self.assertIn("ref=feat", dispatch)
-        self.assertEqual(self.views(), [["run", "view", "777", "-R", "kaczordodgers/notchcast", "--json",
+        self.assertEqual(self.views(), [["run", "view", "777", "-R", "Kaczor-Labs/notchcast", "--json",
                                   "status,conclusion,headSha"]])
         self.assertFalse([c for c in calls if c[:2] == ["run", "watch"]])
         self.assertFalse([c for c in calls if c[:2] == ["run", "list"]])
@@ -325,7 +325,7 @@ class CiTests(unittest.TestCase):
                 self.assertEqual(result.stdout.splitlines()[-1], self.passed())
                 calls = self.calls()
                 polls = [i for i, c in enumerate(calls) if any("/runs?" in a for a in c)]
-                self.assertEqual([calls[i] for i in polls], [["api", "repos/kaczordodgers/notchcast/actions/workflows/"
+                self.assertEqual([calls[i] for i in polls], [["api", "repos/Kaczor-Labs/notchcast/actions/workflows/"
                                                               "main-harnesses.yml/runs?event=workflow_dispatch&per_page=50"]])
                 self.assertEqual([i > polls[0] for i, c in enumerate(calls) if "-X" in c], [True])
 
@@ -434,7 +434,7 @@ class CiTests(unittest.TestCase):
         calls = self.calls()
         self.assertFalse([c for c in calls if "-X" in c or any("/runs?" in a for a in c) or c[:2] == ["run", "list"]])
         self.assertEqual(len(self.views()), 2)
-        self.assertIn(["api", "repos/kaczordodgers/notchcast/actions/runs/777", "--jq", ".path"], calls)
+        self.assertIn(["api", "repos/Kaczor-Labs/notchcast/actions/runs/777", "--jq", ".path"], calls)
 
     def test_run_of_another_workflow_proves_nothing(self):
         for path in (".github/workflows/build.yml", ".github/workflows/main-harnesses.yml.bak", ""):
