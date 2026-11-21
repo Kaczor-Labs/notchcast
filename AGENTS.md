@@ -152,8 +152,7 @@ feature's doc, under its own `## Invariants`.
 
 Each item is explained in [testing.md](docs/testing.md#definition-of-done).
 
-- `./Scripts/run-tests.sh` passes.
-- The Debug build compiles with **no new warnings**.
-- `./Scripts/lint.sh` is clean.
-- `grep -rln 'import AppKit\|import SwiftUI\|import Cocoa' Tinycast/Features/*/Model/` returns nothing.
+- A green hosted PR run for the pushed head proves the required harnesses and, when routed, the Debug build with **no new warnings**.
+- Run `./Scripts/lint.sh` locally.
+- Run `grep -rln 'import AppKit\|import SwiftUI\|import Cocoa' Tinycast/Features/*/Model/` locally. It must return nothing.
 - Any doc your change made wrong is fixed in the same commit.

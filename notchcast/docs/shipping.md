@@ -31,13 +31,7 @@ Source: read-only clone of upstream `abue-ammar/tinycast`, HEAD `3be769dc` (903 
 - **Build** (`docs/development.md:33`, `docs/testing.md:248`): `xcodebuild -project Tinycast.xcodeproj -scheme Tinycast -configuration Debug build` (`CODE_SIGNING_ALLOWED=NO` for a check build). Debug produces `Tinycast Dev.app`, bundle id `com.tinycast.app.dev`, URL scheme `tinycast-dev`. Upstream signs with the identity "Tinycast Self-Signed" (`project.yml:18`, `docs/signing.md`); our Debug signs ad-hoc so headless Xcode builds anywhere, and a local Debug run loses its Accessibility grant on each rebuild unless built with `CODE_SIGN_IDENTITY="Tinycast Self-Signed"`. Release is unchanged.
 - **Tests:** `./Scripts/run-tests.sh [name]` (1018 lines). There is no XCTest. `Tests/` holds about 130 standalone Swift files, each a `main`-style harness. The runner compiles each harness with `swiftc -swift-version 6` together with the **shipped source files it lists**, so an upstream harness is registered by adding a `run [slow|exclusive|-O|index] <name> <sources…>` line (122 such lines, from `Scripts/run-tests.sh:119`). It runs 4 at a time (`TINYCAST_TEST_JOBS`) with a 300 s timeout (`TINYCAST_TEST_TIMEOUT`). `onboarding-test` runs alone and needs an unlocked desktop. Runtime JS fixtures: `node Scripts/raycast-runtime/{modules,oauth}-fixtures.mjs`.
 - **Lint:** `./Scripts/lint.sh` runs swiftlint, `check-settings-search.js`, `check-localizations.js` and `check-migrations.sh`. Format: `Scripts/format.sh`.
-- **Definition of done** (`docs/testing.md` "Definition of done"; `AGENTS.md` "Before you finish"): harnesses pass, lint is clean, the purity grep `grep -rln 'import AppKit\|import SwiftUI\|import Cocoa' Tinycast/Features/*/Model/` returns nothing, the Debug build has zero **new** warnings, and docs are fixed in the same commit.
-- **CI gates nothing on code.** `CONTRIBUTING.md` and `testing.md` both say "There is no CI". The workflows:
-  - `coauthors.yml`, `issue-link.yml`, `triage.yml`: PR and issue bots (`pull_request_target`). These are the `check`/`triage` checks seen on #1781, plus the CodeRabbit review.
-  - `release.yml`: `workflow_dispatch`, `xcode-27` runner. Runs `check-migrations.sh`, signs with the p12 secret, verifies the signature, builds a universal app, pushes the Homebrew cask, posts to Discord and triggers `website.yml`.
-  - `website.yml`: on push to `main` under `website/**`, deploys to Cloudflare and Pages.
-  - `gitlab-mirror.yml`: on push to `main`, mirrors to GitLab.
-  - **For the fork, disable all six.** They would fail without secrets or would act on the wrong identity (section 5).
+- **Verification** follows [the definition of done](../../docs/testing.md#definition-of-done).
 - **Conventions that matter for patches** (`AGENTS.md`, `docs/standards.md`):
   - `AppCore` is the sole owner; new long-lived state is wired in `start()`.
   - `Model/` files never import AppKit or SwiftUI.
