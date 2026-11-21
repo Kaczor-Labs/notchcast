@@ -1686,11 +1686,10 @@ index b109a3fb5..0c45b32f4 100644
      }
  }
 diff --git a/Tinycast/Features/Notchcast/ScriptCommands/Settings/ScriptCommandsSettingsView.swift b/Tinycast/Features/Notchcast/ScriptCommands/Settings/ScriptCommandsSettingsView.swift
-index cd3885c1f..eb5f48d5c 100644
+index cd3885c1f..8b9455e42 100644
 --- a/Tinycast/Features/Notchcast/ScriptCommands/Settings/ScriptCommandsSettingsView.swift
 +++ b/Tinycast/Features/Notchcast/ScriptCommands/Settings/ScriptCommandsSettingsView.swift
-@@ -1,31 +1,34 @@
- import SwiftUI
+@@ -2,29 +2,33 @@ import SwiftUI
 
  /// The rows under the switch: each one's launcher fields, its editor while open and its last output.
  struct ScriptCommandsSettingsView: View {
@@ -1711,7 +1710,8 @@ index cd3885c1f..eb5f48d5c 100644
 +            ForEach(scripts.rows) { row in
                  ScriptCommandRow(
 -                    row: row, module: module, preferences: context.preferences, isEditing: editing == row.id,
-+                    row: row, running: scripts.running.contains(row.id), preferences: context.preferences, isEditing: editing == row.id,
++                    row: row, running: scripts.running.contains(row.id), preferences: context.preferences,
++                    isEditing: editing == row.id,
                      onEdit: { editing = editing == row.id ? nil : row.id }, onDelete: { pendingDeletion = row })
                  if editing == row.id {
 -                    ScriptCommandEditor(id: row.id, module: module)
@@ -1731,9 +1731,7 @@ index cd3885c1f..eb5f48d5c 100644
              } label: {
                  SettingsRowTitle(Self.anchor, LocalizedStringResource("Add Script Command", table: "NotchcastScriptCommands"))
              }
-             .confirmationDialog(
-@@ -36,9 +39,9 @@ struct ScriptCommandsSettingsView: View {
-                 presenting: pendingDeletion
+@@ -37,7 +41,7 @@ struct ScriptCommandsSettingsView: View {
              ) { row in
                  Button(role: .destructive) {
                      if editing == row.id { editing = nil }
@@ -1742,9 +1740,7 @@ index cd3885c1f..eb5f48d5c 100644
                  } label: {
                      Text("Delete", tableName: "NotchcastScriptCommands")
                  }
-             } message: { _ in
-@@ -50,9 +53,9 @@ struct ScriptCommandsSettingsView: View {
-
+@@ -51,7 +55,7 @@ struct ScriptCommandsSettingsView: View {
  /// One row as the launcher sees it: name and script, then alias, shortcut and launcher checkbox.
  private struct ScriptCommandRow: View {
      let row: ScriptCommand
@@ -1753,9 +1749,7 @@ index cd3885c1f..eb5f48d5c 100644
      let preferences: NotchcastPreferences
      let isEditing: Bool
      let onEdit: () -> Void
-     let onDelete: () -> Void
-@@ -66,9 +69,9 @@ private struct ScriptCommandRow: View {
-         let shown = preferences.showsInLauncher(entryID)
+@@ -67,7 +71,7 @@ private struct ScriptCommandRow: View {
          SettingsRow(title: name, subtitle: row.script.isEmpty ? nil : row.script) {
              Image(systemName: ScriptCommandsModule.symbol)
          } trailing: {
@@ -1764,7 +1758,6 @@ index cd3885c1f..eb5f48d5c 100644
                  ProgressView()
                      .controlSize(.small)
                      .accessibilityLabel(String(localized: "\(name) is running", table: "NotchcastScriptCommands"))
-             }
 diff --git a/Tinycast/Features/Notchcast/Spotify/Model/SoloistBuild.swift b/Tinycast/Features/Notchcast/Spotify/Model/SoloistBuild.swift
 index b43ff8504..4d0db7446 100644
 --- a/Tinycast/Features/Notchcast/Spotify/Model/SoloistBuild.swift
@@ -2148,8 +2141,7 @@ diff --git a/Tinycast/Features/Settings/Service/SettingsWire.swift b/Tinycast/Fe
 index 34ca0421b..3b88a44db 100644
 --- a/Tinycast/Features/Settings/Service/SettingsWire.swift
 +++ b/Tinycast/Features/Settings/Service/SettingsWire.swift
-@@ -28,15 +28,17 @@ enum SettingsWire {
-     enum Call: Codable, Sendable {
+@@ -29,6 +29,7 @@ enum SettingsWire {
          case extensions(ExtensionCall)
          case mcp(MCPSettingsCall)
          case backup(BackupSettingsCall)
@@ -2157,7 +2149,7 @@ index 34ca0421b..3b88a44db 100644
      }
 
      enum Reply: Codable, Sendable {
-         case extensions(ExtensionCallResult)
+@@ -36,6 +37,7 @@ enum SettingsWire {
          case mcp(MCPServerStatus?)
          case backupPreview(BackupPreview)
          case backupMessage(String)
@@ -2165,4 +2157,3 @@ index 34ca0421b..3b88a44db 100644
          case failure(String)
          case cancelled
      }
-
