@@ -34,7 +34,7 @@ enum IslandDictationScenes {
         capsule.show()
         IslandVerification.require(capsule.state.phase == .listening, "the stand-in resets the capsule's phase")
         capsule.state.levels = (0..<DictationSpectrum.barCount).map { Float($0 % 5) / 4 }
-        await expect(hint, "recording")
+        await expect(hint, "recording-start")
         IslandVerification.require(controller.notice?.meter?.count == 4, "recording draws four bars")
         IslandVerification.require(controller.accessibilityValue.contains("Recording dictation"),
                                    "VoiceOver hears the sentence, not the time")

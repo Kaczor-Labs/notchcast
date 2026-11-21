@@ -144,8 +144,8 @@ struct IslandPagesRenderTest {
             deck.show(notice, tappable: false)
             return deck
         }
-        return [("recording", deck(IslandNotice(dictation: session)!, select: nil)),
-                ("failed", deck(IslandNotice(dictation: .failed), select: .page("system")))]
+        return [("recording-home", deck(IslandNotice(dictation: session)!, select: nil)),
+                ("failed-page", deck(IslandNotice(dictation: .failed), select: .page("system")))]
     }
 
     /// #1128's approved board (pill-slots, notch-slots), and one Mac alone with no feed.
