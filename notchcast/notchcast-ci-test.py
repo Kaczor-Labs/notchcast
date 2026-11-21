@@ -117,7 +117,12 @@ class CiTests(unittest.TestCase):
         self.git(root, "init", "-q", "-b", "feat", str(self.repo))
         self.commit("one")
         self.git(self.repo, "remote", "add", "origin", str(self.origin))
-        self.git(self.repo, "config", "core.hooksPath", "notchcast/githooks")
+        self.hooks = self.repo.resolve() / ".git" / "notchcast-hooks"
+        self.hooks.mkdir()
+        pre_push = self.hooks / "pre-push"
+        pre_push.write_text("#!/bin/sh\nexit 0\n")
+        pre_push.chmod(0o755)
+        self.git(self.repo, "config", "core.hooksPath", str(self.hooks))
         self.git(self.repo, "push", "-q", "origin", "feat")
         self.env = {**os.environ, "PATH": f"{root / 'bin'}{os.pathsep}{os.environ['PATH']}",
                     "FAKE_GH_DIR": str(self.fake), "NOTCHCAST_CI_POLL": "0.01",
@@ -388,7 +393,7 @@ class CiTests(unittest.TestCase):
 
     def test_a_clone_without_the_repo_hooks_is_refused_before_any_push(self):
         self.commit("two")
-        for value in (None, ".git/hooks"):
+        for value in (None, ".git/hooks", "notchcast/githooks"):
             with self.subTest(hooks=value):
                 if value is None:
                     self.git(self.repo, "config", "--unset", "core.hooksPath")
@@ -399,6 +404,13 @@ class CiTests(unittest.TestCase):
                 self.assertIn(f"core.hooksPath is {value or 'unset'}", result.stderr)
                 self.assertEqual(self.calls(), [])
                 self.assertNotEqual(self.rev(self.origin, "refs/heads/feat"), self.rev(self.repo, "HEAD"))
+
+    def test_the_configured_hooks_directory_must_contain_an_executable_pre_push(self):
+        (self.hooks / "pre-push").chmod(0o644)
+        result = self.ci()
+        self.assertEqual(result.returncode, 2)
+        self.assertIn("pre-push is missing or not executable", result.stderr)
+        self.assertEqual(self.calls(), [])
 
     def test_main_and_detached_head_are_refused(self):
         self.git(self.repo, "checkout", "-q", "--detach")
