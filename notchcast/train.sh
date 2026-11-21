@@ -252,7 +252,7 @@ wait_train() {
         waited=$((waited + poll))
     done
 }
-# When PR $1 was last labelled land, the lead's sign-off; marking it ready only gets it a PR build.
+# The last land label on PR $1 is the lead's sign-off.
 signed_off_since() {
     local at
     at=$(gh api "repos/$FORK_REPO/issues/$1/timeline" --paginate \
@@ -261,13 +261,7 @@ signed_off_since() {
             notify "the landing queue stopped: it cannot read when #$1 was labelled land" >&2; return 1; }
     echo "$at"
 }
-# Open PRs on main labelled land, ready or draft, oldest sign-off first: the first LAND_BATCH_SIZE, then the settled
-# ones behind them, which refill a batch the holder check thins. Its build must be green on its head; a draft's may
-# be skipped or absent, since the train run is its build. A PR a queue found red alone, or left out for a conflict or
-# for holding another PR's commits, waits for a new head; a holder only while that PR is open, and one that
-# conflicts with a PR of the batch only while that PR can still be picked. While the newest sign-off of the batch is
-# younger than LAND_SETTLE_SECONDS it prints only a "queue: waits" line, so PRs signed off close together ride one
-# train.
+# Waiting for the newest sign-off lets PRs signed off close together ride one train.
 pick_batch() {
     local pr draft head why other verdict since newest age now
     : > "$scratch/heads"
@@ -302,6 +296,7 @@ pick_batch() {
                 echo "queue: #$pr waits, dropped at ${head:0:8}: ${why%% in the landing batch at head *}" >&2
                 continue
             fi
+            # The train builds a signed-off draft whose PR check is missing or skipped.
             verdict=$(check_run "$head" build) || exit 1
             [ "$verdict" = success ] || { [ "$draft" = true ] && [[ "$verdict" =~ ^(none|skipped)$ ]]; } \
                 || { echo "queue: #$pr waits, build is $verdict on ${head:0:8}" >&2; continue; }
