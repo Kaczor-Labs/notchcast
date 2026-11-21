@@ -10,7 +10,14 @@ final class IPhoneBackupModule: NotchcastModule {
         store = IPhoneBackupStore(context: context, system: system)
     }
 
-    func start() {}
+    var isApplied: Bool { store.isApplied }
+    var backupsOff: Bool { store.backupsOff }
+
+    func start() { store.refresh() }
+
+    func answer(_ accepted: Bool) {
+        if accepted { store.apply() } else { store.decline() }
+    }
 
     /// Quitting stops the module with the switch still on, and must leave backups off.
     func stop() {
