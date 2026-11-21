@@ -6,25 +6,24 @@ nonisolated enum FirecrawlPage {
         case article(WebpageArticle)
         case refused
         case unusable
-        case tooLarge
     }
 
     static let outputLimit = 64 * 1024 * 1024
 
     static func arguments(_ source: URL) -> [String] {
-        ["scrape", source.absoluteString, "--public-only", "--timeout", "60000"]
+        ["scrape", source.absoluteString, "--public-only", "--browser", "never", "--timeout", "60000"]
     }
 
-    static func decode(_ data: Data, source: URL) -> Answer {
+    static func decode(_ data: Data, status: Int32 = 0, source: URL) -> Answer {
         guard let root = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { return .unusable }
         guard root["success"] as? Bool == true else {
             return root["code"] as? String == "BLOCKED_TARGET" ? .refused : .unusable
         }
-        guard let page = root["data"] as? [String: Any], let body = page["markdown"] as? String,
+        guard status == 0, let page = root["data"] as? [String: Any], let body = page["markdown"] as? String,
               page["blocked"] as? Bool != true, (page["warning"] as? String ?? "").isEmpty else { return .unusable }
         let metadata = page["metadata"] as? [String: Any] ?? [:]
-        guard (metadata["contentType"] as? String)?.lowercased().hasPrefix("application/pdf") == true,
-              let status = metadata["statusCode"] as? Int, (200..<400).contains(status),
+        guard isPDF(metadata["contentType"] as? String),
+              let status = metadata["statusCode"] as? Int, (200..<300).contains(status),
               body.trimmingCharacters(in: .whitespacesAndNewlines).count >= 80 else { return .unusable }
         let host = source.host(percentEncoded: false) ?? source.absoluteString
         let title = text(metadata["title"]) ?? heading(in: body) ?? host
@@ -32,6 +31,13 @@ nonisolated enum FirecrawlPage {
         return .article(WebpageArticle(title: title, author: text(metadata["author"]) ?? host, published: published,
                                        source: source, baseURL: source, html: "", markdownBody: body))
     }
+
+    static func isPDF(_ contentType: String?) -> Bool {
+        contentType?.split(separator: ";", maxSplits: 1).first?
+            .trimmingCharacters(in: .whitespaces).lowercased() == "application/pdf"
+    }
+
+    static let signature = Array("%PDF-".utf8)
 
     /// A PDF's first heading is often a licence notice, so a top-level heading wins.
     static func heading(in body: String) -> String? {
