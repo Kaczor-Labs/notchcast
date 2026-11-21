@@ -1,0 +1,3 @@
+# Door: Processes
+
+**Processes** are read through `NotchcastProcesses` (`Core/Service/`): `pids()` lists every pid the kernel reports, `usage(pid)` reads its CPU ticks and physical footprint through `proc_pid_rusage` (nil for another user's process without root, or when the tick sum overflows) and `timebase()` gives the `mach_timebase_info` that turns ticks into nanoseconds. All three are synchronous and `nonisolated`, so the add-on calls them off the main actor; each add-on keeps its own filtering, details and nanosecond maths. It is in Core because SystemTools (Kill Process) and SystemMonitor both list processes (§1: two folders never share code).
