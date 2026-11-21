@@ -9,6 +9,7 @@
 // notchcast-sources: Tinycast/Features/Notchcast/Archives/Service/ArchivesModule.swift
 // notchcast-sources: Tinycast/Features/Notchcast/Archives/Service/ArchivesEnvironment.swift
 // notchcast-sources: Tinycast/Features/Notchcast/Archives/Service/ArchiveExtractor.swift
+// notchcast-sources: Tinycast/Features/Notchcast/Archives/Service/ArchiveCompressor.swift
 // notchcast-sources: Tinycast/Features/Notchcast/Archives/Service/ArchiveProcess.swift
 // notchcast-sources: Tests/NotchcastDictationFixture.swift
 
@@ -125,6 +126,7 @@ final class Record {
     var answer = true
     var reveals: [URL] = []
     var defaultApp: [Bool] = []
+    var selection: [URL] = []
 }
 
 @MainActor
@@ -157,6 +159,11 @@ final class Rig {
         harnessEnvironment = ArchivesEnvironment(
             journal: journalURL,
             extractor: ArchiveExtractor(locate: { tools.locate($0) }, run: { try await tools.run($0, $1) }),
+            compressor: ArchiveCompressor(locate: { URL(filePath: "/fake/bin/\($0)") }, run: { _, arguments in
+                try Data("zip".utf8).write(to: URL(filePath: arguments.last!))
+                return ArchiveProcessResult(status: 0)
+            }),
+            finderSelection: { record.selection },
             setDefaultApp: { record.defaultApp.append($0) },
             reveal: { record.reveals.append($0) },
             pickArchives: { [] })
@@ -450,6 +457,26 @@ func realHatchZip() async throws {
     print("real HatchZip extraction: ok")
 }
 
+/// Compression has its own one-at-a-time slot, so it never waits behind the extraction queue.
+@MainActor
+func compressesBesideExtraction() async throws {
+    let rig = try Rig()
+    defer { rig.finish() }
+    let notes = rig.folder.appending(path: "notes.txt")
+    try Data("notes".utf8).write(to: notes)
+    rig.record.selection = [notes]
+    rig.module!.open([rig.archive("Game.zip", listing: twoFiles)])
+    rig.module!.compress(.zip)
+    check(rig.module!.current != nil && rig.module!.compression != nil, "both run side by side")
+    await rig.module!.drain()
+    await rig.module!.drainCompression()
+    check(rig.exists("Game/b/c.txt") && rig.exists("notes.txt.zip"), "both finish: \(rig.visible)")
+    for text in ["Extracting Game.zip", "Extracted Game", "Compressing notes.txt.zip", "Compressed notes.txt.zip"] {
+        check(rig.presenter.texts.contains(text), "\(text) was shown: \(rig.presenter.texts)")
+    }
+    check(rig.presenter.failures.isEmpty, "\(rig.presenter.failures)")
+}
+
 @main
 enum ArchivesModuleTest {
     @MainActor
@@ -462,6 +489,7 @@ enum ArchivesModuleTest {
         try await cancelAndResume()
         try await defaultApp()
         try await opensThroughTheCore()
+        try await compressesBesideExtraction()
         try await abandonKeepsOnlyHatchZipWork()
         try await capsSingleStreams()
         try await realHatchZip()

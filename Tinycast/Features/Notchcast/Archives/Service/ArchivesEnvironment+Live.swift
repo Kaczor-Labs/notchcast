@@ -12,9 +12,21 @@ extension ArchivesEnvironment {
             extractor: ArchiveExtractor(
                 locate: { await ExecutableLocator.locate($0) },
                 run: { try await ArchiveProcess.run($0, $1) }),
+            compressor: ArchiveCompressor(
+                locate: { await ExecutableLocator.locate($0) },
+                run: { try await ArchiveProcess.run($0, $1) }),
+            finderSelection: finderSelection,
             setDefaultApp: { on in Task { await setDefaultApp(on) } },
             reveal: { NSWorkspace.shared.activateFileViewerSelecting([$0]) },
             pickArchives: pickArchives)
+    }
+
+    /// Automation refused is our own failure; no Finder, no selection or a timeout read as nothing.
+    @concurrent
+    private static func finderSelection() async throws -> [URL] {
+        try NotchcastAppleEvents.finderSelection { status in
+            if NotchcastAppleEvents.refused.contains(status) { throw ArchiveFailure.automationRefused }
+        }.compactMap { URL(string: $0) }
     }
 
     /// Handing back gives each type Notchcast still holds to Archive Utility, else the next app.
