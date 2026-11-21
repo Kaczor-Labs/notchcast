@@ -58,20 +58,56 @@ passes() {
     [ "$status" -eq 0 ] || fail "a clean push to $1 was refused"
     grep -q "^Checked $2 commits; 0 non-allowed identities" "$scratch/output" || fail "the push to $1 did not check exactly its $2 new commits"
 }
+# refused <branch> <what> <pattern>: the push is refused, naming <pattern> and a reason; the last commit is dropped.
+refused() {
+    push "$1"
+    [ "$status" -ne 0 ] || fail "$2 pushed to $1 passed"
+    grep -q "$3" "$scratch/output" && grep -q '^pre-push: REFUSED: ' "$scratch/output" \
+        || fail "the refused push of $2 to $1 did not say why"
+    git reset --quiet --hard HEAD~1
+}
 # refuses <branch>: a new commit by a non-allowed identity is refused with a reason, then dropped.
 refuses() {
     commit "$1-bad" stranger@example.invalid
-    push "$1"
-    [ "$status" -ne 0 ] || fail "a non-allowed identity pushed to $1 passed"
-    grep -q 'non-allowed author email' "$scratch/output" && grep -q '^pre-push: REFUSED: ' "$scratch/output" \
-        || fail "the refused push to $1 did not say why"
-    git reset --quiet --hard HEAD~1
+    refused "$1" 'a non-allowed identity' 'non-allowed author email'
+}
+# plant <name> <text>: one commit by the allowed identity adding <text> as <name>.txt.
+plant() {
+    printf '%s\n' "$2" > "$1.txt"
+    git add "$1.txt"
+    git commit --quiet -m "$1"
 }
 
 commit evidence-new
 passes evidence 1
 refuses evidence
 echo 'PASS: an orphan branch is checked from the remote tip only, and a bad identity there is refused'
+
+git switch --quiet -c off-evidence evidence
+commit off-evidence-one
+refuses off-evidence
+# Both strings are assembled here so this file itself carries neither.
+plant off-evidence-path "notes in /Us""ers/fixture/notes"
+refused off-evidence 'a home path' 'check-identity: .*<home-path>'
+if [ ! -x "$scratch/bin/gitleaks" ]; then
+    plant off-evidence-token "token = ghp_$(tr -dc A-Za-z0-9 < /dev/urandom | head -c 36)"
+    refused off-evidence 'a token' 'leaks found: 1'
+fi
+passes off-evidence 1
+echo 'PASS: a new branch off the orphan branch is checked from its first new commit; a bad identity, home path or token there is refused'
+
+# Clock skew: child C2 is dated before its bad parent P, so date order would put C2 first and leave P out of the range.
+git switch --quiet -c skewed evidence
+GIT_COMMITTER_DATE=2026-06-01T00:00:00 commit skewed-P stranger@example.invalid
+git switch --quiet -c skewed-sibling
+GIT_COMMITTER_DATE=2026-07-01T00:00:00 commit skewed-C1
+git switch --quiet skewed
+GIT_COMMITTER_DATE=2026-01-01T00:00:00 commit skewed-C2
+GIT_COMMITTER_DATE=2026-08-01T00:00:00 git merge --quiet --no-edit skewed-sibling
+push skewed
+[ "$status" -ne 0 ] && grep -q 'non-allowed author email' "$scratch/output" \
+    || fail 'a bad parent of a commit with an older date passed on a new branch off the orphan branch'
+echo 'PASS: a new branch off the orphan branch with a misdated child still checks the bad parent'
 
 git switch --quiet -c feature main
 commit feature-one

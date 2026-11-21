@@ -23,7 +23,7 @@ while read -r _local_ref local_sha remote_ref remote_sha; do
         base=$remote_sha
     fi
     if [ -z "$base" ]; then
-        first="$(git rev-list --reverse "$local_sha" --not --remotes | head -1)"
+        first="$(git rev-list --topo-order --reverse "$local_sha" --not --remotes | head -1)"
         [ -n "$first" ] || continue
         base="$(git rev-parse -q --verify "$first^" || true)"
     fi
