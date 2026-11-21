@@ -11,7 +11,7 @@ enum IslandPillScenes {
                              "notice-unseen", "pill-menu-rows", "capture-sharing", "dictation", "dictation-notch"]
 
     static func run(_ scene: String, core: AppCore, screen: NSScreen) async {
-        if scene == "dictation-notch" { IslandController.simulatedNotch = IslandDictationScenes.notch }
+        if scene == "dictation-notch" { IslandController.simulatedNotch = DictationIslandScenes.notch }
         core.island.start()
         await IslandVerification.pause(0.6)
         if scene == "capture-sharing" {
@@ -42,7 +42,7 @@ enum IslandPillScenes {
         case "install-report": await IslandInstallReportScenes.run(core: core, controller: controller)
         case "notice-queue": await IslandNoticeScenes.run(core: core, controller: controller)
         case "notice-unseen": await IslandNoticeScenes.unseen(core: core, controller: controller)
-        case "dictation", "dictation-notch": await IslandDictationScenes.run(scene: scene, core: core, controller: controller)
+        case "dictation", "dictation-notch": await DictationIslandScenes.run(scene: scene, core: core, controller: controller)
         default: await glance(core: core, controller: controller)
         }
         IslandScenes.pass(scene, screen: screen)

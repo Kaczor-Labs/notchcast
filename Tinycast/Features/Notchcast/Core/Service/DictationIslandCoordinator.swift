@@ -29,6 +29,10 @@ final class DictationIslandCoordinator {
             if self?.message(text) != true { stock(text, tone) }
         }
         dictation.didReset = { [weak self] in self?.reset(completed: $0) }
+        let extras = core.dictationExtras
+        extras.cleaningUp = { [weak self] in self?.cleaningUp() }
+        extras.cleanupFailed = { [weak self] in self?.cleanupFailed() ?? false }
+        extras.delivered = { [weak self] in self?.delivered(empty: $0) }
     }
 
     /// The seam a Debug scene drives too, with its own presenter and no microphone.

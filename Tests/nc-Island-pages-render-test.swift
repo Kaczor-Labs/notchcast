@@ -13,8 +13,8 @@
 // notchcast-sources: Tinycast/Features/Island/Model/IslandPageSwipe.swift
 // notchcast-sources: Tinycast/Features/Island/Model/IslandPlayer.swift
 // notchcast-sources: Tinycast/Features/Island/UI/*.swift
-// notchcast-sources: Tinycast/Features/DictationExtras/Model/DictationIslandSession.swift
-// notchcast-sources: Tinycast/Features/DictationExtras/Model/DictationIslandNotice.swift
+// notchcast-sources: Tinycast/Features/Notchcast/Core/Model/DictationIslandSession.swift
+// notchcast-sources: Tinycast/Features/Notchcast/Core/Model/DictationIslandNotice.swift
 import AppKit
 import SwiftUI
 

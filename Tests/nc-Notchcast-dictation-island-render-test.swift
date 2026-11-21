@@ -8,8 +8,8 @@
 // notchcast-sources: Tinycast/Features/Island/Service/IslandSongArt.swift Tinycast/Features/Island/Model/IslandPlayer.swift
 // notchcast-sources: Tinycast/Features/Island/Service/IslandLevelArt.swift Tinycast/Features/Island/Model/IslandLook.swift
 // notchcast-sources: Tinycast/Features/Island/Model/IslandKeyline.swift Tinycast/Features/Island/Service/IslandExpansionArt.swift
-// notchcast-sources: Tinycast/Features/DictationExtras/Model/DictationIslandSession.swift
-// notchcast-sources: Tinycast/Features/DictationExtras/Model/DictationIslandNotice.swift
+// notchcast-sources: Tinycast/Features/Notchcast/Core/Model/DictationIslandSession.swift
+// notchcast-sources: Tinycast/Features/Notchcast/Core/Model/DictationIslandNotice.swift
 import AppKit
 
 /// #960's closed forms: every dictation state on the resting island, both forms, Black and Frosted,

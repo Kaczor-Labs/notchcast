@@ -1,11 +1,12 @@
-// notchcast-sources: Tinycast/Features/DictationExtras/Model/*.swift Tinycast/Features/Island/Model/IslandPresentation.swift
-// notchcast-sources: Tinycast/Features/Settings/Model/SettingsFileKey.swift
+// notchcast-sources: Tinycast/Features/Notchcast/Core/Model/DictationIslandSession.swift
+// notchcast-sources: Tinycast/Features/Notchcast/Core/Model/DictationIslandNotice.swift
+// notchcast-sources: Tinycast/Features/Island/Model/IslandPresentation.swift
 // notchcast-reads: Tinycast/Features/Dictation/Service/DictationCoordinator.swift
 
 import Foundation
 
 func check(_ condition: Bool, _ message: String) {
-    guard condition else { fatalError("nc-DictationExtras-island-test: \(message)") }
+    guard condition else { fatalError("nc-Notchcast-dictation-island-test: \(message)") }
 }
 
 /// #960: the island's dictation states, from the first sound to the result, against an injected clock.

@@ -3,7 +3,7 @@ import AppKit
 
 /// `dictation`, `dictation-notch`: every dictation state on the pill with no microphone, keys through the hold.
 @MainActor
-enum IslandDictationScenes {
+enum DictationIslandScenes {
     static let notch = CGSize(width: 185, height: 32)
 
     private final class Probe {
