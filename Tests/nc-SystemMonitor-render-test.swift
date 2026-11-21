@@ -8,6 +8,7 @@
 // notchcast-sources: Tinycast/Features/Island/Service/IslandPaletteSurface.swift
 // notchcast-sources: Tinycast/Features/Island/Model/IslandLook.swift
 // notchcast-sources: Tinycast/Features/Island/Model/IslandPresentation.swift
+// notchcast-sources: Tinycast/Features/Island/Model/IslandNoticeFit.swift
 // notchcast-sources: Tinycast/Features/Island/Model/IslandPageDeck.swift
 // notchcast-sources: Tinycast/Features/Island/Model/IslandPageSwipe.swift
 // notchcast-sources: Tinycast/Features/Island/Model/IslandPlayer.swift

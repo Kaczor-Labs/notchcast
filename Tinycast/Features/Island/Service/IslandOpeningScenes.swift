@@ -1,7 +1,6 @@
 #if DEBUG
 import AppKit
 
-/// The notch headline's two proofs: each opening springs from its start, and a long title stops at the cap.
 @MainActor
 enum IslandOpeningScenes {
     static let names: Set = ["expand-openings", "headline-cap"]
@@ -83,19 +82,6 @@ enum IslandOpeningScenes {
         IslandVerification.require(controller.showsHeadline, "the notice opens as the headline below the notch")
     }
 
-    private static func truncatesTail(_ text: NSAttributedString, width: CGFloat) -> Bool {
-        let storage = NSTextStorage(attributedString: text)
-        let container = NSTextContainer(size: CGSize(width: width, height: .greatestFiniteMagnitude))
-        container.lineFragmentPadding = 0
-        container.maximumNumberOfLines = 1
-        container.lineBreakMode = .byTruncatingTail
-        let manager = NSLayoutManager()
-        manager.addTextContainer(container)
-        storage.addLayoutManager(manager)
-        manager.ensureLayout(for: container)
-        return manager.truncatedGlyphRange(inLineFragmentForGlyphAt: 0).location != NSNotFound
-    }
-
     private static func cap(controller: IslandController, presenter: IslandPresenter) async {
         let cap = NotchTheme.Size.islandHeadlineMaxWidth
         let inset = NotchTheme.Spacing.islandInset
@@ -103,24 +89,25 @@ enum IslandOpeningScenes {
         presenter.post(IslandNotice(id: "cap", text: String(long), seconds: 3), onTap: nil)
         await quiet(controller)
         guard let art = controller.headline else { IslandVerification.require(false, "the long notice is a headline"); return }
-        print("CAP long chars=\(long.count) width=\(art.size.width) textWidth=\(art.textWidth) natural=\(art.text.size().width) outline=\(controller.outlineBounds.width)")
-        IslandVerification.require(abs(art.size.width - cap) < 0.5, "the headline is the cap wide: \(art.size.width) vs \(cap)")
-        IslandVerification.require(abs(art.textWidth + inset * 2 - cap) < 0.5, "the cap is its text plus both insets")
-        IslandVerification.require(abs(controller.outlineBounds.width - cap) < 0.5, "the island grows to the cap")
-        IslandVerification.require(art.text.size().width > art.textWidth, "the title is longer than its room")
-        IslandVerification.require(truncatesTail(art.text, width: art.textWidth), "the long title ends in a tail ellipsis")
+        print("CAP long chars=\(long.count) size=\(art.size) outline=\(controller.outlineBounds.size)")
+        IslandVerification.require(art.size.width <= cap && art.size.height == 65,
+                                   "the long headline wraps inside the cap")
+        IslandVerification.require(art.fit.lines == 3 && art.fit.truncated, "the last visible line is truncated")
+        IslandVerification.require(abs(controller.outlineBounds.width - art.size.width) < 0.5, "the outline fits the card")
         presenter.end(notice: "cap")
         await quiet(controller)
         presenter.post(IslandNotice(id: "short", text: "Guide.pdf saved to the Downloads folder", seconds: 3), onTap: nil)
         await quiet(controller)
-        guard let short = controller.headline else { IslandVerification.require(false, "the short notice is a headline"); return }
+        guard let short = controller.headline else {
+            IslandVerification.require(false, "the short notice is a headline"); return
+        }
         print("CAP short width=\(short.size.width) textWidth=\(short.textWidth) natural=\(short.text.size().width)")
         IslandVerification.require(short.textWidth == ceil(short.text.size().width), "the short title keeps its natural width")
         let floor = notch.width + Theme.Radius.panel * 2
         IslandVerification.require(short.textWidth + inset * 2 > floor, "the short title is wider than the notch floor")
         IslandVerification.require(abs(short.size.width - (short.textWidth + inset * 2)) < 0.5 && short.size.width < cap,
                                    "the short headline is its natural width plus insets, under the cap")
-        IslandVerification.require(!truncatesTail(short.text, width: short.textWidth), "the short title has no ellipsis")
+        IslandVerification.require(short.fit.lines == 1 && !short.fit.truncated, "the short title has no ellipsis")
     }
 }
 #endif

@@ -7,6 +7,7 @@
 // notchcast-sources: Tinycast/Windows/HUD/MessageHUDView.swift Tinycast/Windows/Dialog/DialogView.swift
 // notchcast-sources: Tinycast/Windows/Dialog/DialogRequest.swift
 // notchcast-sources: Tinycast/Features/Island/Model/IslandPresentation.swift
+// notchcast-sources: Tinycast/Features/Island/Model/IslandNoticeFit.swift
 // notchcast-sources: Tinycast/Features/Island/Model/IslandHover.swift
 // notchcast-sources: Tinycast/Features/Notchcast/IslandButtonFill.swift
 // notchcast-sources: Tinycast/Features/Island/Model/IslandLevelDwell.swift
@@ -228,9 +229,36 @@ struct NotchcastIslandAuditRenderTest {
         var long = song
         long.title = "Everything Everywhere at Once (Extended Midnight Version)"
         long.artist = "Juno Vale, The Paper Lanterns Orchestra"
+        let notices = [
+            IslandNotice(id: "7zz", symbol: "exclamationmark.triangle",
+                         text: "7zz is not installed. Install it with: brew install sevenzip", isFailure: true),
+            IslandNotice(id: "headphones", symbol: "headphones", text: "No headphones with noise control are connected."),
+            IslandNotice(id: "hatchzip", symbol: "exclamationmark.triangle",
+                text: "hatchzip is not installed. Install it with: brew install xevrion/tap/hatchzip", isFailure: true),
+            IslandNotice(id: "ellipsis", symbol: "doc",
+                         text: String(repeating: "Quarterly planning review notes for the whole design team. ", count: 4)),
+            IslandNotice(id: "no-mark", text: "No headphones with noise control are connected."),
+            IslandNotice(id: "failure", symbol: "exclamationmark.triangle",
+                         text: "Could not extract the archive. Check that the destination is writable.", isFailure: true),
+            IslandNotice(id: "copied", symbol: "doc.on.clipboard", text: "Copied"),
+        ]
         let look = frosted ? "frosted" : "black"
         for notch in [false, true] {
             let form = notch ? "notch" : "nonotch"
+            let canvas = IslandCanvas()
+            canvas.look = frosted ? .frosted : .black
+            canvas.still = true
+            for notice in notices {
+                let name = "1307-\(notice.id)-\(form)-\(look)"
+                canvas.show(glance: nil, level: nil, notice: notice, statuses: [], expanded: false,
+                            notch: notch ? notchSize.width : nil)
+                if let card = canvas.headline {
+                    island(name, width: card.size.width, body: card.size.height,
+                           notch: notch, radius: Theme.Radius.panel) { card.draw(in: $0) }
+                } else if let pill = canvas.glance {
+                    compact(name, pill, notch: notch)
+                }
+            }
             let meetingArt = GlanceArt(glance, notch: notch, frosted: frosted)
             compact("884-04-meeting-\(form)-\(look)", meetingArt, notch: notch)
             let expansion = IslandExpansionArt(glance, frosted: frosted)

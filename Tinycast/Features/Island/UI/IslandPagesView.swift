@@ -100,6 +100,7 @@ struct IslandPageLabel: View {
     let title: String
     let detail: String?
     var tone: IslandTone?
+    var titleLines = 1
     @Environment(\.metrics) private var metrics
 
     var body: some View {
@@ -107,11 +108,12 @@ struct IslandPageLabel: View {
             IslandPageArtwork(symbol: symbol, artwork: artwork, side: metrics.size.resultRowIcon, tone: tone)
             VStack(alignment: .leading, spacing: 0) {
                 Text(title).font(metrics.typography.rowTitle).foregroundStyle(Theme.Colors.textPrimary)
+                    .lineLimit(titleLines)
                 if let detail {
                     Text(detail).font(metrics.typography.rowTrailing).foregroundStyle(Theme.Colors.textSecondary)
+                        .lineLimit(1)
                 }
             }
-            .lineLimit(1)
             .truncationMode(.tail)
             .frame(maxWidth: NotchTheme.Size.islandHeadlineMaxWidth, alignment: .leading)
         }

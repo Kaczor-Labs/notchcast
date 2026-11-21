@@ -31,7 +31,13 @@ struct IslandNotice: Equatable, Sendable {
     static let failureSeconds: TimeInterval = 4
 
     var spoken: String { spokenText ?? text }
-    var dwell: TimeInterval { seconds ?? (isFailure ? Self.failureSeconds : Self.messageSeconds) }
+    var dwell: TimeInterval {
+        let base = seconds ?? (isFailure ? Self.failureSeconds : Self.messageSeconds)
+        let characters = text.count
+        if characters > 90 { return max(base, 6) }
+        if characters > 45 { return max(base, 4) }
+        return base
+    }
     /// On a notch, its text expands below the notch; otherwise it keeps to the wings (design §10).
     var isHeadline: Bool { !quiet && (progress?.headline ?? true) }
     /// The readout leads the text, so the open page's row and the wings read alike.
@@ -246,6 +252,7 @@ struct IslandPageRow: Equatable, Sendable {
     var trailing: String?
     /// What VoiceOver reads instead of the row, as a notice's `spokenText`.
     var spoken: String?
+    var titleLines = 1
 }
 
 /// A labelled bar, 0...1, with its value as text.

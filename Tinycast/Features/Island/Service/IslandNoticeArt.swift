@@ -6,6 +6,7 @@ struct IslandNoticeArt: PillArt {
     let layout: IslandGlanceLayout
     let notice: IslandNotice
     let tone: NSColor
+    let fits: Bool
     private let notch: Bool
     private let mark: IslandNoticeMark
     private let text: NSAttributedString
@@ -26,7 +27,9 @@ struct IslandNoticeArt: PillArt {
         text = IslandNoticeMark.line(words, frosted: frosted)
         let wing = NotchTheme.Size.islandGlanceWing
         let room = notch ? wing : wing * 2 - IslandNoticeMark.cell - gap
-        textWidth = min(IslandNoticeMark.width(words, readout: readout, frosted: frosted), room)
+        let natural = IslandNoticeMark.width(words, readout: readout, frosted: frosted)
+        fits = !IslandNoticeFit.wraps(width: natural, room: room, hasLineBreaks: words.contains(where: \.isNewline))
+        textWidth = min(natural, room)
         // A glyph-only notice still needs a right wing, or the engine draws the notch lopsided.
         let trailing = notch ? max(textWidth, IslandNoticeMark.cell) : textWidth
         layout = IslandGlanceLayout(notch: notch, glyph: IslandNoticeMark.cell, gap: notch ? 0 : gap, title: 0,
@@ -49,38 +52,56 @@ struct IslandNoticeArt: PillArt {
     }
 }
 
-/// A notice on one centred line below the notch, drawn at the bottom of the grown island.
 @MainActor
 struct IslandHeadlineArt {
     let size: CGSize
     let notice: IslandNotice
     let tone: NSColor
     let text: NSAttributedString
-    let textWidth: CGFloat
+    let fit: IslandNoticeFit
+    var textWidth: CGFloat { fit.textWidth }
     private let mark: IslandNoticeMark
     private let indent: CGFloat
+    private let lineHeight: CGFloat
 
-    init(_ notice: IslandNotice, notch: CGFloat, frosted: Bool, still: Bool = false) {
+    init(_ notice: IslandNotice, notch: CGFloat?, frosted: Bool, still: Bool = false) {
         self.notice = notice
         mark = IslandNoticeMark(notice, frosted: frosted, still: still)
         tone = mark.tone
-        text = IslandNoticeMark.line(notice.line, frosted: frosted)
+        let oneLine = IslandNoticeMark.line(notice.line, frosted: frosted)
         let inset = NotchTheme.Spacing.islandInset
         indent = mark.isEmpty ? 0 : IslandNoticeMark.cell + Theme.Spacing.sm
         let natural = IslandNoticeMark.width(notice.line, readout: notice.progress?.reading, frosted: frosted)
-        textWidth = min(natural, NotchTheme.Size.islandHeadlineMaxWidth - inset * 2 - indent)
-        let width = max(indent + textWidth + inset * 2, notch + Theme.Radius.panel * 2)
-        size = CGSize(width: width, height: ceil(text.size().height) + Theme.Spacing.lg * 2)
+        let cap = NotchTheme.Size.islandHeadlineMaxWidth
+        let insets = inset * 2 + indent
+        let room = cap - insets
+        lineHeight = ceil(oneLine.size().height)
+        let wrapped: CGSize?
+        if IslandNoticeFit.wraps(width: natural, room: room, hasLineBreaks: notice.line.contains(where: \.isNewline)) {
+            text = IslandNoticeMark.line(notice.line, frosted: frosted, wrapping: true)
+            wrapped = text.boundingRect(with: CGSize(width: room, height: CGFloat.greatestFiniteMagnitude),
+                options: [.usesLineFragmentOrigin, .usesFontLeading]).size
+        } else {
+            text = oneLine
+            wrapped = nil
+        }
+        fit = IslandNoticeFit(singleWidth: natural, lineHeight: lineHeight, wrapped: wrapped, insets: insets,
+                              minimum: notch.map { $0 + Theme.Radius.panel * 2 } ?? 0, cap: cap)
+        size = CGSize(width: fit.size.width, height: fit.size.height + Theme.Spacing.lg * 2)
     }
 
-    /// Centred in `area`, so the line stays put while the island grows around it.
     func draw(in area: CGRect) {
         let cell = IslandNoticeMark.cell
         let x = area.midX - (indent + textWidth) / 2
-        mark.draw(in: CGRect(x: x, y: area.midY - cell / 2, width: cell, height: cell))
-        let height = text.size().height
-        text.draw(with: CGRect(x: x + indent, y: area.midY - height / 2, width: textWidth, height: height),
-                  options: [.usesLineFragmentOrigin, .truncatesLastVisibleLine])
+        let top = area.midY + fit.size.height / 2
+        let markY = fit.lines == 1 ? area.midY : top - lineHeight / 2
+        mark.draw(in: CGRect(x: x, y: markY - cell / 2, width: cell, height: cell))
+        var options: NSString.DrawingOptions = [.usesLineFragmentOrigin, .truncatesLastVisibleLine]
+        let wrapped = fit.lines > 1
+        if wrapped { options.insert(.usesFontLeading) }
+        let height = wrapped ? fit.size.height + 1 : text.size().height
+        let y = wrapped ? top - height : area.midY - height / 2
+        text.draw(with: CGRect(x: x + indent, y: y, width: textWidth, height: height), options: options)
     }
 }
 
@@ -117,9 +138,9 @@ private struct IslandNoticeMark {
         ceil(line(readout == nil ? words : IslandProgress.shape(of: words), frosted: frosted).size().width)
     }
 
-    static func line(_ string: String, frosted: Bool) -> NSAttributedString {
+    static func line(_ string: String, frosted: Bool, wrapping: Bool = false) -> NSAttributedString {
         let paragraph = NSMutableParagraphStyle()
-        paragraph.lineBreakMode = .byTruncatingTail
+        paragraph.lineBreakMode = wrapping ? .byWordWrapping : .byTruncatingTail
         return NSAttributedString(string: string, attributes: [.font: NotchTheme.Typography.islandGlanceNSFont,
             .foregroundColor: Theme.Colors.textPrimary.islandInk(frosted: frosted), .paragraphStyle: paragraph])
     }

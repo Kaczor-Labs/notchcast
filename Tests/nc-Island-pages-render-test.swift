@@ -42,6 +42,7 @@ struct IslandPagesRenderTest {
         where ["975-", "960-open-"].contains(where: old.lastPathComponent.hasPrefix) {
             try FileManager.default.removeItem(at: old)
         }
+        checkNoticeWrapping()
         var sizes: [String: CGSize] = [:]
         for frosted in [false, true] {
             for notch in [false, true] {
@@ -66,6 +67,28 @@ struct IslandPagesRenderTest {
             == Theme.Size.panelWidth, "a page of cards keeps the launcher's width (#1128)")
         print("agents-slots \(sizes["agents-slots"]!), agents-alone \(sizes["agents-alone"]!)")
         print("PASS rendered island pages to \(folder.path)")
+    }
+
+    static func checkNoticeWrapping() {
+        let short = "Copied"
+        let long = "hatchzip is not installed. Install it with: brew install xevrion/tap/hatchzip"
+        func height(_ title: String, notice: Bool) -> CGFloat {
+            var deck = IslandPageDeck()
+            deck.show(IslandNotice(id: "wrap", symbol: "doc", text: title), tappable: true)
+            var row = deck.notice!
+            if !notice { row.titleLines = IslandPageRow(title: title).titleLines }
+            let view = IslandPageRowView(row: row, act: { _ in })
+                .fixedSize()
+                .environment(\.metrics, InterfaceMetrics.standard)
+                .environment(\.colorScheme, .dark)
+            return NSHostingView(rootView: view).fittingSize.height
+        }
+        let six = Array(repeating: short, count: 6).joined(separator: "\n")
+        precondition(height(long, notice: true) > height(short, notice: true), "Only the notice wraps its text")
+        precondition(height(long, notice: false) == height(short, notice: false), "Other rows stay one line")
+        precondition(height(six, notice: true) > height(long, notice: true)
+                     && height(six, notice: true) == height(six + "\n" + short, notice: true),
+                     "The notice's row fits six lines and truncates after them")
     }
 
     static func decks() -> [(String, IslandPageDeck)] {

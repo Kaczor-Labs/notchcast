@@ -2,6 +2,7 @@
 // notchcast-sources: Tinycast/Platform/Appearance.swift Tinycast/DesignSystem/Theme.swift
 // notchcast-sources: Tinycast/DesignSystem/InterfaceMetrics.swift Tinycast/Features/Notchcast/NotchTheme.swift
 // notchcast-sources: Tinycast/Features/Island/Model/IslandPresentation.swift
+// notchcast-sources: Tinycast/Features/Island/Model/IslandNoticeFit.swift
 // notchcast-sources: Tinycast/Features/Island/Service/IslandNoticeArt.swift Tinycast/Features/Island/UI/IslandTone+Ink.swift
 // notchcast-sources: Tinycast/Features/Island/Service/IslandCanvas.swift Tinycast/Features/Island/Model/PillMenuRows.swift
 // notchcast-sources: Tinycast/Features/Calendar/Model/*.swift Tinycast/Features/Island/Model/IslandLevelDwell.swift

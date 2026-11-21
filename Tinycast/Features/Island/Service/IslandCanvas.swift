@@ -15,6 +15,7 @@ final class IslandCanvas: NSView {
     var drawnLine: IslandHeadlineArt? { covered ? nil : headline ?? leaving }
     var restWidth: CGFloat = 0
     var restHeight: CGFloat = 1
+    var expandedPadding: CGFloat = 0
     var glanceWidth: CGFloat = 0
     var keylineEnabled = true
     var scale: CGFloat = 2
@@ -54,6 +55,14 @@ final class IslandCanvas: NSView {
     var onOpen: (() -> Void)?
     var onMenu: (() -> Void)?
     var canOpen: (() -> Bool)?
+    private var expansionTravel: CGFloat {
+        guard let outline, let height = drawnLine?.size.height ?? expansion?.size.height else { return 0 }
+        let travel = height + expandedPadding - restHeight
+        return min(max((outline.boundingBoxOfPath.height - restHeight) / max(travel, 1), 0), 1)
+    }
+
+    var headlineOpacity: CGFloat { min(max(expansionTravel * 2 - 1, 0), 1) }
+
     override func draw(_ dirtyRect: NSRect) {
         NSColor.clear.setFill()
         dirtyRect.fill(using: .copy)
@@ -87,8 +96,7 @@ final class IslandCanvas: NSView {
         context.addPath(outline)
         context.clip()
         let grown = abs(travel) < 1 ? 1 : min(max((bounds.width - restWidth) / travel, 0), 1)
-        let open = headline?.size.height ?? expansion?.size.height ?? leaving?.size.height ?? restHeight
-        let expanding = min(max((bounds.height - restHeight) / open, 0), 1)
+        let expanding = expansionTravel
         // A layer, because NSImage.draw resets the context's alpha and glyphs ignored the fade.
         func fade(_ alpha: CGFloat, _ draw: () -> Void) {
             guard alpha > 0 else { return }
@@ -111,7 +119,7 @@ final class IslandCanvas: NSView {
         }
         if let line {
             // Only the outer half of the travel shows the line, so it is gone before the wings return.
-            fade(min(max(expanding * 2 - 1, 0), 1)) {
+            fade(headlineOpacity) {
                 line.draw(in: CGRect(x: bounds.minX, y: bounds.minY, width: bounds.width, height: line.size.height))
             }
         }
@@ -157,14 +165,20 @@ final class IslandCanvas: NSView {
         replay = { $0.show(glance: glance, level: level, notice: notice, statuses: statuses, expanded: expanded,
                            notch: notch, song: song, songChange: songChange) }
         let frosted = look == .frosted
-        headline = if let notch, level == nil, let notice, notice.isHeadline {
+        let notched = notch != nil
+        let noticeArt = level == nil && !notched ? notice.map {
+            IslandNoticeArt($0, notch: false, frosted: frosted, still: still)
+        } : nil
+        let headlines = notched ? notice?.isHeadline == true
+            : noticeArt?.fits == false && notice?.progress?.headline != false
+        headline = if let notice, level == nil, headlines {
             IslandHeadlineArt(notice, notch: notch, frosted: frosted, still: still)
         } else { nil }
-        let notched = notch != nil
         let art: (any PillArt)? = if let level {
             IslandLevelArt(level, notch: notched, frosted: frosted)
         } else if let notice {
-            headline == nil ? IslandNoticeArt(notice, notch: notched, frosted: frosted, still: still) : nil
+            headline == nil ? noticeArt ?? IslandNoticeArt(notice, notch: notched, frosted: frosted, still: still)
+                : nil
         } else if let glance {
             GlanceArt(glance, notch: notched, frosted: frosted)
         } else if let song {

@@ -209,7 +209,8 @@ struct IslandPageRowView: View {
 
     var body: some View {
         let label = HStack(spacing: metrics.spacing.md) {
-            IslandPageLabel(symbol: row.symbol, artwork: nil, title: row.title, detail: row.detail)
+            IslandPageLabel(symbol: row.symbol, artwork: nil, title: row.title, detail: row.detail,
+                            titleLines: row.titleLines)
             Spacer(minLength: metrics.spacing.md)
             if let trailing = row.trailing {
                 Text(trailing).font(metrics.typography.rowTrailing).foregroundStyle(Theme.Colors.textSecondary)

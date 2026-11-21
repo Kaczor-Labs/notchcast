@@ -1,6 +1,7 @@
 // notchcast-sources: Tinycast/Platform/Appearance.swift Tinycast/DesignSystem/Theme.swift
 // notchcast-sources: Tinycast/Features/Notchcast/NotchTheme.swift
 // notchcast-sources: Tinycast/Features/Island/Model/IslandPresentation.swift
+// notchcast-sources: Tinycast/Features/Island/Model/IslandNoticeFit.swift
 // notchcast-sources: Tinycast/Features/Island/Model/IslandLevelDwell.swift
 // notchcast-sources: Tinycast/Features/Island/Model/PillMenuRows.swift Tinycast/Features/Calendar/Model/*.swift
 // notchcast-sources: Tinycast/Features/Island/Service/IslandNoticeArt.swift
@@ -57,14 +58,7 @@ struct IslandCanvasTest {
         precondition(IslandNoticeArt.percent(0.29) == "29%" && IslandNoticeArt.percent(0.999) == "99%"
             && IslandNoticeArt.percent(1) == "100%" && IslandNoticeArt.percent(-1) == "0%",
             "The percent is rounded down, never early to 100%, and four characters at most")
-        let long = IslandHeadlineArt(IslandNotice(id: "l", symbol: "arrow.down.circle",
-            text: "2 of 3: Ultimate Guide to Swift Concurrency on Apple Platforms", progress: IslandProgress(fraction: 0.08)),
-            notch: notch, frosted: false)
-        let mode = (long.text.attribute(.paragraphStyle, at: 0, effectiveRange: nil) as? NSParagraphStyle)?.lineBreakMode
-        print("long headline: width \(long.size.width), text \(long.textWidth) of \(ceil(long.text.size().width))")
-        precondition(long.size.width <= 320, "A long headline caps the island at 320 pt, not \(long.size.width)")
-        precondition(long.textWidth < ceil(long.text.size().width) && mode == .byTruncatingTail,
-                     "A long headline truncates its line at the tail")
+        wrapping(canvas, copied: notice)
         let short = IslandHeadlineArt(IslandNotice(id: "s", symbol: "checkmark.circle",
                                                    text: "Downloaded Swift Concurrency.pdf"), notch: notch, frosted: false)
         print("short headline: width \(short.size.width), text \(short.textWidth) of \(ceil(short.text.size().width))")
@@ -76,6 +70,50 @@ struct IslandCanvasTest {
         tones()
         print("Island canvas: headline, fade-out, expansion, cover, notch switch, percent, headline cap, swatch, tone "
             + "and clicks hold")
+    }
+
+    @MainActor static func wrapping(_ canvas: IslandCanvas, copied: IslandNotice) {
+        let hatchzip = IslandNotice(id: "wrap", symbol: "exclamationmark.triangle",
+            text: "hatchzip is not installed. Install it with: brew install xevrion/tap/hatchzip", isFailure: true)
+        for frosted in [false, true] {
+            for notch: CGFloat? in [nil, 185] {
+                let art = IslandHeadlineArt(hatchzip, notch: notch, frosted: frosted)
+                let mode = (art.text.attribute(.paragraphStyle, at: 0, effectiveRange: nil)
+                    as? NSParagraphStyle)?.lineBreakMode
+                precondition(art.fit.lines == 2 && !art.fit.truncated && art.size.height == 50
+                    && art.size.width < 320 && art.textWidth < 266 && mode == .byWordWrapping,
+                    "hatchzip wraps at the cap into a two-line card that hugs the text")
+            }
+            let one = IslandHeadlineArt(copied, notch: 185, frosted: frosted)
+            let pill = IslandNoticeArt(copied, notch: false, frosted: frosted)
+            precondition(one.size == CGSize(width: 237, height: 35) && one.textWidth == 42
+                         && pill.layout.leading == 32 && pill.layout.trailing == 32,
+                         "Copied keeps its original one-line dimensions")
+        }
+
+        func show(_ notice: IslandNotice, notch: CGFloat? = nil) {
+            canvas.show(glance: nil, level: nil, notice: notice, statuses: [], expanded: false, notch: notch)
+        }
+        var boundary = copied
+        for length in 1...40 {
+            boundary.text = String(repeating: "W", count: length)
+            let width = ceil(IslandHeadlineArt(boundary, notch: nil, frosted: false).text.size().width)
+            show(boundary)
+            precondition((canvas.headline == nil) == (width <= 258), "The pill uses its full 258 pt before growing")
+        }
+        var progress = hatchzip
+        progress.progress = IslandProgress(fraction: 0.3)
+        progress.quiet = true
+        show(progress)
+        precondition(canvas.headline?.fit.lines == 2, "Quiet only applies on a notch")
+        show(progress, notch: 185)
+        precondition(canvas.headline == nil && canvas.glance is IslandNoticeArt, "Quiet stays beside the notch")
+        progress.quiet = false
+        show(progress)
+        precondition(canvas.headline?.fit.lines == 2, "Titled progress expands for its first dwell")
+        progress.progress?.headline = false
+        show(progress)
+        precondition(canvas.headline == nil && canvas.glance is IslandNoticeArt, "Spent progress returns to the wings")
     }
 
     /// #960: a readout takes the wing, a meter the mark, and a notice without them draws as before.

@@ -1,11 +1,14 @@
 // notchcast-linux-ok
 // notchcast-sources: Tinycast/Features/Island/Model/IslandPresentation.swift
+// notchcast-sources: Tinycast/Features/Island/Model/IslandNoticeFit.swift
 // notchcast-sources: Tinycast/Features/Island/Model/IslandNoticeQueue.swift
 import Foundation
 
 @main
 struct IslandNoticeTest {
     static func main() {
+        fit()
+        readingTime()
         var queue = IslandNoticeQueue()
         queue.post(IslandNotice(id: "saved", text: "Saved"), at: 0)
         precondition(near(queue.remaining(at: 1), 1.4), "A notice dwells 2.4 s by default")
@@ -153,6 +156,44 @@ struct IslandNoticeTest {
                      "A repost with a new swatch shows the new swatch on top")
         dictation()
         print("IslandNoticeTest passed")
+    }
+
+    static func fit() {
+        precondition(!IslandNoticeFit.wraps(width: 266, room: 266, hasLineBreaks: false))
+        precondition(IslandNoticeFit.wraps(width: 267, room: 266, hasLineBreaks: false))
+        precondition(IslandNoticeFit.wraps(width: 30, room: 266, hasLineBreaks: true))
+        let single = IslandNoticeFit(singleWidth: 266, lineHeight: 15, wrapped: nil, insets: 54,
+                                     minimum: 0, cap: 320)
+        precondition(single.lines == 1 && !single.truncated && single.size.width == 320 && single.size.height == 15)
+        let hugged = IslandNoticeFit(singleWidth: 267, lineHeight: 15, wrapped: CGSize(width: 200.2, height: 28),
+                                     insets: 54, minimum: 0, cap: 320)
+        precondition(hugged.lines == 2 && !hugged.truncated && hugged.size.width == 256 && hugged.size.height == 30,
+                     "The card hugs the widest line plus insets and one point of rounding slack")
+        let capped = IslandNoticeFit(singleWidth: 900, lineHeight: 15, wrapped: CGSize(width: 266, height: 60),
+                                     insets: 54, minimum: 237, cap: 320)
+        precondition(capped.lines == 3 && capped.truncated && capped.size.width == 320 && capped.size.height == 45)
+    }
+
+    static func readingTime() {
+        for (length, expected) in [(45, 2.4), (46, 4), (90, 4), (91, 6), (200, 6)] {
+            var notice = IslandNotice(id: "read", text: String(repeating: "a", count: length))
+            precondition(notice.dwell == expected)
+            notice.isFailure = true
+            precondition(notice.dwell == max(expected, 4))
+            notice.seconds = 0.6
+            precondition(notice.dwell == (length == 45 ? 0.6 : expected))
+            notice.seconds = 7
+            precondition(notice.dwell == 7)
+        }
+        let progress = IslandNotice(id: "read", text: String(repeating: "a", count: 91),
+                                    progress: IslandProgress(fraction: 0.1), quiet: true)
+        var queue = IslandNoticeQueue()
+        queue.post(progress, at: 0)
+        precondition(queue.remaining(at: 0) == 6, "Titled progress gets the same reading floor, even if quiet")
+        queue.post(progress, at: 1)
+        precondition(queue.remaining(at: 1) == 5, "A repost keeps the rest of the first dwell")
+        queue.expire(at: 6)
+        precondition(queue.notice?.progress?.headline == false && queue.remaining(at: 6) == nil)
     }
 
     /// The dictation shapes: one live notice id reposted as its state changes (#960).
