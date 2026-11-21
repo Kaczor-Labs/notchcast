@@ -3,6 +3,7 @@
 from dataclasses import dataclass
 import functools
 import glob
+import os
 from pathlib import Path
 import re
 import shlex
@@ -114,10 +115,7 @@ def fork_owned(path: Path) -> bool:
                           capture_output=True).returncode != 0
 
 
-def harnesses():
-    registrations = upstream_registrations()
-    entries = [(path, read_inputs(path, registrations.get(path.stem, [])))
-               for path in sorted({*Path("Tests").glob("*-test.swift"), *Path("Tests").glob("*Tests.swift")})]
+def augment_inputs(entries):
     script = 'set -ef\naugment() {\nlocal name=$1; shift\n' \
              'source notchcast/command-harness-sources.sh\n' \
              'printf "%s\\0" "$name" "$@"\nprintf "\\0"\n}\n'
@@ -136,6 +134,14 @@ def harnesses():
         inputs.patterns = list(dict.fromkeys(arg for arg in [*inputs.patterns, *augmented]
                                             if not arg.startswith("-")))
         inputs.arguments = compiled
+
+
+def harnesses():
+    registrations = upstream_registrations()
+    entries = [(path, read_inputs(path, registrations.get(path.stem, [])))
+               for path in sorted({*Path("Tests").glob("*-test.swift"), *Path("Tests").glob("*Tests.swift")})]
+    augment_inputs(entries)
+    for path, inputs in entries:
         inputs.headerless_fork = not (inputs.has_header or inputs.arguments
                                       or path.stem.startswith(("nc-", "notchcast-"))) and fork_owned(path)
         if inputs.has_header or inputs.arguments or inputs.reads or inputs.headerless_fork \
@@ -143,12 +149,46 @@ def harnesses():
             yield path, inputs
 
 
-if __name__ == "__main__":
+def comparison_inputs(path: Path) -> list[str]:
+    registered = upstream_registrations().get(path.stem)
+    if registered is None:
+        raise ValueError(f"no runner registration for {path}")
+    inputs = read_inputs(path, registered)
+    if Path("notchcast/command-harness-sources.sh").is_file():
+        augment_inputs([(path, inputs)])
+    reads = [match for pattern in inputs.reads for match in sorted(glob.glob(pattern)) or [pattern]]
+    return [str(path), *inputs.arguments, *reads]
+
+
+def compare_pristine(pristine: Path, name: str):
+    path = Path("Tests") / f"{name}.swift"
+    fork = Path.cwd()
+    current = comparison_inputs(path)
     try:
+        os.chdir(pristine)
+        upstream = comparison_inputs(path)
+    finally:
+        os.chdir(fork)
+    if current != upstream:
+        raise ValueError("harness source lists differ from pristine upstream")
+    for argument in current:
+        if argument == "-parse-as-library":
+            continue
+        if Path(argument).read_bytes() != (pristine / argument).read_bytes():
+            raise ValueError(f"{argument} differs from pristine upstream")
+
+
+if __name__ == "__main__":
+    comparing = len(sys.argv) == 4 and sys.argv[1] == "--compare-pristine"
+    try:
+        if comparing:
+            compare_pristine(Path(sys.argv[2]).resolve(), sys.argv[3])
+            sys.exit(0)
         entries = list(harnesses())
-    except ValueError as error:
-        print(f"::error::{error}", file=sys.stderr)
-        sys.exit(1)
+    except (OSError, ValueError, KeyError, subprocess.CalledProcessError) as error:
+        if comparing:
+            sys.exit(f"could not establish identical inputs: {error}")
+        sys.exit(f"::error::{error}")
     for path, inputs in entries:
         if inputs.has_header or inputs.headerless_fork or path.stem.startswith(("nc-", "notchcast-")):
             additions = inputs.arguments[inputs.registered_count:]

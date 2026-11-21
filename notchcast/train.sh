@@ -261,14 +261,7 @@ signed_off_since() {
             notify "the landing queue stopped: it cannot read when #$1 was labelled land" >&2; return 1; }
     echo "$at"
 }
-# Open PRs on main labelled land, ready or draft, oldest sign-off first: the first LAND_BATCH_SIZE, then the settled
-# ones behind them, which refill a batch the holder check thins.
-
-# A PR found red alone or left out for a conflict or
-# for holding another PR's commits, waits for a new head; a holder only while that PR is open, and one that
-# conflicts with a PR of the batch only while that PR can still be picked. While the newest sign-off of the batch is
-# younger than LAND_SETTLE_SECONDS it prints only a "queue: waits" line, so PRs signed off close together ride one
-# train.
+# Waiting for the newest sign-off lets PRs signed off close together ride one train.
 pick_batch() {
     local pr draft head why other verdict since newest age now
     : > "$scratch/heads"
@@ -303,7 +296,7 @@ pick_batch() {
                 echo "queue: #$pr waits, dropped at ${head:0:8}: ${why%% in the landing batch at head *}" >&2
                 continue
             fi
-            # A draft can have a skipped build or no run on its head.
+            # The train builds a signed-off draft whose PR check is missing or skipped.
             verdict=$(check_run "$head" build) || exit 1
             [ "$verdict" = success ] || { [ "$draft" = true ] && [[ "$verdict" =~ ^(none|skipped)$ ]]; } \
                 || { echo "queue: #$pr waits, build is $verdict on ${head:0:8}" >&2; continue; }

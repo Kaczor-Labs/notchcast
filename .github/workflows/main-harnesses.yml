@@ -92,7 +92,7 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
       - uses: ./tools/notchcast/actions/xcode
-      - name: Run harnesses, retry failures alone
+      - name: Run harnesses
         uses: ./tools/notchcast/actions/tests
         with:
           only: ${{ needs.plan.outputs.tests }}

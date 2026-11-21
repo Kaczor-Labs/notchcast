@@ -241,7 +241,7 @@ when touching a pure file:
 
 ## Build and size checks
 
-A clean build is part of the bar; nothing builds the app for you, so this is on you.
+The hosted PR workflow verifies the Debug build when routed. Use these commands when a guest or Mac build is needed for manual verification or Release size checks.
 
 ```sh
 xcodegen generate                 # only after editing project.yml

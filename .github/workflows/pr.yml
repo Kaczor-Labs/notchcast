@@ -80,6 +80,26 @@ jobs:
         run: |
           git sparse-checkout disable
           python3 notchcast/harness-select.py plan "${BASE:-$(git merge-base origin/main HEAD)}" HEAD
+  # Logs the overflow decision without routing the mac job or gating the build.
+  mac-route:
+    if: inputs.harness_runner == ''
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    continue-on-error: true
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          sparse-checkout: notchcast
+          persist-credentials: false
+      - name: Where mac would run
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EVENT: ${{ github.event_name }}
+          FORK: ${{ github.event.pull_request.head.repo.full_name != github.repository }}
+        run: python3 notchcast/mac-route.py || true
   # The one macOS job of a run: GitHub runs at most 5 at once for the account, so every lane that needs a Mac runs here in turn.
   # Only a dispatch reaches vars.NOTCHCAST_MAC_RUNNER, a self-hosted Mac: a pull_request, a fork's too, stays hosted.
   # inputs.harness_runner names the runner of a harness-only job: the harness steps alone, and no other job of the run.
@@ -130,8 +150,7 @@ jobs:
         run: |
           mkdir -p "$RUNNER_TEMP/tmp" && echo "TMPDIR=$RUNNER_TEMP/tmp" >> "$GITHUB_ENV"
           sysctl -n hw.ncpu hw.memsize; uptime; vm_stat | head -8; sysctl vm.swapusage
-      # Niced beside the build lane, capped at 10 min, reported by their result step; each test writes only its own
-      # TMPDIR, and the build reads no git refs. land-test.sh serves this checkout's upstream main to its fixture remote.
+      # Each test gets its own TMPDIR so it can run beside the Debug build.
       - name: Script tests that need macOS
         if: steps.runner.outputs.kind != 'working'
         working-directory: src
@@ -231,17 +250,37 @@ jobs:
           persist-credentials: false
       - name: Script tests
         run: python3 notchcast/script-tests.py --all --runner linux
-  # The selected harnesses that also run on Linux (LINUX_OK_TESTS, notchcast/config.env), in the official Swift image:
-  # what a Linux worker runs before a push and land.sh on Linux trusts. mac still runs every harness.
+  # mac also runs the selected Linux-compatible harnesses against the macOS SDK.
   linux-harnesses:
     needs: route
     if: needs.route.outputs.build == 'true' && inputs.harness_runner == ''
-    runs-on: ubuntu-latest
-    container: swift:6.4.2-noble@sha256:23d9b28ad97fb1cf1999edc3a0cb265ee915ed42299a9344e7173d5a6d2b05f4
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
+    env:
+      SWIFT_VERSION: '6.4.2'
+      SWIFT_SHA256: 2e9ebec040ad459dd89a6d093a02d8314939135104850fae4d5c0f174fb3ba8c
     steps:
-      - name: Tools the Swift image lacks
-        run: apt-get update -qq && apt-get install -y -qq --no-install-recommends python3 procps
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
+        id: swift
+        with:
+          path: ${{ runner.temp }}/swift.tar.gz
+          key: swift-ubuntu24.04-${{ runner.arch }}-${{ env.SWIFT_VERSION }}-${{ env.SWIFT_SHA256 }}
+      - name: Install the pinned Swift toolchain
+        env:
+          CACHE_HIT: ${{ steps.swift.outputs.cache-hit }}
+        run: |
+          archive="$RUNNER_TEMP/swift.tar.gz"
+          release="swift-$SWIFT_VERSION-RELEASE"
+          if [ "$CACHE_HIT" != true ]; then
+            curl --fail --silent --show-error --location \
+              "https://download.swift.org/swift-$SWIFT_VERSION-release/ubuntu2404/$release/$release-ubuntu24.04.tar.gz" \
+              --output "$archive"
+          fi
+          printf '%s  %s\n' "$SWIFT_SHA256" "$archive" | sha256sum --check
+          tar --use-compress-program=pigz -xf "$archive" -C "$RUNNER_TEMP"
+          swift_bin="$RUNNER_TEMP/$release-ubuntu24.04/usr/bin"
+          "$swift_bin/swiftc" --version
+          echo "$swift_bin" >> "$GITHUB_PATH"
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           fetch-depth: 0
@@ -252,7 +291,6 @@ jobs:
           HARNESS_SELECTED: ${{ needs.route.outputs.harness-selected }}
           HARNESS_UNSURE: ${{ needs.route.outputs.harness-unsure }}
         run: |
-          git config --global --add safe.directory "$GITHUB_WORKSPACE"
           if [ -n "$HARNESS_SELECTED" ] && [ -z "$HARNESS_UNSURE" ]; then export NOTCHCAST_ONLY_TESTS="$HARNESS_SELECTED"; fi
           ./Scripts/run-tests.sh
   # land.sh reads the check named build: green only when every lane the diff needs is. A harness-only run has none:
