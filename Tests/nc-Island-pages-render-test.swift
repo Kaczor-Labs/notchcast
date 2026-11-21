@@ -93,6 +93,12 @@ struct IslandPagesRenderTest {
             deck.show(IslandNotice(id: "update", symbol: "arrow.down.circle", text: "Update ready"), tappable: true)
             return deck
         }
+        func toned(_ page: IslandPage, _ tone: IslandTone, _ text: String) -> IslandPage {
+            var page = page
+            page.line.text = text
+            page.line.tone = tone
+            return page
+        }
         let (board, alone) = agentBoards()
         return [
             ("agents-slots", deck([board, player], select: .page(board.id))),
@@ -104,6 +110,7 @@ struct IslandPagesRenderTest {
             ("1-player-notice", noticed(deck([player]))),
             ("3-home-notice", noticed(deck([calm, player, system]))),
             ("3-home", deck([calm, player, system])),
+            ("3-home-tones", deck([calm, toned(system, .warning, "CPU 96 %"), toned(day, .critical, "Disk almost full")])),
             ("3-player", deck([calm, player, system], select: .page(IslandPlayerPage.id))),
             ("5-home", deck([agents, player, system, day, usage])),
             ("5-system", deck([agents, player, system, day, usage], select: .page("system"))),
