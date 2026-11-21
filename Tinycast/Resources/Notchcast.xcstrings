@@ -301,9 +301,6 @@
     "The last 50 dictations stay on this Mac. Turning this off deletes them." : {
 
     },
-    "The transcript is sent only to the chosen model. Notchcast keeps no log of it." : {
-
-    },
     "Token" : {
 
     },
@@ -314,9 +311,6 @@
 
     },
     "Turn Off and Delete" : {
-
-    },
-    "Turn on Claude or Codex in AI settings, or choose a model." : {
 
     },
     "Up Next" : {
