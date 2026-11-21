@@ -75,6 +75,17 @@ if git commit -m "/Us""ers/fixture/notes" > "$scratch/output" 2>&1; then
 fi
 grep -q 'commit message: <home-path>' "$scratch/output" || fail 'commit-msg did not check the worktree message'
 git commit --quiet -m 'Clean evidence' > "$scratch/output" 2>&1 || fail 'clean orphan commit was refused'
+
+git remote set-url --push origin "$scratch/origin.git"
+git remote set-url origin "$scratch/missing.git"
+if git push --quiet origin evidence > "$scratch/output" 2>&1; then
+    fail 'push succeeded without refreshing origin/main'
+fi
+grep -qx 'pre-push: REFUSED: could not refresh origin/main' "$scratch/output" || fail 'push did not name the failed refresh'
+[ "$(git --git-dir="$scratch/origin.git" rev-parse evidence)" = "$seed" ] || fail 'remote evidence ref moved after the failed refresh'
+git remote set-url origin "$scratch/origin.git"
+echo 'PASS: failed origin/main fetch refused the push and left the remote ref unchanged'
+
 # A push must refresh even when this clone still records the commit from before the installer shipped.
 git update-ref refs/remotes/origin/main refs/remotes/upstream/main
 git push --quiet origin evidence > "$scratch/output" 2>&1 || fail 'clean orphan push was refused'
