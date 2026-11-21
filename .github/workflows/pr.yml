@@ -7,6 +7,10 @@ on:
     types: [opened, synchronize, reopened, ready_for_review, converted_to_draft]
   workflow_dispatch:
     inputs:
+      hosted_linux:
+        description: Run Linux checks on GitHub-hosted runners
+        type: boolean
+        default: false
       base:
         description: Base commit the checks compare against, as a PR's base (notchcast/train.sh)
         default: ''
@@ -41,6 +45,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     outputs:
+      linux-runner: ${{ steps.linux.outputs.runs-on }}
       build: ${{ steps.lanes.outputs.build }}
       scripts: ${{ steps.lanes.outputs.scripts }}
       harness-planned: ${{ steps.select.outputs.planned }}
@@ -48,6 +53,19 @@ jobs:
       harness-unsure: ${{ steps.select.outputs.unsure }}
       harness-only: ${{ steps.select.outputs.only }}
     steps:
+      - name: Linux runner availability
+        id: linux
+        env:
+          POOL_FREE: ${{ vars.POOL_FREE_LINUX }}
+          FORCE_HOSTED: ${{ inputs.hosted_linux }}
+        shell: bash
+        run: |
+          runner=ubuntu-latest
+          if [[ "$FORCE_HOSTED" != true && "$POOL_FREE" =~ ^([1-9][0-9]{0,8})[[:blank:]]([0-9]{10})$ ]]; then
+            age=$(( $(date +%s) - 10#${BASH_REMATCH[2]} ))
+            if (( age >= 0 && age < 180 )); then runner=linux-pool; fi
+          fi
+          echo "runs-on=$runner" >> "$GITHUB_OUTPUT"
       # train.sh reads a train's PR run by its conclusion alone, and a harness-only run builds nothing.
       - name: A harness-only run is never a train's
         if: inputs.harness_runner != '' && startsWith(github.ref, 'refs/heads/train/')
@@ -207,13 +225,22 @@ jobs:
   linux-checks:
     needs: route
     if: needs.route.outputs.build == 'true' && inputs.harness_runner == ''
-    runs-on: ubuntu-latest
+    runs-on: ${{ (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository || github.event_name == 'push' || github.event_name == 'workflow_dispatch' || github.event_name == 'merge_group') && needs.route.outputs.linux-runner == 'linux-pool' && 'linux-pool' || 'ubuntu-latest' }}
     timeout-minutes: 10
     steps:
+      - name: Prepare clean Linux workspace
+        shell: bash
+        run: |
+          if [[ "$RUNNER_ENVIRONMENT" == self-hosted ]]; then
+            find "${GITHUB_WORKSPACE:?}" -mindepth 1 -delete
+          fi
+          mkdir -p "$RUNNER_TEMP/home"
+          printf 'HOME=%s/home\nTMPDIR=%s\nnpm_config_cache=%s/npm\n' "$RUNNER_TEMP" "$RUNNER_TEMP" "$RUNNER_TEMP" >> "$GITHUB_ENV"
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           fetch-depth: 0
           persist-credentials: false
+      - uses: ./.github/actions/linux-python
       - name: Checks that need no Mac
         env:
           BASE_SHA: ${{ github.event.pull_request.base.sha || inputs.base }}
@@ -223,13 +250,33 @@ jobs:
   script-tests:
     needs: route
     if: needs.route.outputs.scripts == 'true' && inputs.harness_runner == ''
-    runs-on: ubuntu-latest
+    runs-on: ${{ (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository || github.event_name == 'push' || github.event_name == 'workflow_dispatch' || github.event_name == 'merge_group') && needs.route.outputs.linux-runner == 'linux-pool' && 'linux-pool' || 'ubuntu-latest' }}
     timeout-minutes: 10
     steps:
+      - name: Prepare clean Linux workspace
+        shell: bash
+        run: |
+          if [[ "$RUNNER_ENVIRONMENT" == self-hosted ]]; then
+            find "${GITHUB_WORKSPACE:?}" -mindepth 1 -delete
+          fi
+          mkdir -p "$RUNNER_TEMP/home"
+          printf 'HOME=%s/home\nTMPDIR=%s\nnpm_config_cache=%s/npm\n' "$RUNNER_TEMP" "$RUNNER_TEMP" "$RUNNER_TEMP" >> "$GITHUB_ENV"
+      - name: Install pinned jq
+        shell: bash
+        run: |
+          curl -fsSL https://github.com/jqlang/jq/releases/download/jq-1.8.1/jq-linux-amd64 -o "$RUNNER_TEMP/jq"
+          echo "020468de7539ce70ef1bceaf7cde2e8c4f2ca6c3afb84642aabc5c97d9fc2a0d  $RUNNER_TEMP/jq" | sha256sum -c -
+          chmod +x "$RUNNER_TEMP/jq"
+          echo "$RUNNER_TEMP" >> "$GITHUB_PATH"
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           fetch-depth: 0
           persist-credentials: false
+      - uses: ./.github/actions/linux-python
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
+        with:
+          node-version: '24.22.3'
+          package-manager-cache: false
       - name: Script tests
         run: python3 notchcast/script-tests.py --all --runner linux
   # The selected harnesses that also run on Linux (LINUX_OK_TESTS, notchcast/config.env), with the official Swift release:
@@ -237,12 +284,20 @@ jobs:
   linux-harnesses:
     needs: route
     if: needs.route.outputs.build == 'true' && inputs.harness_runner == ''
-    runs-on: ubuntu-24.04
+    runs-on: ${{ (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository || github.event_name == 'push' || github.event_name == 'workflow_dispatch' || github.event_name == 'merge_group') && needs.route.outputs.linux-runner == 'linux-pool' && 'linux-pool' || 'ubuntu-24.04' }}
     timeout-minutes: 15
     env:
       SWIFT_VERSION: '6.4.2'
       SWIFT_SHA256: 2e9ebec040ad459dd89a6d093a02d8314939135104850fae4d5c0f174fb3ba8c
     steps:
+      - name: Prepare clean Linux workspace
+        shell: bash
+        run: |
+          if [[ "$RUNNER_ENVIRONMENT" == self-hosted ]]; then
+            find "${GITHUB_WORKSPACE:?}" -mindepth 1 -delete
+          fi
+          mkdir -p "$RUNNER_TEMP/home"
+          printf 'HOME=%s/home\nTMPDIR=%s\nnpm_config_cache=%s/npm\n' "$RUNNER_TEMP" "$RUNNER_TEMP" "$RUNNER_TEMP" >> "$GITHUB_ENV"
       - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
         id: swift
         with:
@@ -260,7 +315,10 @@ jobs:
               --output "$archive"
           fi
           printf '%s  %s\n' "$SWIFT_SHA256" "$archive" | sha256sum --check
-          tar --use-compress-program=pigz -xf "$archive" -C "$RUNNER_TEMP"
+          curl -fsSL https://archive.ubuntu.com/ubuntu/pool/universe/p/pigz/pigz_2.8-1_amd64.deb -o "$RUNNER_TEMP/pigz.deb"
+          echo "9c90b8ada9e9c346b787aa7e827c1f70c4a8933ee322171689f2a0311e3f7b5e  $RUNNER_TEMP/pigz.deb" | sha256sum -c -
+          dpkg-deb -x "$RUNNER_TEMP/pigz.deb" "$RUNNER_TEMP/pigz"
+          tar --use-compress-program="$RUNNER_TEMP/pigz/usr/bin/pigz" -xf "$archive" -C "$RUNNER_TEMP"
           swift_bin="$RUNNER_TEMP/$release-ubuntu24.04/usr/bin"
           "$swift_bin/swiftc" --version
           echo "$swift_bin" >> "$GITHUB_PATH"
@@ -281,9 +339,17 @@ jobs:
   build:
     needs: [route, mac, linux-checks, linux-harnesses, script-tests]
     if: ${{ !cancelled() && inputs.harness_runner == '' && (github.event_name == 'workflow_dispatch' || !github.event.pull_request.draft) }}
-    runs-on: ubuntu-latest
+    runs-on: ${{ (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository || github.event_name == 'push' || github.event_name == 'workflow_dispatch' || github.event_name == 'merge_group') && needs.route.outputs.linux-runner == 'linux-pool' && 'linux-pool' || 'ubuntu-latest' }}
     timeout-minutes: 10
     steps:
+      - name: Prepare clean Linux workspace
+        shell: bash
+        run: |
+          if [[ "$RUNNER_ENVIRONMENT" == self-hosted ]]; then
+            find "${GITHUB_WORKSPACE:?}" -mindepth 1 -delete
+          fi
+          mkdir -p "$RUNNER_TEMP/home"
+          printf 'HOME=%s/home\nTMPDIR=%s\nnpm_config_cache=%s/npm\n' "$RUNNER_TEMP" "$RUNNER_TEMP" "$RUNNER_TEMP" >> "$GITHUB_ENV"
       - name: A train run names its base
         if: startsWith(github.ref, 'refs/heads/train/') && inputs.base == ''
         run: |
@@ -314,6 +380,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           persist-credentials: false
+      - uses: ./.github/actions/linux-python
       # check-config reads every notchcast/ file, docs too; linux-checks runs it when the build lane does.
       - name: Config literals
         if: needs.route.outputs.build != 'true'
