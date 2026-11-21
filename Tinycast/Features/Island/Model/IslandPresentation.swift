@@ -22,6 +22,10 @@ struct IslandNotice: Equatable, Sendable {
     var spokenText: String?
     /// The colour a notice is about; drawn in place of the glyph unless the ring or a failure leads.
     var swatch: IslandSwatch?
+    /// Live bars, each 0...1, drawn in place of the glyph or ring; a still island draws `symbol`.
+    var meter: [Double]?
+    /// On a notch, a plain notice keeps to its glyph beside the notch; hover still shows its text.
+    var quiet = false
 
     static let messageSeconds: TimeInterval = 2.4
     static let failureSeconds: TimeInterval = 4
@@ -29,7 +33,19 @@ struct IslandNotice: Equatable, Sendable {
     var spoken: String { spokenText ?? text }
     var dwell: TimeInterval { seconds ?? (isFailure ? Self.failureSeconds : Self.messageSeconds) }
     /// On a notch, its text expands below the notch; otherwise it keeps to the wings (design §10).
-    var isHeadline: Bool { progress?.headline ?? true }
+    var isHeadline: Bool { !quiet && (progress?.headline ?? true) }
+    /// The readout leads the text, so the open page's row and the wings read alike.
+    var line: String { progress?.reading.map { text.isEmpty ? $0 : $0 + "  " + text } ?? text }
+
+    /// Fewer bars than levels sample them evenly; a bar is a floor plus its level (Vorssaint).
+    static func bars(_ meter: [Double], count: Int, floor: Double) -> [Double] {
+        guard !meter.isEmpty, count > 0 else { return Array(repeating: floor, count: max(count, 0)) }
+        return (0..<count).map { bar in
+            let index = min(meter.count - 1, Int((Double(bar) + 0.5) / Double(count) * Double(meter.count)))
+            let level = meter[index].isFinite ? min(max(meter[index], 0), 1) : 0
+            return floor + (1 - floor) * level
+        }
+    }
 }
 
 /// An sRGB colour, each channel clamped to 0...1; the one place a caller picks a colour, as content.
@@ -57,6 +73,51 @@ struct IslandProgress: Equatable, Sendable {
     var fraction: Double?
     /// The text is a title worth one message dwell below the notch before the ring takes the wing.
     var headline = true
+    /// A short live value, such as an elapsed time; beside a notch it takes the percent's wing.
+    var readout: String?
+    /// The readout, or nil when it is empty, so an empty one draws as none.
+    var reading: String? { readout?.isEmpty == false ? readout : nil }
+
+    /// Every digit counts as "0", so a ticking readout resizes only as a character comes or goes.
+    static func shape(of reading: String) -> String { String(reading.map { $0.isNumber ? "0" : $0 }) }
+}
+
+/// A key the island's key hold reads while a caller holds the keyboard.
+enum IslandHeldKey: Sendable {
+    case accept
+    case cancel
+
+    /// Virtual key codes, as Carbon's kVK constants, which a Model file cannot import.
+    init?(keyCode: Int) {
+        switch keyCode {
+        case 36, 76: self = .accept
+        case 53: self = .cancel
+        default: return nil
+        }
+    }
+}
+
+/// Whether the island holds the keyboard, and the notice that was on top when it took it.
+struct IslandKeyLease: Equatable, Sendable {
+    private(set) var held = false
+    private(set) var owner: String?
+
+    mutating func take(during notice: String?) {
+        held = true
+        owner = notice
+    }
+
+    mutating func give() {
+        held = false
+        owner = nil
+    }
+
+    /// True once the notice it was taken under is gone, which gives it back without its caller.
+    mutating func outlived(live: (String) -> Bool) -> Bool {
+        guard held, let owner, !live(owner) else { return false }
+        give()
+        return true
+    }
 }
 
 /// A rest-pill glyph that stays until its owner clears it; at most four `text` characters show.

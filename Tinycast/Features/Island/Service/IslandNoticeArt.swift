@@ -1,6 +1,6 @@
 import AppKit
 
-/// A notice in the wings; on a notch only its mark and percent, since its text expands below.
+/// A notice in the wings; on a notch only its mark and percent or readout, as its text goes below.
 @MainActor
 struct IslandNoticeArt: PillArt {
     let layout: IslandGlanceLayout
@@ -16,16 +16,17 @@ struct IslandNoticeArt: PillArt {
 
     static func failureTone(frosted: Bool) -> NSColor { failureTones[frosted ? 1 : 0] }
 
-    init(_ notice: IslandNotice, notch: Bool, frosted: Bool) {
+    init(_ notice: IslandNotice, notch: Bool, frosted: Bool, still: Bool = false) {
         self.notice = notice
         self.notch = notch
-        mark = IslandNoticeMark(notice, frosted: frosted)
+        mark = IslandNoticeMark(notice, frosted: frosted, still: still)
         tone = mark.tone
-        let words = notch ? notice.progress?.fraction.map(Self.percent) ?? "" : notice.text
+        let readout = notice.progress?.reading
+        let words = notch ? readout ?? notice.progress?.fraction.map(Self.percent) ?? "" : notice.line
         text = IslandNoticeMark.line(words, frosted: frosted)
         let wing = NotchTheme.Size.islandGlanceWing
         let room = notch ? wing : wing * 2 - IslandNoticeMark.cell - gap
-        textWidth = min(ceil(text.size().width), room)
+        textWidth = min(IslandNoticeMark.width(words, readout: readout, frosted: frosted), room)
         // A glyph-only notice still needs a right wing, or the engine draws the notch lopsided.
         let trailing = notch ? max(textWidth, IslandNoticeMark.cell) : textWidth
         layout = IslandGlanceLayout(notch: notch, glyph: IslandNoticeMark.cell, gap: notch ? 0 : gap, title: 0,
@@ -59,14 +60,15 @@ struct IslandHeadlineArt {
     private let mark: IslandNoticeMark
     private let indent: CGFloat
 
-    init(_ notice: IslandNotice, notch: CGFloat, frosted: Bool) {
+    init(_ notice: IslandNotice, notch: CGFloat, frosted: Bool, still: Bool = false) {
         self.notice = notice
-        mark = IslandNoticeMark(notice, frosted: frosted)
+        mark = IslandNoticeMark(notice, frosted: frosted, still: still)
         tone = mark.tone
-        text = IslandNoticeMark.line(notice.text, frosted: frosted)
+        text = IslandNoticeMark.line(notice.line, frosted: frosted)
         let inset = NotchTheme.Spacing.islandInset
         indent = mark.isEmpty ? 0 : IslandNoticeMark.cell + Theme.Spacing.sm
-        textWidth = min(ceil(text.size().width), NotchTheme.Size.islandHeadlineMaxWidth - inset * 2 - indent)
+        let natural = IslandNoticeMark.width(notice.line, readout: notice.progress?.reading, frosted: frosted)
+        textWidth = min(natural, NotchTheme.Size.islandHeadlineMaxWidth - inset * 2 - indent)
         let width = max(indent + textWidth + inset * 2, notch + Theme.Radius.panel * 2)
         size = CGSize(width: width, height: ceil(text.size().height) + Theme.Spacing.lg * 2)
     }
@@ -82,29 +84,38 @@ struct IslandHeadlineArt {
     }
 }
 
-/// What leads a notice: its ring while the fraction is known, else a swatch, else a glyph a failure tints.
+/// What leads a notice: live bars, else its ring while the fraction is known, else swatch or glyph.
 @MainActor
 private struct IslandNoticeMark {
     /// Fixed, so a progress notice that turns into a glyph one never resizes the slots.
     static let cell = NotchTheme.Typography.islandGlanceNSFont.pointSize + Theme.Spacing.xs
     let tone: NSColor
     private let frosted: Bool
+    private let bars: [Double]?
     private let fraction: Double?
     private let swatch: NSColor?
     private let glyph: NSImage?
 
-    init(_ notice: IslandNotice, frosted: Bool) {
+    init(_ notice: IslandNotice, frosted: Bool, still: Bool) {
         self.frosted = frosted
         tone = notice.isFailure
             ? IslandNoticeArt.failureTone(frosted: frosted) : Theme.Colors.textPrimary.islandInk(frosted: frosted)
-        fraction = notice.progress?.fraction
-        swatch = fraction == nil && !notice.isFailure
+        bars = still ? nil : notice.meter.map {
+            IslandNotice.bars($0, count: IslandEqualizer.bars, floor: IslandEqualizer.floor)
+        }
+        fraction = bars == nil ? notice.progress?.fraction : nil
+        swatch = bars == nil && fraction == nil && !notice.isFailure
             ? notice.swatch.map { NSColor(srgbRed: $0.red, green: $0.green, blue: $0.blue, alpha: 1) } : nil
-        glyph = fraction == nil && swatch == nil
+        glyph = bars == nil && fraction == nil && swatch == nil
             ? notice.symbol.flatMap { [tone] in GlanceArt.glyph($0, tone: tone) } : nil
     }
 
-    var isEmpty: Bool { fraction == nil && swatch == nil && glyph == nil }
+    var isEmpty: Bool { bars == nil && fraction == nil && swatch == nil && glyph == nil }
+
+    /// A readout is measured by its shape, so the wing moves only when a character comes or goes.
+    static func width(_ words: String, readout: String?, frosted: Bool) -> CGFloat {
+        ceil(line(readout == nil ? words : IslandProgress.shape(of: words), frosted: frosted).size().width)
+    }
 
     static func line(_ string: String, frosted: Bool) -> NSAttributedString {
         let paragraph = NSMutableParagraphStyle()
@@ -114,7 +125,9 @@ private struct IslandNoticeMark {
     }
 
     func draw(in box: CGRect) {
-        if let fraction {
+        if let bars {
+            meter(bars, in: box)
+        } else if let fraction {
             ring(fraction, in: box.insetBy(dx: Theme.Size.hairline, dy: Theme.Size.hairline))
         } else if let swatch {
             let radius = IslandCover.radius
@@ -124,6 +137,18 @@ private struct IslandNoticeMark {
         } else if let glyph {
             glyph.draw(in: CGRect(x: box.midX - glyph.size.width / 2, y: box.midY - glyph.size.height / 2,
                                   width: glyph.size.width, height: glyph.size.height))
+        }
+    }
+
+    /// The song meter's bars, fed by the caller's levels instead of a clock.
+    private func meter(_ bars: [Double], in box: CGRect) {
+        let bar = Theme.Spacing.xxs
+        let step = (box.width - bar) / Double(max(bars.count - 1, 1))
+        tone.setFill()
+        for (index, level) in bars.enumerated() {
+            let height = max(bar, box.height * level)
+            let frame = CGRect(x: box.minX + Double(index) * step, y: box.midY - height / 2, width: bar, height: height)
+            NSBezierPath(roundedRect: frame, xRadius: bar / 2, yRadius: bar / 2).fill()
         }
     }
 
