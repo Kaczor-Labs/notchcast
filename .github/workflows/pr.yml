@@ -83,7 +83,7 @@ jobs:
           python3 notchcast/harness-select.py plan "${BASE:-$(git merge-base origin/main HEAD)}" HEAD
   # Shadow of the mac job's overflow route (#1330): beside route, needed by nothing, it only prints where mac would run.
   mac-route:
-    if: inputs.harness_runner == ''
+    if: (github.event_name == 'workflow_dispatch' || !github.event.pull_request.draft) && inputs.harness_runner == ''
     runs-on: ubuntu-latest
     timeout-minutes: 2
     continue-on-error: true
