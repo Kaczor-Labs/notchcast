@@ -92,11 +92,13 @@ struct DownloadsModuleTest {
             "downloads", "downloadsAria2", "distill", "distillTimestamps", "torrents", "torrentsKeepSharing",
             "downloadsUseIPhone",
         ], "v1 raw ids stay; #1183: one iPhone switch, last")
-        expect(switches.allSatisfy { !$0.defaultEnabled && $0.category == .filesDownloads && $0.requiredGrants.isEmpty },
+        expect(switches.allSatisfy { !$0.defaultEnabled && $0.category == .downloads && $0.requiredGrants.isEmpty },
                "every switch starts off in Downloads")
         expect(switches.map(\.dependencies) == [
             [], ["downloads"], [], ["distill"], [], ["torrents"], [],
         ], "aria2 needs Downloads, Timestamps needs Distill, keep-sharing needs Torrents, bonding serves either")
+        expect(switches.last?.listedWhenAnyEnabled == ["torrents", "downloadsAria2"],
+               "the iPhone switch is listed while either aria2c path can use it")
         expect(DownloadsAddon.commands.map(\.slug) == [
             "download-video", "download-audio", "download-youtube-transcript", "save-webpage-as-markdown",
             "add-links-to-distill", "run-distill", "download-torrent-from-clipboard", "open-torrent-file",

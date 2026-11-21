@@ -4,7 +4,7 @@ struct ArchivesSettingsView: View {
     private let context: NotchcastContext
     @AppStorage private var defaultApp: Bool
     @AppStorage private var inPlace: Bool
-    private static let anchor = NotchcastSettingsSearch.anchor(.filesDownloads)
+    private static let anchor = NotchcastSettingsSearch.anchor(.files)
 
     init(context: NotchcastContext) {
         self.context = context

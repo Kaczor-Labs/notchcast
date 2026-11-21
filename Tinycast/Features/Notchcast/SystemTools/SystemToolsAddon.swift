@@ -48,7 +48,9 @@ enum SystemToolsAddon: NotchcastAddon {
     ]
 
     static let settings = [
-        NotchcastSettingsRow(switchID: switchID) { _ in
+        NotchcastSettingsRow(switchID: switchID, searchTerms: [
+            "touch id for sudo",
+        ]) { _ in
             AnyView(SudoTouchIDSettingsView(store: SudoTouchIDStore(files: .live)))
         },
     ]

@@ -329,7 +329,7 @@ enum TaildropModuleTests {
         let addon = TaildropAddon.switches[0]
         precondition(TaildropAddon.switches.count == 1 && addon.id == "taildrop", "one switch")
         precondition(!addon.defaultEnabled && addon.requiredGrants.isEmpty, "off by default, no grant needed")
-        precondition(addon.category == .filesDownloads && TaildropAddon.commands.isEmpty, "commands come from devices")
+        precondition(addon.category == .files && TaildropAddon.commands.isEmpty, "commands come from devices")
         precondition(
             NSImage(systemSymbolName: TaildropModule.symbol, accessibilityDescription: nil) != nil, "a real SF Symbol")
 

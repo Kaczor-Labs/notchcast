@@ -110,7 +110,7 @@ enum LowDiskModuleTests {
         let only = LowDiskAddon.switches
         precondition(only.map(\.id) == ["lowDiskWarning"], "v1 switch id")
         precondition(only[0].defaultEnabled == false, "off by default")
-        precondition(only[0].category == .power, "Power category")
+        precondition(only[0].category == .notices, "Notices category")
         precondition(LowDiskAddon.commands.map(\.slug) == ["check-disk-space"], "v1 command slug")
         precondition(LowDiskAddon.commands[0].switchID == "lowDiskWarning", "the command rides the switch")
         precondition(LowDiskAddon.settings.map(\.switchID) == ["lowDiskWarning"], "the threshold sits under it")

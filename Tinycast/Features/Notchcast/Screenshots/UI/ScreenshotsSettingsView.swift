@@ -26,19 +26,20 @@ struct ScreenshotsSettingsView: View {
             SettingsRowTitle(
                 Self.anchor, LocalizedStringResource("Screenshot destination", table: "NotchcastScreenshots"))
         }
-        LabeledContent {
-            Button(action: chooseFolder) {
-                Text("Choose…", tableName: "NotchcastScreenshots")
-            }
-        } label: {
-            SettingsRowTitle(Self.anchor, LocalizedStringResource("Screenshot folder", table: "NotchcastScreenshots"))
-            if let folder {
-                Text(folder)
-            } else {
-                Text("Downloads", tableName: "NotchcastScreenshots")
+        if destination != .clipboard || editAfterCapture {
+            LabeledContent {
+                Button(action: chooseFolder) {
+                    Text("Choose…", tableName: "NotchcastScreenshots")
+                }
+            } label: {
+                SettingsRowTitle(Self.anchor, LocalizedStringResource("Screenshot folder", table: "NotchcastScreenshots"))
+                if let folder {
+                    Text(folder)
+                } else {
+                    Text("Downloads", tableName: "NotchcastScreenshots")
+                }
             }
         }
-        .settingsEnabled(destination != .clipboard || editAfterCapture)
     }
 
     private func chooseFolder() {

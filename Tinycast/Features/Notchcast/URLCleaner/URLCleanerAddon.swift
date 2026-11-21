@@ -1,5 +1,5 @@
 // notchcast-addon-order: 230
-// notchcast-readme: Launcher Extras: clean tracking parameters from copied links (with Clipboard History on)
+// notchcast-readme: Clipboard & Files: clean tracking parameters from copied links (with Clipboard History on)
 import SwiftUI
 
 enum URLCleanerAddon: NotchcastAddon {
@@ -10,13 +10,17 @@ enum URLCleanerAddon: NotchcastAddon {
             subtitle: String(
                 localized: "Remove tracking parameters from links you copy while Clipboard History is on.",
                 table: "NotchcastURLCleaner"),
-            category: .launcher,
+            category: .clipboard,
             defaultEnabled: false
         ),
     ]
 
     static let settings = [
-        NotchcastSettingsRow(switchID: "urlCleaner") {
+        NotchcastSettingsRow(switchID: "urlCleaner", searchTerms: [
+            "extra parameters to remove",
+            "parameters to keep",
+            "per-site rules",
+        ]) {
             AnyView(URLCleanerSettingsView(defaults: $0.defaults))
         },
     ]

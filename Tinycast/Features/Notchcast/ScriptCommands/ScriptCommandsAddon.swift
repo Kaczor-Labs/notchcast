@@ -18,7 +18,11 @@ enum ScriptCommandsAddon: NotchcastAddon {
     ]
 
     static let settings = [
-        NotchcastSettingsRow(switchID: switchID) { AnyView(ScriptCommandsSettingsView(context: $0)) },
+        NotchcastSettingsRow(switchID: switchID, searchTerms: [
+            "add script command",
+        ]) {
+            AnyView(ScriptCommandsSettingsView(context: $0))
+        },
     ]
 
     static func makeModule(_ context: NotchcastContext) -> (any NotchcastModule)? {

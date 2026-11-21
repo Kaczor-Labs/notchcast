@@ -5,7 +5,7 @@ struct TorrentsSettingsView: View {
     let context: NotchcastContext
     @State private var aria2c: URL?
     @State private var looked = false
-    private static let anchor = NotchcastSettingsSearch.anchor(.filesDownloads)
+    private static let anchor = NotchcastSettingsSearch.anchor(.downloads)
 
     var body: some View {
         if let module = context.module(DownloadsModule.self) {

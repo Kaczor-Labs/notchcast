@@ -8,7 +8,7 @@ enum SmallCommandsAddon: NotchcastAddon {
     static let switches = [
         NotchcastSwitch(
             id: "smallCommands",
-            title: String(localized: "Small Commands", table: "NotchcastSmallCommands"),
+            title: String(localized: "Small Tools", table: "NotchcastSmallCommands"),
             subtitle: String(localized: "Passwords, short links and AirDrop.", table: "NotchcastSmallCommands"),
             category: .launcher,
             defaultEnabled: false

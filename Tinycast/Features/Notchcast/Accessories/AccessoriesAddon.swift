@@ -17,7 +17,14 @@ enum AccessoriesAddon: NotchcastAddon {
     ]
 
     static let settings = [
-        NotchcastSettingsRow(switchID: "accessoryNotices") {
+        NotchcastSettingsRow(switchID: "accessoryNotices", searchTerms: [
+            "connected",
+            "low battery",
+            "hide the system banner",
+            "needs bluetooth access",
+            "needs accessibility access",
+            "grant access…",
+        ]) {
             AnyView(AccessoriesSettingsView(defaults: $0.defaults))
         },
     ]

@@ -1,5 +1,5 @@
 // notchcast-addon-order: 190
-// notchcast-readme: Downloads: extract archives in place with HatchZip
+// notchcast-readme: Clipboard & Files: extract archives in place with HatchZip
 // notchcast-new-switch-ids: archives
 import SwiftUI
 
@@ -11,7 +11,7 @@ enum ArchivesAddon: NotchcastAddon {
             title: String(localized: "Archives", table: "NotchcastArchives"),
             subtitle: String(
                 localized: "Extract archives with HatchZip, next to the archive.", table: "NotchcastArchives"),
-            category: .filesDownloads)
+            category: .files)
     ]
 
     static let commands = [
@@ -27,7 +27,12 @@ enum ArchivesAddon: NotchcastAddon {
     ]
 
     static let settings = [
-        NotchcastSettingsRow(switchID: "archives") { AnyView(ArchivesSettingsView(context: $0)) }
+        NotchcastSettingsRow(switchID: "archives", searchTerms: [
+            "make notchcast the default app for archives",
+            "extract in place",
+        ]) {
+            AnyView(ArchivesSettingsView(context: $0))
+        }
     ]
 
     static func makeModule(_ context: NotchcastContext) -> (any NotchcastModule)? {

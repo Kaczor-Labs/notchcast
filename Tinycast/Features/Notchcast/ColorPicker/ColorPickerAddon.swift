@@ -22,7 +22,10 @@ enum ColorPickerAddon: NotchcastAddon {
     ]
 
     static let settings = [
-        NotchcastSettingsRow(switchID: ColorPickerModule.switchID) { context in
+        NotchcastSettingsRow(switchID: ColorPickerModule.switchID, searchTerms: [
+            "color format",
+            "recent picks",
+        ]) { context in
             AnyView(ColorPickerSettingsView(defaults: context.defaults) {
                 context.module(ColorPickerModule.self)?.copy($0)
             })

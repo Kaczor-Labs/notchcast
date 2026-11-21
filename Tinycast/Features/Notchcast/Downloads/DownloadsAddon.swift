@@ -16,37 +16,37 @@ enum DownloadsAddon: NotchcastAddon {
             subtitle: String(
                 localized: "Download video, audio, transcripts and webpages from clipboard links.",
                 table: "NotchcastDownloads"),
-            category: .filesDownloads),
+            category: .downloads),
         NotchcastSwitch(
             id: "downloadsAria2",
             title: String(localized: "Fast Downloads with aria2c", table: "NotchcastDownloads"),
             subtitle: String(localized: "Media downloads only, when aria2c is installed.", table: "NotchcastDownloads"),
-            category: .filesDownloads, dependencies: ["downloads"]),
+            category: .downloads, dependencies: ["downloads"]),
         NotchcastSwitch(
             id: "distill",
             title: String(localized: "Distill", table: "NotchcastDownloads"),
             subtitle: String(
                 localized: "Save links and transcribe media into ~/Downloads/Distill/Raw.", table: "NotchcastDownloads"),
-            category: .filesDownloads),
+            category: .downloads),
         NotchcastSwitch(
             id: "distillTimestamps",
             title: String(localized: "Distill Timestamps", table: "NotchcastDownloads"),
             subtitle: String(localized: "Approximate, one per chunk.", table: "NotchcastDownloads"),
-            category: .filesDownloads, dependencies: ["distill"]),
+            category: .downloads, dependencies: ["distill"]),
         NotchcastSwitch(
             id: "torrents",
             title: String(localized: "Torrents", table: "NotchcastDownloads"),
             subtitle: String(
                 localized: "Default app for magnet links and .torrent files; downloads them to ~/Downloads with aria2c.",
                 table: "NotchcastDownloads"),
-            category: .filesDownloads),
+            category: .downloads),
         NotchcastSwitch(
             id: "torrentsKeepSharing",
             title: String(localized: "Keep sharing until ratio 1.0", table: "NotchcastDownloads"),
             subtitle: String(
                 localized: "Upload as much as you downloaded before stopping. Off stops sharing once complete.",
                 table: "NotchcastDownloads"),
-            category: .filesDownloads, dependencies: ["torrents"]),
+            category: .downloads, dependencies: ["torrents"]),
         NotchcastSwitch(
             id: "downloadsUseIPhone",
             title: String(localized: "Use Wi-Fi and a plugged-in iPhone together", table: "NotchcastDownloads"),
@@ -56,7 +56,7 @@ enum DownloadsAddon: NotchcastAddon {
                     table: "NotchcastDownloads"),
                 String(localized: "This uses mobile data.", table: "NotchcastDownloads"),
             ].joined(separator: " "),
-            category: .filesDownloads),
+            category: .downloads, listedWhenAnyEnabled: ["torrents", "downloadsAria2"]),
     ]
 
     static let commands = DownloadsModule.Action.allCases.map { action in

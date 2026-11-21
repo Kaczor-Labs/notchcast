@@ -218,7 +218,8 @@ enum DisplaySoundModuleTests {
     static func main() async {
         precondition(DisplaySoundAddon.switches.map(\.id) == ["displayBrightness", "extraDimming", "volumeLevels"],
                      "v1 ids, extra dimming between them")
-        precondition(DisplaySoundAddon.switches.allSatisfy { $0.defaultEnabled && $0.category == .displaySound },
+        precondition(DisplaySoundAddon.switches.allSatisfy(\.defaultEnabled)
+                     && DisplaySoundAddon.switches.map(\.category) == [.display, .display, .sound],
                      "all default on, Display & Sound")
         precondition(DisplaySoundAddon.switches.map(\.requiredGrants) == [[.accessibility], [], [.accessibility]]
             && DisplaySoundAddon.switches[1].dependencies == ["displayBrightness"], "extra dimming rides brightness")

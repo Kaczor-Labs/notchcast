@@ -1,10 +1,10 @@
 import Foundation
 import Synchronization
 
-/// The Notchcast tabs' search rows: each shown tab, its island rows, then one per add-on switch.
+/// The Notchcast tabs' search rows: each shown tab, its island rows, then the listed switches.
 enum NotchcastSettingsSearch {
     /// Installed by NotchcastCore before Settings can open; until then Island, which always shows.
-    private static let switchRows = Mutex(rows([], commandWords: [:]))
+    private static let switchRows = Mutex(rows([], commandWords: [:], optionWords: [:]))
 
     static var entries: [SettingsSearchEntry] { switchRows.withLock { $0 } }
 
@@ -27,21 +27,37 @@ enum NotchcastSettingsSearch {
         SettingsAnchor(tab: .notchcast(.holding(category)), title: LocalizedStringResource(stringLiteral: category.title))
     }
 
-    static func install(_ switches: [NotchcastSwitch], commandWords: [String: [String]]) {
-        let rows = rows(switches, commandWords: commandWords)
+    static func install(
+        _ switches: [NotchcastSwitch], commandWords: [String: [String]], optionWords: [String: [String]] = [:]
+    ) {
+        let rows = rows(switches, commandWords: commandWords, optionWords: optionWords)
         switchRows.withLock { $0 = rows }
     }
 
-    /// Commands hide while their switch is off, so their words land on the switch row.
-    private static func rows(_ switches: [NotchcastSwitch], commandWords: [String: [String]]) -> [SettingsSearchEntry] {
-        NotchcastPane.shown(registered: Set(switches.map(\.category))).flatMap { pane in
+    private static func rows(
+        _ switches: [NotchcastSwitch], commandWords: [String: [String]], optionWords: [String: [String]]
+    ) -> [SettingsSearchEntry] {
+        let layout = NotchcastSettingsLayout(switches: switches)
+        var wordsByOwner: [String: [String]] = [:]
+        for item in switches {
+            var words = [item.title, item.subtitle, item.id] + commandWords[item.id, default: []]
+            words += optionWords[item.id, default: []]
+            if item.requiredGrants.contains(.accessibility) {
+                words.append(String(localized: "Needs Accessibility access", table: "Notchcast"))
+            }
+            for owner in layout.listedOwners(of: item) {
+                wordsByOwner[owner, default: []].append(contentsOf: words)
+            }
+        }
+        let listed = switches.filter { $0.dependencies.isEmpty && $0.listedWhenAnyEnabled.isEmpty }
+        return NotchcastPane.shown(registered: Set(listed.map(\.category))).flatMap { pane in
             [SettingsSearchEntry(pane: .notchcast(pane), keywords: ["notchcast", pane == .island ? "notch" : "addons"])]
                 + (pane == .island ? islandRows : [])
                 + pane.categories.flatMap { category in
-                    switches.filter { $0.category == category }.map { item in
+                    listed.filter { $0.category == category }.map { item in
                         SettingsSearchEntry(
                             anchor(category), LocalizedStringResource(stringLiteral: item.title),
-                            keywords: [item.subtitle, item.id] + commandWords[item.id, default: []])
+                            keywords: wordsByOwner[item.id, default: []])
                     }
                 }
         }

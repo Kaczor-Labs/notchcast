@@ -30,7 +30,13 @@ enum ScreenRecordingAddon: NotchcastAddon {
     ]
 
     static let settings = [
-        NotchcastSettingsRow(switchID: ScreenRecordingModule.switchID) {
+        NotchcastSettingsRow(switchID: ScreenRecordingModule.switchID, searchTerms: [
+            "record system audio",
+            "record microphone",
+            "video codec",
+            "file format",
+            "recording folder",
+        ]) {
             AnyView(ScreenRecordingSettingsView(defaults: $0.defaults))
         },
     ]

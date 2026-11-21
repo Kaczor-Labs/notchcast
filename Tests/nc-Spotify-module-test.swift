@@ -181,7 +181,7 @@ struct SpotifyModuleTests {
     @MainActor
     static func main() async {
         check(SpotifyAddon.switches.map(\.id) == ["spotify"], "the switch id is frozen")
-        check(SpotifyAddon.switches[0].defaultEnabled == false && SpotifyAddon.switches[0].category == .music, "off")
+        check(SpotifyAddon.switches[0].defaultEnabled == false && SpotifyAddon.switches[0].category == .islandPages, "off")
         await lifecycle()
         await restarts()
         await expiry()

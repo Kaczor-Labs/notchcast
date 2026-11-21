@@ -3,7 +3,7 @@ import SwiftUI
 struct DistillSettingsView: View {
     @AppStorage private var folder: String?
     @AppStorage private var convertDrops: Bool
-    private static let anchor = NotchcastSettingsSearch.anchor(.filesDownloads)
+    private static let anchor = NotchcastSettingsSearch.anchor(.downloads)
     private static let convertHelp = LocalizedStringResource(
         "PDF, HTML, audio and video files added to the Markdown folder while this is on become notes. Originals go to the Trash.",
         table: "NotchcastDownloads")
@@ -36,11 +36,12 @@ struct DistillSettingsView: View {
                      tableName: "NotchcastDownloads")
             }
         }
-        Toggle(isOn: $convertDrops) {
-            SettingsRowTitle(Self.anchor, LocalizedStringResource("Convert dropped files", table: "NotchcastDownloads"))
-            Text(Self.convertHelp)
+        if folder != nil {
+            Toggle(isOn: $convertDrops) {
+                SettingsRowTitle(Self.anchor, LocalizedStringResource("Convert dropped files", table: "NotchcastDownloads"))
+                Text(Self.convertHelp)
+            }
         }
-        .settingsEnabled(folder != nil)
     }
 
     private func chooseFolder() {

@@ -1,5 +1,5 @@
 // notchcast-addon-order: 165
-// notchcast-readme: Downloads: Taildrop the Finder selection to another of your devices
+// notchcast-readme: Clipboard & Files: Taildrop the Finder selection to another of your devices
 // notchcast-new-switch-ids: taildrop
 import Foundation
 
@@ -13,7 +13,7 @@ enum TaildropAddon: NotchcastAddon {
             subtitle: String(
                 localized: "Send the Finder selection to another of your devices with Tailscale.",
                 table: "NotchcastTaildrop"),
-            category: .filesDownloads,
+            category: .files,
             defaultEnabled: false
         ),
     ]

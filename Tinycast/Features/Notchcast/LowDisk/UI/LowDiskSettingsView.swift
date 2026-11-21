@@ -4,7 +4,7 @@ import SwiftUI
 struct LowDiskSettingsView: View {
     let context: NotchcastContext
     @AppStorage private var threshold: Int
-    private static let anchor = NotchcastSettingsSearch.anchor(.power)
+    private static let anchor = NotchcastSettingsSearch.anchor(.notices)
     /// Room for the largest threshold, three digits.
     private static let fieldWidth = ObsidianTokens.Spacing.space8
 

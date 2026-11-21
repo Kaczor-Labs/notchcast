@@ -1,6 +1,6 @@
 // notchcast-new-switch-ids: spotify
 // notchcast-addon-order: 165
-// notchcast-readme: Display & Sound: Spotify in the Island through Soloist
+// notchcast-readme: Island Content: Spotify in the Island through Soloist
 import SwiftUI
 
 /// Spotify in the island through Soloist, Spotify's own headless player; off by default.
@@ -13,7 +13,7 @@ enum SpotifyAddon: NotchcastAddon {
             title: String(localized: "Spotify in the Island", table: "NotchcastSpotify"),
             subtitle: String(localized: "Play Spotify through Soloist, Spotify’s own lightweight player.",
                              table: "NotchcastSpotify"),
-            category: .music),
+            category: .islandPages),
     ]
 
     static let commands = [
@@ -25,8 +25,22 @@ enum SpotifyAddon: NotchcastAddon {
     ]
 
     static let settings = [
-        NotchcastSettingsRow(switchID: "spotify") { AnyView(SpotifySettingsView(context: $0)) },
-        NotchcastSettingsRow(switchID: "spotify") { AnyView(SpotifyIslandRows(context: $0)) },
+        NotchcastSettingsRow(switchID: "spotify", searchTerms: [
+            "soloist",
+            "soloist key",
+            "get a key…",
+            "client id",
+            "sign out",
+            "sign in…",
+            "open dashboard…",
+        ]) {
+            AnyView(SpotifySettingsView(context: $0))
+        },
+        NotchcastSettingsRow(switchID: "spotify", searchTerms: [
+            "long song names",
+        ]) {
+            AnyView(SpotifyIslandRows(context: $0))
+        },
     ]
 
     static func makeModule(_ context: NotchcastContext) -> (any NotchcastModule)? {

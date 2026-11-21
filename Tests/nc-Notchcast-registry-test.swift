@@ -133,8 +133,13 @@ enum RegistryCheck {
         var problems: [String] = []
         var notes: [String] = []
         let categories = Set(NotchcastCategory.allCases.map(\.rawValue))
-        let ids = source.switches.map(\.id)
-        let declared = Set(ids)
+        let declared = Dictionary(source.switches.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+
+        func hasCycle(_ item: AddonSource.Switch, visiting: Set<String> = []) -> Bool {
+            if visiting.contains(item.id) { return true }
+            let path = visiting.union([item.id])
+            return item.dependencies.compactMap { declared[$0] }.contains { hasCycle($0, visiting: path) }
+        }
         for (id, owners) in Dictionary(grouping: source.switches, by: \.id).mapValues({ $0.map(\.path) })
         where owners.count > 1 {
             problems.append("switch id \(id) declared twice: \(owners.joined(separator: ", "))")
@@ -164,8 +169,15 @@ enum RegistryCheck {
             if !source.userPaths.contains(item.id) {
                 problems.append("\(item.path): switch \(item.id) has no user path (command, settings row, tap or module)")
             }
-            for dependency in item.dependencies where !declared.contains(dependency) {
-                notes.append("switch \(item.id) depends on \(dependency), which no add-on declares; it counts as off")
+            if hasCycle(item) { problems.append("switch \(item.id) has a dependency cycle") }
+            for dependency in item.dependencies {
+                guard let parent = declared[dependency] else {
+                    notes.append("switch \(item.id) depends on \(dependency), which no add-on declares; it counts as off")
+                    continue
+                }
+                if parent.category != item.category {
+                    problems.append("switch \(item.id) must share its category with \(parent.id)")
+                }
             }
         }
         for (slug, path) in source.slugs {
@@ -229,7 +241,7 @@ enum NotchcastRegistryTests {
             enum ShotsAddon: NotchcastAddon {
                 static let switches = [
                     NotchcastSwitch(id: "screenshot", title: String(localized: "Shots (beta)", table: "T"),
-                                    subtitle: "", category: .music, dependencies: ["absentSwitch"])
+                                    subtitle: "", category: .sound, dependencies: ["absentSwitch"])
                 ]
                 static let commands = [
                     NotchcastCommand(slug: "screenshot-area", name: "", symbol: "", switchID: "screenshot") { _ in }
@@ -248,7 +260,8 @@ enum NotchcastRegistryTests {
              "switch id screenShot is neither a shipped v1 id"),
             (shots.replacingOccurrences(of: "\"screenshot\"", with: "\"launcherNumberKey\""),
              "switch id launcherNumberKey is neither a shipped v1 id"),
-            (shots.replacingOccurrences(of: ".music", with: ".nowhere"), "has no valid category"),
+            (shots.replacingOccurrences(of: "absentSwitch", with: "screenshot"), "has a dependency cycle"),
+            (shots.replacingOccurrences(of: ".sound", with: ".nowhere"), "has no valid category"),
             (shots.replacingOccurrences(of: "switchID: \"screenshot\"", with: "switchID: \"other\""), "has no user path"),
             (shots.replacingOccurrences(of: "slug: \"screenshot-area\"", with: "slug: \"screenshotArea\""),
              "not lowercase-kebab"),

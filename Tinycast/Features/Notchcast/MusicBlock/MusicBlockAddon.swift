@@ -11,14 +11,14 @@ enum MusicBlockAddon: NotchcastAddon {
             id: "musicBlockAppleMusic",
             title: String(localized: "Stop Apple Music opening on media keys", table: "NotchcastMusicBlock"),
             subtitle: "",
-            category: .music, defaultEnabled: true, requiredGrants: [.accessibility]),
+            category: .sound, defaultEnabled: true, requiredGrants: [.accessibility]),
         NotchcastSwitch(
             id: "musicBlockResumeLastPlayer",
             title: String(localized: "Play key resumes the last player", table: "NotchcastMusicBlock"),
             subtitle: String(
                 localized: "When nothing is playing, the play key resumes Spotify if you played it last.",
                 table: "NotchcastMusicBlock"),
-            category: .music, defaultEnabled: true, dependencies: ["musicBlockAppleMusic"],
+            category: .sound, defaultEnabled: true, dependencies: ["musicBlockAppleMusic"],
             requiredGrants: [.accessibility]),
     ]
 

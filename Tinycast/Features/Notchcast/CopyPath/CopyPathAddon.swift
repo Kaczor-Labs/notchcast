@@ -1,5 +1,5 @@
 // notchcast-addon-order: 160
-// notchcast-readme: Launcher Extras: Copy Path for Finder files, browser links and documents
+// notchcast-readme: Clipboard & Files: Copy Path for Finder files, browser links and documents
 import Foundation
 
 enum CopyPathAddon: NotchcastAddon {
@@ -12,7 +12,7 @@ enum CopyPathAddon: NotchcastAddon {
             subtitle: String(
                 localized: "Copy the Finder selection, the browser link or the front document's path.",
                 table: "NotchcastCopyPath"),
-            category: .launcher,
+            category: .clipboard,
             defaultEnabled: false
         ),
     ]

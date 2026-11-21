@@ -1,14 +1,17 @@
 {
   "sourceLanguage" : "en",
   "strings" : {
+    "%@ Commands" : {
+      "shouldTranslate" : false
+    },
+    "%@ Options" : {
+      "shouldTranslate" : false
+    },
     "A faint line around the open island in Dark." : {
 
     },
     "Add to Liked Songs" : {
 
-    },
-    "Agents" : {
-      "shouldTranslate" : false
     },
     "Apps on this Mac can transcribe audio through a local OpenAI-compatible endpoint." : {
 
@@ -52,6 +55,9 @@
     "Clear dictation history?" : {
 
     },
+    "Clipboard & Files" : {
+      "shouldTranslate" : false
+    },
     "Copy Raw Transcript" : {
 
     },
@@ -85,6 +91,9 @@
     "Every saved dictation goes. This can't be undone." : {
 
     },
+    "Finder" : {
+      "shouldTranslate" : false
+    },
     "Fix punctuation, numbers and filler words before pasting. Return pastes it as spoken." : {
 
     },
@@ -95,6 +104,9 @@
 
     },
     "Island" : {
+      "shouldTranslate" : false
+    },
+    "Island Content" : {
       "shouldTranslate" : false
     },
     "Keep dictation history" : {
@@ -123,9 +135,6 @@
     },
     "Menu bar center" : {
 
-    },
-    "Music" : {
-      "shouldTranslate" : false
     },
     "Needs Accessibility access" : {
       "shouldTranslate" : false
@@ -156,6 +165,9 @@
     },
     "Outline when open" : {
 
+    },
+    "Pages" : {
+      "shouldTranslate" : false
     },
     "Paste Again" : {
 
@@ -207,6 +219,9 @@
     },
     "Show in screenshots and videos" : {
 
+    },
+    "Sound" : {
+      "shouldTranslate" : false
     },
     "Tap or hold the Globe key" : {
 

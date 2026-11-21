@@ -170,7 +170,7 @@ enum AccessoriesModuleTests {
         precondition(only.map(\.id) == ["accessoryNotices"], "v1 switch id")
         precondition(only[0].defaultEnabled == false, "off by default")
         precondition(only[0].category == .notices, "Notices category")
-        precondition(NotchcastPane.holding(.notices) == .notices, "in the Notices tab")
+        precondition(NotchcastPane.holding(.notices) == .islandContent, "in Island Content")
         precondition(AccessoriesAddon.settings.map(\.switchID) == ["accessoryNotices"], "the checkboxes sit under it")
         precondition(AccessoryLowWatch.threshold == 20 && AccessoryLowWatch.recovery == 25, "Vorssaint's 20 and 25")
     }

@@ -1,5 +1,5 @@
 // notchcast-addon-order: 170
-// notchcast-readme: Mac Tweaks: move files in Finder with ⌘X and ⌘V and rename them in the launcher
+// notchcast-readme: Clipboard & Files: move files in Finder with ⌘X and ⌘V and rename them in the launcher
 // notchcast-system-keys: ⌘X ⌘V
 import Foundation
 
@@ -12,7 +12,7 @@ enum FinderToolsAddon: NotchcastAddon {
             title: String(localized: "Cut and paste in Finder", table: "NotchcastFinderTools"),
             subtitle: String(
                 localized: "⌘X then ⌘V moves files instead of copying them.", table: "NotchcastFinderTools"),
-            category: .macTweaks,
+            category: .finder,
             requiredGrants: [.accessibility]
         ),
         NotchcastSwitch(
@@ -21,7 +21,7 @@ enum FinderToolsAddon: NotchcastAddon {
             subtitle: String(
                 localized: "Rename the selected file or folder from the launcher or with a shortcut you choose.",
                 table: "NotchcastFinderTools"),
-            category: .macTweaks,
+            category: .finder,
             requiredGrants: [.accessibility]
         ),
     ]

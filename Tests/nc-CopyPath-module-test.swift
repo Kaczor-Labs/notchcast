@@ -146,7 +146,7 @@ enum CopyPathModuleTests {
     static func main() async {
         precondition(CopyPathAddon.switches.map(\.id) == ["copyPath"], "v1 switch id")
         precondition(CopyPathAddon.switches[0].defaultEnabled == false, "off by default")
-        precondition(CopyPathAddon.switches[0].category == .launcher, "launcher category")
+        precondition(CopyPathAddon.switches[0].category == .clipboard, "Clipboard category")
         precondition(CopyPathAddon.switches[0].requiredGrants.isEmpty, "Finder and browsers need no Accessibility")
         precondition(CopyPathAddon.commands.map(\.slug) == ["copy-path"], "v1 slug keeps its hotkey")
 

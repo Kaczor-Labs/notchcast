@@ -1,5 +1,5 @@
 // notchcast-addon-order: 140
-// notchcast-readme: Keyboard & Mouse: Paste Plain Text
+// notchcast-readme: Clipboard & Files: Paste Plain Text
 import Foundation
 
 enum PastePlainTextAddon: NotchcastAddon {
@@ -10,7 +10,7 @@ enum PastePlainTextAddon: NotchcastAddon {
             subtitle: String(
                 localized: "Paste the clipboard's text without formatting; the clipboard stays as it was.",
                 table: "NotchcastPastePlainText"),
-            category: .keyboardMouse,
+            category: .clipboard,
             defaultEnabled: false,
             requiredGrants: [.accessibility]
         ),

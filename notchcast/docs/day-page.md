@@ -1,6 +1,6 @@
 # Day page
 
-The Day add-on (`Tinycast/Features/Notchcast/Day/`, switch `dayPage`, "Day in the Island" in Settings › Notchcast › Mac Tweaks, off by default) puts a Day page in the open island: the weather now and for the next five hours, the user's market quotes, and today's events. It is an add-on under [addons.md](addons.md): one folder and one registry line.
+The Day add-on (`Tinycast/Features/Notchcast/Day/`, switch `dayPage`, "Day in the Island" in Settings › Notchcast › Island Content › Pages, off by default) puts a Day page in the open island: the weather now and for the next five hours, the user's market quotes, and today's events. It is an add-on under [addons.md](addons.md): one folder and one registry line.
 
 ## Invariants
 
@@ -57,7 +57,7 @@ Under the switch: **City** (looked up on Return; an unknown city says so and kee
 1. Hidden means no fetch at all, so a page opened after a long while first shows the old values, marked "Updated", until the fetch it starts returns.
 2. Market changes carry no green or red: `IslandPageRow` has no tone, so direction is the arrow alone. Colour needs a tone on that value in the island core.
 3. The hours are one row each; a compact strip would be a new block in the pages core.
-4. The switch sits in Mac Tweaks, the one shown tab that fits; a tab for island pages is a core change.
+4. The switch sits in Island Content › Pages.
 5. Last values are not kept across a relaunch: a failure at launch shows "Unavailable" until the first answer.
 6. Events follow stock Calendar within a minute, not at once.
 7. The quote source is unofficial. A documented one needs an API key (Finnhub, Twelve Data and Alpha Vantage offer keyed tiers), which is a decision for the owner.

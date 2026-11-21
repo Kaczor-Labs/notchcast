@@ -33,10 +33,13 @@ final class NotchcastCore {
             }
         }
         let commands = addons.flatMap { $0.commands }
+        let settingRows = addons.flatMap { $0.settings }
         NotchcastSettingsSearch.install(
             controller.switches,
             commandWords: Dictionary(grouping: commands, by: \.switchID)
-                .mapValues { $0.flatMap { [$0.name] + $0.keywords } })
+                .mapValues { $0.flatMap { [$0.name] + $0.keywords } },
+            optionWords: Dictionary(grouping: settingRows, by: \.switchID)
+                .mapValues { $0.flatMap(\.searchTerms) })
         let launcher = core.launcherCoordinator
         let tabs = Dictionary(
             controller.switches.map { ($0.id, NotchcastPane.holding($0.category)) },

@@ -60,25 +60,25 @@ H2 names the one file actually used once built. H4 and H6 add cases to upstream 
 
 ## 4. Settings
 
-A **Notchcast** section in the stock Settings sidebar, right after Features (H6), with one tab per `NotchcastPane`, in order: Island (`notchcast-island`), Agents (`notchcast-agents`), Keyboard & Mouse (`notchcast-keyboard-mouse`), Display & Sound (`notchcast-display-sound`, its Display & Sound and Music sections), Capture (`notchcast-capture`), Launcher Extras (`notchcast-launcher`), Downloads (`notchcast-downloads`), Power (`notchcast-power`), Notices (`notchcast-notices`) and Mac Tweaks (`notchcast-mac-tweaks`); each opens from `tinycast://settings/<slug>`. Island always shows and holds `NotchcastIslandSettingsRows`, the island shell's own rows ("Show in screenshots and videos", "Outline when open", "Open on hover" and "Position on displays without a notch", each found by search on the Island tab). An add-on tab shows only while a registered switch sits in one of its categories: `NotchcastCore` installs the registered categories into `NotchcastPane` before Settings can open, so a tab never reads `AppCore`. Each tab is a stock grouped `Form`, one section per category it holds: a switch row per feature, then while it is on one row per command with its alias and hotkey fields and its own "Show in launcher" checkbox (on by default, stored as `launcherHiddenCommands` in the `<bundle id>.notchcast` suite; off drops the command from the launcher, its hotkey still works), and its extra rows, empty categories hidden. Settings › Commands does not list add-on commands. Categories are a fixed, ordered list in Core (one line each); add-ons pick one, and nobody maintains a list of features. Adding a category is one line in Core plus the tab that holds it; moving a feature is one word in its descriptor. A later add-on whose category has no tab adds one `NotchcastPane` case with its categories, slug, title and symbol arms, all in Core; `SettingsTab` stays untouched.
+A **Notchcast** section in the Settings sidebar follows Features. Its panes open from `tinycast://settings/<slug>`. Island always shows and holds the shell's own rows and the per-display Look controls. Other panes appear when a registered switch belongs to one of their categories. `NotchcastCore` installs those categories into `NotchcastPane` before Settings can open.
 
-Settings search finds every switch with no line in the add-on: core installs one search row per switch from the descriptors (title, subtitle, id, and the names and keywords of the switch's commands, which hide while it is off), and each category header is the anchor its rows scroll to, on its own tab; each shown tab gets one pane row. **Add-on switches have no `SettingsFileKey`**, a deliberate exception to the settings-file rule: a switch can grant a capability (an event tap, Accessibility-gated input), and a capability flag is never carried by `settings.json` or a backup, as with `snippetsEnabled`. They live only in the `<bundle id>.notchcast` suite. The launcher's own Hide on an add-on command turns that checkbox off (`NotchcastLauncherHides`), and stock hides an earlier version left on an add-on command are dropped at start, since no checkbox could undo them. Add-on command aliases, hotkeys and launcher checkboxes are not carried by `settings.json` either: its commands binding lists only `CommandID` cases (`LauncherSettingsFile.swift`), so they stay in this Mac's preferences.
+Each category starts with its main switches in registry order. Turning a switch on reveals its Options and Commands sections when it has corresponding rows. Options hold the dependent switches and the add-on's controls. A dependent switch is visible only while all its dependencies are enabled. `listedWhenAnyEnabled` controls listing only and leaves the saved switch and its effective state unchanged. Each command has an alias, a hotkey and its own Show in launcher checkbox. Turning the checkbox off removes the command from launcher search and keeps the hotkey active.
 
-Which add-ons a tab holds is in the README's generated list; an add-on PR never edits this table.
+Settings search indexes each pane and the main switches. Dependent switches, commands and option labels match the visible main switch, including while its details are hidden. Add-ons put option labels in `NotchcastSettingsRow.searchTerms`. **Add-on switches have no `SettingsFileKey`**, a deliberate exception to the settings-file rule: a switch can grant a capability (an event tap, Accessibility-gated input), and a capability flag is never carried by `settings.json` or a backup, as with `snippetsEnabled`. They live only in the `<bundle id>.notchcast` suite. The launcher's own Hide on an add-on command turns that checkbox off (`NotchcastLauncherHides`), and stock hides an earlier version left on an add-on command are dropped at start, since no checkbox could undo them. Add-on command aliases, hotkeys and launcher checkboxes are not carried by `settings.json` either: its commands binding lists only `CommandID` cases (`LauncherSettingsFile.swift`), so they stay in this Mac's preferences.
 
-| Category | Tab | Later (`później`), placed now |
+| Pane | Slug | Categories |
 | - | - | - |
-| Capture | Capture | F40 text/OCR, F41 colour picker, F47 scrolling |
-| Display & Sound | Display & Sound | XDR, F102 Audio priority |
-| Keyboard & Mouse | Keyboard & Mouse | F12 Green button maximizes |
-| Launcher | Launcher Extras | F29 GitHub search, F30 Quick Look on Space |
-| Downloads | Downloads | F59 Distill folder, F60 Convert files, F68 Media tools, F32 Paste image in Finder, F128–F130 Torrents |
-| Power | Power | F101 Accessory batteries |
-| Music | Display & Sound | F49 covers, F52 resume player, F53 now playing, F54 Spotify Connect |
-| Agents | Agents | F15/I1 AI usage |
-| Notices | Notices | F14 Event reminders, F78 Accessory notices, F97 System notices |
-| Between Macs | (its add-on adds one) | F71 Shelf, F85 Link health, F26 Command runner |
-| Mac Tweaks | Mac Tweaks | F7 Spaces order, F34/F35 Finder tools, F118 and the rest of v1's system tweaks |
+| Island | `notchcast-island` | Island shell and Look |
+| Island Content | `notchcast-island-content` | Pages, Notices |
+| Keyboard & Mouse | `notchcast-keyboard-mouse` | Keyboard & Mouse |
+| Display & Sound | `notchcast-display-sound` | Display, Sound |
+| Capture | `notchcast-capture` | Capture |
+| Clipboard & Files | `notchcast-clipboard-files` | Clipboard, Finder, Files |
+| Downloads | `notchcast-downloads` | Downloads |
+| Launcher Extras | `notchcast-launcher` | Launcher Extras |
+| Mac Tweaks | `notchcast-mac-tweaks` | Mac Tweaks |
+
+Between Macs has no pane. Add a category in Core and place it in one pane. Move an add-on by changing its descriptor's category, the search anchor in its settings view, and its README tab tag.
 
 Retired switch ids are never reused, since stored settings may still hold them on: they live in `retiredIDs` in `Tests/nc-Notchcast-registry-test.swift`, one id per line, and removing a switch adds its id there.
 

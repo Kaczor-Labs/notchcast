@@ -1,6 +1,6 @@
 # Clean Copied Links
 
-A Notchcast add-on (`Tinycast/Features/Notchcast/URLCleaner/`, switch `urlCleaner`, off by default, Settings › Launcher Extras). While it is on, a copied link loses its tracking parameters, usually within half a second. It has no command, no hotkey and shows nothing.
+A Notchcast add-on (`Tinycast/Features/Notchcast/URLCleaner/`, switch `urlCleaner`, off by default, Settings › Notchcast › Clipboard & Files › Clipboard). While it is on, a copied link loses its tracking parameters, usually within half a second. It has no command, no hotkey and shows nothing.
 
 ## Invariants
 

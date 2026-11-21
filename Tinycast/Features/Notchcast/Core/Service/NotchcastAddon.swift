@@ -52,5 +52,6 @@ struct NotchcastArgument: Sendable {
 /// An extra settings row shown under its switch, built with the add-on's own context.
 struct NotchcastSettingsRow: Sendable {
     let switchID: String
+    var searchTerms: [String] = []
     let view: @MainActor @Sendable (NotchcastContext) -> AnyView
 }

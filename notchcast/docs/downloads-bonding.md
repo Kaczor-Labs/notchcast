@@ -12,7 +12,7 @@ When an iPhone shares Personal Hotspot over USB, torrents and Fast Downloads use
 
 ## Switch
 
-One switch, **Use Wi-Fi and a plugged-in iPhone together**, off by default, last in the Downloads list. It needs no other switch: it does nothing until Torrents or Fast Downloads with aria2c is on. Only Notchcast's own aria2c runs are covered; browsers and other apps stay on Wi-Fi. The torrent-only id `torrentsUseIPhone` is retired, its stored value ignored.
+One switch, **Use Wi-Fi and a plugged-in iPhone together**, off by default, at the end of the Downloads switch list. It appears while Torrents or Fast Downloads with aria2c is on. Only Notchcast's own aria2c runs are covered; browsers and other apps stay on Wi-Fi. The torrent-only id `torrentsUseIPhone` is retired, its stored value ignored.
 
 | Id | Applies to |
 | - | - |

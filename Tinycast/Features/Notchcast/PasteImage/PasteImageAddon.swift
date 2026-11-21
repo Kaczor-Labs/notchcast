@@ -1,5 +1,5 @@
 // notchcast-addon-order: 180
-// notchcast-readme: Downloads: ⌘V in a Finder window saves a copied image there as a PNG
+// notchcast-readme: Clipboard & Files: ⌘V in a Finder window saves a copied image there as a PNG
 // notchcast-system-keys: ⌘V
 import Foundation
 
@@ -13,7 +13,7 @@ enum PasteImageAddon: NotchcastAddon {
             subtitle: String(
                 localized: "⌘V in a Finder window saves a copied image there as a PNG file.",
                 table: "NotchcastPasteImage"),
-            category: .filesDownloads,
+            category: .finder,
             requiredGrants: [.accessibility]
         ),
     ]

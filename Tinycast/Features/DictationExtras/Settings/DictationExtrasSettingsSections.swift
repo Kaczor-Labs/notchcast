@@ -37,26 +37,29 @@ struct DictationExtrasSettingsSections: View {
                     "Fix punctuation, numbers and filler words before pasting. Return pastes it as spoken.",
                     tableName: "Notchcast")
             }
-            AIModelSelectionRows(
-                selection: coordinator.cleanupModel,
-                inheritedTitle: String(localized: "Automatic"),
-                select: coordinator.selectCleanupModel,
-                modelLabel: {
-                    SettingsRowTitle(
-                        .dictationCleanup, LocalizedStringResource("Cleanup model", table: "Notchcast"))
-                    Text(modelCaption)
-                },
-                effortLabel: {
-                    SettingsRowTitle(.dictationCleanup, "Reasoning effort")
-                }
-            )
-            .settingsEnabled(settings.dictationCleansUp)
-            promptEditor
-                .settingsEnabled(settings.dictationCleansUp)
+            if settings.dictationCleansUp {
+                AIModelSelectionRows(
+                    selection: coordinator.cleanupModel,
+                    inheritedTitle: String(localized: "Automatic"),
+                    select: coordinator.selectCleanupModel,
+                    modelLabel: {
+                        SettingsRowTitle(
+                            .dictationCleanup, LocalizedStringResource("Cleanup model", table: "Notchcast"))
+                        Text(modelCaption)
+                    },
+                    effortLabel: {
+                        SettingsRowTitle(.dictationCleanup, "Reasoning effort")
+                    }
+                )
+                promptEditor
+            }
         } header: {
             SettingsSectionHeader(.dictationCleanup)
         } footer: {
-            Text("The transcript is sent only to the chosen model. Notchcast keeps no log of it.", tableName: "Notchcast")
+            if settings.dictationCleansUp {
+                Text("The transcript is sent only to the chosen model. Notchcast keeps no log of it.",
+                     tableName: "Notchcast")
+            }
         }
     }
 

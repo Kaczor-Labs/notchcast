@@ -17,7 +17,9 @@ enum IPhoneBackupAddon: NotchcastAddon {
     ]
 
     static let settings = [
-        NotchcastSettingsRow(switchID: switchID) {
+        NotchcastSettingsRow(switchID: switchID, searchTerms: [
+            "automatic backups",
+        ]) {
             AnyView(IPhoneBackupSettingsView(store: IPhoneBackupStore(context: $0, system: .live)))
         },
     ]

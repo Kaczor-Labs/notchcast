@@ -1,6 +1,6 @@
 # Agents
 
-The Agents add-on (`Tinycast/Features/Notchcast/Agents/`, switch `agentsUsage`, Settings › Notchcast › Agents) shows every AI plan's usage as an island page: a column per machine, then an Other row for accounts shared by every machine. This Mac reads its Claude accounts and Codex itself; every machine's comes from `feed.json`, which the gate (`gate.py feed`, written on each Mac by `gate.py push`) puts in the feed folder.
+The Agents add-on (`Tinycast/Features/Notchcast/Agents/`, switch `agentsUsage`, Settings › Notchcast › Island Content › Pages) shows every AI plan's usage as an island page: a column per machine, then an Other row for accounts shared by every machine. This Mac reads its Claude accounts and Codex itself; every machine's comes from `feed.json`, which the gate (`gate.py feed`, written on each Mac by `gate.py push`) puts in the feed folder.
 
 ## Invariants
 
@@ -16,6 +16,6 @@ The Agents add-on (`Tinycast/Features/Notchcast/Agents/`, switch `agentsUsage`, 
 
 ## Hand test
 
-On each Mac: Settings › Notchcast › Agents shows This Mac's name as `MBA` (`MBP`) and each Claude folder T3 uses; with `feed.json` from the gate in place, open the Agents page and check that each machine shows one column, no account shows twice (Codex only in Other), and other machines' cards are not dimmed while the gate pushes.
+On each Mac: Settings › Notchcast › Island Content › Agents page Options shows This Mac's name as `MBA` (`MBP`) and each Claude folder T3 uses; with `feed.json` from the gate in place, open the Agents page and check that each machine shows one column, no account shows twice (Codex only in Other), and other machines' cards are not dimmed while the gate pushes.
 
 Known gap: two accounts of one provider in `shared` collapse into one card (chad-v2#361).

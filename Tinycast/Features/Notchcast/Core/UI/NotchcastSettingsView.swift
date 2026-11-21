@@ -1,26 +1,36 @@
 import SwiftUI
 
-/// A Notchcast tab: one section per category it holds, built only from those add-ons.
 struct NotchcastSettingsView: View {
     let controller: NotchcastController
     let pane: NotchcastPane
 
+    private var preferences: NotchcastPreferences { controller.preferences }
+
     var body: some View {
+        let commands = Dictionary(grouping: controller.slots.flatMap { $0.addon.commands }, by: \.switchID)
+        let rows = Dictionary(grouping: controller.slots.flatMap(\.settings), by: \.row.switchID)
+        let groups = NotchcastSettingsLayout(switches: controller.switches).groups(
+            in: pane, isEnabled: preferences.isEnabled, withCommands: Set(commands.keys), withRows: Set(rows.keys))
         Form {
             if pane == .island {
                 NotchcastIslandSettingsRows()
                 NotchcastLookSection(looks: AppCore.shared.island.looks)
             }
-            ForEach(pane.categories, id: \.self) { category in
-                let switches = controller.switches.filter { $0.category == category }
-                if !switches.isEmpty {
-                    let anchor = NotchcastSettingsSearch.anchor(category)
-                    Section {
-                        ForEach(switches) { item in
-                            NotchcastSwitchRows(controller: controller, item: item, anchor: anchor)
-                        }
-                    } header: {
-                        SettingsSectionHeader(anchor)
+            ForEach(groups) { group in
+                let anchor = NotchcastSettingsSearch.anchor(group.category)
+                Section {
+                    ForEach(group.switches) { item in
+                        switchRows(item, anchor: anchor)
+                    }
+                } header: {
+                    SettingsSectionHeader(anchor)
+                }
+                ForEach(group.details) { detail in
+                    if detail.hasOptions {
+                        options(detail, anchor: anchor, rows: rows[detail.id, default: []])
+                    }
+                    if detail.hasCommands {
+                        commandSection(detail.item, commands: commands[detail.id, default: []])
                     }
                 }
             }
@@ -29,42 +39,28 @@ struct NotchcastSettingsView: View {
         .settingsScrollTarget(.notchcast(pane))
         .onAppear { controller.hub.refreshPermission() }
     }
-}
 
-/// A switch, then its commands' alias, hotkey and launcher fields and its extra rows while it is on.
-private struct NotchcastSwitchRows: View {
-    let controller: NotchcastController
-    let item: NotchcastSwitch
-    let anchor: SettingsAnchor
-
-    private var preferences: NotchcastPreferences { controller.preferences }
-
-    private var dependenciesMet: Bool { item.dependencies.allSatisfy(preferences.isEnabled) }
-
-    private var needsAccessibility: Bool {
-        item.requiredGrants.contains(.accessibility) && !controller.hub.isTrusted
+    private func options(
+        _ detail: NotchcastSettingsLayout.Detail, anchor: SettingsAnchor, rows: [NotchcastController.SettingsEntry]
+    ) -> some View {
+        Section {
+            ForEach(detail.dependents) { item in
+                switchRows(item, anchor: anchor)
+            }
+            if detail.hasRows, let context = controller.context(forSwitch: detail.id) {
+                ForEach(rows) { entry in
+                    entry.row.view(context)
+                }
+            }
+        } header: {
+            Text("\(detail.item.title) Options", tableName: "Notchcast")
+        }
     }
 
-    var body: some View {
-        Toggle(isOn: Binding(get: { preferences.isOn(item.id) }, set: { preferences.set(item.id, on: $0) })) {
-            SettingsRowTitle(anchor, verbatim: item.title)
-            if !item.subtitle.isEmpty { Text(item.subtitle) }
-        }
-        .settingsEnabled(dependenciesMet)
-        if preferences.isEnabled(item.id), needsAccessibility {
-            LabeledContent {
-                Button("Grant Access…") { Permissions.openAccessibilitySettings() }
-            } label: {
-                Label(
-                    String(localized: "Needs Accessibility access", table: "Notchcast"),
-                    systemImage: "exclamationmark.triangle.fill")
-                    .foregroundStyle(Theme.Colors.warning)
-            }
-        }
-        if preferences.isEnabled(item.id) {
-            ForEach(controller.slots.flatMap { $0.addon.commands }.filter { $0.switchID == item.id }) { command in
+    private func commandSection(_ item: NotchcastSwitch, commands: [NotchcastCommand]) -> some View {
+        Section {
+            ForEach(commands) { command in
                 let shown = preferences.showsInLauncher(command.id)
-                // Not SettingsRow: its one-line title truncates beside the three controls.
                 NotchcastCommandRow {
                     Text(command.name)
                         .fixedSize(horizontal: false, vertical: true)
@@ -84,10 +80,25 @@ private struct NotchcastSwitchRows: View {
                             String(localized: "Show \(command.name) in the launcher", table: "Notchcast"))
                 }
             }
-            if let context = controller.context(forSwitch: item.id) {
-                ForEach(controller.slots.flatMap(\.settings).filter { $0.row.switchID == item.id }) { entry in
-                    entry.row.view(context)
-                }
+        } header: {
+            Text("\(item.title) Commands", tableName: "Notchcast")
+        }
+    }
+
+    @ViewBuilder
+    private func switchRows(_ item: NotchcastSwitch, anchor: SettingsAnchor) -> some View {
+        Toggle(isOn: Binding(get: { preferences.isOn(item.id) }, set: { preferences.set(item.id, on: $0) })) {
+            SettingsRowTitle(anchor, verbatim: item.title)
+            if !item.subtitle.isEmpty { Text(item.subtitle) }
+        }
+        if preferences.isEnabled(item.id), item.requiredGrants.contains(.accessibility), !controller.hub.isTrusted {
+            LabeledContent {
+                Button("Grant Access…") { Permissions.openAccessibilitySettings() }
+            } label: {
+                Label(
+                    String(localized: "Needs Accessibility access", table: "Notchcast"),
+                    systemImage: "exclamationmark.triangle.fill")
+                    .foregroundStyle(Theme.Colors.warning)
             }
         }
     }

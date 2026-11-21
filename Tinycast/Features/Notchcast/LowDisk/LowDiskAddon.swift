@@ -1,5 +1,5 @@
 // notchcast-addon-order: 200
-// notchcast-readme: Power: a warning in the island when the startup disk is nearly full
+// notchcast-readme: Island Content: a warning in the island when the startup disk is nearly full
 import SwiftUI
 
 enum LowDiskAddon: NotchcastAddon {
@@ -9,7 +9,7 @@ enum LowDiskAddon: NotchcastAddon {
             title: String(localized: "Low disk warning", table: "NotchcastLowDisk"),
             subtitle: String(localized: "Warns on the island when the startup disk is nearly full.",
                              table: "NotchcastLowDisk"),
-            category: .power
+            category: .notices
         ),
     ]
 
@@ -21,7 +21,11 @@ enum LowDiskAddon: NotchcastAddon {
     ]
 
     static let settings = [
-        NotchcastSettingsRow(switchID: "lowDiskWarning") { AnyView(LowDiskSettingsView(context: $0)) },
+        NotchcastSettingsRow(switchID: "lowDiskWarning", searchTerms: [
+            "warn below",
+        ]) {
+            AnyView(LowDiskSettingsView(context: $0))
+        },
     ]
 
     static func makeModule(_ context: NotchcastContext) -> (any NotchcastModule)? { LowDiskModule(context: context) }
