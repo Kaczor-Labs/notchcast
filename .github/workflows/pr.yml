@@ -87,7 +87,7 @@ jobs:
   mac:
     needs: route
     if: needs.route.outputs.scripts == 'true' || inputs.harness_runner != ''
-    runs-on: ${{ github.event_name == 'workflow_dispatch' && (inputs.harness_runner || !inputs.hosted && vars.NOTCHCAST_MAC_RUNNER) || 'xcode-27' }}
+    runs-on: ${{ github.event_name == 'workflow_dispatch' && !inputs.hosted && (inputs.harness_runner || vars.NOTCHCAST_MAC_RUNNER) || 'xcode-27' }}
     timeout-minutes: 90
     outputs:
       kind: ${{ steps.runner.outputs.kind }}
@@ -104,10 +104,10 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
       - uses: ./tools/notchcast/actions/xcode
-        if: inputs.harness_runner == ''
+        if: inputs.harness_runner == '' || inputs.hosted
       # A sandboxed runner cannot run xcodebuild: it names its Xcode in DEVELOPER_DIR, and the version file answers.
       - name: The harness runner's own Xcode
-        if: inputs.harness_runner != ''
+        if: inputs.harness_runner != '' && !inputs.hosted
         env:
           NOTCHCAST_XCODE_FROM_RUNNER: '1'
         run: bash tools/notchcast/ci-xcode.sh

@@ -13,14 +13,14 @@ on:
         type: number
         default: 1
       hosted:
-        description: Run on hosted xcode-27 even while NOTCHCAST_MAC_RUNNER is set (no harness skipped)
+        description: Run on hosted xcode-27 even if a pool Mac is free
         type: boolean
         default: false
 
 permissions:
   contents: read
 
-# One hosted Mac lane for every branch: GitHub keeps one run going and one pending, so only the Keeper dispatches.
+# GitHub keeps one run going and one pending across branches, so only the Keeper dispatches.
 concurrency:
   group: main-harnesses
   cancel-in-progress: false
@@ -33,6 +33,7 @@ jobs:
     outputs:
       tests: ${{ steps.shards.outputs.tests }}
       shards: ${{ steps.shards.outputs.shards }}
+      mac-runner: ${{ steps.mac.outputs.runs-on || 'xcode-27' }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
@@ -70,18 +71,70 @@ jobs:
           fi
           echo "tests=$tests" >> "$GITHUB_OUTPUT"
           echo "shards=[$(seq -s, 0 $((shards - 1)))]" >> "$GITHUB_OUTPUT"
-  # A dispatch only, so never a fork's code: vars.NOTCHCAST_MAC_RUNNER may name a self-hosted Mac (README Runners).
+      - name: Route the selected Mac harnesses
+        id: mac
+        if: github.event_name == 'workflow_dispatch' && !inputs.hosted && !inputs.all
+        env:
+          POOL_FREE: ${{ vars.POOL_FREE_MAC }}
+          TESTS: ${{ steps.shards.outputs.tests }}
+        shell: bash
+        run: |
+          if [ -z "$POOL_FREE" ]; then
+            echo "Mac pool availability is missing"
+            exit 0
+          fi
+          if [[ ! $POOL_FREE =~ ^([0-9]+)\ ([1-9][0-9]{0,10})$ ]]; then
+            echo "Mac pool availability is malformed"
+            exit 0
+          fi
+          free=${BASH_REMATCH[1]}
+          age=$(( $(date +%s) - BASH_REMATCH[2] ))
+          if (( age < 0 || age >= 180 )); then
+            echo "Mac pool availability is stale"
+            exit 0
+          fi
+          if [[ ! $free =~ [1-9] ]]; then
+            echo "Mac pool has no free runner"
+            exit 0
+          fi
+          # Both sets change which tests run between hosted and working Macs.
+          source notchcast/config.env
+          [[ "$GITHUB_REPOSITORY" == "$FORK_REPO" && "$GITHUB_REF_TYPE" == branch &&
+             "$GITHUB_ACTOR" == "$MAINTAINER_LOGIN" && "$GITHUB_TRIGGERING_ACTOR" == "$MAINTAINER_LOGIN" ]] || exit 0
+          read -ra selected <<< "$TESTS"
+          [ "${#selected[@]}" -gt 0 ] || exit 0
+          for test in "${selected[@]}"; do
+            case " $HOSTED_ONLY_TESTS $CI_SKIP_TESTS " in
+              *" $test "*) echo "$test requires the hosted selection"; exit 0 ;;
+            esac
+          done
+          echo "Mac pool reported $free free runner(s) ${age}s ago"
+          echo "runs-on=mac-pool" >> "$GITHUB_OUTPUT"
   harnesses:
     needs: plan
     # An empty selection skips this job and the run still concludes success; an empty matrix would fail it.
     if: ${{ needs.plan.outputs.shards != '[]' }}
-    runs-on: ${{ github.event_name == 'workflow_dispatch' && !inputs.hosted && vars.NOTCHCAST_MAC_RUNNER || 'xcode-27' }}
+    runs-on: ${{ needs.plan.outputs.mac-runner }}
     timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:
         shard: ${{ fromJSON(needs.plan.outputs.shards) }}
     steps:
+      - name: Verify the pool runner can run the whole selection
+        if: needs.plan.outputs.mac-runner == 'mac-pool'
+        env:
+          TESTS: ${{ needs.plan.outputs.tests }}
+        shell: bash
+        run: |
+          read -ra selected <<< "$TESTS"
+          for test in "${selected[@]}"; do
+            case " ${NOTCHCAST_RUNNER_SKIP_TESTS:-} " in
+              *" $test "*) echo "::error::This pool runner skips $test"; exit 1 ;;
+            esac
+          done
+          mkdir -p "$RUNNER_TEMP/tmp"
+          echo "TMPDIR=$RUNNER_TEMP/tmp" >> "$GITHUB_ENV"
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           path: tools
