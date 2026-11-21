@@ -99,6 +99,12 @@ enum DictationExtrasCleanupTests {
             check(SettingsFileKey(rawValue: path) == nil, "\(path) has no settings.json key")
         }
 
+        // First model: an empty profile starts on Ultra; a stored choice is never overwritten.
+        check(DictationFirstModel.seed(stored: nil) == "ultra", "nothing stored seeds Ultra")
+        for stored in ["redux", "ultra", "qwen-0.6b", "qwen-1.7b"] {
+            check(DictationFirstModel.seed(stored: stored) == nil, "a stored \(stored) stays")
+        }
+
         print("nc-DictationExtras-cleanup-test: all passed")
     }
 }
