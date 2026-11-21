@@ -251,8 +251,11 @@ enum ScrollStitchTests {
         let elapsed = clock.measure {
             transition = ScrollStitchMatcher.transition(previous: start, current: next)
         }
-        precondition(transition == .advanced(overlap: 1257, direction: .forward, contentColumns: 0..<256),
-                     "Retina-height matching answers the exact native-pixel overlap: \(transition)")
+        guard case .advanced(1257, .forward, let columns) = transition else {
+            preconditionFailure("Retina-height matching answers the exact native-pixel overlap: \(transition)")
+        }
+        precondition(columns.count == 32 && Set(columns.map { $0 / 32 }).count == 8,
+                     "the wide matcher selects 32 columns across the moving area")
         // Reported, never asserted: a wall-clock bound flakes on a loaded runner.
         print("nc-Screenshots-stitch-test: Retina match took \(elapsed)")
         precondition(ScrollStitchMatcher.newContentRows(imageHeight: 120, overlap: 78, fixedBottomRows: 16)

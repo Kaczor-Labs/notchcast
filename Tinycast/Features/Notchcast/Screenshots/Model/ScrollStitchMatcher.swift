@@ -19,7 +19,7 @@ enum ScrollStitchMatcher {
 
     enum Transition: Equatable, Sendable {
         case end
-        case advanced(overlap: Int, direction: Direction, contentColumns: Range<Int>)
+        case advanced(overlap: Int, direction: Direction, contentColumns: [Int])
         case unmatched
     }
 
@@ -100,10 +100,10 @@ enum ScrollStitchMatcher {
     }
 
     /// Footer rows that stay put while the page behind them advances; they are kept once, at the end.
-    static func fixedBottomRows(previous: Sample, current: Sample, overlap: Int, contentColumns: Range<Int>) -> Int {
+    static func fixedBottomRows(previous: Sample, current: Sample, overlap: Int, contentColumns: [Int]) -> Int {
         guard previous.isValid, current.isValid, previous.width == current.width,
             previous.height == current.height, overlap > 0, overlap < previous.height,
-            contentColumns.lowerBound >= 0, contentColumns.upperBound <= previous.width, !contentColumns.isEmpty
+            !contentColumns.isEmpty, contentColumns.allSatisfy({ (0..<previous.width).contains($0) })
         else { return 0 }
         var rows = 0
         for row in stride(from: previous.height - 1, through: 0, by: -1) {
@@ -181,9 +181,9 @@ enum ScrollStitchMatcher {
     private static func compactTransition(
         _ previous: Sample, _ current: Sample, columns: Range<Int>, tiles: [Range<Int>]
     ) -> Transition {
-        let selected: [(column: Int, bounds: Range<Int>)]
+        let selected: [Int]
         if columns.count <= 32 {
-            selected = columns.map { ($0, $0..<($0 + 1)) }
+            selected = Array(columns)
         } else {
             let perTile = max(1, 32 / tiles.count)
             selected = tiles.flatMap { tile in
@@ -192,7 +192,7 @@ enum ScrollStitchMatcher {
                 }.sorted {
                     if $0.difference != $1.difference { return $0.difference > $1.difference }
                     return $0.column < $1.column
-                }.prefix(perTile).map(\.column).sorted().map { ($0, tile) }
+                }.prefix(perTile).map(\.column).sorted()
             }
         }
         func compact(_ sample: Sample) -> Sample {
@@ -200,15 +200,16 @@ enum ScrollStitchMatcher {
             pixels.reserveCapacity(selected.count * sample.height)
             for row in 0..<sample.height {
                 let start = row * sample.width
-                for selection in selected { pixels.append(sample.pixels[start + selection.column]) }
+                for column in selected { pixels.append(sample.pixels[start + column]) }
             }
             return Sample(width: selected.count, height: sample.height, pixels: pixels)
         }
         let found = transition(previous: compact(previous), current: compact(current))
         guard case .advanced(let overlap, let direction, let matched) = found else { return found }
-        return .advanced(overlap: overlap, direction: direction,
-                         contentColumns: selected[matched.lowerBound].bounds.lowerBound
-                            ..< selected[matched.upperBound - 1].bounds.upperBound)
+        let movingColumns = matched.map { selected[$0] }.filter { column in
+            difference(previous, current, columns: column..<(column + 1)) > 1.5
+        }
+        return .advanced(overlap: overlap, direction: direction, contentColumns: movingColumns)
     }
 
     /// Tells a real scroll from an animation: a scroll explains every changed row at its offset.
@@ -254,7 +255,7 @@ enum ScrollStitchMatcher {
         // A fixed header's texture must never outvote a few widely spaced lines of real text.
         let movingRegion = firstMoving...lastMoving
         guard stationaryRows.lazy.filter({ movingRegion.contains($0) }).count <= moving else { return .unmatched }
-        return .advanced(overlap: overlap, direction: direction, contentColumns: columns)
+        return .advanced(overlap: overlap, direction: direction, contentColumns: Array(columns))
     }
 
     private static func difference(_ lhs: Sample, _ rhs: Sample, columns: Range<Int>) -> Double {

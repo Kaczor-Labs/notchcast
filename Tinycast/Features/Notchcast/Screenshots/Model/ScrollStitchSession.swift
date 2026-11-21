@@ -101,8 +101,7 @@ struct ScrollStitchSession {
             case .ended(let ending): return ending
             }
         case .advanced(_, .backward, _):
-            // Scrolling back adds nothing; a later forward scroll goes on from the furthest frame kept.
-            hasUnmatchedContent = false
+            break
         case .unmatched:
             hasUnmatchedContent = true
         }
@@ -122,7 +121,7 @@ struct ScrollStitchSession {
 
     private mutating func advance(
         to current: CGImage, sample: ScrollStitchMatcher.Sample, colour: ScrollStitchMatcher.ColourSample,
-        sampleOverlap matchedOverlap: Int, columns: Range<Int>
+        sampleOverlap matchedOverlap: Int, columns: [Int]
     ) -> Advance {
         let establishing = contentSampleColumns == nil
         let fixedRows = establishing
@@ -139,12 +138,13 @@ struct ScrollStitchSession {
             // The matched columns only prove movement; every selected column is kept.
             let pixelColumns = 0..<current.width
             fixedBottomPixels = Int((Double(fixedRows) / Double(sample.height) * Double(current.height)).rounded())
-            guard let revealed = ScrollStitchMatcher.newContentRows(
+            guard let firstColumn = columns.first, let lastColumn = columns.last,
+                let revealed = ScrollStitchMatcher.newContentRows(
                 imageHeight: current.height, overlap: overlap, fixedBottomRows: fixedBottomPixels),
                 let first = ScrollStitchImage.strip(of: strips[0], columns: pixelColumns, topCrop: 0,
                                                     bottomCrop: fixedBottomPixels)
             else { return .ended(.failed) }
-            contentSampleColumns = columns
+            contentSampleColumns = firstColumn..<(lastColumn + 1)
             contentPixelColumns = pixelColumns
             strips[0] = first
             if fixedBottomPixels > 0 {

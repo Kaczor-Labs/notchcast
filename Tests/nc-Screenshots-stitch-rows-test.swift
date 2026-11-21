@@ -15,6 +15,28 @@ func colour(_ index: Int) -> (UInt8, UInt8, UInt8) {
     (UInt8((index / 256 % 16) * 17), UInt8((index / 16 % 16) * 17), UInt8((index % 16) * 17))
 }
 
+func band(_ row: Int) -> (UInt8, UInt8, UInt8) {
+    let index = row / 10
+    return (UInt8((index * 37) % 200 + 20), UInt8((index * 17) % 180 + 30), UInt8((index * 53) % 160 + 40))
+}
+
+func rgbImage(width: Int, height: Int, pixel: (Int, Int) -> (UInt8, UInt8, UInt8)) -> CGImage {
+    var bytes = [UInt8](repeating: 255, count: width * height * 4)
+    for y in 0..<height {
+        for x in 0..<width {
+            let (red, green, blue) = pixel(x, y)
+            let offset = (y * width + x) * 4
+            bytes[offset] = red
+            bytes[offset + 1] = green
+            bytes[offset + 2] = blue
+        }
+    }
+    let context = CGContext(data: &bytes, width: width, height: height, bitsPerComponent: 8,
+                            bytesPerRow: width * 4, space: CGColorSpaceCreateDeviceRGB(),
+                            bitmapInfo: CGImageAlphaInfo.noneSkipLast.rawValue)!
+    return context.makeImage()!
+}
+
 struct Page {
     let width: Int
     let viewport: Int
@@ -62,12 +84,17 @@ struct Page {
 enum Row: Equatable { case page(Int), header, footer, unknown }
 
 /// Runs of equal rows, top to bottom, as the guest's checker reads the clipboard PNG.
-func rows(_ image: CGImage) -> [(row: Row, height: Int)] {
+func rgba(_ image: CGImage) -> [UInt8] {
     var bytes = [UInt8](repeating: 0, count: image.width * image.height * 4)
     let context = CGContext(data: &bytes, width: image.width, height: image.height, bitsPerComponent: 8,
                             bytesPerRow: image.width * 4, space: CGColorSpaceCreateDeviceRGB(),
                             bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)!
     context.draw(image, in: CGRect(x: 0, y: 0, width: image.width, height: image.height))
+    return bytes
+}
+
+func rows(_ image: CGImage) -> [(row: Row, height: Int)] {
+    let bytes = rgba(image)
     var runs: [(row: Row, height: Int)] = []
     for y in 0..<image.height {
         let offset = (y * image.width + image.width - 1) * 4
@@ -98,20 +125,20 @@ func seamless(_ image: CGImage?, _ what: String, firstRow: Int = 0) -> [Int] {
 }
 
 /// The run's loop on a microsecond clock; frames are made as they are asked for, so few are alive at once.
-func capture(_ page: Page, positions: [Int]) -> (ending: Session.Ending, image: CGImage?) {
+func capture(positions: [Int], frame: (Int) -> CGImage) -> (ending: Session.Ending, image: CGImage?) {
     var micros = 0
     var now: TimeInterval { Double(micros) / 1_000_000 }
-    var session = Session(first: page.frame(at: positions[0]), at: now)!
+    var session = Session(first: frame(positions[0]), at: now)!
     var served = 1
     while true {
         switch session.next(at: now, finishRequested: served >= positions.count) {
         case .wait(let seconds):
             micros += max(1, Int((seconds * 1_000_000).rounded(.up)))
         case .capture:
-            let frame = page.frame(at: positions[min(served, positions.count - 1)])
+            let current = frame(positions[min(served, positions.count - 1)])
             served += 1
             micros += 10_000
-            if let ending = session.take(frame, at: now) { return (ending, session.stitched()) }
+            if let ending = session.take(current, at: now) { return (ending, session.stitched()) }
         case .end(let ending):
             return (ending, session.stitched())
         }
@@ -127,14 +154,18 @@ enum ScrollStitchRowsTests {
         shortFinalScroll()
         staticSidebar(columns: 0..<224)
         staticSidebar(columns: 1_568..<1_792)
-        ambiguousSeam()
+        flatSeam()
+        nonzeroSeamTie()
+        repeatingPastGap()
+        scrollingStrip(430..<470)
+        scrollingStrip(180..<720)
         mismatchRecovery()
         print("nc-Screenshots-stitch-rows-test: ok")
     }
 
     static func shortFinalScroll() {
         let page = Page(width: 256, viewport: 1_400)
-        let run = capture(page, positions: [0, 160, 170])
+        let run = capture(positions: [0, 160, 170], frame: page.frame)
         precondition(run.ending == .success && run.image?.height == 1_570,
                      "the final 10 px are kept: \(run.ending), \(run.image?.height ?? -1) px")
         precondition(seamless(run.image, "short final scroll").last == 78, "the last page row shows")
@@ -142,36 +173,74 @@ enum ScrollStitchRowsTests {
 
     static func staticSidebar(columns: Range<Int>) {
         let page = Page(width: 1_792, viewport: 1_400, sidebarColumns: columns)
-        let run = capture(page, positions: [0, 161, 322])
+        let run = capture(positions: [0, 161, 322], frame: page.frame)
         precondition(run.ending == .success && run.image?.height == 1_722 && run.image?.width == page.width,
                      "a static sidebar at \(columns) keeps the full capture: \(run.ending)")
         let content = run.image?.cropping(to: CGRect(x: page.width / 2, y: 0, width: 1, height: 1_722))
         precondition(seamless(content, "scroll beside a static sidebar").last == 86, "the last page row shows")
     }
 
-    static func ambiguousSeam() {
+    static func flatSeam() {
         let page = Page(width: 256, viewport: 1_400, flatRows: 1_140..<1_480)
-        let run = capture(page, positions: [0, 80])
-        precondition(run.ending == .partial && run.image?.height == page.viewport,
-                     "a flat seam with multiple clean offsets keeps the last verified frame: \(run.ending)")
+        let run = capture(positions: [0, 80, 160, 240], frame: page.frame)
+        let expected = Page(width: page.width, viewport: 1_640, flatRows: page.flatRows).frame(at: 0)
+        precondition(run.ending == .success && run.image?.height == expected.height,
+                     "detail after a flat seam joins: \(run.ending), \(run.image?.height ?? -1) px")
+        precondition(rgba(run.image!) == rgba(expected), "every row after the flat seam shows")
+    }
+
+    static func nonzeroSeamTie() {
+        let previous = rgbImage(width: 16, height: 360) { _, y in y == 260 ? (0, 0, 0) : (255, 255, 255) }
+        let current = rgbImage(width: 16, height: 360) { _, _ in (255, 255, 255) }
+        let overlap = ScrollStitchMatcher.verifiedOverlap(
+            previous: ScrollStitchImage.colourSample(previous)!, current: ScrollStitchImage.colourSample(current)!,
+            overlap: 340, fixedBottomRows: 0, contentColumns: Array(0..<16))
+        precondition(overlap == nil, "a tie with mismatching rows does not verify a seam")
+    }
+
+    static func repeatingPastGap() {
+        let run = capture(positions: [120, 240, 680]) { position in
+            rgbImage(width: 48, height: 360) { _, y in
+                let row = position + y
+                return (200..<620).contains(row) ? (255, 255, 255) : band(row)
+            }
+        }
+        precondition(run.ending == .partial && run.image?.height == 360,
+                     "a backward alias after a gap preserves the partial result: \(run.ending)")
     }
 
     static func mismatchRecovery() {
-        let page = Page(width: 256, viewport: 1_400, flatRows: 1_140..<1_480)
-        let run = capture(page, positions: [0, 80, 0])
+        let page = Page(width: 256, viewport: 1_400)
+        let run = capture(positions: [0, 10_880, 0], frame: page.frame)
         precondition(run.ending == .success && run.image?.height == page.viewport,
-                     "scrolling back from an unverified seam clears the partial state: \(run.ending)")
+                     "returning to the last kept frame clears the partial state: \(run.ending)")
+    }
+
+    static func scrollingStrip(_ columns: Range<Int>) {
+        let width = 900, viewport = 360
+        let run = capture(positions: [0, 50]) { position in
+            rgbImage(width: width, height: viewport) { x, y in
+                if columns.contains(x) { return band(position + y + x) }
+                return (UInt8(30 + (y / 20) % 8 * 12), UInt8(40 + (x % 9) * 8), 70)
+            }
+        }
+        precondition(run.ending == .success && run.image?.height == 410 && run.image?.width == width,
+                     "the moving strip at \(columns) joins beside static columns: \(run.ending)")
+        let expected = rgbImage(width: 1, height: 410) { _, y in band(y + columns.lowerBound) }
+        let kept = run.image!.cropping(to: CGRect(x: columns.lowerBound, y: 0, width: 1, height: 410))!
+        precondition(rgba(kept) == rgba(expected),
+                     "the moving strip at \(columns) has every row")
     }
 
     /// Defect 1: grey alone matched a frame 256 rows (5,120 px) further down and joined it.
     static func wideJump() {
         let page = Page(width: 1_837, viewport: 1_400)
-        let jumped = capture(page, positions: Array(stride(from: 0, to: 5_740, by: 160)) + [5_740, 10_880])
+        let jumped = capture(positions: Array(stride(from: 0, to: 5_740, by: 160)) + [5_740, 10_880], frame: page.frame)
         precondition(jumped.ending == .partial, "a frame past the reach of the last one ends partial: \(jumped.ending)")
         let kept = seamless(jumped.image, "a wide area that lost the page")
         precondition(kept.last == (5_740 + 1_400 - 1) / 20, "it keeps every row up to the last joined frame")
 
-        let guarded = capture(page, positions: Array(stride(from: 0, through: 15_000, by: 1_000)))
+        let guarded = capture(positions: Array(stride(from: 0, through: 15_000, by: 1_000)), frame: page.frame)
         precondition(guarded.ending == .limitedByGuard && guarded.image?.height == 25_000_000 / 1_837,
                      "a wide area runs to the pixel guard: \(guarded.ending), \(guarded.image?.height ?? -1) px")
         _ = seamless(guarded.image, "a wide area up to the guard")
@@ -180,7 +249,7 @@ enum ScrollStitchRowsTests {
     /// Defect 2: a slow gradient read as a fixed footer, so the cap's last strip left a gap before it.
     static func heightCap() {
         let page = Page(width: 256, viewport: 1_300)
-        let capped = capture(page, positions: [0, 20] + Array(stride(from: 180, through: 21_000, by: 160)))
+        let capped = capture(positions: [0, 20] + Array(stride(from: 180, through: 21_000, by: 160)), frame: page.frame)
         precondition(capped.ending == .limitedByHeight && capped.image?.height == 20_000,
                      "the cap ends at exactly 20,000 px: \(capped.ending), \(capped.image?.height ?? -1) px")
         precondition(seamless(capped.image, "a run to the cap").count == 1_000, "every row to the end")
@@ -195,7 +264,7 @@ enum ScrollStitchRowsTests {
         }
         for step in [40, 25, 80, 15] { positions.append(positions.last! - step) }
         for step in [52, 29, 145, 12, 66, 31, 101, 8, 44] { positions.append(positions.last! + step) }
-        let run = capture(page, positions: positions)
+        let run = capture(positions: positions, frame: page.frame)
         precondition(run.ending == .success, "a sticky page joins: \(run.ending)")
         let bands = rows(run.image!).map(\.row)
         precondition(bands.first == .header && bands.last == .footer
