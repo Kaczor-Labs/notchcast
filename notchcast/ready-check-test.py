@@ -33,7 +33,8 @@ COVERED = {
     ("pr.yml:mac", "What the isolated runner proved"): "the isolated runner's stamp for its tested-tree record; no gate",
     ("pr.yml:linux-checks", "actions/checkout"): "the shared clone at HEAD",
     ("pr.yml:linux-checks", "Checks that need no Mac"): "ci-build.sh sources ci-checks.sh",
-    ("pr.yml:linux-harnesses", "Tools the Swift image lacks"): "the Swift image's setup; no gate",
+    ("pr.yml:linux-harnesses", "actions/cache"): "Linux Swift archive cache; no local step",
+    ("pr.yml:linux-harnesses", "Install the pinned Swift toolchain"): "GitHub's Linux toolchain setup; ready-check.sh uses Xcode",
     ("pr.yml:linux-harnesses", "actions/checkout"): "the shared clone at HEAD",
     ("pr.yml:linux-harnesses", "Linux-ok harnesses the diff needs"): "ci-build.sh's harnesses step runs them all on the Mac",
     ("pr.yml:script-tests", "actions/checkout"): "the shared clone at HEAD",
@@ -147,7 +148,7 @@ MAC_JOBS = {"pr.yml": 1, "main-harnesses.yml": 1, "delete-check.yml": 1, "proof.
 
 class RunnerTest(unittest.TestCase):
     def test_every_job_runs_on_a_hosted_image(self):
-        allowed = {"ubuntu-latest", "xcode-27"}
+        allowed = {"ubuntu-24.04", "ubuntu-latest", "xcode-27"}
         gated, mac = {}, {}
         for workflow in sorted((ROOT / ".github/workflows").glob("*.y*ml")):
             lines = workflow.read_text().splitlines()
