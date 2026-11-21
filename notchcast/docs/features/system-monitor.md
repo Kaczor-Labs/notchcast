@@ -8,7 +8,7 @@ The SystemMonitor add-on (`Tinycast/Features/Notchcast/SystemMonitor/`, switch `
 - **Sampling only while it is needed** (decision 946). With the switch on and the island closed, the module reads CPU, memory and disk every 15 s for the hot check and nothing else; it never walks processes or reads network counters, and it posts no page. While Home or the System page shows (`IslandPresenting.watchPages`), it reads everything every 2 s; a read that only set the network and process baseline is followed half a second later, so a short glance shows both. The hidden 15 s wait has a 2 s tolerance so the system can batch the wake-up. Showing the page, hiding it and Command-R each start a fresh loop that reads at once. The switch off stops the loop, removes the page and clears the glyph.
 - **Reads leave the main actor.** `MonitorLiveReads.read` is `@concurrent`; one loop, owned by the module, runs at a time and is cancelled by `stop`, and a read that returns after a cancel or switch-off is dropped. The process walk reads every CPU time but names only the five rows it will list, ranked against the previous read's times (`MonitorBoard.ranked`).
 - **Thresholds and every word live in `Model/`**, which imports Foundation only and takes each reading, its uptime and the locale as parameters.
-- **Hot is never colour alone.** On the page a hot tile's value, bar and note take the warning ink and the note says it in words ("Running hot", "Pressure critical", "Almost full"). On the closed island the glyph is the resource's own symbol with one short word ("Hot", "High", "Full"), and VoiceOver reads every hot resource.
+- **Hot is never colour alone.** On the page a hot tile's value, bar and note take the warning ink and the note says it in words ("Running hot", "Pressure critical", "Almost full"). On the closed island the glyph is the resource's own symbol in the warning tone with one short word ("Hot", "High", "Full"), the Home line's glyph takes the same tone, and VoiceOver reads every hot resource.
 
 ## Hot state
 
@@ -38,13 +38,12 @@ Adapted from Vorssaint (GPL-3.0-or-later, `vorssaint/vorssaint-utils@faada18`): 
 
 ## Proof
 
-- `Tests/nc-SystemMonitor-model-test.swift`: the counters' maths, the CPU hold, its restart on a dip or a failed read and its lower exit mark, memory and disk limits and their order, the disk's percent and byte bounds at both edges, the half-second read after a baseline, rates and their reset on a gap or an interface change, the process ranking and naming, the page, the hot page and the Home line, from injected readings.
+- `Tests/nc-SystemMonitor-model-test.swift`: the counters' maths, the CPU hold, its restart on a dip or a failed read and its lower exit mark, memory and disk limits and their order, the disk's percent and byte bounds at both edges, the half-second read after a baseline, rates and their reset on a gap or an interface change, the process ranking and naming, the page, the hot page and the Home line, and the warning tone on the hot glyph and Home line only while hot, from injected readings.
 - `Tests/nc-SystemMonitor-module-test.swift`: the module as its hook starts it, on a scripted Mac: only plain 15 s reads while hidden, a detail read half a second after the baseline and every 2 s after while shown (on the fake Mac's own clock), the glyph appearing and clearing, its tap, Command-R, nothing read after switch-off, and a read still out when the page hides or the switch goes off (and on again) dropped when it lands.
-- `Tests/nc-SystemMonitor-render-test.swift`: PNGs of the page normal, hot and measuring, Home normal and hot, and the closed island's hot glyph, in both forms on Black and Frosted (`977-*`).
+- `Tests/nc-SystemMonitor-render-test.swift`: PNGs of the page normal, hot and measuring, Home normal and hot, and the closed island at rest and with its hot glyph, in both forms on Black and Frosted (`977-*`).
 
 ## Deviations, numbered for review
 
-1. The closed-island glyph and the Home line draw in the primary ink, not yellow: `IslandStatus` and `IslandPageLine` carry no tone, and `IslandStatusArt` inks every glyph `textPrimary`. Yellow there needs a tone on those values in the island core; the word carries the state meanwhile.
-2. The switch sits in Mac Tweaks, as Day's does; a tab for island pages is a core change.
-3. Processes are not grouped under their app, so a browser's helpers list one by one.
-4. The eject-disk action from #946's inputs is not part of #977; it is #1297.
+1. The switch sits in Mac Tweaks, as Day's does; a tab for island pages is a core change.
+2. Processes are not grouped under their app, so a browser's helpers list one by one.
+3. The eject-disk action from #946's inputs is not part of #977; it is #1297.
