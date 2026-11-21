@@ -39,14 +39,16 @@ COVERED = {
     ("pr.yml:linux-checks", "actions/checkout"): "the shared clone at HEAD",
     ("pr.yml:linux-checks", "Checks that need no Mac"): "ci-build.sh sources ci-checks.sh",
     ("pr.yml:linux-harnesses", "Prepare clean Linux workspace"): "fresh runner workspace; no gate",
-    ("pr.yml:linux-harnesses", "actions/cache"): "Linux Swift archive cache; no local step",
-    ("pr.yml:linux-harnesses", "Install the pinned Swift toolchain"): "GitHub's Linux toolchain setup; ready-check.sh uses Xcode",
+    ("pr.yml:linux-harnesses", "./.github/actions/linux-swift"): "Linux toolchain setup; ready-check.sh uses Xcode",
     ("pr.yml:linux-harnesses", "actions/checkout"): "the shared clone at HEAD",
     ("pr.yml:linux-harnesses", "Linux-ok harnesses the diff needs"): "ci-build.sh's harnesses step runs them all on the Mac",
     ("pr.yml:script-tests", "Prepare clean Linux workspace"): "fresh runner workspace; no gate",
     ("pr.yml:script-tests", "./.github/actions/linux-python"): "pin the CI Python version; no local step",
     ("pr.yml:script-tests", "Install pinned jq"): "pin the CI jq version; no local step",
     ("pr.yml:script-tests", "./.github/actions/linux-node"): "pin the CI Node version; no local step",
+    ("pr.yml:script-tests", "./.github/actions/linux-swift"): "Linux toolchain setup; ready-check.sh uses Xcode",
+    ("pr.yml:script-tests", "Install pinned Ruby"): "pin the CI Ruby version; no local step",
+    ("pr.yml:script-tests", "Install pinned Gitleaks"): "pin the scanner used by the hook fixtures; no local step",
     ("pr.yml:script-tests", "actions/checkout"): "the shared clone at HEAD",
     ("pr.yml:script-tests", "Script tests"): "ci-build.sh's script-tests step",
     ("pr.yml:build", "Prepare clean Linux workspace"): "fresh runner workspace; no gate",
@@ -111,6 +113,22 @@ class CoverageTest(unittest.TestCase):
         self.assertEqual(found - COVERED.keys(), set(), "a pr.yml step ready-check.sh does not cover")
         self.assertEqual(COVERED.keys() - found, set(), "COVERED names a step pr.yml no longer has")
 
+    def test_script_tests_install_pinned_tools_before_running_on_either_runner(self):
+        lane = {signature(text): text for job, text in steps(WORKFLOW, 6) if job == "script-tests"}
+        for name in ("./.github/actions/linux-swift", "Install pinned Ruby", "Install pinned Gitleaks"):
+            with self.subTest(tool=name):
+                self.assertLess(list(lane).index(name), list(lane).index("Script tests"))
+                self.assertIsNone(field(lane[name], "if"))
+                self.assertIsNone(field(lane[name], "continue-on-error"))
+        ruby = lane["Install pinned Ruby"]
+        self.assertRegex(env(ruby)["RUBY_VERSION"], r"^'\d+\.\d+\.\d+'$")
+        self.assertRegex(env(ruby)["RUBY_SHA256"], r"^[a-f0-9]{64}$")
+        self.assertIn('"$RUBY_SHA256" "$archive" | sha256sum --check', ruby)
+        swift = (ROOT / ".github/actions/linux-swift/action.yml").read_text()
+        self.assertRegex(swift, r"version=\d+\.\d+\.\d+'")
+        self.assertRegex(swift, r"sha256=[a-f0-9]{64}'")
+        self.assertIn('"$SWIFT_SHA256" "$archive" | sha256sum --check', swift)
+
     def test_the_build_lane_is_ci_build(self):
         lane = next(text for scope, text in self.all_steps() if signature(text) == "Shared PR build lane")
         self.assertEqual(field(lane, "run"), "bash ../tools/notchcast/ci-build.sh")
@@ -167,7 +185,7 @@ MAC_JOBS = {"pr.yml": 1, "main-harnesses.yml": 1, "delete-check.yml": 1, "proof.
 
 
 LINUX_JOBS = {
-    "pr.yml": {"linux-checks": "ubuntu-latest", "script-tests": "ubuntu-latest",
+    "pr.yml": {"linux-checks": "ubuntu-latest", "script-tests": "ubuntu-24.04",
                "linux-harnesses": "ubuntu-24.04", "build": "ubuntu-latest"},
     "design.yml": {"design": "ubuntu-latest"},
     "leaks.yml": {"leaks": "ubuntu-latest"},
