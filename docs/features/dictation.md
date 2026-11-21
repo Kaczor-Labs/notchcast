@@ -11,7 +11,8 @@ The same audio-to-text channel feeds the coordinator regardless of which model i
 Parakeet variants declare their joint model, blank token and encoder placement in `DictationModel`, alongside the pinned
 download metadata. A new variant must match the adapter's tensor shapes and TDT decoding contract;
 sharing a model-family name alone does not establish compatibility.
-Redux is the default. Redux's encoder uses CPU/GPU to avoid the several-minute initial Neural Engine
+Redux is the default upstream; Notchcast seeds Ultra once on a profile with no stored model
+(`DictationFirstModel`). Redux's encoder uses CPU/GPU to avoid the several-minute initial Neural Engine
 compilation of its 2-bit weights; Ultra's encoder and both variants' decoder/joint use CPU/Neural Engine.
 
 ## Invariants
