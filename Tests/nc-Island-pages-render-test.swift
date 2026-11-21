@@ -39,7 +39,9 @@ struct IslandPagesRenderTest {
         try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
         // A run's own stale PNGs must not pass for this run's.
         for old in try FileManager.default.contentsOfDirectory(at: folder, includingPropertiesForKeys: nil)
-        where ["975-", "960-open-"].contains(where: old.lastPathComponent.hasPrefix) { try FileManager.default.removeItem(at: old) }
+        where ["975-", "960-open-"].contains(where: old.lastPathComponent.hasPrefix) {
+            try FileManager.default.removeItem(at: old)
+        }
         var sizes: [String: CGSize] = [:]
         for frosted in [false, true] {
             for notch in [false, true] {
