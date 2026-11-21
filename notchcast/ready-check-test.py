@@ -24,6 +24,7 @@ COVERED = {
     ("pr.yml:mac", "The harness runner's own Xcode"): "dispatched harness-only runs only",
     ("pr.yml:mac", "Runner kind"): "names a self-hosted run; no gate",
     ("pr.yml:mac", "Script tests that need macOS"): "ci-build.sh's script-tests step",
+    ("pr.yml:mac", "Result of the script tests that need macOS"): "ci-build.sh's script-tests step",
     ("pr.yml:mac", "Shared PR build lane"): "ci-build.sh, unsharded",
     ("pr.yml:mac", "./tools/notchcast/actions/tests"): "ci-build.sh's harnesses step",
     ("pr.yml:mac", "Failures outside the harness selection"): "shadow selection; reports, gates nothing",
