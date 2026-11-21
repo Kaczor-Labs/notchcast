@@ -32,6 +32,10 @@ final class NotchcastContext {
     /// The same dialog with a destructive confirm button, for a step that loses something.
     var confirmDestructive:
         (@MainActor @Sendable (_ title: String, _ message: String?, _ confirmTitle: String) async -> Bool)?
+    /// The same dialog with one hidden-text field: the typed text, or nil on Cancel or Esc.
+    var askSecret:
+        (@MainActor @Sendable (_ title: String, _ message: String?, _ fieldTitle: String, _ confirmTitle: String)
+            async -> String?)?
 
     init(
         defaults: UserDefaults, preferences: NotchcastPreferences, presenter: any IslandPresenting,

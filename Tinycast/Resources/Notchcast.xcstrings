@@ -19,6 +19,9 @@
     "Apps using the current token stop working until they get the new one." : {
 
     },
+    "Asked by %@ in Notchcast" : {
+
+    },
     "Automatic uses %@." : {
 
     },
