@@ -80,26 +80,6 @@ jobs:
         run: |
           git sparse-checkout disable
           python3 notchcast/harness-select.py plan "${BASE:-$(git merge-base origin/main HEAD)}" HEAD
-  # Logs the overflow decision without routing the mac job or gating the build.
-  mac-route:
-    if: inputs.harness_runner == ''
-    runs-on: ubuntu-latest
-    timeout-minutes: 2
-    continue-on-error: true
-    permissions:
-      contents: read
-      actions: read
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-        with:
-          sparse-checkout: notchcast
-          persist-credentials: false
-      - name: Where mac would run
-        env:
-          GH_TOKEN: ${{ github.token }}
-          EVENT: ${{ github.event_name }}
-          FORK: ${{ github.event.pull_request.head.repo.full_name != github.repository }}
-        run: python3 notchcast/mac-route.py || true
   # The one macOS job of a run: GitHub runs at most 5 at once for the account, so every lane that needs a Mac runs here in turn.
   # Only a dispatch reaches vars.NOTCHCAST_MAC_RUNNER, a self-hosted Mac: a pull_request, a fork's too, stays hosted.
   # inputs.harness_runner names the runner of a harness-only job: the harness steps alone, and no other job of the run.
