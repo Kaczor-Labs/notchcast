@@ -3,8 +3,8 @@
 
 # Notchcast
 
-[![Release](https://img.shields.io/github/v/release/kaczordodgers/notchcast)](https://github.com/kaczordodgers/notchcast/releases/latest)
-[![Sync](https://github.com/kaczordodgers/notchcast/actions/workflows/sync.yml/badge.svg)](https://github.com/kaczordodgers/notchcast/actions/workflows/sync.yml)
+[![Release](https://img.shields.io/github/v/release/Kaczor-Labs/notchcast)](https://github.com/Kaczor-Labs/notchcast/releases/latest)
+[![Sync](https://github.com/Kaczor-Labs/notchcast/actions/workflows/sync.yml/badge.svg)](https://github.com/Kaczor-Labs/notchcast/actions/workflows/sync.yml)
 [![License: AGPL-3.0](https://img.shields.io/badge/license-AGPL--3.0-blue)](/LICENSE)
 ![macOS 26+](https://img.shields.io/badge/macOS-26%2B-lightgrey)
 
@@ -12,13 +12,13 @@ Notchcast is a macOS launcher that lives in an island at the top of your screen,
 
 **Status:** in use; a snapshot is published from every green `main`.
 
-[Download](https://github.com/kaczordodgers/notchcast/releases) · [Use it](#use-it) · [Contribute](#where-things-are)
+[Download](https://github.com/Kaczor-Labs/notchcast/releases) · [Use it](#use-it) · [Contribute](#where-things-are)
 
 ## Install
 
 You need macOS 26 or later on Apple silicon.
 
-1. Open [Releases](https://github.com/kaczordodgers/notchcast/releases) and download `Notchcast-<version>.dmg` from the newest `snapshot` pre-release. Snapshots are built from every green `main`; the releases without `snapshot` rebuild each upstream Tinycast release with our commits.
+1. Open [Releases](https://github.com/Kaczor-Labs/notchcast/releases) and download `Notchcast-<version>.dmg` from the newest `snapshot` pre-release. Snapshots are built from every green `main`; the releases without `snapshot` rebuild each upstream Tinycast release with our commits.
 2. Drag Notchcast to Applications.
 3. Builds are signed with our own self-signed certificate and are not notarized, so remove the quarantine flag once: `xattr -dr com.apple.quarantine /Applications/Notchcast.app`
 4. Open Notchcast and grant Accessibility when asked. Turn on **Launch at login** in Settings › General if you want it at every login.
@@ -61,7 +61,7 @@ Settings can be mirrored to `~/.config/app.notchcast/settings.json`; see [settin
 You need Xcode 27 and [XcodeGen](https://github.com/yonaskolb/XcodeGen).
 
 ```sh
-git clone https://github.com/kaczordodgers/notchcast.git
+git clone https://github.com/Kaczor-Labs/notchcast.git
 cd notchcast
 xcodegen generate
 xcodebuild -project Tinycast.xcodeproj -scheme Tinycast -configuration Debug build
@@ -107,7 +107,7 @@ Read before you change things:
 | [hotspots.md](/notchcast/docs/hotspots.md) | upstream files to avoid touching |
 | [architecture.md](/docs/architecture.md), [standards.md](/docs/standards.md) | upstream's wiring and Swift rules |
 
-Contributing: [CONTRIBUTING.md](/.github/CONTRIBUTING.md). Security reports: [SECURITY.md](/.github/SECURITY.md). Bugs go in [our issues](https://github.com/kaczordodgers/notchcast/issues), not upstream's.
+Contributing: [CONTRIBUTING.md](/.github/CONTRIBUTING.md). Security reports: [SECURITY.md](/.github/SECURITY.md). Bugs go in [our issues](https://github.com/Kaczor-Labs/notchcast/issues), not upstream's.
 
 ## License
 
