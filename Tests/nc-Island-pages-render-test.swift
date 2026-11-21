@@ -42,9 +42,13 @@ struct IslandPagesRenderTest {
         for frosted in [false, true] {
             for notch in [false, true] {
                 let suffix = "\(notch ? "notch" : "island")-\(frosted ? "frosted" : "black")"
+                var bitmaps: [String: NSBitmapImageRep] = [:]
                 for (name, deck) in decks() {
-                    sizes[name] = render("975-\(name)-\(suffix)", deck: deck, notch: notch, frosted: frosted)
+                    (sizes[name], bitmaps[name]) = render("975-\(name)-\(suffix)", deck: deck, notch: notch,
+                                                          frosted: frosted)
                 }
+                checkTones(toned: bitmaps["3-home-tones"]!, plain: bitmaps["3-home-untoned"]!, frosted: frosted,
+                           look: suffix)
             }
         }
         precondition(sizes["1-player"] != sizes["3-home"] && sizes["3-home"] != sizes["5-system"],
@@ -93,7 +97,7 @@ struct IslandPagesRenderTest {
             deck.show(IslandNotice(id: "update", symbol: "arrow.down.circle", text: "Update ready"), tappable: true)
             return deck
         }
-        func toned(_ page: IslandPage, _ tone: IslandTone, _ text: String) -> IslandPage {
+        func toned(_ page: IslandPage, _ tone: IslandTone?, _ text: String) -> IslandPage {
             var page = page
             page.line.text = text
             page.line.tone = tone
@@ -111,6 +115,7 @@ struct IslandPagesRenderTest {
             ("3-home-notice", noticed(deck([calm, player, system]))),
             ("3-home", deck([calm, player, system])),
             ("3-home-tones", deck([calm, toned(system, .warning, "CPU 96 %"), toned(day, .critical, "Disk almost full")])),
+            ("3-home-untoned", deck([calm, toned(system, nil, "CPU 96 %"), toned(day, nil, "Disk almost full")])),
             ("3-player", deck([calm, player, system], select: .page(IslandPlayerPage.id))),
             ("5-home", deck([agents, player, system, day, usage])),
             ("5-system", deck([agents, player, system, day, usage], select: .page("system"))),
@@ -199,8 +204,54 @@ struct IslandPagesRenderTest {
         return bitmap.representation(using: .png, properties: [:])
     }
 
+    /// The tone hops line, label, artwork; a dropped `tone:` on any hop draws the Home glyph grey.
+    static func checkTones(toned: NSBitmapImageRep, plain: NSBitmapImageRep, frosted: Bool, look: String) {
+        precondition(toned.pixelsWide == plain.pixelsWide && toned.pixelsHigh == plain.pixelsHigh,
+                     "a tone never resizes the Home line (\(look))")
+        func rgb(_ color: NSColor?) -> [CGFloat] {
+            guard let color = color?.usingColorSpace(.sRGB) else { return [-1, -1, -1] }
+            return [color.redComponent, color.greenComponent, color.blueComponent]
+        }
+        func near(_ a: [CGFloat], _ b: [CGFloat]) -> Bool { zip(a, b).allSatisfy { abs($0 - $1) < 0.02 } }
+        let inks = IslandTone.allCases.map { tone in
+            let swatch = Rectangle().fill(tone.color).environment(\.islandFrosted, frosted)
+            return (tone, rgb(snapshot(swatch.environment(\.colorScheme, .dark), size: CGSize(width: 8, height: 8))
+                .colorAt(x: 4, y: 4)))
+        }
+        var hits: [IslandTone: Int] = [:]
+        for y in 0..<toned.pixelsHigh {
+            for x in 0..<toned.pixelsWide {
+                let (before, after) = (rgb(plain.colorAt(x: x, y: y)), rgb(toned.colorAt(x: x, y: y)))
+                for (tone, ink) in inks {
+                    precondition(!near(before, ink), "an untoned Home line draws no \(tone) ink (\(look))")
+                    guard near(after, ink) else { continue }
+                    hits[tone, default: 0] += 1
+                    precondition(before.max()! - before.min()! < 0.08,
+                                 "nil inks the Home glyph grey as before, where \(tone) inks it (\(look))")
+                }
+            }
+        }
+        for tone in IslandTone.allCases {
+            precondition(hits[tone, default: 0] >= 20, "a \(tone) Home line inks its glyph (\(look)): \(hits)")
+        }
+    }
+
+    static func snapshot(_ view: some View, size: CGSize) -> NSBitmapImageRep {
+        let host = NSHostingView(rootView: view)
+        let window = NSWindow(contentRect: CGRect(origin: .zero, size: size), styleMask: .borderless,
+                              backing: .buffered, defer: false)
+        window.appearance = NSAppearance(named: .darkAqua)
+        window.contentView = host
+        host.frame = CGRect(origin: .zero, size: size)
+        host.layoutSubtreeIfNeeded()
+        guard let bitmap = host.bitmapImageRepForCachingDisplay(in: host.bounds) else { preconditionFailure("no bitmap") }
+        host.cacheDisplay(in: host.bounds, to: bitmap)
+        return bitmap
+    }
+
     /// The island hanging from the screen's top edge, sized as `IslandPageHost` sizes it, below a notch or not.
-    static func render(_ name: String, deck: IslandPageDeck, notch: Bool, frosted: Bool) -> CGSize {
+    static func render(_ name: String, deck: IslandPageDeck, notch: Bool,
+                       frosted: Bool) -> (CGSize, NSBitmapImageRep) {
         let pages = IslandPagesView(deck: deck, select: { _ in }, act: { _, _ in })
             .environment(\.metrics, InterfaceMetrics.standard)
             .environment(\.islandFrosted, frosted)
@@ -225,23 +276,13 @@ struct IslandPagesRenderTest {
             .frame(width: canvas.width, height: canvas.height, alignment: .top)
             .background(frosted ? Color.white : Color(white: 0.18))
             .environment(\.colorScheme, .dark)
-        let host = NSHostingView(rootView: view)
-        let window = NSWindow(contentRect: CGRect(origin: .zero, size: canvas), styleMask: .borderless,
-                              backing: .buffered, defer: false)
-        window.appearance = NSAppearance(named: .darkAqua)
-        window.contentView = host
-        host.frame = CGRect(origin: .zero, size: canvas)
-        host.layoutSubtreeIfNeeded()
-        guard let bitmap = host.bitmapImageRepForCachingDisplay(in: host.bounds) else {
-            preconditionFailure("\(name) has no bitmap")
-        }
-        host.cacheDisplay(in: host.bounds, to: bitmap)
+        let bitmap = snapshot(view, size: canvas)
         guard let png = bitmap.representation(using: .png, properties: [:]) else { preconditionFailure("\(name) PNG") }
         do {
             try png.write(to: folder.appendingPathComponent("\(name).png"))
         } catch {
             preconditionFailure("\(name): \(error)")
         }
-        return size
+        return (size, bitmap)
     }
 }
