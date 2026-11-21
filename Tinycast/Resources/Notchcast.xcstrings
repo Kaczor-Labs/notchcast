@@ -7,11 +7,17 @@
     "A notch always decides where the island sits." : {
 
     },
+    "Add Claude or Codex in AI providers, or choose a model." : {
+
+    },
     "Add to Liked Songs" : {
 
     },
     "Agents" : {
       "shouldTranslate" : false
+    },
+    "AI providers" : {
+
     },
     "Apps on this Mac can transcribe audio through a local OpenAI-compatible endpoint." : {
 
@@ -37,6 +43,9 @@
     "Checking Liked Songs" : {
 
     },
+    "Choose the model cleanup uses in Dictation › Cleanup." : {
+
+    },
     "Clean up text" : {
 
     },
@@ -56,6 +65,9 @@
 
     },
     "Clear dictation history?" : {
+
+    },
+    "Connect the models cleanup can use." : {
 
     },
     "Copy Raw Transcript" : {
@@ -126,6 +138,9 @@
     },
     "Mac Tweaks" : {
       "shouldTranslate" : false
+    },
+    "Manage AI providers" : {
+
     },
     "Menu bar bottom" : {
 
@@ -242,9 +257,6 @@
 
     },
     "Turn Off and Delete" : {
-
-    },
-    "Turn on Claude or Codex in AI settings, or choose a model." : {
 
     },
     "Up Next" : {
