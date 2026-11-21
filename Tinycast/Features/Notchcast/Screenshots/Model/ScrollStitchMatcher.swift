@@ -54,8 +54,7 @@ enum ScrollStitchMatcher {
         if isStill(previous, current, contentColumns: columns) { return .end }
 
         let height = previous.height
-        // The last scroll at the bottom of a page is often only a few rows.
-        let minimumAdvance = max(2, Int((Double(height) * 0.01).rounded()))
+        let minimumAdvance = 2
         let maximumAdvance = min(height - 8, Int((Double(height) * 0.88).rounded()))
         guard minimumAdvance <= maximumAdvance else { return .unmatched }
 
@@ -146,12 +145,15 @@ enum ScrollStitchMatcher {
 
     /// The grey search's overlap, moved to where the colours agree; nil when no seam does, or two equally.
     static func verifiedOverlap(previous: ColourSample, current: ColourSample, overlap: Int,
-                                fixedBottomRows: Int) -> Int? {
+                                fixedBottomRows: Int, contentColumns: Range<Int>) -> Int? {
         guard previous.isValid, current.isValid, previous.width == current.width,
-            previous.height == current.height, fixedBottomRows >= 0 else { return nil }
+            previous.height == current.height, fixedBottomRows >= 0,
+            contentColumns.lowerBound >= 0, contentColumns.upperBound <= previous.width, !contentColumns.isEmpty
+        else { return nil }
         let height = previous.height, rowBytes = previous.width * 4
-        let limit = Double(previous.width * 3 * seamTolerance)
-        var scored: [(overlap: Int, mismatches: Int, distance: Int)] = []
+        let contentBytes = (contentColumns.lowerBound * 4)..<(contentColumns.upperBound * 4)
+        let limit = contentColumns.count * 3 * seamTolerance
+        var scored: [(overlap: Int, mismatches: Int)] = []
         previous.pixels.withUnsafeBufferPointer { lhs in
             current.pixels.withUnsafeBufferPointer { rhs in
                 for candidate in (overlap - 4)...(overlap + 4) where candidate > fixedBottomRows && candidate < height {
@@ -160,20 +162,19 @@ enum ScrollStitchMatcher {
                     for row in stride(from: seamEnd - 1, through: max(0, seamEnd - 256), by: -1) {
                         let left = (row + height - candidate) * rowBytes, right = row * rowBytes
                         var error = 0
-                        for byte in 0..<rowBytes where byte & 3 != 3 {
+                        for byte in contentBytes where byte & 3 != 3 {
                             error += abs(Int(lhs[left + byte]) - Int(rhs[right + byte]))
                         }
-                        guard Double(error) > limit else { continue }
+                        guard error > limit else { continue }
                         mismatches += 1
                         if row >= seamEnd - 32 { clean = false; break }
                     }
-                    if clean { scored.append((candidate, mismatches, abs(candidate - overlap))) }
+                    if clean { scored.append((candidate, mismatches)) }
                 }
             }
         }
-        guard let best = scored.min(by: { ($0.mismatches, $0.distance) < ($1.mismatches, $1.distance) }),
-            !scored.contains(where: { $0.overlap != best.overlap && $0.mismatches == best.mismatches
-                && $0.distance == best.distance })
+        guard let best = scored.min(by: { $0.mismatches < $1.mismatches }),
+            !scored.contains(where: { $0.overlap != best.overlap && $0.mismatches == best.mismatches })
         else { return nil }
         return best.overlap
     }

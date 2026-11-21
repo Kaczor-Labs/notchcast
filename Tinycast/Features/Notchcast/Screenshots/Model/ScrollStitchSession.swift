@@ -130,7 +130,8 @@ struct ScrollStitchSession {
                                                   contentColumns: columns)
             : Int((Double(fixedBottomPixels) / Double(current.height) * Double(sample.height)).rounded())
         guard let sampleOverlap = ScrollStitchMatcher.verifiedOverlap(
-            previous: previousColour, current: colour, overlap: matchedOverlap, fixedBottomRows: fixedRows)
+            previous: previousColour, current: colour, overlap: matchedOverlap, fixedBottomRows: fixedRows,
+            contentColumns: columns)
         else { return .unverified }
         let overlap = Int((Double(sampleOverlap) / Double(sample.height) * Double(current.height)).rounded())
         guard overlap > 0, overlap < current.height else { return .ended(.failed) }

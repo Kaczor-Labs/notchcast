@@ -19,6 +19,8 @@ struct Page {
     let width: Int
     let viewport: Int
     var stickyRows = 0
+    var sidebarColumns = 0..<0
+    var flatRows = 0..<0
     let rowHeight = 20
 
     /// The viewport scrolled to `position` px, with a sticky header and footer `stickyRows` px tall.
@@ -27,10 +29,18 @@ struct Page {
         bytes.withUnsafeMutableBufferPointer { buffer in
             for y in 0..<viewport {
                 let band = y < stickyRows ? header : y >= viewport - stickyRows ? footer
+                    : flatRows.contains(position + y) ? colour(flatRows.lowerBound / rowHeight)
                     : colour((position + y) / rowHeight)
                 var pixel = UInt32(band.0) | UInt32(band.1) << 8 | UInt32(band.2) << 16 | 0xFF00_0000
                 withUnsafeBytes(of: &pixel) {
                     memset_pattern4(buffer.baseAddress! + y * width * 4, $0.baseAddress!, width * 4)
+                }
+                if !sidebarColumns.isEmpty {
+                    let value: UInt8 = y < viewport - 100 ? 0 : 255
+                    let start = (y * width + sidebarColumns.lowerBound) * 4
+                    for byte in start..<(start + sidebarColumns.count * 4) where byte & 3 != 3 {
+                        buffer[byte] = value
+                    }
                 }
                 // Text-like specks, so the bands are not flat like the rows.
                 guard band == header || band == footer else { continue }
@@ -114,7 +124,43 @@ enum ScrollStitchRowsTests {
         wideJump()
         heightCap()
         stickyBands()
+        shortFinalScroll()
+        staticSidebar(columns: 0..<224)
+        staticSidebar(columns: 1_568..<1_792)
+        ambiguousSeam()
+        mismatchRecovery()
         print("nc-Screenshots-stitch-rows-test: ok")
+    }
+
+    static func shortFinalScroll() {
+        let page = Page(width: 256, viewport: 1_400)
+        let run = capture(page, positions: [0, 160, 170])
+        precondition(run.ending == .success && run.image?.height == 1_570,
+                     "the final 10 px are kept: \(run.ending), \(run.image?.height ?? -1) px")
+        precondition(seamless(run.image, "short final scroll").last == 78, "the last page row shows")
+    }
+
+    static func staticSidebar(columns: Range<Int>) {
+        let page = Page(width: 1_792, viewport: 1_400, sidebarColumns: columns)
+        let run = capture(page, positions: [0, 161, 322])
+        precondition(run.ending == .success && run.image?.height == 1_722 && run.image?.width == page.width,
+                     "a static sidebar at \(columns) keeps the full capture: \(run.ending)")
+        let content = run.image?.cropping(to: CGRect(x: page.width / 2, y: 0, width: 1, height: 1_722))
+        precondition(seamless(content, "scroll beside a static sidebar").last == 86, "the last page row shows")
+    }
+
+    static func ambiguousSeam() {
+        let page = Page(width: 256, viewport: 1_400, flatRows: 1_140..<1_480)
+        let run = capture(page, positions: [0, 80])
+        precondition(run.ending == .partial && run.image?.height == page.viewport,
+                     "a flat seam with multiple clean offsets keeps the last verified frame: \(run.ending)")
+    }
+
+    static func mismatchRecovery() {
+        let page = Page(width: 256, viewport: 1_400, flatRows: 1_140..<1_480)
+        let run = capture(page, positions: [0, 80, 0])
+        precondition(run.ending == .success && run.image?.height == page.viewport,
+                     "scrolling back from an unverified seam clears the partial state: \(run.ending)")
     }
 
     /// Defect 1: grey alone matched a frame 256 rows (5,120 px) further down and joined it.
