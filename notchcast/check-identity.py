@@ -89,7 +89,7 @@ def added_lines(base):
     line = None
     patch = git("log", "-p", "--text", "--cherry-pick", "--right-only", "--format=", "--no-ext-diff",
                 "--no-textconv", "--no-renames", "--unified=0", "--diff-merges=first-parent", f"{base}...{HEAD}")
-    for text in patch.splitlines():
+    for text in patch.split("\n"):
         if text.startswith("diff --git "):
             path = None
             line = None
