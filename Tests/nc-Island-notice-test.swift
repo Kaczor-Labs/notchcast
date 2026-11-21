@@ -137,6 +137,20 @@ struct IslandNoticeTest {
         secret.post(IslandNotice(id: "p", text: "Copied 1.2.3.4"), at: 0)
         precondition(secret.notice?.spoken == "Copied 1.2.3.4" && secret.announcement() == "Copied 1.2.3.4",
                      "A notice without spoken text announces its text")
+
+        let clamped = IslandSwatch(red: 2, green: -1, blue: .nan)
+        precondition(clamped.red == 1 && clamped.green == 0 && clamped.blue == 0,
+                     "A swatch clamps each channel to 0...1 and reads a non-finite one as 0")
+        let blue = IslandNotice(id: "pick", symbol: "eyedropper", text: "#12ABEF",
+                                swatch: IslandSwatch(red: 0.07, green: 0.67, blue: 0.94))
+        var white = blue
+        white.text = "#FFFFFF"
+        white.swatch = IslandSwatch(red: 1, green: 1, blue: 1)
+        var picks = IslandNoticeQueue()
+        picks.post(blue, at: 0)
+        picks.post(white, at: 1)
+        precondition(blue != white && picks.notice?.swatch == white.swatch,
+                     "A repost with a new swatch shows the new swatch on top")
         print("IslandNoticeTest passed")
     }
 
