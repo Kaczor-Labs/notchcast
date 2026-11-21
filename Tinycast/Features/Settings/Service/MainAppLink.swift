@@ -179,6 +179,8 @@ final class MainAppLink {
             self.status = status
             core.appIndex.adoptCommands(hidden: status.hiddenCommands, unlisted: status.unlistedCommands)
             core.hotKeys.capture.hyperRoute = status.hyperKey.route
+            core.island.looks.displays = status.islandDisplays
+            core.hotKeys.extraActions = status.notchcastCommandIDs.map { .notchcastCommand(entryID: $0) }
             core.hotKeys.modifierTapMonitor.adoptNeedsAccessibility(status.modifierTapsNeedAccessibility)
         }
     }

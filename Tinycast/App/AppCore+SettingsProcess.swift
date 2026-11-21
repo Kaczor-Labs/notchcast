@@ -4,7 +4,12 @@ import Foundation
 extension AppCore {
     func makeSharedStateMirror(send: @escaping (SharedChange) -> Void) -> SharedStateMirror {
         SharedStateMirror(
-            domain: sharedDomain, reloadDefaults: { [weak self] in self?.reloadDefaultsStores() }, send: send)
+            domain: sharedDomain, reloadDefaults: { [weak self] in self?.reloadDefaultsStores() },
+            notchcastDefaults: notchcastDefaults, notchcastDomain: notchcastDefaultsDomain,
+            reloadNotchcastDefaults: { [weak self] in
+                self?.notchcast?.controller.preferences.reload()
+                self?.island.looks.reload()
+            }, send: send)
     }
 
     /// Exhaustive, so a new domain fails to build until both roles know how to re-read it.

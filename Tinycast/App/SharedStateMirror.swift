@@ -4,6 +4,8 @@ import Foundation
 enum SharedChange: Codable, Sendable {
     case defaultsEdit(SharedDefaultsEdit)
     case defaultsState(SharedDefaultsState)
+    case notchcastDefaultsEdit(SharedDefaultsEdit)
+    case notchcastDefaultsState(SharedDefaultsState)
     case domain(SharedDomain)
 }
 
@@ -38,6 +40,7 @@ final class SharedStateMirror {
     }
 
     private let defaultsMirror: SharedDefaultsMirror
+    private let notchcastDefaultsMirror: SharedDefaultsMirror
     private let send: (SharedChange) -> Void
     private let domains: [SharedDomain: Domain]
     /// Bumped before a peer's change is re-read, so the stale observer it trips stays quiet.
@@ -45,6 +48,7 @@ final class SharedStateMirror {
 
     init(
         domain: (SharedDomain) -> Domain, reloadDefaults: @escaping () -> Void,
+        notchcastDefaults: UserDefaults, notchcastDomain: String, reloadNotchcastDefaults: @escaping () -> Void,
         send: @escaping (SharedChange) -> Void
     ) {
         domains = Dictionary(uniqueKeysWithValues: SharedDomain.allCases.map { ($0, domain($0)) })
@@ -52,10 +56,22 @@ final class SharedStateMirror {
         defaultsMirror = SharedDefaultsMirror(
             role: .current, defaults: .standard, domainName: Bundle.main.bundleIdentifier ?? "",
             reload: reloadDefaults, send: send)
+        notchcastDefaultsMirror = SharedDefaultsMirror(
+            role: .current, defaults: notchcastDefaults,
+            domainName: notchcastDomain,
+            reload: reloadNotchcastDefaults
+        ) { change in
+            switch change {
+            case .defaultsEdit(let edit): send(.notchcastDefaultsEdit(edit))
+            case .defaultsState(let state): send(.notchcastDefaultsState(state))
+            default: break
+            }
+        }
     }
 
     func start() {
         defaultsMirror.start()
+        notchcastDefaultsMirror.start()
         for domain in domains.keys { watch(domain) }
     }
 
@@ -63,6 +79,8 @@ final class SharedStateMirror {
         switch change {
         case .defaultsEdit(let edit): defaultsMirror.apply(edit)
         case .defaultsState(let state): defaultsMirror.apply(state)
+        case .notchcastDefaultsEdit(let edit): notchcastDefaultsMirror.apply(edit)
+        case .notchcastDefaultsState(let state): notchcastDefaultsMirror.apply(state)
         case .domain(let domain):
             generations[domain, default: 0] += 1
             domains[domain]?.reload()
@@ -70,7 +88,10 @@ final class SharedStateMirror {
         }
     }
 
-    func flush() { defaultsMirror.flush() }
+    func flush() {
+        defaultsMirror.flush()
+        notchcastDefaultsMirror.flush()
+    }
 
     private func watch(_ domain: SharedDomain) {
         guard let entry = domains[domain] else { return }

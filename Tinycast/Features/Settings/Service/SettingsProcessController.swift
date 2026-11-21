@@ -428,7 +428,9 @@ final class SettingsProcessController {
             updates: MainAppStatus.Updates(
                 updatesItself: updates.updatesItself, isChecking: updates.isChecking,
                 lastCheckedAt: updates.lastCheckedAt, availableVersion: updates.availableVersion?.description),
-            extensions: extensionsStatus())
+            extensions: extensionsStatus(),
+            islandDisplays: core.island.looks.displays,
+            notchcastCommandIDs: core.notchcast?.controller.enabledCommands.map(\.id) ?? [])
     }
 
     private func extensionsStatus() -> MainAppStatus.Extensions {

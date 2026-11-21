@@ -11,9 +11,10 @@ final class NotchcastCore {
     private var globeTrigger: NotchcastGlobeTrigger?
     private let dictationIsland = DictationIslandCoordinator()
 
-    init(core: AppCore, addons: [any NotchcastAddon.Type] = NotchcastRegistry.addons) {
-        let bundleID = Bundle.main.bundleIdentifier ?? "Notchcast"
-        let defaults = UserDefaults(suiteName: NotchcastPreferences.suiteName(bundleID: bundleID)) ?? .standard
+    init(
+        core: AppCore, addons: [any NotchcastAddon.Type] = NotchcastRegistry.addons, startsRuntime: Bool = true
+    ) {
+        let defaults = core.notchcastDefaults
         let hub = NotchcastTapHub(
             syntheticTag: Paster.tinycastEventTag, isTrusted: { AXIsProcessTrusted() },
             makeSession: NotchcastTapThread.start)
@@ -42,6 +43,7 @@ final class NotchcastCore {
             controller.switches,
             commandWords: Dictionary(grouping: commands, by: \.switchID)
                 .mapValues { $0.flatMap { [$0.name] + $0.keywords } })
+        guard startsRuntime else { return }
         let launcher = core.launcherCoordinator
         let tabs = Dictionary(
             controller.switches.map { ($0.id, NotchcastPane.holding($0.category)) },

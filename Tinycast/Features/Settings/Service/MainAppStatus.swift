@@ -65,4 +65,6 @@ struct MainAppStatus: Codable, Equatable, Sendable {
     var mcpAuthentication: [UUID: MCPOAuthManager.Status] = [:]
     var updates = Updates()
     var extensions = Extensions()
+    var islandDisplays: [IslandLookDisplay] = []
+    var notchcastCommandIDs: [String] = []
 }
