@@ -79,7 +79,7 @@ final class FakeTools: Sendable {
         let journalled = (try? Data(contentsOf: journal)) ?? Data()
         state.withLock {
             $0.calls.append(Call(tool: name, arguments: arguments, environment: environment))
-            if String(decoding: journalled, as: UTF8.self).contains(marker) { $0.journalLeaks += 1 }
+            if journalled.range(of: Data(marker.utf8)) != nil { $0.journalLeaks += 1 }
         }
         let archive = URL(filePath: arguments[1])
         if name == "bsdtar" {
@@ -276,8 +276,8 @@ final class Rig {
             }
         }
         check(tools.state.withLock { $0.journalLeaks } == 0, "the journal never holds a password")
-        let saved = String(decoding: (try? Data(contentsOf: harnessEnvironment!.journal)) ?? Data(), as: UTF8.self)
-        check(!saved.contains(marker), "the journal never holds a password")
+        let saved = (try? Data(contentsOf: harnessEnvironment!.journal)) ?? Data()
+        check(saved.range(of: Data(marker.utf8)) == nil, "the journal never holds a password")
         check(!presenter.texts.contains { $0.contains(marker) }, "no notice holds a password: \(presenter.texts)")
     }
 
