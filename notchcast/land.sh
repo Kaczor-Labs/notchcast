@@ -26,19 +26,27 @@ source "$(dirname "$0")/local-build-status.sh"
 selector="$(cd "$(dirname "$0")" && pwd)/changed-harnesses.sh"
 cd "$(git rev-parse --show-toplevel)"
 source "$(dirname "$0")/merge.sh"
-# Succeeds, and says so, when an open PR's head still contains commit $1 (cut from or merged that branch).
+# Succeeds, and says so, when an open PR's head still contains commit $1 (cut from or merged branch $2).
 held_by() {
-    local heads pr oid
+    local expected=$1 name=$2 heads pr oid refs=() status
     heads=$(gh pr list -R "$FORK_REPO" --state open --limit 1000 --json number,headRefOid --jq '.[] | "\(.number) \(.headRefOid)"') \
         || { echo "WARN: kept origin/$name: cannot list open PRs" >&2; return 0; }
     while read -r pr oid; do
-        [ -n "$oid" ] && [ "$oid" != "$1" ] || continue
-        git cat-file -e "$oid^{commit}" 2>/dev/null || git fetch -q origin "refs/pull/$pr/head" \
-            || { echo "WARN: kept origin/$name: cannot fetch #$pr's head" >&2; return 0; }
-        if git merge-base --is-ancestor "$1" "$oid"; then
-            echo "kept origin/$name: open PR #$pr stands on it"
-            return 0
-        fi
+        [ -n "$oid" ] && [ "$oid" != "$expected" ] && ! git cat-file -e "$oid^{commit}" 2>/dev/null || continue
+        refs+=("refs/pull/$pr/head")
+    done <<< "$heads"
+    [ "${#refs[@]}" -eq 0 ] || git fetch -q origin "${refs[@]}" \
+        || { echo "WARN: kept origin/$name: cannot fetch the open PRs' heads" >&2; return 0; }
+    while read -r pr oid; do
+        [ -n "$oid" ] && [ "$oid" != "$expected" ] || continue
+        status=0
+        git merge-base --is-ancestor "$expected" "$oid" 2>/dev/null || status=$?
+        case $status in
+            0) echo "kept origin/$name: open PR #$pr stands on it"; return 0 ;;
+            1) ;;
+            # A head force-pushed since the listing is not here to compare, so the branch stays.
+            *) echo "WARN: kept origin/$name: cannot tell whether open PR #$pr stands on it" >&2; return 0 ;;
+        esac
     done <<< "$heads"
     return 1
 }
@@ -58,7 +66,7 @@ delete_head() {
                 kept=1
             fi
         done
-        [ -n "$kept" ] || held_by "$expected" || git push origin --delete "$name" || echo "WARN: could not delete origin/$name" >&2
+        [ -n "$kept" ] || held_by "$expected" "$name" || git push origin --delete "$name" || echo "WARN: could not delete origin/$name" >&2
     fi
     local_head=$(git rev-parse --verify "refs/heads/$name" 2>/dev/null) || return 0
     if [ "$local_head" = "$expected" ]; then
