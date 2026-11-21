@@ -3,10 +3,11 @@
 
 The same three-way merge git does, on words instead of lines, so two sides that each add a name to one line
 merge. Where both sides add words at one place inside a line, ours go first. A name both sides added to a quoted
-list (NAME="...") lands once wherever each side put it, as does an entry both added at one place of a comma list
-in a table cell; prose, table columns and quoted values keep both sides whole. Anything else git would call a
-conflict (a word both sides changed, a word one side removed beside the other's addition, whole lines both added
-at one place) is left to git's own line merge, so a real conflict looks as it always did.
+name list (NAME_TESTS="..." or NAME_INPUTS="...") lands once wherever each side put it, as does an entry both
+added at one place of a comma list in a table cell; prose, table columns, other quoted values and entries holding
+brackets or code keep both sides whole. Anything else git would call a conflict (a word both sides changed, a word
+one side removed beside the other's addition, whole lines both added at one place) is left to git's own line
+merge, so a real conflict looks as it always did.
 """
 from collections import Counter
 import difflib
@@ -20,16 +21,19 @@ import tempfile
 # A list separator is its own word, so a name added before a closing quote or after a comma changes no other word.
 NAME = re.compile(r'''[^\s"',;|()]+''')
 WORD = re.compile(NAME.pattern + r'''|\s+|.''')
-OPEN_LIST = re.compile(r'(?:^|\s)[A-Za-z_]\w*="[^"]*$')
+# A quoted name list is a variable named *_TESTS or *_INPUTS; any other quoted value is merged as text.
+LIST_NAME = r'[A-Za-z_]\w*_(?:TESTS|INPUTS)'
+OPEN_LIST = re.compile(r'(?:^|\s)' + LIST_NAME + '="[^"]*$')
 CELL = re.compile(r'^\s*\|.*\|[^|]*$')
-QUOTED_LIST = re.compile(r'^(\s*(?:export\s+)?([A-Za-z_]\w*)=")([^"\n]*)(")', re.M)
+QUOTED_LIST = re.compile(r'^(\s*(?:export\s+)?(' + LIST_NAME + ')=")([^"\n]*)(")', re.M)
+NOT_IN_ENTRY = '"\'()`'
 
 
 def entries(words, between):
     """(name, text) per list entry, each with the separators on its open side, or None for a bare separator."""
     leading, out, seen_name, after_separator = None, [], False, False
     for word in words:
-        separator = word in between or word in '"\'()' or (word.isspace() and (after_separator or ' ' in between))
+        separator = word in between or (word.isspace() and (after_separator or ' ' in between))
         if leading is None:
             leading = separator
         if not out or (separator and leading and seen_name) or (not separator and not leading and after_separator):
@@ -45,7 +49,7 @@ def entries(words, between):
 
 def is_list(line, ours, theirs):
     """Whether additions at the end of this line so far are list entries rather than prose, cells or values."""
-    if any(quote in word for word in ours + theirs for quote in '"\''):
+    if any(char in word for word in ours + theirs for char in NOT_IN_ENTRY):
         return False
     if OPEN_LIST.search(line):
         return True
@@ -121,7 +125,7 @@ def once(text, ours, theirs):
 
     def fix(match):
         name, value = match[2], match[3]
-        if ours.get(name) is None or theirs.get(name) is None:
+        if ours.get(name) is None or theirs.get(name) is None or any(char in value for char in NOT_IN_ENTRY):
             return match[0]
         allowed = Counter(NAME.findall(ours[name])) | Counter(NAME.findall(theirs[name]))
         parts, seen = re.split('(' + NAME.pattern + ')', value), Counter()
