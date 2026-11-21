@@ -35,7 +35,8 @@ COVERED = {
     ("pr.yml:mac", "What the isolated runner proved"): "the isolated runner's stamp for its tested-tree record; no gate",
     ("pr.yml:linux-checks", "actions/checkout"): "the shared clone at HEAD",
     ("pr.yml:linux-checks", "Checks that need no Mac"): "ci-build.sh sources ci-checks.sh",
-    ("pr.yml:linux-harnesses", "Tools the Swift image lacks"): "the Swift image's setup; no gate",
+    ("pr.yml:linux-harnesses", "actions/cache"): "Linux Swift archive cache; no local step",
+    ("pr.yml:linux-harnesses", "Install the pinned Swift toolchain"): "GitHub's Linux toolchain setup; ready-check.sh uses Xcode",
     ("pr.yml:linux-harnesses", "actions/checkout"): "the shared clone at HEAD",
     ("pr.yml:linux-harnesses", "Linux-ok harnesses the diff needs"): "ci-build.sh's harnesses step runs them all on the Mac",
     ("pr.yml:script-tests", "actions/checkout"): "the shared clone at HEAD",
@@ -109,6 +110,14 @@ class CoverageTest(unittest.TestCase):
         self.assertIn("unset NOTCHCAST_HARNESSES_SHARDED", script)
         self.assertIn("bash notchcast/ci-build.sh", script)
 
+    def test_the_linux_toolchain_is_verified_before_use_even_from_the_cache(self):
+        install = next(text for scope, text in self.all_steps() if signature(text) == "Install the pinned Swift toolchain")
+        script = install
+        check = script.index('printf \'%s  %s\\n\' "$SWIFT_SHA256" "$archive" | sha256sum --check')
+        self.assertLess(script.index("fi"), check, "the check must run on a cache hit too")
+        self.assertLess(check, script.index("tar "), "the archive must be verified before it is unpacked")
+        self.assertRegex(WORKFLOW.read_text(), r"key: swift-.*\$\{\{ env\.SWIFT_VERSION \}\}-\$\{\{ env\.SWIFT_SHA256 \}\}")
+
     def test_the_harness_step_matches_ci_build(self):
         ci_build = (ROOT / "notchcast/ci-build.sh").read_text()
         self.assertIn('source "$TOOLS/notchcast/ci-xcode.sh"', ci_build)
@@ -149,7 +158,7 @@ MAC_JOBS = {"pr.yml": 1, "main-harnesses.yml": 1, "delete-check.yml": 1, "proof.
 
 class RunnerTest(unittest.TestCase):
     def test_every_job_runs_on_a_hosted_image(self):
-        allowed = {"ubuntu-latest", "xcode-27"}
+        allowed = {"ubuntu-24.04", "ubuntu-latest", "xcode-27"}
         gated, mac = {}, {}
         for workflow in sorted((ROOT / ".github/workflows").glob("*.y*ml")):
             lines = workflow.read_text().splitlines()
