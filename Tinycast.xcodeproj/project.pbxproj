@@ -764,6 +764,7 @@
 		82D95EF7539498A9A484B3D1 /* SystemActionsSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AEEB022D080E6DAF703D8132 /* SystemActionsSettingsView.swift */; };
 		836F7B54BDF84308B2BF74B6 /* ScreenshotSelectionSurface.swift in Sources */ = {isa = PBXBuildFile; fileRef = 542648415B5FA50C376C33AD /* ScreenshotSelectionSurface.swift */; };
 		83A2A337994513D49D8C4D46 /* IPhoneBackupPolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = 568A6735BB1E458244BA784A /* IPhoneBackupPolicy.swift */; };
+		840C9834DB97757097FE7CDE /* NotchcastProcesses.swift in Sources */ = {isa = PBXBuildFile; fileRef = 01F524E2AE1B687C751B43F4 /* NotchcastProcesses.swift */; };
 		8431C7C5275C1C9B8440983C /* TorrentMetainfo.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7981158F0C0424F709A09077 /* TorrentMetainfo.swift */; };
 		84356D3E6A0535895C51923E /* HotKeySpelling.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5E15E821736036AC4FAF1E37 /* HotKeySpelling.swift */; };
 		84511D8815734953965B1903 /* EventEditorScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6CEF382DAC52A2A806C072E0 /* EventEditorScreen.swift */; };
@@ -1539,6 +1540,7 @@
 		011B4E26A0844044584F4480 /* TorrentDefaultHandler+Live.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "TorrentDefaultHandler+Live.swift"; sourceTree = "<group>"; };
 		019026FBB9FF1F8FB08515B7 /* ScreenText.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScreenText.swift; sourceTree = "<group>"; };
 		01DDF667686C091024C18445 /* ScreenshotExclusion.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScreenshotExclusion.swift; sourceTree = "<group>"; };
+		01F524E2AE1B687C751B43F4 /* NotchcastProcesses.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotchcastProcesses.swift; sourceTree = "<group>"; };
 		025D7D760DE2FD02C0D7D9D2 /* ColorFormat.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ColorFormat.swift; sourceTree = "<group>"; };
 		0266BAF4643A4B5C41B600DE /* ExtensionColors.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExtensionColors.swift; sourceTree = "<group>"; };
 		027926825C2CFBFF63D9A20F /* NotchcastServices.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotchcastServices.swift; sourceTree = "<group>"; };
@@ -3110,6 +3112,7 @@
 				39CA477CA36624DA5EAB9E28 /* NotchcastContext.swift */,
 				0EC74F803A68E7484A549E21 /* NotchcastController.swift */,
 				2B82C20CF126F6A1F4156100 /* NotchcastPreferences.swift */,
+				01F524E2AE1B687C751B43F4 /* NotchcastProcesses.swift */,
 				027926825C2CFBFF63D9A20F /* NotchcastServices.swift */,
 				79EF9198C25A25FFA30429C0 /* NotchcastSettingsBackup.swift */,
 				5AE747E025E269E18F4C8A11 /* NotchcastSurfaces.swift */,
@@ -7989,6 +7992,7 @@
 				3FAEDC940F5D293347EACA88 /* NotchcastMediaKey.swift in Sources */,
 				8A831B2ED19477B6E2AE3BAE /* NotchcastPane.swift in Sources */,
 				94BBC5C3EEF42E1283CD2494 /* NotchcastPreferences.swift in Sources */,
+				840C9834DB97757097FE7CDE /* NotchcastProcesses.swift in Sources */,
 				E469032D52A56911F5CC6AA4 /* NotchcastRegistry.swift in Sources */,
 				682AA64AE776217CAC9AEB06 /* NotchcastServices+Live.swift in Sources */,
 				99589C0D2A8BE62E67007D90 /* NotchcastServices.swift in Sources */,
