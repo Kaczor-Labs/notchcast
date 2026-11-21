@@ -54,6 +54,7 @@ final class DeepLinkCoordinator {
             guard isAllowed(.command(.showNotes)) else { return }
             core.notesCoordinator.open(NoteID(rawValue: name))
         case .chat(let id):
+            guard exists(.command(.aiChat)) else { return reportUnknownLink() }
             guard isAllowed(.command(.aiChat)) else { return }
             core.aiChatCoordinator.showChat(id: id)
         case .windowSize(let size):
