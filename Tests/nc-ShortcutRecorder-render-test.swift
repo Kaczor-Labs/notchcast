@@ -1,3 +1,5 @@
+// notchcast-hosted-only
+
 // notchcast-sources: Tinycast/Features/HotKeys/UI/ShortcutRecorder.swift Tinycast/Features/HotKeys/Model/HotKeyBinding.swift
 // notchcast-sources: Tinycast/Features/HotKeys/Model/DoubleTapModifier.swift Tinycast/Features/HotKeys/Model/ModifierKey.swift
 // notchcast-sources: Tinycast/Features/HotKeys/Model/HyperKey.swift Tinycast/Features/HotKeys/Model/HIDKeyMapping.swift

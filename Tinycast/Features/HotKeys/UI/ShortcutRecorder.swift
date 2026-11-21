@@ -108,27 +108,28 @@ struct ShortcutRecorderBindingLabel: View {
                     .font(Theme.Typography.compactKeyCap)
                     .foregroundStyle(.tertiary)
                     .frame(width: Theme.Size.recorderKeyCap, height: Theme.Size.recorderKeyCap)
+                    .opacity(hovered ? 1 : 0)
                     .contentShape(.rect)
             }
             .buttonStyle(.plain)
-            .opacity(hovered ? 1 : 0)
+            .accessibilityLabel(Text("Clear shortcut", tableName: "Notchcast"))
             .allowsHitTesting(hovered)
-            .accessibilityHidden(!hovered)
         }
     }
 
     private func keycaps(compact: Bool) -> some View {
         let spacing = compact ? Theme.Spacing.xxs : Theme.Spacing.xs
         let capSize = Theme.Size.recorderKeyCap
+        let capWidth = compact ? Theme.Size.compactRecorderKeyCapWidth : capSize
         return HStack(spacing: spacing) {
             ForEach(Array(binding.recorderKeycaps.enumerated()), id: \.offset) { _, cap in
                 KeyCapChip.Label(text: cap, prefix: binding.recorderPrefix)
                     .font(compact ? Theme.Typography.compactKeyCap : Theme.Typography.keyCap)
                     .lineLimit(1)
-                    .minimumScaleFactor(0.7)
+                    .minimumScaleFactor(Theme.Size.recorderKeyCapMinimumScale)
                     .foregroundStyle(.secondary)
                     .padding(.horizontal, spacing)
-                    .frame(minWidth: compact ? capSize - Theme.Spacing.xs : capSize, minHeight: capSize)
+                    .frame(minWidth: capWidth, minHeight: capSize)
                     .background(
                         RoundedRectangle(cornerRadius: Theme.Radius.recorderKeyCap, style: .continuous)
                             .fill(Color.primary.opacity(0.08))
