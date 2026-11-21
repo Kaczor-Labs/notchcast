@@ -52,6 +52,8 @@ final class HotKeyManager {
     /// Whether the action's category, feature and item are switched on. Set in `AppCore.start()`.
     var allowsAction: ((HotKeyAction) -> Bool)?
     var onBindingEdit: ((HotKeyAction, HotKeyBinding?) -> Void)?
+    /// A hidden feature's stored chord owns nothing, so the recorder never names it.
+    var isHidden: ((HotKeyAction) -> Bool)? { didSet { candidateActionsCache = nil } }
 
     /// The recorder currently capturing, which also pauses both engines.
     var recordingAction: HotKeyAction? {
@@ -425,6 +427,7 @@ final class HotKeyManager {
         actions += SystemAction.ID.allCases.map { .systemAction(id: $0) }
         actions += WindowCommand.ID.allCases.map { .windowCommand(id: $0) }
         actions += extraActions
+        actions.removeAll { isHidden?($0) == true }
         candidateActionsCache = actions
         return actions
     }
