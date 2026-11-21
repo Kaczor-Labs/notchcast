@@ -97,6 +97,7 @@
 		0FC9DA7B6C97493133512FDA /* ScreenText.swift in Sources */ = {isa = PBXBuildFile; fileRef = 019026FBB9FF1F8FB08515B7 /* ScreenText.swift */; };
 		0FCFCEA4477672D62A3295ED /* BackupApplier.swift in Sources */ = {isa = PBXBuildFile; fileRef = D7FCA9FA81B1CF8B8C37E48A /* BackupApplier.swift */; };
 		0FD2528627DE63DC9C6B8793 /* EntryNaming.swift in Sources */ = {isa = PBXBuildFile; fileRef = B07F172974DA662EBE25422E /* EntryNaming.swift */; };
+		0FF6511581750975D74B41A2 /* IslandTone+Ink.swift in Sources */ = {isa = PBXBuildFile; fileRef = E3E519C6011B8188A2E72732 /* IslandTone+Ink.swift */; };
 		102448FF76CCCE6B8E3DBAFB /* ColorPreview.swift in Sources */ = {isa = PBXBuildFile; fileRef = C214E40D42F4812F141C16A8 /* ColorPreview.swift */; };
 		106AF34CEAEB08CBCC924118 /* VolumeLevel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 273827EB5CC04F1951C40387 /* VolumeLevel.swift */; };
 		106EAD48D8614058837AFDB1 /* AgentsSystem+Live.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1B42686B5B05877CD9E3DB57 /* AgentsSystem+Live.swift */; };
@@ -2868,6 +2869,7 @@
 		E2D1CA733FFAEF665D867A45 /* ASCIIKeyboardLayout.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ASCIIKeyboardLayout.swift; sourceTree = "<group>"; };
 		E30E06EC732C24610CAB3E1D /* MusicBlockAddon.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MusicBlockAddon.swift; sourceTree = "<group>"; };
 		E314B1D8D8F28AF3FB938E75 /* IslandCalendarGlance.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IslandCalendarGlance.swift; sourceTree = "<group>"; };
+		E3E519C6011B8188A2E72732 /* IslandTone+Ink.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "IslandTone+Ink.swift"; sourceTree = "<group>"; };
 		E3EAD167D7B52BCB504D6264 /* DictationTensor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DictationTensor.swift; sourceTree = "<group>"; };
 		E43B5C554DA06BACDF6C2B26 /* NotchcastDisplaySound.xcstrings */ = {isa = PBXFileReference; lastKnownFileType = text.json.xcstrings; path = NotchcastDisplaySound.xcstrings; sourceTree = "<group>"; };
 		E44875ABECB1F1B648EC90F4 /* SupportWindowView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SupportWindowView.swift; sourceTree = "<group>"; };
@@ -5878,6 +5880,7 @@
 				78336277F626D482D06CB6D8 /* IslandPageBody.swift */,
 				55D89B9686159D727C530272 /* IslandPageCards.swift */,
 				5DCD5B8F5510531F78C26B67 /* IslandPagesView.swift */,
+				E3E519C6011B8188A2E72732 /* IslandTone+Ink.swift */,
 			);
 			path = UI;
 			sourceTree = "<group>";
@@ -7882,6 +7885,7 @@
 				2BC65EFDEB6282AC607180C6 /* IslandSongArt.swift in Sources */,
 				DA186C991B43A44DEA20E862 /* IslandSurface+Expand.swift in Sources */,
 				85C86D9E9E892FADDFD2C343 /* IslandTestDisplay.swift in Sources */,
+				0FF6511581750975D74B41A2 /* IslandTone+Ink.swift in Sources */,
 				A731A2DD9DFBB0B43FA104F6 /* IslandUpdateActivity.swift in Sources */,
 				FF4547D81506C054D51B0C0A /* IslandUpdateScenes.swift in Sources */,
 				3FE6D96C5155016A05B748F8 /* IslandVerification.swift in Sources */,
