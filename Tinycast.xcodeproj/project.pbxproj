@@ -540,6 +540,7 @@
 		5770FB1A3FD29E27C25C944E /* SearchRelevance.swift in Sources */ = {isa = PBXBuildFile; fileRef = ABB9DB77DCE25C41D86BB955 /* SearchRelevance.swift */; };
 		57784875AA132F7756399363 /* SnippetsListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 41E419A4DA5AB5B3A87B80F2 /* SnippetsListView.swift */; };
 		57B8D2628E23D0D9BD8815AD /* MCPStdioTransport.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5958B66BC7FD9FE3F2B8F49 /* MCPStdioTransport.swift */; };
+		57D207C98FFB284892A8FA92 /* DictationFirstModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 15E42A302A7B5172B411C5CB /* DictationFirstModel.swift */; };
 		589FE6E9FD5E62A16EFF3CE4 /* IslandController+Verification.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1DF2450D3A4E1B0ABD1BBBBF /* IslandController+Verification.swift */; };
 		58D369977E702AD66F070913 /* SnippetMarkdownSerializer.swift in Sources */ = {isa = PBXBuildFile; fileRef = BE3331A5E8F892CC257AD31B /* SnippetMarkdownSerializer.swift */; };
 		59054EFDC7CFA0F1DBF817E2 /* PasteImagePolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = 78E8680C5EDF611C99855012 /* PasteImagePolicy.swift */; };
@@ -1663,6 +1664,7 @@
 		154222C91EFDB4D4490B6CE2 /* ExtensionArgumentsAccessory.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExtensionArgumentsAccessory.swift; sourceTree = "<group>"; };
 		1552D0ACEB6D986AD5A5AFD5 /* MonitorSystem.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MonitorSystem.swift; sourceTree = "<group>"; };
 		1590A8769EF787763DE189B7 /* CommandArgumentsRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommandArgumentsRow.swift; sourceTree = "<group>"; };
+		15E42A302A7B5172B411C5CB /* DictationFirstModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DictationFirstModel.swift; sourceTree = "<group>"; };
 		164CB3E1BB5B7D87AF8E7023 /* CommandID.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommandID.swift; sourceTree = "<group>"; };
 		164DCBE855B7136AE08712D8 /* MarkdownInline.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarkdownInline.swift; sourceTree = "<group>"; };
 		1709EB9609FE6A1037E36BE6 /* RoomPreviewView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RoomPreviewView.swift; sourceTree = "<group>"; };
@@ -6865,6 +6867,7 @@
 				8E46FFC9C9CBB763BA004C95 /* DictationCleanupPolicy.swift */,
 				5FE1A9896362C0BC7BBE81D5 /* DictationCleanupPrompt.swift */,
 				3EE71EE232D6F6405E05135A /* DictationCleanupRunner.swift */,
+				15E42A302A7B5172B411C5CB /* DictationFirstModel.swift */,
 				903B664B58ABD0DCA0C99EA0 /* DictationHistory.swift */,
 			);
 			path = Model;
@@ -7541,6 +7544,7 @@
 				6C83F2A2096107C488DE3D59 /* DictationDestination.swift in Sources */,
 				637AEB4D8BDB0EDC3E6BC940 /* DictationExtrasCoordinator.swift in Sources */,
 				F7389E07C6793E4F9ACBDACC /* DictationExtrasSettingsSections.swift in Sources */,
+				57D207C98FFB284892A8FA92 /* DictationFirstModel.swift in Sources */,
 				DB3BCEAE7FAD6349D18CB874 /* DictationHistory.swift in Sources */,
 				C67FC30A9BE81BF4FD835A68 /* DictationHistoryScreen.swift in Sources */,
 				41A41A8CEAE30005F6F712CC /* DictationHistoryStore.swift in Sources */,
