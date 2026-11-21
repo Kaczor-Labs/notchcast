@@ -31,6 +31,9 @@
     "Automatic uses %@." : {
 
     },
+    "Automatic uses the Claude or Codex command signed in on this Mac." : {
+
+    },
     "Between Macs" : {
       "shouldTranslate" : false
     },
@@ -50,6 +53,9 @@
 
     },
     "Cleanup" : {
+
+    },
+    "Cleanup has no model, so the raw text was pasted" : {
 
     },
     "Cleanup model" : {
@@ -169,10 +175,16 @@
     "Notchcast could not save a new token in the Keychain. The current token still works." : {
 
     },
+    "Notchcast keeps the text only in Dictation History." : {
+
+    },
     "Notices" : {
       "shouldTranslate" : false
     },
     "Off hides every Notchcast window: the island, launcher, questions, reports and this Settings window." : {
+
+    },
+    "Only the text is sent, never the audio, and only to the model chosen above." : {
 
     },
     "Open on hover" : {
@@ -245,9 +257,6 @@
 
     },
     "The last 50 dictations stay on this Mac. Turning this off deletes them." : {
-
-    },
-    "The transcript is sent only to the chosen model. Notchcast keeps no log of it." : {
 
     },
     "Token" : {
