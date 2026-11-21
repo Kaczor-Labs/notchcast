@@ -55,7 +55,16 @@ final class ArchivesModule: NotchcastModule {
                 report(.notArchive(url.lastPathComponent))
                 continue
             }
-            guard !jobs.contains(where: { $0.archive == url }) else { continue }
+            if let index = jobs.firstIndex(where: { $0.archive == url }) {
+                guard let stopped = jobs[index].stopped else { continue }
+                var job = jobs.remove(at: index)
+                // The same file resumes into its kept staging, the only folder HatchZip will finish it in.
+                if stopped == ArchiveExtractor.fingerprint(url) {
+                    job.stopped = nil
+                    jobs.append(job)
+                    continue
+                }
+            }
             jobs.append(ArchiveJob(id: UUID(), archive: url, inPlace: context.defaults.bool(forKey: Self.inPlaceKey)))
         }
         save()
@@ -80,7 +89,8 @@ final class ArchivesModule: NotchcastModule {
 
     func cancelAll() {
         let running = current?.job.id
-        jobs.removeAll { $0.id != running }
+        // A stopped entry holds the only path its archive can still be extracted into.
+        jobs.removeAll { $0.id != running && $0.stopped == nil }
         save()
         if let running { cancel(running) }
     }
@@ -165,13 +175,16 @@ final class ArchivesModule: NotchcastModule {
     }
 
     private func runNext() {
-        guard current == nil, let job = jobs.first else { return }
+        guard current == nil, let job = jobs.first(where: { $0.stopped == nil }) else { return }
         let extractor = environment.extractor
         let ask: ArchiveExtractor.AskInPlace = { [weak self] plan in await self?.askInPlace(job, plan: plan) ?? false }
-        let markInPlace: @Sendable () async -> Void = { [weak self] in await self?.markInPlace(job.id) }
+        let password: ArchiveExtractor.AskPassword = { [weak self] wrong in await self?.askPassword(job, wrong: wrong) }
+        let askPassword = context.askSecret == nil ? nil : password
+        let markInPlace: @Sendable (Bool) async -> Void = { [weak self] on in await self?.markInPlace(job.id, on) }
         let task = Task { [weak self] in
             do {
-                let placed = try await extractor.extract(job, askInPlace: ask, onInPlace: markInPlace)
+                let placed = try await extractor.extract(
+                    job, askPassword: askPassword, askInPlace: ask, onInPlace: markInPlace)
                 self?.finish(job, placed: placed, failure: nil)
             } catch is CancellationError {
                 await self?.stopped(job, failure: nil, extractor: extractor)
@@ -193,14 +206,21 @@ final class ArchivesModule: NotchcastModule {
         guard current?.job.id == job.id else { return }
         let job = latest(job)
         // A fresh task: this one is cancelled after a stop, which would refuse `hatchzip restore`.
-        let salvaged = await Task { await extractor.abandon(job) }.value
-        finish(job, placed: salvaged, failure: failure, cancelled: failure == nil)
+        let left = await Task { await extractor.abandon(job) }.value
+        finish(job, placed: left.placed, failure: failure, cancelled: failure == nil, stopped: left.stopped)
     }
 
-    private func finish(_ job: ArchiveJob, placed: URL?, failure: ArchiveFailure?, cancelled: Bool = false) {
+    private func finish(
+        _ job: ArchiveJob, placed: URL?, failure: ArchiveFailure?, cancelled: Bool = false,
+        stopped: ArchiveFingerprint? = nil
+    ) {
         guard current?.job.id == job.id else { return }
         current = nil
-        jobs.removeAll { $0.id == job.id }
+        if let stopped, let index = jobs.firstIndex(where: { $0.id == job.id }) {
+            jobs[index].stopped = stopped
+        } else {
+            jobs.removeAll { $0.id == job.id }
+        }
         save()
         context.presenter.end(notice: Self.noticeID)
         if let failure {
@@ -255,9 +275,19 @@ final class ArchivesModule: NotchcastModule {
         return await confirm(title, message, String(localized: "Extract in Place", table: "NotchcastArchives"))
     }
 
-    private func markInPlace(_ id: UUID) {
+    /// Hands the answer straight back to the extractor; the module never keeps it.
+    private func askPassword(_ job: ArchiveJob, wrong: Bool) async -> String? {
+        guard current?.job.id == job.id, let askSecret = context.askSecret else { return nil }
+        return await askSecret(
+            String(localized: "Password for \(job.name)", table: "NotchcastArchives"),
+            wrong ? String(localized: "That password did not work.", table: "NotchcastArchives") : nil,
+            String(localized: "Password", table: "NotchcastArchives"),
+            String(localized: "Extract", table: "NotchcastArchives"))
+    }
+
+    private func markInPlace(_ id: UUID, _ on: Bool) {
         guard let index = jobs.firstIndex(where: { $0.id == id }) else { return }
-        jobs[index].inPlace = true
+        jobs[index].inPlace = on
         save()
     }
 

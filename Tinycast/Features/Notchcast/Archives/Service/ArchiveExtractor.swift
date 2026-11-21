@@ -3,15 +3,19 @@ import Foundation
 /// One archive from listing to its place beside it; every program call goes through `run`.
 nonisolated struct ArchiveExtractor: Sendable {
     var locate: @Sendable (String) async -> URL?
-    var run: @Sendable (URL, [String]) async throws -> ArchiveProcessResult
+    /// The last argument is extra environment, which carries a password to HatchZip and nothing else.
+    var run: @Sendable (URL, [String], [String: String]) async throws -> ArchiveProcessResult
 
     /// Asked once when keeping the archive does not fit, with HatchZip's in-place plan.
     typealias AskInPlace = @Sendable (_ plan: String) async -> Bool
+    /// The typed password, or nil when the user cancelled.
+    typealias AskPassword = @Sendable (_ wrong: Bool) async -> String?
 
-    /// The final file or folder. `onInPlace` runs before the archive starts being consumed.
+    /// The final file or folder; with no `askPassword` a protected archive fails.
     @concurrent
     func extract(
-        _ job: ArchiveJob, askInPlace: AskInPlace, onInPlace: @Sendable () async -> Void
+        _ job: ArchiveJob, askPassword: AskPassword?, askInPlace: AskInPlace,
+        onInPlace: @Sendable (Bool) async -> Void
     ) async throws -> URL? {
         guard var route = ArchiveRoute(fileName: job.name) else { throw ArchiveFailure.notArchive(job.name) }
         if route.engine == .hatchzip, job.name.lowercased().hasSuffix(".zip"), hasLegacyNames(job.archive),
@@ -21,8 +25,22 @@ nonisolated struct ArchiveExtractor: Sendable {
         }
         let tools = ArchiveCommandLine.tools(route.engine)
         let extractor = try await find(tools.extract)
+        // Lives only for this call: never on the job, the journal, a failure or a notice.
+        var password: String?
         if let lister = tools.list, let arguments = ArchiveCommandLine.list(route.engine, archive: job.archive) {
-            let listed = try await run(try await find(lister), arguments)
+            let lister = try await find(lister)
+            var listed = try await run(lister, arguments, [:])
+            var asked = 0
+            while route.engine == .hatchzip, listed.status == ArchiveFailure.hatchzipPassword {
+                guard let askPassword, case .ask(let wrong) = ArchivePassword.next(asked: asked) else {
+                    throw ArchiveFailure.password
+                }
+                asked += 1
+                guard let answer = await askPassword(wrong) else { throw CancellationError() }
+                try Task.checkCancellation()
+                password = answer
+                listed = try await run(lister, arguments, ArchivePassword.environment(password, engine: route.engine))
+            }
             if let failure = route.engine == .hatchzip ? ArchiveFailure.hatchzip(listed) : .tool(listed) {
                 throw failure
             }
@@ -32,6 +50,13 @@ nonisolated struct ArchiveExtractor: Sendable {
                 throw ArchiveFailure.unsafe(refusal)
             }
         }
+        let secret = ArchivePassword.environment(password, engine: route.engine)
+        let keepOnly = password != nil && !ArchivePassword.allowsInPlace(fileName: job.name)
+        var inPlace = job.inPlace
+        if keepOnly, inPlace {
+            inPlace = false
+            await onInPlace(false)
+        }
         // Only HatchZip resumes into what an earlier run left; any other engine starts clean.
         if route.engine != .hatchzip { try? FileManager.default.removeItem(at: job.staging) }
         try FileManager.default.createDirectory(at: job.staging, withIntermediateDirectories: true)
@@ -39,38 +64,66 @@ nonisolated struct ArchiveExtractor: Sendable {
         func runEngine(inPlace: Bool) async throws -> ArchiveProcessResult {
             try await run(program, ArchiveCommandLine.extract(
                 route.engine, tool: extractor, archive: job.archive, staging: job.staging, stem: route.stem,
-                inPlace: inPlace, outputBlocks: ArchiveSafety.outputBlocks(archiveSize: Self.size(job.archive))))
+                inPlace: inPlace, outputBlocks: ArchiveSafety.outputBlocks(archiveSize: Self.size(job.archive))),
+                secret)
         }
-        var result = try await runEngine(inPlace: job.inPlace)
-        if route.engine == .hatchzip, !job.inPlace, result.status == ArchiveFailure.hatchzipNoSpace {
-            let plan = try await run(extractor, ArchiveCommandLine.check(archive: job.archive, staging: job.staging))
+        var result = try await runEngine(inPlace: inPlace)
+        if route.engine == .hatchzip, !inPlace, !keepOnly, result.status == ArchiveFailure.hatchzipNoSpace {
+            let check = ArchiveCommandLine.check(archive: job.archive, staging: job.staging)
+            let plan = try await run(extractor, check, secret)
             guard await askInPlace(plan.output) else {
                 try? FileManager.default.removeItem(at: job.staging)
                 throw ArchiveFailure.hatchzip(result) ?? .failed("")
             }
-            await onInPlace()
+            await onInPlace(true)
             result = try await runEngine(inPlace: true)
         }
         if route.engine == .hatchzip, result.status == ArchiveFailure.hatchzipPaused { throw CancellationError() }
         if let failure = route.engine == .hatchzip ? ArchiveFailure.hatchzip(result) : .tool(result) {
+            // The progress is another run's, so no staging is left for `abandon` to restore over it.
+            if failure == .startedElsewhere, (try? FileManager.default.contentsOfDirectory(atPath: job.staging.path))?
+                .isEmpty == true
+            {
+                try? FileManager.default.removeItem(at: job.staging)
+            }
             throw failure
         }
         return try place(job, stem: route.stem)
     }
 
-    /// After a stop or failure once writing began: archive whole again, files kept only in place.
+    /// What a stop leaves: files kept in place, or `stopped` when HatchZip can finish only into `staging`.
+    struct Abandoned: Sendable {
+        var placed: URL?
+        var stopped: ArchiveFingerprint?
+    }
+
     @concurrent
-    func abandon(_ job: ArchiveJob) async -> URL? {
-        guard FileManager.default.fileExists(atPath: job.staging.path) else { return nil }
+    func abandon(_ job: ArchiveJob) async -> Abandoned {
+        guard FileManager.default.fileExists(atPath: job.staging.path) else { return Abandoned() }
         if ArchiveRoute(fileName: job.name)?.engine == .hatchzip, let hatchzip = await locate(ArchiveTool.hatchzip.name) {
-            _ = try? await run(hatchzip, ArchiveCommandLine.restore(archive: job.archive, staging: job.staging))
+            let restore = ArchiveCommandLine.restore(archive: job.archive, staging: job.staging)
+            let restored = try? await run(hatchzip, restore, [:])
+            // Encrypted names: restore refuses, and HatchZip then extracts this archive only into `staging`.
+            if !job.inPlace, restored?.status != 0,
+                FileManager.default.fileExists(atPath: job.archive.path + ".hatchzip"),
+                let fingerprint = Self.fingerprint(job.archive)
+            {
+                return Abandoned(stopped: fingerprint)
+            }
         }
         // Only HatchZip consumes the archive; another engine's half-written output is never saved work.
         guard job.inPlace, let route = ArchiveRoute(fileName: job.name), route.engine == .hatchzip else {
             try? FileManager.default.removeItem(at: job.staging)
-            return nil
+            return Abandoned()
         }
-        return try? place(job, stem: route.stem)
+        return Abandoned(placed: try? place(job, stem: route.stem))
+    }
+
+    static func fingerprint(_ url: URL) -> ArchiveFingerprint? {
+        guard let attributes = try? FileManager.default.attributesOfItem(atPath: url.path),
+            let size = (attributes[.size] as? NSNumber)?.int64Value, let modified = attributes[.modificationDate] as? Date
+        else { return nil }
+        return ArchiveFingerprint(size: size, modified: modified)
     }
 
     /// Moves the staged items out by rename, so no byte is copied and nothing is overwritten.

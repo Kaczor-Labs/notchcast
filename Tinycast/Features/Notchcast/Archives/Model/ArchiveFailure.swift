@@ -14,6 +14,7 @@ nonisolated enum ArchiveFailure: Error, Equatable, Sendable {
     case noSpace(String)
     case damaged(String)
     case password
+    case startedElsewhere
     case failed(String)
     case nothingSelected
     case automationRefused
@@ -26,13 +27,15 @@ nonisolated enum ArchiveFailure: Error, Equatable, Sendable {
     /// HatchZip's documented exit statuses; 130 is a pause, so the caller treats it as a stop.
     static let hatchzipPaused: Int32 = 130
     static let hatchzipNoSpace: Int32 = 3
+    static let hatchzipPassword: Int32 = 5
 
     static func hatchzip(_ result: ArchiveProcessResult) -> ArchiveFailure? {
         switch result.status {
         case 0: nil
         case hatchzipNoSpace: .noSpace(detail(result))
         case 4: .damaged(detail(result))
-        case 5: .password
+        case hatchzipPassword: .password
+        case 1 where result.errors.contains("already partially extracted to"): .startedElsewhere
         default: .failed(detail(result))
         }
     }
@@ -62,7 +65,9 @@ nonisolated enum ArchiveFailure: Error, Equatable, Sendable {
         case .damaged(let detail):
             detail.isEmpty ? String(localized: "The archive is damaged.", table: "NotchcastArchives") : detail
         case .password:
-            String(localized: "This archive needs a password, which Notchcast cannot ask for yet.",
+            String(localized: "The password was not accepted.", table: "NotchcastArchives")
+        case .startedElsewhere:
+            String(localized: "This archive is partly extracted elsewhere; finish that with hatchzip first.",
                    table: "NotchcastArchives")
         case .failed(let detail):
             detail.isEmpty ? String(localized: "Extraction failed.", table: "NotchcastArchives") : detail
