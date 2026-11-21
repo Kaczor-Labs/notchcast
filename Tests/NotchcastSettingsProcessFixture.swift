@@ -6,7 +6,11 @@ extension NotchcastCoreTest {
             .flatMap { String(data: $0, encoding: .utf8) } ?? ""
         guard let startup = app.components(separatedBy: "func startSettings()").dropFirst().first?
             .components(separatedBy: "func prepareSettingsForTermination()").first
-        else { return }
+        else {
+            check("Settings startup is present on the separate-process tree",
+                  !app.isEmpty && !FileManager.default.fileExists(atPath: "Tinycast/App/AppCore+SettingsProcess.swift"))
+            return
+        }
         let core = FileManager.default.contents(atPath: "Tinycast/Features/Notchcast/NotchcastCore.swift")
             .flatMap { String(data: $0, encoding: .utf8) } ?? ""
         let registered = startup.contains("notchcast = NotchcastCore(core: self, startsRuntime: false)")
@@ -21,6 +25,12 @@ extension NotchcastCoreTest {
         check("Settings receives inert add-on services",
               core.contains("services: startsRuntime ? NotchcastServices(core: core) : NotchcastServices()"))
         settingsProcessBoundary()
+
+        let process = (try? String(contentsOfFile: "Tinycast/App/AppCore+SettingsProcess.swift", encoding: .utf8)) ?? ""
+        let localKeys = process.components(separatedBy: "localDefaultsKeys: Set([").dropFirst().first?
+            .components(separatedBy: "].map").first ?? ""
+        check("dictation cleanup settings stay out of process defaults payloads",
+              localKeys.contains(".dictationCleanupModel") && localKeys.contains(".dictationCleanupPrompt"))
     }
 
     private static func settingsProcessBoundary() {
@@ -43,7 +53,8 @@ extension NotchcastCoreTest {
         for (path, route) in panes {
             let source = (try? String(contentsOfFile: "Tinycast/Features/Notchcast/" + path, encoding: .utf8)) ?? ""
             check("\(path) reaches the main app through its Settings link",
-                  source.contains(route) && usesNoLiveModule(source))
+                  source.contains(route) && usesNoLiveModule(source)
+                      && (!route.hasPrefix("mainApp.") || source.contains("@Environment(MainAppLink.self)")))
         }
         let dictation = (try? String(
             contentsOfFile: "Tinycast/Features/DictationExtras/Settings/DictationExtrasSettingsSections.swift",
