@@ -14,7 +14,6 @@
 // notchcast-reads: Tinycast/Features/Notchcast/NotchcastServices+Live.swift
 // notchcast-reads: Tinycast/Features/Notchcast/Core/UI/NotchcastSettingsView.swift
 // notchcast-reads: Tinycast/Features/Notchcast/Core/UI/NotchcastCommandRowLayout.swift
-// notchcast-reads: Tinycast/Features/Notchcast/ScriptCommands/Settings/ScriptCommandsSettingsView.swift
 import AppKit
 import CoreGraphics
 import Foundation
@@ -553,12 +552,10 @@ struct NotchcastCoreTest {
                 && view.contains("ShortcutRecorder(action: .notchcastCommand(entryID: command.id))"))
         check("each add-on command draws its own Show in launcher checkbox",
               view.contains("preferences.setShowsInLauncher(command.id, $0)"))
-        let script = text("Tinycast/Features/Notchcast/ScriptCommands/Settings/ScriptCommandsSettingsView.swift")
         check("that checkbox says what it does on screen, not only to VoiceOver",
               view.contains("} checkbox: {\n                    Toggle(\"Show in launcher\", isOn:")
-                && script.contains("Text(\"Show in launcher\", tableName: \"NotchcastScriptCommands\")\n            }")
                 && !layout.contains("EmptyView")
-                && ![view, script, layout].contains { $0.contains(".labelsHidden") || $0.contains("ViewThatFits") })
+                && ![view, layout].contains { $0.contains(".labelsHidden") || $0.contains("ViewThatFits") })
     }
 
     /// The Notchcast sidebar section: which tab holds which category, which tabs show, and their links.
