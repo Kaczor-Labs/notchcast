@@ -302,7 +302,7 @@ pick_batch() {
                 echo "queue: #$pr waits, dropped at ${head:0:8}: ${why%% in the landing batch at head *}" >&2
                 continue
             fi
-            verdict=$(check_run "$head" build)
+            verdict=$(check_run "$head" build) || exit 1
             [ "$verdict" = success ] || { [ "$draft" = true ] && [[ "$verdict" =~ ^(none|skipped)$ ]]; } \
                 || { echo "queue: #$pr waits, build is $verdict on ${head:0:8}" >&2; continue; }
             since=$(signed_off_since "$pr") || exit 1
