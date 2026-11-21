@@ -1,6 +1,6 @@
 name: Main harnesses
 
-# Dispatch only: a ready PR gets its harnesses from the PR workflow, never twice.
+# Dispatch only: PR branches get their harnesses from the PR workflow.
 on:
   workflow_dispatch:
     inputs:

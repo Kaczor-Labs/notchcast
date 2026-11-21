@@ -26,6 +26,8 @@ the section below is a note for anyone who wants it, not a step.
 
 ## Build & run
 
+For build and harness proof, use the hosted PR run for your pushed head. Use the commands below for [local and guest verification](testing.md#definition-of-done).
+
 ```sh
 open Tinycast.xcodeproj    # then ⌘R
 ```
@@ -191,8 +193,7 @@ Xcode's re-indent (⌃I), as it always has been. Two consequences worth knowing:
 - `force_try` is an error; `force_cast` only warns, because the AX and AppKit bridges have four
   legitimate ones.
 
-Errors block, warnings do not. No CI runs this script, so run it locally before you open a
-PR.
+Run lint locally before opening a PR. The hosted PR Debug build lane also runs it. Lint errors block the check.
 
 ## Generated data
 

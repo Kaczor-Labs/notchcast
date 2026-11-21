@@ -252,7 +252,7 @@ wait_train() {
         waited=$((waited + poll))
     done
 }
-# When PR $1 was last labelled land, the lead's sign-off; marking it ready only gets it a PR build.
+# The last land label on PR $1 is the lead's sign-off.
 signed_off_since() {
     local at
     at=$(gh api "repos/$FORK_REPO/issues/$1/timeline" --paginate \
