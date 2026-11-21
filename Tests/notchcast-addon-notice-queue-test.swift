@@ -297,9 +297,9 @@ struct AddonNoticeQueueTest {
         presenter.setPage(IslandPage(id: "player", title: "Player", symbol: "music.note", order: 10,
                                      line: IslandPageLine(text: "A song"), blocks: []), id: "player", onAction: nil)
         check("with a page a click opens it instead, so no page is out of reach (#1005)", presenter.tap == nil)
-        check("and the notice heads the open page as a button row",
+        check("and the notice heads the open page as a button row with room for six lines",
               presenter.pages.deck.notice == IslandPageRow(id: IslandPageDeck.noticeID, symbol: "timer",
-                                                           title: "Timer done"))
+                                                           title: "Timer done", titleLines: 6))
         presenter.pages.noticeTap?()
         check("whose click runs the notice's own tap", rang == 1)
         presenter.end(notice: "ring")

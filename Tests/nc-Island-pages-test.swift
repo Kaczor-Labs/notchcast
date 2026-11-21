@@ -139,7 +139,8 @@ struct IslandPagesTest {
         let ready = IslandNotice(id: "update", symbol: "arrow.down.circle", text: "Update ready")
         three.show(ready, tappable: true)
         precondition(three.notice == IslandPageRow(id: IslandPageDeck.noticeID, symbol: "arrow.down.circle",
-                                                  title: "Update ready"), "a tappable notice is a button row")
+                                                  title: "Update ready", titleLines: 6),
+                     "a tappable notice is a button row with room for six lines")
         three.open()
         precondition(three.selection == .home && three.notice != nil, "the click opens Home with the notice on it")
         three.select(.page("day"))

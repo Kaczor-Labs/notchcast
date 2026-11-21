@@ -72,7 +72,7 @@ struct IslandPagesRenderTest {
     static func checkNoticeWrapping() {
         let short = "Copied"
         let long = "hatchzip is not installed. Install it with: brew install xevrion/tap/hatchzip"
-        func height(_ title: String, notice: Bool) -> CGFloat {
+        func size(_ title: String, notice: Bool) -> CGSize {
             var deck = IslandPageDeck()
             deck.show(IslandNotice(id: "wrap", symbol: "doc", text: title), tappable: true)
             var row = deck.notice!
@@ -81,13 +81,18 @@ struct IslandPagesRenderTest {
                 .fixedSize()
                 .environment(\.metrics, InterfaceMetrics.standard)
                 .environment(\.colorScheme, .dark)
-            return NSHostingView(rootView: view).fittingSize.height
+            return NSHostingView(rootView: view).fittingSize
         }
-        let six = Array(repeating: short, count: 6).joined(separator: "\n")
-        precondition(height(long, notice: true) > height(short, notice: true), "Only the notice wraps its text")
-        precondition(height(long, notice: false) == height(short, notice: false), "Other rows stay one line")
-        precondition(height(six, notice: true) > height(long, notice: true)
-                     && height(six, notice: true) == height(six + "\n" + short, notice: true),
+        let five = Array(repeating: short, count: 5).joined(separator: "\n")
+        let six = five + "\n" + short
+        let compact = size(short, notice: true)
+        let wrapped = size(long, notice: true)
+        precondition(compact == size(short, notice: false), "A short notice keeps its one-line size")
+        precondition(wrapped.height > compact.height, "The notice wraps at the width cap even at ideal size")
+        precondition(size(long, notice: false).height == compact.height, "Other rows stay one line")
+        let sixLineHeight = size(six, notice: true).height
+        precondition(sixLineHeight > size(five, notice: true).height
+                     && sixLineHeight == size(six + "\n" + short, notice: true).height,
                      "The notice's row fits six lines and truncates after them")
     }
 
