@@ -3,7 +3,6 @@
 // Copyright (C) 2026 Vorssaint
 
 extension ScrollStitchMatcher {
-    /// The same view in colour, RGBA, so a join can be checked where grey alone cannot tell rows apart.
     struct ColourSample: Equatable, Sendable {
         let width: Int
         let height: Int
@@ -47,6 +46,5 @@ extension ScrollStitchMatcher {
         return best.overlap
     }
 
-    /// Mean difference per colour channel a seam row may have: a capture repeats a scrolled row exactly.
     private static let seamTolerance = 3
 }
