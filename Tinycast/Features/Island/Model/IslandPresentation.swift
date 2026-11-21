@@ -20,6 +20,8 @@ struct IslandNotice: Equatable, Sendable {
     var seconds: TimeInterval?
     /// What VoiceOver says instead of `text`, when the text shows something it must not read aloud.
     var spokenText: String?
+    /// The colour a notice is about; drawn in place of the glyph unless the ring or a failure leads.
+    var swatch: IslandSwatch?
 
     static let messageSeconds: TimeInterval = 2.4
     static let failureSeconds: TimeInterval = 4
@@ -28,6 +30,26 @@ struct IslandNotice: Equatable, Sendable {
     var dwell: TimeInterval { seconds ?? (isFailure ? Self.failureSeconds : Self.messageSeconds) }
     /// On a notch, its text expands below the notch; otherwise it keeps to the wings (design §10).
     var isHeadline: Bool { progress?.headline ?? true }
+}
+
+/// An sRGB colour, each channel clamped to 0...1; the one place a caller picks a colour, as content.
+struct IslandSwatch: Equatable, Sendable {
+    let red: Double
+    let green: Double
+    let blue: Double
+
+    init(red: Double, green: Double, blue: Double) {
+        func clamp(_ value: Double) -> Double { value.isFinite ? min(max(value, 0), 1) : 0 }
+        self.red = clamp(red)
+        self.green = clamp(green)
+        self.blue = clamp(blue)
+    }
+}
+
+/// What a status glyph or Home line glyph means beyond its shape; the island inks it from Theme.
+enum IslandTone: Sendable, CaseIterable {
+    case warning
+    case critical
 }
 
 /// A nil `fraction` is unknown, so the pill shows the notice's glyph rather than a made-up ring.
@@ -43,6 +65,8 @@ struct IslandStatus: Equatable, Sendable {
     var symbol: String
     var text: String?
     var label: String
+    /// Nil inks the glyph as text; the text itself never takes the tone.
+    var tone: IslandTone?
 }
 
 /// An add-on's pill-menu row; an unchecked row keeps its check column empty, so rows line up.
@@ -82,6 +106,8 @@ struct IslandPageLine: Equatable, Sendable {
     var buttons: [IslandPageButton] = []
     /// Set, a click on the line sends this to `onAction` instead of opening the page's tab.
     var action: String?
+    /// Nil inks the glyph as always; the text itself never takes the tone.
+    var tone: IslandTone?
 }
 
 /// An icon button; `label` is its VoiceOver name and tooltip, `id` what `onAction` receives.
