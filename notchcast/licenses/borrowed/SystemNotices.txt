@@ -1,0 +1,3 @@
+SystemNotices: Model/SystemNoticesPolicy.swift ← vorssaint/vorssaint-utils@faada18/Sources/Vorssaint/Services/Notch/NotchService.swift (GPL-3.0-or-later)
+SystemNotices: Service/SystemNoticesModule.swift ← vorssaint/vorssaint-utils@faada18/Sources/Vorssaint/Services/Notch/NotchService.swift (GPL-3.0-or-later)
+SystemNotices: Service/SystemNoticesModule+Live.swift ← vorssaint/vorssaint-utils@faada18/Sources/Vorssaint/Services/Notch/NotchService.swift (GPL-3.0-or-later)

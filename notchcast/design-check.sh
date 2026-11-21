@@ -6,9 +6,8 @@
 # Usage: design-check.sh <base-commit> [--staged]   (default: HEAD; --staged: the index, for the pre-commit hook)
 set -euo pipefail
 BASE="${1:?base commit (merge-base with upstream main)}"
-TOP="$(git rev-parse --show-toplevel)"
 # shellcheck disable=SC1091
-source "$TOP/notchcast/config.env"
+source "$(dirname "$0")/config.env"
 DIRS=(Tinycast)
 TARGET=HEAD
 [ "${2:-}" = --staged ] && TARGET="$(git write-tree)"

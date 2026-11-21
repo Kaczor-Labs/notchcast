@@ -6,14 +6,8 @@
 // notchcast-sources: Tinycast/Features/Notchcast/Spotify/Service/SpotifySystem.swift
 // notchcast-sources: Tinycast/Features/Notchcast/Spotify/Service/SpotifyWeb.swift
 // notchcast-sources: Tinycast/Features/Notchcast/Core/Model/*.swift
-// notchcast-sources: Tinycast/Features/Notchcast/Core/Service/NotchcastAddon.swift
-// notchcast-sources: Tinycast/Features/Notchcast/Core/Service/NotchcastContext.swift
-// notchcast-sources: Tinycast/Features/Notchcast/Core/Service/NotchcastTranscription.swift
-// notchcast-sources: Tinycast/Features/Notchcast/Core/Service/NotchcastPreferences.swift
-// notchcast-sources: Tinycast/Features/Notchcast/Core/Service/NotchcastTap.swift
-// notchcast-sources: Tinycast/Features/Notchcast/Core/Service/NotchcastTapHub.swift
-// notchcast-sources: Tinycast/Features/Notchcast/Core/Service/NotchcastTapRouter.swift
-// notchcast-sources: Tinycast/Features/Notchcast/Core/Service/NotchcastTapThread.swift
+// notchcast-sources: Tinycast/Features/Notchcast/Core/Service/*.swift
+// notchcast-sources: Tinycast/Platform/NotificationToken.swift
 // notchcast-sources: Tinycast/Features/Island/Model/IslandPresentation.swift
 // notchcast-sources: Tinycast/Features/Island/Service/IslandPresenting.swift
 // notchcast-sources: Tinycast/Features/Island/Service/IslandPlayerSource.swift
@@ -26,6 +20,11 @@ import SwiftUI
 
 // The shipped `live` system and settings view are left out: these stand in, so `makeModule` runs as shipped.
 struct SpotifySettingsView: View {
+    init(context: NotchcastContext) {}
+    var body: some View { EmptyView() }
+}
+
+struct SpotifyIslandRows: View {
     init(context: NotchcastContext) {}
     var body: some View { EmptyView() }
 }
@@ -363,6 +362,9 @@ struct SpotifyModuleTests {
         fake.now = build.noticeDate.addingTimeInterval(-60)
         let (module, presenter) = make(fake, defaults: defaults)
         module.start()
+        module.expandPlayer()
+        check(presenter.log.last == "post spotify.nothingPlaying Nothing is playing",
+              "Expand Player with no song says so rather than nothing (#850)")
         await settle()
         check(!presenter.log.contains { $0.hasPrefix("post spotify.expiry") }, "quiet before the last week")
         guard let wake = fake.wakes.first(where: { $0.date == build.noticeDate }) else { return check(false, "wakes") }
@@ -390,20 +392,30 @@ struct SpotifyModuleTests {
         await module.signIn()
         check(module.isSignedIn && fake.tokens?.refreshToken == "R", "tokens land in the Keychain")
         check(fake.opened.last?.host() == "accounts.spotify.com", "the browser opens Spotify's sign-in")
-        fake.event?(event(#"{"type":"playback_state","status":"playing","item":\#(trackJSON),"is_active":true}"#))
         fake.answers = [(200, "[true]")]
-        module.refreshLiked()
+        fake.event?(event(#"{"type":"playback_state","status":"playing","item":\#(trackJSON),"is_active":true}"#))
         await settle()
-        check(module.liked == true && fake.requests.last == "GET /v1/me/library/contains", "liked state")
+        check(module.liked == true && fake.requests.last == "GET /v1/me/library/contains",
+              "a new song asks whether it is liked (#850)")
         fake.answers = [(500, "")]
         module.toggleLike()
         check(module.liked == false, "the heart answers at once")
         await settle()
         check(module.liked == true && fake.requests.last == "DELETE /v1/me/library", "and returns when Spotify fails")
+        fake.answers = [(200, "[false]")]
+        let second = trackJSON.replacingOccurrences(of: "spotify:track:1", with: "spotify:track:2")
+        fake.event?(event(#"{"type":"playback_state","status":"playing","item":\#(second),"is_active":true}"#))
+        check(module.liked == nil && module.likePending, "the last song's heart is not this one's; it waits (#850 B3)")
+        let asked = fake.requests.count
+        module.toggleLike()
+        check(fake.requests.count == asked && module.liked == nil, "a click waits until this song is known (Aural)")
+        await settle()
+        check(module.liked == false && !module.likePending, "then the answer is this song's")
         fake.answers = [(401, ""), (400, #"{"error":"invalid_grant"}"#)]
         module.refreshLiked()
         await settle()
-        check(!module.isSignedIn && fake.tokens == nil && module.liked == nil, "a revoked sign-in signs out")
+        check(!module.isSignedIn && fake.tokens == nil && module.liked == nil && !module.likePending,
+              "a revoked sign-in signs out")
         module.setClientID("other")
         check(fake.tokens == nil, "a new client id drops the old tokens")
         module.stop()

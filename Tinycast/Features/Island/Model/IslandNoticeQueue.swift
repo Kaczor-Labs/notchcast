@@ -6,6 +6,7 @@ struct IslandNoticeQueue: Sendable {
         var notice: IslandNotice
         var left: TimeInterval?
         var heard: Set<String> = []
+        var ticking = false
     }
 
     private var entries: [Entry] = []
@@ -13,6 +14,7 @@ struct IslandNoticeQueue: Sendable {
     private(set) var paused = false
 
     var notice: IslandNotice? { entries.last?.notice }
+    func holds(_ id: String) -> Bool { entries.contains { $0.notice.id == id } }
 
     /// A repost keeps its place and restarts its dwell; a progress headlines once until ended.
     mutating func post(_ notice: IslandNotice, at now: TimeInterval) {
@@ -30,7 +32,10 @@ struct IslandNoticeQueue: Sendable {
             left = notice.isHeadline ? IslandNotice.messageSeconds : nil
         }
         if let index {
-            entries[index] = Entry(notice: notice, left: left, heard: entries[index].heard)
+            let was = entries[index]
+            let starts = notice.progress != nil && was.notice.progress == nil
+            entries[index] = Entry(notice: notice, left: left, heard: starts ? [was.notice.spoken] : was.heard,
+                                   ticking: notice.progress != nil && was.ticking)
         } else {
             entries.append(Entry(notice: notice, left: left))
         }
@@ -68,10 +73,15 @@ struct IslandNoticeQueue: Sendable {
         run(at: now)
     }
 
-    /// Each text of an id is heard once, so a returning notice or a phase coming back stays quiet.
+    /// A text is heard once per run of its id; a progress once as it starts, not as it ticks.
     mutating func announcement() -> String? {
         guard let top = entries.indices.last else { return nil }
-        return entries[top].heard.insert(entries[top].notice.text).inserted ? entries[top].notice.text : nil
+        let notice = entries[top].notice
+        if notice.progress != nil {
+            if entries[top].ticking { return nil }
+            entries[top].ticking = true
+        }
+        return entries[top].heard.insert(notice.spoken).inserted ? notice.spoken : nil
     }
 
     private mutating func settle(at now: TimeInterval) {

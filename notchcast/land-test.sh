@@ -149,27 +149,29 @@ trap 'rm -rf "$scratch"' EXIT
 source "$root/notchcast/local-build-status.sh"
 gh() { jq -s "${@: -1}" "$status_fixture"; }
 status_fixture="$scratch/status"
-printf '%s\n' '{"id":1,"context":"build/local","creator":{"login":"kaczordodgers"},"url":"https://api.github.com/repos/kaczordodgers/notchcast/statuses/head","state":"success"}' > "$status_fixture"
+printf '%s\n' '{"id":1,"context":"build/local","creator":{"login":"kaczordodgers"},"url":"https://api.github.com/repos/Kaczor-Labs/notchcast/statuses/head","state":"success"}' > "$status_fixture"
 local_build_green head
 echo 'PASS: local success accepted'
 if local_build_green other; then exit 1; fi
 echo 'PASS: different sha refused'
-printf '%s\n' '{"id":2,"context":"build/local","creator":{"login":"kaczordodgers"},"url":"https://api.github.com/repos/kaczordodgers/notchcast/statuses/head","state":"failure"}' >> "$status_fixture"
+printf '%s\n' '{"id":2,"context":"build/local","creator":{"login":"kaczordodgers"},"url":"https://api.github.com/repos/Kaczor-Labs/notchcast/statuses/head","state":"failure"}' >> "$status_fixture"
 if local_build_green head; then exit 1; fi
 echo 'PASS: local failure refused'
-printf '%s\n' '{"id":1,"context":"build/local","url":"https://api.github.com/repos/kaczordodgers/notchcast/statuses/head","state":"success","creator":{"login":"other"}}' > "$status_fixture"
+printf '%s\n' '{"id":1,"context":"build/local","url":"https://api.github.com/repos/Kaczor-Labs/notchcast/statuses/head","state":"success","creator":{"login":"other"}}' > "$status_fixture"
 if local_build_green head; then exit 1; fi
 echo 'PASS: other creator refused'
 rm "$status_fixture"
 unset -f gh
 (
-    eval "$(sed -n '/^delete_head() {$/,/^}$/p' "$root/notchcast/land.sh")"
+    eval "$(sed -n '/^held_by() {$/,/^}$/p;/^delete_head() {$/,/^}$/p' "$root/notchcast/land.sh")"
     # A fake gh: PR 7 is based on stacked; its retarget logs whether origin/stacked still existed.
     gh() {
         case "$*" in
             "pr list -R $FORK_REPO --base stacked --state open "*) echo 7 ;;
             "pr list -R $FORK_REPO --base unlistable "*) return 1 ;;
             "pr list -R $FORK_REPO --base "*) ;;
+            "pr list -R $FORK_REPO --state open "*)
+                if [ -n "${listing:-}" ]; then echo "$listing"; elif [ -n "${held:-}" ]; then echo "8 $held"; fi ;;
             "pr edit 7 -R $FORK_REPO --base main")
                 echo "edit 7 $(git ls-remote origin refs/heads/stacked | wc -l | tr -d ' ')" >> "$scratch/gh.log"
                 [ -z "${edit_fails:-}" ] ;;
@@ -210,6 +212,38 @@ unset -f gh
     [ "$(tail -1 "$scratch/gh.log")" = 'edit 7 1' ]
     [ -z "$(git ls-remote origin refs/heads/stacked)" ]
     echo 'PASS: delete_head moves a stacked PR to main before deleting its base'
+    git push --quiet origin "$head:refs/heads/cut-from"
+    held=$moved
+    output=$(delete_head cut-from "$head" 2>&1)
+    held=
+    [ "$(git ls-remote origin refs/heads/cut-from | cut -f1)" = "$head" ]
+    [ "$output" = 'kept origin/cut-from: open PR #8 stands on it' ]
+    echo 'PASS: delete_head keeps a branch an open PR was cut from'
+    git push --quiet origin "$moved:refs/pull/8/head" "$head:refs/heads/force-pushed"
+    held=0123456789abcdef0123456789abcdef01234567
+    output=$(delete_head force-pushed "$head" 2>&1)
+    held=
+    [ "$(git ls-remote origin refs/heads/force-pushed | cut -f1)" = "$head" ]
+    [ "$output" = 'WARN: kept origin/force-pushed: cannot tell whether open PR #8 stands on it' ]
+    echo 'PASS: delete_head keeps a branch when an open PR head force-pushed since the listing cannot be compared'
+    git clone --quiet "$scratch/remote.git" "$scratch/other"
+    unrelated=$(git -C "$scratch/other" -c user.name=Fixture -c user.email=fixture@example.com commit-tree -m unrelated "$(git -C "$scratch/other" mktree < /dev/null)")
+    stacked_on=$(git -C "$scratch/other" -c user.name=Fixture -c user.email=fixture@example.com commit-tree -p "$head" -m on -m top "$head^{tree}")
+    git push --quiet origin "$head:refs/heads/unfetchable"
+    listing="9 $unrelated"
+    output=$(delete_head unfetchable "$head" 2>&1)
+    [ "$(git ls-remote origin refs/heads/unfetchable | cut -f1)" = "$head" ]
+    [ "${output##*$'\n'}" = "WARN: kept origin/unfetchable: cannot fetch the open PRs' heads" ]
+    echo 'PASS: delete_head keeps a branch when it cannot fetch the open PR heads'
+    git -C "$scratch/other" push --quiet origin "$unrelated:refs/pull/10/head" "$stacked_on:refs/pull/11/head"
+    git push --quiet origin "$head:refs/heads/batched"
+    listing=$(printf '10 %s\n11 %s' "$unrelated" "$stacked_on")
+    output=$(git() { [ "$1" != fetch ] || echo "$*" >> "$scratch/fetch.log"; command git "$@"; }; delete_head batched "$head" 2>&1)
+    listing=
+    [ "$(git ls-remote origin refs/heads/batched | cut -f1)" = "$head" ]
+    [ "$output" = 'kept origin/batched: open PR #11 stands on it' ]
+    [ "$(cat "$scratch/fetch.log")" = 'fetch -q origin refs/pull/10/head refs/pull/11/head' ]
+    echo 'PASS: delete_head fetches every missing open PR head in one go and keeps a branch one stands on'
     git push --quiet origin "$head:refs/heads/unlistable"
     output=$(delete_head unlistable "$head" 2>&1)
     [ -n "$(git ls-remote origin refs/heads/unlistable)" ]
@@ -259,7 +293,7 @@ git fetch --quiet "$root" refs/remotes/upstream/main
 git switch --quiet --detach
 git update-ref refs/heads/main FETCH_HEAD
 git remote add upstream "$scratch/repo"
-# Each landing runs only the harness the fixtures break; --full keeps the whole selection (97 harnesses, twice).
+# Each landing runs only the harness the fixtures break; --full keeps the whole selection.
 land="$root/notchcast/land.sh"
 if [ "${1:-}" != --full ]; then
     cp -R "$root/notchcast" "$scratch/tools"

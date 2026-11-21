@@ -99,7 +99,7 @@ enum RegistryCheck {
         "launcherAliasSpace", "musicNowPlaying", "musicLastPlayer", "musicBlockAppleMusic",
         "musicSharpCovers", "spotifyConnect", "microphoneMute", "inUseMarks", "systemMonitor", "fanControl",
         "accessoryBatteries", "accessoryNotices", "monitorAlerts", "lowDiskWarning", "systemNotices",
-        "volumeLevels", "audioPriority", "displayBrightness", "liveTimers", "dayCalendar",
+        "volumeLevels", "audioPriority", "displayBrightness", "quitProtection", "liveTimers", "dayCalendar",
         "dayWeather", "dayMarkets", "agentActions", "agentCLI", "treadmillWalk", "treadmillHistory", "katana",
         "appearance", "cleaningMode", "appUpdates", "macUpdate", "machRemote", "backupStatus", "linkHealth",
         "shelfBetweenMacs", "sendFiles", "updateRemote", "agentSessions", "openBotAgents", "agentThreads",
@@ -117,9 +117,12 @@ enum RegistryCheck {
         "torrentsKeepSharing", "backupRunNow", "backupBrowseRestore", "quickLookSpace", "markdownFiles",
         "plainTextFiles", "editorSpellChecking", "buildStats",
     ]
-    // Removed in #836, #1163, #1166 and #1183 yet maybe still on in old prefs, so never declared again.
+    // Removed yet maybe still on in old prefs, so never declared again; one id per line, sorted.
     static let retiredIDs: Set<String> = [
-        "keepAwake", "lidClosedAwake", "quitProtection", "launcherNumberKeys", "torrentsUseIPhone",
+        "keepAwake",
+        "launcherNumberKeys",
+        "lidClosedAwake",
+        "torrentsUseIPhone",
     ]
     static let frozenSlugs: Set<String> = ["screenshot-area", "screenshot-display"]
 

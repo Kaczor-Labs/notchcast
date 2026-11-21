@@ -5,7 +5,8 @@ For each folder, in a scratch clone of the ref: delete Tinycast/Features/Notchca
 notchcast/licenses/borrowed/<Folder>.txt and Tests/nc-<Folder>-*.swift, then regenerate the registry
 (notchcast/addons.py) and the project, build Debug and run Scripts/run-tests.sh.
 Every surviving fork harness that notchcast/harness_inputs.py resolves in the scratch tree must report a result
-in the run-tests log, so a harness the runner skipped cannot pass as clean.
+in the run-tests log or a skip line naming it, so a harness that silently never ran cannot pass as clean; the
+PASS line names the ones the runner skipped here (hosted-only off a hosted runner, CI_SKIP_TESTS, runner skips).
 Prints PASS per folder, or FAIL with the step and its log. A failure the deletion caused is a contract breach
 (exit 1); one the tools caused (clone, xcodegen, timeout, a build that stopped without a Swift error) is a
 tooling failure (exit 2). ready-check runs --rotate when its branch changes Tinycast/Features/Notchcast/.
@@ -36,6 +37,8 @@ SWIFT_ERROR = re.compile(r'\.swift:\d+:\d+: error:')
 HARNESS_FAIL = re.compile(r'FAIL\S*\s+\S+')
 ANSI = re.compile(r'\x1b\[[0-9;]*m')
 RESULT_LINE = re.compile(r'^\[\s*\d+/\d+\]\s+\S+\s+(\S+)', re.M)
+# notchcast/test-harnesses.sh's lines for a hosted-only, CI_SKIP_TESTS or runner skip.
+SKIP_LINE = re.compile(r'^(?:::notice::)?(?:SKIPPED on this runner:|skipped on the runner:|SKIPPED)\s+([\w.+-]+)', re.M)
 LOGS = pathlib.Path.home() / 'Library/Caches/notchcast/addon-delete'
 TIMEOUT = 3600
 SCRATCH_PREFIX = 'notchcast-delete.'
@@ -145,8 +148,13 @@ def fork_harnesses(tree, env):
     return sorted(name for name in names if name.startswith(('nc-', 'notchcast-')))
 
 
+def skipped(log_text, names):
+    said = set(SKIP_LINE.findall(ANSI.sub('', log_text)))
+    return [name for name in names if name in said]
+
+
 def unreported(log_text, names):
-    reported = set(RESULT_LINE.findall(ANSI.sub('', log_text)))
+    reported = set(RESULT_LINE.findall(ANSI.sub('', log_text))) | set(skipped(log_text, names))
     return [name for name in names if name not in reported]
 
 
@@ -172,8 +180,10 @@ def check(repo, sha, folder, scratch):
     harnesses = fork_harnesses(tree, env)
     log = pathlib.Path(f'{log_prefix}-run-tests.log')
     step('run-tests', ['./Scripts/run-tests.sh'], tree, log, env)
-    if missing := unreported(log.read_text(errors='replace'), harnesses):
+    text = log.read_text(errors='replace')
+    if missing := unreported(text, harnesses):
         raise Tooling(f"run-tests reported no result for fork harnesses {', '.join(missing)}; log: {log}")
+    return skipped(text, harnesses)
 
 
 def is_stale(path, now):
@@ -332,8 +342,9 @@ def main():
         (scratch / OWNER).write_text(str(os.getpid()))
         for folder in picked:
             try:
-                check(repo, sha, folder, scratch)
-                print(f'PASS delete {folder} at {sha[:12]}: xcodegen, build, run-tests')
+                held = check(repo, sha, folder, scratch)
+                note = f"; skipped by the runner here: {', '.join(held)}" if held else ''
+                print(f'PASS delete {folder} at {sha[:12]}: xcodegen, build, run-tests{note}')
             except Breach as error:
                 print(f'FAIL delete {folder} at {sha[:12]}: contract breach: {error}')
                 status = 1

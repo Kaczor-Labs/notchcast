@@ -9,12 +9,12 @@ from pathlib import Path
 import subprocess
 import sys
 import tempfile
-import time
 import unittest
 
 CI = Path(__file__).resolve().parent / "notchcast-ci.py"
 RUN_QUERY = "query($id: ID!) { node(id: $id) { ... on WorkflowRun { checkSuite { status conclusion commit { oid } } } } }"
-URL = "https://github.com/kaczordodgers/notchcast/actions/runs/777"
+URL = "https://github.com/Kaczor-Labs/notchcast/actions/runs/777"
+NOW = 2_000_000_000
 FAKE_GH = '''#!/usr/bin/env python3
 import json, os, sys
 from pathlib import Path
@@ -126,11 +126,16 @@ class CiTests(unittest.TestCase):
         self.git(root, "init", "-q", "-b", "feat", str(self.repo))
         self.commit("one")
         self.git(self.repo, "remote", "add", "origin", str(self.origin))
-        self.git(self.repo, "config", "core.hooksPath", "notchcast/githooks")
+        self.hooks = self.repo.resolve() / ".git" / "notchcast-hooks"
+        self.hooks.mkdir()
+        pre_push = self.hooks / "pre-push"
+        pre_push.write_text("#!/bin/sh\nexit 0\n")
+        pre_push.chmod(0o755)
+        self.git(self.repo, "config", "core.hooksPath", str(self.hooks))
         self.git(self.repo, "push", "-q", "origin", "feat")
         self.env = {**os.environ, "PATH": f"{root / 'bin'}{os.pathsep}{os.environ['PATH']}",
                     "FAKE_GH_DIR": str(self.fake), "NOTCHCAST_CI_POLL": "0.01",
-                    "NOTCHCAST_CI_CLOCK": "virtual"}
+                    "NOTCHCAST_CI_CLOCK": "virtual", "NOTCHCAST_CI_NOW": str(NOW), "NOTCHCAST_CI_SEED": "1"}
         self.head = self.rev(self.repo, "HEAD")
         self.scenario(polls=[[]], dispatch={"workflow_run_id": 777, "html_url": URL},
                       view=self.view("success"), log=SELECTED_LOG, log_failed="")
@@ -215,7 +220,7 @@ class CiTests(unittest.TestCase):
         self.assertEqual(result.stdout.splitlines()[-1], self.passed())
         calls = self.calls()
         dispatch = next(c for c in calls if "-X" in c)
-        self.assertIn("repos/kaczordodgers/notchcast/actions/workflows/main-harnesses.yml/dispatches", dispatch)
+        self.assertIn("repos/Kaczor-Labs/notchcast/actions/workflows/main-harnesses.yml/dispatches", dispatch)
         self.assertIn("ref=feat", dispatch)
         self.assertEqual(self.views(), [["api", "graphql", "-f", f"query={RUN_QUERY}", "-f", "id=WFR_777"]])
         self.assertFalse([c for c in calls if c[:2] == ["run", "watch"]])
@@ -283,14 +288,20 @@ class CiTests(unittest.TestCase):
         self.assertEqual(self.paced(graphql_remaining=[4000]), [])
         self.assertFalse([c for c in self.calls() if c[:2] == ["run", "view"] and "--json" in c])
         (self.fake / "calls.log").unlink()
-        waits = self.paced(graphql_remaining=[300], reset=int(time.time()) + 3600)
+        waits = self.paced(graphql_remaining=[300], reset=NOW + 3600)
         self.assertEqual(len(waits), 1)
         self.assertTrue(300 <= waits[0] <= 375, waits)
 
     def test_a_budget_too_small_for_the_stretch_waits_to_the_reset_with_jitter(self):
-        waits = self.paced(graphql_remaining=[10], reset=int(time.time()) + 200)
+        waits = self.paced(graphql_remaining=[10], reset=NOW + 200)
         self.assertEqual(len(waits), 1)
         self.assertTrue(195 <= waits[0] <= 320, waits)
+
+    def test_under_the_reserve_a_poll_never_comes_sooner_than_the_usual_pause(self):
+        for reset in (NOW + 10, NOW - 100):
+            (self.fake / "calls.log").unlink(missing_ok=True)
+            self.env["NOTCHCAST_CI_SEED"] = "4"  # a jitter of 19 s: the reset plus it is under 60 s
+            self.assertEqual(self.paced(graphql_remaining=[1499], reset=reset), [60])
 
     def test_without_graphql_the_run_is_read_over_rest(self):
         self.scenario(graphql="down")
@@ -300,10 +311,18 @@ class CiTests(unittest.TestCase):
         self.assertEqual(len([c for c in self.calls() if c[:2] == ["run", "view"] and "--json" in c]), 1)
 
     def test_a_rate_limit_wakes_after_the_reset_within_its_jitter(self):
-        self.scenario(limited={"view": 1}, reset=int(time.time()) + 500)
+        self.scenario(limited={"view": 1}, reset=NOW + 500)
         self.assertEqual(self.ci("--max-wait", "495").returncode, 3)
         (self.fake / "view").unlink()
         self.assertEqual(self.ci("--max-wait", "630").returncode, 0)
+
+    def test_the_rate_limit_jitter_moves_the_wake_by_its_seed(self):
+        self.scenario(limited={"view": 1}, reset=NOW + 500)
+        woke = {}
+        for seed in ("4", "3"):  # jitters of 19 s and 104 s
+            (self.fake / "view").unlink(missing_ok=True)
+            woke[seed] = self.ci("--max-wait", "560", NOTCHCAST_CI_SEED=seed).returncode
+        self.assertEqual(woke, {"4": 0, "3": 3})
 
     def test_fail_prints_the_failed_log_tail_then_the_verdict(self):
         self.scenario(view=self.view("failure"),
@@ -382,7 +401,7 @@ class CiTests(unittest.TestCase):
                 self.assertEqual(result.stdout.splitlines()[-1], self.passed())
                 calls = self.calls()
                 polls = [i for i, c in enumerate(calls) if any("/runs?" in a for a in c)]
-                self.assertEqual([calls[i] for i in polls], [["api", "repos/kaczordodgers/notchcast/actions/workflows/"
+                self.assertEqual([calls[i] for i in polls], [["api", "repos/Kaczor-Labs/notchcast/actions/workflows/"
                                                               "main-harnesses.yml/runs?event=workflow_dispatch&per_page=50"]])
                 self.assertEqual([i > polls[0] for i, c in enumerate(calls) if "-X" in c], [True])
 
@@ -445,7 +464,7 @@ class CiTests(unittest.TestCase):
 
     def test_a_clone_without_the_repo_hooks_is_refused_before_any_push(self):
         self.commit("two")
-        for value in (None, ".git/hooks"):
+        for value in (None, ".git/hooks", "notchcast/githooks"):
             with self.subTest(hooks=value):
                 if value is None:
                     self.git(self.repo, "config", "--unset", "core.hooksPath")
@@ -456,6 +475,13 @@ class CiTests(unittest.TestCase):
                 self.assertIn(f"core.hooksPath is {value or 'unset'}", result.stderr)
                 self.assertEqual(self.calls(), [])
                 self.assertNotEqual(self.rev(self.origin, "refs/heads/feat"), self.rev(self.repo, "HEAD"))
+
+    def test_the_configured_hooks_directory_must_contain_an_executable_pre_push(self):
+        (self.hooks / "pre-push").chmod(0o644)
+        result = self.ci()
+        self.assertEqual(result.returncode, 2)
+        self.assertIn("pre-push is missing or not executable", result.stderr)
+        self.assertEqual(self.calls(), [])
 
     def test_main_and_detached_head_are_refused(self):
         self.git(self.repo, "checkout", "-q", "--detach")
@@ -491,7 +517,7 @@ class CiTests(unittest.TestCase):
         calls = self.calls()
         self.assertFalse([c for c in calls if "-X" in c or any("/runs?" in a for a in c) or c[:2] == ["run", "list"]])
         self.assertEqual(len(self.views()), 2)
-        self.assertIn(["api", "repos/kaczordodgers/notchcast/actions/runs/777", "--jq", "{path, node_id}"], calls)
+        self.assertIn(["api", "repos/Kaczor-Labs/notchcast/actions/runs/777", "--jq", "{path, node_id}"], calls)
 
     def test_run_of_another_workflow_proves_nothing(self):
         for path in (".github/workflows/build.yml", ".github/workflows/main-harnesses.yml.bak", ""):

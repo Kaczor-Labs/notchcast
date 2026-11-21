@@ -1,4 +1,6 @@
 // notchcast-addon-order: 230
+// notchcast-readme: Mac Tweaks: Touch ID for sudo and tools for processes
+// notchcast-readme: Mac Tweaks: the network, IP addresses and Wi-Fi passwords
 // notchcast-new-switch-ids: systemTools
 // notchcast-system-keys: ⌥↩
 import SwiftUI

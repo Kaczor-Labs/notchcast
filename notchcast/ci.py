@@ -3,7 +3,7 @@
 
     ci.py plan                              decide what this run builds (conflicts are found here, on Linux)
     ci.py stage open|close <base> <upstream>  push the upstream diff for review and open its PR, or close that PR
-    ci.py reviewed <upstream>               exit 0 only while the owner's review of that upstream commit is a success
+    ci.py reviewed <upstream>               exit 0 only while the reviewer's review of that upstream commit is a success
     ci.py pin-tag <tag> <commit>            fetch upstream main and tag; fail unless the tag still peels to commit
     ci.py replay <tree> <onto>              in <tree> (our main, upstream fetched), replay our commits onto <onto>
     ci.py merge <tree> <main> <upstream>    commit <tree>'s replayed HEAD as a sync merge of main and upstream
@@ -23,6 +23,7 @@ files, so those never conflict and never travel in our diffs. Two commits are ma
 new ones never land, and "Notchcast: generated files", always last, which rewrites GENERATED (`regenerate`).
 Catalog conflicts merge by key; other conflicts use per-file diffs from the replay tip in main's
 replay-fixes/<lowercase subject, non-alphanumerics hyphenated>[.<base label>].patch (the first that applies) or fail.
+A fix that deletes a file upstream deleted and our commit edits takes upstream's deletion.
 A commit with patches of the same name in replay-adaptations/ gets the first that applies after its pick, however
 the pick went; one already in the commit counts unless a copy of a hunk's old lines remains, and then, or when a patch's
 quoted lines match nowhere so none applies, the replay fails on that commit.
@@ -30,7 +31,7 @@ Failures are remembered as refs/notchcast-failed/<main|release-<tag>>-<upstream 
 input is retried only when upstream or our main changes, and reported as one open issue per kind (label
 notchcast-<kind>: sync = replay onto new upstream, main = main tested as it is, release), which a newer failure with
 the same cause only retitles; notchcast/update.sh reports each issue and cause once through its notify hook.
-main moves onto upstream U only once the repo owner set a success REVIEW_CONTEXT status on U (upstream_review);
+main moves onto upstream U only once MAINTAINER_LOGIN set a success REVIEW_CONTEXT status on U (upstream_review);
 until then `stage` keeps U's diff on REVIEW_HEAD in one draft PR labelled REVIEW_LABEL. A release is signed only
 when its tagged commit is main's upstream base or carries such a status itself; a mere ancestor of U never counts."""
 import codecs
@@ -146,15 +147,17 @@ def tested_key(commit="HEAD", cwd=None):
         return run("git", "write-tree", cwd=cwd, env=env)
 
 
-def tested_run(artifacts, fetch_run, fork_repo):
-    """The run of the first live `tested-tree-<key>` artifact that is a green PR run of our own repo, else None."""
+def tested_run(artifacts, fetch_run):
+    """The run of the first live `tested-tree-<key>` artifact that is a green PR run of our own repo, else None.
+    Our own repo by id, not name: a transfer renames it, and a fork's PR run has a different head repository id."""
     for artifact in artifacts:
         if artifact.get("expired"):
             continue
         found = fetch_run(artifact["workflow_run"]["id"])
-        head = (found.get("head_repository") or {}).get("full_name") or ""
+        head = (found.get("head_repository") or {}).get("id")
         if (found.get("name") == "PR" and found.get("path") == ".github/workflows/pr.yml"
-                and found.get("conclusion") == "success" and head.lower() == fork_repo.lower()):
+                and found.get("conclusion") == "success" and head is not None
+                and head == (found.get("repository") or {}).get("id")):
             return found
     return None
 
@@ -164,7 +167,7 @@ def tested_build(commit, repo, kind=""):
     for a run whose Mac job was the isolated runner's."""
     key = tested_key(commit)
     listing = json.loads(run("gh", "api", f"repos/{repo}/actions/artifacts?name=tested-tree-{kind}{key}&per_page=100"))
-    return tested_run(listing["artifacts"], lambda id: json.loads(run("gh", "api", f"repos/{repo}/actions/runs/{id}")), repo)
+    return tested_run(listing["artifacts"], lambda id: json.loads(run("gh", "api", f"repos/{repo}/actions/runs/{id}")))
 
 
 def tested_build_url(commit="HEAD"):
@@ -221,10 +224,10 @@ def reuse_pr_build(main, cfg):
 
 
 def upstream_review(sha, cfg):
-    """State of the repo owner's newest REVIEW_CONTEXT status on upstream sha in our repo, or None. Statuses by any
+    """State of MAINTAINER_LOGIN's newest REVIEW_CONTEXT status on upstream sha in our repo, or None. Statuses by any
     other account, the Actions bot included, never count, so no workflow token can pass the gate."""
     repo = cfg["FORK_REPO"]
-    owner = repo.split("/")[0].lower()
+    owner = cfg["MAINTAINER_LOGIN"].lower()
     try:
         pages = json.loads(run("gh", "api", "--paginate", "--slurp", f"repos/{repo}/commits/{sha}/statuses?per_page=100"))
     except (subprocess.CalledProcessError, ValueError) as error:
@@ -237,7 +240,7 @@ def upstream_review(sha, cfg):
 
 
 def reviewed(sha):
-    """Exit 0 only while the owner's review of upstream sha is a success: the main push re-reads plan's verdict."""
+    """Exit 0 only while MAINTAINER_LOGIN's review of upstream sha is a success: the main push re-reads plan's verdict."""
     state = upstream_review(sha, config())
     print(f"review of upstream {sha[:10]}: {state or 'none'}")
     sys.exit(0 if state == "success" else 1)
@@ -565,10 +568,14 @@ def replay(tree, onto, check=False):
                     covered = {entry.split("\t", 2)[2] for entry in paths.stdout.split("\0") if entry}
                     if not expected or paths.returncode or covered != expected:
                         continue
+                    # Taking upstream's deletion of a file our commit edits: the fix deletes our version.
+                    deletes = set(re.findall(r"^--- a/(.+)\n\+\+\+ /dev/null$", patch, re.M))
                     for path in expected:
                         if subprocess.run(["git", "cat-file", "-e", f"HEAD:{path}"], cwd=tree,
                                           stderr=subprocess.DEVNULL).returncode == 0:
                             run("git", "checkout", "HEAD", "--", path, cwd=tree)
+                        elif path in deletes:
+                            run("git", "checkout", sha, "--", path, cwd=tree)
                         else:
                             run("git", "rm", "-q", "-f", "--ignore-unmatch", "--", path, cwd=tree)
                     # git apply is all-or-nothing, so a fix for another base leaves the tree for the next one.

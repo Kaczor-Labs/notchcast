@@ -54,7 +54,9 @@ struct IslandPageDeck: Equatable, Sendable {
     static let noticeID = "island.notice"
 
     mutating func show(_ notice: IslandNotice?, tappable: Bool) {
-        self.notice = notice.map { IslandPageRow(id: tappable ? Self.noticeID : nil, symbol: $0.symbol, title: $0.text) }
+        self.notice = notice.map {
+            IslandPageRow(id: tappable ? Self.noticeID : nil, symbol: $0.symbol, title: $0.line, spoken: $0.spokenText)
+        }
     }
 
     /// With a page, a click on the resting island opens it; the notice's own tap moves to its row.
@@ -81,6 +83,12 @@ struct IslandPageDeck: Equatable, Sendable {
         let all = tabs
         guard let selection, let index = all.firstIndex(of: selection) else { return }
         chosen = all[min(max(index + step, 0), all.count - 1)]
+    }
+
+    /// The shown page's own action for `key` when that page takes keys; otherwise the deck keeps the key.
+    func pageAction(for key: IslandPageKey) -> (page: String, action: String)? {
+        guard let page = current, page.takesKeys, let action = key.action else { return nil }
+        return (page.id, action)
     }
 
     /// Whether `id`'s data is on show: on Home, on its own page, or with no page yet, so it can post one.
@@ -122,17 +130,38 @@ struct IslandPageFocus: Equatable, Sendable {
     }
 }
 
-/// What a key does on a pinned page: arrows, 1–9 and Escape bare; R and P only with Command.
+/// What a key does on a pinned page: arrows, space, 1–9 and Escape bare; R and P only with Command.
 enum IslandPageKey: Equatable, Sendable {
     case move(Int)
     case number(Int)
     case close
     case refresh
     case pin
+    case space
+    /// Up is 1, down -1; only a page that takes keys uses them.
+    case step(Int)
 
     static let leftArrow: UInt16 = 123
     static let rightArrow: UInt16 = 124
+    static let downArrow: UInt16 = 125
+    static let upArrow: UInt16 = 126
+    static let spaceBar: UInt16 = 49
     static let escape: UInt16 = 53
+
+    /// A held ↑ or ↓ keeps stepping the volume; a held arrow or space acts once per press, never per repeat.
+    var repeatsOnPage: Bool { if case .step = self { true } else { false } }
+
+    /// What a page that takes keys gets for this key instead of the deck; nil keeps it the deck's.
+    var action: String? {
+        switch self {
+        case .move(-1): "key.left"
+        case .move(1): "key.right"
+        case .step(1): "key.up"
+        case .step(-1): "key.down"
+        case .space: "key.space"
+        default: nil
+        }
+    }
 
     init?(keyCode: UInt16, characters: String, command: Bool) {
         switch (command, keyCode, characters.lowercased()) {
@@ -140,6 +169,9 @@ enum IslandPageKey: Equatable, Sendable {
         case (true, _, "p"): self = .pin
         case (false, Self.leftArrow, _): self = .move(-1)
         case (false, Self.rightArrow, _): self = .move(1)
+        case (false, Self.upArrow, _): self = .step(1)
+        case (false, Self.downArrow, _): self = .step(-1)
+        case (false, Self.spaceBar, _): self = .space
         case (false, Self.escape, _): self = .close
         default:
             guard !command, let number = Int(characters), (1...9).contains(number) else { return nil }
