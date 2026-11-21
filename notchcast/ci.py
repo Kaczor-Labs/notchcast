@@ -147,15 +147,17 @@ def tested_key(commit="HEAD", cwd=None):
         return run("git", "write-tree", cwd=cwd, env=env)
 
 
-def tested_run(artifacts, fetch_run, fork_repo):
-    """The run of the first live `tested-tree-<key>` artifact that is a green PR run of our own repo, else None."""
+def tested_run(artifacts, fetch_run):
+    """The run of the first live `tested-tree-<key>` artifact that is a green PR run of our own repo, else None.
+    Our own repo by id, not name: a transfer renames it, and a fork's PR run has a different head repository id."""
     for artifact in artifacts:
         if artifact.get("expired"):
             continue
         found = fetch_run(artifact["workflow_run"]["id"])
-        head = (found.get("head_repository") or {}).get("full_name") or ""
+        head = (found.get("head_repository") or {}).get("id")
         if (found.get("name") == "PR" and found.get("path") == ".github/workflows/pr.yml"
-                and found.get("conclusion") == "success" and head.lower() == fork_repo.lower()):
+                and found.get("conclusion") == "success" and head is not None
+                and head == (found.get("repository") or {}).get("id")):
             return found
     return None
 
@@ -165,7 +167,7 @@ def tested_build(commit, repo, kind=""):
     for a run whose Mac job was the isolated runner's."""
     key = tested_key(commit)
     listing = json.loads(run("gh", "api", f"repos/{repo}/actions/artifacts?name=tested-tree-{kind}{key}&per_page=100"))
-    return tested_run(listing["artifacts"], lambda id: json.loads(run("gh", "api", f"repos/{repo}/actions/runs/{id}")), repo)
+    return tested_run(listing["artifacts"], lambda id: json.loads(run("gh", "api", f"repos/{repo}/actions/runs/{id}")))
 
 
 def tested_build_url(commit="HEAD"):

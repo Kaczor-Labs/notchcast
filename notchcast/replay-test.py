@@ -202,27 +202,31 @@ class TestedKeyTests(unittest.TestCase):
             self.assertNotEqual(CI.tested_key(runtime, root), CI.tested_key(changed, root))
             self.assertEqual(git("diff", "--cached", "--name-only"), "")
 
-    RUNS = {1: {"name": "PR", "path": ".github/workflows/pr.yml", "conclusion": "success", "head_repository": {"full_name": "Fork/Repo"}, "html_url": "run-1"}}
+    RUNS = {1: {"name": "PR", "path": ".github/workflows/pr.yml", "conclusion": "success", "repository": {"id": 5}, "head_repository": {"id": 5, "full_name": "Fork/Repo"}, "html_url": "run-1"}}
 
     def match(self, artifact, run=None):
         runs = {7: dict(self.RUNS[1], **(run or {}))}
-        return CI.tested_run([dict({"workflow_run": {"id": 7}}, **artifact)], runs.__getitem__, "fork/repo")
+        return CI.tested_run([dict({"workflow_run": {"id": 7}}, **artifact)], runs.__getitem__)
 
     def test_green_pr_run_of_our_repo_matches(self):
         self.assertEqual(self.match({})["html_url"], "run-1")
 
+    def test_our_repo_matches_after_a_transfer_renamed_it(self):
+        self.assertEqual(self.match({}, {"head_repository": {"id": 5, "full_name": "Org/Repo"}})["html_url"], "run-1")
+
     def test_every_other_run_is_rejected(self):
         for artifact, run in [({"expired": True}, None), ({}, {"conclusion": "failure"}), ({}, {"conclusion": None}),
                               ({}, {"name": "Sync"}), ({}, {"path": ".github/workflows/other.yml"}),
-                              ({}, {"head_repository": {"full_name": "someone/repo"}}),
+                              ({}, {"head_repository": {"id": 9, "full_name": "someone/repo"}}),
+                              ({}, {"repository": None}),
                               ({}, {"head_repository": None})]:
             with self.subTest(artifact=artifact, run=run):
                 self.assertIsNone(self.match(artifact, run))
 
     def test_first_acceptable_artifact_wins_and_none_matches_nothing(self):
         artifacts = [{"expired": True, "workflow_run": {"id": 1}}, {"workflow_run": {"id": 1}}]
-        self.assertEqual(CI.tested_run(artifacts, self.RUNS.__getitem__, "fork/repo")["html_url"], "run-1")
-        self.assertIsNone(CI.tested_run([], self.RUNS.__getitem__, "fork/repo"))
+        self.assertEqual(CI.tested_run(artifacts, self.RUNS.__getitem__)["html_url"], "run-1")
+        self.assertIsNone(CI.tested_run([], self.RUNS.__getitem__))
 
     CFG = {"FORK_REPO": "fork/repo", "TESTED_CONTEXT": "ctx"}
 
