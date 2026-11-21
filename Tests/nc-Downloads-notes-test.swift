@@ -13,6 +13,7 @@
 // notchcast-sources: Tinycast/Features/Notchcast/Downloads/Model/WebpageArticle.swift
 // notchcast-sources: Tinycast/Features/Notchcast/Downloads/Model/WebpageExtraction.swift
 // notchcast-sources: Tinycast/Features/Notchcast/Downloads/Model/YtDlpAudio.swift
+// notchcast-sources: Tinycast/Features/Notchcast/Downloads/Service/ChildProcess.swift
 // notchcast-sources: Tinycast/Features/Notchcast/Downloads/Service/DistillNotes.swift
 // notchcast-sources: Tinycast/Features/Notchcast/Downloads/Service/DistillRunner.swift
 // notchcast-sources: Tinycast/Features/Notchcast/Downloads/Service/DownloadRunContext+Distill.swift
