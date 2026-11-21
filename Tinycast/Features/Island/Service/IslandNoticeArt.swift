@@ -63,6 +63,7 @@ struct IslandHeadlineArt {
     private let mark: IslandNoticeMark
     private let indent: CGFloat
     private let lineHeight: CGFloat
+    private static let textLayout: NSString.DrawingOptions = .usesLineFragmentOrigin
 
     init(_ notice: IslandNotice, notch: CGFloat?, frosted: Bool, still: Bool = false) {
         self.notice = notice
@@ -75,13 +76,15 @@ struct IslandHeadlineArt {
         let cap = NotchTheme.Size.islandHeadlineMaxWidth
         let insets = inset * 2 + indent
         let room = cap - insets
-        lineHeight = ceil(oneLine.size().height)
         let wrapped: CGSize?
         if IslandNoticeFit.wraps(width: natural, room: room, hasLineBreaks: notice.line.contains(where: \.isNewline)) {
+            let font = NotchTheme.Typography.islandGlanceNSFont
+            lineHeight = ceil(font.ascender - font.descender)
             text = IslandNoticeMark.line(notice.line, frosted: frosted, wrapping: true)
             wrapped = text.boundingRect(with: CGSize(width: room, height: CGFloat.greatestFiniteMagnitude),
-                options: [.usesLineFragmentOrigin, .usesFontLeading]).size
+                options: Self.textLayout).size
         } else {
+            lineHeight = ceil(oneLine.size().height)
             text = oneLine
             wrapped = nil
         }
@@ -96,12 +99,11 @@ struct IslandHeadlineArt {
         let top = area.midY + fit.size.height / 2
         let markY = fit.lines == 1 ? area.midY : top - lineHeight / 2
         mark.draw(in: CGRect(x: x, y: markY - cell / 2, width: cell, height: cell))
-        var options: NSString.DrawingOptions = [.usesLineFragmentOrigin, .truncatesLastVisibleLine]
         let wrapped = fit.lines > 1
-        if wrapped { options.insert(.usesFontLeading) }
         let height = wrapped ? fit.size.height + 1 : text.size().height
         let y = wrapped ? top - height : area.midY - height / 2
-        text.draw(with: CGRect(x: x + indent, y: y, width: textWidth, height: height), options: options)
+        text.draw(with: CGRect(x: x + indent, y: y, width: textWidth, height: height),
+                  options: Self.textLayout.union(.truncatesLastVisibleLine))
     }
 }
 

@@ -58,6 +58,7 @@ struct IslandCanvasTest {
             && IslandNoticeArt.percent(1) == "100%" && IslandNoticeArt.percent(-1) == "0%",
             "The percent is rounded down, never early to 100%, and four characters at most")
         wrapping(canvas, copied: notice)
+        drawsThreeLines()
         let short = IslandHeadlineArt(IslandNotice(id: "s", symbol: "checkmark.circle",
                                                    text: "Downloaded Swift Concurrency.pdf"), notch: notch, frosted: false)
         print("short headline: width \(short.size.width), text \(short.textWidth) of \(ceil(short.text.size().width))")
@@ -113,6 +114,33 @@ struct IslandCanvasTest {
         progress.progress?.headline = false
         show(progress)
         precondition(canvas.headline == nil && canvas.glance is IslandNoticeArt, "Spent progress returns to the wings")
+    }
+
+    @MainActor static func drawsThreeLines() {
+        let notice = IslandNotice(id: "three-lines", symbol: "checkmark",
+            text: "Rebuild the search index for every project folder and then sync the results to the cloud finished")
+        let inset = Theme.Spacing.lg
+        let indent = NotchTheme.Typography.islandGlanceNSFont.pointSize + Theme.Spacing.xs + Theme.Spacing.sm
+        for frosted in [false, true] {
+            for notch: CGFloat? in [nil, 185] {
+                let art = IslandHeadlineArt(notice, notch: notch, frosted: frosted)
+                precondition(art.fit.lines == 3 && !art.fit.truncated, "The guest's script result fits in three lines")
+                let frame = CGRect(origin: .zero, size: art.size)
+                let x = frame.midX + (indent - art.textWidth) / 2
+                let drawn = bitmap(in: frame, scale: 2) {
+                    NSGraphicsContext.current!.cgContext.clip(to: CGRect(
+                        x: x, y: frame.minY, width: frame.maxX - x, height: frame.height))
+                    art.draw(in: frame)
+                }
+                let full = bitmap(in: frame, scale: 2) {
+                    let height = frame.height * 2
+                    art.text.draw(with: CGRect(x: x, y: frame.maxY - inset - height,
+                                               width: art.textWidth, height: height), options: [.usesLineFragmentOrigin])
+                }
+                precondition(pixels(drawn) == pixels(full),
+                             "The fitted card draws the same complete text as an unconstrained draw")
+            }
+        }
     }
 
     /// #960: a readout takes the wing, a meter the mark, and a notice without them draws as before.
@@ -281,17 +309,26 @@ struct IslandCanvasTest {
     }
 
     @MainActor static func pixels(_ art: any PillArt, in pill: CGRect) -> Data {
-        let rep = bitmap(art, in: pill)
-        return Data(bytes: rep.bitmapData!, count: rep.bytesPerRow * rep.pixelsHigh)
+        pixels(bitmap(art, in: pill))
+    }
+
+    static func pixels(_ rep: NSBitmapImageRep) -> Data {
+        Data(bytes: rep.bitmapData!, count: rep.bytesPerRow * rep.pixelsHigh)
     }
 
     @MainActor static func bitmap(_ art: any PillArt, in pill: CGRect) -> NSBitmapImageRep {
-        let rep = NSBitmapImageRep(bitmapDataPlanes: nil, pixelsWide: Int(pill.width), pixelsHigh: Int(pill.height),
+        bitmap(in: pill) { art.draw(in: pill) }
+    }
+
+    @MainActor static func bitmap(in frame: CGRect, scale: Int = 1, draw: () -> Void) -> NSBitmapImageRep {
+        let rep = NSBitmapImageRep(bitmapDataPlanes: nil,
+            pixelsWide: Int(frame.width) * scale, pixelsHigh: Int(frame.height) * scale,
             bitsPerSample: 8, samplesPerPixel: 4, hasAlpha: true, isPlanar: false, colorSpaceName: .deviceRGB,
             bytesPerRow: 0, bitsPerPixel: 0)!
         NSGraphicsContext.saveGraphicsState()
         NSGraphicsContext.current = NSGraphicsContext(bitmapImageRep: rep)
-        art.draw(in: pill)
+        NSGraphicsContext.current!.cgContext.scaleBy(x: CGFloat(scale), y: CGFloat(scale))
+        draw()
         NSGraphicsContext.restoreGraphicsState()
         return rep
     }
