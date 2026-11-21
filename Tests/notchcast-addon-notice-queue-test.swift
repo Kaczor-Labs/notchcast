@@ -11,6 +11,7 @@
 // notchcast-sources: Tinycast/Features/Island/Service/IslandPlayerSource.swift
 // notchcast-sources: Tinycast/Features/Island/Service/IslandPresenting.swift
 // notchcast-sources: Tinycast/Features/Island/Service/IslandPresenter.swift
+// notchcast-sources: Tinycast/Features/Island/Service/IslandKeyHold.swift
 // notchcast-sources: Tinycast/Features/Settings/SettingsTab.swift Tinycast/Features/Notchcast/Hidden/NotchcastHidden.swift
 // notchcast-sources: Tinycast/Platform/LocalizedResource.swift Tinycast/Platform/NotificationToken.swift
 // notchcast-sources: Tests/NotchcastTapFixtures.swift
@@ -53,6 +54,7 @@ final class IslandController {
     var song: IslandNowPlaying?
     var songChange = false
     var notchWidth: CGFloat?
+    var screenShape: CGRect?
 }
 
 /// The page host as shipped decides: a page, or a bare island, opens it instead of the pill.
