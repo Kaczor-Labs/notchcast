@@ -27,5 +27,16 @@
     "Tinycast/Features/HotKeys/Service/HotKeyManager.swift",
     "Tinycast/Features/Settings/AppSettings.swift",
     "Tinycast/Features/Notchcast/Hidden/*"
+  ],
+  "commands-hidden": [
+    "Tinycast/Features/Notchcast/Hidden/*",
+    "Tinycast/Features/Notchcast/Core/*",
+    "Tinycast/Features/Notchcast/NotchcastRegistry.swift",
+    "Tinycast/Features/Launcher/Model/CommandCatalog.swift",
+    "Tinycast/Features/Launcher/Service/AppIndex.swift",
+    "Tinycast/Features/Launcher/Service/VisibilityStore.swift",
+    "Tinycast/Features/Launcher/UI/FallbackCoordinator.swift",
+    "Tinycast/Features/Launcher/UI/LauncherScreen.swift",
+    "Tinycast/Features/Settings/SettingsTab.swift"
   ]
 }
