@@ -1,6 +1,6 @@
 name: Main harnesses
 
-# Dispatch only: a ready PR gets its harnesses from the PR workflow, never twice.
+# Dispatch only: PR branches get their harnesses from the PR workflow.
 on:
   workflow_dispatch:
     inputs:
@@ -92,7 +92,7 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
       - uses: ./tools/notchcast/actions/xcode
-      - name: Run harnesses, retry failures alone
+      - name: Run harnesses
         uses: ./tools/notchcast/actions/tests
         with:
           only: ${{ needs.plan.outputs.tests }}

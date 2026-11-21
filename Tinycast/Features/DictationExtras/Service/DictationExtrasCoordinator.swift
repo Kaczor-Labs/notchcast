@@ -81,7 +81,11 @@ final class DictationExtrasCoordinator {
         cleaningUp()
         let outcome = await DictationCleanupRunner.run(
             transcript, generate: generator(for: transcript, core: core),
+            usesDefaultPrompt: DictationCleanupPrompt.instructions(custom: core.settings.dictationCleanupPrompt)
+                == DictationCleanupPrompt.standard,
+            probingInstalledModels: isProbingAutomaticModels(core: core),
             deadline: { try await Task.sleep(for: DictationCleanupRunner.timeout) })
+        guard !Task.isCancelled else { return nil }
         switch outcome {
         case .cleaned(let text):
             return text
@@ -89,6 +93,10 @@ final class DictationExtrasCoordinator {
             return nil
         case .failed where cleanupFailed():
             break
+        case .failed(.noModel):
+            core.showMessage(
+                String(localized: "Cleanup has no model, so the raw text was pasted", table: "Notchcast"),
+                tone: .danger)
         case .failed(.timeout):
             core.showMessage(
                 String(localized: "Cleanup took too long, so the raw text was pasted", table: "Notchcast"),
@@ -99,6 +107,12 @@ final class DictationExtrasCoordinator {
                 tone: .danger)
         }
         return nil
+    }
+
+    private func isProbingAutomaticModels(core: AppCore) -> Bool {
+        let enabled = core.aiSettings.enabledInstalledProviders
+        return (enabled.contains(.claude) && core.installedAI.status(for: .claude).phase == .checking)
+            || (enabled.contains(.codex) && core.chatGPTSubscription.phase == .starting)
     }
 
     /// Nil when nothing can clean up; a route that cannot be built fails in the race, loudly.
