@@ -20,7 +20,6 @@ import SwiftUI
 // The shipped `live` and settings view are left out: only a scratch domain is ever read or written here.
 
 struct IPhoneBackupSettingsView: View {
-    init(store: IPhoneBackupStore) {}
     var body: some View { EmptyView() }
 }
 
@@ -131,13 +130,17 @@ final class Rig {
     var hasModule: Bool { context.module(IPhoneBackupModule.self) != nil }
     var journal: Policy.Journal { decoded(journalOnDisk() ?? defaults.data(forKey: Policy.journalKey)) }
 
-    /// The row's own store, built as the shipped settings row builds it.
+    /// The store behind the fixture’s module context.
     func store() -> IPhoneBackupStore { IPhoneBackupStore(context: context, system: .live) }
 
     /// The row's question as the shipped view drives it, after its `onAppear`.
     func ask() -> IPhoneBackupConfirmation {
-        let confirmation = IPhoneBackupConfirmation(store: store())
-        confirmation.appear()
+        let store = store()
+        store.refresh()
+        let confirmation = IPhoneBackupConfirmation { accepted in
+            if accepted { store.apply() } else { store.decline() }
+        }
+        confirmation.appear(isApplied: store.isApplied)
         return confirmation
     }
 
@@ -265,8 +268,11 @@ enum IPhoneBackupModuleTests {
         precondition(rig.hasModule, "the module runs while the switch is on")
         precondition(fake.writes.isEmpty, "turning the switch on writes nothing by itself")
         let store = rig.store()
-        var ask = IPhoneBackupConfirmation(store: store)
-        ask.appear()
+        store.refresh()
+        var ask = IPhoneBackupConfirmation { accepted in
+            if accepted { store.apply() } else { store.decline() }
+        }
+        ask.appear(isApplied: store.isApplied)
         precondition(ask.isPresented && !store.backupsOff, "the row asks: nothing applied yet")
         precondition(rig.isOn && fake.writes.isEmpty, "asking writes nothing")
         ask.accept()

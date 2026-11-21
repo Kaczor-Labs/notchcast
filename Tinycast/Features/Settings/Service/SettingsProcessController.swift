@@ -53,7 +53,10 @@ final class SettingsProcessController {
             core.showMessage(String(localized: "Couldn't open Settings"), tone: .danger)
             return
         }
-        let mirror = core.makeSharedStateMirror { [weak link] in link?.send(.changed($0)) }
+        let mirror = core.makeSharedStateMirror { [weak link, weak self] change in
+            link?.send(.changed(change))
+            if case .notchcastDefaultsState = change, let self { send(makeStatus()) }
+        }
         link.onReceive = { [weak self] in self?.receive($0) }
         link.onClose = { [weak self] error in self?.didClose(error: error) }
         self.link = link
@@ -236,6 +239,8 @@ final class SettingsProcessController {
             if stagedBackup?.preview.id == id { discardStagedBackup() }
         case .checkForUpdates:
             core.updateCoordinator.checkForUpdates()
+        case .notchcast(let action):
+            core.performNotchcastSettingsAction(action)
         case .showSupport:
             core.supportCoordinator.showSupport()
         }
@@ -255,6 +260,7 @@ final class SettingsProcessController {
                 case .extensions(let call): reply = try await performExtension(call, report: report)
                 case .mcp(let call): reply = try await performMCP(call)
                 case .backup(let call): reply = try await performBackup(call, id: id)
+                case .notchcast(let call): reply = .notchcast(try await core.performNotchcastSettingsCall(call))
                 }
             } catch is CancellationError {
                 reply = .cancelled
@@ -265,6 +271,7 @@ final class SettingsProcessController {
             guard self.link === link, !isClosing else { return }
             mirror?.flush()
             if case .mcp = call { send(makeStatus()) }
+            if case .notchcast = call { send(makeStatus()) }
             link.send(.reply(id, reply))
         }
     }
@@ -428,7 +435,10 @@ final class SettingsProcessController {
             updates: MainAppStatus.Updates(
                 updatesItself: updates.updatesItself, isChecking: updates.isChecking,
                 lastCheckedAt: updates.lastCheckedAt, availableVersion: updates.availableVersion?.description),
-            extensions: extensionsStatus())
+            extensions: extensionsStatus(),
+            islandDisplays: core.island.looks.displays,
+            notchcastCommandIDs: core.notchcast?.controller.enabledCommands.map(\.id) ?? [],
+            notchcast: core.notchcastSettingsStatus())
     }
 
     private func extensionsStatus() -> MainAppStatus.Extensions {

@@ -2,32 +2,45 @@ import SwiftUI
 
 /// The rows under the switch: each one's launcher fields, its editor while open and its last output.
 struct ScriptCommandsSettingsView: View {
+    @Environment(MainAppLink.self) private var mainApp
     let context: NotchcastContext
     @State private var editing: String?
+    @State private var pendingAdd: String?
     @State private var pendingDeletion: ScriptCommand?
     private static let anchor = NotchcastSettingsSearch.anchor(.launcher)
 
     var body: some View {
-        if let module = context.module(ScriptCommandsModule.self) {
-            if module.rows.isEmpty {
+        if let scripts = mainApp.status.notchcast.scripts {
+            if scripts.rows.isEmpty {
                 Text("No script commands yet.", tableName: "NotchcastScriptCommands").foregroundStyle(.secondary)
             }
-            ForEach(module.rows) { row in
+            ForEach(scripts.rows, id: \.id) { row in
                 ScriptCommandRow(
-                    row: row, module: module, preferences: context.preferences, isEditing: editing == row.id,
+                    row: row, running: scripts.running.contains(row.id), preferences: context.preferences,
+                    isEditing: editing == row.id,
                     onEdit: { editing = editing == row.id ? nil : row.id }, onDelete: { pendingDeletion = row })
                 if editing == row.id {
-                    ScriptCommandEditor(id: row.id, module: module)
+                    ScriptCommandEditor(row: row)
                 }
-                if let output = module.outputs[row.id] {
-                    ScriptCommandOutput(name: row.title, output: output)
+                if let revision = scripts.outputRevisions[row.id] {
+                    ScriptCommandOutput(id: row.id, name: row.title, revision: revision)
                 }
             }
             Button {
-                editing = module.addRow()
+                guard pendingAdd == nil else { return }
+                let id = UUID().uuidString
+                pendingAdd = id
+                mainApp.send(.notchcast(.addScript(id)))
             } label: {
                 SettingsRowTitle(Self.anchor, LocalizedStringResource("Add Script Command", table: "NotchcastScriptCommands"))
             }
+            .settingsEnabled(pendingAdd == nil)
+            .onChange(of: scripts.rows.map(\.id)) { _, ids in
+                guard let id = pendingAdd, ids.contains(id) else { return }
+                pendingAdd = nil
+                editing = id
+            }
+            .onDisappear { pendingAdd = nil }
             .confirmationDialog(
                 pendingDeletion.map {
                     String(localized: "Delete “\($0.title)”?", table: "NotchcastScriptCommands")
@@ -37,7 +50,7 @@ struct ScriptCommandsSettingsView: View {
             ) { row in
                 Button(role: .destructive) {
                     if editing == row.id { editing = nil }
-                    module.removeRow(row.id)
+                    mainApp.send(.notchcast(.deleteScript(row.id)))
                 } label: {
                     Text("Delete", tableName: "NotchcastScriptCommands")
                 }
@@ -51,7 +64,7 @@ struct ScriptCommandsSettingsView: View {
 /// One row as the launcher sees it: name and script, then alias, shortcut and launcher checkbox.
 private struct ScriptCommandRow: View {
     let row: ScriptCommand
-    let module: ScriptCommandsModule
+    let running: Bool
     let preferences: NotchcastPreferences
     let isEditing: Bool
     let onEdit: () -> Void
@@ -67,7 +80,7 @@ private struct ScriptCommandRow: View {
         SettingsRow(title: name, subtitle: row.script.isEmpty ? nil : row.script) {
             Image(systemName: ScriptCommandsModule.symbol)
         } trailing: {
-            if module.running.contains(row.id) {
+            if running {
                 ProgressView()
                     .controlSize(.small)
                     .accessibilityLabel(String(localized: "\(name) is running", table: "NotchcastScriptCommands"))
