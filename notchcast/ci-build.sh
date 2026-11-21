@@ -45,7 +45,10 @@ if grep -Eq '(^|[[:space:]])warning: ' "$RUNNER_TEMP/build.log"; then
     mkdir "$baseline/src"
     git archive -o "$baseline/src.tar" "$base"
     tar -xf "$baseline/src.tar" -C "$baseline/src"
-    (cd "$baseline/src" && "$XCODEGEN" generate --quiet && debug_build "$baseline")
+    if ! (cd "$baseline/src" && "$XCODEGEN" generate --quiet && debug_build "$baseline"); then
+        echo "::warning::baseline build failed"
+        : > "$baseline/build.log"
+    fi
 fi
 python3 "$TOOLS/notchcast/build-warnings.py" "$baseline/build.log" "$RUNNER_TEMP/build.log" \
     "$baseline/src" "$PWD"

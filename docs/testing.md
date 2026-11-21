@@ -7,12 +7,12 @@ is a set of standalone harnesses, and the manual half is the sweep at the bottom
 
 The mechanical bar, in one place so it cannot drift. All five pass before a change is finished.
 
-| Check                                              | Command                                                                              |
+| Check                                              | Verification                                                                         |
 | -------------------------------------------------- | ------------------------------------------------------------------------------------ |
-| The harnesses                                      | `./Scripts/run-tests.sh`                                                             |
+| The harnesses                                      | Hosted PR run for the pushed head passes the required harnesses.                    |
 | Lint, settings search, translations and migrations | `./Scripts/lint.sh`                                                                  |
 | Pure-layer purity                                  | `grep -rln 'import AppKit\|import SwiftUI\|import Cocoa' Tinycast/Features/*/Model/` |
-| A clean build                                      | `xcodebuild … -configuration Debug CODE_SIGNING_ALLOWED=NO`, zero **new** warnings   |
+| A clean build                                      | Hosted PR run for the pushed head finds zero **new** Debug warnings when routed.   |
 | Docs still true                                    | any doc your change made wrong, fixed in the same commit                             |
 
 A green [PR workflow](../.github/workflows/pr.yml) run for the pushed head covers the Debug build and the harnesses the diff requires, including on drafts. Its hosted `mac` job reports new Debug build warnings against the PR base and fails on any increase. The `route` job decides which checks the diff needs.

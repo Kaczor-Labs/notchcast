@@ -26,8 +26,6 @@ the section below is a note for anyone who wants it, not a step.
 
 ## Build & run
 
-For build and harness proof, use the hosted PR run for your pushed head. Use the commands below for [local and guest verification](testing.md#definition-of-done).
-
 ```sh
 open Tinycast.xcodeproj    # then ⌘R
 ```

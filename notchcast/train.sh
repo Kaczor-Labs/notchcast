@@ -262,8 +262,9 @@ signed_off_since() {
     echo "$at"
 }
 # Open PRs on main labelled land, ready or draft, oldest sign-off first: the first LAND_BATCH_SIZE, then the settled
-# ones behind them, which refill a batch the holder check thins. Its build must be green on its head; a draft's may
-# be skipped or absent, since the train run is its build. A PR a queue found red alone, or left out for a conflict or
+# ones behind them, which refill a batch the holder check thins.
+
+# A PR found red alone or left out for a conflict or
 # for holding another PR's commits, waits for a new head; a holder only while that PR is open, and one that
 # conflicts with a PR of the batch only while that PR can still be picked. While the newest sign-off of the batch is
 # younger than LAND_SETTLE_SECONDS it prints only a "queue: waits" line, so PRs signed off close together ride one
@@ -302,6 +303,7 @@ pick_batch() {
                 echo "queue: #$pr waits, dropped at ${head:0:8}: ${why%% in the landing batch at head *}" >&2
                 continue
             fi
+            # A draft can have a skipped build or no run on its head.
             verdict=$(check_run "$head" build) || exit 1
             [ "$verdict" = success ] || { [ "$draft" = true ] && [[ "$verdict" =~ ^(none|skipped)$ ]]; } \
                 || { echo "queue: #$pr waits, build is $verdict on ${head:0:8}" >&2; continue; }
