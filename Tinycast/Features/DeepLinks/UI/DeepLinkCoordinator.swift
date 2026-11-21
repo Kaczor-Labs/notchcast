@@ -50,6 +50,7 @@ final class DeepLinkCoordinator {
             guard let tab = SettingsTab(slug: slug) else { return reportUnknownLink() }
             settingsCoordinator.showSettings(tab: tab)
         case .note(let name):
+            guard exists(.command(.showNotes)) else { return reportUnknownLink() }
             guard isAllowed(.command(.showNotes)) else { return }
             core.notesCoordinator.open(NoteID(rawValue: name))
         case .chat(let id):
