@@ -5,9 +5,11 @@
 // notchcast-sources: Tinycast/Features/Island/Model/IslandLevelDwell.swift
 // notchcast-sources: Tinycast/Features/Island/Model/PillMenuRows.swift Tinycast/Features/Calendar/Model/*.swift
 // notchcast-sources: Tinycast/Features/Island/Service/IslandNoticeArt.swift
+// notchcast-sources: Tinycast/Features/Island/UI/IslandTone+Ink.swift
 // notchcast-sources: Tinycast/Features/Island/Service/IslandLevelArt.swift
 // notchcast-sources: Tinycast/Features/Island/Service/IslandCanvas.swift
 // notchcast-sources: Tinycast/Features/Island/Service/IslandExpansionArt.swift
+// notchcast-sources: Tinycast/Features/Island/Service/IslandSongArt.swift Tinycast/Features/Island/Model/IslandPlayer.swift
 import AppKit
 
 @main

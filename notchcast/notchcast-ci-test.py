@@ -12,7 +12,7 @@ import tempfile
 import unittest
 
 CI = Path(__file__).resolve().parent / "notchcast-ci.py"
-URL = "https://github.com/kaczordodgers/notchcast/actions/runs/777"
+URL = "https://github.com/Kaczor-Labs/notchcast/actions/runs/777"
 FAKE_GH = '''#!/usr/bin/env python3
 import json, os, sys
 from pathlib import Path
@@ -117,7 +117,12 @@ class CiTests(unittest.TestCase):
         self.git(root, "init", "-q", "-b", "feat", str(self.repo))
         self.commit("one")
         self.git(self.repo, "remote", "add", "origin", str(self.origin))
-        self.git(self.repo, "config", "core.hooksPath", "notchcast/githooks")
+        self.hooks = self.repo.resolve() / ".git" / "notchcast-hooks"
+        self.hooks.mkdir()
+        pre_push = self.hooks / "pre-push"
+        pre_push.write_text("#!/bin/sh\nexit 0\n")
+        pre_push.chmod(0o755)
+        self.git(self.repo, "config", "core.hooksPath", str(self.hooks))
         self.git(self.repo, "push", "-q", "origin", "feat")
         self.env = {**os.environ, "PATH": f"{root / 'bin'}{os.pathsep}{os.environ['PATH']}",
                     "FAKE_GH_DIR": str(self.fake), "NOTCHCAST_CI_POLL": "0.01",
@@ -206,9 +211,9 @@ class CiTests(unittest.TestCase):
         self.assertEqual(result.stdout.splitlines()[-1], self.passed())
         calls = self.calls()
         dispatch = next(c for c in calls if "-X" in c)
-        self.assertIn("repos/kaczordodgers/notchcast/actions/workflows/main-harnesses.yml/dispatches", dispatch)
+        self.assertIn("repos/Kaczor-Labs/notchcast/actions/workflows/main-harnesses.yml/dispatches", dispatch)
         self.assertIn("ref=feat", dispatch)
-        self.assertEqual(self.views(), [["run", "view", "777", "-R", "kaczordodgers/notchcast", "--json",
+        self.assertEqual(self.views(), [["run", "view", "777", "-R", "Kaczor-Labs/notchcast", "--json",
                                   "status,conclusion,headSha"]])
         self.assertFalse([c for c in calls if c[:2] == ["run", "watch"]])
         self.assertFalse([c for c in calls if c[:2] == ["run", "list"]])
@@ -325,7 +330,7 @@ class CiTests(unittest.TestCase):
                 self.assertEqual(result.stdout.splitlines()[-1], self.passed())
                 calls = self.calls()
                 polls = [i for i, c in enumerate(calls) if any("/runs?" in a for a in c)]
-                self.assertEqual([calls[i] for i in polls], [["api", "repos/kaczordodgers/notchcast/actions/workflows/"
+                self.assertEqual([calls[i] for i in polls], [["api", "repos/Kaczor-Labs/notchcast/actions/workflows/"
                                                               "main-harnesses.yml/runs?event=workflow_dispatch&per_page=50"]])
                 self.assertEqual([i > polls[0] for i, c in enumerate(calls) if "-X" in c], [True])
 
@@ -388,7 +393,7 @@ class CiTests(unittest.TestCase):
 
     def test_a_clone_without_the_repo_hooks_is_refused_before_any_push(self):
         self.commit("two")
-        for value in (None, ".git/hooks"):
+        for value in (None, ".git/hooks", "notchcast/githooks"):
             with self.subTest(hooks=value):
                 if value is None:
                     self.git(self.repo, "config", "--unset", "core.hooksPath")
@@ -399,6 +404,13 @@ class CiTests(unittest.TestCase):
                 self.assertIn(f"core.hooksPath is {value or 'unset'}", result.stderr)
                 self.assertEqual(self.calls(), [])
                 self.assertNotEqual(self.rev(self.origin, "refs/heads/feat"), self.rev(self.repo, "HEAD"))
+
+    def test_the_configured_hooks_directory_must_contain_an_executable_pre_push(self):
+        (self.hooks / "pre-push").chmod(0o644)
+        result = self.ci()
+        self.assertEqual(result.returncode, 2)
+        self.assertIn("pre-push is missing or not executable", result.stderr)
+        self.assertEqual(self.calls(), [])
 
     def test_main_and_detached_head_are_refused(self):
         self.git(self.repo, "checkout", "-q", "--detach")
@@ -434,7 +446,7 @@ class CiTests(unittest.TestCase):
         calls = self.calls()
         self.assertFalse([c for c in calls if "-X" in c or any("/runs?" in a for a in c) or c[:2] == ["run", "list"]])
         self.assertEqual(len(self.views()), 2)
-        self.assertIn(["api", "repos/kaczordodgers/notchcast/actions/runs/777", "--jq", ".path"], calls)
+        self.assertIn(["api", "repos/Kaczor-Labs/notchcast/actions/runs/777", "--jq", ".path"], calls)
 
     def test_run_of_another_workflow_proves_nothing(self):
         for path in (".github/workflows/build.yml", ".github/workflows/main-harnesses.yml.bak", ""):

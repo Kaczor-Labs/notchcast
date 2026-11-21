@@ -139,7 +139,7 @@ HARNESS_ONLY, FULL_RUN = "inputs.harness_runner != ''", "inputs.harness_runner =
 GATED_JOBS = {"pr.yml": 1, "main-harnesses.yml": 1, "proof.yml": 1}
 # Every macOS job (README Runners): it runs xcodebuild, compiles harnesses, signs or launches the app. Anything else is Linux.
 MAC_JOBS = {"pr.yml": 1, "main-harnesses.yml": 1, "delete-check.yml": 1, "proof.yml": 1, "snapshot.yml": 2, "sync.yml": 1,
-            "sync-release.yml": 2, "test-build.yml": 2}
+            "sync-release.yml": 2, "test-build.yml": 2, "tester.yml": 1}
 
 
 class RunnerTest(unittest.TestCase):

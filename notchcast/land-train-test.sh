@@ -28,19 +28,37 @@ case "$*" in
     'pr comment '*)
         echo "$3 ${*: -1}" >> "$FIXTURE/comments"
         jq --arg body "${*: -1}" '.comments += [{body: $body}]' "$FIXTURE/pr-$3.json" > "$FIXTURE/pr.json" && mv "$FIXTURE/pr.json" "$FIXTURE/pr-$3.json" ;;
+    # Mixed events, the real --jq: only the last land label add, at ready-<pr> or creation, is a sign-off.
     *issues/*/timeline*)
+        [ -z "${TIMELINE_FAILS:-}" ] || { echo 'HTTP 502' >&2; exit 1; }
+        [ -z "${TIMELINE_EMPTY:-}" ] || exit 0
         pr=${2#*issues/}
-        cat "$FIXTURE/ready-${pr%%/*}" 2>/dev/null || true ;;
+        pr=${pr%%/*}
+        at=$(cat "$FIXTURE/ready-$pr" 2>/dev/null || jq -r .createdAt "$FIXTURE/pr-$pr.json")
+        jq -n --arg at "$at" '($at | fromdateiso8601) as $t | def ev($e; $l; $d): {event: $e, label: {name: $l}, created_at: ($t + $d | todateiso8601)};
+            [ev("labeled"; "land"; -7200), ev("unlabeled"; "land"; -3600), ev("labeled"; "land"; 0),
+             ev("labeled"; "other"; 600), ev("ready_for_review"; null; 900)]' | jq -r "${*: -1}" ;;
     'pr view '*'--json headRefOid'*) jq -r .headRefOid "$FIXTURE/pr-$3.json" ;;
-    'pr view '*) cat "$FIXTURE/pr-$3.json" ;;
+    'pr view '*)
+        [ "$3" != "${VIEW_FAILS:-}" ] || { echo 'HTTP 502' >&2; exit 1; }
+        cat "$FIXTURE/pr-$3.json" ;;
     'pr close '*)
         echo "$3 ${*: -1}" >> "$FIXTURE/closed"
         jq '.state = "CLOSED"' "$FIXTURE/pr-$3.json" > "$FIXTURE/pr.json" && mv "$FIXTURE/pr.json" "$FIXTURE/pr-$3.json" ;;
+    # runs-<sha> and workflow-runs-<sha>: the head's raw check runs and workflow runs, through the real --jq.
+    *actions/runs\?head_sha=*)
+        sha=$*
+        sha=${sha#*head_sha=}
+        [ ! -e "$FIXTURE/workflow-runs-fail-${sha%%&*}" ] || { echo '{"message":"Server Error","status":"502"}'; exit 1; }
+        jq -r "${*: -1}" "$FIXTURE/workflow-runs-${sha%%&*}" ;;
     *check-runs*)
         sha=$*
         sha=${sha#*commits/}
-        if grep -qxF "${sha%%/*}" "$FIXTURE/red" 2>/dev/null; then echo failure
-        elif grep -qxF "${sha%%/*}" "$FIXTURE/green" 2>/dev/null; then echo success; else echo "${HEAD_CHECKS:-success}"; fi ;;
+        [ ! -e "$FIXTURE/runs-fail-${sha%%/*}" ] || { echo '{"message":"Server Error","status":"502"}'; exit 1; }
+        if [ -e "$FIXTURE/runs-${sha%%/*}" ]; then jq -r "${*: -1}" "$FIXTURE/runs-${sha%%/*}"
+        elif grep -qxF "${sha%%/*}" "$FIXTURE/red" 2>/dev/null; then echo failure
+        elif grep -qxF "${sha%%/*}" "$FIXTURE/green" 2>/dev/null; then echo success
+        elif grep -qxF "${sha%%/*}" "$FIXTURE/skipped" 2>/dev/null; then echo skipped; else echo "${HEAD_CHECKS:-success}"; fi ;;
     'workflow run '*)
         [[ -z "${DISPATCH_FAILS:-}" || "$*" != *"--ref $DISPATCH_FAILS "* ]] || { echo 'HTTP 422' >&2; exit 1; }
         python3 -c 'import os; print(os.getsid(0))' > "$FIXTURE/sid"
@@ -77,14 +95,14 @@ case "$*" in
     *statuses*) ;;
     # ISOLATED is "<toolchain>|<excused harnesses>": the isolated runner's record of the tree, run 8.
     *'artifacts?name=tested-tree-isolated-'*) if [ -n "${ISOLATED:-}" ]; then echo '{"artifacts":[{"workflow_run":{"id":8}}]}'; else echo '{"artifacts":[]}'; fi ;;
-    *actions/runs/8*) printf '{"id":8,"name":"PR","path":".github/workflows/pr.yml","conclusion":"success","head_repository":{"full_name":"%s"},"html_url":"https://fixture.invalid/runs/8"}\n' "$FORK_REPO" ;;
+    *actions/runs/8*) printf '{"id":8,"name":"PR","path":".github/workflows/pr.yml","conclusion":"success","repository":{"id":5},"head_repository":{"id":5,"full_name":"%s"},"html_url":"https://fixture.invalid/runs/8"}\n' "$FORK_REPO" ;;
     'run download 8 '*)
         echo "${ISOLATED%%|*}" > "${*: -1}/toolchain"
         echo "${ISOLATED#*|}" > "${*: -1}/excused" ;;
     *actions/runners*) [ -n "${OFFLINE:-}" ] || echo "${MAC_RUNNER:-}" ;;
     'variable get NOTCHCAST_MAC_RUNNER'*) [ -n "${MAC_RUNNER:-}" ] && echo "$MAC_RUNNER" || { echo 'variable NOTCHCAST_MAC_RUNNER was not found' >&2; exit 1; } ;;
     *actions/artifacts*) if [ -n "${TESTED:-}" ]; then echo '{"artifacts":[{"workflow_run":{"id":7}}]}'; else echo '{"artifacts":[]}'; fi ;;
-    *actions/runs/7*) printf '{"name":"PR","path":".github/workflows/pr.yml","conclusion":"success","head_repository":{"full_name":"%s"},"html_url":"https://fixture.invalid/runs/7"}\n' "$FORK_REPO" ;;
+    *actions/runs/7*) printf '{"name":"PR","path":".github/workflows/pr.yml","conclusion":"success","repository":{"id":5},"head_repository":{"id":5,"full_name":"%s"},"html_url":"https://fixture.invalid/runs/7"}\n' "$FORK_REPO" ;;
     'variable get LANDING_HOLD'*) [ -s "$FIXTURE/hold" ] && cat "$FIXTURE/hold" || { echo 'variable LANDING_HOLD was not found' >&2; exit 1; } ;;
     'variable set LANDING_HOLD'*) echo "${*: -1}" > "$FIXTURE/hold" ;;
     'variable delete LANDING_HOLD'*) rm -f "$FIXTURE/hold" ;;
@@ -190,7 +208,8 @@ fixture() {
     base=$(git rev-parse HEAD)
     : > "$PASSES"
 }
-# open_pr <number> <branch> <title> <path>...: a ready PR on origin whose head writes its title into each path.
+# open_pr <number> <branch> <title> <path>...: a ready PR on origin whose head writes its title into each path, with
+# the labels PR_LABELS names (a JSON array, none by default).
 open_pr() {
     local number=$1 branch=$2 title=$3 path
     shift 3
@@ -202,7 +221,8 @@ open_pr() {
     git commit --quiet -m "$title"
     git push --quiet origin "$branch" "$branch:refs/pull/$number/head"
     jq -n --arg head "$(git rev-parse HEAD)" --arg branch "$branch" --arg title "$title" --argjson number "$number" \
-        '{number: $number, createdAt: "2026-01-0\($number)T00:00:00Z", comments: [], state: "OPEN", isDraft: false, headRefOid: $head, headRefName: $branch, baseRefName: "main", isCrossRepository: false, title: $title, body: "", labels: []}' \
+        --argjson labels "${PR_LABELS:-[]}" \
+        '{number: $number, createdAt: "2026-01-0\($number)T00:00:00Z", comments: [], state: "OPEN", isDraft: false, headRefOid: $head, headRefName: $branch, baseRefName: "main", isCrossRepository: false, title: $title, body: "", labels: $labels}' \
         > "$FIXTURE/pr-$number.json"
     git switch --quiet main
 }
@@ -257,13 +277,17 @@ echo 'PASS: a 2-PR train lands one squash per PR after one harness pass over the
 # #2 is stacked on #1's branch: GitHub would close it when that branch is deleted.
 fixture
 open_pr 1 pr-b 'Add B' src/b.txt
-open_pr 2 pr-c 'Add C' src/c.txt
+base=pr-b open_pr 2 pr-c 'Add C' src/c.txt
 jq '.baseRefName = "pr-b"' "$FIXTURE/pr-2.json" > "$FIXTURE/pr.json" && mv "$FIXTURE/pr.json" "$FIXTURE/pr-2.json"
-land 1
+open_pr 3 pr-d 'Add D' src/plain.txt
+land 1 3
 [ "$status" -eq 0 ] && grep -q '^retargeted #2 from pr-b to main$' "$FIXTURE/output" || fail 'landing #1 did not say it moved the PR stacked on its branch'
-[ "$(cat "$FIXTURE/retargeted")" = '2 pr-b 1' ] && [ -z "$(origin for-each-ref refs/heads/pr-b)" ] \
-    && [ "$(jq -r '.state + " " + .baseRefName' "$FIXTURE/pr-2.json")" = 'OPEN main' ] || fail 'the stacked PR was not moved to main before its base was deleted'
-echo 'PASS: a PR stacked on a landed branch is moved to main, and said so, before that branch is deleted'
+[ "$(cat "$FIXTURE/retargeted")" = '2 pr-b 1' ] && [ "$(jq -r '.state + " " + .baseRefName' "$FIXTURE/pr-2.json")" = 'OPEN main' ] \
+    || fail 'the stacked PR was not moved to main before its base was deleted'
+grep -q '^kept origin/pr-b: open PR #2 stands on it$' "$FIXTURE/output" && [ -n "$(origin for-each-ref refs/heads/pr-b)" ] \
+    || fail 'the branch the stacked PR was cut from was deleted'
+[ -z "$(origin for-each-ref refs/heads/pr-d)" ] || fail 'a plain landed PR kept its branch'
+echo 'PASS: a PR stacked on a landed branch is moved to main and that branch stays; a plain landed branch is deleted'
 
 fixture
 open_pr 1 pr-one 'Add one' src/shared.txt
@@ -441,6 +465,7 @@ train() {
 }
 draft() { jq '.isDraft = true' "$FIXTURE/pr-$1.json" > "$FIXTURE/pr.json" && mv "$FIXTURE/pr.json" "$FIXTURE/pr-$1.json"; }
 label() { jq '.labels += [{name: "land"}]' "$FIXTURE/pr-$1.json" > "$FIXTURE/pr.json" && mv "$FIXTURE/pr.json" "$FIXTURE/pr-$1.json"; }
+unlabel() { jq '.labels = []' "$FIXTURE/pr-$1.json" > "$FIXTURE/pr.json" && mv "$FIXTURE/pr.json" "$FIXTURE/pr-$1.json"; }
 untouched() { [ "$(origin rev-parse main)" = "$base" ] && [ ! -e "$FIXTURE/closed" ] && [ ! -e "$FIXTURE/hold" ]; }
 
 fixture
@@ -796,8 +821,10 @@ queue() {
     NOTCHCAST_TRAIN_POLL=0 bash notchcast/train.sh --queue > "$FIXTURE/train-output" 2>&1 || status=$?
 }
 queue_fail() { cat "$FIXTURE/train-output"; echo "FAIL: $1"; exit 1; }
+# From here on each fixture PR is signed off: labelled land, the only thing the queue takes.
+export PR_LABELS='[{"name": "land"}]'
 
-# #2 was marked ready before #1 was opened; #3 is red on its head, #4 an unlabelled draft, #5 is past the batch size.
+# #2 was labelled land before #1 was opened; #3 is red on its head, #4 ready but unlabelled, #5 past the batch size.
 fixture
 echo LAND_BATCH_SIZE=2 >> notchcast/config.env
 open_pr 1 pr-b 'Add B' src/b.txt
@@ -807,7 +834,7 @@ open_pr 4 pr-d 'Add D' src/d.txt
 open_pr 5 pr-a 'Add A' src/a.txt
 echo 2025-12-01T00:00:00Z > "$FIXTURE/ready-2"
 jq -r .headRefOid "$FIXTURE/pr-3.json" > "$FIXTURE/red"
-draft 4
+unlabel 4
 queue
 [ "$status" -eq 0 ] && grep -q '^queue: batch 2 1$' "$FIXTURE/train-output" && grep -q '^LANDED #2 1$' "$FIXTURE/train-output" \
     && grep -q '^open PRs: 5/25$' "$FIXTURE/train-output" \
@@ -818,6 +845,79 @@ queue
 [ "$(cut -d' ' -f1 "$FIXTURE/closed" | paste -sd' ' -)" = '2 1' ] && [ -z "$(origin for-each-ref refs/heads/train/)" ] && [ ! -e "$FIXTURE/comments" ] \
     || queue_fail 'the green batch did not close exactly its PRs and delete its branch'
 echo 'PASS: --queue stacks the oldest signed-off green PRs up to the batch size, runs them once and lands one commit per PR'
+
+# Only land is a sign-off (#1203): (a) #4 ready, unlabelled; (b) #2 a labelled draft whose build is skipped;
+# (c) #1 ready, labelled, green; (d) #3 ready, labelled, red. A ready PR's own skipped build still holds it.
+fixture
+open_pr 1 pr-b 'Add B' src/b.txt
+open_pr 2 pr-c 'Add C' src/c.txt
+open_pr 3 pr-one 'Add one' src/one.txt
+open_pr 4 pr-d 'Add D' src/d.txt
+open_pr 5 pr-a 'Add A' src/a.txt
+unlabel 4
+draft 2
+jq -r .headRefOid "$FIXTURE/pr-2.json" "$FIXTURE/pr-5.json" > "$FIXTURE/skipped"
+jq -r .headRefOid "$FIXTURE/pr-3.json" > "$FIXTURE/red"
+queue
+[ "$status" -eq 0 ] && grep -q '^queue: batch 1 2$' "$FIXTURE/train-output" && grep -q '^LANDED #1 2$' "$FIXTURE/train-output" \
+    && grep -q "^queue: #3 waits, build is failure on " "$FIXTURE/train-output" \
+    && grep -q "^queue: #5 waits, build is skipped on " "$FIXTURE/train-output" && ! grep -q '#4' "$FIXTURE/train-output" \
+    || queue_fail 'the queue took a PR without land, or held a labelled draft whose build was skipped'
+[ "$(landed)" = 'Notchcast: Add B (#1)|Notchcast: Add C (#2)' ] || queue_fail "the land-only batch landed '$(landed)'"
+echo 'PASS: --queue takes only PRs labelled land: a green ready one and a draft with a skipped build ride, red or unlabelled wait'
+
+# #1304: a dispatched build the push's pull_request run cancelled. (a) #1 a labelled draft: that run skipped build, its
+# skip timed before the cancel; (b) #2 cancelled alone; (c) #3 the cancelling run still runs; (d) #4 it went red;
+# (e) #5 the cancelled run is re-running under its own check suite; (f) #6 the runs listing errors.
+fixture
+for n in 1 2 3 4 5 6; do open_pr "$n" "pr-$n" "Add $n" "src/$n.txt"; done
+draft 1
+build_run() { printf '{"app":{"slug":"github-actions"},"check_suite":{"id":%s},"started_at":"2026-11-21T01:15:%s","status":"completed","conclusion":"%s"}' "$@"; }
+workflow_run() { printf '{"workflow_id":7,"check_suite_id":%s,"status":"%s"}' "$@"; }
+superseded() {
+    local head
+    head=$(jq -r .headRefOid "$FIXTURE/pr-$1.json")
+    echo "{\"check_runs\":[$2]}" > "$FIXTURE/runs-$head"
+    echo "{\"workflow_runs\":[$3]}" > "$FIXTURE/workflow-runs-$head"
+}
+superseded 1 "$(build_run 20 26Z cancelled),$(build_run 21 25Z skipped)" "$(workflow_run 20 completed),$(workflow_run 21 completed)"
+superseded 2 "$(build_run 30 26Z cancelled)" "$(workflow_run 30 completed)"
+superseded 3 "$(build_run 40 26Z cancelled)" "$(workflow_run 40 completed),$(workflow_run 41 in_progress)"
+superseded 4 "$(build_run 50 26Z cancelled),$(build_run 51 59Z failure)" "$(workflow_run 50 completed),$(workflow_run 51 completed)"
+superseded 5 "$(build_run 60 26Z cancelled)" "$(workflow_run 60 in_progress)"
+superseded 6 "$(build_run 70 26Z cancelled)" "$(workflow_run 70 completed),$(workflow_run 71 in_progress)"
+touch "$FIXTURE/workflow-runs-fail-$(jq -r .headRefOid "$FIXTURE/pr-6.json")"
+queue
+[ "$status" -eq 0 ] && grep -q '^queue: batch 1$' "$FIXTURE/train-output" && grep -q '^LANDED #1$' "$FIXTURE/train-output" \
+    && grep -q '^queue: #2 waits, build is cancelled on ' "$FIXTURE/train-output" \
+    && grep -q '^queue: #3 waits, build is pending on ' "$FIXTURE/train-output" \
+    && grep -q '^queue: #4 waits, build is failure on ' "$FIXTURE/train-output" \
+    && grep -q '^queue: #5 waits, build is pending on ' "$FIXTURE/train-output" \
+    && grep -q '^queue: #6 waits, build is cancelled on ' "$FIXTURE/train-output" \
+    || queue_fail 'a superseded cancelled build held a PR, or a lone cancel, a running, re-running, red or unlisted build let one through'
+echo 'PASS: --queue reads a cancelled build by the run that superseded it: skipped rides a draft, running or re-running waits pending, red waits, a listing error reads cancelled'
+
+# The check runs call fails: the queue stops non-zero, never waits on a blank or garbled verdict.
+fixture
+open_pr 1 pr-1 'Add 1' src/1.txt
+touch "$FIXTURE/runs-fail-$(jq -r .headRefOid "$FIXTURE/pr-1.json")"
+queue
+[ "$status" -ne 0 ] && ! grep -q 'waits, build is' "$FIXTURE/train-output" && ! grep -q '^LANDED' "$FIXTURE/train-output" \
+    || queue_fail "a failed check runs call left the queue going (exit $status)"
+echo 'PASS: --queue stops non-zero when the check runs call fails'
+
+# A hold for #2 cuts the green batch 1 2 to #2 in land.sh: the queue says only #2 landed and #1 is held (#1119).
+fixture
+open_pr 1 pr-b 'Add B' src/b.txt
+open_pr 2 pr-c 'Add C' src/c.txt
+held="2 $(($(date +%s) + 600))"
+echo "$held" > "$FIXTURE/hold"
+queue
+[ "$status" -eq 0 ] && grep -q '^queue: batch 1 2$' "$FIXTURE/train-output" && grep -q '^LANDED #2$' "$FIXTURE/train-output" \
+    && grep -q '^HELD #1: landing is held for #2, ' "$FIXTURE/train-output" && ! grep -q '^LANDED #1' "$FIXTURE/train-output" \
+    || queue_fail 'under a hold the queue did not say which PR landed and which were held'
+[ "$(landed)" = 'Notchcast: Add C (#2)' ] && [ "$(cat "$FIXTURE/hold")" = "$held" ] || queue_fail "under a hold for #2 the queue landed '$(landed)'"
+echo 'PASS: under a hold for one PR of the batch, --queue prints that only it landed and the rest are held'
 
 # Unprovable: a harness in both lists passes in no VM, so land.sh refuses for good a PR that selects one.
 head_of() { jq -r .headRefOid "$FIXTURE/pr-$1.json"; }
@@ -957,26 +1057,134 @@ open_pr 2 pr-two 'Add two' src/shared.txt
 open_pr 3 pr-c 'Add C' src/c.txt
 queue
 [ "$status" -eq 1 ] && grep -q '^DROPPED #2: conflicts with #1 in the landing batch in src/shared.txt: it rides a later train, after #1 lands; nobody merges main into it$' "$FIXTURE/train-output" \
-    && [ "$(cat "$FIXTURE/comments")" = '2 conflicts with #1 in the landing batch in src/shared.txt: it rides a later train, after #1 lands; nobody merges main into it' ] || queue_fail 'the later conflicting PR was not dropped and told'
+    && [ "$(cat "$FIXTURE/comments")" = "2 Left out of the landing batch at its head $(jq -r .headRefOid "$FIXTURE/pr-2.json"): conflicts with #1 in the landing batch in src/shared.txt: it rides a later train, after #1 lands; nobody merges main into it" ] \
+    || queue_fail 'the later conflicting PR was not dropped and told'
 [ "$(landed)" = 'Notchcast: Add one (#1)|Notchcast: Add C (#3)' ] && [ "$(grep -c -- '--ref train/1-3\( \|$\)' "$FIXTURE/dispatched")" -eq 4 ] \
     && ! grep -q '^2 ' "$FIXTURE/closed" || queue_fail "the conflict batch landed '$(landed)'"
-echo 'PASS: a PR that conflicts with an earlier one in the batch is dropped with a comment naming it, and the rest lands'
-
-tangled
-DISPATCH_FAILS=train/1-3 queue
-[ "$status" -ne 0 ] && [ "$(landed)" = '' ] || queue_fail 'a batch whose dispatch failed landed or passed'
 queue
-[ "$status" -eq 1 ] && grep -q '^DROPPED #2: #2 contains commits of #1, ' "$FIXTURE/train-output" && grep -q '^LANDED #1 3$' "$FIXTURE/train-output" \
+[ "$status" -eq 1 ] && grep -q '^queue: batch 2$' "$FIXTURE/train-output" && grep -q '^DROPPED #2: conflicts with main in src/shared.txt: ' "$FIXTURE/train-output" \
+    || queue_fail 'a PR left out behind a PR that has landed was not taken again'
+echo 'PASS: a PR that conflicts with an earlier one in the batch is dropped with a comment naming it, the rest lands, and it is taken again once that one landed'
+
+# A batch of 2: the holder left out, #3 behind it takes its place in the same run.
+tangled
+echo LAND_BATCH_SIZE=2 >> notchcast/config.env
+DISPATCH_FAILS=train/1-3 queue
+[ "$status" -ne 0 ] && [ "$(landed)" = '' ] && grep -q '^DROPPED #2: #2 contains commits of #1, ' "$FIXTURE/train-output" \
+    && grep -q '^queue: batch 1 3$' "$FIXTURE/train-output" || queue_fail 'a batch whose dispatch failed landed or passed, or was not refilled'
+queue
+[ "$status" -eq 0 ] && grep -q "^queue: #2 waits, dropped at $(jq -r .headRefOid "$FIXTURE/pr-2.json" | cut -c1-8): #2 contains commits of #1$" "$FIXTURE/train-output" \
+    && ! grep -q '^DROPPED' "$FIXTURE/train-output" && grep -q '^LANDED #1 3$' "$FIXTURE/train-output" \
     || queue_fail "the PR that holds another's commits was not left out of the batch"
 [ "$(landed)" = 'Notchcast: Add B (#1)|Notchcast: Add one (#3)' ] && ! grep -q -- '--ref train/1-2' "$FIXTURE/dispatched" && ! grep -q '^2 ' "$FIXTURE/closed" \
     || queue_fail "the tangled batch landed '$(landed)'"
 [ "$(cat "$FIXTURE/comments")" = "2 Left out of the landing batch at its head $(jq -r .headRefOid "$FIXTURE/pr-2.json"): #2 contains commits of #1, and landing squashes each PR, so #2 can conflict with main once #1 lands. Land #1 first; then #2 gets one merge round, which the landing owner starts when it is next to land." ] \
     || queue_fail "two runs on one head of the holder commented '$(cat "$FIXTURE/comments")'"
-base=$(origin rev-parse main)
-train 2
+queue
 [ "$status" -eq 1 ] && grep -q '^DROPPED #2: conflicts with main in src/b.txt: it waits for one merge round, which the landing owner starts when this PR is next to land; nobody merges main into it before that$' "$FIXTURE/train-output" \
-    || queue_fail 'the holder did not conflict with main once the other landed, so the fixture is not #1067'
-echo "PASS: --queue leaves out the PR that holds another's commits, tells it once per head what to do, and lands the rest"
+    || queue_fail 'the holder was not taken again once the other landed, or did not conflict with main, so the fixture is not #1067'
+echo "PASS: --queue leaves out the PR that holds another's commits, fills its place, skips it while that one is open, and takes it again once it landed"
+
+# Four holders of #1 and #6, which conflicts with main, are signed off before the green #7 and #8. The first tick drops
+# them and #1 is red alone; the second, on the same heads, trains #7 and #8; a new head on #6 is taken again.
+fixture
+open_pr 1 pr-b 'Add B' src/b.txt
+for pr in 2 3 4 5; do
+    open_pr "$pr" "pr-h$pr" "Add H$pr" "src/h$pr.txt"
+    git switch --quiet "pr-h$pr"
+    git merge --quiet --no-edit pr-b
+    repush "$pr" "pr-h$pr"
+done
+open_pr 6 pr-six 'Add six' src/shared.txt
+open_pr 7 pr-c 'Add C' src/c.txt
+open_pr 8 pr-one 'Add one' src/one.txt
+echo moved > src/shared.txt
+git commit --quiet -am 'Main moves shared'
+git push --quiet origin main
+base=$(git rev-parse HEAD)
+for pr in 1 2 3 4 5 6; do jq -r .headRefOid "$FIXTURE/pr-$pr.json"; done > "$FIXTURE/green"
+RED_PRS=1 HEAD_CHECKS=pending queue
+[ "$status" -eq 1 ] && grep -q '^queue: batch 1 6$' "$FIXTURE/train-output" && grep -q '^DROPPED #6: conflicts with main in src/shared.txt: ' "$FIXTURE/train-output" \
+    && [ "$(grep -c '^DROPPED #[2-5]: #[2-5] contains commits of #1, ' "$FIXTURE/train-output")" -eq 4 ] && grep -q '^CULPRIT #1 ' "$FIXTURE/train-output" \
+    && [ "$(wc -l < "$FIXTURE/comments")" -eq 6 ] || queue_fail 'the first tick did not drop the holders and the conflict, or #1 was not red alone'
+queue
+[ "$status" -eq 0 ] && grep -q '^queue: batch 7 8$' "$FIXTURE/train-output" && grep -q '^LANDED #7 8$' "$FIXTURE/train-output" \
+    && grep -q "^queue: #6 waits, dropped at $(jq -r .headRefOid "$FIXTURE/pr-6.json" | cut -c1-8): conflicts with main in src/shared.txt$" "$FIXTURE/train-output" \
+    && grep -q "^queue: #1 waits, dropped at $(jq -r .headRefOid "$FIXTURE/pr-1.json" | cut -c1-8): Red alone on main [0-9a-f]*$" "$FIXTURE/train-output" \
+    && [ "$(grep -c '^queue: #[2-5] waits, dropped at [0-9a-f]\{8\}: #[2-5] contains commits of #1$' "$FIXTURE/train-output")" -eq 4 ] \
+    && [ "$(wc -l < "$FIXTURE/comments")" -eq 6 ] && [ "$(landed)" = 'Notchcast: Add C (#7)|Notchcast: Add one (#8)' ] \
+    || queue_fail 'PRs dropped at these heads took the batch from the green ones behind them'
+git switch --quiet pr-six
+git fetch --quiet origin main
+git merge --quiet --no-edit -X ours origin/main
+git rev-parse HEAD >> "$FIXTURE/green"
+repush 6 pr-six
+queue
+[ "$status" -eq 0 ] && grep -q '^queue: batch 6$' "$FIXTURE/train-output" && grep -q '^LANDED #6$' "$FIXTURE/train-output" \
+    || queue_fail 'a dropped PR with a new head was not taken again'
+echo 'PASS: --queue skips PRs dropped at their heads, so green PRs behind them land, and takes one again at a new head'
+
+# A refusal an edit or a retry cures is not tied to the head: #1's title names something private until it is fixed.
+fixture
+open_pr 1 pr-b 'Add B' src/b.txt
+open_pr 2 pr-c 'Add C' src/c.txt
+jq '.title = "Add FORBIDDEN B"' "$FIXTURE/pr-1.json" > "$FIXTURE/pr.json" && mv "$FIXTURE/pr.json" "$FIXTURE/pr-1.json"
+queue
+[ "$status" -eq 1 ] && grep -q '^DROPPED #1: dropped from the landing batch: ' "$FIXTURE/train-output" && grep -q '^LANDED #2$' "$FIXTURE/train-output" \
+    && ! grep -q 'Left out' "$FIXTURE/comments" || queue_fail 'a PR with a private name in its title was not dropped with a plain comment'
+jq '.title = "Add B"' "$FIXTURE/pr-1.json" > "$FIXTURE/pr.json" && mv "$FIXTURE/pr.json" "$FIXTURE/pr-1.json"
+queue
+[ "$status" -eq 0 ] && grep -q '^LANDED #1$' "$FIXTURE/train-output" || queue_fail 'a title fixed at the same head was not landed on the next tick'
+fixture
+open_pr 1 pr-b 'Add B' src/b.txt
+open_pr 2 pr-c 'Add C' src/c.txt
+VIEW_FAILS=2 queue
+[ "$status" -eq 1 ] && grep -q '^DROPPED #2: dropped from the landing batch: its merge onto main failed$' "$FIXTURE/train-output" \
+    && grep -q '^LANDED #1$' "$FIXTURE/train-output" || queue_fail 'a failed gh call did not drop only its PR'
+queue
+[ "$status" -eq 0 ] && grep -q '^LANDED #2$' "$FIXTURE/train-output" || queue_fail 'a PR dropped for one failed gh call was parked'
+echo 'PASS: a PR dropped for a refusal its head does not decide (a private title, a failed call) is taken on the next tick'
+
+# #2 conflicts with #1 in the batch and #1 is red alone, so #2 no longer waits on it.
+fixture
+open_pr 1 pr-one 'Add one' src/shared.txt
+open_pr 2 pr-two 'Add two' src/shared.txt
+RED_PRS=1 queue
+[ "$status" -eq 1 ] && grep -q '^DROPPED #2: conflicts with #1 in the landing batch ' "$FIXTURE/train-output" && grep -q '^CULPRIT #1 ' "$FIXTURE/train-output" \
+    || queue_fail '#2 was not left out behind #1, or #1 was not red alone'
+queue
+[ "$status" -eq 0 ] && grep -q '^queue: batch 2$' "$FIXTURE/train-output" && grep -q '^LANDED #2$' "$FIXTURE/train-output" \
+    || queue_fail 'a PR waited behind a PR that was red alone'
+echo 'PASS: a PR left out behind a PR of the batch is taken again once that PR cannot be picked'
+
+# #2 conflicts with #1, which land.sh refuses for good on the isolated runner and then on a hosted train.
+fixture
+open_pr 1 pr-one 'Add one' src/shared.txt
+open_pr 2 pr-two 'Add two' src/shared.txt
+mkdir -p "$HOME/.config/notchcast"
+echo 'notchcast_notify() { cat >> "$FIXTURE/notified"; }' > "$HOME/.config/notchcast/private.env"
+ISOLATED='other toolchain|' MAC_RUNNER=fixture-mac queue
+grep -q '^DROPPED #2: conflicts with #1 in the landing batch ' "$FIXTURE/train-output" && grep -q '^REFUSED FOR GOOD #1: ' "$FIXTURE/train-output" \
+    || queue_fail '#2 was not left out behind #1, or #1 was not refused for good on the isolated runner'
+ISOLATED='other toolchain|' MAC_RUNNER=fixture-mac queue
+grep -q '^queue: batch 1$' "$FIXTURE/train-output" && grep -q '^REFUSED FOR GOOD #1: .*; the queue leaves these PRs out ' "$FIXTURE/train-output" \
+    || queue_fail '#1 was not trained hosted alone and refused for good again'
+ISOLATED='fixture toolchain|' MAC_RUNNER=fixture-mac queue
+rm "$HOME/.config/notchcast/private.env"
+[ "$status" -eq 0 ] && grep -q '^queue: #1 left out: ' "$FIXTURE/train-output" && grep -q '^queue: batch 2$' "$FIXTURE/train-output" \
+    && grep -q '^LANDED #2$' "$FIXTURE/train-output" || queue_fail 'a PR waited behind a PR refused for good on a hosted train'
+echo 'PASS: a PR left out behind a PR of the batch is taken again once land.sh refused that PR for good on a hosted train'
+
+# Batch of 2: #3 is signed off 30 s ago, so it does not take the holder's place.
+tangled
+echo LAND_BATCH_SIZE=2 >> notchcast/config.env
+echo 2026-03-01T10:00:00Z > "$FIXTURE/ready-1"
+echo 2026-03-01T10:00:00Z > "$FIXTURE/ready-2"
+echo 2026-03-01T10:09:30Z > "$FIXTURE/ready-3"
+NOTCHCAST_NOW=$(jq -n '"2026-03-01T10:10:00Z" | fromdateiso8601') queue
+[ "$status" -ne 0 ] && grep -q '^DROPPED #2: #2 contains commits of #1, ' "$FIXTURE/train-output" && grep -q '^queue: batch 1$' "$FIXTURE/train-output" \
+    && grep -q '^LANDED #1$' "$FIXTURE/train-output" || queue_fail 'a sign-off younger than the settle time refilled the batch'
+echo 'PASS: a sign-off younger than LAND_SETTLE_SECONDS does not refill a place the holder check leaves'
 
 fixture
 open_pr 1 pr-b 'Add B' src/b.txt
@@ -1092,6 +1300,7 @@ fixture
 open_pr 1 pr-b 'Add B' src/b.txt
 open_pr 2 pr-tool 'Tool' notchcast/hold.sh
 draft 2
+unlabel 2
 train 1 2
 grep -q "^DROPPED #2: dropped from the landing batch: drift tooling or land.sh changed: the PR body needs a line Drift tooling: <reason>; draft #2 has no land label" "$FIXTURE/train-output" \
     && [ -n "$train_sha" ] || { cat "$FIXTURE/train-output"; fail 'a dropped PR did not get every reason in one pass'; }
@@ -1164,6 +1373,25 @@ PRLIST_FAILS=1 queue
 [ "$status" -eq 1 ] && ! grep -q '^queue: no open PR' "$FIXTURE/train-output" && [ ! -e "$FIXTURE/dispatched" ] && untouched \
     || queue_fail 'a failed PR listing read as nothing to land'
 echo 'PASS: --queue fails when it cannot list the open PRs, never reports an idle queue'
+
+mkdir -p "$HOME/.config/notchcast"
+echo 'notchcast_notify() { cat >> "$FIXTURE/notified"; }' > "$HOME/.config/notchcast/private.env"
+fixture
+open_pr 1 pr-b 'Add B' src/b.txt
+TIMELINE_FAILS=1 queue
+[ "$status" -eq 1 ] && grep -q '^queue: cannot read when #1 was labelled land$' "$FIXTURE/train-output" \
+    && ! grep -q '^queue: batch' "$FIXTURE/train-output" && [ ! -e "$FIXTURE/dispatched" ] && untouched \
+    && grep -qxF 'Notchcast: the landing queue stopped: it cannot read when #1 was labelled land' "$FIXTURE/notified" \
+    || queue_fail 'a failed sign-off lookup landed on a guessed time, or was not notified'
+fixture
+open_pr 1 pr-b 'Add B' src/b.txt
+TIMELINE_EMPTY=1 queue
+[ "$status" -eq 1 ] && grep -q '^queue: cannot read when #1 was labelled land$' "$FIXTURE/train-output" \
+    && ! grep -q '^queue: batch' "$FIXTURE/train-output" && [ ! -e "$FIXTURE/dispatched" ] && untouched \
+    && [ "$(cat "$FIXTURE/notified")" = 'Notchcast: the landing queue stopped: it cannot read when #1 was labelled land' ] \
+    || queue_fail 'an empty sign-off lookup landed on a guessed time, or was not notified once'
+rm "$HOME/.config/notchcast/private.env"
+echo 'PASS: --queue fails and notifies when a sign-off lookup fails or finds no land label, never lands on a guessed time'
 
 # The land lease (#1161): private.env names a stub lock hook that logs each call and refuses while LOCK_EXIT is 1.
 cat > "$scratch/bin/land-lock" <<'STUB'

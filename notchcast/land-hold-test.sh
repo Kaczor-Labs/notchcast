@@ -8,11 +8,11 @@ cat > "$scratch/bin/gh" <<'STUB'
 #!/bin/bash
 echo "$*" >> "$CALLS"
 case "$*" in
-    'variable get LANDING_HOLD -R kaczordodgers/notchcast')
+    'variable get LANDING_HOLD -R Kaczor-Labs/notchcast')
         [ -z "${GH_FAIL:-}" ] || { echo 'HTTP 502: Bad Gateway' >&2; exit 1; }
         [ -f "$STORE" ] && cat "$STORE" || { echo 'variable LANDING_HOLD was not found' >&2; exit 1; } ;;
-    'variable set LANDING_HOLD -R kaczordodgers/notchcast --body '*) echo "${*: -1}" > "$STORE"; [ -z "${RACE_VALUE:-}" ] || echo "$RACE_VALUE" > "$STORE" ;;
-    'variable delete LANDING_HOLD -R kaczordodgers/notchcast') rm "$STORE" ;;
+    'variable set LANDING_HOLD -R Kaczor-Labs/notchcast --body '*) echo "${*: -1}" > "$STORE"; [ -z "${RACE_VALUE:-}" ] || echo "$RACE_VALUE" > "$STORE" ;;
+    'variable delete LANDING_HOLD -R Kaczor-Labs/notchcast') rm "$STORE" ;;
     *) exit 3 ;;
 esac
 STUB

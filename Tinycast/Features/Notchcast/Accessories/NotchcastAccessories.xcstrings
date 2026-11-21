@@ -1,0 +1,25 @@
+{
+  "sourceLanguage" : "en",
+  "strings" : {
+    "%@: %lld%%" : {},
+    "%@: Connected" : {},
+    "%@: Low battery: %lld%%" : {},
+    "%lld accessories" : {},
+    "Accessories" : {},
+    "Battery" : {},
+    "Case" : {},
+    "Connected" : {},
+    "Grant Access…" : {},
+    "Hide the system banner" : {},
+    "Hides macOS's own banner for an accessory the island just announced. It still reaches Notification Center." : {},
+    "Left" : {},
+    "Low battery" : {},
+    "Needs Accessibility access" : {},
+    "Needs Bluetooth access" : {},
+    "Once per discharge, when an accessory falls to 20 percent. Charging it to 25 percent arms it again." : {},
+    "Right" : {},
+    "Shows on the island when a Bluetooth accessory connects or its battery runs low, and lists connected accessories with their battery levels." : {},
+    "When headphones, a keyboard, a mouse or another Bluetooth accessory connects. Never computers or phones." : {}
+  },
+  "version" : "1.0"
+}

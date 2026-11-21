@@ -10,16 +10,22 @@
     "Add Claude or Codex in AI providers, or choose a model." : {
 
     },
-    "AI providers" : {
+    "Add to Liked Songs" : {
 
     },
     "Agents" : {
       "shouldTranslate" : false
     },
+    "AI providers" : {
+
+    },
     "Apps on this Mac can transcribe audio through a local OpenAI-compatible endpoint." : {
 
     },
     "Apps using the current token stop working until they get the new one." : {
+
+    },
+    "Asked by %@ in Notchcast" : {
 
     },
     "Automatic uses %@." : {
@@ -33,6 +39,9 @@
     },
     "Capture" : {
       "shouldTranslate" : false
+    },
+    "Checking Liked Songs" : {
+
     },
     "Choose the model cleanup uses in Dictation › Cleanup." : {
 
@@ -157,7 +166,7 @@
     "Notchcast could not read its token from the Keychain." : {
 
     },
-    "Notchcast could not save a new token in the Keychain." : {
+    "Notchcast could not save a new token in the Keychain. The current token still works." : {
 
     },
     "Notices" : {
@@ -184,6 +193,9 @@
     "Player" : {
 
     },
+    "Playing" : {
+
+    },
     "Port" : {
 
     },
@@ -194,6 +206,9 @@
 
     },
     "Regenerate the token?" : {
+
+    },
+    "Remove from Liked Songs" : {
 
     },
     "Reset to Default" : {
@@ -242,6 +257,9 @@
 
     },
     "Turn Off and Delete" : {
+
+    },
+    "Up Next" : {
 
     },
     "Updated to %@" : {

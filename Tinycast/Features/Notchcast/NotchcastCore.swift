@@ -32,6 +32,10 @@ final class NotchcastCore {
                 await core?.confirm(title: title, message: message, symbol: nil, confirmTitle: confirmTitle) ?? false
             }
         }
+        controller.wireAskSecret { [weak core] requester, title, message, fieldTitle, confirmTitle in
+            await core?.askSecret(
+                requester: requester, title: title, message: message, fieldTitle: fieldTitle, confirmTitle: confirmTitle)
+        }
         let commands = addons.flatMap { $0.commands }
         NotchcastSettingsSearch.install(
             controller.switches,
@@ -76,6 +80,9 @@ final class NotchcastCore {
             visibility: core.visibility, preferences: controller.preferences, commandIDs: Set(commands.map(\.id)))
         trustMonitor = NotchcastTrustMonitor(hub: hub)
         globeTrigger = NotchcastGlobeTrigger(core: core, hub: hub)
+        if let seed = DictationFirstModel.seed(
+            stored: UserDefaults.standard.string(forKey: AppSettingsKey.dictationModel.rawValue)),
+            let model = DictationModel(rawValue: seed) { core.settings.dictationModel = model }
         controller.start()
         dictationServer.start()
     }

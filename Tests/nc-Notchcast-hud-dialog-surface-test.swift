@@ -149,6 +149,7 @@ struct Pixels {
 final class VolumeState {}
 final class SnippetArgumentsState {}
 final class ClipboardEditState {}
+final class SecretFieldState {}
 
 struct VolumeSlider: View {
     let state: VolumeState
@@ -157,10 +158,16 @@ struct VolumeSlider: View {
 
 struct SnippetArgumentFields: View {
     let state: SnippetArgumentsState
+    var onSubmit: () -> Void = {}
     var body: some View { EmptyView() }
 }
 
 struct ClipboardEditField: View {
     let state: ClipboardEditState
+    var body: some View { EmptyView() }
+}
+
+struct DialogSecretField: View {
+    let state: SecretFieldState
     var body: some View { EmptyView() }
 }
