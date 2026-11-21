@@ -170,7 +170,8 @@ unset -f gh
             "pr list -R $FORK_REPO --base stacked --state open "*) echo 7 ;;
             "pr list -R $FORK_REPO --base unlistable "*) return 1 ;;
             "pr list -R $FORK_REPO --base "*) ;;
-            "pr list -R $FORK_REPO --state open "*) [ -z "${held:-}" ] || echo "8 $held" ;;
+            "pr list -R $FORK_REPO --state open "*)
+                if [ -n "${listing:-}" ]; then echo "$listing"; elif [ -n "${held:-}" ]; then echo "8 $held"; fi ;;
             "pr edit 7 -R $FORK_REPO --base main")
                 echo "edit 7 $(git ls-remote origin refs/heads/stacked | wc -l | tr -d ' ')" >> "$scratch/gh.log"
                 [ -z "${edit_fails:-}" ] ;;
@@ -225,6 +226,24 @@ unset -f gh
     [ "$(git ls-remote origin refs/heads/force-pushed | cut -f1)" = "$head" ]
     [ "$output" = 'WARN: kept origin/force-pushed: cannot tell whether open PR #8 stands on it' ]
     echo 'PASS: delete_head keeps a branch when an open PR head force-pushed since the listing cannot be compared'
+    git clone --quiet "$scratch/remote.git" "$scratch/other"
+    unrelated=$(git -C "$scratch/other" -c user.name=Fixture -c user.email=fixture@example.com commit-tree -m unrelated "$(git -C "$scratch/other" mktree < /dev/null)")
+    stacked_on=$(git -C "$scratch/other" -c user.name=Fixture -c user.email=fixture@example.com commit-tree -p "$head" -m on -m top "$head^{tree}")
+    git push --quiet origin "$head:refs/heads/unfetchable"
+    listing="9 $unrelated"
+    output=$(delete_head unfetchable "$head" 2>&1)
+    [ "$(git ls-remote origin refs/heads/unfetchable | cut -f1)" = "$head" ]
+    [ "${output##*$'\n'}" = "WARN: kept origin/unfetchable: cannot fetch the open PRs' heads" ]
+    echo 'PASS: delete_head keeps a branch when it cannot fetch the open PR heads'
+    git -C "$scratch/other" push --quiet origin "$unrelated:refs/pull/10/head" "$stacked_on:refs/pull/11/head"
+    git push --quiet origin "$head:refs/heads/batched"
+    listing=$(printf '10 %s\n11 %s' "$unrelated" "$stacked_on")
+    output=$(git() { [ "$1" != fetch ] || echo "$*" >> "$scratch/fetch.log"; command git "$@"; }; delete_head batched "$head" 2>&1)
+    listing=
+    [ "$(git ls-remote origin refs/heads/batched | cut -f1)" = "$head" ]
+    [ "$output" = 'kept origin/batched: open PR #11 stands on it' ]
+    [ "$(cat "$scratch/fetch.log")" = 'fetch -q origin refs/pull/10/head refs/pull/11/head' ]
+    echo 'PASS: delete_head fetches every missing open PR head in one go and keeps a branch one stands on'
     git push --quiet origin "$head:refs/heads/unlistable"
     output=$(delete_head unlistable "$head" 2>&1)
     [ -n "$(git ls-remote origin refs/heads/unlistable)" ]
