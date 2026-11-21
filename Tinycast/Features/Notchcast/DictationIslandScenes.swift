@@ -61,6 +61,15 @@ enum DictationIslandScenes {
                                    "one announcement at the start and one for the result")
 
         capsule.show()
+        await expect(hint, "quick")
+        capsule.state.phase = .transcribing
+        island.delivered(empty: false)
+        island.reset(completed: true)
+        await expect(IslandNotice(dictation: .pasted).text, "quick-pasted")
+        IslandVerification.require(IslandVerification.announcements.count == heard + 4,
+                                   "a second session inside the last result's dwell is heard twice")
+
+        capsule.show()
         await expect(hint, "again")
         await IslandInputScenes.key(53)
         IslandVerification.require(probe.cancelled == 1, "a real Escape reaches cancel")
