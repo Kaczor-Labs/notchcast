@@ -66,7 +66,7 @@ struct SystemMonitorRenderTest {
     static func main() throws {
         try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
         let normal = Fix.board()
-        let hot = Fix.board(cpu: 0.96, pressure: .critical, freePercent: 5, hotFor: 12)
+        let hot = Fix.board(cpu: 0.96, pressure: .critical, freePercent: 3, hotFor: 12)
         let player = IslandPlayerPage.page(IslandNowPlaying(
             title: "Paper Lanterns", artist: "Juno Vale", artwork: nil,
             time: IslandMediaTime(elapsed: 72, duration: 214, rate: 0, sampledAt: Date(timeIntervalSince1970: 0)),

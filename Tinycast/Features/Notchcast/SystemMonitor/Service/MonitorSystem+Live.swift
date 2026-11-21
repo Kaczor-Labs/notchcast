@@ -7,8 +7,11 @@ import Foundation
 
 extension MonitorSystem {
     static func live() -> MonitorSystem {
-        MonitorSystem(read: { await MonitorLiveReads.read(detail: $0) }, sleep: { try await Task.sleep(for: $0) },
-                      processorCount: ProcessInfo.processInfo.activeProcessorCount)
+        let (hidden, tolerance) = (MonitorBoard.hiddenInterval, MonitorBoard.hiddenTolerance)
+        return MonitorSystem(
+            read: { await MonitorLiveReads.read(detail: $0, previous: $1) },
+            sleep: { try await Task.sleep(for: $0, tolerance: $0 == hidden ? tolerance : nil) },
+            processorCount: ProcessInfo.processInfo.activeProcessorCount)
     }
 }
 
@@ -18,10 +21,10 @@ nonisolated private let monitorHost = mach_host_self()
 /// Plain syscalls an unprivileged process may make; a read that fails is nil, never a guess.
 enum MonitorLiveReads {
     @concurrent
-    static func read(detail: Bool) async -> MonitorReading {
+    static func read(detail: Bool, previous: [Int32: UInt64]) async -> MonitorReading {
         MonitorReading(uptime: ProcessInfo.processInfo.systemUptime, cpu: cpu(), memory: memory(),
                        pressure: pressure(), disk: disk(), network: detail ? network() : nil,
-                       processes: detail ? processes() : nil)
+                       processes: detail ? processes(previous: previous) : nil)
     }
 
     nonisolated static func cpu() -> MonitorCPUTicks? {
@@ -102,21 +105,26 @@ enum MonitorLiveReads {
         return counters
     }
 
-    /// Every process libproc lets this user read: another user's answers nothing without root and is skipped.
-    nonisolated static func processes() -> [MonitorProcessTime] {
+    /// Every process libproc lets this user read (another user's needs root); only the rows listed get a name.
+    nonisolated static func processes(previous: [Int32: UInt64]) -> [MonitorProcessTime] {
         var timebase = mach_timebase_info_data_t()
         let capacity = proc_listallpids(nil, 0)
         guard mach_timebase_info(&timebase) == KERN_SUCCESS, timebase.denom > 0, capacity > 0 else { return [] }
         var pids = [pid_t](repeating: 0, count: Int(capacity) + 32)
         let count = pids.withUnsafeMutableBytes { proc_listallpids($0.baseAddress, Int32($0.count)) }
-        return pids.prefix(min(Int(max(count, 0)), pids.count)).compactMap { pid in
+        let times = pids.prefix(min(Int(max(count, 0)), pids.count)).compactMap { pid -> MonitorProcessTime? in
             guard pid > 0, let usage = rusage(pid) else { return nil }
             let ticks = usage.ri_user_time.addingReportingOverflow(usage.ri_system_time)
             let scaled = ticks.partialValue.multipliedFullWidth(by: UInt64(timebase.numer))
             guard !ticks.overflow, scaled.high < UInt64(timebase.denom) else { return nil }
             let nanoseconds = UInt64(timebase.denom).dividingFullWidth(scaled).quotient
-            return MonitorProcessTime(pid: pid, name: name(pid), cpuNanoseconds: nanoseconds,
-                                      footprint: usage.ri_phys_footprint)
+            return MonitorProcessTime(pid: pid, cpuNanoseconds: nanoseconds, footprint: usage.ri_phys_footprint)
+        }
+        let listed = Set(MonitorBoard.ranked(times, since: previous).map(\.pid))
+        return times.map { process in
+            var process = process
+            if listed.contains(process.pid) { process.name = name(process.pid) }
+            return process
         }
     }
 

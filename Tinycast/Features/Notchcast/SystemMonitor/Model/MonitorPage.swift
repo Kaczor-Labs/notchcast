@@ -25,7 +25,7 @@ enum MonitorPage {
             blocks: [.cards(tiles)] + processes(sample, locale: locale).map(IslandPageBlock.row))
     }
 
-    /// The first hot resource, else the busiest of CPU, memory and disk, with the busiest process beside it.
+    /// The first hot resource, else the busier of CPU and memory, with the busiest process beside it.
     static func line(_ board: MonitorBoard, locale: Locale) -> IslandPageLine {
         let sample = board.sample
         if let resource = board.heat.hot.first {
@@ -34,17 +34,13 @@ enum MonitorPage {
         }
         let loads: [(MonitorResource, Double)] = [
             sample.cpu.map { (.cpu, $0) }, sample.memory.map { (.memory, $0.fraction) },
-            sample.disk.map { (.disk, $0.fraction) },
         ].compactMap(\.self)
         guard let busiest = loads.max(by: { $0.1 < $1.1 }) else {
             return IslandPageLine(symbol: symbol, text: String(localized: "Measuring…", table: "NotchcastSystemMonitor"))
         }
         let amount = percent(busiest.1, locale)
-        let words = switch busiest.0 {
-        case .cpu: String(localized: "CPU \(amount)", table: "NotchcastSystemMonitor")
-        case .memory: String(localized: "Memory \(amount)", table: "NotchcastSystemMonitor")
-        default: String(localized: "Disk \(amount) full", table: "NotchcastSystemMonitor")
-        }
+        let words = busiest.0 == .cpu ? String(localized: "CPU \(amount)", table: "NotchcastSystemMonitor")
+            : String(localized: "Memory \(amount)", table: "NotchcastSystemMonitor")
         let top = sample.processes?.first.map { "\($0.name) \(percent($0.cpu, locale))" }
         return IslandPageLine(symbol: symbol(busiest.0), text: words, detail: top)
     }
@@ -136,8 +132,7 @@ enum MonitorPage {
 
     /// A header, then the busiest processes by CPU with their memory; "Measuring…" until two reads.
     static func processes(_ sample: MonitorSample, locale: Locale) -> [IslandPageRow] {
-        let header = IslandPageRow(symbol: "list.bullet",
-                                   title: String(localized: "Top Processes", table: "NotchcastSystemMonitor"))
+        let header = IslandPageRow(title: String(localized: "Top processes", table: "NotchcastSystemMonitor"))
         guard let processes = sample.processes else {
             return [header, IslandPageRow(title: String(localized: "Measuring…", table: "NotchcastSystemMonitor"))]
         }
@@ -153,7 +148,7 @@ enum MonitorPage {
 
     /// Memory counts in binary units as Activity Monitor does; disks and speeds in decimal as Finder does.
     static func bytes(_ count: UInt64, _ locale: Locale, memory: Bool = false) -> String {
-        Int64(clamping: count).formatted(.byteCount(style: memory ? .memory : .file).locale(locale))
+        Int64(clamping: count).formatted(.byteCount(style: memory ? .memory : .file, spellsOutZero: false).locale(locale))
     }
 
     static func rate(_ perSecond: Double, _ locale: Locale) -> String {

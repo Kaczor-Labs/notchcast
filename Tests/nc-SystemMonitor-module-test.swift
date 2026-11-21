@@ -19,25 +19,39 @@ func check(_ condition: Bool, _ message: String) {
 /// Stands in for the live reads, so the descriptor compiles as shipped without touching the Mac.
 extension MonitorSystem {
     static func live() -> MonitorSystem {
-        MonitorSystem(read: { _ in preconditionFailure("the harness never reads the Mac") },
+        MonitorSystem(read: { _, _ in preconditionFailure("the harness never reads the Mac") },
                       sleep: { _ in preconditionFailure("the harness never sleeps") }, processorCount: 1)
     }
 }
 
-/// A scripted Mac: each read hands out the next CPU load; each sleep runs the next step, which may end the loop.
+/// A scripted Mac on its own clock: each sleep moves the clock and runs the next step, which may end the loop.
 @MainActor
 final class FakeMac {
     var time: TimeInterval = 0
     var cpu = 0.2
     var pressure = MonitorPressure.normal
     var reads: [Bool] = []
+    var ranked: [Int] = []
     var sleeps: [Duration] = []
     var steps: [@MainActor () -> Void] = []
+    /// The next read stays out until `release`; `whenHeld` resumes once it does.
+    var hold = false
+    var whenHeld: CheckedContinuation<Void, Never>?
+    private var held: CheckedContinuation<MonitorReading, Never>?
     private var busy: UInt64 = 0
     private var total: UInt64 = 0
 
-    func read(_ detail: Bool) -> MonitorReading {
+    func read(_ detail: Bool, _ previous: [Int32: UInt64]) async -> MonitorReading {
+        if hold {
+            hold = false
+            return await withCheckedContinuation { continuation in
+                held = continuation
+                whenHeld?.resume()
+                whenHeld = nil
+            }
+        }
         reads.append(detail)
+        ranked.append(previous.count)
         busy += UInt64(cpu * 1000)
         total += 1000
         let step = Double(reads.count)
@@ -48,13 +62,20 @@ final class FakeMac {
     func sleep(_ duration: Duration) throws {
         try Task.checkCancellation()
         sleeps.append(duration)
-        time += duration == MonitorBoard.shownInterval ? 2 : 15
+        time += Double(duration.components.seconds) + Double(duration.components.attoseconds) / 1e18
         if steps.isEmpty { throw CancellationError() }
         steps.removeFirst()()
     }
 
+    /// Lands the held read with critical pressure, which would post a status if it were ever applied.
+    func release() {
+        held?.resume(returning: MonitorFixtures.reading(at: time, busy: 0, total: 1000, received: 0, sent: 0,
+                                                        detail: true, pressure: .critical))
+        held = nil
+    }
+
     var system: MonitorSystem {
-        MonitorSystem(read: { await self.read($0) }, sleep: { try await self.sleep($0) }, processorCount: 4)
+        MonitorSystem(read: { await self.read($0, $1) }, sleep: { try await self.sleep($0) }, processorCount: 4)
     }
 }
 
@@ -103,6 +124,7 @@ struct SystemMonitorModuleTests {
         await hot()
         await refresh()
         await switchOff()
+        await staleRead()
         print("PASSED")
     }
 
@@ -156,26 +178,33 @@ struct SystemMonitorModuleTests {
         module.stop()
     }
 
-    /// On show it reads at once with the page's detail, then every 2 s; hidden again it drops to the hot check.
+    /// On show it reads at once with the page's detail, again in half a second for the rates, then every 2 s.
     static func shown() async {
         let mac = FakeMac()
         let presenter = Recorder()
         let (module, _) = make(mac, presenter)
+        var quick: IslandPage?
         mac.steps = [{
             presenter.watcher?(true)
-            mac.steps = [{}, {}, { presenter.watcher?(false) }]
+            mac.steps = [{}, { quick = presenter.pages.last.flatMap(\.self) }, { presenter.watcher?(false) }]
         }]
         module.start()
         await settle(module)
         check(mac.reads == [false, true, true, true, false], "\(mac.reads)")
-        check(Array(mac.sleeps.suffix(4)) == [.seconds(2), .seconds(2), .seconds(2), .seconds(15)],
-              "2 s while shown, 15 s once hidden: \(mac.sleeps)")
+        check(mac.ranked == [0, 0, 2, 2, 0], "each detail read ranks against the last one's processes: \(mac.ranked)")
+        check(Array(mac.sleeps.suffix(4)) == [.milliseconds(500), .seconds(2), .seconds(2), .seconds(15)],
+              "half a second after the baseline, 2 s while shown, 15 s once hidden: \(mac.sleeps)")
+        guard case .cards(let early) = quick?.blocks.first, case .notice(_, let down, _) = early.cards[3].body else {
+            return check(false, "the page half a second after showing has its network tile")
+        }
+        check(down == "↓ 2 kB/s" && quick?.blocks.count == 4,
+              "half a second in, the rates and processes show: \(down)")
         guard let page = presenter.pages.last.flatMap(\.self), case .cards(let tiles) = page.blocks.first else {
             return check(false, "the page shows tiles")
         }
         check(tiles.cards.allSatisfy { !$0.dimmed }, "every tile filled once two detail reads came in")
         check(page.blocks.count == 4, "the header and two processes under the tiles: \(page.blocks.count)")
-        check(page.line.text == "Disk 80% full", "Home names the busiest resource: \(page.line.text)")
+        check(page.line.text == "Memory 50%", "Home names the busier of CPU and memory: \(page.line.text)")
         let posts = presenter.pages.count
         presenter.watcher?(false)
         check(presenter.pages.count == posts, "hiding twice changes nothing")
@@ -235,5 +264,40 @@ struct SystemMonitorModuleTests {
         check(module.loop == nil && mac.reads.count == reads, "after stop nothing samples, shown or not")
         module.stop()
         check(presenter.pages.count == 2, "a second stop posts nothing")
+    }
+
+    /// A read still out when the page hides or the switch goes off is dropped when it lands, even switched on again.
+    static func staleRead() async {
+        let mac = FakeMac()
+        let presenter = Recorder()
+        let (module, _) = make(mac, presenter)
+        module.start()
+        await module.loop?.value
+        mac.hold = true
+        presenter.watcher?(true)
+        await withCheckedContinuation { mac.whenHeld = $0 }
+        let late = module.loop
+        presenter.watcher?(false)
+        await settle(module)
+        mac.release()
+        await late?.value
+        check(presenter.statuses.isEmpty, "a read that lands after the page hid is dropped")
+        for restart in [false, true] {
+            module.start()
+            await settle(module)
+            mac.hold = true
+            presenter.watcher?(true)
+            await withCheckedContinuation { mac.whenHeld = $0 }
+            let late = module.loop
+            module.stop()
+            if restart {
+                module.start()
+                await settle(module)
+            }
+            mac.release()
+            await late?.value
+            check(presenter.statuses.isEmpty, "a read that lands after switch-off is dropped (on again: \(restart))")
+        }
+        module.stop()
     }
 }

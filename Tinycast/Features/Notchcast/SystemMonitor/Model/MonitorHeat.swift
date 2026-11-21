@@ -13,8 +13,11 @@ struct MonitorHeat: Equatable, Sendable {
     static let cpuHot = 0.90
     static let cpuCool = 0.75
     static let cpuHold: TimeInterval = 12
+    /// A disk runs hot only when both the share and the bytes free are low, so a big disk is never "full" at 10 %.
     static let diskLowFree = 0.10
     static let diskClearFree = 0.12
+    static let diskLowBytes: UInt64 = 20_000_000_000
+    static let diskClearBytes: UInt64 = 24_000_000_000
     /// A small volume is always nearly full in percent, so only a real disk counts.
     static let diskMinimum: UInt64 = 10_000_000_000
 
@@ -30,9 +33,12 @@ struct MonitorHeat: Equatable, Sendable {
         var next: [MonitorResource] = []
         if cpuIsHot(cpu, readAt: readAt, wasHot: wasHot.contains(.cpu)) { next.append(.cpu) }
         if pressure == .critical { next.append(.memory) }
-        if let disk, disk.total >= Self.diskMinimum,
-           disk.freeFraction < (wasHot.contains(.disk) ? Self.diskClearFree : Self.diskLowFree) {
-            next.append(.disk)
+        if let disk, disk.total >= Self.diskMinimum {
+            let held = wasHot.contains(.disk)
+            if disk.freeFraction < (held ? Self.diskClearFree : Self.diskLowFree),
+               disk.free < (held ? Self.diskClearBytes : Self.diskLowBytes) {
+                next.append(.disk)
+            }
         }
         hot = next
     }

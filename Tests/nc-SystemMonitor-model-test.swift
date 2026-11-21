@@ -17,7 +17,9 @@ struct SystemMonitorModelTests {
         cpuHold()
         cpuCools()
         memoryAndDisk()
+        diskBounds()
         rates()
+        cadence()
         processes()
         gaps()
         page()
@@ -88,11 +90,11 @@ struct SystemMonitorModelTests {
         heat.update(cpu: 0.1, readAt: 0, pressure: .warning, disk: Fix.disk(freePercent: 20))
         check(heat.hot.isEmpty, "warning pressure and 20 % free are not hot")
         heat.update(cpu: 0.1, readAt: 2, pressure: .critical, disk: Fix.disk(freePercent: 9))
-        check(heat.hot == [.memory, .disk], "critical pressure and under 10 % free run hot, in island order")
-        heat.update(cpu: 0.1, readAt: 4, pressure: .unknown, disk: Fix.disk(freePercent: 11))
-        check(heat.hot == [.disk], "a disk stays hot until 12 % is free; unknown pressure is not hot")
-        heat.update(cpu: 0.1, readAt: 6, pressure: .normal, disk: Fix.disk(freePercent: 12))
-        check(heat.hot.isEmpty, "12 % free clears it")
+        check(heat.hot == [.memory], "9 % of 500 GB is 45 GB free: a big disk is not full on a percent alone")
+        heat.update(cpu: 0.1, readAt: 4, pressure: .critical, disk: Fix.disk(freePercent: 3))
+        check(heat.hot == [.memory, .disk], "critical pressure and 15 GB free run hot, in island order")
+        heat.update(cpu: 0.1, readAt: 6, pressure: .unknown, disk: Fix.disk(freePercent: 4))
+        check(heat.hot == [.disk], "20 GB free stays hot until 24 GB; unknown pressure is not hot")
         var small = MonitorHeat()
         small.update(cpu: nil, readAt: 0, pressure: .normal, disk: MonitorDisk(total: 8 * Fix.gb, rawFree: 0,
                                                                                importantFree: nil))
@@ -101,6 +103,41 @@ struct SystemMonitorModelTests {
         all.update(cpu: 1, readAt: 0, pressure: .critical, disk: Fix.disk(freePercent: 1))
         all.update(cpu: 1, readAt: 12, pressure: .critical, disk: Fix.disk(freePercent: 1))
         check(all.hot == [.cpu, .memory, .disk], "CPU leads, then memory, then disk")
+    }
+
+    /// Hot needs both under 10 % and under 20 GB free; it holds until 12 % or 24 GB is free.
+    static func diskBounds() {
+        func hot(_ total: UInt64, _ free: UInt64, after first: UInt64? = nil) -> Bool {
+            var heat = MonitorHeat()
+            for free in [first, free].compactMap(\.self) {
+                heat.update(cpu: nil, readAt: 0, pressure: .normal,
+                            disk: MonitorDisk(total: total, rawFree: free, importantFree: nil))
+            }
+            return heat.isHot(.disk)
+        }
+        let gb = Fix.gb
+        check(!hot(150 * gb, 15 * gb) && hot(150 * gb, 15 * gb - 1), "under 10 % of a 150 GB disk, at 10 % not")
+        check(!hot(500 * gb, 20 * gb) && hot(500 * gb, 20 * gb - 1), "under 20 GB of a 500 GB disk, at 20 GB not")
+        check(!hot(1000 * gb, 90 * gb), "9 % of 1 TB is plenty")
+        check(hot(150 * gb, 18 * gb - 1, after: 14 * gb) && !hot(150 * gb, 18 * gb, after: 14 * gb),
+              "once hot, a small disk clears at 12 % free")
+        check(hot(500 * gb, 24 * gb - 1, after: 19 * gb) && !hot(500 * gb, 24 * gb, after: 19 * gb),
+              "once hot, a big disk clears at 24 GB free")
+    }
+
+    /// Shown, a read that only set a baseline is followed in half a second, then every 2 s; hidden every 15 s.
+    static func cadence() {
+        var board = MonitorBoard()
+        check(board.interval(shown: true) == .seconds(2) && board.interval(shown: false) == .seconds(15), "at rest")
+        board.apply(Fix.reading(at: 0, busy: 0, total: 1000, received: 0, sent: 0, detail: false), processorCount: 4)
+        check(board.interval(shown: true) == .seconds(2), "a hidden read leaves nothing for the page to wait on")
+        board.apply(Fix.reading(at: 15, busy: 0, total: 2000, received: 0, sent: 0, detail: true), processorCount: 4)
+        check(board.interval(shown: true) == .milliseconds(500) && board.interval(shown: false) == .seconds(15),
+              "the first detail read is a baseline, so the next comes soon")
+        board.apply(Fix.reading(at: 15.5, busy: 0, total: 3000, received: 500, sent: 50, detail: true, step: 1.5),
+                    processorCount: 4)
+        check(board.sample.down == 1000 && board.sample.processes?.count == 2, "rates over the half second")
+        check(board.interval(shown: true) == .seconds(2), "then the shown pace")
     }
 
     static func rates() {
@@ -138,6 +175,11 @@ struct SystemMonitorModelTests {
         let top = MonitorBoard.top(now, since: before, elapsed: 2, processorCount: 4)
         check(top.map(\.name) == ["Xcode", "mds", "Safari", "Finder", "Mail"],
               "busiest first, ties by footprint, five at most, a new process waits: \(top.map(\.name))")
+        check(MonitorBoard.ranked(now, since: before).map(\.pid) == top.map(\.pid),
+              "the read names exactly the rows the board lists")
+        let unnamed = MonitorProcessTime(pid: 1, cpuNanoseconds: 1, footprint: 0)
+        check(MonitorBoard.top([unnamed], since: [1: 0], elapsed: 1, processorCount: 1).first?.name == "pid 1",
+              "a row whose name could not be read shows its pid")
         check(top[0].cpu == 0.5, "4 s of CPU over 2 s on 4 cores is half the Mac")
         check(MonitorBoard.top(now, since: before, elapsed: 0, processorCount: 4).isEmpty, "no time, no shares")
     }
@@ -172,7 +214,10 @@ struct SystemMonitorModelTests {
         guard case .notice(_, let down, let up) = tiles.cards[3].body else { return check(false, "network speeds") }
         check(down == "↓ 2 MB/s" && up == "↑ 500 kB/s", "\(down) \(up ?? "")")
         let rows = page.blocks.dropFirst().compactMap { if case .row(let row) = $0 { row } else { nil } }
-        check(rows.map(\.title) == ["Top Processes", "Xcode", "Safari"], "\(rows.map(\.title))")
+        check(rows.map(\.title) == ["Top processes", "Xcode", "Safari"], "\(rows.map(\.title))")
+        check(rows.allSatisfy { $0.symbol == nil }, "the header lines up with its rows")
+        check(MonitorPage.rate(0, Fix.locale) == "0 bytes/s" && MonitorPage.bytes(0, Fix.locale, memory: true) == "0 bytes",
+              "an idle network reads a digit, never a word: \(MonitorPage.rate(0, Fix.locale))")
         check(rows[1].trailing == "25%" && rows[1].detail == "2 GB", "CPU share with the memory under it")
         check(MonitorPage.status(board.heat) == nil, "nothing hot, nothing on the closed island")
         let empty = MonitorPage.page(MonitorBoard(), locale: Fix.locale)
@@ -184,7 +229,7 @@ struct SystemMonitorModelTests {
 
     /// Hot is a yellow meter with a word under it on the page, and a glyph with a word on the closed island.
     static func hotPage() {
-        let board = Fix.board(cpu: 0.96, pressure: .critical, freePercent: 5, hotFor: 12)
+        let board = Fix.board(cpu: 0.96, pressure: .critical, freePercent: 3, hotFor: 12)
         check(board.heat.hot == [.cpu, .memory, .disk], "\(board.heat.hot)")
         guard case .cards(let tiles) = MonitorPage.page(board, locale: Fix.locale).blocks.first else {
             return check(false, "tiles")
@@ -209,13 +254,14 @@ struct SystemMonitorModelTests {
     }
 
     static func homeLine() {
-        let quiet = MonitorPage.line(Fix.board(cpu: 0.43, freePercent: 20), locale: Fix.locale)
-        check(quiet.text == "Disk 80% full" && quiet.symbol == "internaldrive" && quiet.detail == "Xcode 25%",
-              "the busiest resource, with the busiest process: \(quiet.text) \(quiet.detail ?? "")")
+        let quiet = MonitorPage.line(Fix.board(cpu: 0.43, freePercent: 5), locale: Fix.locale)
+        check(quiet.text == "Memory 50%" && quiet.symbol == "memorychip" && quiet.detail == "Xcode 25%",
+              "the busier of CPU and memory, with the busiest process; a full disk that is not hot stays off: "
+                  + "\(quiet.text) \(quiet.detail ?? "")")
         let busy = MonitorPage.line(Fix.board(cpu: 0.88, freePercent: 60), locale: Fix.locale)
         check(busy.text == "CPU 88%" && busy.symbol == "cpu", "\(busy.text)")
-        let hot = MonitorPage.line(Fix.board(cpu: 0.2, freePercent: 5), locale: Fix.locale)
-        check(hot.text == "Startup disk almost full" && hot.detail == "25 GB free",
+        let hot = MonitorPage.line(Fix.board(cpu: 0.2, freePercent: 3), locale: Fix.locale)
+        check(hot.text == "Startup disk almost full" && hot.detail == "15 GB free",
               "a hot resource leads the line: \(hot.text) \(hot.detail ?? "")")
     }
 

@@ -55,8 +55,8 @@ final class SystemMonitorModule: NotchcastModule {
         let system = system
         loop = Task { [weak self] in
             while !Task.isCancelled {
-                guard let detail = self?.shows else { return }
-                let reading = await system.read(detail)
+                guard let (detail, previous) = self.map({ ($0.shows, $0.shows ? $0.board.processTimes : [:]) }) else { return }
+                let reading = await system.read(detail, previous)
                 guard !Task.isCancelled, let interval = self?.apply(reading) else { return }
                 do { try await system.sleep(interval) } catch { return }
             }
@@ -75,7 +75,7 @@ final class SystemMonitorModule: NotchcastModule {
             }
         }
         if shows { post() }
-        return shows ? MonitorBoard.shownInterval : MonitorBoard.hiddenInterval
+        return board.interval(shown: shows)
     }
 
     private func post() {

@@ -103,10 +103,10 @@ struct MonitorNetworkCounters: Equatable, Sendable {
     }
 }
 
-/// A process's cumulative CPU time and its footprint now, read without root.
+/// A process's cumulative CPU time and its footprint now, read without root; named only if it may be listed.
 struct MonitorProcessTime: Equatable, Sendable {
     var pid: Int32
-    var name: String
+    var name: String?
     var cpuNanoseconds: UInt64
     var footprint: UInt64
 }

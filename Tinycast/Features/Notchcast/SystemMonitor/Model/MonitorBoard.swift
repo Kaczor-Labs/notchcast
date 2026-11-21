@@ -26,7 +26,11 @@ struct MonitorSample: Equatable, Sendable {
 /// Turns cumulative reads into rates and keeps the hot state (decision 946: 2 s shown, 15 s for the hot check).
 struct MonitorBoard: Sendable {
     static let shownInterval: Duration = .seconds(2)
+    /// After a read that only set a baseline, so network and processes show on a short glance.
+    static let baselineInterval: Duration = .milliseconds(500)
     static let hiddenInterval: Duration = .seconds(15)
+    /// Lets the system batch the hidden wake-up; 15 + 2 s stays under `maxGap`.
+    static let hiddenTolerance: Duration = .seconds(2)
     /// Past this the previous read only starts a new baseline, as after a pause; above the hidden interval.
     static let maxGap: TimeInterval = 20
     static let processLimit = 5
@@ -36,6 +40,16 @@ struct MonitorBoard: Sendable {
     private var cpu: (ticks: MonitorCPUTicks, at: TimeInterval)?
     private var network: (counters: MonitorNetworkCounters, at: TimeInterval)?
     private var processes: (times: [Int32: UInt64], at: TimeInterval)?
+    private var baselineOnly = false
+
+    /// The last read's process times: the next read ranks against them to name only the listed rows.
+    var processTimes: [Int32: UInt64] { processes?.times ?? [:] }
+
+    /// How long until the next read; a shown baseline wants its rates soon.
+    func interval(shown: Bool) -> Duration {
+        guard shown else { return Self.hiddenInterval }
+        return baselineOnly ? Self.baselineInterval : Self.shownInterval
+    }
 
     /// The reads a page hides (network, processes) are dropped, so showing it again starts from a fresh baseline.
     mutating func apply(_ reading: MonitorReading, processorCount: Int) {
@@ -69,6 +83,8 @@ struct MonitorBoard: Sendable {
         } else {
             processes = nil
         }
+        baselineOnly = (reading.network != nil && next.down == nil)
+            || (reading.processes != nil && next.processes == nil)
         sample = next
         heat.update(cpu: next.cpu, readAt: now, pressure: next.pressure, disk: next.disk)
     }
@@ -78,13 +94,21 @@ struct MonitorBoard: Sendable {
                     processorCount: Int) -> [MonitorProcess] {
         let capacity = elapsed * 1_000_000_000 * Double(max(1, processorCount))
         guard capacity > 0 else { return [] }
-        let rows = times.compactMap { process -> MonitorProcess? in
+        return ranked(times, since: previous).map { process in
+            let share = min(1, Double(process.cpuNanoseconds - previous[process.pid, default: 0]) / capacity)
+            return MonitorProcess(pid: process.pid, name: process.name ?? "pid \(process.pid)", cpu: share,
+                                  footprint: process.footprint)
+        }
+    }
+
+    /// The rows `top` lists, from the times alone, so a read can name just these before the board ranks them.
+    static func ranked(_ times: [MonitorProcessTime], since previous: [Int32: UInt64]) -> [MonitorProcessTime] {
+        let rows = times.compactMap { process -> (MonitorProcessTime, UInt64)? in
             guard let before = previous[process.pid], process.cpuNanoseconds >= before else { return nil }
-            let share = min(1, Double(process.cpuNanoseconds - before) / capacity)
-            return MonitorProcess(pid: process.pid, name: process.name, cpu: share, footprint: process.footprint)
+            return (process, process.cpuNanoseconds - before)
         }
         return Array(rows.sorted {
-            ($0.cpu, $0.footprint, -$0.pid) > ($1.cpu, $1.footprint, -$1.pid)
-        }.prefix(processLimit))
+            ($0.1, $0.0.footprint, -$0.0.pid) > ($1.1, $1.0.footprint, -$1.0.pid)
+        }.prefix(processLimit).map(\.0))
     }
 }
