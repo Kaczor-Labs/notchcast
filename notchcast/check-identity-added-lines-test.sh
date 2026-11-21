@@ -80,6 +80,30 @@ if python3 "$root/notchcast/check-identity.py" history "$base" > "$scratch/outpu
 fi
 grep -q '<forbidden-name>' "$scratch/output"
 echo 'PASS: forbidden name after a form feed refused'
+git switch -q --orphan evidence
+git rm -rqf . 2>/dev/null || true
+printf '%s%s\n' private hq > old-evidence.txt
+git add old-evidence.txt
+git commit -q -m 'Fixture old evidence'
+old_evidence=$(git rev-parse HEAD)
+printf 'png\n' > new-shot.png
+git add new-shot.png
+git commit -q -m 'Fixture new evidence'
+if ! python3 "$root/notchcast/check-identity.py" history "$old_evidence" > "$scratch/output"; then
+    cat "$scratch/output"
+    echo 'FAIL: push to a branch unrelated to main rescanned its public history'
+    exit 1
+fi
+echo 'PASS: push to a branch unrelated to main scans only the pushed range'
+printf '%s%s\n' private hq > new-evidence.txt
+git add new-evidence.txt
+git commit -q -m 'Fixture forbidden new evidence'
+if python3 "$root/notchcast/check-identity.py" history "$old_evidence" > "$scratch/output"; then
+    echo 'FAIL: forbidden addition on a branch unrelated to main accepted'
+    exit 1
+fi
+grep -q '<forbidden-name>' "$scratch/output"
+echo 'PASS: forbidden addition on a branch unrelated to main refused'
 git update-ref -d refs/remotes/origin/main
 if python3 "$root/notchcast/check-identity.py" history "$base" > "$scratch/output" 2>&1; then
     echo 'FAIL: missing base accepted'
