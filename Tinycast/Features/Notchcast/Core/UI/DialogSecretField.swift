@@ -1,0 +1,66 @@
+import Observation
+import SwiftUI
+
+/// The typed text lives here until `askSecret` returns, never in the request's title or message.
+@MainActor
+@Observable
+final class SecretFieldState {
+    let requester: String
+    let fieldTitle: String
+    var text = ""
+
+    init(requester: String, fieldTitle: String) {
+        self.requester = requester
+        self.fieldTitle = fieldTitle
+    }
+
+    var requesterLine: String { String(localized: "Asked by \(requester) in Notchcast", table: "Notchcast") }
+}
+
+extension DialogAccessory {
+    /// Holds Secure Input while key, and outlives click-away so a password manager can be reached.
+    var isSecret: Bool {
+        if case .secret = self { return true }
+        return false
+    }
+}
+
+extension DialogController {
+    /// Hidden text for `requester`, named in Notchcast's own line; nil on Cancel, Esc or task cancel.
+    func askSecret(
+        requester: String, title: String, message: String?, fieldTitle: String, confirmTitle: String
+    ) async -> String? {
+        let state = SecretFieldState(requester: requester, fieldTitle: fieldTitle)
+        let request = DialogRequest(
+            title: title, message: message, symbol: "lock", tone: .neutral,
+            actions: [
+                DialogAction(title: confirmTitle),
+                DialogAction(title: String(localized: "Cancel"), role: .cancel)
+            ],
+            defaultIndex: 0, cancelIndex: 1, accessory: .secret(state))
+        let index = await withTaskCancellationHandler {
+            await present(request)
+        } onCancel: {
+            Task { @MainActor [weak self] in self?.dismissSecret(state) }
+        }
+        let answer = index == 0 && !Task.isCancelled ? state.text : nil
+        state.text = ""
+        return answer
+    }
+}
+
+struct DialogSecretField: View {
+    @Environment(\.metrics) private var metrics
+    @Bindable var state: SecretFieldState
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: metrics.spacing.sm) {
+            RevealableSecureField(title: state.fieldTitle, text: $state.text, prompt: Text(state.fieldTitle))
+                .dialogTextField()
+            // Ours, not the add-on's: no prompt can pass itself off as a system password dialog.
+            Text(state.requesterLine)
+                .font(metrics.typography.rowTrailing)
+                .foregroundStyle(Theme.Colors.textSecondary)
+        }
+    }
+}

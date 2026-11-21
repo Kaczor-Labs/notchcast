@@ -43,6 +43,7 @@ struct DialogView: View {
                     SnippetArgumentFields(
                         state: arguments, onSubmit: { onChoose(request.defaultIndex) })
                 case .clipboardText(let state): ClipboardEditField(state: state)
+                case .secret(let state): DialogSecretField(state: state)
                 case nil: EmptyView()
                 }
             }
