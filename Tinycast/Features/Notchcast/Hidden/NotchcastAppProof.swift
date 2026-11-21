@@ -28,7 +28,7 @@ enum NotchcastAppProof {
         defer { defaults.removePersistentDomain(forName: bundleID) }
         for key in [AppSettingsKey.extensionsEnabled, .showInMenuBar, .notesShowsInMenuBar,
                     .paletteDraggable, .supportReminders, .navigationEnabled, .quickActionsEnabled,
-                    .customCommandsEnabled] {
+                    .customCommandsEnabled, .calendarShowInLauncher, .autoJoinMeetings, .cameraPreview] {
             defaults.set(true, forKey: key.rawValue)
         }
         defaults.set(false, forKey: AppSettingsKey.openOnCursorScreen.rawValue)
@@ -51,6 +51,9 @@ enum NotchcastAppProof {
         settings.supportRemindersEnabled = true
         settings.navigationEnabled = true
         settings.customCommandsEnabled = true
+        settings.calendarShowInLauncher = true
+        settings.autoJoinMeetings = true
+        settings.cameraPreview = true
         let visibility = VisibilityStore(defaults: defaults)
         visibility.setKindEnabled(true, for: .systemSettings)
         check(!settings.extensionsEnabled, "extensionsEnabled reads off")
@@ -70,6 +73,12 @@ enum NotchcastAppProof {
         check(!settings.customCommandsEnabled, "customCommandsEnabled reads off")
         check(!visibility.isKindEnabled(.systemSettings), "System Settings in the launcher reads off")
         check(!AppCore.shared.appIndex.isCommandEnabled(.support), "Support command reads disabled")
+        check(!settings.calendarShowInLauncher, "calendarShowInLauncher reads off")
+        check(!settings.autoJoinMeetings, "autoJoinMeetings reads off")
+        check(!settings.cameraPreview, "cameraPreview reads off")
+        for command in [CommandID.joinNextMeeting, .mySchedule, .createEvent, .copyMeetingLink, .openInCalendar] {
+            check(!AppCore.shared.appIndex.isCommandEnabled(command), "\(command.rawValue) reads disabled")
+        }
     }
 
     /// #1219, #1066: Commands hidden and off, an address still opens and add-on commands still list.
