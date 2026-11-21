@@ -289,6 +289,7 @@ final class AppCore {
                 UserDefaults.standard.string(forKey: noteSelectionKey).map(NoteID.init(rawValue:))
             },
             saveSelection: { UserDefaults.standard.set($0?.rawValue, forKey: noteSelectionKey) })
+        hotKeys.isHidden = NotchcastHiddenHotKeys.hides
     }
 
     func start(launchedByUser: Bool) {
