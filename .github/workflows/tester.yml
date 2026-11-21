@@ -2,8 +2,6 @@
 name: Tester
 run-name: "Tester: ${{ inputs.scenario || 'all' }} on ${{ github.ref_name }}"
 on:
-  push:
-    branches: [g-aa7d5d]
   workflow_dispatch:
     inputs:
       scenario:
@@ -39,7 +37,7 @@ jobs:
         if: env.SCENARIO == 'all' || env.SCENARIO == 'launcher'
         run: |
           xcode=$(xcodebuild -version | shasum | cut -c1-12)
-          tree=$(git rev-parse HEAD:Tinycast)-$(git rev-parse HEAD:project.yml | cut -c1-12)-casprobe
+          tree=$(git rev-parse HEAD:Tinycast)-$(git rev-parse HEAD:project.yml | cut -c1-12)
           echo "prefix=tester-debug-$xcode" >> "$GITHUB_OUTPUT"
           echo "tree=$tree" >> "$GITHUB_OUTPUT"
       # The same tree's app: no build at all.
