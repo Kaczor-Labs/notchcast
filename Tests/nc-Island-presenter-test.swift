@@ -54,10 +54,10 @@ struct IslandPresenterTest {
         precondition(island.calls.count == 11)
 
         var held: [IslandHeldKey] = []
-        island.holdKeys { held.append($0) }
+        island.holdKeys(for: sync.id, onFocus: { precondition($0) }) { held.append($0) }
         island.press(.accept)
         island.press(.cancel)
-        island.holdKeys(nil)
+        island.releaseKeys()
         island.press(.accept)
         precondition(island.calls.suffix(2) == [.holdKeys(true), .holdKeys(false)] && held == [.accept, .cancel],
                      "holdKeys is recorded, its handler hears the keys, and nil lets them go")
@@ -65,8 +65,8 @@ struct IslandPresenterTest {
                      && IslandHeldKey(keyCode: 53) == .cancel && IslandHeldKey(keyCode: 49) == nil,
                      "Return and keypad Enter accept, Escape cancels, any other key is not held")
         let silent: any IslandPresenting = SilentIslandPresenter()
-        silent.holdKeys { _ in }
-        silent.holdKeys(nil)
+        silent.holdKeys(for: sync.id, onFocus: { precondition(!$0) }) { _ in }
+        silent.releaseKeys()
         print("Island presenter: the fake records calls in order and clears status, menu rows, notices and held keys")
     }
 }
@@ -121,9 +121,16 @@ final class RecordingIslandPresenter: IslandPresenting {
         }
     }
 
-    func holdKeys(_ onKey: (@MainActor (IslandHeldKey) -> Void)?) {
-        calls.append(.holdKeys(onKey != nil))
+    func holdKeys(for notice: String, onFocus: @escaping @MainActor (Bool) -> Void,
+                  onKey: @escaping @MainActor (IslandHeldKey) -> Void) {
+        calls.append(.holdKeys(true))
         self.onKey = onKey
+        onFocus(true)
+    }
+
+    func releaseKeys() {
+        calls.append(.holdKeys(false))
+        onKey = nil
     }
 
     func tapNotice() { onTap?() }
