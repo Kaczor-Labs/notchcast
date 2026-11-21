@@ -12,6 +12,21 @@
 // notchcast-sources: Tests/NotchcastSettingsProcessFixture.swift
 // notchcast-reads: Tinycast/Features/Notchcast/NotchcastCore.swift
 // notchcast-reads: Tinycast/App/AppCore.swift
+// notchcast-reads: Tinycast/Features/Notchcast/Agents/Settings/AgentsSettingsView.swift
+// notchcast-reads: Tinycast/Features/Notchcast/Archives/UI/ArchivesSettingsView.swift
+// notchcast-reads: Tinycast/Features/Notchcast/AutoBackup/UI/AutoBackupSettingsView.swift
+// notchcast-reads: Tinycast/Features/Notchcast/ColorPicker/UI/ColorPickerSettingsView.swift
+// notchcast-reads: Tinycast/Features/Notchcast/Day/UI/DaySettingsView.swift
+// notchcast-reads: Tinycast/Features/Notchcast/DisplaySound/UI/BrightnessSettingsView.swift
+// notchcast-reads: Tinycast/Features/Notchcast/DisplaySound/UI/BrightnessDisplayRow.swift
+// notchcast-reads: Tinycast/Features/Notchcast/DisplaySound/UI/BrightnessDisplayRowState.swift
+// notchcast-reads: Tinycast/Features/Notchcast/Downloads/UI/TorrentsSettingsView.swift
+// notchcast-reads: Tinycast/Features/Notchcast/IPhoneBackup/UI/IPhoneBackupSettingsView.swift
+// notchcast-reads: Tinycast/Features/Notchcast/LowDisk/UI/LowDiskSettingsView.swift
+// notchcast-reads: Tinycast/Features/Notchcast/ScriptCommands/Settings/ScriptCommandsSettingsView.swift
+// notchcast-reads: Tinycast/Features/Notchcast/ScriptCommands/Settings/ScriptCommandEditor.swift
+// notchcast-reads: Tinycast/Features/Notchcast/Spotify/UI/SpotifySettingsView.swift
+// notchcast-reads: Tinycast/Features/DictationExtras/Settings/DictationExtrasSettingsSections.swift
 // notchcast-reads: Tinycast/Features/Notchcast/NotchcastClipboard+Live.swift
 // notchcast-reads: Tinycast/Features/Notchcast/NotchcastServices+Live.swift
 // notchcast-reads: Tinycast/Features/Notchcast/Core/UI/NotchcastSettingsView.swift
@@ -532,8 +547,8 @@ struct NotchcastCoreTest {
               })
         check("NotchcastCore hands the controller stock Dictation",
               calls.allSatisfy { $0.contains("dictation: NotchcastDictationBridge(core: core)") })
-        check("NotchcastCore hands the controller the live doors, never the inert defaults",
-              calls.allSatisfy { arguments($0).contains("services: NotchcastServices(core: core)") })
+        check("NotchcastCore wires the live doors for the main app",
+              calls.allSatisfy { arguments($0).contains("NotchcastServices(core: core)") })
         func text(_ path: String) -> String {
             FileManager.default.contents(atPath: path).flatMap { String(data: $0, encoding: .utf8) } ?? ""
         }
