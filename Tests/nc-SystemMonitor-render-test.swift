@@ -51,7 +51,7 @@ enum IslandVerification {
     static let stock = false
 }
 
-/// #977's acceptance set: the System page and Home, normal and hot, and the closed island's hot glyph,
+/// #977's acceptance set: the System page and Home, normal and hot, and the closed island at rest and hot,
 /// in both forms on Black and Frosted. `NC_AUDIT_RENDERS` names the folder, else the audit harness's own.
 @MainActor
 @main
@@ -77,8 +77,13 @@ struct SystemMonitorRenderTest {
             ("system-measuring", deck([MonitorPage.page(MonitorBoard(), locale: Fix.locale)])),
             ("home-normal", deck([player, MonitorPage.page(normal, locale: Fix.locale)])),
             ("home-hot", deck([player, MonitorPage.page(hot, locale: Fix.locale)])),
+            ("home-hot-untoned", deck([player, untoned(MonitorPage.page(hot, locale: Fix.locale))])),
         ]
         guard let status = MonitorPage.status(hot.heat) else { preconditionFailure("a hot board has a status") }
+        var plain = status
+        plain.tone = nil
+        let closedStates = [("closed-normal", [IslandStatus]()), ("closed-hot", [status]),
+                            ("closed-hot-untoned", [plain])]
         var sizes: [String: CGSize] = [:]
         for frosted in [false, true] {
             for notch in [false, true] {
@@ -86,12 +91,21 @@ struct SystemMonitorRenderTest {
                 for (name, deck) in decks {
                     sizes[name] = render("977-\(name)-\(suffix)", deck: deck, notch: notch, frosted: frosted)
                 }
-                closed("977-closed-hot-\(suffix)", IslandStatusArt([status], notch: notch, frosted: frosted),
-                       notch: notch, frosted: frosted)
+                for (name, statuses) in closedStates {
+                    closed("977-\(name)-\(suffix)", IslandStatusArt(statuses, notch: notch, frosted: frosted),
+                           notch: notch, frosted: frosted)
+                }
             }
         }
         precondition(sizes["home-normal"]!.height < sizes["system-normal"]!.height, "Home is one line per page")
         print("PASS rendered the System page to \(folder.path)")
+    }
+
+    /// The hot page as it drew before its Home glyph took the warning tone, for a before-and-after pair.
+    static func untoned(_ page: IslandPage) -> IslandPage {
+        var page = page
+        page.line.tone = nil
+        return page
     }
 
     static func deck(_ pages: [IslandPage]) -> IslandPageDeck {
@@ -229,6 +243,7 @@ struct PasteTarget {
 final class VolumeState {}
 final class SnippetArgumentsState {}
 final class ClipboardEditState {}
+final class SecretFieldState {}
 
 struct VolumeSlider: View {
     let state: VolumeState
@@ -243,5 +258,10 @@ struct SnippetArgumentFields: View {
 
 struct ClipboardEditField: View {
     let state: ClipboardEditState
+    var body: some View { EmptyView() }
+}
+
+struct DialogSecretField: View {
+    let state: SecretFieldState
     var body: some View { EmptyView() }
 }

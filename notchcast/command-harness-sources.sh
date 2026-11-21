@@ -31,3 +31,5 @@ fi
 if [ "${name:-}" = FormInputTests ] && [ -n "${NOTCHCAST_DARK_OBJECT:-}" ]; then
     [[ " $* " == *" $NOTCHCAST_DARK_OBJECT "* ]] || set -- "$@" "$NOTCHCAST_DARK_OBJECT"
 fi
+# Only the worker compile ($opt set): one frontend type-checks shared sources once, 1/3 batch CPU.
+[ -z "${opt:-}" ] || set -- "$@" -wmo

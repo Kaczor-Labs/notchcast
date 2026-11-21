@@ -14,9 +14,12 @@ nonisolated struct ArchiveTool: Equatable, Sendable {
     static let xz = ArchiveTool(name: "xz", installCommand: "brew install xz")
     static let zstd = ArchiveTool(name: "zstd", installCommand: "brew install zstd")
     static let shell = ArchiveTool(name: "sh", installCommand: "")
+    static let ditto = ArchiveTool(name: "ditto", installCommand: "")
+    static let sevenZip = ArchiveTool(name: "7zz", installCommand: "brew install sevenzip")
+    static let p7zip = ArchiveTool(name: "7z", installCommand: "brew install sevenzip")
 }
 
-/// Every program call an extraction makes, as plain arguments.
+/// Every program call an extraction or a compression makes, as plain arguments.
 nonisolated enum ArchiveCommandLine {
     /// The tool that lists the archive, then the one that extracts it.
     static func tools(_ engine: ArchiveEngine) -> (list: ArchiveTool?, extract: ArchiveTool) {
@@ -63,4 +66,30 @@ nonisolated enum ArchiveCommandLine {
 
     /// Makes a stopped extraction's archive whole again, or only drops its progress when it was kept.
     static func restore(archive: URL, staging: URL) -> [String] { ["restore", archive.path, "-o", staging.path] }
+
+    /// What a compression needs: each inner list is one tool, its first name the one to install.
+    static func compressTools(_ format: ArchiveFormat) -> [[ArchiveTool]] {
+        switch format {
+        case .zip: [[.ditto]]
+        case .sevenZip: [[.sevenZip, .p7zip]]
+        case .tarZstd: [[.bsdtar], [.zstd]]
+        }
+    }
+
+    /// Runs the first of `tools`; `clones` holds copies of the inputs when the plan zips clones.
+    static func compress(_ plan: CompressionPlan, tools: [URL], staged: URL, clones: URL?) -> [String] {
+        switch plan.format {
+        case .zip:
+            if let clones { return ["-c", "-k", "--sequesterRsrc", clones.path, staged.path] }
+            return ["-c", "-k", "--sequesterRsrc"] + (plan.single == .folder ? ["--keepParent"] : [])
+                + [plan.inputs[0].path, staged.path]
+        case .sevenZip:
+            return ["a", "-t7z", "-mx=9", "-snl", "-spd", "-bd", "-y", "--", staged.path] + plan.inputs.map(\.path)
+        case .tarZstd:
+            // bsdtar splits the program on spaces and reads \ escapes, so zstd's path is quoted.
+            let zstd = tools[1].path.replacing("\\", with: "\\\\").replacing("\"", with: "\\\"")
+            return ["--use-compress-program", "\"\(zstd)\"", "-cf", staged.path, "-C", plan.folder.path]
+                + plan.inputs.map { "./" + $0.lastPathComponent }
+        }
+    }
 }

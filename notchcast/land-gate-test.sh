@@ -126,7 +126,7 @@ for runs in 'success cancelled' 'success skipped' 'failure success cancelled'; d
     [ "$status" -eq 77 ] || { cat "$scratch/output"; echo "FAIL: build runs '$runs' refused"; exit 1; }
     echo "PASS: build runs '$runs' land: a cancelled or skipped run does not hide a green one"
 done
-for runs in 'success failure' 'success failure cancelled' 'success pending' 'cancelled' 'skipped cancelled'; do
+for runs in 'success failure' 'success failure cancelled' 'success pending' 'cancelled' 'skipped' 'skipped cancelled'; do
     build_runs $runs
     run
     grep -q 'REFUSED: build is' "$scratch/output" || { cat "$scratch/output"; echo "FAIL: build runs '$runs' accepted"; exit 1; }
