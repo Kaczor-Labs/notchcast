@@ -772,6 +772,7 @@
 		8477CC22949D92F8AC89DB7D /* AppleIntelligence.swift in Sources */ = {isa = PBXBuildFile; fileRef = ACE6ED15B0E898574BA11B6E /* AppleIntelligence.swift */; };
 		8481EDD36C7E0E72D2C4FA35 /* ScreenshotRequest.swift in Sources */ = {isa = PBXBuildFile; fileRef = F5EDAF003C7F4A85357B7075 /* ScreenshotRequest.swift */; };
 		849CA6C234D9BCAC06EC57D9 /* AgentDuration.swift in Sources */ = {isa = PBXBuildFile; fileRef = 629ECCECBAA18D5484888924 /* AgentDuration.swift */; };
+		84AAC84610E506347B9E485A /* NotchcastHiddenHotKeys.swift in Sources */ = {isa = PBXBuildFile; fileRef = B69A54E2550F0E4F5BDA355E /* NotchcastHiddenHotKeys.swift */; };
 		84DC02099149C542C886B019 /* EmojiCatalog.swift in Sources */ = {isa = PBXBuildFile; fileRef = B710F99B5B4E42FFB3EAA8FB /* EmojiCatalog.swift */; };
 		84ED01EE8786B9D874FF32B1 /* SettingsFileJSON.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1752EFD965C5AC8168FAA07F /* SettingsFileJSON.swift */; };
 		855F0B1E0C61D5EE163985C0 /* UpdatePill.swift in Sources */ = {isa = PBXBuildFile; fileRef = 13AFD1411015045388813522 /* UpdatePill.swift */; };
@@ -2592,6 +2593,7 @@
 		B648E47A2015FEF3BF447725 /* ArchivePlacement.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ArchivePlacement.swift; sourceTree = "<group>"; };
 		B675C14B308FA33896A8AE49 /* RaycastImportError.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RaycastImportError.swift; sourceTree = "<group>"; };
 		B6915B7D8E6816B7919F5CF4 /* ExtensionDateField.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExtensionDateField.swift; sourceTree = "<group>"; };
+		B69A54E2550F0E4F5BDA355E /* NotchcastHiddenHotKeys.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotchcastHiddenHotKeys.swift; sourceTree = "<group>"; };
 		B69FB4ADC93E470222F74FA6 /* AccessoriesModule+Live.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "AccessoriesModule+Live.swift"; sourceTree = "<group>"; };
 		B6A6748260B2DF011CCAFCEF /* ThinScrollbar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ThinScrollbar.swift; sourceTree = "<group>"; };
 		B6A8D5B5F738A37EBE007B6D /* DeepLinkCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeepLinkCoordinator.swift; sourceTree = "<group>"; };
@@ -4509,6 +4511,7 @@
 				8197A9549574F76C94058F9E /* NotchcastAppProof.swift */,
 				4317298489FCBE72895587BC /* NotchcastHidden.swift */,
 				8D58F0F2B9389E58AA621E9B /* NotchcastHiddenCommands.swift */,
+				B69A54E2550F0E4F5BDA355E /* NotchcastHiddenHotKeys.swift */,
 				AC01BB0E1A2896467013CD44 /* NotchcastIslandPins.swift */,
 			);
 			path = Hidden;
@@ -7977,6 +7980,7 @@
 				27453405436A5B9152353467 /* NotchcastGlobeTrigger.swift in Sources */,
 				69A46A511381273B00153D07 /* NotchcastHidden.swift in Sources */,
 				308FB81A7AD4774808FA9B17 /* NotchcastHiddenCommands.swift in Sources */,
+				84AAC84610E506347B9E485A /* NotchcastHiddenHotKeys.swift in Sources */,
 				0127CD65C4B15EEDB9CC0D76 /* NotchcastIslandPins.swift in Sources */,
 				2A692D2E29D529BF386A4FA3 /* NotchcastIslandSettingsRows.swift in Sources */,
 				080484B74FF02D88F4B34D90 /* NotchcastLauncherHides.swift in Sources */,
