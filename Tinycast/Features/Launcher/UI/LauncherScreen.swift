@@ -87,7 +87,7 @@ struct LauncherScreen: PaletteScreen {
             pinnedFavorites.map(Row.init) + results.map(Row.entry) + files.map(Row.file)
             + fallbacks.map { Row.fallback($0.fallback, $0.entry) }
         // At most one of them leads, so the flat index keeps a single-row offset.
-        let meeting = pinsFavorites ? meeting : nil
+        let meeting = pinsFavorites && core.settings.calendarShowInLauncher ? meeting : nil
         self.meeting = meeting
         self.results = results
         self.calc = calc
