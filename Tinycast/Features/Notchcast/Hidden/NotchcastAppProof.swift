@@ -28,7 +28,8 @@ enum NotchcastAppProof {
         defer { defaults.removePersistentDomain(forName: bundleID) }
         for key in [AppSettingsKey.extensionsEnabled, .showInMenuBar, .notesShowsInMenuBar,
                     .paletteDraggable, .supportReminders, .navigationEnabled, .quickActionsEnabled,
-                    .customCommandsEnabled, .calendarShowInLauncher, .autoJoinMeetings, .cameraPreview] {
+                    .customCommandsEnabled, .calendarShowInLauncher, .autoJoinMeetings, .cameraPreview,
+                    .notesEnabled] {
             defaults.set(true, forKey: key.rawValue)
         }
         defaults.set(false, forKey: AppSettingsKey.openOnCursorScreen.rawValue)
@@ -54,6 +55,7 @@ enum NotchcastAppProof {
         settings.calendarShowInLauncher = true
         settings.autoJoinMeetings = true
         settings.cameraPreview = true
+        settings.notesEnabled = true
         let visibility = VisibilityStore(defaults: defaults)
         visibility.setKindEnabled(true, for: .systemSettings)
         check(!settings.extensionsEnabled, "extensionsEnabled reads off")
@@ -71,8 +73,10 @@ enum NotchcastAppProof {
         check(!settings.supportRemindersEnabled, "supportRemindersEnabled reads off")
         check(!settings.navigationEnabled, "navigationEnabled reads off")
         check(!settings.customCommandsEnabled, "customCommandsEnabled reads off")
+        check(!settings.notesEnabled, "notesEnabled reads off")
         check(!visibility.isKindEnabled(.systemSettings), "System Settings in the launcher reads off")
         check(!AppCore.shared.appIndex.isCommandEnabled(.support), "Support command reads disabled")
+        check(!AppCore.shared.appIndex.isCommandEnabled(.showNotes), "Show Notes command reads disabled")
         check(!settings.calendarShowInLauncher, "calendarShowInLauncher reads off")
         check(!settings.autoJoinMeetings, "autoJoinMeetings reads off")
         check(!settings.cameraPreview, "cameraPreview reads off")
@@ -139,6 +143,7 @@ enum NotchcastAppProof {
         let forcedOff: [HotKeyAction] = [
             .appleShortcut(id: UUID()), .extensionCommand(entryID: "proof.extension"), .quickAction(id: UUID()),
             .settingsPane(bundleID: "proof.pane"), .command(.support), .customCommand(id: UUID()),
+            .command(.showNotes),
         ]
         for action in forcedOff {
             check(!core.allowsHotKeyAction(action), "\(action.defaultsKey) is refused by the hotkey gate")
@@ -148,7 +153,7 @@ enum NotchcastAppProof {
         // A proof registers nothing with Carbon.
         core.hotKeys.allowsAction = { _ in false }
         let keys = [kVK_ANSI_1, kVK_ANSI_2, kVK_ANSI_3, kVK_ANSI_4, kVK_ANSI_5, kVK_ANSI_6, kVK_ANSI_7, kVK_ANSI_8,
-                    kVK_ANSI_9]
+                    kVK_ANSI_9, kVK_ANSI_0]
         for (action, key) in zip(hidden + [visible], keys) {
             let binding = HotKeyBinding.combo(KeyShortcut(carbonKeyCode: key, carbonModifiers: controlKey | optionKey))
             core.hotKeys.setBinding(binding, for: action)
