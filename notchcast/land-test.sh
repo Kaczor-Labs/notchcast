@@ -149,15 +149,15 @@ trap 'rm -rf "$scratch"' EXIT
 source "$root/notchcast/local-build-status.sh"
 gh() { jq -s "${@: -1}" "$status_fixture"; }
 status_fixture="$scratch/status"
-printf '%s\n' '{"id":1,"context":"build/local","creator":{"login":"kaczordodgers"},"url":"https://api.github.com/repos/kaczordodgers/notchcast/statuses/head","state":"success"}' > "$status_fixture"
+printf '%s\n' '{"id":1,"context":"build/local","creator":{"login":"kaczordodgers"},"url":"https://api.github.com/repos/Kaczor-Labs/notchcast/statuses/head","state":"success"}' > "$status_fixture"
 local_build_green head
 echo 'PASS: local success accepted'
 if local_build_green other; then exit 1; fi
 echo 'PASS: different sha refused'
-printf '%s\n' '{"id":2,"context":"build/local","creator":{"login":"kaczordodgers"},"url":"https://api.github.com/repos/kaczordodgers/notchcast/statuses/head","state":"failure"}' >> "$status_fixture"
+printf '%s\n' '{"id":2,"context":"build/local","creator":{"login":"kaczordodgers"},"url":"https://api.github.com/repos/Kaczor-Labs/notchcast/statuses/head","state":"failure"}' >> "$status_fixture"
 if local_build_green head; then exit 1; fi
 echo 'PASS: local failure refused'
-printf '%s\n' '{"id":1,"context":"build/local","url":"https://api.github.com/repos/kaczordodgers/notchcast/statuses/head","state":"success","creator":{"login":"other"}}' > "$status_fixture"
+printf '%s\n' '{"id":1,"context":"build/local","url":"https://api.github.com/repos/Kaczor-Labs/notchcast/statuses/head","state":"success","creator":{"login":"other"}}' > "$status_fixture"
 if local_build_green head; then exit 1; fi
 echo 'PASS: other creator refused'
 rm "$status_fixture"
