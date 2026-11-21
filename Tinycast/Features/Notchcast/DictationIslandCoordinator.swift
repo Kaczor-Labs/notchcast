@@ -49,8 +49,8 @@ final class DictationIslandCoordinator {
         self.controller = controller
         controller.state.phase = .listening
         controller.state.levels = Array(repeating: 0, count: controller.state.levels.count)
+        clear()
         session.begin(copies: copies(), at: now())
-        shown = nil
         post()
         presenter?.holdKeys { [weak self] key in
             switch key {

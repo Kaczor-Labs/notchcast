@@ -1,6 +1,7 @@
 // notchcast-sources: Tinycast/Features/Notchcast/Core/Model/DictationIslandSession.swift
 // notchcast-sources: Tinycast/Features/Notchcast/Core/Model/DictationIslandNotice.swift
 // notchcast-sources: Tinycast/Features/Island/Model/IslandPresentation.swift
+// notchcast-sources: Tinycast/Features/Island/Model/IslandNoticeQueue.swift
 // notchcast-reads: Tinycast/Features/Dictation/Service/DictationCoordinator.swift
 
 import Foundation
@@ -20,8 +21,9 @@ struct DictationIslandTest {
         return session
     }
 
-    static func ended(_ change: (inout Session) -> Void = { _ in }, covered: Bool = false) -> Session.Outcome? {
-        var session = recording()
+    static func ended(copies: Bool = false, _ change: (inout Session) -> Void = { _ in },
+                      covered: Bool = false) -> Session.Outcome? {
+        var session = recording(copies: copies)
         _ = session.transcribe()
         change(&session)
         session.end(completed: true)
@@ -126,6 +128,8 @@ struct DictationIslandTest {
               "10: a covered result is dropped, not shown late")
         check(ended({ _ = $0.cleanUp(); _ = $0.cleanupFailed(covered: false); $0.delivered(empty: false) })
               == .pastedRaw, "9: the raw flag gives pasted without cleanup")
+        check(ended(copies: true) { _ = $0.cleanUp(); _ = $0.cleanupFailed(covered: false); $0.delivered(empty: false) }
+              == .copiedRaw, "9: copy-only with the raw flag gives copied without cleanup")
         var copying = recording(copies: true)
         check(IslandNotice(dictation: copying)!.text == "Return to Copy · Esc to Cancel", "1: copy-only hint")
         copying.delivered(empty: false)
@@ -161,6 +165,7 @@ struct DictationIslandTest {
             (.pasted, "Pasted", "checkmark", false, true), (.copied, "Copied", "checkmark", false, true),
             (.noSpeech, "No Speech Detected", "mic.slash", false, false),
             (.pastedRaw, "Pasted Without Cleanup", "exclamationmark.triangle", true, false),
+            (.copiedRaw, "Copied Without Cleanup", "exclamationmark.triangle", true, false),
             (.pasteFailed, "Couldn't Paste", "exclamationmark.triangle", true, false),
             (.partLost, "Some Text Wasn't Pasted", "exclamationmark.triangle", true, false),
             (.failed, "Dictation Failed", "exclamationmark.triangle", true, false),
@@ -177,6 +182,21 @@ struct DictationIslandTest {
         for sentence in [Session.noSpeech, Session.pasteFailed, Session.partLost] {
             check(stock.contains("String(localized: \"\(sentence)\")"), "13: stock still says \"\(sentence)\"")
         }
-        print("PASS: dictation island session (13 rules)")
+        var queue = IslandNoticeQueue()
+        let pasted = IslandNotice(dictation: .pasted)
+        let recordingSpoken = IslandNotice(dictation: recording())!.spoken
+        for start in [0.0, 1.0] {
+            queue.end(IslandNotice.dictationID, at: start)
+            queue.post(IslandNotice(dictation: recording())!, at: start)
+            check(queue.announcement() == recordingSpoken, "14: recording at \(start) s is heard")
+            queue.post(pasted, at: start + 0.5)
+            check(queue.remaining(at: start + 0.5) == pasted.dwell, "14: the result dwells")
+            check(queue.announcement() == "Pasted", "14: a matching result inside the last one's dwell is heard")
+        }
+        queue.post(IslandNotice(dictation: recording())!, at: 2)
+        _ = queue.announcement()
+        queue.post(pasted, at: 2.5)
+        check(queue.announcement() == nil, "14: without the end, the recording inherits the result and it is lost")
+        print("PASS: dictation island session (14 rules)")
     }
 }

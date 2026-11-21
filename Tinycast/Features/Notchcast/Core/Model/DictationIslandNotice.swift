@@ -44,6 +44,9 @@ extension IslandNotice {
         case .pastedRaw:
             self.init(id: Self.dictationID, symbol: failure,
                       text: String(localized: "Pasted Without Cleanup", table: "Notchcast"), isFailure: true)
+        case .copiedRaw:
+            self.init(id: Self.dictationID, symbol: failure,
+                      text: String(localized: "Copied Without Cleanup", table: "Notchcast"), isFailure: true)
         case .pasteFailed:
             self.init(id: Self.dictationID, symbol: failure,
                       text: String(localized: "Couldn't Paste", table: "Notchcast"), isFailure: true)

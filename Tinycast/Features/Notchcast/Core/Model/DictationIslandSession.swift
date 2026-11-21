@@ -9,7 +9,7 @@ struct DictationIslandSession: Equatable, Sendable {
     }
 
     enum Outcome: Equatable, Sendable {
-        case pasted, copied, noSpeech, pastedRaw, pasteFailed, partLost, failed
+        case pasted, copied, noSpeech, pastedRaw, copiedRaw, pasteFailed, partLost, failed
     }
 
     static let barCount = 4
@@ -122,7 +122,7 @@ struct DictationIslandSession: Equatable, Sendable {
         guard generation == self.generation, phase == .ending else { return nil }
         let result =
             outcome
-            ?? (!reached ? .noSpeech : raw ? .pastedRaw : copies ? .copied : .pasted)
+            ?? (!reached ? .noSpeech : raw ? (copies ? .copiedRaw : .pastedRaw) : copies ? .copied : .pasted)
         self = DictationIslandSession()
         self.generation = generation
         return covered ? nil : result

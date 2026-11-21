@@ -136,8 +136,6 @@ struct DictationIslandRenderTest {
                 }
             }
         }
-        let room = NotchTheme.Size.islandGlanceWing * 2 - IslandNoticeMark.cell - Theme.Spacing.sm
-        print("hint room without a notch: \(room) pt")
         precondition(count == 50, "25 pictures a look")
         print("PASS rendered \(count) dictation island states to \(folder.path)")
     }
