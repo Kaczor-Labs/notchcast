@@ -233,8 +233,6 @@ final class DictationServer {
             case .sendContinue:
                 if message.metadata.endOfStream { throw CancellationError() }
                 try await connection.send(DictationServerResponse.continueHead, endOfStream: false)
-            case .form where message.metadata.endOfStream:
-                throw CancellationError()
             case let step:
                 return step
             }
