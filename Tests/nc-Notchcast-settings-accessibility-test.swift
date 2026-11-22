@@ -47,6 +47,14 @@ struct NotchcastSettingsAccessibilityTests {
                 passed = false
             }
         }
+        if let parent = music.first {
+            controller.preferences.set(parent.id, on: false)
+            let names = switchNames(in: .displaySound, controller: controller)
+            if names.sorted() != music.map(\.title).sorted() {
+                print("FAIL Music Block switch names with the parent off. Expected \(music.map(\.title)), got \(names)")
+                passed = false
+            }
+        }
         if !passed { exit(1) }
         print("PASS Settings accessibility names for Music Block, the capture child row and the Island switches")
     }
