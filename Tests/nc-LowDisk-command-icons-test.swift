@@ -2,7 +2,6 @@
 // notchcast-sources: Tinycast/Features/Notchcast/LowDisk/LowDiskAddon.swift
 // notchcast-sources: Tinycast/Features/Notchcast/LowDisk/Model/*.swift
 // notchcast-sources: Tinycast/Features/Notchcast/LowDisk/Service/*.swift
-// notchcast-sources: Tinycast/Features/FileSearch/Service/FileSystemWatcher.swift
 // notchcast-reads: Tinycast/Features/Notchcast/NotchcastCore.swift
 import SwiftUI
 

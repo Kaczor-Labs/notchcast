@@ -25,16 +25,7 @@ final class FakeDisk {
     var free: Int64 = gb(50)
     var fails = false
     var displayAsleep = false
-    weak var watcher: FileSystemWatcher?
-}
-
-@MainActor
-final class FileSystemWatcher {
-    let onChange: @MainActor @Sendable () -> Void
-
-    init(onChange: @escaping @MainActor @Sendable () -> Void) {
-        self.onChange = onChange
-    }
+    var wait: (@MainActor (Duration) async throws -> Void)?
 }
 
 @MainActor let disk = FakeDisk()
@@ -49,10 +40,9 @@ extension LowDiskModule {
 
     static func isMainDisplayAsleep() -> Bool { disk.displayAsleep }
 
-    static func watchStartupDisk(_ onChange: @escaping @MainActor @Sendable () -> Void) -> FileSystemWatcher? {
-        let watcher = FileSystemWatcher(onChange: onChange)
-        disk.watcher = watcher
-        return watcher
+    static func waitForCheck(_ interval: Duration) async throws {
+        guard let wait = disk.wait else { throw CancellationError() }
+        try await wait(interval)
     }
 }
 
@@ -123,7 +113,7 @@ enum LowDiskModuleTests {
         descriptor()
         policy()
         await warnsOnceAndRearms()
-        await clearsAfterDiskChange()
+        await pollsForRecovery()
         await waitsForTheDisplay()
         await command()
         await statusTap()
@@ -138,7 +128,7 @@ enum LowDiskModuleTests {
         precondition(LowDiskAddon.commands.map(\.slug) == ["check-disk-space"], "v1 command slug")
         precondition(LowDiskAddon.commands[0].switchID == "lowDiskWarning", "the command rides the switch")
         precondition(LowDiskAddon.settings.map(\.switchID) == ["lowDiskWarning"], "the threshold sits under it")
-        precondition(LowDiskPolicy.checkInterval == .seconds(1800), "every 30 minutes, no tighter loop")
+        precondition(LowDiskPolicy.checkInterval == .seconds(1800), "every 30 minutes while hidden")
     }
 
     static let lowDiskStatus = IslandStatus(
@@ -273,22 +263,40 @@ enum LowDiskModuleTests {
         precondition(rig.module == nil, "the switch stopped the module")
     }
 
-    static func clearsAfterDiskChange() async {
+    static func pollsForRecovery() async {
         let suite = "nc-LowDisk-module-test.\(UUID())"
-        defer { UserDefaults().removePersistentDomain(forName: suite) }
-        disk.free = gb(5)
-        disk.fails = false
-
+        let (waits, pending) = AsyncStream<(Duration, AsyncStream<Void>.Continuation)>.makeStream()
+        disk.wait = { interval in
+            let (tick, advance) = AsyncStream<Void>.makeStream()
+            pending.yield((interval, advance))
+            var ticks = tick.makeAsyncIterator()
+            _ = await ticks.next()
+        }
+        defer {
+            disk.wait = nil
+            pending.finish()
+            UserDefaults().removePersistentDomain(forName: suite)
+        }
+        disk.free = gb(50)
         let rig = Rig(suite: suite, on: true)
         defer { rig.controller.stop() }
         await rig.settle()
-        precondition(rig.presenter.statuses == [lowDiskStatus], "the warning starts with its glyph showing")
 
+        var scheduled = waits.makeAsyncIterator()
+        let hidden = await scheduled.next()!
+        precondition(hidden.0 == .seconds(1800), "the hidden glyph checks every 30 minutes")
+        disk.free = gb(5)
+        hidden.1.yield(())
+
+        let visible = await scheduled.next()!
+        precondition(visible.0 == .seconds(15), "the visible glyph must check every 15 seconds, got \(visible.0)")
+        precondition(rig.presenter.statuses == [lowDiskStatus], "the low reading shows the glyph")
         disk.free = gb(11)
-        disk.watcher?.onChange()
-        await rig.settle()
-        precondition(rig.presenter.statuses == [lowDiskStatus, nil], "a startup disk change clears the recovered glyph")
-        precondition(disk.watcher == nil, "recovery releases the watcher")
+        visible.1.yield(())
+
+        let recovered = await scheduled.next()!
+        precondition(rig.presenter.statuses == [lowDiskStatus, nil], "a 15-second tick clears the recovered glyph")
+        precondition(recovered.0 == .seconds(1800), "recovery restores the 30-minute interval")
     }
 
     static func waitsForTheDisplay() async {

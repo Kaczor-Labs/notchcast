@@ -1,6 +1,6 @@
 import AppKit
 
-/// Warns once on the island and watches the startup disk for recovery while the glyph shows.
+/// Warns once on the island and checks for recovery while the glyph shows.
 @MainActor
 final class LowDiskModule: NotchcastModule {
     typealias Reader = @Sendable () async throws -> Int64
@@ -13,7 +13,6 @@ final class LowDiskModule: NotchcastModule {
     private let isDisplayAsleep: @MainActor () -> Bool
     private var policy = LowDiskPolicy()
     private var postedStatus: IslandStatus?
-    private var diskWatcher: FileSystemWatcher?
     private var wakeObserver: NotificationCenter.ObservationToken?
     private var timer: Task<Void, Never>?
     private(set) var checking: Task<Void, Never>?
@@ -38,11 +37,7 @@ final class LowDiskModule: NotchcastModule {
         wakeObserver = workspace.notificationCenter.addObserver(of: workspace, for: .screensDidWake) { [weak self] _ in
             await self?.check()
         }
-        timer = Task { [weak self] in
-            while (try? await Task.sleep(for: LowDiskPolicy.checkInterval, tolerance: .seconds(60))) != nil {
-                self?.check()
-            }
-        }
+        scheduleChecks()
         check()
     }
 
@@ -125,13 +120,22 @@ final class LowDiskModule: NotchcastModule {
         setStatus(policy.status)
     }
 
+    private func scheduleChecks() {
+        timer?.cancel()
+        guard isRunning else { return }
+        let interval = postedStatus == nil ? LowDiskPolicy.checkInterval : .seconds(15)
+        timer = Task { [weak self] in
+            while !Task.isCancelled, (try? await Self.waitForCheck(interval)) != nil {
+                guard !Task.isCancelled, let self else { return }
+                await self.check()?.value
+            }
+        }
+    }
+
     private func setStatus(_ status: IslandStatus?) {
         guard status != postedStatus else { return }
         postedStatus = status
-        diskWatcher = status == nil ? nil : Self.watchStartupDisk { [weak self] in
-            guard let self, self.postedStatus != nil else { return }
-            self.check()
-        }
+        scheduleChecks()
         let tap: @MainActor () -> Void = { [weak self] in self?.showFreeSpace() }
         context.presenter.setStatus(status, for: Self.noticeID, onTap: status == nil ? nil : tap)
     }

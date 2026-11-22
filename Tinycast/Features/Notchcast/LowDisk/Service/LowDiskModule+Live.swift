@@ -1,5 +1,4 @@
 import CoreGraphics
-import CoreServices
 import Foundation
 
 extension LowDiskModule {
@@ -13,11 +12,7 @@ extension LowDiskModule {
 
     static func isMainDisplayAsleep() -> Bool { CGDisplayIsAsleep(CGMainDisplayID()) != 0 }
 
-    static func watchStartupDisk(_ onChange: @escaping @MainActor @Sendable () -> Void) -> FileSystemWatcher? {
-        FileSystemWatcher(
-            paths: ["/System/Volumes/Data"], since: FSEventStreamEventId(kFSEventStreamEventIdSinceNow), queue: .main
-        ) { _ in
-            Task { @MainActor in onChange() }
-        }
+    static func waitForCheck(_ interval: Duration) async throws {
+        try await Task.sleep(for: interval, tolerance: interval == LowDiskPolicy.checkInterval ? .seconds(60) : .seconds(2))
     }
 }
