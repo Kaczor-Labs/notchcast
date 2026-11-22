@@ -192,6 +192,7 @@ func switchOffWhileAsking() async throws {
     rig.module!.open([rig.archive("Photos.zip")])
     let task = rig.module!.current!.task
     while rig.record.heldAsk == nil { await Task.yield() }
+    check(rig.journal().first?.needsPassword == true, "the journal knows the next launch needs a password")
     rig.controller.preferences.set("archives", on: false)
     while rig.module != nil { await Task.yield() }
     rig.record.heldAsk?.resume()
@@ -202,17 +203,20 @@ func switchOffWhileAsking() async throws {
 
 @MainActor
 func resumeAfterRelaunch() async throws {
-    for answer in [right, nil] {
+    for (needsPassword, answer) in [(true, right), (true, nil), (false, right)] {
         let folder = FileManager.default.temporaryDirectory.appending(path: "nc-archives-pw-\(UUID())")
-        let job = ArchiveJob(id: UUID(), archive: folder.appending(path: "Photos.zip"), inPlace: true)
+        var job = ArchiveJob(id: UUID(), archive: folder.appending(path: "Photos.zip"), inPlace: true)
+        if needsPassword { job.needsPassword = true }
         try FileManager.default.createDirectory(at: job.staging, withIntermediateDirectories: true)
         try Data("archive".utf8).write(to: job.archive)
         try Data("x".utf8).write(to: job.staging.appending(path: "a.txt"))
         try FakeTools.writeJournal(archive: job.archive, output: job.staging)
         let rig = try Rig(folder: folder, answers: [answer], journal: [job], passwords: ["Photos.zip": right])
         defer { rig.finish() }
+        check(rig.controller.hasPendingQuestion == needsPassword, "the journal marker registers a pending launcher question")
         await rig.module!.drain()
         check(rig.record.asks.count == 1, "a resumed job asks again")
+        check(rig.record.askPriorities == [true], "the password prompt reaches the core with launcher priority")
         if answer == nil {
             check(rig.steps == ["list", "restore"], "\(rig.steps)")
             check(rig.exists("a.txt") && rig.presenter.texts.contains("Stopped extracting Photos.zip"), "\(rig.visible)")
@@ -221,6 +225,7 @@ func resumeAfterRelaunch() async throws {
             check(rig.exists("Photos/b/c.txt"), "\(rig.visible)")
         }
         check(rig.journal().isEmpty, "\(rig.journal())")
+        check(!rig.controller.hasPendingQuestion, "no question remains after the job finishes")
     }
 }
 
