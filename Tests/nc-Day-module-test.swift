@@ -1,4 +1,6 @@
 // notchcast-sources: Tinycast/Features/Notchcast/Day/DayAddon.swift
+// notchcast-sources: Tinycast/Features/Notchcast/Day/UI/DaySettingsView.swift
+// notchcast-sources: Tinycast/DesignSystem/Theme.swift Tinycast/Platform/Appearance.swift
 // notchcast-sources: Tinycast/Features/Notchcast/Day/Model/*.swift
 // notchcast-sources: Tinycast/Features/Notchcast/Day/Service/*.swift
 // notchcast-sources: Tinycast/Features/Notchcast/Core/Model/*.swift
@@ -9,13 +11,8 @@
 // notchcast-sources: Tests/NotchcastTapFixtures.swift
 // notchcast-sources: Tests/NotchcastDictationFixture.swift
 // notchcast-sources: Tests/nc-Day-fixtures.swift
+import AppKit
 import SwiftUI
-
-// The shipped row is a Settings view; this stands in, so the descriptor compiles as shipped.
-struct DaySettingsView: View {
-    let context: NotchcastContext
-    var body: some View { EmptyView() }
-}
 
 func check(_ condition: Bool, _ message: String) {
     guard condition else { fatalError("nc-Day-module-test: \(message)") }
@@ -121,6 +118,7 @@ final class PageRecorder: IslandPresenting {
 struct DayModuleTests {
     static func main() async {
         switchShape()
+        settingsFields()
         await nothingChosen()
         await cadence()
         await visibility()
@@ -161,6 +159,35 @@ struct DayModuleTests {
         let (_, context) = make(FakeWorld(), PageRecorder())
         check(DayAddon.makeModule(context) is DayModule, "the switch has a module as its user path")
         check(DayAddon.settings.map(\.switchID) == ["dayPage"], "its city and symbols sit under the switch")
+    }
+
+    static func settingsFields() {
+        let (module, context) = make(FakeWorld(), PageRecorder())
+        context.attach(module)
+        let descriptor = DayAddon.switches[0]
+        let row = DayAddon.settings[0]
+        let form = Form {
+            Section {
+                Toggle(isOn: .constant(true)) { Text(verbatim: descriptor.title) }
+                row.view(context)
+            }
+        }
+        .formStyle(.grouped)
+        .environment(\.colorScheme, .dark)
+        let host = NSHostingView(rootView: form)
+        host.appearance = NSAppearance(named: .darkAqua)
+        host.frame = CGRect(x: 0, y: 0, width: 560, height: 300)
+        host.layoutSubtreeIfNeeded()
+
+        let expected = [DayFixtures.place.name, "AAPL, BTC-USD"]
+        let actual = editableValues(in: host)
+        check(actual.sorted() == expected.sorted(), "City and Symbols should show their saved values. Found: \(actual)")
+        print("PASS Day settings show City and Symbols with their saved values")
+    }
+
+    static func editableValues(in view: NSView) -> [String] {
+        if let field = view as? NSTextField, field.isEditable { return [field.stringValue] }
+        return view.subviews.flatMap { editableValues(in: $0) }
     }
 
     static func nothingChosen() async {
