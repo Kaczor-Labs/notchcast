@@ -253,15 +253,10 @@ final class AppCore {
     var isDimmingPaletteForDialog: Bool { isShowingDialog && windowController.isVisible }
     @ObservationIgnored private lazy var dialogs = DialogController(
         settings: settings,
-        onPresentationChanged: { [weak self] request in
+        onPresentationChanged: { [weak self] isPresenting in
             guard let self else { return }
-            isShowingDialog = request != nil
-            if LauncherQuestionPolicy.shouldHideForQuestion(
-                isPriorityQuestion: request != nil && NotchcastQuestion.takesLauncherPriority,
-                paletteVisible: paletteCoordinator.isVisible)
-            {
-                paletteCoordinator.hidePalette(restoreFocus: false)
-            }
+            isShowingDialog = isPresenting
+            paletteCoordinator.dialogPresentationChanged(isPresenting)
         })
     private let healthTicker = HealthTicker()
     /// Resolved once by AppKit, so it is what this process shows until it relaunches.
@@ -474,11 +469,9 @@ final class AppCore {
             if !OnboardingState.hasOnboarded {
                 OnboardingState.markShown()
                 onboardingCoordinator.showOnboarding()
-            } else if LauncherQuestionPolicy.shouldOpenAtLaunch(
-                launchedByUser: launchedByUser,
-                questionPending: notchcast?.controller.hasPendingQuestion == true)
-            {
-                paletteCoordinator.showPalette(mode: .launcher)
+            } else {
+                paletteCoordinator.showLauncherAtLaunch(
+                    launchedByUser: launchedByUser, questionPending: notchcast?.controller.hasPendingQuestion == true)
             }
             island.update.report(updateChecker.takeInstallReport())
         }
