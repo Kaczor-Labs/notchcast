@@ -8,13 +8,13 @@ import ScreenCaptureKit
 /// Unchecked: `lock` guards the lifecycle and the stream; samples arrive on the session queue.
 final class RecordingCaptureEngine: NSObject, SCStreamOutput, SCStreamDelegate, @unchecked Sendable {
     private let queue: DispatchQueue
-    private let onSample: @Sendable (CMSampleBuffer, RecordingWriter.Kind) -> Void
+    private let onSample: @Sendable (CMSampleBuffer?, RecordingWriter.Kind) -> Void
     private let onStop: @Sendable (any Error) -> Void
     private let lock = NSLock()
     private var lifecycle = RecordingCaptureLifecycle()
     private var stream: SCStream?
 
-    init(queue: DispatchQueue, onSample: @escaping @Sendable (CMSampleBuffer, RecordingWriter.Kind) -> Void,
+    init(queue: DispatchQueue, onSample: @escaping @Sendable (CMSampleBuffer?, RecordingWriter.Kind) -> Void,
          onStop: @escaping @Sendable (any Error) -> Void) {
         self.queue = queue
         self.onSample = onSample
@@ -131,21 +131,17 @@ final class RecordingCaptureEngine: NSObject, SCStreamOutput, SCStreamDelegate, 
     }
 
     func stream(_ stream: SCStream, didOutputSampleBuffer sampleBuffer: CMSampleBuffer, of type: SCStreamOutputType) {
-        guard lock.withLock({ lifecycle.acceptsSamples && self.stream === stream }),
-            CMSampleBufferIsValid(sampleBuffer), let clock = stream.synchronizationClock
-        else { return }
+        guard lock.withLock({ lifecycle.acceptsSamples && self.stream === stream }) else { return }
         let kind: RecordingWriter.Kind
         switch type {
-        case .screen:
-            guard Self.carriesPixels(sampleBuffer) else { return }
-            kind = .video
+        case .screen: kind = .video
         case .audio: kind = .systemAudio
         default: return
         }
-        guard let synchronized = RecordingSampleTiming.converted(
-            sampleBuffer, from: clock, to: CMClockGetHostTimeClock())
-        else { return }
-        onSample(synchronized, kind)
+        guard CMSampleBufferIsValid(sampleBuffer), kind != .video || Self.carriesPixels(sampleBuffer),
+            let clock = stream.synchronizationClock
+        else { return onSample(nil, kind) }
+        onSample(RecordingSampleTiming.converted(sampleBuffer, from: clock, to: CMClockGetHostTimeClock()), kind)
     }
 
     /// An idle or blank frame would fault the writer; a still screen writes nothing, at no cost.

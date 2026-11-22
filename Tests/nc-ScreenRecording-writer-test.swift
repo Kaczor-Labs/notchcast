@@ -12,6 +12,7 @@
 import AVFoundation
 import CoreMedia
 import Foundation
+import Synchronization
 
 // The capture engine, microphone and session are compiled here but never started: no screen is recorded.
 
@@ -82,6 +83,33 @@ func hasPictureAndSound(_ url: URL) async -> Bool {
 
 func seconds(_ url: URL) async -> TimeInterval { (try? await RecordingExporter.duration(url)) ?? -1 }
 
+private final class FakeAssetWriter: AVAssetWriter {
+    var simulatedStatus: Status = .writing
+
+    override var status: Status { simulatedStatus }
+    override var error: (any Error)? {
+        simulatedStatus == .failed ? AVError(.unknown) : nil
+    }
+
+    override func startSession(atSourceTime startTime: CMTime) {}
+    override func finishWriting(completionHandler handler: @escaping @Sendable () -> Void) { handler() }
+}
+
+private final class FakeVideoInput: AVAssetWriterInput {
+    var ready = true
+    var acceptsSample = true
+    private(set) var appendCalls = 0
+
+    override var isReadyForMoreMediaData: Bool { ready }
+
+    override func markAsFinished() {}
+
+    override func append(_ sampleBuffer: CMSampleBuffer) -> Bool {
+        appendCalls += 1
+        return acceptsSample
+    }
+}
+
 @main
 @MainActor
 enum ScreenRecordingWriterTests {
@@ -99,6 +127,7 @@ enum ScreenRecordingWriterTests {
         samples()
         await recordTrimSave()
         await emptyAndHEVC()
+        await writerFailures()
         print("\(checks) screen recording writer checks; \(failures) failures")
         if failures > 0 { exit(1) }
         print("PASSED")
@@ -181,6 +210,39 @@ enum ScreenRecordingWriterTests {
         let moved = scratch.appending(path: "moved.mov")
         try? await RecordingExporter.export(take, whole, .copy, moved)
         check("a clip kept as recorded is moved, not copied", exists(moved) && !exists(take))
+    }
+
+    static func writerFailures() async {
+        for failure in ["background", "append", "stop"] {
+            let asset = try! FakeAssetWriter(outputURL: scratch.appending(path: "\(failure).mov"), fileType: .mov)
+            let input = FakeVideoInput(mediaType: .video, outputSettings: nil)
+            let notices = Mutex(0)
+            let writer = RecordingWriter(writer: asset, videoInput: input, onFailure: {
+                notices.withLock { $0 += 1 }
+            })
+            writer.beginSession(at: origin)
+            writer.append(videoSample(at: 0, shade: 10), kind: .video)
+            check("\(failure): the first append succeeds", writer.videoFrameCount == 1 && input.appendCalls == 1)
+
+            switch failure {
+            case "background":
+                asset.simulatedStatus = .failed
+                input.ready = false
+                writer.append(videoSample(at: 1, shade: 20), kind: .video)
+                check("a background failure reports on the next sample", notices.withLock { $0 } == 1)
+                check("a background failure needs no rejected append", input.acceptsSample && input.appendCalls == 1)
+            case "append":
+                input.acceptsSample = false
+                writer.append(videoSample(at: 1, shade: 20), kind: .video)
+                check("a refused append still reports immediately", input.appendCalls == 2 && notices.withLock { $0 } == 1)
+                asset.simulatedStatus = .failed
+            default:
+                asset.simulatedStatus = .failed
+            }
+
+            let finished = await writer.finish(at: origin)
+            check("\(failure): finishing reports failure only once", !finished && notices.withLock { $0 } == 1)
+        }
     }
 
     static func emptyAndHEVC() async {

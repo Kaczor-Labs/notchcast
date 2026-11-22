@@ -289,9 +289,12 @@ enum ScreenRecordingModuleTests {
         rig.run("record-screen")
         await rig.settle()
         fake.capture.stopFails = true
-        rig.run("record-screen")
+        fake.ended?(RecordingTarget.Failure.captureFailed)
         await rig.settle()
-        check("a stop that throws still keeps a clip with frames", fake.trimmers.count == trimmers + 3)
+        check("a writer failure still keeps a clip with frames", fake.trimmers.count == trimmers + 3)
+        check("a writer failure clears the status and reports even when the clip is playable",
+              rig.presenter.status == nil && rig.presenter.last?.text == "Could not record the screen."
+              && rig.presenter.last?.isFailure == true)
         fake.answer?(.discard)
         await rig.settle()
 
