@@ -34,6 +34,15 @@ func check(_ condition: Bool, _ message: @autoclosure () -> String) {
     if !condition { fatalError(message()) }
 }
 
+@MainActor private var regressionsFailed = false
+
+@MainActor
+private func regression(_ condition: Bool, _ message: String) {
+    guard !condition else { return }
+    regressionsFailed = true
+    FileHandle.standardError.write(Data("FAIL: \(message)\n".utf8))
+}
+
 /// Plays each tool: listings come from `listings`, an extraction writes `files` where it is told.
 final class FakeTools: Sendable {
     struct State {
@@ -41,6 +50,7 @@ final class FakeTools: Sendable {
         var listings: [String: String] = [:]
         var files: [String] = ["a.txt", "b/c.txt"]
         var extractStatuses: [Int32] = []
+        var partialFile: String?
         var hold: Set<String> = []
         var held: CheckedContinuation<Void, Never>?
         var heldStarted = false
@@ -57,6 +67,12 @@ final class FakeTools: Sendable {
         state.withLock { $0.installed.contains(name) } ? URL(filePath: "/fake/bin/\(name)") : nil
     }
 
+    func release() {
+        state.withLock { state in
+            defer { state.held = nil }
+            state.held?.resume()
+        }
+    }
     func run(_ tool: URL, _ arguments: [String]) async throws -> ArchiveProcessResult {
         // As the real `ArchiveProcess.run`, which starts nothing in a task that is already cancelled.
         try Task.checkCancellation()
@@ -79,17 +95,23 @@ final class FakeTools: Sendable {
             await withTaskCancellationHandler {
                 await withCheckedContinuation { continuation in
                     state.withLock {
-                        $0.heldStarted = true
-                        $0.held = continuation
+                        if Task.isCancelled { return continuation.resume() }
+                        ($0.heldStarted, $0.held) = (true, continuation)
                     }
                 }
             } onCancel: {
-                state.withLock { $0.held?.resume() }
+                self.release()
             }
-            throw CancellationError()
+            try Task.checkCancellation()
         }
         let status = state.withLock { $0.extractStatuses.isEmpty ? 0 : $0.extractStatuses.removeFirst() }
-        guard status == 0 else { return ArchiveProcessResult(status: status, errors: "error: no room") }
+        guard status == 0 else {
+            if let file = state.withLock({ $0.partialFile }) {
+                let output = URL(filePath: arguments[arguments.firstIndex(of: "-o")! + 1])
+                try Data("partial".utf8).write(to: output.appending(path: file))
+            }
+            return ArchiveProcessResult(status: status, errors: "error: no room")
+        }
         if name == "sh" {
             try Data("x".utf8).write(to: URL(filePath: arguments[4]))
             return ArchiveProcessResult(status: 0)
@@ -124,6 +146,37 @@ final class FakePresenter: IslandPresenting {
 final class Record {
     var questions: [String] = []
     var answer = true
+    var hold = false
+    var ignoresCancel = false
+    private let question = Mutex((held: Optional<CheckedContinuation<Bool, Never>>.none, closed: 0))
+    var hasQuestion: Bool { question.withLock { $0.held != nil } }
+    var closed: Int { question.withLock { $0.closed } }
+    func confirm(_ title: String, _ message: String?) async -> Bool {
+        questions.append(title + "\n" + (message ?? ""))
+        guard !hasQuestion else { return false }
+        let honorsCancel = !ignoresCancel
+        guard hold else { return (!honorsCancel || !Task.isCancelled) && answer }
+        let answer = await withTaskCancellationHandler {
+            await withCheckedContinuation { continuation in
+                question.withLock {
+                    if honorsCancel && Task.isCancelled { return continuation.resume(returning: false) }
+                    $0.held = continuation
+                }
+            }
+        } onCancel: {
+            if honorsCancel { self.answerQuestion(false, cancelled: true) }
+        }
+        return (!honorsCancel || !Task.isCancelled) && answer
+    }
+
+    nonisolated func answerQuestion(_ answer: Bool, cancelled: Bool = false) {
+        question.withLock {
+            guard let held = $0.held else { return }
+            $0.held = nil
+            if cancelled { $0.closed += 1 }
+            held.resume(returning: answer)
+        }
+    }
     var reveals: [URL] = []
     var defaultApp: [Bool] = []
     var selection: [URL] = []
@@ -173,8 +226,7 @@ final class Rig {
         controller = NotchcastController(
             addons: [ArchivesAddon.self], defaults: defaults, hub: hub, dictation: FakeDictation(), presenter: presenter)
         controller.context(forSwitch: "archives")?.confirm = { title, message, _ in
-            record.questions.append(title + "\n" + (message ?? ""))
-            return record.answer
+            await record.confirm(title, message)
         }
         controller.start()
     }
@@ -298,6 +350,48 @@ func asksBeforeInPlace() async throws {
     rig.module!.open([rig.archive("Fast.zip", listing: twoFiles)])
     await rig.module!.drain()
     check(rig.calls.last!.contains("-y"), "the option makes in place the default")
+}
+
+@MainActor
+func closesStopQuestionOnCompletion() async throws {
+    let rig = try Rig()
+    defer { rig.finish() }
+    rig.tools.state.withLock { $0.hold = ["Slow.zip"] }
+    rig.record.hold = true
+    rig.module!.open([rig.archive("Slow.zip", listing: twoFiles)])
+    while !rig.tools.state.withLock({ $0.heldStarted }) { await Task.yield() }
+    rig.presenter.posts[0].onTap?()
+    while !rig.record.hasQuestion { await Task.yield() }
+    rig.tools.release()
+    await rig.module!.drain()
+    regression(rig.record.closed == 1, "extraction closes its Stop question on completion")
+    rig.record.answerQuestion(false)
+    check(rig.presenter.texts.last == "Extracted Slow" && rig.exists("Slow/b/c.txt"), "extraction still finishes")
+}
+
+@MainActor
+func cancelsInPlaceQuestion(lateYes: Bool = false, switchOff: Bool = false) async throws {
+    let rig = try Rig()
+    defer { rig.finish() }
+    rig.tools.state.withLock { ($0.extractStatuses, $0.partialFile) = ([3], "partial.txt") }
+    rig.record.hold = true
+    rig.record.ignoresCancel = lateYes
+    rig.module!.open([rig.archive("Big.zip", listing: twoFiles)])
+    while !rig.record.hasQuestion { await Task.yield() }
+    check(rig.record.questions.first?.hasPrefix("Not enough space to keep Big.zip") == true, "asked to extract in place")
+    let task = rig.module!.current!.task
+    if switchOff {
+        rig.controller.preferences.set("archives", on: false)
+        while rig.module != nil { await Task.yield() }
+    } else { rig.module!.cancelAll() }
+    if lateYes { rig.record.answerQuestion(true) }
+    await task.value
+    guard lateYes else {
+        return check(rig.record.closed == 1, "the in-place question closes on \(switchOff ? "switch-off" : "Cancel All")")
+    }
+    regression(rig.presenter.texts.last == "Stopped extracting Big.zip" && rig.visible == ["Big.zip"],
+               "late Extract in Place yes after Cancel All leaves only Big.zip"
+                   + " (notices \(rig.presenter.texts), files \(rig.visible))")
 }
 
 @MainActor
@@ -488,6 +582,10 @@ enum ArchivesModuleTest {
         try await refusesBeforeWriting()
         try await missingTool()
         try await asksBeforeInPlace()
+        try await closesStopQuestionOnCompletion()
+        try await cancelsInPlaceQuestion(lateYes: true)
+        try await cancelsInPlaceQuestion()
+        try await cancelsInPlaceQuestion(switchOff: true)
         try await fallbackEngines()
         try await cancelAndResume()
         try await defaultApp()
@@ -496,6 +594,7 @@ enum ArchivesModuleTest {
         try await abandonKeepsOnlyHatchZipWork()
         try await capsSingleStreams()
         try await realHatchZip()
+        if regressionsFailed { exit(EXIT_FAILURE) }
         print("nc-Archives-module-test: ok")
     }
 }

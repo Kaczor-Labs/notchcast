@@ -15,10 +15,10 @@ final class ArchivesModule: NotchcastModule {
     private let environment: ArchivesEnvironment
     private var picker: Task<Void, Never>?
     private(set) var jobs: [ArchiveJob] = []
-    private(set) var current: (job: ArchiveJob, task: Task<Void, Never>, resuming: UUID?)?
+    private(set) var current: (job: ArchiveJob, task: Task<Void, Never>, resuming: UUID?, question: Task<Void, Never>?)?
     private var pruning: Task<Void, Never>?
     /// `label` is nil while Finder's selection is still being read.
-    private(set) var compression: (id: UUID, label: String?, task: Task<Void, Never>)?
+    private(set) var compression: (id: UUID, label: String?, task: Task<Void, Never>, question: Task<Void, Never>?)?
 
     init(context: NotchcastContext, environment: ArchivesEnvironment) {
         self.context = context
@@ -53,9 +53,11 @@ final class ArchivesModule: NotchcastModule {
         pruning?.cancel()
         pruning = nil
         current?.task.cancel()
+        current?.question?.cancel()
         current = nil
         context.presenter.end(notice: Self.noticeID)
         compression?.task.cancel()
+        compression?.question?.cancel()
         compression = nil
         context.presenter.end(notice: Self.compressNoticeID)
     }
@@ -140,7 +142,7 @@ final class ArchivesModule: NotchcastModule {
                 self?.compressionEnded(id, failure: error as? ArchiveFailure ?? .compressionFailed(error.localizedDescription))
             }
         }
-        compression = (id, nil, task)
+        compression = (id, nil, task, nil)
     }
 
     private func compressionBegan(_ id: UUID, label: String) {
@@ -155,6 +157,7 @@ final class ArchivesModule: NotchcastModule {
 
     private func compressionEnded(_ id: UUID, made: URL? = nil, failure: ArchiveFailure? = nil, stopped: String? = nil) {
         guard compression?.id == id else { return }
+        compression?.question?.cancel()
         compression = nil
         context.presenter.end(notice: Self.compressNoticeID)
         if let failure {
@@ -173,14 +176,15 @@ final class ArchivesModule: NotchcastModule {
             if compression?.id == id { compression?.task.cancel() }
             return
         }
-        Task {
+        guard compression?.id == id, compression?.question == nil else { return }
+        compression?.question = Task { [weak self] in
             let title = String(localized: "Stop compressing \(label)?", table: "NotchcastArchives")
             let message = String(
                 localized: "Nothing is kept. The selected files stay as they are.", table: "NotchcastArchives")
-            guard await confirm(title, message, String(localized: "Stop", table: "NotchcastArchives")),
-                compression?.id == id
-            else { return }
-            compression?.task.cancel()
+            let stop = await confirm(title, message, String(localized: "Stop", table: "NotchcastArchives"))
+            guard let self, compression?.id == id else { return }
+            compression?.question = nil
+            if stop { compression?.task.cancel() }
         }
     }
 
@@ -252,7 +256,7 @@ final class ArchivesModule: NotchcastModule {
                 await self?.stopped(job, failure: failure, extractor: extractor)
             }
         }
-        current = (job, task, nil)
+        current = (job, task, nil, nil)
         context.presenter.post(
             IslandNotice(id: Self.noticeID, symbol: "archivebox",
                          text: String(localized: "Extracting \(job.name)", table: "NotchcastArchives"),
@@ -285,6 +289,7 @@ final class ArchivesModule: NotchcastModule {
     ) {
         guard current?.job.id == job.id else { return }
         let resumed = failure == nil && !cancelled ? current?.resuming : nil
+        current?.question?.cancel()
         current = nil
         if let stoppedSize, let index = jobs.firstIndex(where: { $0.id == job.id }) {
             jobs[index].stopped = ArchiveFingerprint(size: stoppedSize, stoppedAt: context.now())
@@ -326,13 +331,16 @@ final class ArchivesModule: NotchcastModule {
 
     private func confirmCancel(_ job: ArchiveJob) {
         guard let confirm = context.confirm else { return cancel(job.id) }
-        Task {
+        guard current?.job.id == job.id, current?.question == nil else { return }
+        current?.question = Task { [weak self] in
             let title = String(localized: "Stop extracting \(job.name)?", table: "NotchcastArchives")
             let message = String(
                 localized: "A kept archive stays as it was. One extracted in place keeps what is already out.",
                 table: "NotchcastArchives")
-            guard await confirm(title, message, String(localized: "Stop", table: "NotchcastArchives")) else { return }
-            cancel(job.id)
+            let stop = await confirm(title, message, String(localized: "Stop", table: "NotchcastArchives"))
+            guard let self, current?.job.id == job.id else { return }
+            current?.question = nil
+            if stop { cancel(job.id) }
         }
     }
 
