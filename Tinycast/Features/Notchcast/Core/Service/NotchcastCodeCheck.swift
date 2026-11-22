@@ -2,7 +2,7 @@ import Darwin
 import Foundation
 import Security
 
-nonisolated enum NotchcastCodeCheck {
+nonisolated enum NotchcastCodeCheck { // drift: keep Taildrop calls this in the next PR for #1255.
     static func file(_ url: URL, satisfies requirement: String) -> Bool {
         var code: SecStaticCode?
         guard SecStaticCodeCreateWithPath(url as CFURL, [], &code) == errSecSuccess, let code,
