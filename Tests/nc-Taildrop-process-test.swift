@@ -1,6 +1,7 @@
 // notchcast-sources: Tinycast/Features/Notchcast/Taildrop/Model/*.swift
 // notchcast-sources: Tinycast/Features/Notchcast/Taildrop/Service/TaildropSystem+Live.swift
 // notchcast-sources: Tinycast/Features/Notchcast/Core/Service/NotchcastAppleEvents.swift
+// notchcast-sources: Tinycast/Features/Notchcast/Core/Service/NotchcastCodeCheck.swift
 import Foundation
 
 /// Pins the shipped tool runner: output, errors and status come back, and a cancel ends the tool.

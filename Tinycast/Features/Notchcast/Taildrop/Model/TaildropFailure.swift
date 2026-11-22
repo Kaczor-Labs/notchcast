@@ -3,6 +3,7 @@ import Foundation
 /// Why a Taildrop run stopped; each case is one island notice.
 nonisolated enum TaildropFailure: Error, Equatable, Sendable {
     case notInstalled
+    case untrusted
     case notRunning
     case signedOut
     case noDevices
@@ -42,6 +43,8 @@ nonisolated enum TaildropFailure: Error, Equatable, Sendable {
     var message: String {
         switch self {
         case .notInstalled: String(localized: "Tailscale is not installed.", table: "NotchcastTaildrop")
+        case .untrusted:
+            String(localized: "Blocked: Tailscale failed its signature check.", table: "NotchcastTaildrop")
         case .notRunning: String(localized: "Tailscale is not running.", table: "NotchcastTaildrop")
         case .signedOut: String(localized: "Tailscale is signed out.", table: "NotchcastTaildrop")
         case .noDevices: String(localized: "No device can receive files.", table: "NotchcastTaildrop")
