@@ -51,41 +51,59 @@ enum BrightnessRangeTests {
         var failures: [String] = []
         for ticks in [nil, 125.0] as [Double?] {
             for extraDimming in [false, true] {
-                let display = FakeBacklight(ticks: ticks)
-                let service = BrightnessDisplayService(displays: display.system)
-                _ = await service.perform(.refresh(names: [:]))
-                _ = await service.perform(.extraDimming(extraDimming))
-                let floor = extraDimming ? -BrightnessLevel.extraDimmingRange : 0
                 for up in [false, true] {
-                    let start = up ? floor : 1
-                    let end = up ? 1 : floor
-                    _ = await service.perform(.set(start, displayID))
-                    var previous = BrightnessLevel(start, extraDimming: extraDimming)
-                    var previousOutput = display.output
-                    let context = "\(ticks == nil ? "exact" : "quantised"), extra dimming \(extraDimming), up \(up)"
-                    for _ in 0..<24 where previous.value != end {
-                        guard let snapshot = await service.perform(.step(up: up, fine: false, displayID)),
-                              let level = snapshot.displays.first?.level else {
-                            failures.append("\(context): step unavailable")
-                            break
-                        }
-                        let output = display.output
-                        guard up ? level.value > previous.value && output > previousOutput
-                                 : level.value < previous.value && output < previousOutput else {
-                            failures.append("\(context): stalled at \(previous.readout)")
-                            break
-                        }
-                        previous = level
-                        previousOutput = output
-                    }
-                    let endPicture = !up && extraDimming ? Float(BrightnessLevel.minimumPicture) : 1
-                    if previous.value != end || previousOutput != (up ? 1 : 0, endPicture) {
-                        failures.append("\(context): endpoint unreachable")
+                    failures += await walk(ticks: ticks, extraDimming: extraDimming, up: up, fine: false)
+                    if ticks != nil {
+                        failures += await walk(ticks: ticks, extraDimming: extraDimming, up: up, fine: true)
                     }
                 }
             }
         }
         precondition(failures.isEmpty, failures.joined(separator: "\n"))
-        print("brightness range with exact and quantised read-back: PASS")
+        print("brightness range and HUD readouts with exact and quantised read-back: PASS")
+    }
+
+    private static func walk(ticks: Double?, extraDimming: Bool, up: Bool, fine: Bool) async -> [String] {
+        let display = FakeBacklight(ticks: ticks)
+        let service = BrightnessDisplayService(displays: display.system)
+        _ = await service.perform(.refresh(names: [:]))
+        _ = await service.perform(.extraDimming(extraDimming))
+        let floor = extraDimming ? -0.25 : 0
+        let start = up ? floor : 1
+        let end = up ? 1 : floor
+        _ = await service.perform(.set(start, displayID))
+        var previous = BrightnessLevel(start, extraDimming: extraDimming)
+        var previousOutput = display.output
+        var failures: [String] = []
+        let context = "\(ticks == nil ? "exact" : "quantised"), extra dimming \(extraDimming), up \(up), fine \(fine)"
+        let stepCount = (extraDimming ? 20 : 16) * (fine ? 4 : 1)
+        for press in 1...stepCount {
+            guard let snapshot = await service.perform(.step(up: up, fine: fine, displayID)),
+                  let level = snapshot.displays.first?.level else {
+                failures.append("\(context): step unavailable")
+                break
+            }
+            let position = up ? press : stepCount - press
+            let expected = (100 * position + stepCount / 2) / stepCount
+            let output = display.output
+            if level.readout != "\(expected)%" {
+                failures.append("\(context), press \(press): expected \(expected)%, got \(level.readout)")
+            }
+            if extraDimming && expected == 20 && output != (0, 1) {
+                failures.append("\(context), press \(press): 20% should have minimum backlight and full picture")
+            }
+            guard up ? level.value > previous.value && output > previousOutput
+                     : level.value < previous.value && output < previousOutput else {
+                failures.append("\(context): stalled at \(previous.readout)")
+                break
+            }
+            previous = level
+            previousOutput = output
+        }
+        let endPicture = !up && extraDimming ? Float(BrightnessLevel.minimumPicture) : 1
+        if previous.value != end || previousOutput != (up ? 1 : 0, endPicture) {
+            failures.append("\(context): endpoint unreachable")
+        }
+        return failures
     }
 }
