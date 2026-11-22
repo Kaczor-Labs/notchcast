@@ -42,7 +42,7 @@ struct QuitProtectionEngine: Sendable {
         case quit(Target)
     }
 
-    static let doublePressInterval: TimeInterval = 0.6
+    static let doublePressInterval: TimeInterval = 1.0
     static let holdInterval: TimeInterval = 0.8
     static let tabKeyCode: UInt16 = 48
     static let escapeKeyCode: UInt16 = 53
