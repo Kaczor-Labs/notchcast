@@ -263,6 +263,7 @@ final class AppCore {
         onPresentationChanged: { [weak self] isPresenting in
             guard let self else { return }
             isShowingDialog = isPresenting
+            paletteCoordinator.dialogPresentationChanged(isPresenting)
         },
         onSecretPromptOpened: { [weak self] in self?.clipboardCoordinator.beginSecretPrompt() },
         onSecretPromptClosed: { [weak self] in self?.clipboardCoordinator.endSecretPrompt(submitted: $0) })
@@ -449,8 +450,9 @@ final class AppCore {
             if !OnboardingState.hasOnboarded {
                 OnboardingState.markShown()
                 onboardingCoordinator.showOnboarding()
-            } else if launchedByUser {
-                paletteCoordinator.showPalette(mode: .launcher)
+            } else {
+                paletteCoordinator.showLauncherAtLaunch(
+                    launchedByUser: launchedByUser, questionPending: notchcast?.controller.hasPendingQuestion == true)
             }
             island.update.report(updateChecker.takeInstallReport())
         }

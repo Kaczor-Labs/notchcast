@@ -63,6 +63,10 @@ final class NotchcastController {
 
     var switches: [NotchcastSwitch] { slots.flatMap { $0.addon.switches } }
 
+    var hasPendingQuestion: Bool {
+        slots.contains { $0.context.module?.hasPendingQuestion == true || $0.recovery.module?.hasPendingQuestion == true }
+    }
+
     func start() {
         guard !isRunning else { return }
         isRunning = true
