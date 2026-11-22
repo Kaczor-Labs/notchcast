@@ -55,7 +55,7 @@ final class IslandOverlayController: NSObject {
 
     func reposition() {
         reports.removeAll { $0.panel == nil }
-        var framesByDisplay: [CGDirectDisplayID: [CGRect]] = [:]
+        var framesByDisplay: [CGDirectDisplayID: (frames: [CGRect], hasQuestion: Bool)] = [:]
         let overlays = (question.map { [$0] } ?? []) + reports
         for entry in overlays {
             if let (screen, _, _) = island.overlayContext(screen: entry.screen) { entry.screen = screen }
@@ -74,9 +74,12 @@ final class IslandOverlayController: NSObject {
             let panels = reports.filter { $0.screen?.islandDisplayID == id }.compactMap(\.panel)
             let frames = layout.reports(panels.map { $0.frame.size }, question: questionFrame)
             for (panel, frame) in zip(panels, frames) { panel.setFrameOrigin(frame.origin) }
-            framesByDisplay[id] = questionFrame.map { [$0] + frames } ?? frames
+            framesByDisplay[id] = (questionFrame.map { [$0] + frames } ?? frames, questionFrame != nil)
         }
-        for (id, controller) in entries { controller.setOverlays(framesByDisplay[id] ?? []) }
+        for (id, controller) in entries {
+            let overlays = framesByDisplay[id]
+            controller.setOverlays(overlays?.frames ?? [], hasQuestion: overlays?.hasQuestion == true)
+        }
         entries = entries.filter { framesByDisplay[$0.key] != nil }
     }
 

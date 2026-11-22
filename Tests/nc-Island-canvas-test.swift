@@ -7,6 +7,7 @@
 // notchcast-sources: Tinycast/Features/Island/UI/IslandTone+Ink.swift
 // notchcast-sources: Tinycast/Features/Island/Service/IslandLevelArt.swift
 // notchcast-sources: Tinycast/Features/Island/Model/IslandKeyline.swift Tinycast/Features/Island/Model/IslandLook.swift
+// notchcast-sources: Tinycast/Features/Island/Model/IslandOverlayLayout.swift
 // notchcast-sources: Tinycast/Features/Island/Service/IslandCanvas.swift
 // notchcast-sources: Tinycast/Features/Island/Service/IslandExpansionArt.swift
 // notchcast-sources: Tinycast/Features/Island/Service/IslandSongArt.swift Tinycast/Features/Island/Model/IslandPlayer.swift
@@ -58,6 +59,7 @@ struct IslandCanvasTest {
             && IslandNoticeArt.percent(1) == "100%" && IslandNoticeArt.percent(-1) == "0%",
             "The percent is rounded down, never early to 100%, and four characters at most")
         coveredProgress()
+        progressBelowQuestion()
         wrapping(canvas, copied: notice)
         drawsCompleteHeadline(IslandNotice(id: "headphones", symbol: "waveform.badge.minus",
             text: "No headphones with noise control are connected.", isFailure: true), lines: 2)
@@ -93,6 +95,36 @@ struct IslandCanvasTest {
             precondition(canvas.glance is IslandNoticeArt, "The archive progress fits in the compact pill")
             let covered = pixels(bitmap(in: frame, scale: 2) { canvas.draw(frame) })
             precondition(covered == background, "Compact progress must not paint inside the covered surface")
+        }
+    }
+
+    @MainActor static func progressBelowQuestion() {
+        let screen = CGRect(x: 0, y: 0, width: 460, height: 240)
+        let canvas = IslandCanvas(frame: screen)
+        canvas.outline = CGPath(rect: screen, transform: nil)
+        canvas.covered = true
+        let notice = IslandNotice(id: "extract", symbol: "archivebox", text: "Extracting Folder.zip",
+                                  progress: IslandProgress(fraction: nil))
+        for look in IslandLook.allCases {
+            canvas.look = look
+            for notch: CGFloat? in [nil, 185] {
+                let layout = IslandOverlayLayout(screen: screen, contentTop: screen.maxY - (notch == nil ? 0 : 32),
+                    palette: nil, inset: NotchTheme.Spacing.islandInset, gap: Theme.Spacing.xl)
+                let question = layout.question(CGSize(width: 420, height: 130))
+                let art = IslandHeadlineArt(notice, notch: nil, frosted: look == .frosted)
+                let report = layout.reports([art.size], question: question)[0]
+                precondition(report.maxY == question.minY - Theme.Spacing.xl)
+                canvas.show(glance: nil, level: nil, notice: notice, statuses: [], expanded: false, notch: notch)
+                canvas.progressReport = nil
+                let background = pixels(bitmap(in: screen, scale: 2) { canvas.draw(screen) })
+                let expected = pixels(bitmap(in: screen, scale: 2) {
+                    canvas.draw(screen)
+                    art.draw(in: report)
+                })
+                canvas.progressReport = (art, report)
+                let drawn = pixels(bitmap(in: screen, scale: 2) { canvas.draw(screen) })
+                precondition(drawn == expected && drawn != background, "Progress paints only in the report slot")
+            }
         }
     }
 

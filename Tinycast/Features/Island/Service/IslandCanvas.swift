@@ -12,6 +12,7 @@ final class IslandCanvas: NSView {
     private var leaving: IslandHeadlineArt?
     /// The palette or a report owns the grown shape, so no notice line draws inside it.
     var covered = false
+    var progressReport: (art: IslandHeadlineArt, frame: CGRect)?
     var drawnLine: IslandHeadlineArt? { covered ? nil : headline ?? leaving }
     var restWidth: CGFloat = 0
     var restHeight: CGFloat = 1
@@ -90,11 +91,13 @@ final class IslandCanvas: NSView {
         let bounds = outline.boundingBoxOfPath
         if covered { leaving = nil }
         let line = drawnLine
-        guard glance != nil || expansion != nil || line != nil else { return }
+        let compact = covered && glance is IslandNoticeArt ? nil : glance
+        guard compact != nil || expansion != nil || line != nil || progressReport != nil else { return }
         let travel = glanceWidth - restWidth
         context.saveGState()
         context.addPath(outline)
         context.clip()
+        if let progressReport { progressReport.art.draw(in: progressReport.frame) }
         let grown = abs(travel) < 1 ? 1 : min(max((bounds.width - restWidth) / travel, 0), 1)
         let expanding = expansionTravel
         // A layer, because NSImage.draw resets the context's alpha and glyphs ignored the fade.
@@ -105,10 +108,10 @@ final class IslandCanvas: NSView {
             draw()
             context.endTransparencyLayer()
         }
-        if let glance {
+        if let compact {
             fade(grown * (1 - expanding)) {
-                glance.draw(in: CGRect(x: bounds.minX, y: bounds.minY, width: bounds.width,
-                                       height: min(bounds.maxY, self.bounds.height) - bounds.minY))
+                compact.draw(in: CGRect(x: bounds.minX, y: bounds.minY, width: bounds.width,
+                                        height: min(bounds.maxY, self.bounds.height) - bounds.minY))
             }
         }
         if let expansion {
