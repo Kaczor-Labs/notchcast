@@ -1,0 +1,19 @@
+diff --git a/Tinycast/Features/Settings/AppSettings.swift b/Tinycast/Features/Settings/AppSettings.swift
+index cb903c08d..6766352b1 100644
+--- a/Tinycast/Features/Settings/AppSettings.swift
++++ b/Tinycast/Features/Settings/AppSettings.swift
+@@ -819,6 +819,14 @@ final class AppSettings {
+         case .iCloudSyncEnabled: adopt(\.iCloudSyncEnabled, from: stored)
+         case .iCloudSyncDisabledCategories: adopt(\.iCloudSyncDisabledCategories, from: stored)
+         case .allowedDeepLinks: adopt(\.allowedDeepLinks, from: stored)
++        case .islandShowsInCaptures: adopt(\.islandShowsInCaptures, from: stored)
++        case .islandOutlineWhenOpen: adopt(\.islandOutlineWhenOpen, from: stored)
++        case .islandOpensOnHover: adopt(\.islandOpensOnHover, from: stored)
++        case .islandPosition: adopt(\.islandPosition, from: stored)
++        case .dictationCleansUp: adopt(\.dictationCleansUp, from: stored)
++        case .dictationCleanupPrompt: adopt(\.dictationCleanupPrompt, from: stored)
++        case .dictationKeepsHistory: adopt(\.dictationKeepsHistory, from: stored)
++        case .dictationCleanupModel: break
+         // Read by the AI, Quick Actions and MCP stores, which reload themselves.
+         case .aiInstalledProviders, .aiConnections, .aiDefaultModel, .aiWebSearch, .aiChoices,
+             .aiExpandsReasoning, .aiSystemPrompt, .aiSystemPromptEnabled, .aiRetention, .aiOpensTo,
