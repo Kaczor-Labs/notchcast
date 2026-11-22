@@ -53,7 +53,7 @@ struct NotchcastSettingsView: View {
                 }
             }
         } header: {
-            Text("\(detail.item.title) Options", tableName: "Notchcast")
+            Text(detail.item.optionsTitle ?? detail.item.title)
         }
     }
 

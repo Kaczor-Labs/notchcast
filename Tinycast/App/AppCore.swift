@@ -290,6 +290,8 @@ final class AppCore {
             },
             saveSelection: { UserDefaults.standard.set($0?.rawValue, forKey: noteSelectionKey) })
         hotKeys.isHidden = NotchcastHiddenHotKeys.hides
+        hotKeys.reconcileHiddenBindings = NotchcastHiddenHotKeys.reconcileBindings
+        hotKeys.onBindingWritten = NotchcastHiddenHotKeys.bindingWritten
     }
 
     func start(launchedByUser: Bool) {
@@ -583,9 +585,7 @@ final class AppCore {
             return snippetsStore.record(id: id)?.snippet.name
         case .extensionCommand(let entryID):
             return appIndex.apps.first { $0.kind == .extensionCommand && $0.id == entryID }?.name
-        case .notchcastCommand(let entryID):
-            return appIndex.apps.first { $0.id == entryID }?.name
-        case .togglePalette, .dictation, .command, .systemAction, .windowCommand:
+        case .togglePalette, .dictation, .command, .systemAction, .windowCommand, .notchcastCommand:
             return nil
         }
     }

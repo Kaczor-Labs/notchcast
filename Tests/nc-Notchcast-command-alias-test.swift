@@ -186,7 +186,7 @@ enum IconCache {
     static func observeStyle() {}
     static func icon(for source: EntryIcon, fileURL: URL) -> NSImage { NSImage() }
 }
-enum CommandID: String, CaseIterable, Sendable {
+enum CommandID: String, CaseIterable, Codable, Sendable {
     case fixture
     var name: String { rawValue }
     var sfSymbol: String { "" }
@@ -234,7 +234,7 @@ typealias CustomCommand = OtherEntry<CommandTag>
 typealias Quicklink = OtherEntry<QuicklinkTag>
 typealias AppleShortcut = OtherEntry<ShortcutTag>
 struct SystemAction: Sendable {
-    enum ID: String, CaseIterable, Sendable { case fixture }
+    enum ID: String, CaseIterable, Codable, Sendable { case fixture }
     var id = ID.fixture
     var entryID = ""
     var name = ""
@@ -248,7 +248,7 @@ enum SystemActionCatalog {
     static func action(id: SystemAction.ID) -> SystemAction { SystemAction() }
 }
 struct WindowCommand: Sendable {
-    enum ID: String, CaseIterable, Sendable { case fixture }
+    enum ID: String, CaseIterable, Codable, Sendable { case fixture }
     var id = ID.fixture
     var entryID = ""
     var name = ""

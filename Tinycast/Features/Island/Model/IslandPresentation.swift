@@ -157,6 +157,23 @@ struct IslandStatus: Equatable, Sendable {
     var label: String
     /// Nil inks the glyph as text; the text itself never takes the tone.
     var tone: IslandTone?
+
+    static func visible(in statuses: [Self]) -> [Self] {
+        var winnerBySymbol: [String: Int] = [:]
+        for (index, status) in statuses.enumerated() {
+            if let winner = winnerBySymbol[status.symbol], statuses[winner].urgency >= status.urgency { continue }
+            winnerBySymbol[status.symbol] = index
+        }
+        return statuses.indices.filter { winnerBySymbol[statuses[$0].symbol] == $0 }.map { statuses[$0] }
+    }
+
+    private var urgency: Int {
+        switch tone {
+        case nil: 0
+        case .warning: 1
+        case .critical: 2
+        }
+    }
 }
 
 /// An add-on's pill-menu row; an unchecked row keeps its check column empty, so rows line up.

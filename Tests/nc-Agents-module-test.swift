@@ -60,11 +60,11 @@ func claudeAnswers(usage answer: String) -> [(match: String, reply: [String])] {
      (#""subtype":"get_usage""#, [control("other", "{}"), answer])]
 }
 
-func claudeReader(_ folder: URL, cli: URL?, directory: String = "", timeout: Duration = .seconds(10)) -> ClaudeUsageReader {
+func claudeReader(_ folder: URL, cli: URL?, directory: String = "") -> ClaudeUsageReader {
     let base = ["PATH": "/usr/bin:/bin", "CLAUDE_CODE_ENTRYPOINT": "cli", "ANTHROPIC_API_KEY": "secret",
                 "CLAUDE_CONFIG_DIR": "/elsewhere", "CLAUDECODE": "1", "HOME": folder.path]
     return ClaudeUsageReader(
-        name: "C1", launch: ClaudeLaunch(directory: directory), home: folder, timeout: timeout, environment: base,
+        name: "C1", launch: ClaudeLaunch(directory: directory), home: folder, environment: base,
         now: clock, locate: { cli })
 }
 
@@ -135,62 +135,87 @@ func claudeFailures() async throws {
     print("claude failures: ok")
 }
 
-/// A stand-in that ignores SIGTERM and never answers; it names its process first.
-func stubbornCLI(in folder: URL) throws -> URL {
-    let url = folder.appending(path: "claude")
-    try "#!/bin/sh\necho $$ > '\(folder.path)/pid'\ntrap '' TERM\nexec /bin/sleep 30\n"
-        .write(to: url, atomically: true, encoding: .utf8)
-    try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: url.path)
-    return url
-}
-
-func pid(in folder: URL) -> pid_t? {
-    (try? String(contentsOf: folder.appending(path: "pid"), encoding: .utf8))
-        .flatMap { pid_t($0.trimmingCharacters(in: .whitespacesAndNewlines)) }
-}
-
-func isGone(_ pid: pid_t) -> Bool { kill(pid, 0) == -1 && errno == ESRCH }
-
-/// Watches a real process from outside, so it waits on real time; `cap` bounds each wait.
-func eventually(within cap: Duration = .seconds(3), _ condition: () -> Bool) async -> Bool {
-    let clock = ContinuousClock()
-    let until = clock.now + cap
-    while !condition() {
-        guard clock.now < until else { return false }
-        try? await Task.sleep(for: .milliseconds(10))
-    }
-    return true
-}
-
-func conversationEnds() async throws {
+func conversationEnds(cancel: Bool) async throws {
     let folder = try scratch()
-    let silent = try fakeCLI(in: folder, named: "claude", answers: [])
-    // The deadline is a real timer inside the conversation; 300 ms caps this one wait.
-    let late = try await claudeReader(folder, cli: silent, timeout: .milliseconds(300)).read()
-    check(late.state == .unavailable, "a CLI that never answers costs the deadline: \(late)")
+    defer { try? FileManager.default.removeItem(at: folder) }
 
-    let clock = ContinuousClock()
-    let deaf = try scratch()
-    var started = clock.now
-    let held = try await claudeReader(deaf, cli: try stubbornCLI(in: deaf), timeout: .milliseconds(300)).read()
-    check(held.state == .unavailable && clock.now - started < .seconds(2),
-          "the deadline holds against a CLI that ignores SIGTERM: \(clock.now - started)")
-    guard let deafPID = pid(in: deaf) else { fatalError("the stand-in never started") }
-    check(await eventually { isGone(deafPID) }, "and it is killed")
+    func openFIFO(_ path: String) -> FileHandle {
+        check(mkfifo(path, 0o600) == 0, "created the stand-in's FIFO")
+        let descriptor = open(path, O_RDWR | O_CLOEXEC)
+        check(descriptor >= 0, "opened the stand-in's FIFO")
+        return FileHandle(fileDescriptor: descriptor, closeOnDealloc: true)
+    }
 
-    let cancelled = try scratch()
-    let cli = try stubbornCLI(in: cancelled)
-    let reading = Task { try await claudeReader(cancelled, cli: cli).read() }
-    check(await eventually { pid(in: cancelled) != nil }, "the stand-in starts")
-    started = clock.now
-    reading.cancel()
-    do {
-        _ = try await reading.value
-        check(false, "a cancelled read returns no account")
-    } catch is CancellationError {}
-    check(clock.now - started < .seconds(2), "cancelling returns without waiting on the child: \(clock.now - started)")
-    check(await eventually { isGone(pid(in: cancelled)!) }, "and the child is killed")
-    print("conversation ends: ok")
+    let ready = folder.appending(path: "ready").path
+    let probe = folder.appending(path: "probe").path
+    let fifo = openFIFO(ready)
+    let probeInput = openFIFO(probe)
+    defer {
+        fifo.readabilityHandler = nil
+        try? fifo.close()
+        try? probeInput.close()
+    }
+    let (replies, reply) = AsyncStream.makeStream(of: pid_t.self)
+    fifo.readabilityHandler = { file in
+        let text = String(bytes: file.availableData, encoding: .utf8)
+        guard let text, let pid = pid_t(text.trimmingCharacters(in: .whitespacesAndNewlines)), pid > 0 else {
+            fatalError("the stand-in did not report its PID")
+        }
+        reply.yield(pid)
+    }
+
+    let url = folder.appending(path: "claude")
+    try """
+    #!/bin/sh
+    trap '' TERM
+    exec 3<'\(probe)'
+    IFS= read -r request || exit 1
+    printf '%s\\n' "$$" > '\(ready)'
+    while IFS= read -r line; do :; done
+    IFS= read -r probe <&3 || exit 1
+    printf '%s\\n' "$$" > '\(ready)'
+    IFS= read -r hold <&3
+    """.write(to: url, atomically: true, encoding: .utf8)
+    try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: url.path)
+
+    let (deadline, expire) = AsyncStream.makeStream(of: Void.self)
+    let (killDelay, releaseKill) = AsyncStream.makeStream(of: Void.self)
+    defer { expire.finish() }
+    defer { releaseKill.finish() }
+    var reader = claudeReader(folder, cli: url)
+    reader.waitForDeadline = {
+        var event = deadline.makeAsyncIterator()
+        guard await event.next() != nil else { throw CancellationError() }
+    }
+    reader.waitBeforeKill = {
+        var event = killDelay.makeAsyncIterator()
+        _ = await event.next()
+    }
+    let reading = Task { [reader] in try await reader.read() }
+    var events = replies.makeAsyncIterator()
+    guard let pid = await events.next() else { fatalError("the stand-in did not report its PID") }
+
+    let processExit = DispatchSource.makeProcessSource(identifier: pid, eventMask: .exit, queue: .global())
+    processExit.setEventHandler { reply.finish() }
+    processExit.activate()
+    defer { processExit.cancel() }
+
+    if cancel {
+        reading.cancel()
+        do {
+            _ = try await reading.value
+            check(false, "a cancelled read returns no account")
+        } catch is CancellationError {}
+    } else {
+        expire.yield(())
+        let held = try await reading.value
+        check(held.state == .unavailable, "the deadline ends a silent CLI: \(held)")
+    }
+    try probeInput.write(contentsOf: Data("alive?\n".utf8))
+    check(await events.next() == pid, "the read returns while the child is still alive")
+    releaseKill.yield(())
+    check(await events.next() == nil, "the child exits despite ignoring SIGTERM")
+    print("conversation ends on \(cancel ? "cancellation" : "deadline"): ok")
 }
 
 func codexAnswers(account: String, limits: String) -> [(match: String, reply: [String])] {
@@ -282,7 +307,8 @@ enum AgentsModuleTest {
         try await claudeDefaultAccount()
         try await claudeChosenFolder()
         try await claudeFailures()
-        try await conversationEnds()
+        try await conversationEnds(cancel: false)
+        try await conversationEnds(cancel: true)
         try await codex()
         try feedStore()
         try await locator()

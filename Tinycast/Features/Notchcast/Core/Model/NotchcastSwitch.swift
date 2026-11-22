@@ -19,4 +19,5 @@ struct NotchcastSwitch: Sendable, Identifiable {
     var requiredGrants: Set<NotchcastGrant> = []
     var listedWhenAnyEnabled: [String] = []
     var searchTerms: [String] = []
+    var optionsTitle: String? = nil
 }

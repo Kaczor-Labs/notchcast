@@ -287,8 +287,9 @@ func realHatchZip() async throws {
             let job = ArchiveJob(id: UUID(), archive: archive, inPlace: false)
             seen.withLock { $0.removeAll() }
             do {
-                let placed = try await extractor.extract(
+                let staged = try await extractor.extract(
                     job, askPassword: { _ in attempt }, askInPlace: { _ in false }, onInPlace: { _ in })
+                let placed = try extractor.place(staged.job, stem: staged.stem)
                 check(attempt == secret, "\(name): a wrong password extracted")
                 let stem = URL(filePath: name).deletingPathExtension().lastPathComponent
                 check(placed?.lastPathComponent == stem, "\(name): \(String(describing: placed))")
