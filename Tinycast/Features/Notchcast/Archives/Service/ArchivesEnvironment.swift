@@ -12,5 +12,5 @@ struct ArchivesEnvironment {
     /// True makes Notchcast the default app for archives; false hands back what it still holds.
     var setDefaultApp: (Bool) -> Void
     var reveal: (URL) -> Void
-    var pickArchives: () -> [URL]
+    var pickArchives: () async -> [URL]
 }
