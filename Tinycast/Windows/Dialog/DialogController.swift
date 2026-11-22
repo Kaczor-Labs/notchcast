@@ -11,6 +11,7 @@ final class DialogController: NSObject, NSWindowDelegate {
     private var panel: DialogPanel?
     private var accessory: DialogAccessory?
     private var continuation: CheckedContinuation<Int, Never>?
+    private var questionID = 0
     private var secureInput = SecureInputHold()
     #if DEBUG
     /// The open question, so a scene can tell which one an island tap raised.
@@ -120,7 +121,7 @@ final class DialogController: NSObject, NSWindowDelegate {
         return state.text
     }
 
-    func present(_ request: DialogRequest) async -> Int {
+    private func open(_ request: DialogRequest) async -> Int {
         guard continuation == nil else { return request.cancelIndex }
         return await withCheckedContinuation { continuation in
             self.continuation = continuation
@@ -196,9 +197,21 @@ final class DialogController: NSObject, NSWindowDelegate {
         continuation.resume(returning: index)
     }
 
-    /// Cancels the open question only while it still is `state`'s, so a stopped job's prompt closes.
-    func dismissSecret(_ state: SecretFieldState) {
-        guard case .secret(let open) = accessory, open === state else { return }
+    func present(_ request: DialogRequest) async -> Int {
+        guard continuation == nil else { return request.cancelIndex }
+        questionID += 1
+        let id = questionID
+        let index = await withTaskCancellationHandler {
+            guard !Task.isCancelled else { return request.cancelIndex }
+            return await open(request)
+        } onCancel: {
+            Task { @MainActor [weak self] in self?.dismissQuestion(id) }
+        }
+        return Task.isCancelled ? request.cancelIndex : index
+    }
+
+    private func dismissQuestion(_ id: Int) {
+        guard id == questionID else { return }
         panel?.onKey?(.cancel)
     }
 

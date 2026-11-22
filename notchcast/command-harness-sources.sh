@@ -21,6 +21,8 @@ fi
 # `frosted(in:)` paints the island's black through the island glass, and Theme reads OBSIDIAN tokens.
 if [[ " $* " == *" Tinycast/DesignSystem/Theme.swift "* || " $* " == *" Tinycast/Features/Island/Service/IslandPaletteSurface.swift "* ]]; then
     [[ " $* " == *" Tinycast/Features/Island/Service/IslandPaletteSurface.swift "* ]] || set -- "$@" Tinycast/Features/Island/Service/IslandPaletteSurface.swift
+    [[ " $* " == *" Tinycast/Features/Island/Model/IslandKeyline.swift "* ]] || set -- "$@" Tinycast/Features/Island/Model/IslandKeyline.swift
+    [[ " $* " == *" Tinycast/Features/Island/Model/IslandLook.swift "* ]] || set -- "$@" Tinycast/Features/Island/Model/IslandLook.swift
     [[ " $* " == *" Tinycast/Features/Notchcast/NotchTheme.swift "* ]] || set -- "$@" Tinycast/Features/Notchcast/NotchTheme.swift
     [[ " $* " == *" notchcast/vendor/Obsidian/ObsidianTokens.swift "* ]] || set -- "$@" notchcast/vendor/Obsidian/ObsidianTokens.swift
 fi
