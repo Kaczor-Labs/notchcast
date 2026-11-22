@@ -25,7 +25,7 @@ enum NotchcastHiddenHotKeys {
             }
         }
         // Add-on bindings can load later, so keep tracking a returned chord until it is rewritten.
-        if retained != remembered { defaults.set(retained.sorted(), forKey: hiddenBindingKeys) }
+        if retained != remembered { storeHiddenKeys(retained, in: defaults) }
         for action in returning {
             guard let binding = hotKeys.binding(for: action),
                 hotKeys.conflictOwner(of: binding, excluding: action, among: live) != nil
@@ -34,15 +34,22 @@ enum NotchcastHiddenHotKeys {
         }
     }
 
-    static func forgetHiddenBinding(_ action: HotKeyAction, _ defaults: UserDefaults) {
-        guard var keys = defaults.stringArray(forKey: hiddenBindingKeys),
-            let index = keys.firstIndex(of: action.defaultsKey)
-        else { return }
-        keys.remove(at: index)
+    static func bindingWritten(_ action: HotKeyAction, isHidden: Bool, defaults: UserDefaults) {
+        let key = action.defaultsKey
+        var keys = Set(defaults.stringArray(forKey: hiddenBindingKeys) ?? [])
+        if isHidden, defaults.string(forKey: key) != nil {
+            guard keys.insert(key).inserted else { return }
+        } else {
+            guard keys.remove(key) != nil else { return }
+        }
+        storeHiddenKeys(keys, in: defaults)
+    }
+
+    private static func storeHiddenKeys(_ keys: Set<String>, in defaults: UserDefaults) {
         if keys.isEmpty {
             defaults.removeObject(forKey: hiddenBindingKeys)
         } else {
-            defaults.set(keys, forKey: hiddenBindingKeys)
+            defaults.set(keys.sorted(), forKey: hiddenBindingKeys)
         }
     }
 

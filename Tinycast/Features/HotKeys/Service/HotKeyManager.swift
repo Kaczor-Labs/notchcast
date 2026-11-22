@@ -56,7 +56,7 @@ final class HotKeyManager {
     /// A hidden feature's stored chord owns nothing, so the recorder never names it.
     var isHidden: ((HotKeyAction) -> Bool)? { didSet { candidateActionsCache = nil } }
     var reconcileHiddenBindings: ((HotKeyManager, [HotKeyAction], UserDefaults) -> Void)?
-    var onBindingWritten: ((HotKeyAction, UserDefaults) -> Void)?
+    var onBindingWritten: ((HotKeyAction, Bool, UserDefaults) -> Void)?
 
     /// The recorder currently capturing, which also pauses both engines.
     var recordingAction: HotKeyAction? {
@@ -212,7 +212,6 @@ final class HotKeyManager {
     func setBinding(_ binding: HotKeyBinding?, for action: HotKeyAction) {
         if action == .dictation, binding != self.binding(for: action) { onDictationCancelled?() }
         let previous = bindings[action]
-        onBindingWritten?(action, defaults)
         clearSecureInputEquivalents()
         if let binding,
             let data = try? encoder.encode(binding),
@@ -224,6 +223,7 @@ final class HotKeyManager {
             bindings[action] = nil
             defaults.removeObject(forKey: action.defaultsKey)
         }
+        onBindingWritten?(action, isHidden?(action) == true, defaults)
         revision &+= 1
         // Unregister unconditionally: the previous binding may have been a combo.
         center.unregister(id: action.defaultsKey)

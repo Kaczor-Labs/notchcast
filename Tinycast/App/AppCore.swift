@@ -291,7 +291,7 @@ final class AppCore {
             saveSelection: { UserDefaults.standard.set($0?.rawValue, forKey: noteSelectionKey) })
         hotKeys.isHidden = NotchcastHiddenHotKeys.hides
         hotKeys.reconcileHiddenBindings = NotchcastHiddenHotKeys.reconcileBindings
-        hotKeys.onBindingWritten = NotchcastHiddenHotKeys.forgetHiddenBinding
+        hotKeys.onBindingWritten = NotchcastHiddenHotKeys.bindingWritten
     }
 
     func start(launchedByUser: Bool) {

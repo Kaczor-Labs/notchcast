@@ -185,10 +185,8 @@ struct NotchcastHotKeysTests {
         let hidden = HotKeyAction.settingsPane(bundleID: "pane.hidden")
         let addOn = HotKeyAction.notchcastCommand(entryID: "command:nc-probe")
         let combo = HotKeyBinding.combo(KeyShortcut(carbonKeyCode: kVK_ANSI_7, carbonModifiers: controlKey))
-        let manager = HotKeyManager(defaults: defaults)
-        manager.setBinding(combo, for: hidden)
-
         let hiddenLaunch = launch(defaults, hidePanes: true)
+        hiddenLaunch.setBinding(combo, for: hidden)
         hiddenLaunch.extraActions = [addOn]
         hiddenLaunch.setBinding(combo, for: addOn)
 
@@ -206,8 +204,9 @@ struct NotchcastHotKeysTests {
     static func launch(_ defaults: UserDefaults, hidePanes: Bool, quicklinkIDs: Set<UUID> = []) -> HotKeyManager {
         let manager = HotKeyManager(defaults: defaults)
         manager.isHidden = { hidePanes && NotchcastHiddenHotKeys.hides($0) }
+        manager.allowsAction = { !hidePanes || !NotchcastHiddenHotKeys.hides($0) }
         manager.reconcileHiddenBindings = NotchcastHiddenHotKeys.reconcileBindings
-        manager.onBindingWritten = NotchcastHiddenHotKeys.forgetHiddenBinding
+        manager.onBindingWritten = NotchcastHiddenHotKeys.bindingWritten
         manager.start(
             customCommandIDs: [], quicklinkIDs: quicklinkIDs, windowLayoutIDs: [],
             windowRoomIDs: [], customWindowSizeIDs: [], quickActionIDs: [])
