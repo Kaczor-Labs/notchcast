@@ -8,225 +8,9 @@
 // notchcast-sources: Tinycast/Features/Notchcast/PastePlainText/Service/PastePlainTextModule.swift
 // notchcast-sources: Tinycast/Features/Notchcast/PastePlainText/Service/PastePlainTextSystem.swift
 // notchcast-sources: Tests/NotchcastDictationFixture.swift
+// notchcast-sources: Tests/nc-PastePlainText-fixture.swift
 
-import CoreGraphics
 import Foundation
-
-// The shipped `live` is left out: this one stands in, so `makeModule` runs as shipped.
-
-/// A pasteboard whose change count moves on every write, as `NSPasteboard` does.
-@MainActor
-final class FakeBoard: PlainPasteBoard {
-    var items: [[PlainPasteEntry]] = []
-    var changeCount = 0
-    var ownWrites = 0
-    var rtfReads = 0
-    /// Its data reads nil, as a lazy provider that fails does.
-    var nilType: String?
-    /// Another app copies while the snapshot is being read.
-    var bumpsDuringRead = false
-    /// Another app copies right after the text is read, before the snapshot.
-    var bumpsAfterText = false
-    /// Writes that clear the board and then fail.
-    var writeFailures = 0
-    let ownMarker = "com.tinycast.internal"
-
-    var types: [String] { items.flatMap { $0.map(\.type) } }
-    var string: String? {
-        defer { if bumpsAfterText { changeCount += 1 } }
-        return entry("public.utf8-plain-text").map { utf8($0) }
-    }
-    func rtfText() -> String? {
-        rtfReads += 1
-        return entry("public.rtf").map { "rtf:" + utf8($0) }
-    }
-    func rtfdText() -> String? { entry("com.apple.flat-rtfd").map { "rtfd:" + utf8($0) } }
-    func htmlText() -> String? { entry("public.html").map { "html:" + utf8($0) } }
-
-    var itemTypes: [[String]] { items.map { $0.map(\.type) } }
-
-    func data(item: Int, type: String) -> Data? {
-        if bumpsDuringRead { changeCount += 1 }
-        guard type != nilType else { return nil }
-        return items[item].first { $0.type == type }?.data
-    }
-
-    func write(_ items: [[PlainPasteEntry]], ifChangeCount expected: Int) -> PlainPasteWrite {
-        guard changeCount == expected else { return .superseded }
-        guard writeFailures == 0 else {
-            writeFailures -= 1
-            return .failed(changeCount: replace([]))
-        }
-        ownWrites += 1
-        return .written(changeCount: replace(items))
-    }
-
-    /// Someone else copying: history would record this one.
-    @discardableResult
-    func copy(_ pairs: [(String, String)]...) -> Int {
-        replace(pairs.map { $0.map { PlainPasteEntry(type: $0.0, data: Data($0.1.utf8)) } })
-    }
-
-    private func replace(_ new: [[PlainPasteEntry]]) -> Int {
-        items = new
-        changeCount += 1
-        return changeCount
-    }
-
-    private func utf8(_ data: Data) -> String { String(bytes: data, encoding: .utf8) ?? "" }
-
-    private func entry(_ type: String) -> Data? { items.lazy.flatMap { $0 }.first { $0.type == type }?.data }
-}
-
-final class FakeTimer: PlainPasteTimer {
-    let delay: Duration
-    let due: ContinuousClock.Instant
-    let work: @MainActor () -> Void
-    var isCancelled = false
-
-    init(delay: Duration, due: ContinuousClock.Instant, work: @escaping @MainActor () -> Void) {
-        self.delay = delay
-        self.due = due
-        self.work = work
-    }
-
-    func cancel() { isCancelled = true }
-}
-
-/// Time moves only when a timer fires or a test sleeps the Mac.
-@MainActor
-final class FakeSystem {
-    let board = FakeBoard()
-    var pastes: [String?] = []
-    var timers: [FakeTimer] = []
-    var history: [String] = []
-    var now = ContinuousClock.now
-    /// Polls that still find the hotkey's keys down.
-    var heldPolls = 0
-    var hasMatchStyle = false
-    var matchStylePresses = 0
-
-    var live: [FakeTimer] { timers.filter { !$0.isCancelled } }
-
-    func schedule(_ delay: Duration, _ work: @escaping @MainActor () -> Void) -> FakeTimer {
-        let timer = FakeTimer(delay: delay, due: now + delay, work: work)
-        timers.append(timer)
-        return timer
-    }
-
-    /// Runs the earliest live timer at its due time.
-    func fire() {
-        guard let next = live.min(by: { $0.due < $1.due }) else { preconditionFailure("no timer to fire") }
-        timers.removeAll { $0 === next }
-        now = max(now, next.due)
-        next.work()
-    }
-
-    func fireAll() {
-        while !live.isEmpty { fire() }
-    }
-}
-
-@MainActor let fake = FakeSystem()
-
-extension PastePlainTextSystem {
-    static let live = PastePlainTextSystem(
-        makeBoard: { fake.board },
-        postCommandV: { fake.pastes.append(fake.board.string ?? fake.board.items.first?.first?.type) },
-        modifiersHeld: {
-            guard fake.heldPolls > 0 else { return false }
-            fake.heldPolls -= 1
-            return true
-        },
-        pressMatchStyle: {
-            fake.matchStylePresses += 1
-            return fake.hasMatchStyle
-        },
-        now: { fake.now },
-        after: { fake.schedule($0, $1) }
-    )
-}
-
-final class FakeSession: NotchcastTapSession {
-    let mask: CGEventMask
-    let options: CGEventTapOptions
-    let router: NotchcastTapRouter
-    var isRunning = true
-
-    init(_ request: NotchcastTapSessionRequest) {
-        mask = request.mask
-        options = request.options
-        router = request.router
-    }
-
-    func stop() { isRunning = false }
-}
-
-@MainActor
-final class RecordingPresenter: IslandPresenting {
-    var posts: [IslandNotice] = []
-    func showLevel(_ level: IslandLevel) {}
-    func post(_ notice: IslandNotice, onTap: (@MainActor () -> Void)?) { posts.append(notice) }
-    func end(notice id: String) {}
-    func setStatus(_ status: IslandStatus?, for id: String, onTap: (@MainActor () -> Void)?) {}
-    func setMenuRows(_ rows: [IslandMenuRow], owner: String, onSelect: @escaping @MainActor (String) -> Void) {}
-}
-
-@MainActor var trusted = true
-
-@MainActor
-final class Rig {
-    let suite = "nc-PastePlainText-module-test.\(UUID())"
-    let defaults: UserDefaults
-    let presenter = RecordingPresenter()
-    let controller: NotchcastController
-
-    init(on: Bool) {
-        defaults = UserDefaults(suiteName: suite)!
-        if on { defaults.set(true, forKey: "pastePlain") }
-        let hub = NotchcastTapHub(syntheticTag: 0x54494E59, isTrusted: { trusted }, makeSession: { FakeSession($0) })
-        controller = NotchcastController(
-            addons: [PastePlainTextAddon.self], defaults: defaults, hub: hub, dictation: FakeDictation(),
-            services: NotchcastServices(
-                clipboard: NotchcastClipboardMutation(
-                    prepare: { fake.history.append("prepare \(fake.board.changeCount)") },
-                    synchronize: { fake.history.append("sync \($0)") })),
-            presenter: presenter)
-        controller.start()
-    }
-
-    @discardableResult
-    func run() -> Bool { controller.run(entryID: "command:nc-paste-plain-text") }
-
-    func finish() {
-        controller.stop()
-        UserDefaults().removePersistentDomain(forName: suite)
-    }
-}
-
-@MainActor
-func reset() {
-    let board = fake.board
-    board.items = []
-    board.ownWrites = 0
-    board.rtfReads = 0
-    board.nilType = nil
-    board.bumpsDuringRead = false
-    board.bumpsAfterText = false
-    board.writeFailures = 0
-    fake.pastes = []
-    fake.timers = []
-    fake.history = []
-    fake.heldPolls = 0
-    fake.hasMatchStyle = false
-    fake.matchStylePresses = 0
-    trusted = true
-}
-
-let styled: [(String, String)] = [("public.html", "<b>Hi</b>"), ("public.rtf", "Hi"), ("public.utf8-plain-text", "Hi")]
-let plainHi: [[PlainPasteEntry]] = [[
-    .init(type: "public.utf8-plain-text", data: Data("Hi".utf8)), .init(type: "com.tinycast.internal", data: Data()),
-]]
 
 @main
 enum PastePlainTextModuleTests {
@@ -239,8 +23,11 @@ enum PastePlainTextModuleTests {
         readGap()
         nativeRoute()
         heldKeys()
+        heldKeysTimeout()
         keystrokeGuard()
         secondPress()
+        reenteredPress()
+        reenteredPressFiresDuringRead()
         print("nc-PastePlainText-module-test: OK")
     }
 
@@ -478,6 +265,31 @@ enum PastePlainTextModuleTests {
         rig.finish()
     }
 
+    @MainActor
+    static func heldKeysTimeout() {
+        reset()
+        let rig = Rig(on: true)
+        fake.board.copy(styled)
+        let original = fake.board.items
+        fake.heldPolls = 1000
+
+        rig.run()
+        fake.fire()
+        for _ in 0..<100 {
+            precondition(fake.live.map(\.delay) == [.milliseconds(15)] && fake.pastes.isEmpty,
+                         "the held hotkey gets 100 waits of 15 ms before ⌘V")
+            fake.fire()
+        }
+        precondition(fake.live.map(\.delay) == [.milliseconds(60)] && fake.pastes.isEmpty,
+                     "⌘V settles for 60 ms even with the hotkey still held")
+        fake.fire()
+        precondition(fake.pastes == ["Hi"] && fake.live.map(\.delay) == [.milliseconds(500)],
+                     "one ⌘V goes out, then the restore is scheduled")
+        fake.fire()
+        precondition(fake.board.items == original && fake.live.isEmpty, "the original clipboard is restored")
+        rig.finish()
+    }
+
     /// ⌘V goes out only into the board and the moment it was meant for.
     @MainActor
     static func keystrokeGuard() {
@@ -547,5 +359,45 @@ enum PastePlainTextModuleTests {
         fake.fireAll()
         precondition(fake.pastes == ["Hi", "Hi", "Hi"] && fake.board.items == original, "one more paste, original back")
         rig.finish()
+    }
+
+    @MainActor
+    static func reenteredPress() {
+        reset()
+        let rig = Rig(on: true)
+        fake.board.copy([("public.html", "Hi")])
+        let original = fake.board.items
+        fake.board.onHTMLRead = {
+            fake.board.onHTMLRead = nil
+            rig.run()
+        }
+
+        rig.run()
+        precondition(fake.live.count == 1, "re-entry during HTML import left \(fake.live.count) live timers")
+        fake.fireAll()
+        precondition(fake.pastes == ["html:Hi"] && fake.board.items == original, "one paste, original restored")
+        rig.finish()
+    }
+
+    @MainActor
+    static func reenteredPressFiresDuringRead() {
+        reset()
+        let rig = Rig(on: true)
+        defer { rig.finish() }
+        fake.board.copy([("public.html", "Hi")])
+        let original = fake.board.items
+        fake.board.onHTMLRead = {
+            fake.board.onHTMLRead = nil
+            rig.run()
+            precondition(fake.live.map(\.delay) == [.milliseconds(80)], "the second press schedules its focus timer")
+            fake.fire()
+            precondition(fake.live.map(\.delay) == [.milliseconds(60)] && fake.board.items != original,
+                         "the second press lends the plain text before the first read returns")
+        }
+
+        rig.run()
+        fake.fireAll()
+        precondition(fake.pastes == ["html:Hi"], "FAIL: the second press's paste was dropped during HTML import")
+        precondition(fake.board.items == original, "the original clipboard is restored after the paste")
     }
 }
