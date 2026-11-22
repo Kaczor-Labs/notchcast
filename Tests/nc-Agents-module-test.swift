@@ -138,51 +138,65 @@ func claudeFailures() async throws {
 func conversationEnds(cancel: Bool) async throws {
     let folder = try scratch()
     defer { try? FileManager.default.removeItem(at: folder) }
+
+    func openFIFO(_ path: String) -> FileHandle {
+        check(mkfifo(path, 0o600) == 0, "created the stand-in's FIFO")
+        let descriptor = open(path, O_RDWR | O_CLOEXEC)
+        check(descriptor >= 0, "opened the stand-in's FIFO")
+        return FileHandle(fileDescriptor: descriptor, closeOnDealloc: true)
+    }
+
     let ready = folder.appending(path: "ready").path
-    check(mkfifo(ready, 0o600) == 0, "created the stand-in's FIFO")
-    let descriptor = open(ready, O_RDWR | O_CLOEXEC)
-    check(descriptor >= 0, "opened the stand-in's FIFO")
-    let fifo = FileHandle(fileDescriptor: descriptor, closeOnDealloc: true)
+    let probe = folder.appending(path: "probe").path
+    let fifo = openFIFO(ready)
+    let probeInput = openFIFO(probe)
     defer {
         fifo.readabilityHandler = nil
         try? fifo.close()
+        try? probeInput.close()
     }
-    let (started, start) = AsyncStream.makeStream(of: pid_t.self)
+    let (replies, reply) = AsyncStream.makeStream(of: pid_t.self)
     fifo.readabilityHandler = { file in
         let text = String(bytes: file.availableData, encoding: .utf8)
-        file.readabilityHandler = nil
-        if let text, let pid = pid_t(text.trimmingCharacters(in: .whitespacesAndNewlines)), pid > 0 {
-            start.yield(pid)
+        guard let text, let pid = pid_t(text.trimmingCharacters(in: .whitespacesAndNewlines)), pid > 0 else {
+            fatalError("the stand-in did not report its PID")
         }
-        start.finish()
+        reply.yield(pid)
     }
 
     let url = folder.appending(path: "claude")
     try """
     #!/bin/sh
     trap '' TERM
-    exec 3<'\(ready)'
+    exec 3<'\(probe)'
     IFS= read -r request || exit 1
     printf '%s\\n' "$$" > '\(ready)'
     while IFS= read -r line; do :; done
+    IFS= read -r probe <&3 || exit 1
+    printf '%s\\n' "$$" > '\(ready)'
     IFS= read -r hold <&3
     """.write(to: url, atomically: true, encoding: .utf8)
     try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: url.path)
 
     let (deadline, expire) = AsyncStream.makeStream(of: Void.self)
+    let (killDelay, releaseKill) = AsyncStream.makeStream(of: Void.self)
     defer { expire.finish() }
+    defer { releaseKill.finish() }
     var reader = claudeReader(folder, cli: url)
     reader.waitForDeadline = {
         var event = deadline.makeAsyncIterator()
         guard await event.next() != nil else { throw CancellationError() }
     }
+    reader.waitBeforeKill = {
+        var event = killDelay.makeAsyncIterator()
+        _ = await event.next()
+    }
     let reading = Task { [reader] in try await reader.read() }
-    var startEvents = started.makeAsyncIterator()
-    guard let pid = await startEvents.next() else { fatalError("the stand-in did not report its PID") }
+    var events = replies.makeAsyncIterator()
+    guard let pid = await events.next() else { fatalError("the stand-in did not report its PID") }
 
-    let (exited, exit) = AsyncStream.makeStream(of: Void.self)
     let processExit = DispatchSource.makeProcessSource(identifier: pid, eventMask: .exit, queue: .global())
-    processExit.setEventHandler { exit.yield(()) }
+    processExit.setEventHandler { reply.finish() }
     processExit.activate()
     defer { processExit.cancel() }
 
@@ -197,8 +211,10 @@ func conversationEnds(cancel: Bool) async throws {
         let held = try await reading.value
         check(held.state == .unavailable, "the deadline ends a silent CLI: \(held)")
     }
-    var exitEvents = exited.makeAsyncIterator()
-    check(await exitEvents.next() != nil, "the child exits despite ignoring SIGTERM")
+    try probeInput.write(contentsOf: Data("alive?\n".utf8))
+    check(await events.next() == pid, "the read returns while the child is still alive")
+    releaseKill.yield(())
+    check(await events.next() == nil, "the child exits despite ignoring SIGTERM")
     print("conversation ends on \(cancel ? "cancellation" : "deadline"): ok")
 }
 
