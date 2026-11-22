@@ -13,7 +13,8 @@ enum FinderToolsAddon: NotchcastAddon {
             subtitle: String(
                 localized: "⌘X then ⌘V moves files instead of copying them.", table: "NotchcastFinderTools"),
             category: .finder,
-            requiredGrants: [.accessibility]
+            requiredGrants: [.accessibility],
+            settingsTitle: String(localized: "Cut and paste", table: "NotchcastFinderTools")
         ),
         NotchcastSwitch(
             id: "finderRename",
@@ -22,7 +23,8 @@ enum FinderToolsAddon: NotchcastAddon {
                 localized: "Rename the selected file or folder from the launcher or with a shortcut you choose.",
                 table: "NotchcastFinderTools"),
             category: .finder,
-            requiredGrants: [.accessibility]
+            requiredGrants: [.accessibility],
+            settingsTitle: String(localized: "Quick rename", table: "NotchcastFinderTools")
         ),
     ]
 

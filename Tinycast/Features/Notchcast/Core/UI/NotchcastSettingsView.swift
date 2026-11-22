@@ -30,7 +30,7 @@ struct NotchcastSettingsView: View {
                         options(detail, anchor: anchor, rows: rows[detail.id, default: []])
                     }
                     if detail.hasCommands {
-                        commandSection(detail.item, commands: commands[detail.id, default: []])
+                        commandSection(detail, commands: commands[detail.id, default: []])
                     }
                 }
             }
@@ -53,11 +53,13 @@ struct NotchcastSettingsView: View {
                 }
             }
         } header: {
-            Text(detail.item.optionsTitle ?? detail.item.title)
+            Text(detail.item.settingsTitle ?? detail.item.title)
         }
     }
 
-    private func commandSection(_ item: NotchcastSwitch, commands: [NotchcastCommand]) -> some View {
+    private func commandSection(
+        _ detail: NotchcastSettingsLayout.Detail, commands: [NotchcastCommand]
+    ) -> some View {
         Section {
             ForEach(commands) { command in
                 let shown = preferences.showsInLauncher(command.id)
@@ -82,7 +84,11 @@ struct NotchcastSettingsView: View {
                 }
             }
         } header: {
-            Text("\(item.title) Commands", tableName: "Notchcast")
+            if detail.hasOptions {
+                Text("Commands")
+            } else {
+                Text(detail.item.settingsTitle ?? detail.item.title)
+            }
         }
     }
 

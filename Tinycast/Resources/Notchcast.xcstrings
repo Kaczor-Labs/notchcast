@@ -1,9 +1,6 @@
 {
   "sourceLanguage" : "en",
   "strings" : {
-    "%@ Commands" : {
-      "shouldTranslate" : false
-    },
     "%@ is off" : {
 
     },

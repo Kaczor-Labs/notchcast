@@ -13,7 +13,7 @@ enum IPhoneBackupAddon: NotchcastAddon {
                 localized: "Asks first, and switching back restores your previous setting.",
                 table: "NotchcastIPhoneBackup"),
             category: .macTweaks,
-            optionsTitle: String(localized: "iPhone backups", table: "NotchcastIPhoneBackup")
+            settingsTitle: String(localized: "iPhone backups", table: "NotchcastIPhoneBackup")
         ),
     ]
 
