@@ -1,4 +1,5 @@
 // notchcast-hosted-only
+// notchcast-sources: Tests/IslandNoticeAuditArtwork.swift
 // notchcast-sources: Tinycast/Platform/Appearance.swift Tinycast/DesignSystem/Theme.swift
 // notchcast-sources: Tinycast/DesignSystem/InterfaceMetrics.swift Tinycast/Features/Notchcast/NotchTheme.swift
 // notchcast-sources: Tinycast/DesignSystem/KeyCapChip.swift Tinycast/DesignSystem/BarButton.swift
@@ -143,15 +144,6 @@ struct NotchcastIslandAuditRenderTest {
         write(name, image.cgImage(forProposedRect: &proposed, context: nil, hints: [.ctm: AffineTransform(scale: 2)]))
     }
 
-    /// The notch headline below the hardware, drawn at the bottom of the grown island.
-    static func renderHeadline(_ name: String, _ art: IslandHeadlineArt) {
-        let box = CGRect(x: 16, y: 16, width: art.size.width, height: art.size.height)
-        writeArt(name, size: CGSize(width: box.width + 32, height: box.height + 32)) { rect in
-            paintPill(rect, pill: NSBezierPath(roundedRect: box, xRadius: 16, yRadius: 16))
-            art.draw(in: box)
-        }
-    }
-
     /// The level band in the report slot: on Frosted it must leave the glass under it unpainted.
     static func renderBand(_ name: String, _ art: IslandLevelArt) {
         let band = IslandLevelBand(frame: CGRect(origin: .zero, size: art.bandSize))
@@ -231,6 +223,10 @@ struct NotchcastIslandAuditRenderTest {
         let look = frosted ? "frosted" : "black"
         for notch in [false, true] {
             let form = notch ? "notch" : "nonotch"
+            renderNoticeWrap(notch: notch ? notchSize.width : nil) { name, card in
+                island(name, width: card.size.width, body: card.size.height,
+                       notch: notch, radius: Theme.Radius.panel) { card.draw(in: $0) }
+            } pill: { name, art in compact(name, art, notch: notch) }
             let meetingArt = GlanceArt(glance, notch: notch, frosted: frosted)
             compact("884-04-meeting-\(form)-\(look)", meetingArt, notch: notch)
             let expansion = IslandExpansionArt(glance, frosted: frosted)

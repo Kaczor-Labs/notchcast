@@ -42,6 +42,7 @@ struct IslandPagesRenderTest {
         where ["975-", "960-open-"].contains(where: old.lastPathComponent.hasPrefix) {
             try FileManager.default.removeItem(at: old)
         }
+        checkNoticeWrapping()
         var sizes: [String: CGSize] = [:]
         for frosted in [false, true] {
             for notch in [false, true] {
@@ -66,6 +67,33 @@ struct IslandPagesRenderTest {
             == Theme.Size.panelWidth, "a page of cards keeps the launcher's width (#1128)")
         print("agents-slots \(sizes["agents-slots"]!), agents-alone \(sizes["agents-alone"]!)")
         print("PASS rendered island pages to \(folder.path)")
+    }
+
+    static func checkNoticeWrapping() {
+        let short = "Copied"
+        let long = "hatchzip is not installed. Install it with: brew install xevrion/tap/hatchzip"
+        func size(_ title: String, notice: Bool) -> CGSize {
+            var deck = IslandPageDeck()
+            deck.show(IslandNotice(id: "wrap", symbol: "doc", text: title), tappable: true)
+            var row = deck.notice!
+            if !notice { row.titleLines = IslandPageRow(title: title).titleLines }
+            let view = IslandPageRowView(row: row, act: { _ in })
+                .fixedSize()
+                .environment(\.metrics, InterfaceMetrics.standard)
+                .environment(\.colorScheme, .dark)
+            return NSHostingView(rootView: view).fittingSize
+        }
+        let five = Array(repeating: short, count: 5).joined(separator: "\n")
+        let six = five + "\n" + short
+        let compact = size(short, notice: true)
+        let wrapped = size(long, notice: true)
+        precondition(compact == size(short, notice: false), "A short notice keeps its one-line size")
+        precondition(wrapped.height > compact.height, "The notice wraps at the width cap even at ideal size")
+        precondition(size(long, notice: false).height == compact.height, "Other rows stay one line")
+        let sixLineHeight = size(six, notice: true).height
+        precondition(sixLineHeight > size(five, notice: true).height
+                     && sixLineHeight == size(six + "\n" + short, notice: true).height,
+                     "The notice's row fits six lines and truncates after them")
     }
 
     static func decks() -> [(String, IslandPageDeck)] {
