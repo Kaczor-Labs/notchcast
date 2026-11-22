@@ -133,26 +133,39 @@ struct NotchcastHotKeysTests {
         defer { defaults.removePersistentDomain(forName: domain) }
         let quicklinkID = UUID()
         let quicklink = HotKeyAction.quicklink(id: quicklinkID)
-        let hidden = HotKeyAction.appleShortcut(id: UUID())
+        let hidden = HotKeyAction.settingsPane(bundleID: "pane.hidden")
+        let otherHidden = HotKeyAction.settingsPane(bundleID: "pane.other-hidden")
         let combo = HotKeyBinding.combo(KeyShortcut(carbonKeyCode: kVK_ANSI_7, carbonModifiers: controlKey))
-        let quicklinkCombo = HotKeyBinding.combo(KeyShortcut(carbonKeyCode: kVK_ANSI_8, carbonModifiers: controlKey))
+        let otherCombo = HotKeyBinding.combo(KeyShortcut(carbonKeyCode: kVK_ANSI_8, carbonModifiers: controlKey))
         let manager = HotKeyManager(defaults: defaults)
         manager.setBinding(combo, for: hidden)
-        manager.setBinding(quicklinkCombo, for: quicklink)
-        let relaunched = HotKeyManager(defaults: defaults)
-        relaunched.allowsAction = { $0 != hidden }
-        relaunched.start(
+        manager.setBinding(otherCombo, for: otherHidden)
+
+        let hiddenLaunch = HotKeyManager(defaults: defaults)
+        hiddenLaunch.isHidden = { $0 == hidden || $0 == otherHidden }
+        hiddenLaunch.start(
             customCommandIDs: [], quicklinkIDs: [quicklinkID], windowLayoutIDs: [],
             windowRoomIDs: [], customWindowSizeIDs: [], quickActionIDs: [])
-        check("unhidden, the stored chord names its owner",
-              relaunched.conflictOwner(of: combo, excluding: .togglePalette) != nil)
-        relaunched.isHidden = { $0 == hidden }
+        check("hidden chords are not loaded at launch",
+              hiddenLaunch.binding(for: hidden) == nil && hiddenLaunch.binding(for: otherHidden) == nil)
         check("a hidden feature's stored chord blocks no recording",
-              relaunched.conflictOwner(of: combo, excluding: .togglePalette) == nil)
-        check("a visible stored chord still names its owner",
-              relaunched.conflictOwner(of: quicklinkCombo, excluding: .togglePalette) != nil)
-        relaunched.setBinding(combo, for: .togglePalette)
+              hiddenLaunch.conflictOwner(of: combo, excluding: quicklink) == nil)
+        check("hidden chords stay in defaults",
+              defaults.string(forKey: hidden.defaultsKey) != nil && defaults.string(forKey: otherHidden.defaultsKey) != nil)
+        hiddenLaunch.setBinding(combo, for: quicklink)
         check("the freed chord registers for the new owner",
-              HotKeyCenter.current!.entries[HotKeyAction.togglePalette.defaultsKey]?.shortcut == combo.shortcut)
+              HotKeyCenter.current!.entries[quicklink.defaultsKey]?.shortcut == combo.shortcut)
+
+        let unhiddenLaunch = HotKeyManager(defaults: defaults)
+        unhiddenLaunch.isHidden = { _ in false }
+        unhiddenLaunch.start(
+            customCommandIDs: [], quicklinkIDs: [quicklinkID], windowLayoutIDs: [],
+            windowRoomIDs: [], customWindowSizeIDs: [], quickActionIDs: [])
+        check("the newer recording keeps the chord after un-hiding",
+              unhiddenLaunch.conflictOwner(of: combo, excluding: .togglePalette) == unhiddenLaunch.displayName(of: quicklink))
+        check("un-hiding drops the colliding chord from memory and defaults",
+              unhiddenLaunch.binding(for: hidden) == nil && defaults.string(forKey: hidden.defaultsKey) == nil)
+        check("un-hiding restores a non-colliding chord from the same feature",
+              unhiddenLaunch.binding(for: otherHidden) == otherCombo)
     }
 }
