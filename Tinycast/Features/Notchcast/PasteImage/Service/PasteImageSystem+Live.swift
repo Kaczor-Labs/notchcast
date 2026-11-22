@@ -84,15 +84,21 @@ nonisolated enum PasteImageFinder {
         files: PasteImageFiles = PasteImageFinder.files,
         logError: @Sendable (String) -> Void = PasteImageFinder.logError
     ) async -> PasteImageFailure? {
+        guard !Task.isCancelled else { return nil }
         if let failure = checkFrontWindow(send: send, logError: logError) { return failure }
+        guard !Task.isCancelled else { return nil }
         guard clip.data.count <= PasteImagePolicy.maxImageBytes else {
             return fail(.tooLarge, step: "image", "\(clip.data.count) bytes copied", logError: logError)
         }
-        guard let png = png(clip) else { return fail(.unreadable, step: "image", "does not decode", logError: logError) }
+        guard let png = png(clip) else {
+            return fail(.unreadable, step: "image", "does not decode", logError: logError)
+        }
         guard png.count <= PasteImagePolicy.maxImageBytes else {
             return fail(.tooLarge, step: "image", "\(png.count) bytes as PNG", logError: logError)
         }
+        guard !Task.isCancelled else { return nil }
         let location = insertionLocation()
+        guard !Task.isCancelled else { return nil }
         guard location.status == 0 else {
             return fail(.location(status: location.status), step: "location", "status \(location.status)", logError: logError)
         }
@@ -101,12 +107,14 @@ nonisolated enum PasteImageFinder {
         else {
             return fail(.noFolder, step: "location", "not a folder", logError: logError)
         }
-        switch PasteImageSaver.save(png, into: folder, at: date, timeZone: .current, files: files) {
+        let write = PasteImageSaver.save(png, into: folder, at: date, timeZone: .current, files: files)
+        guard !Task.isCancelled else { return nil }
+        switch write {
         case let .failed(code):
             return fail(.notSaved, step: "write", "error \(code)", logError: logError)
         case let .saved(file):
             let select = send(event("misc", "slct", to: finder, directObject: NSAppleEventDescriptor(fileURL: file)))
-            if select.status != 0 {
+            if !Task.isCancelled, select.status != 0 {
                 logError("select failed: status \(select.status), file kept")
             }
             return nil
@@ -115,7 +123,8 @@ nonisolated enum PasteImageFinder {
 
     private static func fail(
         _ failure: PasteImageFailure, step: String, _ detail: String, logError: (String) -> Void
-    ) -> PasteImageFailure {
+    ) -> PasteImageFailure? {
+        guard !Task.isCancelled else { return nil }
         logError("\(step) failed: \(detail)")
         return failure
     }
@@ -154,6 +163,7 @@ nonisolated enum PasteImageFinder {
     private static func checkFrontWindow(send: SendEvent, logError: (String) -> Void) -> PasteImageFailure? {
         let window = specifier("brow", "indx", NSAppleEventDescriptor(int32: 1))
         let target = send(get(property("pURL", of: property("fvtg", of: window))))
+        guard !Task.isCancelled else { return nil }
         if target.status == 0, let folder = url(target.reply) {
             guard PasteImagePolicy.accepts(frontFolder: folder, hasWindow: true) else {
                 return fail(.noFolder, step: "target", "not a folder", logError: logError)

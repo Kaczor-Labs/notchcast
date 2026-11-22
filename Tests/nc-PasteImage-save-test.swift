@@ -67,7 +67,8 @@ enum PasteImageSaveTests {
             let messages = logs.withLock { $0 }
             if calls != expectedCalls || !messages.isEmpty || result != nil {
                 failures.append(
-                    "cancel at \(cancelAt.rawValue): steps \(calls.map(\.rawValue)), logs \(messages), result \(String(describing: result))"
+                    "cancel at \(cancelAt.rawValue): steps \(calls.map(\.rawValue)), logs \(messages), " +
+                    "result \(String(describing: result))"
                 )
             }
         }

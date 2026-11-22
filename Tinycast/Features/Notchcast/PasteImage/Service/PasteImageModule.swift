@@ -112,16 +112,17 @@ final class PasteImageModule: NotchcastModule {
         let date = context.now()
         work = Task { [weak self, system] in
             let focus = await system.focus()
-            guard let self, !Task.isCancelled else { return }
+            guard self != nil, !Task.isCancelled else { return }
             guard system.frontFinder() == pid, !PasteImagePolicy.passesThrough(focus: focus, finderPID: pid),
                   let clip = system.clipboardImage()
             else {
                 system.replay(keyCode)
-                return finish()
+                self?.finish()
+                return
             }
             let failure = await system.save(clip, date)
             guard !Task.isCancelled else { return }
-            finish(failure: failure)
+            self?.finish(failure: failure)
         }
     }
 
