@@ -1,7 +1,9 @@
 // notchcast-hosted-only
-// notchcast-sources: Tinycast/Features/Notchcast/Core/Model/NotchcastSwitch.swift
-// notchcast-sources: Tinycast/Features/Notchcast/Core/Service/NotchcastAddon.swift
-// notchcast-sources: Tinycast/Features/Notchcast/Core/Service/NotchcastPreferences.swift
+// notchcast-sources: Tinycast/Features/Notchcast/Core/Model/*.swift Tinycast/Features/Notchcast/Core/Service/*.swift
+// notchcast-sources: Tinycast/Features/Island/Model/IslandPresentation.swift
+// notchcast-sources: Tinycast/Features/Island/Service/IslandPresenting.swift
+// notchcast-sources: Tinycast/Platform/NotificationToken.swift
+// notchcast-sources: Tests/NotchcastTapFixtures.swift Tests/NotchcastDictationFixture.swift
 // notchcast-sources: Tinycast/Features/Notchcast/Core/UI/NotchcastSettingsView.swift
 // notchcast-sources: Tinycast/Features/Notchcast/Core/UI/NotchcastIslandSettingsRows.swift
 // notchcast-sources: Tinycast/Features/Notchcast/Core/UI/NotchcastCommandRowLayout.swift
@@ -28,8 +30,17 @@ struct NotchcastSettingsAccessibilityTests {
         defer { defaults.removePersistentDomain(forName: suite) }
 
         let music = MusicBlockAddon.switches
+        guard let parent = music.first, music.contains(where: { $0.dependencies.contains(parent.id) }) else {
+            print("FAIL Music Block fixture has no parent and dependent switch")
+            exit(1)
+        }
         let capture = CaptureFixture.switches
-        let controller = NotchcastController([MusicBlockAddon.self, CaptureFixture.self], defaults: defaults)
+        let hub = NotchcastTapHub(syntheticTag: 0, isTrusted: { true }) { FakeSession($0) }
+        let controller = NotchcastController(
+            addons: [MusicBlockAddon.self, CaptureFixture.self], defaults: defaults, hub: hub,
+            dictation: FakeDictation(), presenter: RecordingPresenter()
+        )
+        controller.hub.refreshPermission()
         let cases: [(NotchcastPane, [String])] = [
             (.displaySound, music.map(\.title)),
             (.capture, capture.map(\.title) + ["Edit after capture"]),
@@ -47,13 +58,11 @@ struct NotchcastSettingsAccessibilityTests {
                 passed = false
             }
         }
-        if let parent = music.first {
-            controller.preferences.set(parent.id, on: false)
-            let names = switchNames(in: .displaySound, controller: controller)
-            if names.sorted() != music.map(\.title).sorted() {
-                print("FAIL Music Block switch names with the parent off. Expected \(music.map(\.title)), got \(names)")
-                passed = false
-            }
+        controller.preferences.set(parent.id, on: false)
+        let musicNames = switchNames(in: .displaySound, controller: controller)
+        if musicNames.sorted() != music.map(\.title).sorted() {
+            print("FAIL Music Block with the parent off. Expected \(music.map(\.title)), got \(musicNames)")
+            passed = false
         }
         if !passed { exit(1) }
         print("PASS Settings accessibility names for Music Block, the capture child row and the Island switches")
@@ -87,40 +96,6 @@ struct NotchcastSettingsAccessibilityTests {
     }
 }
 
-// Keep the production form and row titles while leaving system services out of the harness.
-@MainActor
-final class NotchcastController {
-    struct Slot {
-        let addon: any NotchcastAddon.Type
-        let settings: [SettingsEntry]
-    }
-
-    struct SettingsEntry: Identifiable {
-        let id = UUID()
-        let row: NotchcastSettingsRow
-    }
-
-    struct Hub {
-        let isTrusted = true
-        func refreshPermission() {}
-    }
-
-    let switches: [NotchcastSwitch]
-    let preferences: NotchcastPreferences
-    let slots: [Slot]
-    let hub = Hub()
-    private let context: NotchcastContext
-
-    init(_ addons: [any NotchcastAddon.Type], defaults: UserDefaults) {
-        switches = addons.flatMap { $0.switches }
-        preferences = NotchcastPreferences(defaults: defaults, switches: switches)
-        slots = addons.map { Slot(addon: $0, settings: $0.settings.map { SettingsEntry(row: $0) }) }
-        context = NotchcastContext(defaults: defaults)
-    }
-
-    func context(forSwitch id: String) -> NotchcastContext? { context }
-}
-
 enum CaptureFixture: NotchcastAddon {
     static let switches = [
         NotchcastSwitch(id: "capture", title: "Capture", subtitle: "Save an image",
@@ -130,9 +105,6 @@ enum CaptureFixture: NotchcastAddon {
         NotchcastSettingsRow(switchID: "capture") { AnyView(ScreenshotsSettingsView(defaults: $0.defaults)) }
     ]
 }
-
-struct NotchcastContext { let defaults: UserDefaults }
-struct NotchcastTap: Sendable {}
 
 final class MusicBlockModule: NotchcastModule {
     init(context: NotchcastContext) {}
