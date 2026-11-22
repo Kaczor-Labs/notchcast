@@ -1,0 +1,10 @@
+Guest try of PR 1370, build Notchcast-0.12.15.pr1370.4a5796ab (test-build run 44968445623), macOS 27.2.1 guest.
+Throwaway test passwords; values never printed. Row counts are from sqlite3 -readonly on clipboard.sqlite3 (items table).
+
+1. Copied password in TextEdit before the question: rows 1 before submit -> 0 after submit; Locked1.zip extracted (secret-note.txt).
+2. Question open, TextEdit front, Edit > Copy of the password: rows 0 while open; pasted, submitted: rows 0; Locked2.zip extracted (secret-note 2.txt).
+3. Copied password, opened Locked3 question, Cancel: rows 1 after. Opened Locked4 question, Escape: rows 1 after. Nothing extracted.
+4. Question open, copied "unrelated-note-alpha" in TextEdit: rows 0 while open and 0 after Cancel (copy made while open not picked up later). After close, copied "after-close-beta": captured.
+5. Wrong and right passwords both in history (1 row each). Pasted the wrong one, submitted: "That password did not work."; wrong rows 0, right rows 1. Typed the right one, submitted: right rows 0, wrong rows 0; Locked5.zip extracted (secret-note 3.txt). Unrelated rows kept.
+6. After step 1, Notchcast quit (pgrep: not running), grep -c -a <password>: clipboard.sqlite3 0, clipboard.sqlite3-shm 0, clipboard.sqlite3-wal 0; grep -r -l over app.notchcast: 0 files.
+   Repeated at the end with both passwords: all 0.
