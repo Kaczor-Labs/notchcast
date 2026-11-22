@@ -64,7 +64,6 @@ enum ProbeAddon: NotchcastAddon {
         NotchcastCommand(slug: "probe-run", name: "Probe", symbol: "circle", switchID: "probeMain") { context in
             context.presenter.post(IslandNotice(id: "probe", text: "Probe ran"), onTap: nil)
         },
-        NotchcastCommand(slug: "probe-child", name: "Probe Child", symbol: "circle", switchID: "probeChild") { _ in },
     ]
     static let taps = [
         NotchcastTap(switchID: "probeChild", mask: NotchcastTapPolicy.mask(for: .keyDown), handler: .observe { _ in }),
@@ -325,23 +324,7 @@ struct NotchcastCoreTest {
         controller.start()
         check("nothing runs while off", ProbeLog.events.isEmpty && hub.subscriberCount == 0)
         check("no commands while off", controller.enabledCommands.isEmpty && !controller.run(entryID: "command:nc-probe-run"))
-        check("an off command keeps its hotkey",
-              published == [[]] && controller.offCommands.map(\.id).contains("command:nc-probe-run"))
-        let offNotice = "notchcast.commandOff"
-        let offPost = "post \(offNotice) Probe is off"
-        check("pressing an off command says it is off",
-              controller.press(entryID: "command:nc-probe-run") && presenter.log == [offPost])
-        var openedSwitch: String?
-        controller.openSwitch = { openedSwitch = $0.id }
-        presenter.noticeTaps[offNotice]?()
-        check("the notice's click opens Settings at the command's switch", openedSwitch == "probeMain")
-        check("a second press replaces the notice",
-              controller.press(entryID: "command:nc-probe-run") && presenter.log == [offPost, offPost])
-        check("an id no add-on declares is not ours", !controller.press(entryID: "command:nc-nope"))
-        check("a command whose own switch is off names that switch",
-              controller.switchOff(for: "command:nc-probe-child")?.id == "probeChild")
         published.removeAll()
-        presenter.log.removeAll()
 
         controller.preferences.set("probeMain", on: true)
         drain()
@@ -350,9 +333,6 @@ struct NotchcastCoreTest {
         check("its command is published", published == [["command:nc-probe-run"]])
         check("its command runs", controller.run(entryID: "command:nc-probe-run"))
         check("the notice reaches the presenter", presenter.log == ["post probe Probe ran"])
-        check("an enabled command presses through",
-              controller.press(entryID: "command:nc-probe-run")
-                  && presenter.log == ["post probe Probe ran", "post probe Probe ran"])
         check("an unknown id falls through", !controller.run(entryID: "command:nc-nope"))
         check("the context finds its module", controller.context(forSwitch: "probeMain")?.module(ProbeModule.self) != nil)
         let probe = controller.enabledCommands
@@ -384,8 +364,6 @@ struct NotchcastCoreTest {
         check("its taps and dependents' taps go", hub.subscriberCount == 0 && !hub.isRunning)
         check("its command is withdrawn", published.last == [] && controller.enabledCommands.isEmpty)
         check("a withdrawn command no longer runs", !controller.run(entryID: "command:nc-probe-run"))
-        check("a command behind an off dependency names that dependency",
-              controller.switchOff(for: "command:nc-probe-child")?.id == "probeMain")
 
         controller.preferences.set("probeMain", on: true)
         drain()

@@ -31,7 +31,20 @@ enum PublishingAddon: NotchcastAddon {
     static func makeModule(_ context: NotchcastContext) -> (any NotchcastModule)? { PublishingModule(context) }
 }
 
-/// Pins the commands a running module adds: published, found by `run(entryID:)`, gone with the switch.
+enum OffCommandAddon: NotchcastAddon {
+    static let switches = [
+        NotchcastSwitch(id: "probeMain", title: "Probe", subtitle: "", category: .launcher),
+        NotchcastSwitch(id: "probeChild", title: "Child", subtitle: "", category: .launcher,
+                        dependencies: ["probeMain"]),
+    ]
+    static let commands = [
+        NotchcastCommand(slug: "probe-run", name: "Probe", symbol: "circle", switchID: "probeMain") { context in
+            context.presenter.post(IslandNotice(id: "probe", text: "Probe ran"), onTap: nil)
+        },
+        NotchcastCommand(slug: "probe-child", name: "Probe Child", symbol: "circle", switchID: "probeChild") { _ in },
+    ]
+}
+
 @main
 @MainActor
 struct NotchcastModuleCommandsTest {
@@ -40,10 +53,52 @@ struct NotchcastModuleCommandsTest {
         for _ in 0..<5 { RunLoop.main.run(until: Date().addingTimeInterval(0.01)) }
     }
 
+    static func offCommands(_ defaults: UserDefaults) {
+        let presenter = RecordingPresenter()
+        let system = FakeSystem()
+        let controller = NotchcastController(
+            addons: [OffCommandAddon.self], defaults: defaults, hub: system.makeHub(),
+            dictation: FakeDictation(), presenter: presenter)
+        var published: [[String]] = []
+        controller.onCommandsChanged = { published.append($0.map(\.id)) }
+        controller.start()
+        let commandID = "command:nc-probe-run"
+        let childID = "command:nc-probe-child"
+        let noticeID = "notchcast.commandOff"
+        let post = "post \(noticeID) Probe is off"
+        precondition(published == [[]] && controller.offCommands.map(\.id).contains(commandID),
+                     "an off command keeps its hotkey")
+        precondition(controller.press(entryID: commandID) && presenter.log == [post],
+                     "pressing an off command says it is off")
+        var openedSwitch: String?
+        controller.openSwitch = { openedSwitch = $0.id }
+        presenter.noticeTaps[noticeID]?()
+        precondition(openedSwitch == "probeMain", "the notice's click opens Settings at the command's switch")
+        precondition(controller.press(entryID: commandID) && presenter.log == [post, post],
+                     "a second press replaces the notice")
+        precondition(!controller.press(entryID: "command:nc-nope"), "an id no add-on declares is not ours")
+        precondition(controller.switchOff(for: childID)?.id == "probeChild",
+                     "a command whose own switch is off names that switch")
+
+        controller.stop()
+        controller.preferences.set("probeChild", on: true)
+        controller.start()
+        precondition(controller.switchOff(for: childID)?.id == "probeMain",
+                     "a command behind an off dependency names that dependency")
+
+        controller.stop()
+        controller.preferences.set("probeMain", on: true)
+        controller.start()
+        precondition(controller.press(entryID: commandID) && presenter.log == [post, post, "post probe Probe ran"],
+                     "an enabled command presses through")
+        controller.stop()
+    }
+
     static func main() {
         let suite = "nc-module-commands-test-\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suite)!
         defer { defaults.removePersistentDomain(forName: suite) }
+        offCommands(defaults)
         let presenter = RecordingPresenter()
         let system = FakeSystem()
         let controller = NotchcastController(
@@ -74,6 +129,6 @@ struct NotchcastModuleCommandsTest {
             !controller.press(entryID: "command:nc-publish-run") && presenter.log == ["post publish Published ran"],
             "a run-time command is unknown once its module stops")
         controller.stop()
-        print("PASS Notchcast module commands: published, run by entry id, gone with the switch")
+        print("PASS Notchcast commands: off notices, switch targeting, and run-time publication")
     }
 }
