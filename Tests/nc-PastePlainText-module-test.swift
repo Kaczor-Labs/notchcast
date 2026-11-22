@@ -9,6 +9,7 @@
 // notchcast-sources: Tinycast/Features/Notchcast/PastePlainText/Service/PastePlainTextSystem.swift
 // notchcast-sources: Tests/NotchcastDictationFixture.swift
 
+@preconcurrency import ApplicationServices
 import CoreGraphics
 import Foundation
 
@@ -29,6 +30,7 @@ final class FakeBoard: PlainPasteBoard {
     var bumpsAfterText = false
     /// Writes that clear the board and then fail.
     var writeFailures = 0
+    var onHTMLRead: (() -> Void)?
     let ownMarker = "com.tinycast.internal"
 
     var types: [String] { items.flatMap { $0.map(\.type) } }
@@ -41,7 +43,10 @@ final class FakeBoard: PlainPasteBoard {
         return entry("public.rtf").map { "rtf:" + utf8($0) }
     }
     func rtfdText() -> String? { entry("com.apple.flat-rtfd").map { "rtfd:" + utf8($0) } }
-    func htmlText() -> String? { entry("public.html").map { "html:" + utf8($0) } }
+    func htmlText() -> String? {
+        onHTMLRead?()
+        return entry("public.html").map { "html:" + utf8($0) }
+    }
 
     var itemTypes: [[String]] { items.map { $0.map(\.type) } }
 
@@ -147,6 +152,41 @@ extension PastePlainTextSystem {
     )
 }
 
+@MainActor
+final class FakeMatchStyleMenu {
+    var items = [1, 2, 3]
+    var matching: Set<Int> = []
+    var disabled: Set<Int> = []
+    var stalled: Int?
+    var reads: [Int] = []
+    var pressed: [Int] = []
+
+    private lazy var menu = MatchStyleMenu<Int>(
+        prepare: { _ in },
+        read: { [unowned self] in read($0, $1) },
+        performPress: { [unowned self] in
+            pressed.append($0)
+            return .success
+        })
+
+    func press() -> Bool {
+        menu.press(pid: 42, bundleIdentifier: "com.apple.TextEdit") { 0 }
+    }
+
+    private func read(_ item: Int, _ attribute: String) -> (AXError, Any?) {
+        reads.append(item)
+        if item == stalled { return (.cannotComplete, nil) }
+        if item == 0, attribute == kAXChildrenAttribute { return (.success, items) }
+        guard matching.contains(item) else { return (.noValue, nil) }
+        switch attribute {
+        case kAXMenuItemCmdCharAttribute: return (.success, "V")
+        case kAXMenuItemCmdModifiersAttribute: return (.success, NSNumber(value: 3))
+        case kAXEnabledAttribute: return (.success, NSNumber(value: !disabled.contains(item)))
+        default: return (.noValue, nil)
+        }
+    }
+}
+
 final class FakeSession: NotchcastTapSession {
     let mask: CGEventMask
     let options: CGEventTapOptions
@@ -214,6 +254,7 @@ func reset() {
     board.bumpsDuringRead = false
     board.bumpsAfterText = false
     board.writeFailures = 0
+    board.onHTMLRead = nil
     fake.pastes = []
     fake.timers = []
     fake.history = []
@@ -238,9 +279,14 @@ enum PastePlainTextModuleTests {
         wiring()
         readGap()
         nativeRoute()
+        stalledMenu()
+        cappedMenu()
+        enabledMenuItem()
         heldKeys()
+        heldKeysTimeout()
         keystrokeGuard()
         secondPress()
+        reenteredPress()
         print("nc-PastePlainText-module-test: OK")
     }
 
@@ -437,6 +483,36 @@ enum PastePlainTextModuleTests {
         rig.finish()
     }
 
+    @MainActor
+    static func stalledMenu() {
+        let menu = FakeMatchStyleMenu()
+        menu.stalled = 1
+        let stalledResult = menu.press()
+        let stoppedAtTimeout = menu.reads.filter { $0 != 0 } == [1]
+        menu.stalled = nil
+        menu.matching = [2]
+        let recovered = menu.press()
+        precondition(!stalledResult && stoppedAtTimeout && recovered && menu.pressed == [2],
+                     "stalled menu: stopped at first AX timeout = \(stoppedAtTimeout), retried same pid = \(recovered)")
+    }
+
+    @MainActor
+    static func cappedMenu() {
+        let menu = FakeMatchStyleMenu()
+        menu.items = Array(1...599)
+        precondition(!menu.press(), "a 600-element menu without a match falls back")
+        menu.matching = [1]
+        precondition(menu.press() && menu.pressed == [1], "a walk at the cap must retry the same pid")
+    }
+
+    @MainActor
+    static func enabledMenuItem() {
+        let menu = FakeMatchStyleMenu()
+        menu.matching = [1, 2, 3]
+        menu.disabled = [1]
+        precondition(menu.press() && menu.pressed == [2], "the first enabled match wins over a disabled match")
+    }
+
     /// ⌘V waits until the hotkey's keys are up, so it never lands as another chord.
     @MainActor
     static func heldKeys() {
@@ -475,6 +551,31 @@ enum PastePlainTextModuleTests {
                      "a normal paste waits for the keys too")
         fake.fire()
         precondition(fake.pastes == ["public.file-url"] && fake.board.ownWrites == 0, "and touches nothing")
+        rig.finish()
+    }
+
+    @MainActor
+    static func heldKeysTimeout() {
+        reset()
+        let rig = Rig(on: true)
+        fake.board.copy(styled)
+        let original = fake.board.items
+        fake.heldPolls = 1000
+
+        rig.run()
+        fake.fire()
+        for _ in 0..<100 {
+            precondition(fake.live.map(\.delay) == [.milliseconds(15)] && fake.pastes.isEmpty,
+                         "the held hotkey gets 100 waits of 15 ms before ⌘V")
+            fake.fire()
+        }
+        precondition(fake.live.map(\.delay) == [.milliseconds(60)] && fake.pastes.isEmpty,
+                     "⌘V settles for 60 ms even with the hotkey still held")
+        fake.fire()
+        precondition(fake.pastes == ["Hi"] && fake.live.map(\.delay) == [.milliseconds(500)],
+                     "one ⌘V goes out, then the restore is scheduled")
+        fake.fire()
+        precondition(fake.board.items == original && fake.live.isEmpty, "the original clipboard is restored")
         rig.finish()
     }
 
@@ -546,6 +647,24 @@ enum PastePlainTextModuleTests {
         precondition(fake.live.count == 1, "a press before ⌘V went out replaces it")
         fake.fireAll()
         precondition(fake.pastes == ["Hi", "Hi", "Hi"] && fake.board.items == original, "one more paste, original back")
+        rig.finish()
+    }
+
+    @MainActor
+    static func reenteredPress() {
+        reset()
+        let rig = Rig(on: true)
+        fake.board.copy([("public.html", "Hi")])
+        let original = fake.board.items
+        fake.board.onHTMLRead = {
+            fake.board.onHTMLRead = nil
+            rig.run()
+        }
+
+        rig.run()
+        precondition(fake.live.count == 1, "re-entry during HTML import left \(fake.live.count) live timers")
+        fake.fireAll()
+        precondition(fake.pastes == ["html:Hi"] && fake.board.items == original, "one paste, original restored")
         rig.finish()
     }
 }

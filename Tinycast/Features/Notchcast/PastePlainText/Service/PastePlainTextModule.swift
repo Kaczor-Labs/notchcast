@@ -102,6 +102,7 @@ final class PastePlainTextModule: NotchcastModule {
 
     /// A step stretched past `staleKeystroke` was a sleep, so the app in front may have changed.
     private func schedule(_ delay: Duration, _ work: @escaping @MainActor (PastePlainTextModule) -> Void) {
+        keystroke?.cancel()
         let scheduled = system.now()
         keystroke = system.after(delay) { [weak self] in
             guard let self else { return }
