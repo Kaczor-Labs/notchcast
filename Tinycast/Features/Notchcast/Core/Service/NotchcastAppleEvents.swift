@@ -1,10 +1,53 @@
+import AppKit
+import CoreServices
 import Foundation
+import OSLog
 
-/// Reads another app with `core/getd` Apple Events, 5 s each; in Core as three add-ons read Finder.
 nonisolated enum NotchcastAppleEvents {
     /// macOS refusing the event: Automation denied (-1743) or not yet asked (-1744).
     static let refused = [-1743, -1744]
     static let timedOut = -1712
+
+    @MainActor
+    static func pickFiles(configure: (NSOpenPanel) -> Void) async -> [URL] {
+        guard !Task.isCancelled, NSApp.modalWindow == nil else { return [] }
+        let previousApp = NSApp.isActive ? nil : NSWorkspace.shared.menuBarOwningApplication
+        defer {
+            if let previousApp, previousApp != .current, NSApp.isActive, NSApp.modalWindow == nil {
+                NSApp.yieldActivation(to: previousApp)
+                previousApp.activate(from: .current, options: [])
+            }
+        }
+        if !NSApp.isActive {
+            await activate()
+            guard !Task.isCancelled, NSApp.modalWindow == nil else { return [] }
+        }
+        let panel = NSOpenPanel()
+        panel.allowsMultipleSelection = true
+        panel.canChooseDirectories = false
+        configure(panel)
+        panel.level = .modalPanel
+        NSApp.activate()
+        panel.makeKeyAndOrderFront(nil)
+        return panel.runModal() == .OK ? panel.urls : []
+    }
+
+    @MainActor
+    private static func activate() async {
+        let configuration = NSWorkspace.OpenConfiguration()
+        configuration.addsToRecentItems = false
+        configuration.promptsUserIfNeeded = false
+        // An activation event brings us forward without reopening the palette.
+        configuration.appleEvent = NSAppleEventDescriptor(
+            eventClass: kCoreEventClass, eventID: kAEActivate, targetDescriptor: nil,
+            returnID: AEReturnID(kAutoGenerateReturnID), transactionID: AETransactionID(kAnyTransactionID))
+        do {
+            _ = try await NSWorkspace.shared.openApplication(at: Bundle.main.bundleURL, configuration: configuration)
+        } catch {
+            Logger(subsystem: Bundle.main.bundleIdentifier ?? "Notchcast", category: "FilePicker")
+                .error("Could not activate Notchcast for the file picker: \(error.localizedDescription)")
+        }
+    }
 
     /// One object-specifier hop: a named property, or the first element of a class.
     struct Hop {
