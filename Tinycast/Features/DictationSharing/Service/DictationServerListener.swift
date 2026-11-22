@@ -34,8 +34,7 @@ enum DictationServerListener {
     /// A TCP FIN ends uploads but leaves the write side open for the HTTP reply.
     @MainActor
     static func reply(
-        _ connection: NetworkConnection<TCP>, onStateWatchStarted: @MainActor () -> Void = {},
-        with work: @escaping @MainActor @Sendable () async -> Data
+        _ connection: NetworkConnection<TCP>, with work: @escaping @MainActor @Sendable () async -> Data
     ) async {
         let (disconnected, terminal) = AsyncStream<Void>.makeStream()
         connection.onStateUpdate { _, state in
@@ -43,7 +42,6 @@ enum DictationServerListener {
         }
         defer { terminal.finish() }
         guard !isDisconnected(connection.state) else { return }
-        onStateWatchStarted()
         await DictationServerClients.answer(work, unless: {
             for await _ in disconnected {}
         }) { bytes in

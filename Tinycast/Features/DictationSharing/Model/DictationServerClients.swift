@@ -22,23 +22,27 @@ final class DictationServerClients {
         unless left: @escaping @MainActor @Sendable () async -> Void,
         send: @escaping @MainActor @Sendable (Value) async -> Void
     ) async {
-        let reply = Task {
-            let value = await work()
-            guard !Task.isCancelled else { return }
-            await send(value)
-        }
-        let watchClose: @MainActor @Sendable () async -> Void = {
-            await left()
-            reply.cancel()
-        }
-        await withTaskCancellationHandler {
-            await withTaskGroup(of: Void.self) { group in
-                group.addTask(operation: watchClose)
-                await reply.value
-                group.cancelAll()
+        await withTaskGroup(of: Void.self) { group in
+            var reply: Task<Void, Never>?
+            var disconnected = false
+            group.addImmediateTask { @MainActor in
+                await left()
+                disconnected = true
+                reply?.cancel()
             }
-        } onCancel: {
-            reply.cancel()
+            guard !disconnected else { return }
+            let workTask = Task {
+                let value = await work()
+                guard !Task.isCancelled else { return }
+                await send(value)
+            }
+            reply = workTask
+            await withTaskCancellationHandler {
+                await workTask.value
+                group.cancelAll()
+            } onCancel: {
+                workTask.cancel()
+            }
         }
     }
 }
