@@ -1,3 +1,4 @@
+// notchcast-hosted-only
 import CoreGraphics
 import Foundation
 
