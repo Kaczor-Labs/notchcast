@@ -48,7 +48,9 @@ extension PasteImageSystem {
 }
 
 /// Finder's focus, the PNG conversion, Finder's answers and the write, all off the main actor.
-private nonisolated enum PasteImageFinder {
+nonisolated enum PasteImageFinder {
+    typealias SendEvent = @Sendable (NSAppleEventDescriptor) -> (reply: NSAppleEventDescriptor?, status: Int)
+
     private static let logger = Logger(
         subsystem: Bundle.main.bundleIdentifier ?? "Notchcast", category: "PasteImage")
 
@@ -74,39 +76,52 @@ private nonisolated enum PasteImageFinder {
     }
 
     @concurrent
-    static func save(_ clip: PasteImageClip, at date: Date) async -> PasteImageFailure? {
-        if let failure = checkFrontWindow() { return failure }
+    static func save(
+        _ clip: PasteImageClip, at date: Date,
+        send: SendEvent = PasteImageFinder.send,
+        png: @Sendable (PasteImageClip) -> Data? = PasteImageFinder.png,
+        insertionLocation: @Sendable () -> (path: String?, status: Int) = PasteImageFinder.insertionLocation,
+        files: PasteImageFiles = PasteImageFinder.files,
+        logError: @Sendable (String) -> Void = PasteImageFinder.logError
+    ) async -> PasteImageFailure? {
+        if let failure = checkFrontWindow(send: send, logError: logError) { return failure }
         guard clip.data.count <= PasteImagePolicy.maxImageBytes else {
-            return fail(.tooLarge, step: "image", "\(clip.data.count) bytes copied")
+            return fail(.tooLarge, step: "image", "\(clip.data.count) bytes copied", logError: logError)
         }
-        guard let png = png(from: clip) else { return fail(.unreadable, step: "image", "does not decode") }
+        guard let png = png(clip) else { return fail(.unreadable, step: "image", "does not decode", logError: logError) }
         guard png.count <= PasteImagePolicy.maxImageBytes else {
-            return fail(.tooLarge, step: "image", "\(png.count) bytes as PNG")
+            return fail(.tooLarge, step: "image", "\(png.count) bytes as PNG", logError: logError)
         }
         let location = insertionLocation()
         guard location.status == 0 else {
-            return fail(.location(status: location.status), step: "location", "status \(location.status)")
+            return fail(.location(status: location.status), step: "location", "status \(location.status)", logError: logError)
         }
         guard let folder = PasteImagePolicy.folder(posixPath: location.path),
               PasteImagePolicy.accepts(frontFolder: folder, hasWindow: true)
         else {
-            return fail(.noFolder, step: "location", "not a folder")
+            return fail(.noFolder, step: "location", "not a folder", logError: logError)
         }
         switch PasteImageSaver.save(png, into: folder, at: date, timeZone: .current, files: files) {
         case let .failed(code):
-            return fail(.notSaved, step: "write", "error \(code)")
+            return fail(.notSaved, step: "write", "error \(code)", logError: logError)
         case let .saved(file):
             let select = send(event("misc", "slct", to: finder, directObject: NSAppleEventDescriptor(fileURL: file)))
             if select.status != 0 {
-                logger.error("select failed: status \(select.status, privacy: .public), file kept")
+                logError("select failed: status \(select.status), file kept")
             }
             return nil
         }
     }
 
-    private static func fail(_ failure: PasteImageFailure, step: String, _ detail: String) -> PasteImageFailure {
-        logger.error("\(step, privacy: .public) failed: \(detail, privacy: .public)")
+    private static func fail(
+        _ failure: PasteImageFailure, step: String, _ detail: String, logError: (String) -> Void
+    ) -> PasteImageFailure {
+        logError("\(step) failed: \(detail)")
         return failure
+    }
+
+    private static func logError(_ message: String) {
+        logger.error("\(message, privacy: .public)")
     }
 
     /// A PNG is kept once it decodes; anything else copies its properties too, so it keeps its orientation.
@@ -136,24 +151,24 @@ private nonisolated enum PasteImageFinder {
     }
 
     /// Asks Finder for `URL of target of Finder window 1`, and whether that window exists when it has none.
-    private static func checkFrontWindow() -> PasteImageFailure? {
+    private static func checkFrontWindow(send: SendEvent, logError: (String) -> Void) -> PasteImageFailure? {
         let window = specifier("brow", "indx", NSAppleEventDescriptor(int32: 1))
         let target = send(get(property("pURL", of: property("fvtg", of: window))))
         if target.status == 0, let folder = url(target.reply) {
             guard PasteImagePolicy.accepts(frontFolder: folder, hasWindow: true) else {
-                return fail(.noFolder, step: "target", "not a folder")
+                return fail(.noFolder, step: "target", "not a folder", logError: logError)
             }
             return nil
         }
         guard PasteImageFailure.meansNoFolder(status: target.status) else {
-            return fail(.finder(status: target.status), step: "target", "status \(target.status)")
+            return fail(.finder(status: target.status), step: "target", "status \(target.status)", logError: logError)
         }
         let exists = send(event("core", "doex", to: finder, directObject: window))
         guard exists.status == 0, let hasWindow = result(exists.reply)?.booleanValue else {
-            return fail(.finder(status: exists.status), step: "target", "status \(exists.status)")
+            return fail(.finder(status: exists.status), step: "target", "status \(exists.status)", logError: logError)
         }
         guard PasteImagePolicy.accepts(frontFolder: nil, hasWindow: hasWindow) else {
-            return fail(.noFolder, step: "target", "window without a folder, status \(target.status)")
+            return fail(.noFolder, step: "target", "window without a folder, status \(target.status)", logError: logError)
         }
         return nil
     }
