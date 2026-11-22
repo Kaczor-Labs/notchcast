@@ -3,17 +3,33 @@
 // notchcast-sources: Tinycast/Features/Clipboard/Model/ClipboardFileKind.swift
 // notchcast-sources: Tinycast/Features/Clipboard/Model/Color*.swift
 // notchcast-sources: Tinycast/Platform/Images/ImageDerivative.swift
+// notchcast-sources: Tinycast/Platform/ProcessExit.swift
+import Darwin
 import Foundation
 import SQLite3
 
 @main
 @MainActor
 struct ClipboardSecretPromptTest {
+    private static let ready = Data([1])
+
     static func main() throws {
+        let arguments = CommandLine.arguments
+        if arguments.count == 4 {
+            let directory = URL(fileURLWithPath: arguments[2], isDirectory: true)
+            switch arguments[1] {
+            case "--purge-writer": try runPurgeWriter(in: directory, fixture: arguments[3])
+            case "--purge-reader": try holdReadTransaction(in: directory)
+            default: preconditionFailure("unknown crash test child role")
+            }
+            return
+        }
+
         captureFollowsPromptLifetime()
         try purgeChecksDiskWithAnActiveReader()
         try submissionPurgesExactMatches()
-        print("PASS secure prompt capture, cancellation and exact history purge")
+        try purgeSurvivesHardKill()
+        print("PASS secure prompt capture, cancellation, exact history purge and crash recovery")
     }
 
     static func captureFollowsPromptLifetime() {
@@ -55,6 +71,111 @@ struct ClipboardSecretPromptTest {
         precondition(databaseBytes.range(of: bytes) == nil, "database bytes are cleared")
         let walBytes = try FileManager.default.fileExists(atPath: wal.path) ? Data(contentsOf: wal) : Data()
         precondition(walBytes.range(of: bytes) == nil, "WAL bytes are cleared")
+    }
+
+    static func purgeSurvivesHardKill() throws {
+        let directory = FileManager.default.temporaryDirectory.appending(path: UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let fixture = "crash-purge-fixture-\(UUID())"
+        let bytes = Data(fixture.utf8)
+        let seed = ClipboardStore(directory: directory)
+        seed.addText("keep this entry", sourceBundleID: nil)
+        seed.addText(fixture, sourceBundleID: nil)
+        seed.close()
+        let database = seed.dbURL
+        let wal = URL(fileURLWithPath: database.path + "-wal")
+        let shm = URL(fileURLWithPath: database.path + "-shm")
+        let initialDatabase = try Data(contentsOf: database)
+        precondition(initialDatabase.range(of: bytes) != nil, "fixture starts in the main database")
+
+        let writer = try CrashChild("--purge-writer", directory: directory, fixture: fixture)
+        defer { writer.input.closeFile() }
+        try writer.expectReady()
+        let reader = try CrashChild("--purge-reader", directory: directory, fixture: fixture)
+        defer { reader.input.closeFile() }
+        try reader.expectReady()
+
+        try writer.input.write(contentsOf: ready)
+        try writer.expectReady()
+        writer.hardKill()
+        reader.hardKill()
+
+        let crashedDatabase = try Data(contentsOf: database)
+        let crashedWAL = try Data(contentsOf: wal)
+        precondition(crashedDatabase.range(of: bytes) != nil, "hard kill leaves the fixture in the database")
+        precondition(crashedWAL.range(of: bytes) != nil, "hard kill leaves the fixture in the WAL")
+        let reopened = ClipboardStore(directory: directory)
+        let filesWithFixture = try [database, wal, shm].filter { url in
+            guard FileManager.default.fileExists(atPath: url.path) else { return false }
+            return try Data(contentsOf: url).range(of: bytes) != nil
+        }
+        precondition(
+            filesWithFixture.isEmpty,
+            "crash recovery left password bytes in \(filesWithFixture.map(\.lastPathComponent))")
+        reopened.load()
+        precondition(reopened.items.map(\.text) == ["keep this entry"], "launch loads only unrelated history")
+        reopened.close()
+    }
+
+    private static func runPurgeWriter(in directory: URL, fixture: String) throws {
+        let store = ClipboardStore(directory: directory)
+        store.load()
+        store.addText(fixture + "\n", sourceBundleID: nil)
+        let input = FileHandle.standardInput
+        let output = FileHandle.standardOutput
+        try output.write(contentsOf: ready)
+        let readerReady = try input.read(upToCount: 1)
+        guard readerReady != nil else { return }
+        precondition(readerReady == ready)
+        precondition(!store.removeEntries(matchingSubmittedSecret: fixture), "reader forces a busy checkpoint")
+        precondition(store.items.map(\.text) == ["keep this entry"], "purge commits before the crash")
+        try output.write(contentsOf: ready)
+        try withExtendedLifetime(store) {
+            _ = try input.read(upToCount: 1)
+        }
+    }
+
+    private static func holdReadTransaction(in directory: URL) throws {
+        var reader: OpaquePointer?
+        let database = directory.appendingPathComponent("clipboard.sqlite3")
+        precondition(sqlite3_open_v2(database.path, &reader, SQLITE_OPEN_READONLY, nil) == SQLITE_OK)
+        defer { sqlite3_close(reader) }
+        precondition(sqlite3_exec(reader, "BEGIN; SELECT text FROM items", nil, nil, nil) == SQLITE_OK)
+        try FileHandle.standardOutput.write(contentsOf: ready)
+        _ = try FileHandle.standardInput.read(upToCount: 1)
+    }
+
+    @MainActor
+    private struct CrashChild {
+        let input: FileHandle
+        private let output: FileHandle
+        private let process: Process
+        private let exit: ProcessExit
+
+        init(_ role: String, directory: URL, fixture: String) throws {
+            let process = Process()
+            let inputPipe = Pipe()
+            let outputPipe = Pipe()
+            process.executableURL = URL(fileURLWithPath: CommandLine.arguments[0])
+            process.arguments = [role, directory.path, fixture]
+            process.standardInput = inputPipe
+            process.standardOutput = outputPipe
+            exit = try process.runObservingExit()
+            input = inputPipe.fileHandleForWriting
+            output = outputPipe.fileHandleForReading
+            self.process = process
+        }
+
+        func expectReady() throws {
+            let message = try output.read(upToCount: 1)
+            precondition(message == ready, "crash test child exited before its handshake")
+        }
+
+        func hardKill() {
+            precondition(kill(process.processIdentifier, SIGKILL) == 0)
+            exit.wait()
+            precondition(process.terminationReason == .uncaughtSignal && process.terminationStatus == SIGKILL)
+        }
     }
 
     static func submissionPurgesExactMatches() throws {
