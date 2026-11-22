@@ -53,19 +53,29 @@ struct NotchcastSettingsAccessibilityTests {
         var passed = true
         for (pane, titles) in cases {
             let names = switchNames(in: pane, controller: controller)
-            if names.sorted() != titles.sorted() {
-                print("FAIL \(pane.title) switch names. Expected \(titles), got \(names)")
+            if !checkSwitchNames(pane.title, expected: titles, found: names) {
                 passed = false
             }
         }
         controller.preferences.set(parent.id, on: false)
-        let musicNames = switchNames(in: .displaySound, controller: controller)
-        if musicNames.sorted() != music.map(\.title).sorted() {
-            print("FAIL Music Block with the parent off. Expected \(music.map(\.title)), got \(musicNames)")
+        if !checkSwitchNames("Music Block with the parent off", expected: music.map(\.title),
+                             found: switchNames(in: .displaySound, controller: controller)) {
             passed = false
         }
         if !passed { exit(1) }
-        print("PASS Settings accessibility names for Music Block, the capture child row and the Island switches")
+    }
+
+    static func checkSwitchNames(_ section: String, expected: [String], found: [String]) -> Bool {
+        guard found.count == expected.count else {
+            print("FAIL \(section) accessibility tree. Expected \(expected.count) switches, found \(found.count): \(found)")
+            return false
+        }
+        guard found.sorted() == expected.sorted() else {
+            print("FAIL \(section) switch names. Expected \(expected), got \(found)")
+            return false
+        }
+        print("PASS \(section) switch names: \(found)")
+        return true
     }
 
     static func switchNames(in pane: NotchcastPane, controller: NotchcastController) -> [String] {
@@ -79,20 +89,24 @@ struct NotchcastSettingsAccessibilityTests {
         let host = NSHostingView(rootView: view)
         window.contentView = host
         host.frame = frame
+        window.orderFront(nil)
+        defer { window.orderOut(nil) }
         host.layoutSubtreeIfNeeded()
         window.displayIfNeeded()
-        return withExtendedLifetime(window) {
-            (host.accessibilityChildren() ?? []).flatMap { switchNames(below: $0) }
-        }
+        return switchNames(below: window)
     }
 
     static func switchNames(below node: Any) -> [String] {
-        guard let element = node as? any NSAccessibilityProtocol else { return [] }
-        if element.accessibilityRole() == .checkBox || element.accessibilitySubrole() == .switch {
-            let label = element.accessibilityLabel() ?? ""
-            return [label.isEmpty ? (element.accessibilityTitle() ?? "") : label]
+        // SwiftUI's accessibility objects can implement these selectors without adopting the protocol.
+        let element = node as AnyObject
+        let role: NSAccessibility.Role? = element.accessibilityRole?()
+        let subrole: NSAccessibility.Subrole? = element.accessibilitySubrole?()
+        if role == .checkBox || role?.rawValue == "AXSwitch" || subrole == .switch {
+            let label: String = element.accessibilityLabel?() ?? ""
+            return [label.isEmpty ? (element.accessibilityTitle?() ?? "") : label]
         }
-        return (element.accessibilityChildren() ?? []).flatMap { switchNames(below: $0) }
+        let children: [Any] = element.accessibilityChildren?() ?? []
+        return NSAccessibility.unignoredChildren(from: children).flatMap { switchNames(below: $0) }
     }
 }
 
