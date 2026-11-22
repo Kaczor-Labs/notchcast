@@ -57,11 +57,12 @@ final class ClipboardCoordinator {
 
     func beginSecretPrompt() {
         clipboardManager.setSecretPromptOpen(true)
+        clipboardStore.invalidatePendingCaptures()
     }
 
     func endSecretPrompt(submitted secret: String?) {
         if !clipboardStore.removeEntries(matchingSubmittedSecret: secret) {
-            Self.logger.error("Could not remove matching clipboard history entries")
+            Self.logger.error("Could not complete clipboard history purge")
         }
         clipboardManager.setSecretPromptOpen(false)
     }

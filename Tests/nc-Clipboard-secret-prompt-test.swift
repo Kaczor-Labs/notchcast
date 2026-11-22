@@ -4,12 +4,14 @@
 // notchcast-sources: Tinycast/Features/Clipboard/Model/Color*.swift
 // notchcast-sources: Tinycast/Platform/Images/ImageDerivative.swift
 import Foundation
+import SQLite3
 
 @main
 @MainActor
 struct ClipboardSecretPromptTest {
     static func main() throws {
         captureFollowsPromptLifetime()
+        try purgeChecksDiskWithAnActiveReader()
         try submissionPurgesExactMatches()
         print("PASS secure prompt capture, cancellation and exact history purge")
     }
@@ -26,12 +28,43 @@ struct ClipboardSecretPromptTest {
         precondition(policy.shouldCapture(changeCount: 5, isPaused: false), "resume ordinary capture")
     }
 
+    static func purgeChecksDiskWithAnActiveReader() throws {
+        let directory = FileManager.default.temporaryDirectory.appending(path: UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let store = ClipboardStore(directory: directory)
+        let secret = "wal-purge-fixture-\(UUID())"
+        let bytes = Data(secret.utf8)
+        let wal = URL(fileURLWithPath: store.dbURL.path + "-wal")
+        store.addText(secret, sourceBundleID: nil)
+        let initialWAL = try Data(contentsOf: wal)
+        precondition(initialWAL.range(of: bytes) != nil, "fixture writes the secret to the WAL")
+
+        var reader: OpaquePointer?
+        precondition(sqlite3_open_v2(store.dbURL.path, &reader, SQLITE_OPEN_READONLY, nil) == SQLITE_OK)
+        defer { sqlite3_close(reader) }
+        precondition(sqlite3_exec(reader, "BEGIN; SELECT text FROM items", nil, nil, nil) == SQLITE_OK)
+
+        precondition(!store.removeEntries(matchingSubmittedSecret: secret), "a busy WAL must keep the purge pending")
+        precondition(store.items.isEmpty, "the row is removed even when the WAL is busy")
+        let busyWAL = try Data(contentsOf: wal)
+        precondition(busyWAL.range(of: bytes) != nil, "reader keeps the WAL bytes in place")
+        precondition(sqlite3_exec(reader, "COMMIT", nil, nil, nil) == SQLITE_OK)
+
+        precondition(store.removeEntries(matchingSubmittedSecret: secret), "a retry finishes the pending purge")
+        let databaseBytes = try Data(contentsOf: store.dbURL)
+        precondition(databaseBytes.range(of: bytes) == nil, "database bytes are cleared")
+        let walBytes = try FileManager.default.fileExists(atPath: wal.path) ? Data(contentsOf: wal) : Data()
+        precondition(walBytes.range(of: bytes) == nil, "WAL bytes are cleared")
+    }
+
     static func submissionPurgesExactMatches() throws {
         let directory = FileManager.default.temporaryDirectory.appending(path: UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: directory) }
         let store = ClipboardStore(directory: directory)
         let secret = "test-passphrase-ñ"
-        let closeMatches = ["Test-passphrase-ñ", "test-passphrase-n\u{303}", "before \(secret)", "\(secret) "]
+        let closeMatches = [
+            "Test-passphrase-ñ", "test-passphrase-n\u{303}", "before \(secret)", "\(secret) ", "\(secret)\n\n"
+        ]
         let blob = store.imagesDir.appending(path: "owned.png")
         let derivatives = ImageDerivative.all(of: blob)
         try FileManager.default.createDirectory(at: ImageDerivative.folder(beside: blob), withIntermediateDirectories: true)
@@ -50,6 +83,9 @@ struct ClipboardSecretPromptTest {
         precondition(store.importEntries([old] + fillers) == 1002)
         for text in closeMatches {
             store.addText(text, sourceBundleID: nil)
+        }
+        for ending in ["\n", "\r\n", "\r"] {
+            store.addText(secret + ending, sourceBundleID: nil)
         }
         store.addText(secret, sourceBundleID: nil)
         store.togglePinned(store.items[0])
@@ -78,12 +114,21 @@ struct ClipboardSecretPromptTest {
 
         store.open()
         store.load()
-        store.addText(secret, sourceBundleID: nil)
+        let closedSecret = "closed-purge-fixture-\(UUID())"
+        let closedSecretBytes = Data(closedSecret.utf8)
+        store.addText(closedSecret, sourceBundleID: nil)
         store.close()
-        precondition(store.removeEntries(matchingSubmittedSecret: secret), "submit also purges with history off")
+        let oldDatabase = try Data(contentsOf: store.dbURL)
+        precondition(oldDatabase.range(of: closedSecretBytes) != nil, "fixture has the password in the main file")
+        precondition(store.removeEntries(matchingSubmittedSecret: closedSecret + "\n"), "submit purges with history off")
         precondition(store.items.isEmpty, "the closed history stays unloaded")
+        let database = try Data(contentsOf: store.dbURL)
+        precondition(database.range(of: closedSecretBytes) == nil, "secure delete clears bytes from the main file")
+        let wal = URL(fileURLWithPath: store.dbURL.path + "-wal")
+        let walBytes = try FileManager.default.fileExists(atPath: wal.path) ? Data(contentsOf: wal) : Data()
+        precondition(walBytes.range(of: closedSecretBytes) == nil, "secure delete clears bytes from the WAL")
         store.open()
         store.load()
-        precondition(!store.items.contains { $0.text?.utf8.elementsEqual(secret.utf8) == true })
+        precondition(!store.items.contains { $0.text == closedSecret })
     }
 }

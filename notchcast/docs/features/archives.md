@@ -9,7 +9,7 @@ The Archives add-on (`Tinycast/Features/Notchcast/Archives/`), under the **Archi
 - **Output lands beside the input**: extracted items beside the archive, an archive beside the selection.
 - **A stop or failure leaves nothing half-done.** Extraction keeps only what HatchZip already moved out in place, and the one exception under Protected archives; compression writes in a private folder on the output's volume (`.itemReplacementDirectory`), removed on every exit, and publishes on the main actor after checking for a stop.
 - **A password is never kept.** It lives in one local variable of `ArchiveExtractor.extract` for one job and reaches HatchZip only as `HATCHZIP_PASSWORD` in the environment of its `list`, `extract` and `check` runs: never an argument, the journal, a notice, a log, the Keychain or the pasteboard.
-- **The password question pauses clipboard history**, even when another app has focus. Submitting removes exact text matches from history and their owned side files, including copies made before the question opened. Cancelling leaves saved history intact.
+- **The password question pauses clipboard history**, even when another app has focus. Submitting removes matching text from history, with or without one trailing line ending, along with its owned side files. This includes copies made before the question opened. Cancelling leaves saved history intact.
 - **One extraction and one compression at a time.** Extraction is a queue journalled to `archives.json`, so a relaunch resumes it; compression is in memory only, and a second request while one runs is refused with a notice. The two run side by side.
 
 ## Extract

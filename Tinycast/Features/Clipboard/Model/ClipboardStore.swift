@@ -204,6 +204,7 @@ final class ClipboardStore {
     /// Rotated whenever the history is replaced, so a helper's late answer lands on nothing.
     @ObservationIgnored private(set) var extractionGeneration = UUID()
     @ObservationIgnored private(set) var captureGeneration = UUID()
+    @ObservationIgnored private var secretPurgeRetry: Task<Void, Never>?
     /// The only thing a view observes for search freshness; `items` cannot speak for OCR.
     private var searchRevision = 0
     @ObservationIgnored private(set) var textSearchEnabled = false
@@ -326,7 +327,7 @@ final class ClipboardStore {
     func close() {
         setTextSearchEnabled(false)
         extractionGeneration = UUID()
-        captureGeneration = UUID()
+        invalidatePendingCaptures()
         closeDatabase()
         items = []
     }
@@ -342,6 +343,7 @@ final class ClipboardStore {
     // Isolated so teardown may touch the main-actor pointers; the release is already on main.
     isolated deinit {
         textSearchTask?.cancel()
+        secretPurgeRetry?.cancel()
         closeDatabase()
     }
 
@@ -393,6 +395,10 @@ final class ClipboardStore {
             trimWindow()
         }
         prune()
+    }
+
+    func invalidatePendingCaptures() {
+        captureGeneration = UUID()
     }
 
     func addImage(_ data: Data, sourceBundleID: String?, capture: UUID) {
@@ -479,13 +485,27 @@ final class ClipboardStore {
         defer { if wasClosed { closeDatabase() } }
         guard !wasClosed || openDatabase() else { return false }
         guard sqlite3_exec(db, "PRAGMA secure_delete = ON", nil, nil, nil) == SQLITE_OK,
-            let stmt = prepare("DELETE FROM items WHERE text = ? COLLATE BINARY RETURNING id, image_path")
+            let stmt = prepare(
+                """
+                DELETE FROM items WHERE text COLLATE BINARY IN (?1, ?2, ?3, ?4)
+                RETURNING id, image_path
+                """)
         else { return false }
 
-        let bound = sqlite3_bind_text(stmt, 1, secret, Int32(secret.utf8.count), SQLITE_TRANSIENT)
+        let lineEndings = ["\n", "\r", "\r\n"]
+        let base = lineEndings.contains { secret.hasSuffix($0) } ? String(secret.dropLast()) : secret
+        let matches = [base] + lineEndings.map { base + $0 }
+        for (index, match) in matches.enumerated() {
+            guard sqlite3_bind_text(stmt, Int32(index + 1), match, Int32(match.utf8.count), SQLITE_TRANSIENT)
+                == SQLITE_OK
+            else {
+                sqlite3_finalize(stmt)
+                return false
+            }
+        }
         var deletedIDs: Set<UUID> = []
         var ownedPaths: [String] = []
-        var status = bound == SQLITE_OK ? sqlite3_step(stmt) : bound
+        var status = sqlite3_step(stmt)
         while status == SQLITE_ROW {
             if let id = Self.columnString(stmt, 0).flatMap(UUID.init(uuidString:)) {
                 deletedIDs.insert(id)
@@ -496,20 +516,55 @@ final class ClipboardStore {
         sqlite3_finalize(stmt)
         guard status == SQLITE_DONE else { return false }
 
+        let deletedRows = sqlite3_changes(db)
         for path in ownedPaths { Self.removeBlob(atPath: path) }
         if !deletedIDs.isEmpty {
             textSearchMatches.removeAll { deletedIDs.contains($0.id) }
             items.removeAll { deletedIDs.contains($0.id) }
-            sqlite3_wal_checkpoint_v2(db, nil, SQLITE_CHECKPOINT_TRUNCATE, nil, nil)
         }
-        return true
+        guard deletedRows > 0 || secretPurgeRetry != nil else { return true }
+        if truncateSecretWAL() {
+            secretPurgeRetry?.cancel()
+            secretPurgeRetry = nil
+            return true
+        }
+        if secretPurgeRetry == nil {
+            secretPurgeRetry = Task { [weak self] in
+                while !Task.isCancelled {
+                    do {
+                        try await Task.sleep(for: .milliseconds(500))
+                    } catch {
+                        return
+                    }
+                    guard !Task.isCancelled, let self else { return }
+                    if self.truncateSecretWAL() {
+                        self.secretPurgeRetry = nil
+                        return
+                    }
+                }
+            }
+        }
+        return false
+    }
+
+    private func truncateSecretWAL() -> Bool {
+        let wasClosed = db == nil
+        defer { if wasClosed { closeDatabase() } }
+        guard !wasClosed || openDatabase() else { return false }
+
+        // The writer has no busy handler, so a reader lock defers this attempt without waiting.
+        var logFrames: Int32 = -1
+        var checkpointedFrames: Int32 = -1
+        let status = sqlite3_wal_checkpoint_v2(
+            db, "main", SQLITE_CHECKPOINT_TRUNCATE, &logFrames, &checkpointedFrames)
+        return status == SQLITE_OK && logFrames == 0 && checkpointedFrames == 0
     }
 
     /// A pin is a deliberate keep, so it outlives the bulk clear; `remove` is the way to drop one.
     func clearAll() {
         invalidateSearch()
         extractionGeneration = UUID()
-        captureGeneration = UUID()
+        invalidatePendingCaptures()
         // RETURNING hands back the deleted blobs in the same pass, so no separate SELECT is needed.
         if db != nil,
             let stmt = prepare("DELETE FROM items WHERE pinned_at IS NULL RETURNING image_path")
