@@ -14,7 +14,7 @@ struct NotchcastIslandSettingsRows: View {
             }
             Toggle(isOn: $settings.islandOutlineWhenOpen) {
                 SettingsRowTitle(NotchcastSettingsSearch.island, NotchcastSettingsSearch.outlineWhenOpen)
-                Text("A faint line around the open island in Dark.", tableName: "Notchcast")
+                Text("A faint line around the open island and its menus.", tableName: "Notchcast")
             }
             Toggle(isOn: $settings.islandOpensOnHover) {
                 SettingsRowTitle(NotchcastSettingsSearch.island, NotchcastSettingsSearch.opensOnHover)
