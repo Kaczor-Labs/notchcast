@@ -23,8 +23,18 @@ extension NotchcastAddon {
 
 @MainActor
 protocol NotchcastModule: AnyObject {
+    /// Read after modules start, before the app decides whether to open the launcher.
+    var hasPendingQuestion: Bool { get }
     func start()
     func stop()
+}
+
+extension NotchcastModule {
+    var hasPendingQuestion: Bool { false }
+}
+
+nonisolated enum NotchcastQuestion {
+    @TaskLocal static var takesLauncherPriority = false
 }
 
 /// A launcher command; its entry id doubles as the hotkey's key, `hotkey.command:nc-<slug>`.
