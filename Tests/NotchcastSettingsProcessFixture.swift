@@ -36,20 +36,24 @@ extension NotchcastCoreTest {
 
     private static func settingsProcessBoundary() {
         let panes: [(path: String, route: String)] = [
-            ("Agents/Settings/AgentsSettingsView.swift", "mainApp.send(.notchcast(.refreshAgents"),
-            ("Archives/UI/ArchivesSettingsView.swift", "mainApp.send(.notchcast(.setArchiveDefault"),
+            ("Agents/Settings/AgentsSettingsView.swift", "mainApp.sendNotchcast(.refreshAgents, to: AgentsAddon.self)"),
+            ("Archives/UI/ArchivesSettingsView.swift", "mainApp.sendNotchcast(on, to: ArchivesAddon.self)"),
             ("AutoBackup/UI/AutoBackupSettingsView.swift", "mainApp.send(.notchcast(.restoreAutomaticBackup"),
-            ("ColorPicker/UI/ColorPickerSettingsView.swift", "mainApp.send(.notchcast(.copyColor"),
-            ("Day/UI/DaySettingsView.swift", "mainApp.callNotchcast(.setDayCity"),
-            ("DisplaySound/UI/BrightnessSettingsView.swift", "mainApp.callNotchcast(.setBrightness"),
+            ("ColorPicker/UI/ColorPickerSettingsView.swift", "mainApp.sendNotchcast("),
+            ("Day/UI/DaySettingsView.swift", "mainApp.callNotchcast(city, to: DayAddon.self)"),
+            ("DisplaySound/UI/BrightnessSettingsView.swift",
+             "mainApp.callNotchcast(.init(value: value, display: id), to: DisplaySoundAddon.self)"),
             ("DisplaySound/UI/BrightnessDisplayRow.swift", "setLevel:"),
             ("DisplaySound/UI/BrightnessDisplayRowState.swift", "await setLevel("),
-            ("Downloads/UI/TorrentsSettingsView.swift", "mainApp.send(.notchcast(.torrent"),
-            ("IPhoneBackup/UI/IPhoneBackupSettingsView.swift", "mainApp.send(.notchcast(.answerIPhoneBackup"),
-            ("LowDisk/UI/LowDiskSettingsView.swift", "mainApp.send(.notchcast(.checkLowDisk"),
-            ("ScriptCommands/Settings/ScriptCommandsSettingsView.swift", "mainApp.send(.notchcast(.addScript"),
-            ("ScriptCommands/Settings/ScriptCommandEditor.swift", "mainApp.send(.notchcast(.updateScript"),
-            ("Spotify/UI/SpotifySettingsView.swift", "mainApp.callNotchcast(.saveSoloistKey"),
+            ("Downloads/UI/TorrentsSettingsView.swift",
+             "mainApp.callNotchcast(.inspectTorrents, to: DownloadsAddon.self)"),
+            ("IPhoneBackup/UI/IPhoneBackupSettingsView.swift", "mainApp.sendNotchcast($0, to: IPhoneBackupAddon.self)"),
+            ("LowDisk/UI/LowDiskSettingsView.swift", "mainApp.sendNotchcast(.checkLowDisk, to: LowDiskAddon.self)"),
+            ("ScriptCommands/Settings/ScriptCommandsSettingsView.swift",
+             "mainApp.sendNotchcast(.addScript(id), to: ScriptCommandsAddon.self)"),
+            ("ScriptCommands/Settings/ScriptCommandEditor.swift",
+             "mainApp.sendNotchcast(.updateScript(row), to: ScriptCommandsAddon.self)"),
+            ("Spotify/UI/SpotifySettingsView.swift", "mainApp.callNotchcast(key, to: SpotifyAddon.self)"),
         ]
         for (path, route) in panes {
             let source = (try? String(contentsOfFile: "Tinycast/Features/Notchcast/" + path, encoding: .utf8)) ?? ""

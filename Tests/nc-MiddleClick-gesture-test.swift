@@ -2,6 +2,12 @@
 // notchcast-sources: Tinycast/Features/Notchcast/Core/Model/*.swift Tinycast/Features/Notchcast/Core/Service/*.swift
 // notchcast-sources: Tinycast/Features/Island/Model/IslandPresentation.swift
 // notchcast-sources: Tinycast/Features/Island/Service/IslandPresenting.swift
+// notchcast-sources: Tinycast/Features/Clipboard/Service/Paster.swift Tinycast/Features/Clipboard/Service/ClipboardManager.swift
+// notchcast-sources: Tinycast/Features/Clipboard/Model/ClipboardStore.swift
+// notchcast-sources: Tinycast/Features/Clipboard/Model/ClipboardFilter.swift
+// notchcast-sources: Tinycast/Features/Clipboard/Model/ClipboardFileKind.swift Tinycast/Features/Clipboard/Model/ColorValue.swift
+// notchcast-sources: Tinycast/Features/Clipboard/Model/ColorFormat.swift Tinycast/Features/Clipboard/Model/ColorSpaces.swift
+// notchcast-sources: Tinycast/Platform/PasteboardFiles.swift Tinycast/Platform/Images/ImageDerivative.swift
 // notchcast-sources: Tinycast/Platform/NotificationToken.swift
 // notchcast-sources: Tinycast/Features/Notchcast/MiddleClick/MiddleClickAddon.swift
 // notchcast-sources: Tinycast/Features/Notchcast/MiddleClick/Model/*.swift
@@ -11,7 +17,14 @@ import CoreGraphics
 import Foundation
 import Synchronization
 
-private enum Paster { static let tinycastEventTag: Int64 = 0x54494E59 }
+@MainActor
+final class AppSettings {
+    var clipboardDisabledApps: Set<String> = []
+}
+
+enum Permissions {
+    static func ensureAccessibility() -> Bool { false }
+}
 
 /// Pins the middle click guards, their order and the engine's pairing of presses and releases.
 @main

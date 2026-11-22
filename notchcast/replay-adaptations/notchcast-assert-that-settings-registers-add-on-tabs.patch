@@ -537,7 +537,7 @@ index c136655ab..acae78152 100644
 
      func start() {
 diff --git a/Tinycast/Features/Notchcast/Agents/Settings/AgentsSettingsView.swift b/Tinycast/Features/Notchcast/Agents/Settings/AgentsSettingsView.swift
-index f57c196e0dbecc5048581219445ba58b7775de1a..e538fcc461ea6a3aa27abea4023a0de185b154bb 100644
+index f57c196e0..a9788de19 100644
 --- a/Tinycast/Features/Notchcast/Agents/Settings/AgentsSettingsView.swift
 +++ b/Tinycast/Features/Notchcast/Agents/Settings/AgentsSettingsView.swift
 @@ -3,6 +3,7 @@ import SwiftUI
@@ -552,7 +552,7 @@ index f57c196e0dbecc5048581219445ba58b7775de1a..e538fcc461ea6a3aa27abea4023a0de1
              accounts = preferences.claudeAccounts ?? [AgentsPreferences.defaultAccount]
              feedFolder = preferences.feedFolder
          }
-+        .onChange(of: mainApp.status.notchcast.agents, initial: true) { previous, latest in
++        .onChange(of: mainApp.notchcastStatus(for: AgentsAddon.self), initial: true) { previous, latest in
 +            guard let latest else { return }
 +            if previous == nil || previous?.machineName != latest.machineName {
 +                machineName = latest.machineName ?? ""
@@ -570,15 +570,15 @@ index f57c196e0dbecc5048581219445ba58b7775de1a..e538fcc461ea6a3aa27abea4023a0de1
      private func save(_ change: (AgentsPreferences) -> Void) {
          change(preferences)
 -        context.module(AgentsModule.self)?.settingsChanged()
-+        mainApp.send(.notchcast(.refreshAgents))
++        mainApp.sendNotchcast(.refreshAgents, to: AgentsAddon.self)
      }
  
      private func saveMachineName() {
 diff --git a/Tinycast/Features/Notchcast/Archives/UI/ArchivesSettingsView.swift b/Tinycast/Features/Notchcast/Archives/UI/ArchivesSettingsView.swift
-index f324db946..f974a7de0 100644
+index f324db946..c46dc70e8 100644
 --- a/Tinycast/Features/Notchcast/Archives/UI/ArchivesSettingsView.swift
 +++ b/Tinycast/Features/Notchcast/Archives/UI/ArchivesSettingsView.swift
-@@ -1,14 +1,13 @@
+@@ -1,13 +1,12 @@
  import SwiftUI
 
  struct ArchivesSettingsView: View {
@@ -593,18 +593,15 @@ index f324db946..f974a7de0 100644
          _defaultApp = AppStorage(wrappedValue: false, ArchivesModule.defaultAppKey, store: context.defaults)
          _inPlace = AppStorage(wrappedValue: false, ArchivesModule.inPlaceKey, store: context.defaults)
      }
-
-@@ -17,9 +16,9 @@ struct ArchivesSettingsView: View {
-             SettingsRowTitle(
+@@ -18,7 +17,7 @@ struct ArchivesSettingsView: View {
                  Self.anchor, LocalizedStringResource("Make Notchcast the default app for archives", table: "NotchcastArchives"))
              Text("Off gives the archive types back to Archive Utility.", tableName: "NotchcastArchives")
          }
 -        .onChange(of: defaultApp) { _, on in context.module(ArchivesModule.self)?.setDefaultApp(on) }
-+        .onChange(of: defaultApp) { _, on in mainApp.send(.notchcast(.setArchiveDefault(on))) }
++        .onChange(of: defaultApp) { _, on in mainApp.sendNotchcast(on, to: ArchivesAddon.self) }
          Toggle(isOn: $inPlace) {
              SettingsRowTitle(Self.anchor, LocalizedStringResource("Extract in place", table: "NotchcastArchives"))
              Text("Remove the archive as its files come out, so it needs space for the files only.",
-                  tableName: "NotchcastArchives")
 diff --git a/Tinycast/Features/Notchcast/AutoBackup/UI/AutoBackupSettingsView.swift b/Tinycast/Features/Notchcast/AutoBackup/UI/AutoBackupSettingsView.swift
 index e6f2d8bd4..8bdf82874 100644
 --- a/Tinycast/Features/Notchcast/AutoBackup/UI/AutoBackupSettingsView.swift
@@ -648,11 +645,10 @@ index 08697df68..7617ab569 100644
 
      static func makeModule(_ context: NotchcastContext) -> (any NotchcastModule)? {
 diff --git a/Tinycast/Features/Notchcast/ColorPicker/UI/ColorPickerSettingsView.swift b/Tinycast/Features/Notchcast/ColorPicker/UI/ColorPickerSettingsView.swift
-index 3413f9b48..45dfd1f54 100644
+index 3413f9b48..1137c8fe6 100644
 --- a/Tinycast/Features/Notchcast/ColorPicker/UI/ColorPickerSettingsView.swift
 +++ b/Tinycast/Features/Notchcast/ColorPicker/UI/ColorPickerSettingsView.swift
-@@ -2,15 +2,14 @@ import SwiftUI
-
+@@ -3,13 +3,12 @@ import SwiftUI
  struct ColorPickerSettingsView: View {
      @AppStorage private var format: ColorPickerFormat
      @AppStorage private var recent: String
@@ -668,19 +664,17 @@ index 3413f9b48..45dfd1f54 100644
      }
 
      var body: some View {
-         Picker(selection: $format) {
-@@ -34,9 +33,10 @@ struct ColorPickerSettingsView: View {
-         ForEach(Array(colors.enumerated()), id: \.offset) { _, color in
+@@ -35,7 +34,9 @@ struct ColorPickerSettingsView: View {
              let value = format.string(for: color)
              LabeledContent {
                  Button {
 -                    copy(color)
-+                    mainApp.send(.notchcast(.copyColor(
-+                        red: color.red, green: color.green, blue: color.blue, alpha: color.alpha)))
++                    mainApp.sendNotchcast(
++                        .init(red: color.red, green: color.green, blue: color.blue, alpha: color.alpha),
++                        to: ColorPickerAddon.self)
                  } label: {
                      Text("Copy", tableName: "NotchcastColorPicker")
                  }
-                 .accessibilityLabel(Text("Copy \(value)", tableName: "NotchcastColorPicker"))
 diff --git a/Tinycast/Features/Notchcast/Core/Service/NotchcastController.swift b/Tinycast/Features/Notchcast/Core/Service/NotchcastController.swift
 index 76da8df80..d593a28e0 100644
 --- a/Tinycast/Features/Notchcast/Core/Service/NotchcastController.swift
@@ -741,7 +735,7 @@ index 07e749187..ba8211b75 100644
          return true
      }
 diff --git a/Tinycast/Features/Notchcast/Day/UI/DaySettingsView.swift b/Tinycast/Features/Notchcast/Day/UI/DaySettingsView.swift
-index 99df42f244b62d9ef694adc9e787dc98af71e9e6..b2f0eca6441d6126a04b74abb541887f7d34a215 100644
+index 99df42f24..2ceea8add 100644
 --- a/Tinycast/Features/Notchcast/Day/UI/DaySettingsView.swift
 +++ b/Tinycast/Features/Notchcast/Day/UI/DaySettingsView.swift
 @@ -2,8 +2,8 @@ import SwiftUI
@@ -791,7 +785,7 @@ index 99df42f244b62d9ef694adc9e787dc98af71e9e6..b2f0eca6441d6126a04b74abb541887f
 +                      prompt: Text(verbatim: "AAPL, BTC-USD, EURUSD=X"))
 +                .onSubmit {
 +                    symbols = DayQuoteFeed.symbols(from: symbols).joined(separator: ", ")
-+                    mainApp.send(.notchcast(.setDaySymbols(symbols)))
++                    mainApp.sendNotchcast(symbols, to: DayAddon.self)
 +                }
 +            Text("Press Return to apply. Weather comes from Open-Meteo. Quotes use Yahoo Finance symbols, up to 8.",
 +                 tableName: "NotchcastDay")
@@ -825,16 +819,16 @@ index 99df42f244b62d9ef694adc9e787dc98af71e9e6..b2f0eca6441d6126a04b74abb541887f
 -            cityMissing = await !module.setCity(city)
 -            if let name = module.place?.name, !cityMissing { city = name }
 -            isLooking = false
-+        .onChange(of: mainApp.status.notchcast.daySymbols, initial: true) { _, latest in
++        .onChange(of: mainApp.notchcastStatus(for: DayAddon.self), initial: true) { _, latest in
 +            if let latest { symbols = latest }
 +        }
 +        .task(id: isLooking) {
 +            guard isLooking else { return }
 +            defer { if !Task.isCancelled { isLooking = false } }
 +            do {
-+                let reply = try await mainApp.callNotchcast(.setDayCity(city))
++                let name = try await mainApp.callNotchcast(city, to: DayAddon.self)
 +                guard !Task.isCancelled else { return }
-+                if case .dayCity(let name?) = reply {
++                if let name {
 +                    city = name
 +                    cityMissing = false
 +                } else {
@@ -966,11 +960,10 @@ index 905bdfb55..499457dea 100644
          pending = nil
          write = nil
 diff --git a/Tinycast/Features/Notchcast/DisplaySound/UI/BrightnessSettingsView.swift b/Tinycast/Features/Notchcast/DisplaySound/UI/BrightnessSettingsView.swift
-index d7a414f47..e4a7d7129 100644
+index d7a414f47..6f51f9b7b 100644
 --- a/Tinycast/Features/Notchcast/DisplaySound/UI/BrightnessSettingsView.swift
 +++ b/Tinycast/Features/Notchcast/DisplaySound/UI/BrightnessSettingsView.swift
-@@ -1,33 +1,22 @@
- import SwiftUI
+@@ -2,32 +2,19 @@ import SwiftUI
 
  /// Every display's slider under the Display Brightness switch.
  struct BrightnessSettingsView: View {
@@ -988,7 +981,7 @@ index d7a414f47..e4a7d7129 100644
 -                ForEach(controller.currentDisplays) { display in
 -                    BrightnessDisplayRow(display: display, controller: controller)
 -                }
-+        if let displays = mainApp.status.notchcast.displays {
++        if let displays = mainApp.notchcastStatus(for: DisplaySoundAddon.self) {
 +            if displays.isEmpty {
 +                Text("No display can be controlled.", tableName: "NotchcastDisplaySound")
 +                    .foregroundStyle(Theme.Colors.textSecondary)
@@ -1005,9 +998,7 @@ index d7a414f47..e4a7d7129 100644
 -                return
 +            ForEach(displays) { display in
 +                BrightnessDisplayRow(display: display) { value, id in
-+                    guard case .brightness(let level) = try? await mainApp.callNotchcast(.setBrightness(value, id))
-+                    else { return nil }
-+                    return level
++                    try? await mainApp.callNotchcast(.init(value: value, display: id), to: DisplaySoundAddon.self)
 +                }
              }
 -            guard (try? await Task.sleep(for: .milliseconds(50))) != nil else { return }
@@ -1045,7 +1036,7 @@ index 294e8abe6..ca555c1d2 100644
          var isActive: Bool { [.findingPeers, .downloading, .sharing].contains(self) }
      }
 diff --git a/Tinycast/Features/Notchcast/Downloads/UI/TorrentsSettingsView.swift b/Tinycast/Features/Notchcast/Downloads/UI/TorrentsSettingsView.swift
-index 4e0418a6018e4f46c84cbdc6745ebaa2c456612d..280e048ca3f2953fb36c2ac7a8e2ed87a15a56db 100644
+index 4e0418a60..caf56784a 100644
 --- a/Tinycast/Features/Notchcast/Downloads/UI/TorrentsSettingsView.swift
 +++ b/Tinycast/Features/Notchcast/Downloads/UI/TorrentsSettingsView.swift
 @@ -2,13 +2,13 @@ import SwiftUI
@@ -1060,19 +1051,22 @@ index 4e0418a6018e4f46c84cbdc6745ebaa2c456612d..280e048ca3f2953fb36c2ac7a8e2ed87
  
      var body: some View {
 -        if let module = context.module(DownloadsModule.self) {
-+        if let torrents = mainApp.status.notchcast.torrents {
++        if let torrents = mainApp.notchcastStatus(for: DownloadsAddon.self) {
              LabeledContent {
                  if let aria2c {
                      Text(aria2c.path)
-@@ -22,46 +22,45 @@ struct TorrentsSettingsView: View {
+@@ -22,46 +22,47 @@ struct TorrentsSettingsView: View {
                  }
              }
              .task {
 -                aria2c = module.environment.tools.find(.aria2c)
-+                guard case .torrentTools(let path) = try? await mainApp.callNotchcast(.inspectTorrents),
-+                      !Task.isCancelled else { return }
-+                aria2c = path
-                 looked = true
+-                looked = true
++                do {
++                    let path = try await mainApp.callNotchcast(.inspectTorrents, to: DownloadsAddon.self)
++                    guard !Task.isCancelled else { return }
++                    aria2c = path
++                    looked = true
++                } catch { return }
              }
 -            if let handler = context.recovery(TorrentOpenFallback.self)?.defaultApp {
 -                LabeledContent {
@@ -1099,7 +1093,7 @@ index 4e0418a6018e4f46c84cbdc6745ebaa2c456612d..280e048ca3f2953fb36c2ac7a8e2ed87
 -    let job: TorrentJob
 -    let module: DownloadsModule
 +    @Environment(MainAppLink.self) private var mainApp
-+    let job: NotchcastSettingsStatus.Torrents.Job
++    let job: DownloadsAddon.Status.Job
      let bonded: Bool
  
      var body: some View {
@@ -1127,12 +1121,12 @@ index 4e0418a6018e4f46c84cbdc6745ebaa2c456612d..280e048ca3f2953fb36c2ac7a8e2ed87
                          Text("Dismiss", tableName: "NotchcastDownloads")
                      }
                  }
-@@ -79,6 +78,10 @@ private struct TorrentJobRow: View {
+@@ -79,6 +80,10 @@ private struct TorrentJobRow: View {
          }
      }
  
-+    private func perform(_ action: NotchcastSettingsAction.TorrentAction) {
-+        mainApp.send(.notchcast(.torrent(job.id, action)))
++    private func perform(_ action: DownloadsAddon.TorrentAction) {
++        mainApp.sendNotchcast(.init(id: job.id, operation: action), to: DownloadsAddon.self)
 +    }
 +
      private var detail: String {
@@ -1220,11 +1214,10 @@ index 160752fa8..685fdb17b 100644
      func stop() {
          guard !context.isEnabled(IPhoneBackupAddon.switchID) else { return }
 diff --git a/Tinycast/Features/Notchcast/IPhoneBackup/UI/IPhoneBackupSettingsView.swift b/Tinycast/Features/Notchcast/IPhoneBackup/UI/IPhoneBackupSettingsView.swift
-index 21fe73144..fc8e56f75 100644
+index 21fe73144..bc143383f 100644
 --- a/Tinycast/Features/Notchcast/IPhoneBackup/UI/IPhoneBackupSettingsView.swift
 +++ b/Tinycast/Features/Notchcast/IPhoneBackup/UI/IPhoneBackupSettingsView.swift
-@@ -1,29 +1,39 @@
- import SwiftUI
+@@ -2,18 +2,28 @@ import SwiftUI
 
  /// Shown once the switch is on: nothing is written until the question is answered.
  struct IPhoneBackupSettingsView: View {
@@ -1232,21 +1225,21 @@ index 21fe73144..fc8e56f75 100644
 +    @Environment(MainAppLink.self) private var mainApp
 +
 +    var body: some View {
-+        if let status = mainApp.status.notchcast.iPhoneBackup {
-+            IPhoneBackupRows(status: status) { mainApp.send(.notchcast(.answerIPhoneBackup($0))) }
++        if let status = mainApp.notchcastStatus(for: IPhoneBackupAddon.self) {
++            IPhoneBackupRows(status: status) { mainApp.sendNotchcast($0, to: IPhoneBackupAddon.self) }
 +        }
 +    }
 +}
 +
 +private struct IPhoneBackupRows: View {
-+    let status: NotchcastSettingsStatus.IPhoneBackup
++    let status: IPhoneBackupAddon.Status
      @State private var confirmation: IPhoneBackupConfirmation
      private static let anchor = NotchcastSettingsSearch.anchor(.macTweaks)
 
 -    init(store: IPhoneBackupStore) {
 -        _store = State(initialValue: store)
 -        _confirmation = State(initialValue: IPhoneBackupConfirmation(store: store))
-+    init(status: NotchcastSettingsStatus.IPhoneBackup, answer: @escaping @MainActor (Bool) -> Void) {
++    init(status: IPhoneBackupAddon.Status, answer: @escaping @MainActor (Bool) -> Void) {
 +        self.status = status
 +        _confirmation = State(initialValue: IPhoneBackupConfirmation(onAnswer: answer))
      }
@@ -1258,8 +1251,7 @@ index 21fe73144..fc8e56f75 100644
                  Text("Off", tableName: "NotchcastIPhoneBackup")
              } else {
                  Text("On", tableName: "NotchcastIPhoneBackup")
-             }
-         } label: {
+@@ -22,7 +32,7 @@ struct IPhoneBackupSettingsView: View {
              SettingsRowTitle(Self.anchor, LocalizedStringResource("Automatic backups", table: "NotchcastIPhoneBackup"))
              Text("Whether Finder backs up an iPhone when it syncs.", tableName: "NotchcastIPhoneBackup")
          }
@@ -1268,9 +1260,8 @@ index 21fe73144..fc8e56f75 100644
          .confirmationDialog(
              Text("Turn off automatic iPhone backups?", tableName: "NotchcastIPhoneBackup"),
              isPresented: Binding(get: { confirmation.isPresented }, set: { confirmation.setPresented($0) })
-         ) {
 diff --git a/Tinycast/Features/Notchcast/LowDisk/UI/LowDiskSettingsView.swift b/Tinycast/Features/Notchcast/LowDisk/UI/LowDiskSettingsView.swift
-index c8f719e233fac19662c7b4a47fd93d76fadf9dba..226704cce32659b83791f22315e5ec23a3c2a978 100644
+index c8f719e23..b6d142baf 100644
 --- a/Tinycast/Features/Notchcast/LowDisk/UI/LowDiskSettingsView.swift
 +++ b/Tinycast/Features/Notchcast/LowDisk/UI/LowDiskSettingsView.swift
 @@ -2,14 +2,13 @@ import SwiftUI
@@ -1294,7 +1285,7 @@ index c8f719e233fac19662c7b4a47fd93d76fadf9dba..226704cce32659b83791f22315e5ec23
              Text("The island warns once when free space drops below this.", tableName: "NotchcastLowDisk")
          }
 -        .onChange(of: threshold) { context.module(LowDiskModule.self)?.check() }
-+        .onChange(of: threshold) { mainApp.send(.notchcast(.checkLowDisk)) }
++        .onChange(of: threshold) { mainApp.sendNotchcast(.checkLowDisk, to: LowDiskAddon.self) }
      }
  }
 diff --git a/Tinycast/Features/Notchcast/NotchcastCore.swift b/Tinycast/Features/Notchcast/NotchcastCore.swift
@@ -1337,40 +1328,18 @@ index ba16d7b33..25a9ddfe1 100644
              uniquingKeysWith: { first, _ in first })
 diff --git a/Tinycast/Features/Notchcast/NotchcastSettingsBridge.swift b/Tinycast/Features/Notchcast/NotchcastSettingsBridge.swift
 new file mode 100644
-index 0000000000000000000000000000000000000000..454e75de50fb9bac7c4db93561a24a82e43df196
+index 000000000..65b00f79e
 --- /dev/null
 +++ b/Tinycast/Features/Notchcast/NotchcastSettingsBridge.swift
-@@ -0,0 +1,115 @@
+@@ -0,0 +1,48 @@
 +import Foundation
 +
 +extension AppCore {
 +    func notchcastSettingsStatus() -> NotchcastSettingsStatus {
 +        var status = NotchcastSettingsStatus()
-+        if let scripts = settingsModule(ScriptCommandsModule.self, for: ScriptCommandsAddon.switchID) {
-+            status.scripts = .init(rows: scripts.rows, running: scripts.running, outputRevisions: scripts.outputRevisions)
-+        }
-+        status.displays = settingsModule(DisplaySoundModule.self, for: DisplaySoundAddon.brightnessID)?
-+            .brightness.currentDisplays
-+        let torrentsID = DownloadsModule.torrentsSwitchID
-+        if let downloads = settingsModule(DownloadsModule.self, for: torrentsID) {
-+            let handler = notchcast?.controller.context(forSwitch: torrentsID)?
-+                .recovery(TorrentOpenFallback.self)?.defaultApp
-+            status.torrents = .init(jobs: downloads.torrents.jobs.map(NotchcastSettingsStatus.Torrents.Job.init),
-+                                    bonded: downloads.bonding.torrentsBonded,
-+                                    defaultApps: handler?.defaultAppNames ?? [])
-+        }
-+        let agents = AgentsPreferences(defaults: notchcastDefaults)
-+        status.agents = .init(
-+            machineName: agents.machineName, accounts: agents.claudeAccounts, feedFolder: agents.feedFolder)
-+        status.daySymbols = notchcastDefaults.string(forKey: DayModule.symbolsKey) ?? ""
-+        if let spotify = settingsModule(SpotifyModule.self, for: SpotifyAddon.switchID) {
-+            status.spotify = .init(
-+                build: spotify.build, phase: spotify.phase, hasKey: spotify.hasKey,
-+                installing: spotify.installing, installError: spotify.installError, clientID: spotify.clientID,
-+                isSignedIn: spotify.isSignedIn, signingIn: spotify.signingIn, signInFailed: spotify.signInError != nil)
-+        }
-+        if let iPhone = settingsModule(IPhoneBackupModule.self, for: IPhoneBackupAddon.switchID) {
-+            status.iPhoneBackup = .init(isApplied: iPhone.isApplied, backupsOff: iPhone.backupsOff)
++        for slot in notchcast?.controller.slots ?? [] {
++            guard let endpoint = slot.addon as? any NotchcastSettingsEndpoint.Type else { continue }
++            status.addons[endpoint.settingsID] = endpoint.encodedStatus(slot.context)
 +        }
 +        status.dictationCleanupModel = dictationExtras.cleanupModel
 +        status.dictationAutomaticModelTitle = dictationExtras.automaticModel?.title
@@ -1380,196 +1349,67 @@ index 0000000000000000000000000000000000000000..454e75de50fb9bac7c4db93561a24a82
 +
 +    func performNotchcastSettingsAction(_ action: NotchcastSettingsAction) {
 +        switch action {
-+        case .addScript(let id):
-+            settingsModule(ScriptCommandsModule.self, for: ScriptCommandsAddon.switchID)?.addRow(id: id)
-+        case .updateScript(let row):
-+            settingsModule(ScriptCommandsModule.self, for: ScriptCommandsAddon.switchID)?.update(row)
-+        case .deleteScript(let id):
-+            settingsModule(ScriptCommandsModule.self, for: ScriptCommandsAddon.switchID)?.removeRow(id)
-+        case .refreshAgents:
-+            settingsModule(AgentsModule.self, for: AgentsPreferences.switchID)?.settingsChanged()
-+        case .torrent(let id, let action):
-+            guard let downloads = settingsModule(DownloadsModule.self, for: DownloadsModule.torrentsSwitchID),
-+                  let job = downloads.torrents.jobs.first(where: { $0.id == id }) else { return }
-+            switch action {
-+            case .reveal: downloads.torrents.reveal(job.files)
-+            case .cancel: downloads.torrents.cancel(id)
-+            case .retry: downloads.retryTorrent(id)
-+            case .dismiss: downloads.torrents.dismiss(id)
-+            }
-+        case .setArchiveDefault(let enabled):
-+            settingsModule(ArchivesModule.self, for: ArchivesModule.switchID)?.setDefaultApp(enabled)
-+        case .checkLowDisk:
-+            settingsModule(LowDiskModule.self, for: "lowDiskWarning")?.check()
-+        case .setDaySymbols(let text):
-+            settingsModule(DayModule.self, for: "dayPage")?.setSymbols(text)
-+        case .installSoloist:
-+            guard let spotify = settingsModule(SpotifyModule.self, for: SpotifyAddon.switchID) else { return }
-+            Task { await spotify.install() }
-+        case .removeSoloistKey:
-+            settingsModule(SpotifyModule.self, for: SpotifyAddon.switchID)?.removeKey()
-+        case .setSpotifyClientID(let clientID):
-+            settingsModule(SpotifyModule.self, for: SpotifyAddon.switchID)?.setClientID(clientID)
-+        case .signInSpotify(let clientID):
-+            guard let spotify = settingsModule(SpotifyModule.self, for: SpotifyAddon.switchID) else { return }
-+            spotify.setClientID(clientID)
-+            Task { await spotify.signIn() }
-+        case .signOutSpotify:
-+            settingsModule(SpotifyModule.self, for: SpotifyAddon.switchID)?.signOut()
-+        case .copyColor(let red, let green, let blue, let alpha):
-+            settingsModule(ColorPickerModule.self, for: ColorPickerModule.switchID)?
-+                .copy(ColorValue(red: red, green: green, blue: blue, alpha: alpha))
++        case .addon(let message):
++            guard let (endpoint, context) = settingsEndpoint(message.id) else { return }
++            endpoint.performSettingsAction(message.payload, context: context)
 +        case .selectDictationCleanupModel(let selection):
 +            dictationExtras.selectCleanupModel(selection)
 +        case .restoreAutomaticBackup(let file):
 +            Task { await NotchcastSettingsBackupBridge(core: self).restore(file) }
-+        case .answerIPhoneBackup(let accepted):
-+            settingsModule(IPhoneBackupModule.self, for: IPhoneBackupAddon.switchID)?.answer(accepted)
 +        }
 +    }
 +
-+    func performNotchcastSettingsCall(_ call: NotchcastSettingsCall) async throws -> NotchcastSettingsReply {
-+        switch call {
-+        case .setBrightness(let value, let display):
-+            let brightness = settingsModule(DisplaySoundModule.self, for: DisplaySoundAddon.brightnessID)?.brightness
-+            return .brightness(await brightness?.set(value, for: display))
-+        case .scriptOutput(let id):
-+            return .scriptOutput(settingsModule(ScriptCommandsModule.self, for: ScriptCommandsAddon.switchID)?.outputs[id])
-+        case .inspectTorrents:
-+            let id = DownloadsModule.torrentsSwitchID
-+            guard let downloads = settingsModule(DownloadsModule.self, for: id) else { throw CancellationError() }
-+            return .torrentTools(aria2c: downloads.environment.tools.find(.aria2c))
-+        case .setDayCity(let city):
-+            guard let day = settingsModule(DayModule.self, for: "dayPage") else { throw CancellationError() }
-+            guard await day.setCity(city) else { return .dayCity(nil) }
-+            return .dayCity(day.place?.name ?? "")
-+        case .saveSoloistKey(let key):
-+            guard let spotify = settingsModule(SpotifyModule.self, for: SpotifyAddon.switchID)
-+            else { throw CancellationError() }
-+            try spotify.setKey(key)
-+            return .soloistKeySaved
-+        }
++    func performNotchcastSettingsCall(_ call: NotchcastSettingsMessage) async throws -> Data {
++        guard let (endpoint, context) = settingsEndpoint(call.id) else { throw CancellationError() }
++        return try await endpoint.answerSettingsRequest(call.payload, context: context)
 +    }
 +
-+    private func settingsModule<M: NotchcastModule>(_ type: M.Type, for id: String) -> M? {
-+        guard let controller = notchcast?.controller, controller.preferences.isEnabled(id) else { return nil }
-+        return controller.context(forSwitch: id)?.module(type)
++    private func settingsEndpoint(_ id: String) -> (any NotchcastSettingsEndpoint.Type, NotchcastContext)? {
++        for slot in notchcast?.controller.slots ?? [] {
++            if let endpoint = slot.addon as? any NotchcastSettingsEndpoint.Type, endpoint.settingsID == id {
++                return (endpoint, slot.context)
++            }
++        }
++        return nil
++    }
++}
++
++extension NotchcastContext {
++    func settingsModule<Module: NotchcastModule>(_ type: Module.Type, for id: String) -> Module? {
++        guard isEnabled(id) else { return nil }
++        return module(type)
 +    }
 +}
 diff --git a/Tinycast/Features/Notchcast/NotchcastSettingsStatus.swift b/Tinycast/Features/Notchcast/NotchcastSettingsStatus.swift
 new file mode 100644
-index 0000000000000000000000000000000000000000..cf7f1607aeadbd147c0939e8e4a8e41ee7884fee
+index 000000000..e791e9116
 --- /dev/null
 +++ b/Tinycast/Features/Notchcast/NotchcastSettingsStatus.swift
-@@ -0,0 +1,109 @@
+@@ -0,0 +1,25 @@
 +import Foundation
 +
 +struct NotchcastSettingsStatus: Codable, Equatable, Sendable {
-+    struct Scripts: Codable, Equatable, Sendable {
-+        let rows: [ScriptCommand]
-+        let running: Set<String>
-+        let outputRevisions: [String: Int]
-+    }
-+
-+    struct Torrents: Codable, Equatable, Sendable {
-+        struct Job: Codable, Equatable, Identifiable, Sendable {
-+            let id: UUID
-+            let name: String
-+            let state: TorrentJob.State
-+            let fraction: Double?
-+            let speed: Int64
-+            let secondsLeft: Int64?
-+            let hasFiles: Bool
-+
-+            init(_ job: TorrentJob) {
-+                id = job.id
-+                name = job.name
-+                state = job.state
-+                fraction = job.fraction
-+                speed = job.speed
-+                secondsLeft = job.secondsLeft
-+                hasFiles = !job.files.isEmpty
-+            }
-+        }
-+
-+        let jobs: [Job]
-+        let bonded: Bool
-+        let defaultApps: [String]
-+    }
-+
-+    struct Agents: Codable, Equatable, Sendable {
-+        let machineName: String?
-+        let accounts: [AgentsClaudeAccount]?
-+        let feedFolder: String?
-+    }
-+
-+    struct Spotify: Codable, Equatable, Sendable {
-+        let build: SoloistBuild?
-+        let phase: SoloistPhase
-+        let hasKey: Bool
-+        let installing: Bool
-+        let installError: SoloistInstallError?
-+        let clientID: String
-+        let isSignedIn: Bool
-+        let signingIn: Bool
-+        let signInFailed: Bool
-+    }
-+
-+    struct IPhoneBackup: Codable, Equatable, Sendable {
-+        let isApplied: Bool
-+        let backupsOff: Bool
-+    }
-+
-+    var iPhoneBackup: IPhoneBackup?
-+    var scripts: Scripts?
-+    var displays: [BrightnessDisplay]?
-+    var torrents: Torrents?
-+    var spotify: Spotify?
-+    var agents: Agents?
-+    var daySymbols: String?
++    var addons: [String: Data] = [:]
 +    var dictationCleanupModel: AIModelSelection?
 +    var dictationAutomaticModelTitle: String?
 +    var hasDictationHistory = false
 +}
 +
 +enum NotchcastSettingsAction: Codable, Sendable {
-+    case addScript(String)
-+    case updateScript(ScriptCommand)
-+    case deleteScript(String)
-+    case refreshAgents
-+    case torrent(UUID, TorrentAction)
-+    case setArchiveDefault(Bool)
-+    case checkLowDisk
-+    case setDaySymbols(String)
-+    case installSoloist
-+    case removeSoloistKey
-+    case setSpotifyClientID(String)
-+    case signInSpotify(String)
-+    case signOutSpotify
-+    case copyColor(red: Double, green: Double, blue: Double, alpha: Double)
++    case addon(NotchcastSettingsMessage)
 +    case selectDictationCleanupModel(AIModelSelection?)
 +    case restoreAutomaticBackup(URL)
-+    case answerIPhoneBackup(Bool)
++}
 +
-+    enum TorrentAction: String, Codable, Sendable {
-+        case reveal, cancel, retry, dismiss
++struct NotchcastSettingsMessage: Codable, Sendable {
++    let id: String
++    let payload: Data
++
++    static func encode(_ value: some Encodable) throws -> Data {
++        let encoder = JSONEncoder()
++        encoder.outputFormatting = .sortedKeys
++        return try encoder.encode(value)
 +    }
-+}
-+
-+enum NotchcastSettingsCall: Codable, Sendable {
-+    case setBrightness(Double, BrightnessDisplay.ID)
-+    case inspectTorrents
-+    case scriptOutput(String)
-+    case setDayCity(String)
-+    case saveSoloistKey(String)
-+}
-+
-+enum NotchcastSettingsReply: Codable, Sendable {
-+    case brightness(BrightnessLevel?)
-+    case scriptOutput(String?)
-+    case torrentTools(aria2c: URL?)
-+    case dayCity(String?)
-+    case soloistKeySaved
 +}
 diff --git a/Tinycast/Features/Notchcast/ScriptCommands/NotchcastScriptCommands.xcstrings b/Tinycast/Features/Notchcast/ScriptCommands/NotchcastScriptCommands.xcstrings
 index d0711a4772121ffab8289c1147b3ef6ebd690473..cd05603f0794c89b8efc3bff89a2e83c4810c60a 100644
@@ -1632,7 +1472,7 @@ index d02f2d003..ff4ed9809 100644
 
      /// Reposting the progress notice's id without progress turns the spinner into the result.
 diff --git a/Tinycast/Features/Notchcast/ScriptCommands/Settings/ScriptCommandEditor.swift b/Tinycast/Features/Notchcast/ScriptCommands/Settings/ScriptCommandEditor.swift
-index b109a3fb5ead8b7fe4fdcdb7905f8bbfa17c02cb..29af53d71d5c68be00da3300588a5ee06ba3015c 100644
+index b109a3fb5..8e5c6d854 100644
 --- a/Tinycast/Features/Notchcast/ScriptCommands/Settings/ScriptCommandEditor.swift
 +++ b/Tinycast/Features/Notchcast/ScriptCommands/Settings/ScriptCommandEditor.swift
 @@ -2,8 +2,12 @@ import SwiftUI
@@ -1660,7 +1500,7 @@ index b109a3fb5ead8b7fe4fdcdb7905f8bbfa17c02cb..29af53d71d5c68be00da3300588a5ee0
 -                guard var row = module.rows.first(where: { $0.id == id }) else { return }
                  row[keyPath: field] = value
 -                module.update(row)
-+                mainApp.send(.notchcast(.updateScript(row)))
++                mainApp.sendNotchcast(.updateScript(row), to: ScriptCommandsAddon.self)
              })
      }
  
@@ -1720,9 +1560,9 @@ index b109a3fb5ead8b7fe4fdcdb7905f8bbfa17c02cb..29af53d71d5c68be00da3300588a5ee0
 +            output = nil
 +            outputUnavailable = false
 +            do {
-+                let reply = try await mainApp.callNotchcast(.scriptOutput(id))
++                let text = try await mainApp.callNotchcast(id, to: ScriptCommandsAddon.self)
 +                guard !Task.isCancelled else { return }
-+                if case .scriptOutput(let text) = reply { output = text }
++                output = text
 +                outputUnavailable = output == nil
 +            } catch {
 +                if !Task.isCancelled { outputUnavailable = true }
@@ -1731,7 +1571,7 @@ index b109a3fb5ead8b7fe4fdcdb7905f8bbfa17c02cb..29af53d71d5c68be00da3300588a5ee0
      }
  }
 diff --git a/Tinycast/Features/Notchcast/ScriptCommands/Settings/ScriptCommandsSettingsView.swift b/Tinycast/Features/Notchcast/ScriptCommands/Settings/ScriptCommandsSettingsView.swift
-index cd3885c1f..665dc8709 100644
+index cd3885c1f..0b767fa5e 100644
 --- a/Tinycast/Features/Notchcast/ScriptCommands/Settings/ScriptCommandsSettingsView.swift
 +++ b/Tinycast/Features/Notchcast/ScriptCommands/Settings/ScriptCommandsSettingsView.swift
 @@ -2,32 +2,45 @@ import SwiftUI
@@ -1748,7 +1588,7 @@ index cd3885c1f..665dc8709 100644
      var body: some View {
 -        if let module = context.module(ScriptCommandsModule.self) {
 -            if module.rows.isEmpty {
-+        if let scripts = mainApp.status.notchcast.scripts {
++        if let scripts = mainApp.notchcastStatus(for: ScriptCommandsAddon.self) {
 +            if scripts.rows.isEmpty {
                  Text("No script commands yet.", tableName: "NotchcastScriptCommands").foregroundStyle(.secondary)
              }
@@ -1774,7 +1614,7 @@ index cd3885c1f..665dc8709 100644
 +                guard pendingAdd == nil else { return }
 +                let id = UUID().uuidString
 +                pendingAdd = id
-+                mainApp.send(.notchcast(.addScript(id)))
++                mainApp.sendNotchcast(.addScript(id), to: ScriptCommandsAddon.self)
              } label: {
                  SettingsRowTitle(Self.anchor, LocalizedStringResource("Add Script Command", table: "NotchcastScriptCommands"))
              }
@@ -1793,7 +1633,7 @@ index cd3885c1f..665dc8709 100644
                  Button(role: .destructive) {
                      if editing == row.id { editing = nil }
 -                    module.removeRow(row.id)
-+                    mainApp.send(.notchcast(.deleteScript(row.id)))
++                    mainApp.sendNotchcast(.deleteScript(row.id), to: ScriptCommandsAddon.self)
                  } label: {
                      Text("Delete", tableName: "NotchcastScriptCommands")
                  }
@@ -1872,17 +1712,17 @@ index a726942a1..dc2704025 100644
 
      static func makeModule(_ context: NotchcastContext) -> (any NotchcastModule)? {
 diff --git a/Tinycast/Features/Notchcast/Spotify/UI/SpotifySettingsView.swift b/Tinycast/Features/Notchcast/Spotify/UI/SpotifySettingsView.swift
-index beadfe2f0e4af66c73dad0dbe5f01669c41414e3..bb9b604fb30083172b2c6225904d6f36c93321d5 100644
+index beadfe2f0..6c3305301 100644
 --- a/Tinycast/Features/Notchcast/Spotify/UI/SpotifySettingsView.swift
 +++ b/Tinycast/Features/Notchcast/Spotify/UI/SpotifySettingsView.swift
-@@ -2,56 +2,56 @@ import SwiftUI
- 
+@@ -2,56 +2,58 @@ import SwiftUI
+
  /// Setup under the switch: Soloist's build and key, then the optional library sign-in (D1).
  struct SpotifySettingsView: View {
 -    let context: NotchcastContext
 -    @State private var module: SpotifyModule?
 +    @Environment(MainAppLink.self) private var mainApp
- 
+
      var body: some View {
 -        Group {
 -            if let module {
@@ -1901,23 +1741,23 @@ index beadfe2f0e4af66c73dad0dbe5f01669c41414e3..bb9b604fb30083172b2c6225904d6f36
 -                return
 -            }
 -            guard (try? await Task.sleep(for: .milliseconds(50))) != nil else { return }
-+        if let status = mainApp.status.notchcast.spotify {
++        if let status = mainApp.notchcastStatus(for: SpotifyAddon.self) {
 +            SoloistRows(status: status)
 +            SpotifyLibraryRows(status: status)
          }
      }
  }
- 
+
  private struct SoloistRows: View {
 -    let module: SpotifyModule
 +    @Environment(\.openURL) private var openURL
 +    @Environment(MainAppLink.self) private var mainApp
-+    let status: NotchcastSettingsStatus.Spotify
++    let status: SpotifyAddon.Status
      @State private var key = ""
 -    @State private var problem: SoloistKey.Problem?
 +    @State private var problem = false
 +    @State private var savingKey = false
- 
+
      var body: some View {
          LabeledContent(String(localized: "Soloist", table: "NotchcastSpotify")) {
              HStack(spacing: Theme.Spacing.md) {
@@ -1927,25 +1767,25 @@ index beadfe2f0e4af66c73dad0dbe5f01669c41414e3..bb9b604fb30083172b2c6225904d6f36
 +                Button(status.build == nil ? String(localized: "Install", table: "NotchcastSpotify")
                                             : String(localized: "Update", table: "NotchcastSpotify")) {
 -                    Task { await module.install() }
-+                    mainApp.send(.notchcast(.installSoloist))
++                    mainApp.sendNotchcast(.installSoloist, to: SpotifyAddon.self)
                  }
 -                .disabled(module.installing)
 +                .disabled(status.installing)
-+            }
-+        }
+             }
+         }
+-        if let error = module.installError {
 +        .task(id: savingKey) {
 +            guard savingKey else { return }
 +            defer { if !Task.isCancelled { savingKey = false } }
 +            do {
-+                _ = try await mainApp.callNotchcast(.saveSoloistKey(key))
++                _ = try await mainApp.callNotchcast(key, to: SpotifyAddon.self)
 +                key = ""
 +                problem = false
 +            } catch is CancellationError {
 +            } catch {
 +                problem = true
-             }
-         }
--        if let error = module.installError {
++            }
++        }
 +        if let error = status.installError {
              Text(Self.text(error)).foregroundStyle(Theme.Colors.destructive)
          }
@@ -1956,11 +1796,13 @@ index beadfe2f0e4af66c73dad0dbe5f01669c41414e3..bb9b604fb30083172b2c6225904d6f36
                      Text("Saved in your Keychain", tableName: "NotchcastSpotify")
                          .foregroundStyle(Theme.Colors.textSecondary)
 -                    Button(String(localized: "Remove", table: "NotchcastSpotify")) { module.removeKey() }
-+                    Button(String(localized: "Remove", table: "NotchcastSpotify")) { mainApp.send(.notchcast(.removeSoloistKey)) }
++                    Button(String(localized: "Remove", table: "NotchcastSpotify")) {
++                        mainApp.sendNotchcast(.removeSoloistKey, to: SpotifyAddon.self)
++                    }
                  }
              }
          } else {
-@@ -60,13 +60,13 @@ private struct SoloistRows: View {
+@@ -60,13 +62,13 @@ private struct SoloistRows: View {
                      SecureField(String(localized: "Paste your key", table: "NotchcastSpotify"), text: $key)
                          .onSubmit(save)
                      Button(String(localized: "Save", table: "NotchcastSpotify"), action: save)
@@ -1977,9 +1819,9 @@ index beadfe2f0e4af66c73dad0dbe5f01669c41414e3..bb9b604fb30083172b2c6225904d6f36
                  Text("This doesn’t look like a Soloist key. Copy it again from the dashboard.",
                       tableName: "NotchcastSpotify")
                      .foregroundStyle(Theme.Colors.destructive)
-@@ -75,21 +75,16 @@ private struct SoloistRows: View {
+@@ -75,21 +77,16 @@ private struct SoloistRows: View {
      }
- 
+
      private func save() {
 -        do {
 -            try module.setKey(key)
@@ -1991,7 +1833,7 @@ index beadfe2f0e4af66c73dad0dbe5f01669c41414e3..bb9b604fb30083172b2c6225904d6f36
 +        guard !savingKey, !key.isEmpty else { return }
 +        savingKey = true
      }
- 
+
 -    private var status: String {
 -        let version = module.build.map { build in
 +    private var buildStatus: String {
@@ -2004,23 +1846,23 @@ index beadfe2f0e4af66c73dad0dbe5f01669c41414e3..bb9b604fb30083172b2c6225904d6f36
          case .notInstalled: return String(localized: "Not installed", table: "NotchcastSpotify")
          case .expired: return String(localized: "Expired. Update it to keep playing.", table: "NotchcastSpotify")
          case .keyRejected: return String(localized: "Spotify refused the key", table: "NotchcastSpotify")
-@@ -114,35 +109,36 @@ private struct SoloistRows: View {
+@@ -114,35 +111,38 @@ private struct SoloistRows: View {
  }
- 
+
  private struct SpotifyLibraryRows: View {
 -    @Bindable var module: SpotifyModule
 +    @Environment(\.openURL) private var openURL
 +    @Environment(MainAppLink.self) private var mainApp
-+    let status: NotchcastSettingsStatus.Spotify
++    let status: SpotifyAddon.Status
      @State private var clientID = ""
- 
+
      var body: some View {
          LabeledContent(String(localized: "Client ID", table: "NotchcastSpotify")) {
              TextField(String(localized: "From your app in the Spotify dashboard", table: "NotchcastSpotify"),
                        text: $clientID)
 -                .onSubmit { module.setClientID(clientID) }
 -                .onAppear { clientID = module.clientID }
-+                .onSubmit { mainApp.send(.notchcast(.setSpotifyClientID(clientID))) }
++                .onSubmit { mainApp.sendNotchcast(.setSpotifyClientID(clientID), to: SpotifyAddon.self) }
 +                .onChange(of: status.clientID, initial: true) { _, latest in clientID = latest }
          }
          Text("Add \(SpotifyAuthorization.redirectURI) as the app’s redirect URI. Needed for the library and likes.",
@@ -2031,12 +1873,14 @@ index beadfe2f0e4af66c73dad0dbe5f01669c41414e3..bb9b604fb30083172b2c6225904d6f36
 -            if module.isSignedIn {
 -                Button(String(localized: "Sign Out", table: "NotchcastSpotify")) { module.signOut() }
 +            if status.isSignedIn {
-+                Button(String(localized: "Sign Out", table: "NotchcastSpotify")) { mainApp.send(.notchcast(.signOutSpotify)) }
++                Button(String(localized: "Sign Out", table: "NotchcastSpotify")) {
++                    mainApp.sendNotchcast(.signOutSpotify, to: SpotifyAddon.self)
++                }
              } else {
                  Button(String(localized: "Sign In…", table: "NotchcastSpotify")) {
 -                    module.setClientID(clientID)
 -                    Task { await module.signIn() }
-+                    mainApp.send(.notchcast(.signInSpotify(clientID)))
++                    mainApp.sendNotchcast(.signInSpotify(clientID), to: SpotifyAddon.self)
                  }
 -                .disabled(clientID.trimmingCharacters(in: .whitespaces).isEmpty || module.signingIn)
 +                .disabled(clientID.trimmingCharacters(in: .whitespaces).isEmpty || status.signingIn)
@@ -2082,15 +1926,14 @@ index 96bd7c6a0..cf03a9303 100644
          case .supportReminders: adopt(\.supportRemindersEnabled, from: stored)
          case .settingsFileEnabled: adopt(\.settingsFileEnabled, from: stored)
 diff --git a/Tinycast/Features/Settings/Service/MainAppLink.swift b/Tinycast/Features/Settings/Service/MainAppLink.swift
-index 7dace045c..7262ca854 100644
+index 7dace045c..6dcbf5881 100644
 --- a/Tinycast/Features/Settings/Service/MainAppLink.swift
 +++ b/Tinycast/Features/Settings/Service/MainAppLink.swift
-@@ -90,8 +90,15 @@ final class MainAppLink {
-         }
+@@ -91,6 +91,13 @@ final class MainAppLink {
          return message
      }
 
-+    func callNotchcast(_ call: NotchcastSettingsCall) async throws -> NotchcastSettingsReply {
++    func callNotchcast(_ call: NotchcastSettingsMessage) async throws -> Data {
 +        guard case .notchcast(let result) = try await request(.notchcast(call)) else {
 +            throw CocoaError(.coderReadCorrupt)
 +        }
@@ -2100,9 +1943,7 @@ index 7dace045c..7262ca854 100644
      private func request(
          _ call: SettingsWire.Call, onProgress: @escaping (ExtensionCallEvent) -> Void = { _ in }
      ) async throws -> SettingsWire.Reply {
-         try Task.checkCancellation()
-@@ -178,8 +185,10 @@ final class MainAppLink {
-         case .status(let status):
+@@ -179,6 +186,8 @@ final class MainAppLink {
              self.status = status
              core.appIndex.adoptCommands(hidden: status.hiddenCommands, unlisted: status.unlistedCommands)
              core.hotKeys.capture.hyperRoute = status.hyperKey.route
@@ -2111,7 +1952,6 @@ index 7dace045c..7262ca854 100644
              core.hotKeys.modifierTapMonitor.adoptNeedsAccessibility(status.modifierTapsNeedAccessibility)
          }
      }
-
 diff --git a/Tinycast/Features/Settings/Service/MainAppStatus.swift b/Tinycast/Features/Settings/Service/MainAppStatus.swift
 index a718fc8e8..e754bb645 100644
 --- a/Tinycast/Features/Settings/Service/MainAppStatus.swift
@@ -2193,14 +2033,14 @@ index d4aadd86f7a9927bfa3e11eda04ab8d2e5896177..c14601796d0a2cb579aeb6acd608ab5e
  
      private func extensionsStatus() -> MainAppStatus.Extensions {
 diff --git a/Tinycast/Features/Settings/Service/SettingsWire.swift b/Tinycast/Features/Settings/Service/SettingsWire.swift
-index 34ca0421b..3b88a44db 100644
+index 34ca0421b..8808e3add 100644
 --- a/Tinycast/Features/Settings/Service/SettingsWire.swift
 +++ b/Tinycast/Features/Settings/Service/SettingsWire.swift
 @@ -29,6 +29,7 @@ enum SettingsWire {
          case extensions(ExtensionCall)
          case mcp(MCPSettingsCall)
          case backup(BackupSettingsCall)
-+        case notchcast(NotchcastSettingsCall)
++        case notchcast(NotchcastSettingsMessage)
      }
 
      enum Reply: Codable, Sendable {
@@ -2208,7 +2048,7 @@ index 34ca0421b..3b88a44db 100644
          case mcp(MCPServerStatus?)
          case backupPreview(BackupPreview)
          case backupMessage(String)
-+        case notchcast(NotchcastSettingsReply)
++        case notchcast(Data)
          case failure(String)
          case cancelled
      }
@@ -2300,3 +2140,412 @@ index 4f2e4a57e..f355be75a 100644
          precondition(rig.controller.enabledCommands.isEmpty, "an empty row makes no command")
          module.update(ScriptCommand(id: id, name: "Update packages", script: "brew update && brew upgrade"))
          let entryID = "command:nc-run-" + id
+diff --git a/Tinycast/Features/Notchcast/Agents/AgentsSettingsEndpoint.swift b/Tinycast/Features/Notchcast/Agents/AgentsSettingsEndpoint.swift
+new file mode 100644
+index 000000000..8c5e614f3
+--- /dev/null
++++ b/Tinycast/Features/Notchcast/Agents/AgentsSettingsEndpoint.swift
+@@ -0,0 +1,24 @@
++import Foundation
++
++extension AgentsAddon: NotchcastSettingsEndpoint {
++    static var settingsID: String { AgentsPreferences.switchID }
++
++    struct Status: Codable, Equatable, Sendable {
++        let machineName: String?
++        let accounts: [AgentsClaudeAccount]?
++        let feedFolder: String?
++    }
++
++    enum Action: String, Codable {
++        case refreshAgents
++    }
++
++    static func settingsStatus(_ context: NotchcastContext) -> Status? {
++        let settings = AgentsPreferences(defaults: context.defaults)
++        return Status(machineName: settings.machineName, accounts: settings.claudeAccounts, feedFolder: settings.feedFolder)
++    }
++
++    static func perform(_ action: Action, context: NotchcastContext) {
++        context.settingsModule(AgentsModule.self, for: settingsID)?.settingsChanged()
++    }
++}
+diff --git a/Tinycast/Features/Notchcast/Archives/ArchivesSettingsEndpoint.swift b/Tinycast/Features/Notchcast/Archives/ArchivesSettingsEndpoint.swift
+new file mode 100644
+index 000000000..23eace2b2
+--- /dev/null
++++ b/Tinycast/Features/Notchcast/Archives/ArchivesSettingsEndpoint.swift
+@@ -0,0 +1,9 @@
++import Foundation
++
++extension ArchivesAddon: NotchcastSettingsEndpoint {
++    static var settingsID: String { ArchivesModule.switchID }
++
++    static func perform(_ enabled: Bool, context: NotchcastContext) {
++        context.settingsModule(ArchivesModule.self, for: settingsID)?.setDefaultApp(enabled)
++    }
++}
+diff --git a/Tinycast/Features/Notchcast/ColorPicker/ColorPickerSettingsEndpoint.swift b/Tinycast/Features/Notchcast/ColorPicker/ColorPickerSettingsEndpoint.swift
+new file mode 100644
+index 000000000..ed0a8394c
+--- /dev/null
++++ b/Tinycast/Features/Notchcast/ColorPicker/ColorPickerSettingsEndpoint.swift
+@@ -0,0 +1,17 @@
++import Foundation
++
++extension ColorPickerAddon: NotchcastSettingsEndpoint {
++    static var settingsID: String { ColorPickerModule.switchID }
++
++    static func perform(_ color: ColorValuePayload, context: NotchcastContext) {
++        context.settingsModule(ColorPickerModule.self, for: settingsID)?
++            .copy(ColorValue(red: color.red, green: color.green, blue: color.blue, alpha: color.alpha))
++    }
++
++    struct ColorValuePayload: Codable {
++        let red: Double
++        let green: Double
++        let blue: Double
++        let alpha: Double
++    }
++}
+diff --git a/Tinycast/Features/Notchcast/Day/DaySettingsEndpoint.swift b/Tinycast/Features/Notchcast/Day/DaySettingsEndpoint.swift
+new file mode 100644
+index 000000000..1f419ee9e
+--- /dev/null
++++ b/Tinycast/Features/Notchcast/Day/DaySettingsEndpoint.swift
+@@ -0,0 +1,19 @@
++import Foundation
++
++extension DayAddon: NotchcastSettingsEndpoint {
++    static var settingsID: String { switches[0].id }
++
++    static func settingsStatus(_ context: NotchcastContext) -> String? {
++        context.defaults.string(forKey: DayModule.symbolsKey) ?? ""
++    }
++
++    static func perform(_ text: String, context: NotchcastContext) {
++        context.settingsModule(DayModule.self, for: settingsID)?.setSymbols(text)
++    }
++
++    static func answer(_ city: String, context: NotchcastContext) async throws -> String? {
++        guard let day = context.settingsModule(DayModule.self, for: settingsID) else { throw CancellationError() }
++        guard await day.setCity(city) else { return nil }
++        return day.place?.name ?? ""
++    }
++}
+diff --git a/Tinycast/Features/Notchcast/DisplaySound/DisplaySoundSettingsEndpoint.swift b/Tinycast/Features/Notchcast/DisplaySound/DisplaySoundSettingsEndpoint.swift
+new file mode 100644
+index 000000000..8688315c9
+--- /dev/null
++++ b/Tinycast/Features/Notchcast/DisplaySound/DisplaySoundSettingsEndpoint.swift
+@@ -0,0 +1,19 @@
++import Foundation
++
++extension DisplaySoundAddon: NotchcastSettingsEndpoint {
++    static var settingsID: String { brightnessID }
++
++    struct Request: Codable {
++        let value: Double
++        let display: BrightnessDisplay.ID
++    }
++
++    static func settingsStatus(_ context: NotchcastContext) -> [BrightnessDisplay]? {
++        context.settingsModule(DisplaySoundModule.self, for: settingsID)?.brightness.currentDisplays
++    }
++
++    static func answer(_ request: Request, context: NotchcastContext) async throws -> BrightnessLevel? {
++        let brightness = context.settingsModule(DisplaySoundModule.self, for: settingsID)?.brightness
++        return await brightness?.set(request.value, for: request.display)
++    }
++}
+diff --git a/Tinycast/Features/Notchcast/Downloads/DownloadsSettingsEndpoint.swift b/Tinycast/Features/Notchcast/Downloads/DownloadsSettingsEndpoint.swift
+new file mode 100644
+index 000000000..9506a68e2
+--- /dev/null
++++ b/Tinycast/Features/Notchcast/Downloads/DownloadsSettingsEndpoint.swift
+@@ -0,0 +1,69 @@
++import Foundation
++
++extension DownloadsAddon: NotchcastSettingsEndpoint {
++    static var settingsID: String { DownloadsModule.torrentsSwitchID }
++
++    struct Status: Codable, Equatable, Sendable {
++        struct Job: Codable, Equatable, Identifiable, Sendable {
++            let id: UUID
++            let name: String
++            let state: TorrentJob.State
++            let fraction: Double?
++            let speed: Int64
++            let secondsLeft: Int64?
++            let hasFiles: Bool
++
++            init(_ job: TorrentJob) {
++                id = job.id
++                name = job.name
++                state = job.state
++                fraction = job.fraction
++                speed = job.speed
++                secondsLeft = job.secondsLeft
++                hasFiles = !job.files.isEmpty
++            }
++        }
++
++        let jobs: [Job]
++        let bonded: Bool
++        let defaultApps: [String]
++    }
++
++    struct Action: Codable, Sendable {
++        let id: UUID
++        let operation: TorrentAction
++    }
++
++    enum TorrentAction: String, Codable {
++        case reveal, cancel, retry, dismiss
++    }
++
++    enum Request: String, Codable {
++        case inspectTorrents
++    }
++
++    static func settingsStatus(_ context: NotchcastContext) -> Status? {
++        guard let downloads = context.settingsModule(DownloadsModule.self, for: settingsID) else { return nil }
++        let handler = context.recovery(TorrentOpenFallback.self)?.defaultApp
++        return Status(jobs: downloads.torrents.jobs.map(Status.Job.init), bonded: downloads.bonding.torrentsBonded,
++                      defaultApps: handler?.defaultAppNames ?? [])
++    }
++
++    static func perform(_ action: Action, context: NotchcastContext) {
++        guard let downloads = context.settingsModule(DownloadsModule.self, for: settingsID),
++              let job = downloads.torrents.jobs.first(where: { $0.id == action.id }) else { return }
++        switch action.operation {
++        case .reveal: downloads.torrents.reveal(job.files)
++        case .cancel: downloads.torrents.cancel(action.id)
++        case .retry: downloads.retryTorrent(action.id)
++        case .dismiss: downloads.torrents.dismiss(action.id)
++        }
++    }
++
++    static func answer(_ request: Request, context: NotchcastContext) async throws -> URL? {
++        guard let downloads = context.settingsModule(DownloadsModule.self, for: settingsID) else {
++            throw CancellationError()
++        }
++        return downloads.environment.tools.find(.aria2c)
++    }
++}
+diff --git a/Tinycast/Features/Notchcast/IPhoneBackup/IPhoneBackupSettingsEndpoint.swift b/Tinycast/Features/Notchcast/IPhoneBackup/IPhoneBackupSettingsEndpoint.swift
+new file mode 100644
+index 000000000..bb3a30f6d
+--- /dev/null
++++ b/Tinycast/Features/Notchcast/IPhoneBackup/IPhoneBackupSettingsEndpoint.swift
+@@ -0,0 +1,19 @@
++import Foundation
++
++extension IPhoneBackupAddon: NotchcastSettingsEndpoint {
++    static var settingsID: String { switchID }
++
++    struct Status: Codable, Equatable, Sendable {
++        let isApplied: Bool
++        let backupsOff: Bool
++    }
++
++    static func settingsStatus(_ context: NotchcastContext) -> Status? {
++        guard let iPhone = context.settingsModule(IPhoneBackupModule.self, for: settingsID) else { return nil }
++        return Status(isApplied: iPhone.isApplied, backupsOff: iPhone.backupsOff)
++    }
++
++    static func perform(_ accepted: Bool, context: NotchcastContext) {
++        context.settingsModule(IPhoneBackupModule.self, for: settingsID)?.answer(accepted)
++    }
++}
+diff --git a/Tinycast/Features/Notchcast/LowDisk/LowDiskSettingsEndpoint.swift b/Tinycast/Features/Notchcast/LowDisk/LowDiskSettingsEndpoint.swift
+new file mode 100644
+index 000000000..2e6456765
+--- /dev/null
++++ b/Tinycast/Features/Notchcast/LowDisk/LowDiskSettingsEndpoint.swift
+@@ -0,0 +1,13 @@
++import Foundation
++
++extension LowDiskAddon: NotchcastSettingsEndpoint {
++    static var settingsID: String { switches[0].id }
++
++    enum Action: String, Codable {
++        case checkLowDisk
++    }
++
++    static func perform(_ action: Action, context: NotchcastContext) {
++        context.settingsModule(LowDiskModule.self, for: settingsID)?.check()
++    }
++}
+diff --git a/Tinycast/Features/Notchcast/NotchcastSettingsEndpoint.swift b/Tinycast/Features/Notchcast/NotchcastSettingsEndpoint.swift
+new file mode 100644
+index 000000000..9dc598bd8
+--- /dev/null
++++ b/Tinycast/Features/Notchcast/NotchcastSettingsEndpoint.swift
+@@ -0,0 +1,68 @@
++import Foundation
++
++struct NoNotchcastSettingsPayload: Codable, Sendable {}
++
++protocol NotchcastSettingsEndpoint: NotchcastAddon {
++    associatedtype Status: Codable & Sendable = NoNotchcastSettingsPayload
++    associatedtype Action: Codable & Sendable = NoNotchcastSettingsPayload
++    associatedtype Request: Codable & Sendable = NoNotchcastSettingsPayload
++    associatedtype Reply: Codable & Sendable = NoNotchcastSettingsPayload
++
++    static var settingsID: String { get }
++    static func settingsStatus(_ context: NotchcastContext) -> Status?
++    static func perform(_ action: Action, context: NotchcastContext)
++    static func answer(_ request: Request, context: NotchcastContext) async throws -> Reply
++}
++
++extension NotchcastSettingsEndpoint {
++    static func encodedStatus(_ context: NotchcastContext) -> Data? {
++        settingsStatus(context).flatMap { try? NotchcastSettingsMessage.encode($0) }
++    }
++
++    static func performSettingsAction(_ payload: Data, context: NotchcastContext) {
++        guard let action = try? JSONDecoder().decode(Action.self, from: payload) else { return }
++        perform(action, context: context)
++    }
++
++    static func answerSettingsRequest(_ payload: Data, context: NotchcastContext) async throws -> Data {
++        let request = try JSONDecoder().decode(Request.self, from: payload)
++        let reply = try await answer(request, context: context)
++        return try NotchcastSettingsMessage.encode(reply)
++    }
++}
++
++extension NotchcastSettingsEndpoint where Status == NoNotchcastSettingsPayload {
++    static func settingsStatus(_ context: NotchcastContext) -> NoNotchcastSettingsPayload? { nil }
++}
++
++extension NotchcastSettingsEndpoint where Action == NoNotchcastSettingsPayload {
++    static func perform(_ action: NoNotchcastSettingsPayload, context: NotchcastContext) {}
++}
++
++extension NotchcastSettingsEndpoint where Request == NoNotchcastSettingsPayload, Reply == NoNotchcastSettingsPayload {
++    static func answer(
++        _ request: NoNotchcastSettingsPayload, context: NotchcastContext
++    ) async throws -> NoNotchcastSettingsPayload {
++        throw CocoaError(.coderReadCorrupt)
++    }
++}
++
++extension MainAppLink {
++    func notchcastStatus<Endpoint: NotchcastSettingsEndpoint>(for endpoint: Endpoint.Type) -> Endpoint.Status? {
++        guard let data = status.notchcast.addons[endpoint.settingsID] else { return nil }
++        return try? JSONDecoder().decode(Endpoint.Status.self, from: data)
++    }
++
++    func sendNotchcast<Endpoint: NotchcastSettingsEndpoint>(_ action: Endpoint.Action, to endpoint: Endpoint.Type) {
++        guard let payload = try? NotchcastSettingsMessage.encode(action) else { return }
++        send(.notchcast(.addon(.init(id: endpoint.settingsID, payload: payload))))
++    }
++
++    func callNotchcast<Endpoint: NotchcastSettingsEndpoint>(
++        _ request: Endpoint.Request, to endpoint: Endpoint.Type
++    ) async throws -> Endpoint.Reply {
++        let payload = try NotchcastSettingsMessage.encode(request)
++        let data = try await callNotchcast(.init(id: endpoint.settingsID, payload: payload))
++        return try JSONDecoder().decode(Endpoint.Reply.self, from: data)
++    }
++}
+diff --git a/Tinycast/Features/Notchcast/ScriptCommands/ScriptCommandsSettingsEndpoint.swift b/Tinycast/Features/Notchcast/ScriptCommands/ScriptCommandsSettingsEndpoint.swift
+new file mode 100644
+index 000000000..1f0be426a
+--- /dev/null
++++ b/Tinycast/Features/Notchcast/ScriptCommands/ScriptCommandsSettingsEndpoint.swift
+@@ -0,0 +1,35 @@
++import Foundation
++
++extension ScriptCommandsAddon: NotchcastSettingsEndpoint {
++    static var settingsID: String { switchID }
++
++    struct Status: Codable, Equatable, Sendable {
++        let rows: [ScriptCommand]
++        let running: [String]
++        let outputRevisions: [String: Int]
++    }
++
++    enum Action: Codable {
++        case addScript(String)
++        case updateScript(ScriptCommand)
++        case deleteScript(String)
++    }
++
++    static func settingsStatus(_ context: NotchcastContext) -> Status? {
++        guard let scripts = context.settingsModule(ScriptCommandsModule.self, for: settingsID) else { return nil }
++        return Status(rows: scripts.rows, running: scripts.running.sorted(), outputRevisions: scripts.outputRevisions)
++    }
++
++    static func perform(_ action: Action, context: NotchcastContext) {
++        guard let scripts = context.settingsModule(ScriptCommandsModule.self, for: settingsID) else { return }
++        switch action {
++        case .addScript(let id): scripts.addRow(id: id)
++        case .updateScript(let row): scripts.update(row)
++        case .deleteScript(let id): scripts.removeRow(id)
++        }
++    }
++
++    static func answer(_ id: String, context: NotchcastContext) async throws -> String? {
++        context.settingsModule(ScriptCommandsModule.self, for: settingsID)?.outputs[id]
++    }
++}
+diff --git a/Tinycast/Features/Notchcast/Spotify/SpotifySettingsEndpoint.swift b/Tinycast/Features/Notchcast/Spotify/SpotifySettingsEndpoint.swift
+new file mode 100644
+index 000000000..b73aa9b8a
+--- /dev/null
++++ b/Tinycast/Features/Notchcast/Spotify/SpotifySettingsEndpoint.swift
+@@ -0,0 +1,51 @@
++import Foundation
++
++extension SpotifyAddon: NotchcastSettingsEndpoint {
++    static var settingsID: String { switchID }
++
++    struct Status: Codable, Equatable, Sendable {
++        let build: SoloistBuild?
++        let phase: SoloistPhase
++        let hasKey: Bool
++        let installing: Bool
++        let installError: SoloistInstallError?
++        let clientID: String
++        let isSignedIn: Bool
++        let signingIn: Bool
++        let signInFailed: Bool
++    }
++
++    enum Action: Codable {
++        case installSoloist
++        case removeSoloistKey
++        case setSpotifyClientID(String)
++        case signInSpotify(String)
++        case signOutSpotify
++    }
++
++    static func settingsStatus(_ context: NotchcastContext) -> Status? {
++        guard let spotify = context.settingsModule(SpotifyModule.self, for: settingsID) else { return nil }
++        return Status(build: spotify.build, phase: spotify.phase, hasKey: spotify.hasKey,
++                      installing: spotify.installing, installError: spotify.installError, clientID: spotify.clientID,
++                      isSignedIn: spotify.isSignedIn, signingIn: spotify.signingIn, signInFailed: spotify.signInError != nil)
++    }
++
++    static func perform(_ action: Action, context: NotchcastContext) {
++        guard let spotify = context.settingsModule(SpotifyModule.self, for: settingsID) else { return }
++        switch action {
++        case .installSoloist: Task { await spotify.install() }
++        case .removeSoloistKey: spotify.removeKey()
++        case .setSpotifyClientID(let clientID): spotify.setClientID(clientID)
++        case .signInSpotify(let clientID):
++            spotify.setClientID(clientID)
++            Task { await spotify.signIn() }
++        case .signOutSpotify: spotify.signOut()
++        }
++    }
++
++    static func answer(_ key: String, context: NotchcastContext) async throws -> Bool {
++        guard let spotify = context.settingsModule(SpotifyModule.self, for: settingsID) else { throw CancellationError() }
++        try spotify.setKey(key)
++        return true
++    }
++}
