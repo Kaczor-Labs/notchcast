@@ -40,8 +40,10 @@ final class HotKeyManager {
         didSet {
             clearSecureInputEquivalents()
             for action in oldValue { center.unregister(id: action.defaultsKey); bindings[action] = nil }
-            for action in extraActions { bindings[action] = storedBinding(for: action); register(action) }
+            for action in extraActions { bindings[action] = storedBinding(for: action) }
             candidateActionsCache = nil
+            reconcileHiddenBindings?(self, allCandidateActions, defaults)
+            for action in extraActions { register(action) }
             syncSecureInputEquivalents()
             revision &+= 1
             syncModifierTaps()
@@ -54,6 +56,8 @@ final class HotKeyManager {
     var onBindingEdit: ((HotKeyAction, HotKeyBinding?) -> Void)?
     /// A hidden feature's stored chord owns nothing, so the recorder never names it.
     var isHidden: ((HotKeyAction) -> Bool)? { didSet { candidateActionsCache = nil } }
+    var reconcileHiddenBindings: ((HotKeyManager, [HotKeyAction], UserDefaults) -> Void)?
+    var onBindingWritten: ((HotKeyAction, Bool, UserDefaults) -> Void)?
 
     /// The recorder currently capturing, which also pauses both engines.
     var recordingAction: HotKeyAction? {
@@ -132,6 +136,7 @@ final class HotKeyManager {
         prune(key: boundQuickActionKey, live: quickActionIDs) { .quickAction(id: $0) }
         // After the prunes, so a dropped record can't survive in memory this session.
         for action in candidateActions { bindings[action] = storedBinding(for: action) }
+        reconcileHiddenBindings?(self, allCandidateActions, defaults)
         revision &+= 1
     }
 
@@ -259,6 +264,7 @@ final class HotKeyManager {
             bindings[action] = nil
             defaults.removeObject(forKey: action.defaultsKey)
         }
+        onBindingWritten?(action, isHidden?(action) == true, defaults)
         revision &+= 1
         // Unregister unconditionally: the previous binding may have been a combo.
         center.unregister(id: action.defaultsKey)
@@ -395,8 +401,10 @@ final class HotKeyManager {
     }
 
     /// A hold reserves its physical modifier across both tap gestures.
-    func conflictOwner(of binding: HotKeyBinding, excluding action: HotKeyAction) -> String? {
-        for candidate in candidateActions where candidate != action {
+    func conflictOwner(
+        of binding: HotKeyBinding, excluding action: HotKeyAction, among candidates: [HotKeyAction]? = nil
+    ) -> String? {
+        for candidate in candidates ?? candidateActions where candidate != action {
             guard let other = self.binding(for: candidate) else { continue }
             let holdsModifier =
                 dictationHoldToTalk
@@ -412,6 +420,12 @@ final class HotKeyManager {
     /// Every action that could hold a binding: the search space for conflicts and the map.
     private var candidateActions: [HotKeyAction] {
         if let candidateActionsCache { return candidateActionsCache }
+        let actions = allCandidateActions.filter { isHidden?($0) != true }
+        candidateActionsCache = actions
+        return actions
+    }
+
+    private var allCandidateActions: [HotKeyAction] {
         var actions = HotKeyAction.builtInActions
         actions += boundBundleIDs.map { .app(bundleID: $0) }
         actions += boundPaneBundleIDs.map { .settingsPane(bundleID: $0) }
@@ -427,8 +441,6 @@ final class HotKeyManager {
         actions += SystemAction.ID.allCases.map { .systemAction(id: $0) }
         actions += WindowCommand.ID.allCases.map { .windowCommand(id: $0) }
         actions += extraActions
-        actions.removeAll { isHidden?($0) == true }
-        candidateActionsCache = actions
         return actions
     }
 
