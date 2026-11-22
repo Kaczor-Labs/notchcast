@@ -12,6 +12,7 @@ final class IslandCanvas: NSView {
     private var leaving: IslandHeadlineArt?
     /// The palette or a report owns the grown shape, so no notice line draws inside it.
     var covered = false
+    var hasQuestion = false
     var progressReport: (art: IslandHeadlineArt, frame: CGRect)?
     var drawnLine: IslandHeadlineArt? { covered ? nil : headline ?? leaving }
     var restWidth: CGFloat = 0
@@ -91,7 +92,7 @@ final class IslandCanvas: NSView {
         let bounds = outline.boundingBoxOfPath
         if covered { leaving = nil }
         let line = drawnLine
-        let compact = covered && glance is IslandNoticeArt ? nil : glance
+        let compact = hasQuestion && glance is IslandNoticeArt ? nil : glance
         guard compact != nil || expansion != nil || line != nil || progressReport != nil else { return }
         let travel = glanceWidth - restWidth
         context.saveGState()

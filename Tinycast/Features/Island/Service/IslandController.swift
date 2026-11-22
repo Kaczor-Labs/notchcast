@@ -20,7 +20,6 @@ final class IslandController: NSObject {
     private let pageClip = CAShapeLayer()
     let keyline = CAShapeLayer()
     private(set) var overlays: [CGRect] = []
-    private(set) var hasQuestion = false
     #if DEBUG
     private(set) var samples: [String] = []
     let frames = IslandFrameTrace()
@@ -305,7 +304,7 @@ final class IslandController: NSObject {
 
     func setOverlays(_ frames: [CGRect], hasQuestion: Bool) {
         overlays = frames
-        self.hasQuestion = hasQuestion
+        canvas.hasQuestion = hasQuestion
         closed()
     }
 

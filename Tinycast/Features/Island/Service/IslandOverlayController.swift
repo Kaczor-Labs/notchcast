@@ -103,7 +103,7 @@ extension IslandController {
             inset: NotchTheme.Spacing.islandInset, gap: Theme.Spacing.xl)
         var frames = overlays
         canvas.progressReport = nil
-        if hasQuestion, let notice, notice.progress != nil {
+        if canvas.hasQuestion, let notice, notice.progress != nil {
             let art = IslandHeadlineArt(notice, notch: nil, frosted: canvas.look == .frosted, still: canvas.still)
             let lowest = (frames + [page?.frame].compactMap { $0 }).min { $0.minY < $1.minY }
             if let frame = overlayLayout.reports([art.size], question: lowest).first {
