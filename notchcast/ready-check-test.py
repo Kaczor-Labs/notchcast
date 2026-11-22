@@ -469,14 +469,15 @@ class MacPoolTest(unittest.TestCase):
         self.assertEqual(self.run_route(config_change=lambda text: text.replace(
             'CI_SKIP_TESTS="ClipboardTextTests"', 'CI_SKIP_TESTS="ClipboardTextTests SafeTests"')), "")
 
-    def test_base_and_head_tags_and_risky_apis_keep_the_selection_hosted(self):
-        for test, content in (("TaggedTests", "// notchcast-hosted-only"),
-                              ("SkippedTests", "// notchcast-ci-skip"),
-                              ("RiskyTests", "// NSWindow(")):
-            with self.subTest(test=test):
-                self.assertEqual(self.run_route(tests=test, head_files={f"Tests/{test}.swift": "// Pure harness fixture"}), "")
+    def test_selected_branch_tags_and_risky_apis_keep_the_selection_hosted(self):
+        for content in ("// notchcast-hosted-only", "// notchcast-ci-skip", "// NSWindow("):
+            with self.subTest(content=content):
                 self.assertEqual(self.run_route(head_files={"Tests/SafeTests.swift": content}), "")
 
+    def test_updated_harness_routes_when_only_main_has_risky_apis(self):
+        self.assertEqual(self.run_route(tests="RiskyTests", head_files={
+            "Tests/RiskyTests.swift": "// Pure harness fixture",
+        }), "runs-on=notchcast-mbp\n")
 
     def test_ci_files_must_match_main(self):
         for path in ("notchcast/actions/xcode/action.yml", "notchcast/actions/tests/action.yml",
@@ -501,12 +502,13 @@ class MacPoolTest(unittest.TestCase):
             "Tests/ClipboardTextTests.swift": "// New content in a listed harness",
         }), "")
 
-    def test_skipped_or_empty_route_keeps_planned_harnesses_hosted(self):
+    def test_skip_empty_matrix_and_keep_planned_shards_when_route_is_skipped(self):
         job = MAIN_HARNESSES.read_text().split("\n  harnesses:\n", 1)[1]
         job = dedent(job)
         self.assertEqual(field(job, "needs"), "[plan, mac-route]")
         self.assertEqual(field(job, "if"),
-                         "${{ !cancelled() && needs.plan.result == 'success' && needs.plan.outputs.shards != '[]' }}")
+                         "${{ !cancelled() && needs.plan.result == 'success' && needs.plan.outputs.shards != '[]' }}",
+                         "an empty matrix fails the run, so skip the job before expanding it")
         self.assertEqual(field(job, "runs-on"), POOL_MAC)
         self.assertEqual(self.run_route(pool=""), "")
 
