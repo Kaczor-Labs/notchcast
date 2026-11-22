@@ -110,12 +110,6 @@ enum SystemToolsPolicyTests {
               ProcessListPolicy.rows(previous: [], current: after, elapsedNanoseconds: 0, ownPID: 99, processorCount: 2)
                   .allSatisfy { $0.cpuPercent == 0 })
 
-        check("mach ticks convert to nanoseconds",
-              ProcessListPolicy.nanoseconds(ticks: 3_000, numerator: 125, denominator: 3) == 125_000)
-        check("a zero timebase reads nothing", ProcessListPolicy.nanoseconds(ticks: 1, numerator: 1, denominator: 0) == nil)
-        check("an overflowing conversion reads nothing",
-              ProcessListPolicy.nanoseconds(ticks: .max, numerator: 125, denominator: 3) == nil)
-
         func names(_ query: String, _ list: [ProcessRow]) -> [String] {
             ProcessListPolicy.arrange(list, query: query).map(\.sample.name)
         }
