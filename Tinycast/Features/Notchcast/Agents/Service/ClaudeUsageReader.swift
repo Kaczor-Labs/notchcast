@@ -6,7 +6,7 @@ struct ClaudeUsageReader: Sendable {
     var name: String
     var launch: ClaudeLaunch
     var home: URL = FileManager.default.homeDirectoryForCurrentUser
-    var timeout: Duration = .seconds(25)
+    var waitForDeadline: @Sendable () async throws -> Void = { try await Task.sleep(for: .seconds(25)) }
     var environment: [String: String] = ProcessInfo.processInfo.environment
     var now: @Sendable () -> Date = { Date() }
     var locate: @Sendable () async -> URL? = { await ExecutableLocator.locate("claude") }
@@ -33,7 +33,7 @@ struct ClaudeUsageReader: Sendable {
         let environment = ExecutableLocator.environment(
             running: executable, inherited: launch.environment(environment, settings: settings))
         let answer = await AgentCLIConversation.run(
-            executable, arguments: ClaudeLaunch.arguments, environment: environment, timeout: timeout
+            executable, arguments: ClaudeLaunch.arguments, environment: environment, waitForDeadline: waitForDeadline
         ) { conversation -> Result<Data, Failure> in
             if case .failure(let failure) = await ask(conversation, id: "initialize", request: ["subtype": "initialize"]) {
                 return .failure(failure)

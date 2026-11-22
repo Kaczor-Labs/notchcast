@@ -75,7 +75,10 @@ final class AgentCLIConversation {
     private var lines: AsyncStream<Data>.Iterator
     private let deadline: Task<Void, Never>
 
-    private init?(_ executable: URL, arguments: [String], environment: [String: String], timeout: Duration) {
+    private init?(
+        _ executable: URL, arguments: [String], environment: [String: String],
+        waitForDeadline: @escaping @Sendable () async throws -> Void
+    ) {
         let process = Process()
         let input = Pipe()
         let output = Pipe()
@@ -104,18 +107,19 @@ final class AgentCLIConversation {
         self.handle = handle
         lines = handle.lines.makeAsyncIterator()
         deadline = Task {
-            guard (try? await Task.sleep(for: timeout)) != nil else { return }
+            guard (try? await waitForDeadline()) != nil, !Task.isCancelled else { return }
             handle.stop()
         }
     }
 
     /// Runs `body` against a fresh process and ends it after; nil when the CLI cannot start.
     static func run<T>(
-        _ executable: URL, arguments: [String], environment: [String: String], timeout: Duration,
+        _ executable: URL, arguments: [String], environment: [String: String],
+        waitForDeadline: @escaping @Sendable () async throws -> Void,
         _ body: (AgentCLIConversation) async -> T
     ) async -> T? {
         guard let conversation = AgentCLIConversation(
-            executable, arguments: arguments, environment: environment, timeout: timeout)
+            executable, arguments: arguments, environment: environment, waitForDeadline: waitForDeadline)
         else { return nil }
         let handle = conversation.handle
         let result = await withTaskCancellationHandler {
