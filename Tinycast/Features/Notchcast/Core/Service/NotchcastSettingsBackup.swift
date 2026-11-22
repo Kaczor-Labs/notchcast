@@ -1,6 +1,5 @@
 import Foundation
 
-/// The stock settings backup (Backup › Export's file) as the core sees it; `NotchcastCore` injects it.
 @MainActor
 protocol NotchcastSettingsBackup {
     /// The current settings as their backup JSON; nil once the app is gone.

@@ -17,15 +17,13 @@ enum LiveProcesses {
     @concurrent
     static func read(uid: uid_t, apps: [App]) async -> [ProcessSample] {
         let byPID = Dictionary(apps.map { ($0.pid, $0) }, uniquingKeysWith: { first, _ in first })
-        guard let timebase = NotchcastProcesses.timebase() else { return [] }
         return NotchcastProcesses.pids().compactMap { pid in
-            guard let info = bsdInfo(pid), info.pbi_uid == uid, let usage = NotchcastProcesses.usage(pid),
-                  let cpu = ProcessListPolicy.nanoseconds(
-                      ticks: usage.cpuTicks, numerator: timebase.numer, denominator: timebase.denom) else { return nil }
+            guard let info = bsdInfo(pid), info.pbi_uid == uid,
+                  let usage = NotchcastProcesses.usage(pid) else { return nil }
             let app = byPID[pid]
             return ProcessSample(
                 pid: pid, start: start(info), name: app?.name ?? name(info), path: path(pid),
-                isApp: app?.isRegular == true, bundlePath: app?.bundlePath, cpuNanoseconds: cpu,
+                isApp: app?.isRegular == true, bundlePath: app?.bundlePath, cpuNanoseconds: usage.cpuNanoseconds,
                 memoryBytes: usage.footprint)
         }
     }
