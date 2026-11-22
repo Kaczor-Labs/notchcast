@@ -1,7 +1,7 @@
 import Foundation
 
-struct BrightnessDisplay: Identifiable, Equatable, Sendable {
-    struct ID: Hashable, Sendable {
+struct BrightnessDisplay: Identifiable, Equatable, Codable, Sendable {
+    struct ID: Hashable, Codable, Sendable {
         let rawValue: UInt32
         let uuid: String
 
@@ -11,7 +11,7 @@ struct BrightnessDisplay: Identifiable, Equatable, Sendable {
         }
     }
 
-    enum Control: Equatable, Sendable {
+    enum Control: Equatable, Codable, Sendable {
         case system, ddc, writeOnlyDDC, software
     }
 

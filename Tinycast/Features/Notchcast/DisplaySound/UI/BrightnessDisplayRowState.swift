@@ -10,17 +10,19 @@ final class BrightnessDisplayRowState {
     private(set) var failed = false
     private var pending: Double?
     var display: BrightnessDisplay
-    @ObservationIgnored private let controller: BrightnessController
+    @ObservationIgnored private let setLevel: @MainActor (Double, BrightnessDisplay.ID) async -> BrightnessLevel?
     @ObservationIgnored private var queued: Double?
     @ObservationIgnored private var write: Task<Void, Never>?
 
-    init(display: BrightnessDisplay, controller: BrightnessController) {
+    init(
+        display: BrightnessDisplay, setLevel: @escaping @MainActor (Double, BrightnessDisplay.ID) async -> BrightnessLevel?
+    ) {
         self.display = display
-        self.controller = controller
+        self.setLevel = setLevel
     }
 
     var value: Double {
-        get { pending ?? controller.level(of: display.id)?.value ?? display.level.value }
+        get { pending ?? display.level.value }
         set {
             pending = newValue
             queued = newValue
@@ -44,9 +46,10 @@ final class BrightnessDisplayRowState {
     private func drain() async {
         while let next = queued, !Task.isCancelled {
             queued = nil
-            let result = await controller.set(next, for: display.id)
+            let result = await setLevel(next, display.id)
             guard !Task.isCancelled else { return }
             failed = result == nil
+            if let result { display.level = result }
         }
         guard !Task.isCancelled else { return }
         pending = nil

@@ -6,7 +6,7 @@ enum SoloistLaunchError: Error, Equatable {
     case noSocket
 }
 
-enum SoloistInstallError: Error, Equatable {
+enum SoloistInstallError: Error, Codable, Equatable {
     case download
     case unpack
     case signature

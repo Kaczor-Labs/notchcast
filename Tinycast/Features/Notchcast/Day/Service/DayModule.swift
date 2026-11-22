@@ -87,7 +87,7 @@ final class DayModule: NotchcastModule {
         }
         let run = run
         let found = await fetch(url).flatMap(DayWeatherFeed.place(from:))
-        guard run == self.run, let found, let data = try? JSONEncoder().encode(found) else { return false }
+        guard !Task.isCancelled, run == self.run, let found, let data = try? JSONEncoder().encode(found) else { return false }
         context.defaults.set(data, forKey: Self.placeKey)
         await update()
         return true

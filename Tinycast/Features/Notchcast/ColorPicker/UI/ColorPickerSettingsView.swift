@@ -3,13 +3,12 @@ import SwiftUI
 struct ColorPickerSettingsView: View {
     @AppStorage private var format: ColorPickerFormat
     @AppStorage private var recent: String
-    private let copy: @MainActor (ColorValue) -> Void
+    @Environment(MainAppLink.self) private var mainApp
     private static let anchor = NotchcastSettingsSearch.anchor(.capture)
 
-    init(defaults: UserDefaults, copy: @escaping @MainActor (ColorValue) -> Void) {
+    init(defaults: UserDefaults) {
         _format = AppStorage(wrappedValue: .hex, ColorPickerFormat.defaultsKey, store: defaults)
         _recent = AppStorage(wrappedValue: "", ColorPickerHistory.defaultsKey, store: defaults)
-        self.copy = copy
     }
 
     var body: some View {
@@ -33,7 +32,9 @@ struct ColorPickerSettingsView: View {
             let value = format.string(for: color)
             LabeledContent {
                 Button {
-                    copy(color)
+                    mainApp.sendNotchcast(
+                        .init(red: color.red, green: color.green, blue: color.blue, alpha: color.alpha),
+                        to: ColorPickerAddon.self)
                 } label: {
                     Text("Copy", tableName: "NotchcastColorPicker")
                 }

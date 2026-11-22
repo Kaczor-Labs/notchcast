@@ -205,6 +205,10 @@ enum ScriptCommandsModuleTests {
 
         // A row becomes a launcher command once it has a name and a script.
         let id = module.addRow()
+        precondition(module.addRow(id: id) == id, "the same add request keeps its row ID")
+        let status = ScriptCommand.encodeList(module.rows)
+        let echoedIDs = (try? JSONDecoder().decode([ScriptCommand].self, from: status))?.map(\.id)
+        precondition(echoedIDs == [id], "an add and its replay produce a single echoed row")
         precondition(rig.controller.enabledCommands.isEmpty, "an empty row makes no command")
         module.update(ScriptCommand(id: id, name: "Update packages", script: "brew update && brew upgrade"))
         let entryID = "command:nc-run-" + id
