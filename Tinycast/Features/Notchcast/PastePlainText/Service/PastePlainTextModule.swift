@@ -18,6 +18,7 @@ final class PastePlainTextModule: NotchcastModule {
     private let context: NotchcastContext
     private let system: PastePlainTextSystem
     private var engine: PlainPasteEngine?
+    private var beginGeneration = 0
     private var keystroke: (any PlainPasteTimer)?
     private var restoreTimer: (any PlainPasteTimer)?
     /// Until `restoreDelay` after this, the target app may still be reading the plain text.
@@ -58,11 +59,14 @@ final class PastePlainTextModule: NotchcastModule {
     }
 
     private func begin() {
+        beginGeneration += 1
+        let generation = beginGeneration
         restoreTimer = nil
         restore()
         guard let engine else { return }
         let changeCount = engine.changeCount
         let text = engine.text()
+        guard generation == beginGeneration else { return }
         schedule(Self.focusDelay) { $0.deliver(text, expecting: changeCount) }
     }
 
