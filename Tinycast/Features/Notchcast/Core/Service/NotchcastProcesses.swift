@@ -1,13 +1,12 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
-// Adapted from Vorssaint 89d2626's kill process service and per-process CPU and footprint readings.
+// Adapted from Vorssaint's ProcessUsageService.swift (89d2626).
 
 import Darwin
 
-/// libproc reads an unprivileged process may make; in Core as SystemTools and SystemMonitor list processes.
 nonisolated enum NotchcastProcesses {
     struct Usage: Sendable {
-        let cpuTicks: UInt64
+        let cpuNanoseconds: UInt64
         let footprint: UInt64
     }
 
@@ -20,7 +19,7 @@ nonisolated enum NotchcastProcesses {
         return pids.prefix(min(Int(max(count, 0)), pids.count)).filter { $0 > 0 }
     }
 
-    /// Ticks in `mach_timebase_info` units; nil for another user's process without root, or on overflow.
+    /// An exited or inaccessible process has no sample.
     static func usage(_ pid: pid_t) -> Usage? {
         var usage = rusage_info_current()
         let status = withUnsafeMutablePointer(to: &usage) { pointer in
@@ -29,12 +28,22 @@ nonisolated enum NotchcastProcesses {
             }
         }
         let ticks = usage.ri_user_time.addingReportingOverflow(usage.ri_system_time)
-        guard status == 0, !ticks.overflow else { return nil }
-        return Usage(cpuTicks: ticks.partialValue, footprint: usage.ri_phys_footprint)
+        guard status == 0, !ticks.overflow, let ratio = timebaseRatio,
+              let cpu = nanoseconds(ticks: ticks.partialValue, numerator: ratio.numerator, denominator: ratio.denominator)
+        else { return nil }
+        return Usage(cpuNanoseconds: cpu, footprint: usage.ri_phys_footprint)
     }
 
-    static func timebase() -> mach_timebase_info_data_t? {
-        var timebase = mach_timebase_info_data_t()
-        return mach_timebase_info(&timebase) == KERN_SUCCESS ? timebase : nil
+    static func nanoseconds(ticks: UInt64, numerator: UInt32, denominator: UInt32) -> UInt64? {
+        let scaled = ticks.multipliedFullWidth(by: UInt64(numerator))
+        let divisor = UInt64(denominator)
+        guard scaled.high < divisor else { return nil }
+        return divisor.dividingFullWidth(scaled).quotient
     }
+
+    private static let timebaseRatio: (numerator: UInt32, denominator: UInt32)? = {
+        var timebase = mach_timebase_info_data_t()
+        guard mach_timebase_info(&timebase) == KERN_SUCCESS else { return nil }
+        return (timebase.numer, timebase.denom)
+    }()
 }

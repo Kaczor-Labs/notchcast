@@ -148,13 +148,9 @@ enum MonitorLiveReads {
 
     /// Every process libproc lets this user read (another user's needs root); only the rows listed get a name.
     nonisolated static func processes(previous: [Int32: UInt64]) -> [MonitorProcessTime] {
-        guard let timebase = NotchcastProcesses.timebase(), timebase.denom > 0 else { return [] }
         let times = NotchcastProcesses.pids().compactMap { pid -> MonitorProcessTime? in
             guard let usage = NotchcastProcesses.usage(pid) else { return nil }
-            let scaled = usage.cpuTicks.multipliedFullWidth(by: UInt64(timebase.numer))
-            guard scaled.high < UInt64(timebase.denom) else { return nil }
-            let nanoseconds = UInt64(timebase.denom).dividingFullWidth(scaled).quotient
-            return MonitorProcessTime(pid: pid, cpuNanoseconds: nanoseconds, footprint: usage.footprint)
+            return MonitorProcessTime(pid: pid, cpuNanoseconds: usage.cpuNanoseconds, footprint: usage.footprint)
         }
         let listed = Set(MonitorBoard.ranked(times, since: previous).map(\.pid))
         return times.map { process in
