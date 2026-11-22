@@ -123,6 +123,7 @@
 		14D056C9DA105D9D89A9691E /* HealthTicker.swift in Sources */ = {isa = PBXBuildFile; fileRef = BFB023D167225228757CC4B2 /* HealthTicker.swift */; };
 		15292937738B7CD3AE23EF73 /* VolumeSlider.swift in Sources */ = {isa = PBXBuildFile; fileRef = E27FB790A72ACD75DFCDFDDF /* VolumeSlider.swift */; };
 		156AAF6C1939C271E46C45EF /* IslandCardStyle.swift in Sources */ = {isa = PBXBuildFile; fileRef = FE77B495DA3B4C720F009EAA /* IslandCardStyle.swift */; };
+		15C54359322C44775186C2C2 /* TypingDisplayReader.swift in Sources */ = {isa = PBXBuildFile; fileRef = 59B19F3CDE722CE541F02481 /* TypingDisplayReader.swift */; };
 		15CC97911A3E9DE3190BB373 /* DownloadsQueueController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 448D5E32D84AF28942AF8085 /* DownloadsQueueController.swift */; };
 		15D30A01BEB50C1B811C04E2 /* SoloistBuild.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0E78D2E117A5BEE2720AA836 /* SoloistBuild.swift */; };
 		16161B56AE17C7200677EFEC /* CopyPathAddon.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0664E4349F1F7397D99F15B2 /* CopyPathAddon.swift */; };
@@ -965,6 +966,7 @@
 		A32BE15F664FB1215BE084BC /* ExtensionFormMetrics.swift in Sources */ = {isa = PBXBuildFile; fileRef = E5D1A8D93DEC49E4EA11C449 /* ExtensionFormMetrics.swift */; };
 		A3A6B954A32A36124401716E /* FileSearchQuery.swift in Sources */ = {isa = PBXBuildFile; fileRef = 391B8024E8719506361B45F7 /* FileSearchQuery.swift */; };
 		A3C87F89C3DBE3AD1EA479D3 /* AgentsPreferences.swift in Sources */ = {isa = PBXBuildFile; fileRef = FC12A04FD3682E1CA8E1B272 /* AgentsPreferences.swift */; };
+		A3F10BE7DFFEA589DF433960 /* TypingDisplay.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20D6580C73DF824A5B2CA1C7 /* TypingDisplay.swift */; };
 		A41185C975CBF97A8C6EAC19 /* SystemPromptEditor.swift in Sources */ = {isa = PBXBuildFile; fileRef = BF36BDC9ACE867DCC2CCF746 /* SystemPromptEditor.swift */; };
 		A47E49315D60D94CF75E22C9 /* PaletteDropGuideView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 418527DD2F2370A1B82A13B7 /* PaletteDropGuideView.swift */; };
 		A4C0863EAFEC8FE3266FDE8D /* IslandLevelScenes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 352BFEDA07059A5612EEF45A /* IslandLevelScenes.swift */; };
@@ -1733,6 +1735,7 @@
 		202F8F1BD76AC9330D649931 /* DictationServerClients.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DictationServerClients.swift; sourceTree = "<group>"; };
 		2069789D62057E302322AFDB /* MeetingRowParts.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MeetingRowParts.swift; sourceTree = "<group>"; };
 		209D951FDD587A040F1F76F3 /* PaletteWindowController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PaletteWindowController.swift; sourceTree = "<group>"; };
+		20D6580C73DF824A5B2CA1C7 /* TypingDisplay.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TypingDisplay.swift; sourceTree = "<group>"; };
 		21325C9F712F52ADCF51C42E /* AgentsLocator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentsLocator.swift; sourceTree = "<group>"; };
 		21C13EC38CAAF82D9B6A5F34 /* CalcQuestion.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalcQuestion.swift; sourceTree = "<group>"; };
 		220CECFE780E8BE18FAE0A1C /* ExtensionGridLayout.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExtensionGridLayout.swift; sourceTree = "<group>"; };
@@ -2075,6 +2078,7 @@
 		590A432CC25ED6372B453BFA /* ScheduleScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScheduleScreen.swift; sourceTree = "<group>"; };
 		596347A470F8445AE2B6B110 /* ShowDesktopSystem+Live.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ShowDesktopSystem+Live.swift"; sourceTree = "<group>"; };
 		599A7F679ECC846D52FCF446 /* SpotifyWebWire.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpotifyWebWire.swift; sourceTree = "<group>"; };
+		59B19F3CDE722CE541F02481 /* TypingDisplayReader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TypingDisplayReader.swift; sourceTree = "<group>"; };
 		59B6C783E78251F2347E9448 /* DictationHistoryStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DictationHistoryStore.swift; sourceTree = "<group>"; };
 		59C58D4B2132F5BEF8635C00 /* NotchcastTapThread.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotchcastTapThread.swift; sourceTree = "<group>"; };
 		59E7C815C7DABC0EC9AC5749 /* DownloadsActivity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DownloadsActivity.swift; sourceTree = "<group>"; };
@@ -3834,6 +3838,7 @@
 				583CE747E6B71A369A176240 /* NotchcastPane.swift */,
 				9017F216A7D856A052A2495C /* NotchcastSwitch.swift */,
 				8DA305C58C2291E5C23DF730 /* NotchcastTapPolicy.swift */,
+				20D6580C73DF824A5B2CA1C7 /* TypingDisplay.swift */,
 			);
 			path = Model;
 			sourceTree = "<group>";
@@ -5171,6 +5176,7 @@
 				F750538C191E55710AD59FED /* NotchcastSurfaces+Live.swift */,
 				58D7094D0F19E6C927625CE6 /* NotchMenuInk.swift */,
 				0F4EFA310F3BAE2640DB337F /* NotchTheme.swift */,
+				59B19F3CDE722CE541F02481 /* TypingDisplayReader.swift */,
 			);
 			path = Notchcast;
 			sourceTree = "<group>";
@@ -8542,6 +8548,8 @@
 				DEFB9691D04632370464ADA9 /* TorrentStatus.swift in Sources */,
 				9690D828521DA79147D7D5E6 /* TorrentsSettingsView.swift in Sources */,
 				A7A59AA0C92D9C68D75E4835 /* TranscriptDownloadRunner.swift in Sources */,
+				A3F10BE7DFFEA589DF433960 /* TypingDisplay.swift in Sources */,
+				15C54359322C44775186C2C2 /* TypingDisplayReader.swift in Sources */,
 				201B633001409DE267024F38 /* URLCleanerAddon.swift in Sources */,
 				65B76EEBA5B53D837A4B1F30 /* URLCleanerModule.swift in Sources */,
 				027D19CEA16799A6D203C117 /* URLCleanerPolicy.swift in Sources */,
