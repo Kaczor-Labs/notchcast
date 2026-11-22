@@ -91,8 +91,8 @@ struct QuitProtectionEngine: Sendable {
             return .pass
         case .modifiersChanged(let modifiers):
             if !modifiers.contains(.command) { switching = false }
-            if modifiers != .command { pending = nil }
-            // A surviving hold keeps its key, so the release still resolves it instead of reaching the app.
+            let betweenDoublePresses = modifiers.isEmpty && pending?.mode == .doublePress
+            if modifiers != .command && !betweenDoublePresses { pending = nil }
             let held = pending.flatMap { $0.released ? nil : $0.key.code }
             swallowedKeys = swallowedKeys.filter { $0 == held }
             return .pass

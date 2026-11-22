@@ -1,9 +1,8 @@
 import AppKit
 import SwiftUI
 
-extension NotchcastIslandAuditRenderTest {
+extension IslandAuditRendering {
     private static let hostedPadding: CGFloat = 16
-    static let blackDesk = NSColor(white: 0.18, alpha: 1)
 
     /// A field or scroll view is AppKit-backed and blank to `ImageRenderer`, so a window caches it.
     @discardableResult

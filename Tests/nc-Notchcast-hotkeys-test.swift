@@ -3,8 +3,22 @@
 // notchcast-sources: Tinycast/Features/HotKeys/Model/HIDKeyMapping.swift Tinycast/Features/HotKeys/Model/HotKeyAction.swift
 // notchcast-sources: Tinycast/Features/HotKeys/Service/KeyShortcut.swift Tinycast/Features/HotKeys/Service/HotKeyManager.swift
 // notchcast-sources: Tinycast/Platform/ASCIIKeyboardLayout.swift Tests/HotKeyDispatchFixtures.swift
+// notchcast-sources: Tinycast/Features/Notchcast/Hidden/NotchcastHiddenHotKeys.swift
 import AppKit
 import Carbon.HIToolbox
+
+enum NotchcastHidden {
+    enum Tab { case appleShortcuts, extensions, quickActions, commands }
+    static let tabs: Set<Tab> = []
+}
+enum NotchcastHiddenCommands {
+    enum Kind { case systemSettings }
+    static let kinds: Set<Kind> = [.systemSettings]
+    static let commands: Set<CommandID> = []
+}
+extension CommandID {
+    var owner: NotchcastHidden.Tab? { nil }
+}
 
 @main
 @MainActor
@@ -22,6 +36,7 @@ struct NotchcastHotKeysTests {
         shippedCommandsTakeHotKeys()
         hiddenFeatureBindingsStayUnregistered()
         hiddenChordsOwnNothing()
+        returningChordYieldsToLateAddOn()
         print("\(checks) add-on hotkey checks; \(failures) failures")
         if failures > 0 { exit(1) }
         print("PASSED")
@@ -133,26 +148,68 @@ struct NotchcastHotKeysTests {
         defer { defaults.removePersistentDomain(forName: domain) }
         let quicklinkID = UUID()
         let quicklink = HotKeyAction.quicklink(id: quicklinkID)
-        let hidden = HotKeyAction.appleShortcut(id: UUID())
+        let hidden = HotKeyAction.settingsPane(bundleID: "pane.hidden")
+        let otherHidden = HotKeyAction.settingsPane(bundleID: "pane.other-hidden")
         let combo = HotKeyBinding.combo(KeyShortcut(carbonKeyCode: kVK_ANSI_7, carbonModifiers: controlKey))
-        let quicklinkCombo = HotKeyBinding.combo(KeyShortcut(carbonKeyCode: kVK_ANSI_8, carbonModifiers: controlKey))
+        let otherCombo = HotKeyBinding.combo(KeyShortcut(carbonKeyCode: kVK_ANSI_8, carbonModifiers: controlKey))
         let manager = HotKeyManager(defaults: defaults)
         manager.setBinding(combo, for: hidden)
-        manager.setBinding(quicklinkCombo, for: quicklink)
-        let relaunched = HotKeyManager(defaults: defaults)
-        relaunched.allowsAction = { $0 != hidden }
-        relaunched.start(
-            customCommandIDs: [], quicklinkIDs: [quicklinkID], windowLayoutIDs: [],
-            windowRoomIDs: [], customWindowSizeIDs: [], quickActionIDs: [])
-        check("unhidden, the stored chord names its owner",
-              relaunched.conflictOwner(of: combo, excluding: .togglePalette) != nil)
-        relaunched.isHidden = { $0 == hidden }
+        manager.setBinding(otherCombo, for: otherHidden)
+
+        let hiddenLaunch = launch(defaults, hidePanes: true, quicklinkIDs: [quicklinkID])
+        check("hidden chords are not loaded at launch",
+              hiddenLaunch.binding(for: hidden) == nil && hiddenLaunch.binding(for: otherHidden) == nil)
         check("a hidden feature's stored chord blocks no recording",
-              relaunched.conflictOwner(of: combo, excluding: .togglePalette) == nil)
-        check("a visible stored chord still names its owner",
-              relaunched.conflictOwner(of: quicklinkCombo, excluding: .togglePalette) != nil)
-        relaunched.setBinding(combo, for: .togglePalette)
+              hiddenLaunch.conflictOwner(of: combo, excluding: quicklink) == nil)
+        check("hidden chords stay in defaults",
+              defaults.string(forKey: hidden.defaultsKey) != nil && defaults.string(forKey: otherHidden.defaultsKey) != nil)
+        hiddenLaunch.setBinding(combo, for: quicklink)
         check("the freed chord registers for the new owner",
-              HotKeyCenter.current!.entries[HotKeyAction.togglePalette.defaultsKey]?.shortcut == combo.shortcut)
+              HotKeyCenter.current!.entries[quicklink.defaultsKey]?.shortcut == combo.shortcut)
+
+        let unhiddenLaunch = launch(defaults, hidePanes: false, quicklinkIDs: [quicklinkID])
+        check("the newer recording keeps the chord after un-hiding",
+              unhiddenLaunch.conflictOwner(of: combo, excluding: .togglePalette) == unhiddenLaunch.displayName(of: quicklink))
+        check("un-hiding drops the colliding chord from memory and defaults",
+              unhiddenLaunch.binding(for: hidden) == nil && defaults.string(forKey: hidden.defaultsKey) == nil)
+        check("un-hiding removes only the colliding pane from the bound index",
+              unhiddenLaunch.boundPaneBundleIDs == ["pane.other-hidden"])
+        check("un-hiding restores a non-colliding chord from the same feature",
+              unhiddenLaunch.binding(for: otherHidden) == otherCombo)
+    }
+
+    static func returningChordYieldsToLateAddOn() {
+        let domain = "tinycast.notchcast-hotkeys-test.\(UUID())"
+        let defaults = UserDefaults(suiteName: domain)!
+        defer { defaults.removePersistentDomain(forName: domain) }
+        let hidden = HotKeyAction.settingsPane(bundleID: "pane.hidden")
+        let addOn = HotKeyAction.notchcastCommand(entryID: "command:nc-probe")
+        let combo = HotKeyBinding.combo(KeyShortcut(carbonKeyCode: kVK_ANSI_7, carbonModifiers: controlKey))
+        let hiddenLaunch = launch(defaults, hidePanes: true)
+        hiddenLaunch.setBinding(combo, for: hidden)
+        hiddenLaunch.extraActions = [addOn]
+        hiddenLaunch.setBinding(combo, for: addOn)
+
+        let unhiddenLaunch = launch(defaults, hidePanes: false)
+        check("the returning shortcut works while the add-on action is absent",
+              HotKeyCenter.current!.entries[hidden.defaultsKey]?.shortcut == combo.shortcut)
+        unhiddenLaunch.extraActions = [addOn]
+        check("a late add-on keeps the newer chord",
+              HotKeyCenter.current!.entries[addOn.defaultsKey]?.shortcut == combo.shortcut)
+        check("the colliding shortcut is removed when its new owner loads",
+              HotKeyCenter.current!.entries[hidden.defaultsKey] == nil
+                  && defaults.string(forKey: hidden.defaultsKey) == nil)
+    }
+
+    static func launch(_ defaults: UserDefaults, hidePanes: Bool, quicklinkIDs: Set<UUID> = []) -> HotKeyManager {
+        let manager = HotKeyManager(defaults: defaults)
+        manager.isHidden = { hidePanes && NotchcastHiddenHotKeys.hides($0) }
+        manager.allowsAction = { !hidePanes || !NotchcastHiddenHotKeys.hides($0) }
+        manager.reconcileHiddenBindings = NotchcastHiddenHotKeys.reconcileBindings
+        manager.onBindingWritten = NotchcastHiddenHotKeys.bindingWritten
+        manager.start(
+            customCommandIDs: [], quicklinkIDs: quicklinkIDs, windowLayoutIDs: [],
+            windowRoomIDs: [], customWindowSizeIDs: [], quickActionIDs: [])
+        return manager
     }
 }

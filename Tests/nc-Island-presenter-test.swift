@@ -6,6 +6,7 @@ import Foundation
 @main
 struct IslandPresenterTest {
     @MainActor static func main() {
+        checkVisibleStatuses()
         let island = RecordingIslandPresenter()
         let volume = IslandLevel(source: "volume", symbol: "speaker.wave.2.fill", label: "Volume", value: 0.5)
         let sync = IslandNotice(id: "sync", symbol: nil, text: "Syncing", progress: IslandProgress(fraction: 0.2))
@@ -77,6 +78,21 @@ struct IslandPresenterTest {
         silent.holdKeys(for: sync.id, onFocus: { precondition(!$0) }) { _ in }
         silent.releaseKeys()
         print("Island presenter: the fake records calls in order and clears status, menu rows, notices and held keys")
+    }
+
+    private static func checkVisibleStatuses() {
+        let plain = IslandStatus(id: "plain", symbol: "battery.25percent", label: "On battery")
+        let warning = IslandStatus(id: "warning", symbol: plain.symbol, text: "Low", label: "Low battery", tone: .warning)
+        let critical = IslandStatus(id: "critical", symbol: plain.symbol, label: "Charge now", tone: .critical)
+        let tied = IslandStatus(id: "tied", symbol: plain.symbol, label: "Battery warning", tone: .warning)
+        let timer = IslandStatus(id: "timer", symbol: "timer", label: "Timer")
+
+        precondition(IslandStatus.visible(in: [plain, warning]) == [warning], "One glyph keeps the more urgent status")
+        precondition(IslandStatus.visible(in: [warning, plain]) == [warning], "Posting order cannot hide the warning")
+        precondition(IslandStatus.visible(in: [warning, critical]) == [critical], "Critical takes precedence over warning")
+        precondition(IslandStatus.visible(in: [warning, tied]) == [warning], "Ties keep the first status")
+        precondition(IslandStatus.visible(in: [plain, timer]) == [plain, timer], "Different symbols both show in order")
+        print("Island status: duplicate symbols keep the most urgent status and distinct symbols stay in order")
     }
 }
 

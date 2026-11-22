@@ -4,10 +4,18 @@ import Foundation
 @MainActor
 final class RecordingPresenter: IslandPresenting {
     var log: [String] = []
+    private(set) var noticeTaps: [String: @MainActor () -> Void] = [:]
 
     func showLevel(_ level: IslandLevel) { log.append("level \(level.source) \(level.value)") }
-    func post(_ notice: IslandNotice, onTap: (@MainActor () -> Void)?) { log.append("post \(notice.id) \(notice.text)") }
-    func end(notice id: String) { log.append("end \(id)") }
+    func post(_ notice: IslandNotice, onTap: (@MainActor () -> Void)?) {
+        log.append("post \(notice.id) \(notice.text)")
+        noticeTaps[notice.id] = onTap
+    }
+
+    func end(notice id: String) {
+        log.append("end \(id)")
+        noticeTaps[id] = nil
+    }
     func setStatus(_ status: IslandStatus?, for id: String, onTap: (@MainActor () -> Void)?) { log.append("status \(id)") }
     func setMenuRows(_ rows: [IslandMenuRow], owner: String, onSelect: @escaping @MainActor (String) -> Void) {
         log.append("menu \(owner) \(rows.count)")
