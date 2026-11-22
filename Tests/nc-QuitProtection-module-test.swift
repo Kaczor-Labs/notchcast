@@ -203,11 +203,11 @@ enum QuitProtectionModuleTests {
         rig.flags([])
         await drain()
         precondition(fake.terminated == [42], "one ⌘Q does not quit")
-        await advance(to: 130.5)
+        await advance(to: 130.9)
         rig.flags(.maskCommand)
         precondition(rig.key(12) == .swallow, "second press swallowed")
         await drain()
-        precondition(fake.terminated == [42, 42], "double press within 0.6 s quits after releasing Command")
+        precondition(fake.terminated == [42, 42], "double press within 1 s quits after releasing Command")
         rig.key(12, down: false)
         await drain()
         precondition(presenter.posts.isEmpty && presenter.levels.isEmpty && presenter.ends.isEmpty,
@@ -223,7 +223,7 @@ enum QuitProtectionModuleTests {
         await drain()
         precondition(fake.terminated == [42, 42], "after Esc a press arms again instead of quitting")
         rig.key(12, down: false)
-        await advance(to: 141)
+        await advance(to: 141.301)
         await drain()
 
         rig.defaults.set("hold", forKey: QuitProtectionStore.modeKey)
