@@ -14,6 +14,7 @@ enum NotchcastAppProof {
         switch name {
         case "hidden-settings": hiddenSettings()
         case "addon-launcher": addonLauncher()
+        case "addon-off": addonOff()
         case "icloud-sync-off": iCloudSyncOff()
         case "hidden-hotkeys": hiddenHotKeys()
         case "commands-hidden": commandsHidden()
@@ -203,6 +204,42 @@ enum NotchcastAppProof {
         check(found("xj"), "\(command.name) is found by its alias")
         notchcast.controller.preferences.setShowsInLauncher(command.id, false)
         check(!found(command.name) && !found("xj"), "\(command.name) with Show in launcher off is hidden")
+    }
+
+    private static func addonOff() {
+        let defaults = UserDefaults.standard
+        let suite = NotchcastPreferences.suiteName(bundleID: bundleID)
+        let addons = UserDefaults(suiteName: suite)!
+        defer {
+            defaults.removePersistentDomain(forName: bundleID)
+            addons.removePersistentDomain(forName: suite)
+        }
+        let switches = NotchcastRegistry.addons.flatMap { $0.switches }
+        let plain = Set(switches.filter { $0.dependencies.isEmpty && $0.requiredGrants.isEmpty }.map(\.id))
+        guard let command = NotchcastRegistry.addons.flatMap({ $0.commands }).first(where: { plain.contains($0.switchID) })
+        else { fail("no add-on command without dependencies or grants") }
+
+        for item in switches { addons.set(false, forKey: item.id) }
+        let action = HotKeyAction.notchcastCommand(entryID: command.id)
+        let chord = HotKeyBinding.combo(KeyShortcut(carbonKeyCode: kVK_ANSI_1, carbonModifiers: controlKey | optionKey))
+        guard let stored = try? JSONEncoder().encode(chord), let value = String(data: stored, encoding: .utf8)
+        else { fail("could not encode the proof chord") }
+        defaults.set(value, forKey: action.defaultsKey)
+        let core = AppCore.shared
+        core.hotKeys.allowsAction = { _ in false }
+        do {
+            let notchcast = NotchcastCore(core: core)
+            defer { notchcast.stop() }
+            check(core.hotKeys.binding(for: action) == chord, "\(command.name) holds its chord while its switch is off")
+            check(core.hotKeys.conflictOwner(of: chord, excluding: .togglePalette) == command.name,
+                  "the recorder names \(command.name) for that chord")
+        }
+
+        addons.set(true, forKey: command.switchID)
+        addons.set([command.id], forKey: NotchcastPreferences.launcherHiddenKey)
+        let notchcast = NotchcastCore(core: core)
+        defer { notchcast.stop() }
+        check(core.hotKeys.displayName(of: action) == command.name, "a command with Show in launcher off keeps its name")
     }
 
     static func check(_ condition: Bool, _ message: String) {

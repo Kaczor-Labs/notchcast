@@ -320,12 +320,12 @@ struct NotchcastCoreTest {
         let presenter = RecordingPresenter()
         let controller = NotchcastController(addons: [ProbeAddon.self], defaults: defaults, hub: hub,
                                              dictation: FakeDictation(), presenter: presenter)
-        var published: [[String]] = []
-        controller.onCommandsChanged = { published.append($0.map(\.id)) }
         controller.start()
         check("nothing runs while off", ProbeLog.events.isEmpty && hub.subscriberCount == 0)
         check("no commands while off", controller.enabledCommands.isEmpty && !controller.run(entryID: "command:nc-probe-run"))
 
+        var published: [[String]] = []
+        controller.onCommandsChanged = { published.append($0.map(\.id)) }
         controller.preferences.set("probeMain", on: true)
         drain()
         check("toggling on starts the module once", ProbeLog.events == ["start"])
