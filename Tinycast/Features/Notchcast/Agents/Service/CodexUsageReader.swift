@@ -29,7 +29,7 @@ struct CodexUsageReader: Sendable {
         let client: [String: Any] = ["name": "notchcast", "title": "Notchcast", "version": version]
         let answer = await AgentCLIConversation.run(
             executable, arguments: ["-c", "features.plugins=false", "app-server"], environment: environment,
-            timeout: timeout
+            waitForDeadline: { try await Task.sleep(for: timeout) }
         ) { conversation -> Result<AgentAccount, Failure> in
             var lastID = 0
             func ask(_ method: String, _ params: [String: Any] = [:]) async -> Result<Data, Failure> {
