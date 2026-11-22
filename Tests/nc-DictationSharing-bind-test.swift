@@ -98,16 +98,19 @@ struct DictationBindTest {
     }
 
     static func checkHalfClose(complete: Bool) async {
-        let (work, transcribing) = AsyncStream<Void>.makeStream()
+        let (started, transcribing) = AsyncStream<Void>.makeStream()
+        let (watching, stateWatchStarted) = AsyncStream<Void>.makeStream()
+        var transcribed = false
         guard let (port, serving) = try? await listen({ connection, port in
             defer { transcribing.finish() }
             let reader = DictationServerReader(token: token, port: Int(port))
             let request = try? await DictationServerListener.readRequest(connection, reader: reader) {}
             guard case .form(let received, "clip") = request, received == body
             else { return }
-            guard let eof = try? await connection.receive(atLeast: 1, atMost: 1), eof.metadata.endOfStream else { return }
-            await DictationServerListener.reply(connection) {
+            await DictationServerListener.reply(connection, onStateWatchStarted: { stateWatchStarted.yield(()) }) {
+                transcribed = true
                 transcribing.yield(())
+                guard await observeFIN(connection, watching: watching) else { return Data() }
                 return await transcribe(received)
             }
         }), let port else {
@@ -115,16 +118,24 @@ struct DictationBindTest {
             return
         }
         let request = upload(port: port, complete: complete)
-        let response = await roundTrip(port: port, request: request, halfClosed: true)
+        let response = await roundTrip(port: port, request: request, halfClosed: true) {
+            guard complete else { return true }
+            var start = started.makeAsyncIterator()
+            return await start.next() != nil
+        }
         serving.cancel()
         await serving.value
-        transcribing.finish()
-        var next = work.makeAsyncIterator()
-        let transcribed = await next.next() != nil
         let expected = complete ? transcript : Data()
         let ok = response == expected && transcribed == complete
         check(complete ? "a half-closed upload gets the whole 200 transcript before EOF (\(response?.count ?? -1) bytes)"
               : "a half-closed incomplete body gets no reply or transcription", ok)
+    }
+
+    static func observeFIN(_ connection: NetworkConnection<TCP>, watching: AsyncStream<Void>) async -> Bool {
+        // The test may read EOF once the reply watcher is observing state without reading the socket.
+        var watch = watching.makeAsyncIterator()
+        guard await watch.next() != nil else { return false }
+        return (try? await connection.receive(atLeast: 1, atMost: 1))?.metadata.endOfStream == true
     }
 
     @concurrent
@@ -135,25 +146,35 @@ struct DictationBindTest {
 
     static func checkReset(afterHalfClose: Bool) async {
         let (started, transcribing) = AsyncStream<Void>.makeStream()
+        let (watching, stateWatchStarted) = AsyncStream<Void>.makeStream()
+        let (fin, sawFIN) = AsyncStream<Void>.makeStream()
         let (hold, release) = AsyncStream<Void>.makeStream()
         let (results, cancelled) = AsyncStream<Bool>.makeStream()
+        let (skipped, checkedReset) = AsyncStream<Bool>.makeStream()
         guard let (port, serving) = try? await listen({ connection, port in
             defer {
                 transcribing.finish()
+                sawFIN.finish()
                 cancelled.finish()
+                checkedReset.finish()
             }
             let reader = DictationServerReader(token: token, port: Int(port))
             let request = try? await DictationServerListener.readRequest(connection, reader: reader) {}
             guard case .form = request else { return }
-            if afterHalfClose {
-                guard let eof = try? await connection.receive(atLeast: 1, atMost: 1), eof.metadata.endOfStream else { return }
-            }
-            await DictationServerListener.reply(connection) {
+            await DictationServerListener.reply(connection, onStateWatchStarted: { stateWatchStarted.yield(()) }) {
                 transcribing.yield(())
+                if afterHalfClose, await observeFIN(connection, watching: watching) { sawFIN.yield(()) }
+                sawFIN.finish()
                 for await _ in hold {}
                 cancelled.yield(Task.isCancelled)
                 return transcript
             }
+            var restarted = false
+            await DictationServerListener.reply(connection) {
+                restarted = true
+                return transcript
+            }
+            checkedReset.yield(!restarted)
         }), let port else {
             check("the reset fixture listens", false)
             return
@@ -169,34 +190,45 @@ struct DictationBindTest {
         let bytes = upload(port: port)
         let wrote = bytes.withUnsafeBytes { write(descriptor, $0.baseAddress, $0.count) == $0.count }
         var start = started.makeAsyncIterator()
-        let halfClosed = !afterHalfClose || shutdown(descriptor, SHUT_WR) == 0
-        let began = if resets && wrote && halfClosed { await start.next() != nil } else { false }
+        let began = if resets && wrote { await start.next() != nil } else { false }
+        let label = afterHalfClose ? "a TCP reset after half-close" : "a TCP reset"
+        if afterHalfClose, began {
+            var observed = fin.makeAsyncIterator()
+            let sawFIN = if shutdown(descriptor, SHUT_WR) == 0 { await observed.next() != nil } else { false }
+            check("transcription survives the FIN until the reset", sawFIN)
+        }
         close(descriptor)
         check("the reset follows the start of transcription", began)
         if began {
             var result = results.makeAsyncIterator()
-            let label = afterHalfClose ? "a TCP reset after half-close" : "a TCP reset"
             check("\(label) cancels in-flight transcription", await result.next() == true)
+            var didSkip = skipped.makeAsyncIterator()
+            check("\(label) prevents new transcription", await didSkip.next() == true)
         }
         release.finish()
         serving.cancel()
         await serving.value
     }
 
-    /// Blocking reads stay off the cooperative pool, which CI's strict mode cuts to one thread.
-    nonisolated static func roundTrip(port: UInt16, request: Data, halfClosed: Bool) async -> Data? {
-        await withCheckedContinuation { done in
+    // Blocking reply reads stay off the cooperative pool, which CI's strict mode cuts to one thread.
+    nonisolated static func roundTrip(
+        port: UInt16, request: Data, halfClosed: Bool, beforeHalfClose: @Sendable () async -> Bool = { true }
+    ) async -> Data? {
+        guard let descriptor = socketToListener(port) else { return nil }
+        defer { close(descriptor) }
+        let wrote = request.withUnsafeBytes { write(descriptor, $0.baseAddress, $0.count) == $0.count }
+        guard wrote else { return nil }
+        if halfClosed {
+            guard await beforeHalfClose(), shutdown(descriptor, SHUT_WR) == 0 else { return nil }
+        }
+        return await withCheckedContinuation { done in
             DispatchQueue.global().async {
-                done.resume(returning: blockingRoundTrip(port: port, request: request, halfClosed: halfClosed))
+                done.resume(returning: readReply(descriptor))
             }
         }
     }
 
-    nonisolated static func blockingRoundTrip(port: UInt16, request: Data, halfClosed: Bool) -> Data? {
-        guard let descriptor = socketToListener(port) else { return nil }
-        defer { close(descriptor) }
-        let wrote = request.withUnsafeBytes { write(descriptor, $0.baseAddress, $0.count) == $0.count }
-        guard wrote, !halfClosed || shutdown(descriptor, SHUT_WR) == 0 else { return nil }
+    nonisolated static func readReply(_ descriptor: Int32) -> Data? {
         var data = Data()
         var buffer = [UInt8](repeating: 0, count: 65_536)
         while true {
