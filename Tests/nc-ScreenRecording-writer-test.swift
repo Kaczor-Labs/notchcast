@@ -213,8 +213,13 @@ enum ScreenRecordingWriterTests {
     }
 
     static func writerFailures() async {
-        for failure in ["background", "append", "stop"] {
-            let asset = try! FakeAssetWriter(outputURL: scratch.appending(path: "\(failure).mov"), fileType: .mov)
+        enum Failure: CaseIterable { case background, append, stop }
+        for failure in Failure.allCases {
+            let url = scratch.appending(path: "\(failure).mov")
+            guard let asset = try? FakeAssetWriter(outputURL: url, fileType: .mov) else {
+                check("\(failure): the fake writer opens", false)
+                continue
+            }
             let input = FakeVideoInput(mediaType: .video, outputSettings: nil)
             let notices = Mutex(0)
             let writer = RecordingWriter(writer: asset, videoInput: input, onFailure: {
@@ -225,18 +230,18 @@ enum ScreenRecordingWriterTests {
             check("\(failure): the first append succeeds", writer.videoFrameCount == 1 && input.appendCalls == 1)
 
             switch failure {
-            case "background":
+            case .background:
                 asset.simulatedStatus = .failed
                 input.ready = false
                 writer.append(videoSample(at: 1, shade: 20), kind: .video)
                 check("a background failure reports on the next sample", notices.withLock { $0 } == 1)
                 check("a background failure needs no rejected append", input.acceptsSample && input.appendCalls == 1)
-            case "append":
+            case .append:
                 input.acceptsSample = false
                 writer.append(videoSample(at: 1, shade: 20), kind: .video)
                 check("a refused append still reports immediately", input.appendCalls == 2 && notices.withLock { $0 } == 1)
                 asset.simulatedStatus = .failed
-            default:
+            case .stop:
                 asset.simulatedStatus = .failed
             }
 
