@@ -94,7 +94,10 @@ struct IslandCanvasTest {
             canvas.show(glance: nil, level: nil, notice: progress, statuses: [], expanded: false, notch: nil)
             precondition(canvas.glance is IslandNoticeArt, "The archive progress fits in the compact pill")
             let covered = pixels(bitmap(in: frame, scale: 2) { canvas.draw(frame) })
-            precondition(covered == background, "Compact progress must not paint inside the covered surface")
+            guard covered == background else {
+                FileHandle.standardError.write(Data("Compact progress painted inside the covered surface\n".utf8))
+                exit(EXIT_FAILURE)
+            }
         }
     }
 
