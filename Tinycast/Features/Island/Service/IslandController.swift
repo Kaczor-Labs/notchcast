@@ -80,7 +80,10 @@ final class IslandController: NSObject {
         super.init()
         backdrop.contentView = frost.root
         canvas.wantsLayer = true
-        canvas.onAppearanceChange = { [weak self] in self?.paintFrame() }
+        canvas.onAppearanceChange = { [weak self] in
+            guard let self else { return }
+            if canvas.progressReport != nil { frameChanged() } else { paintFrame() }
+        }
         canvas.setAccessibilityElement(true)
         canvas.setAccessibilityRole(.group)
         canvas.setAccessibilityLabel(String(localized: "Notchcast", table: "Notchcast"))
@@ -209,9 +212,7 @@ final class IslandController: NSObject {
         let suspended = NSApp.modalWindow != nil || sunk
         if suspended { backdrop.orderOut(nil) }
         let palette = panel.flatMap { $0.isVisible ? $0.frame : nil }
-        let overlay = IslandOverlayLayout(screen: layout.screen,
-            contentTop: layout.openingTop, palette: palette,
-            inset: NotchTheme.Spacing.islandInset, gap: Theme.Spacing.xl).surface(overlays)
+        let overlay = overlaySize(layout: layout, palette: palette)
         let size = CGSize(width: max(palette?.width ?? 0, overlay?.width ?? 0),
                           height: max(palette?.height ?? 0, overlay?.height ?? 0))
         glancing = size != .zero || page != nil || canvas.expansion != nil || level != nil || notice != nil
@@ -301,8 +302,9 @@ final class IslandController: NSObject {
         if let screen = pending.release(blocked: panel?.isVisible == true || !overlays.isEmpty) { configure(screen) }
     }
 
-    func setOverlays(_ frames: [CGRect]) {
+    func setOverlays(_ frames: [CGRect], hasQuestion: Bool) {
         overlays = frames
+        canvas.hasQuestion = hasQuestion
         closed()
     }
 
