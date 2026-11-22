@@ -1,6 +1,56 @@
+// notchcast-hosted-only
+// notchcast-kit: notchcast-island-audit
+// notchcast-sources: Tinycast/Features/Island/Model/IslandHover.swift
 import AppKit
 
-extension NotchcastIslandAuditRenderTest {
+@MainActor
+@main
+struct IslandAuditHeadlineRenderTest {
+    static func main() {
+        IslandAuditRendering.prepare()
+        IslandAuditRendering.renderHeadlines()
+        print("PASS rendered island headline audit surfaces to \(IslandAuditRendering.folder.path)")
+    }
+}
+
+extension IslandAuditRendering {
+    static func renderHeadlines() {
+        renderHeadline("21-headline-failed-notch", IslandHeadlineArt(
+            IslandNotice(id: "d", symbol: "exclamationmark.arrow.circlepath", text: "Update failed",
+                         isFailure: true, seconds: 4), notch: 200, frosted: frosted))
+        for (key, notice) in swatches {
+            renderHeadline("21\(key.dropFirst(2))-notch", IslandHeadlineArt(notice, notch: 200, frosted: frosted))
+        }
+
+        let ready = IslandStatus(id: "update", symbol: "arrow.clockwise.circle", text: nil, label: "Update ready")
+        let download = IslandNotice(id: "dl", symbol: "arrow.down.circle", text: "Lecture 04.mp4",
+                                    progress: IslandProgress(fraction: 0.42, headline: false))
+        func hovered(_ top: IslandNotice?, _ statuses: [IslandStatus]) -> IslandNotice {
+            IslandHover.notice(top: top, statuses: statuses, glance: false, level: false, hovered: true)!
+        }
+        let look = frosted ? "frosted" : "black"
+        for notch in [false, true] {
+            let form = notch ? "notch" : "nonotch"
+            renderNoticeWrap(notch: notch ? notchSize.width : nil) { name, card in
+                island(name, width: card.size.width, body: card.size.height,
+                       notch: notch, radius: Theme.Radius.panel) { card.draw(in: $0) }
+            } pill: { name, art in compact(name, art, notch: notch) }
+            compact("884-08-download-\(form)-\(look)", IslandNoticeArt(download, notch: notch, frosted: frosted),
+                    notch: notch)
+            for (step, top, statuses) in [("07-status", nil, [ready]), ("09-download", download, [])] {
+                let notice = hovered(top, statuses)
+                if notch {
+                    let line = IslandHeadlineArt(notice, notch: notchSize.width, frosted: frosted)
+                    island("884-\(step)-hover-\(form)-\(look)", width: line.size.width, body: line.size.height,
+                           notch: true, radius: Theme.Radius.panel) { line.draw(in: $0) }
+                } else {
+                    compact("884-\(step)-hover-\(form)-\(look)",
+                            IslandNoticeArt(notice, notch: false, frosted: frosted), notch: false)
+                }
+            }
+        }
+    }
+
     /// The notch headline below the hardware, drawn at the bottom of the grown island.
     static func renderHeadline(_ name: String, _ art: IslandHeadlineArt) {
         let box = CGRect(x: 16, y: 16, width: art.size.width, height: art.size.height)
