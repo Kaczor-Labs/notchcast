@@ -48,8 +48,8 @@ enum DisplaySoundModelTests {
         // 1/16 steps, 1/64 fine, snapping onto the grid.
         check(close(BrightnessLevel(0.5).stepped(up: true, fine: false).value, 0.5625), "1/16 up")
         check(close(BrightnessLevel(0.5).stepped(up: false, fine: true).value, 0.5 - 1.0 / 64), "1/64 down")
-        check(close(BrightnessLevel(0.51).stepped(up: true, fine: false).value, 0.5625), "snaps up to the grid")
-        check(close(BrightnessLevel(0.51).stepped(up: false, fine: false).value, 0.5), "snaps down to the grid")
+        check(close(BrightnessLevel(0.51).stepped(up: true, fine: false).value, 0.5725), "full step up off the grid")
+        check(close(BrightnessLevel(0.51).stepped(up: false, fine: false).value, 0.4475), "full step down off the grid")
         check(close(BrightnessLevel(0).stepped(up: false, fine: false).value, -0.0625), "steps below 0 into dimming")
         check(BrightnessLevel(-0.25).stepped(up: false, fine: false).value == -0.25, "stops at −0.25")
         check(BrightnessLevel(1).stepped(up: true, fine: true).value == 1, "stops at 1")

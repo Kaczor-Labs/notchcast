@@ -42,9 +42,7 @@ struct BrightnessLevel: Equatable, Sendable {
 
     func stepped(up: Bool, fine: Bool) -> Self {
         let delta = Self.step / (fine ? 4 : 1)
-        let grid = value / delta
-        let next = up ? floor(grid + 0.000001) + 1 : ceil(grid - 0.000001) - 1
-        return Self(next * delta, softwareOnly: softwareOnly, extraDimming: extraDimming)
+        return Self(value + (up ? delta : -delta), softwareOnly: softwareOnly, extraDimming: extraDimming)
     }
 
     func allowing(extraDimming: Bool) -> Self {

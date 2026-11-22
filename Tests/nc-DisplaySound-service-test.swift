@@ -29,6 +29,7 @@ struct FakeDisplay {
     var active = true
     var builtIn = false
     var system: Double?
+    var systemTicks: Double?
     var gamma = BrightnessGamma(red: [0, 0.5, 1], green: [0, 0.5, 1], blue: [0, 0.5, 1])
     var ddc = false
     var accepts = true
@@ -122,8 +123,9 @@ let system = DisplaySoundSystem(
         readSystem: { raw in hw { $0.displays[raw]?.system } },
         writeSystem: { raw, value in
             hw { state in
-                guard state.displays[raw]?.system != nil else { return false }
-                state.displays[raw]?.system = value
+                guard var display = state.displays[raw], display.system != nil else { return false }
+                display.system = display.systemTicks.map { (value * $0).rounded() / $0 } ?? value
+                state.displays[raw] = display
                 return true
             }
         },
@@ -213,6 +215,7 @@ func until(_ message: String, _ condition: () -> Bool) async {
 enum DisplaySoundServiceTests {
     static func main() async {
         await brightness()
+        await brightnessRange()
         await recovery()
         await learnedScale()
         await stranded()
@@ -226,6 +229,51 @@ enum DisplaySoundServiceTests {
         await quitDuringGammaRead()
         await audioRebind()
         print("nc-DisplaySound-service-test: PASS")
+    }
+
+    static func brightnessRange() async {
+        var failures: [String] = []
+        for ticks in [nil, 125.0] as [Double?] {
+            for extraDimming in [false, true] {
+                install([1: FakeDisplay(uuid: "uuid-1", builtIn: true, system: 1, systemTicks: ticks)])
+                let service = BrightnessDisplayService(displays: system.displays)
+                _ = await service.perform(.refresh(names: [:]))
+                _ = await service.perform(.extraDimming(extraDimming))
+                let floor = extraDimming ? -BrightnessLevel.extraDimmingRange : 0
+                for up in [false, true] {
+                    let start = up ? floor : 1
+                    let end = up ? 1 : floor
+                    _ = await service.perform(.set(start, id(1)))
+                    var previous = BrightnessLevel(start, extraDimming: extraDimming)
+                    var previousOutput = brightnessOutput()
+                    let context = "\(ticks == nil ? "exact" : "quantised"), extra dimming \(extraDimming), up \(up)"
+                    for _ in 0..<24 where previous.value != end {
+                        guard let level = await service.perform(.step(up: up, fine: false, id(1)))?.displays.first?.level else {
+                            failures.append("\(context): step unavailable")
+                            break
+                        }
+                        let output = brightnessOutput()
+                        guard up ? level.value > previous.value && output > previousOutput
+                                 : level.value < previous.value && output < previousOutput else {
+                            failures.append("\(context): stalled at \(previous.readout)")
+                            break
+                        }
+                        previous = level
+                        previousOutput = output
+                    }
+                    let endPicture = !up && extraDimming ? Float(BrightnessLevel.minimumPicture) : 1
+                    if previous.value != end || previousOutput != (up ? 1 : 0, endPicture) {
+                        failures.append("\(context): endpoint unreachable")
+                    }
+                }
+            }
+        }
+        check(failures.isEmpty, failures.joined(separator: "\n"))
+        print("brightness range with exact and quantised read-back: PASS")
+    }
+
+    static func brightnessOutput() -> (Double, Float) {
+        hw { ($0.displays[1]!.system!, $0.displays[1]!.gamma.red.last!) }
     }
 
     static func brightness() async {
@@ -368,7 +416,7 @@ enum DisplaySoundServiceTests {
               "DDC retries at 2/5/15 s")
 
         let result = await controller.step(up: true, fine: false, for: id(5))
-        check(result == .applied(BrightnessLevel(0.625)), "1/16 step: \(result)")
+        check(result == .applied(BrightnessLevel(0.6 + 1.0 / 16)), "1/16 step: \(result)")
         _ = await controller.set(-0.25, for: id(5))
         check(hw { $0.displays[5]?.gamma != baseline }, "dimmed")
         controller.stop()
@@ -417,7 +465,7 @@ enum DisplaySoundServiceTests {
         _ = await service.perform(.refresh(names: [:]))
         hw { $0.displays[13]?.ddcValue = 80 }
         let stepped = await service.perform(.step(up: true, fine: false, id(13)))
-        check(stepped?.displays.first?.level.value == 0.8125 && hw { $0.ddcWrites.last == 81 },
+        check(stepped?.displays.first?.level.value == 0.8625 && hw { $0.ddcWrites.last == 86 },
               "finding 5: a step reads the monitor's physical-button change")
         hw { $0.displays[13]?.replies = false; $0.ddcWrites = [] }
         check(await service.perform(.step(up: true, fine: false, id(13))) == nil,
