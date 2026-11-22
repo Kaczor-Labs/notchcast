@@ -81,7 +81,10 @@ final class NotchcastCore {
             visibility: core.visibility, preferences: controller.preferences, commandIDs: Set(commands.map(\.id)))
         trustMonitor = NotchcastTrustMonitor(hub: hub)
         globeTrigger = NotchcastGlobeTrigger(core: core, hub: hub)
-        dictationIsland.start(core: core)
+        let typingDisplay = TypingDisplayReader()
+        dictationIsland.start(core: core, captureDisplay: { [weak dictation = core.dictationCoordinator] in
+            typingDisplay.capture(dictation?.target)
+        }, typingDisplay: typingDisplay.display)
         if let seed = DictationFirstModel.seed(
             stored: UserDefaults.standard.string(forKey: AppSettingsKey.dictationModel.rawValue)),
             let model = DictationModel(rawValue: seed) { core.settings.dictationModel = model }
