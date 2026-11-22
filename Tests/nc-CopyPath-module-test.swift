@@ -89,8 +89,13 @@ final class FakeSession: NotchcastTapSession {
 final class RecordingPresenter: IslandPresenting {
     var posts: [IslandNotice] = []
     var ends: [String] = []
+    var launcherOpen = false
+    var launcherWasOpenAtPost = false
     func showLevel(_ level: IslandLevel) {}
-    func post(_ notice: IslandNotice, onTap: (@MainActor () -> Void)?) { posts.append(notice) }
+    func post(_ notice: IslandNotice, onTap: (@MainActor () -> Void)?) {
+        launcherWasOpenAtPost = launcherOpen
+        posts.append(notice)
+    }
     func end(notice id: String) { ends.append(id) }
     func setStatus(_ status: IslandStatus?, for id: String, onTap: (@MainActor () -> Void)?) {}
     func setMenuRows(_ rows: [IslandMenuRow], owner: String, onSelect: @escaping @MainActor (String) -> Void) {}
@@ -107,11 +112,17 @@ final class Rig {
         defaults = UserDefaults(suiteName: suite)!
         defaults.set(on, forKey: "copyPath")
         let hub = NotchcastTapHub(syntheticTag: 0x54494E59, isTrusted: { true }, makeSession: { FakeSession($0) })
+        let presenter = self.presenter
         controller = NotchcastController(
             addons: [CopyPathAddon.self], defaults: defaults, hub: hub, dictation: FakeDictation(),
             services: NotchcastServices(
                 clipboard: NotchcastClipboardMutation(
-                    prepare: { fake.prepares.append(fake.copies.count) }, synchronize: { _ in })),
+                    prepare: { fake.prepares.append(fake.copies.count) }, synchronize: { _ in }),
+                surfaces: NotchcastSurfaces(dismissLauncher: {
+                    guard presenter.launcherOpen else { return }
+                    presenter.launcherOpen = false
+                    fake.app = nil
+                })),
             presenter: presenter)
         controller.start()
     }
@@ -120,9 +131,10 @@ final class Rig {
 
     /// Yields until the run posts, so no wall-clock wait is involved.
     @discardableResult
-    func run(waits: Bool = true) async -> Bool {
+    func run(waits: Bool = true, fromHotKey: Bool = false) async -> Bool {
         let before = presenter.posts.count
-        let ran = controller.run(entryID: "command:nc-copy-path")
+        let id = "command:nc-copy-path"
+        let ran = fromHotKey ? controller.press(entryID: id) : controller.run(entryID: id)
         for _ in 0..<10_000 where waits && presenter.posts.count == before { await Task.yield() }
         return ran
     }
@@ -157,11 +169,14 @@ enum CopyPathModuleTests {
         rig.finish()
 
         rig = Rig(on: true)
-        await rig.run()
+        rig.presenter.launcherOpen = true
+        await rig.run(fromHotKey: true)
+        precondition(!rig.presenter.launcherWasOpenAtPost, "the launcher has closed before the hotkey result")
         rig.expect("Copied path", failure: false, "Finder selection")
         precondition(fake.copies == ["~/a"], "the folded path is copied: \(fake.copies)")
         precondition(fake.prepares == [0], "history reads the user's last copy before the path replaces it")
 
+        fake.app = CopyPathApp(bundleID: "com.apple.finder", pid: 1)
         fake.selection = []
         await rig.run()
         rig.expect("Unavailable", failure: true, "nothing to copy")
