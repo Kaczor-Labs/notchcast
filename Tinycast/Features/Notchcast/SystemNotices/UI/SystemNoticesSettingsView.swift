@@ -14,29 +14,26 @@ struct SystemNoticesSettingsView: View {
     }
 
     var body: some View {
-        notchcastSettingsToggle(
+        notchcastSettingsCheckbox(
             SettingsRowTitle(Self.anchor, LocalizedStringResource("Wi-Fi", table: "NotchcastSystemNotices")),
-            isOn: $wifi
-        ) {
-            Text("When Wi-Fi drops and when it returns. A drop shorter than 5 seconds is skipped.",
-                 tableName: "NotchcastSystemNotices")
-        }
-        .toggleStyle(.checkbox)
-        notchcastSettingsToggle(
+            isOn: $wifi,
+            subtitle: Text(
+                "When Wi-Fi drops and when it returns. A drop shorter than 5 seconds is skipped.",
+                tableName: "NotchcastSystemNotices")
+        )
+        notchcastSettingsCheckbox(
             SettingsRowTitle(Self.anchor, LocalizedStringResource("VPN", table: "NotchcastSystemNotices")),
-            isOn: $vpn
-        ) {
-            Text("When a VPN tunnel goes down and when it comes back: WireGuard, Tailscale, IKEv2 and the like.",
-                 tableName: "NotchcastSystemNotices")
-        }
-        .toggleStyle(.checkbox)
-        notchcastSettingsToggle(
+            isOn: $vpn,
+            subtitle: Text(
+                "When a VPN tunnel goes down and when it comes back: WireGuard, Tailscale, IKEv2 and the like.",
+                tableName: "NotchcastSystemNotices")
+        )
+        notchcastSettingsCheckbox(
             SettingsRowTitle(Self.anchor, LocalizedStringResource("Low battery", table: "NotchcastSystemNotices")),
-            isOn: $battery
-        ) {
-            Text("Once per discharge, when the charge falls to 20 percent. macOS keeps its own warning near 10 percent.",
-                 tableName: "NotchcastSystemNotices")
-        }
-        .toggleStyle(.checkbox)
+            isOn: $battery,
+            subtitle: Text(
+                "Once per discharge, when the charge falls to 20 percent. macOS keeps its own warning near 10 percent.",
+                tableName: "NotchcastSystemNotices")
+        )
     }
 }

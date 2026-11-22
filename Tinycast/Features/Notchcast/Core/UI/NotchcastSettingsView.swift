@@ -108,3 +108,10 @@ func notchcastSettingsToggle<Subtitle: View>(
     }
     .accessibilityLabel(Text(verbatim: title.title))
 }
+
+@MainActor
+func notchcastSettingsCheckbox(_ title: SettingsRowTitle, isOn: Binding<Bool>, subtitle: Text) -> some View {
+    notchcastSettingsToggle(title, isOn: isOn) { subtitle }
+        .accessibilityHint(subtitle)
+        .toggleStyle(.checkbox)
+}
