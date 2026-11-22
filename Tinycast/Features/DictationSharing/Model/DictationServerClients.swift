@@ -3,6 +3,11 @@ import Foundation
 /// Connections being served, counted on the main actor so the cap cannot drift.
 @MainActor
 final class DictationServerClients {
+    @MainActor
+    private final class ReplyState {
+        var closed = false
+    }
+
     private let capacity: Int
     private(set) var active = 0
 
@@ -16,19 +21,27 @@ final class DictationServerClients {
 
     func release() { active -= 1 }
 
-    /// The work's answer, or nil when `left` returns first; the other side is cancelled either way.
+    /// Keep watching for close until the reply finishes sending.
     static func answer<Value: Sendable>(
-        _ work: @escaping @MainActor @Sendable () async -> Value, unless left: @escaping @Sendable () async -> Void
-    ) async -> Value? {
-        await withTaskGroup(of: Value?.self) { group in
-            group.addTask { await work() }
-            group.addTask {
-                await left()
-                return nil
-            }
+        _ work: @escaping @MainActor @Sendable () async -> Value,
+        unless left: @escaping @MainActor @Sendable () async -> Void,
+        send: @escaping @MainActor @Sendable (Value) async -> Void
+    ) async {
+        let state = ReplyState()
+        let reply: @MainActor @Sendable () async -> Void = {
+            let value = await work()
+            guard !Task.isCancelled, !state.closed else { return }
+            await send(value)
+        }
+        let watchClose: @MainActor @Sendable () async -> Void = {
+            await left()
+            state.closed = true
+        }
+        await withTaskGroup(of: Void.self) { group in
+            group.addTask(operation: reply)
+            group.addTask(operation: watchClose)
             defer { group.cancelAll() }
-            guard let first = await group.next() else { return nil }
-            return first
+            _ = await group.next()
         }
     }
 }
