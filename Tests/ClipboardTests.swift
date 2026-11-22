@@ -76,6 +76,10 @@ struct ClipboardTests {
         store.close()
         store.open()
         store.addImage(data, sourceBundleID: nil, capture: beforeClose)
+        let beforePrompt = store.captureGeneration
+        store.invalidatePendingCaptures()
+        store.addImage(data, sourceBundleID: nil, capture: beforePrompt)
+        expect(store.captureGeneration != beforePrompt, "a password prompt retires pending image captures")
         expect(store.items.isEmpty, "a capture retired during conversion never reaches history")
         let images = directory.appendingPathComponent("images")
         let blobs = try FileManager.default.contentsOfDirectory(atPath: images.path)
