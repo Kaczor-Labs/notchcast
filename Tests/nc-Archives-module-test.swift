@@ -1,6 +1,7 @@
 // notchcast-sources: Tinycast/Features/Notchcast/Core/Model/*.swift
 // notchcast-sources: Tinycast/Features/Notchcast/Core/Service/*.swift
 // notchcast-sources: Tinycast/Features/Island/Model/IslandPresentation.swift
+// notchcast-sources: Tinycast/Features/Island/Model/IslandNoticeQueue.swift
 // notchcast-sources: Tinycast/Features/Island/Service/IslandPresenting.swift
 // notchcast-sources: Tinycast/Platform/NotificationToken.swift Tinycast/Platform/ProcessExit.swift
 // notchcast-sources: Tinycast/Platform/ExecutableLocator.swift
@@ -44,6 +45,7 @@ final class FakeTools: Sendable {
         var hold: Set<String> = []
         var held: CheckedContinuation<Void, Never>?
         var heldStarted = false
+        var holdThroughCancellation = false
         var installed: Set<String> = ["hatchzip", "bsdtar", "lsar", "unar", "gzip", "zstd"]
         var journalInPlaceAtExtract: [Bool] = []
     }
@@ -76,6 +78,9 @@ final class FakeTools: Sendable {
         let journalled = ArchiveJob.decode((try? Data(contentsOf: journal)) ?? Data())
         state.withLock { $0.journalInPlaceAtExtract.append(journalled.first?.inPlace ?? false) }
         if state.withLock({ $0.hold.contains(URL(filePath: arguments[1]).lastPathComponent) }) {
+            let staging = URL(filePath: arguments[arguments.firstIndex(of: "-o")! + 1])
+            try Data("half".utf8).write(to: staging.appending(path: "partial.txt"))
+            let holdThroughCancellation = state.withLock { $0.holdThroughCancellation }
             await withTaskCancellationHandler {
                 await withCheckedContinuation { continuation in
                     state.withLock {
@@ -84,8 +89,9 @@ final class FakeTools: Sendable {
                     }
                 }
             } onCancel: {
-                state.withLock { $0.held?.resume() }
+                if !holdThroughCancellation { state.withLock { $0.held?.resume() } }
             }
+            if holdThroughCancellation { return ArchiveProcessResult(status: 0) }
             throw CancellationError()
         }
         let status = state.withLock { $0.extractStatuses.isEmpty ? 0 : $0.extractStatuses.removeFirst() }
@@ -108,13 +114,21 @@ final class FakeTools: Sendable {
 final class FakePresenter: IslandPresenting {
     var posts: [(notice: IslandNotice, onTap: (@MainActor () -> Void)?)] = []
     var ends: [String] = []
+    var queue = IslandNoticeQueue()
 
     var texts: [String] { posts.map(\.notice.text) }
     var failures: [String] { posts.filter(\.notice.isFailure).map(\.notice.text) }
 
     func showLevel(_ level: IslandLevel) {}
-    func post(_ notice: IslandNotice, onTap: (@MainActor () -> Void)?) { posts.append((notice, onTap)) }
-    func end(notice id: String) { ends.append(id) }
+    func post(_ notice: IslandNotice, onTap: (@MainActor () -> Void)?) {
+        posts.append((notice, onTap))
+        queue.post(notice, at: 0)
+    }
+
+    func end(notice id: String) {
+        ends.append(id)
+        queue.end(id, at: 0)
+    }
     func setStatus(_ status: IslandStatus?, for id: String, onTap: (@MainActor () -> Void)?) {}
     func setMenuRows(_ rows: [IslandMenuRow], owner: String, onSelect: @escaping @MainActor (String) -> Void) {}
 }
@@ -316,7 +330,8 @@ func fallbackEngines() async throws {
 
 @MainActor
 func cancelAndResume() async throws {
-    var rig = try Rig()
+    let rig = try Rig()
+    defer { rig.finish() }
     rig.tools.state.withLock { $0.hold = ["Slow.zip"] }
     rig.module!.open([rig.archive("Slow.zip", listing: twoFiles), rig.archive("Next.zip", listing: twoFiles)])
     while !rig.tools.state.withLock({ $0.heldStarted }) { await Task.yield() }
@@ -329,26 +344,73 @@ func cancelAndResume() async throws {
     check(rig.presenter.texts.contains("Stopped extracting Slow.zip") && rig.exists("Next"), "the queue goes on")
     check(!rig.exists("Slow") && rig.exists("Slow.zip"), "a kept archive stays and nothing half-done is placed")
     check(rig.journal().isEmpty, "\(rig.journal())")
-    rig.finish()
+}
 
-    rig = try Rig()
-    rig.tools.state.withLock { $0.hold = ["Long.zip"] }
-    rig.module!.open([rig.archive("Long.zip", listing: twoFiles)])
+@MainActor
+func switchOffDuringExtraction() async throws {
+    let rig = try Rig()
+    defer { rig.finish() }
+    let archive = rig.archive("Big.zip", listing: twoFiles)
+    let module = rig.module!
+    module.open([archive])
+    await module.drain()
+    check(rig.presenter.queue.notice?.text == "Extracted Big", "the first extraction succeeds")
+    try FileManager.default.removeItem(at: rig.folder.appending(path: "Big"))
+
+    rig.tools.state.withLock { $0.hold = ["Big.zip"] }
+    module.open([archive])
     while !rig.tools.state.withLock({ $0.heldStarted }) { await Task.yield() }
+    let running = module.current!
+    check(FileManager.default.fileExists(atPath: running.job.staging.appending(path: "partial.txt").path),
+          "the tool has written partial output")
     rig.defaults.set(true, forKey: "archivesDefaultApp")
     rig.controller.preferences.set("archives", on: false)
     while rig.module != nil { await Task.yield() }
+    let afterSwitchOff = rig.presenter.queue.notice?.text
+    await running.task.value
+    check(afterSwitchOff != "Extracted Big", "switching Archives off revealed stale success: \(afterSwitchOff ?? "none")")
+    check(rig.presenter.texts == ["Extracting Big.zip", "Extracted Big", "Extracting Big.zip", "Stopped extracting Big.zip"],
+          "the interrupted run posts only a stopped result: \(rig.presenter.texts)")
+    check(rig.presenter.queue.notice?.text == "Stopped extracting Big.zip", "the island shows the stopped result")
+    check(rig.visible == ["Big.zip"], "switching off leaves only the kept archive: \(rig.visible)")
     check(rig.record.defaultApp == [false], "switched off, the archive types go back")
-    check(rig.journal().map(\.name) == ["Long.zip"], "a switch-off keeps the job to resume")
-    let saved = rig.journal()
-    rig.finish()
+    check(rig.journal().map(\.name) == ["Big.zip"], "a switch-off keeps the job to resume")
 
-    rig = try Rig(journal: saved, listings: ["Long.zip": twoFiles])
+    rig.tools.state.withLock { $0.hold = [] }
+    rig.controller.preferences.set("archives", on: true)
+    while rig.module == nil { await Task.yield() }
     await rig.module!.drain()
-    check(FileManager.default.fileExists(atPath: saved[0].archive.deletingLastPathComponent().appending(path: "Long").path),
-          "a relaunch resumes the journal")
-    try? FileManager.default.removeItem(at: saved[0].archive.deletingLastPathComponent())
-    rig.finish()
+    check(rig.visible == ["Big", "Big.zip"] && rig.exists("Big/b/c.txt"), "re-enabling extracts from clean staging")
+    check(!rig.exists("Big/partial.txt"), "the interrupted run's partial output is gone")
+    check(rig.journal().isEmpty, "the job leaves the journal after success")
+}
+
+@MainActor
+func reenableBeforeToolExits() async throws {
+    let rig = try Rig()
+    defer { rig.finish() }
+    rig.tools.state.withLock {
+        $0.hold = ["Big.zip"]
+        $0.holdThroughCancellation = true
+    }
+    rig.module!.open([rig.archive("Big.zip", listing: twoFiles)])
+    while !rig.tools.state.withLock({ $0.heldStarted }) { await Task.yield() }
+    let running = rig.module!.current!
+    rig.controller.preferences.set("archives", on: false)
+    while rig.module != nil { await Task.yield() }
+    rig.controller.preferences.set("archives", on: true)
+    while rig.module == nil { await Task.yield() }
+    check(rig.module?.current?.job.id == running.job.id, "re-enabling waits for the interrupted run")
+    rig.tools.state.withLock {
+        $0.hold = []
+        $0.held?.resume()
+        $0.held = nil
+    }
+    await rig.module!.drain()
+    check(rig.presenter.texts == [
+        "Extracting Big.zip", "Stopped extracting Big.zip", "Extracting Big.zip", "Extracted Big",
+    ], "late success cannot finish a cancelled run: \(rig.presenter.texts)")
+    check(rig.visible == ["Big", "Big.zip"] && !rig.exists("partial.txt"), "only the clean retry is published")
 }
 
 @MainActor
@@ -453,7 +515,8 @@ func realHatchZip() async throws {
     let extractor = ArchiveExtractor(
         locate: { $0 == "hatchzip" ? hatchzip : nil }, run: { try await ArchiveProcess.run($0, $1, environment: $2) })
     let job = ArchiveJob(id: UUID(), archive: folder.appending(path: "Real.zip"), inPlace: false)
-    let placed = try await extractor.extract(job, askPassword: nil, askInPlace: { _ in false }, onInPlace: { _ in })
+    let staged = try await extractor.extract(job, askPassword: nil, askInPlace: { _ in false }, onInPlace: { _ in })
+    let placed = try extractor.place(staged.job, stem: staged.stem)
     check(placed?.lastPathComponent == "Real", "placed as a folder: \(String(describing: placed))")
     check(FileManager.default.fileExists(atPath: folder.appending(path: "Real/one/a.txt").path), "files extracted")
     check(FileManager.default.fileExists(atPath: job.archive.path), "the archive is kept")
@@ -490,6 +553,8 @@ enum ArchivesModuleTest {
         try await asksBeforeInPlace()
         try await fallbackEngines()
         try await cancelAndResume()
+        try await switchOffDuringExtraction()
+        try await reenableBeforeToolExits()
         try await defaultApp()
         try await opensThroughTheCore()
         try await compressesBesideExtraction()

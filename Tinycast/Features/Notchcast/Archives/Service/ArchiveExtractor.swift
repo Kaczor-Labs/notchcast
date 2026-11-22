@@ -10,13 +10,13 @@ nonisolated struct ArchiveExtractor: Sendable {
     /// The typed password, or nil when the user cancelled.
     typealias AskPassword = @Sendable (_ wrong: Bool) async -> String?
 
-    /// The final file or folder; with no `askPassword` a protected archive fails.
+    /// Stages the extraction for publication; with no `askPassword` a protected archive fails.
     @concurrent
     func extract(
         _ job: ArchiveJob, askPassword: AskPassword?, askInPlace: AskInPlace,
         onInPlace: @Sendable (Bool) async -> Void,
         resumeStaging: @Sendable (_ reportedPath: String?) async -> URL? = { _ in nil }
-    ) async throws -> URL? {
+    ) async throws -> (job: ArchiveJob, stem: String) {
         guard var route = ArchiveRoute(fileName: job.name) else { throw ArchiveFailure.notArchive(job.name) }
         if route.engine == .hatchzip, job.name.lowercased().hasSuffix(".zip"), hasLegacyNames(job.archive),
             await locate(ArchiveTool.unar.name) != nil
@@ -115,7 +115,7 @@ nonisolated struct ArchiveExtractor: Sendable {
                 throw failure
             }
         }
-        return try place(destination, stem: route.stem)
+        return (destination, route.stem)
     }
 
     struct Abandoned: Sendable {
@@ -150,7 +150,7 @@ nonisolated struct ArchiveExtractor: Sendable {
         let folder = job.archive.deletingLastPathComponent()
         let items = (try? files.contentsOfDirectory(atPath: job.staging.path)) ?? []
         let taken = { (name: String) in files.fileExists(atPath: folder.appending(path: name).path) }
-        switch ArchivePlacement.plan(items: items.sorted(), stem: stem, taken: taken) {
+        switch ArchivePlacement.plan(items: items, stem: stem, taken: taken) {
         case .empty:
             try? files.removeItem(at: job.staging)
             return nil

@@ -43,7 +43,12 @@ enum ArchivesAddon: NotchcastAddon {
         NotchcastSettingsRow(switchID: "archives") { AnyView(ArchivesSettingsView(context: $0)) }
     ]
 
+    static func makeRecovery(_ context: NotchcastContext) -> (any NotchcastModule)? {
+        ArchivesModule.Recovery()
+    }
+
     static func makeModule(_ context: NotchcastContext) -> (any NotchcastModule)? {
-        ArchivesModule(context: context, environment: .live())
+        context.recovery(ArchivesModule.Recovery.self)?.stopping
+            ?? ArchivesModule(context: context, environment: .live())
     }
 }
