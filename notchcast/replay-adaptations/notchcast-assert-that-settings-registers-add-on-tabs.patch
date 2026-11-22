@@ -1731,16 +1731,17 @@ index b109a3fb5ead8b7fe4fdcdb7905f8bbfa17c02cb..29af53d71d5c68be00da3300588a5ee0
      }
  }
 diff --git a/Tinycast/Features/Notchcast/ScriptCommands/Settings/ScriptCommandsSettingsView.swift b/Tinycast/Features/Notchcast/ScriptCommands/Settings/ScriptCommandsSettingsView.swift
-index cd3885c1f..8b9455e42 100644
+index cd3885c1f..665dc8709 100644
 --- a/Tinycast/Features/Notchcast/ScriptCommands/Settings/ScriptCommandsSettingsView.swift
 +++ b/Tinycast/Features/Notchcast/ScriptCommands/Settings/ScriptCommandsSettingsView.swift
-@@ -2,29 +2,33 @@ import SwiftUI
+@@ -2,32 +2,45 @@ import SwiftUI
 
  /// The rows under the switch: each one's launcher fields, its editor while open and its last output.
  struct ScriptCommandsSettingsView: View {
 +    @Environment(MainAppLink.self) private var mainApp
      let context: NotchcastContext
      @State private var editing: String?
++    @State private var pendingAdd: String?
      @State private var pendingDeletion: ScriptCommand?
      private static let anchor = NotchcastSettingsSearch.anchor(.launcher)
 
@@ -1752,7 +1753,7 @@ index cd3885c1f..8b9455e42 100644
                  Text("No script commands yet.", tableName: "NotchcastScriptCommands").foregroundStyle(.secondary)
              }
 -            ForEach(module.rows) { row in
-+            ForEach(scripts.rows) { row in
++            ForEach(scripts.rows, id: \.id) { row in
                  ScriptCommandRow(
 -                    row: row, module: module, preferences: context.preferences, isEditing: editing == row.id,
 +                    row: row, running: scripts.running.contains(row.id), preferences: context.preferences,
@@ -1760,7 +1761,7 @@ index cd3885c1f..8b9455e42 100644
                      onEdit: { editing = editing == row.id ? nil : row.id }, onDelete: { pendingDeletion = row })
                  if editing == row.id {
 -                    ScriptCommandEditor(id: row.id, module: module)
-+                    ScriptCommandEditor(row: row).id(row.id)
++                    ScriptCommandEditor(row: row)
                  }
 -                if let output = module.outputs[row.id] {
 -                    ScriptCommandOutput(name: row.title, output: output)
@@ -1770,13 +1771,24 @@ index cd3885c1f..8b9455e42 100644
              }
              Button {
 -                editing = module.addRow()
++                guard pendingAdd == nil else { return }
 +                let id = UUID().uuidString
++                pendingAdd = id
 +                mainApp.send(.notchcast(.addScript(id)))
-+                editing = id
              } label: {
                  SettingsRowTitle(Self.anchor, LocalizedStringResource("Add Script Command", table: "NotchcastScriptCommands"))
              }
-@@ -37,7 +41,7 @@ struct ScriptCommandsSettingsView: View {
++            .settingsEnabled(pendingAdd == nil)
++            .onChange(of: scripts.rows.map(\.id)) { _, ids in
++                guard let id = pendingAdd, ids.contains(id) else { return }
++                pendingAdd = nil
++                editing = id
++            }
++            .onDisappear { pendingAdd = nil }
+             .confirmationDialog(
+                 pendingDeletion.map {
+                     String(localized: "Delete “\($0.title)”?", table: "NotchcastScriptCommands")
+@@ -37,7 +50,7 @@ struct ScriptCommandsSettingsView: View {
              ) { row in
                  Button(role: .destructive) {
                      if editing == row.id { editing = nil }
@@ -1785,7 +1797,7 @@ index cd3885c1f..8b9455e42 100644
                  } label: {
                      Text("Delete", tableName: "NotchcastScriptCommands")
                  }
-@@ -51,7 +55,7 @@ struct ScriptCommandsSettingsView: View {
+@@ -51,7 +64,7 @@ struct ScriptCommandsSettingsView: View {
  /// One row as the launcher sees it: name and script, then alias, shortcut and launcher checkbox.
  private struct ScriptCommandRow: View {
      let row: ScriptCommand
@@ -1794,7 +1806,7 @@ index cd3885c1f..8b9455e42 100644
      let preferences: NotchcastPreferences
      let isEditing: Bool
      let onEdit: () -> Void
-@@ -67,7 +71,7 @@ private struct ScriptCommandRow: View {
+@@ -67,7 +80,7 @@ private struct ScriptCommandRow: View {
          SettingsRow(title: name, subtitle: row.script.isEmpty ? nil : row.script) {
              Image(systemName: ScriptCommandsModule.symbol)
          } trailing: {
@@ -2273,3 +2285,18 @@ index 7116c5c42..76205377a 100644
          check("unhidden, the stored chord names its owner",
                relaunched.conflictOwner(of: combo, excluding: .togglePalette) != nil)
          relaunched.isHidden = { $0 == hidden }
+diff --git a/Tests/nc-ScriptCommands-module-test.swift b/Tests/nc-ScriptCommands-module-test.swift
+index 4f2e4a57e..f355be75a 100644
+--- a/Tests/nc-ScriptCommands-module-test.swift
++++ b/Tests/nc-ScriptCommands-module-test.swift
+@@ -205,6 +205,10 @@ enum ScriptCommandsModuleTests {
+
+         // A row becomes a launcher command once it has a name and a script.
+         let id = module.addRow()
++        precondition(module.addRow(id: id) == id, "the same add request keeps its row ID")
++        let status = ScriptCommand.encodeList(module.rows)
++        let echoedIDs = (try? JSONDecoder().decode([ScriptCommand].self, from: status))?.map(\.id)
++        precondition(echoedIDs == [id], "an add and its replay produce a single echoed row")
+         precondition(rig.controller.enabledCommands.isEmpty, "an empty row makes no command")
+         module.update(ScriptCommand(id: id, name: "Update packages", script: "brew update && brew upgrade"))
+         let entryID = "command:nc-run-" + id

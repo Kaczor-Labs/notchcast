@@ -25,6 +25,7 @@ extension NotchcastCoreTest {
         check("Settings receives inert add-on services",
               core.contains("services: startsRuntime ? NotchcastServices(core: core) : NotchcastServices()"))
         settingsProcessBoundary()
+        scriptCommandsUseOneRowIdentity()
 
         let process = (try? String(contentsOfFile: "Tinycast/App/AppCore+SettingsProcess.swift", encoding: .utf8)) ?? ""
         let localKeys = process.components(separatedBy: "localDefaultsKeys: Set([").dropFirst().first?
@@ -63,6 +64,15 @@ extension NotchcastCoreTest {
               dictation.contains("mainApp.status.notchcast")
                   && dictation.contains("mainApp.send(.notchcast(.selectDictationCleanupModel")
                   && !dictation.contains("core.dictationExtras"))
+    }
+
+    private static func scriptCommandsUseOneRowIdentity() {
+        let path = "Tinycast/Features/Notchcast/ScriptCommands/Settings/ScriptCommandsSettingsView.swift"
+        let source = (try? String(contentsOfFile: path, encoding: .utf8)) ?? ""
+        check("an add echoed in status renders once under its row ID",
+              source.contains("ForEach(scripts.rows, id: \\.id)")
+                  && source.contains("ScriptCommandEditor(row: row)")
+                  && !source.contains(".id(row.id)"))
     }
 
     private static func usesNoLiveModule(_ source: String) -> Bool {
