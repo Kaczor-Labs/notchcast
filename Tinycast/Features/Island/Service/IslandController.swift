@@ -268,7 +268,7 @@ final class IslandController: NSObject {
         guard let layout, let bounds = canvas.outline?.boundingBoxOfPath else { return false }
         let size = layout.hasNotch
             ? CGSize(width: layout.notch.width, height: layout.notch.height * 2) : NotchTheme.Size.islandRest
-        let rest = canvas.headline.map { CGSize(width: $0.size.width, height: size.height + $0.size.height) }
+        let rest = canvas.headline.map { CGSize(width: $0.size.width, height: layout.expandedPadding + $0.size.height) }
             ?? CGSize(width: canvas.glance.map { glanceWidth($0.layout) } ?? size.width, height: size.height)
         return abs(bounds.width - rest.width) < 0.01 && abs(bounds.height - rest.height) < 0.01
     }
@@ -337,6 +337,7 @@ final class IslandController: NSObject {
         canvas.outline = outline.copy(using: &backgroundTransform)
         canvas.restWidth = layout.hasNotch ? layout.notch.width : NotchTheme.Size.islandRest.width
         canvas.restHeight = layout.hasNotch ? layout.notch.height * 2 : NotchTheme.Size.islandRest.height
+        canvas.expandedPadding = layout.expandedPadding
         canvas.glanceWidth = canvas.glance.map { glanceWidth($0.layout) } ?? 0
         frost.paint(hasNotch: layout.hasNotch, settled: source.isIdle, reducedMotion: reducedMotion)
         canvas.display()

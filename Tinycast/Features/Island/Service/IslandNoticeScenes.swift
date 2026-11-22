@@ -34,6 +34,42 @@ enum IslandNoticeScenes {
         IslandVerification.require(IslandVerification.announcements.count == heard + 2, "the level adds no announcement")
     }
 
+    static func wrap(core: AppCore, controller: IslandController) async {
+        guard let presenter = core.islandPresenter as? IslandPresenter else {
+            IslandVerification.require(false, "island presenter"); return
+        }
+        let rest = controller.outlineBounds
+        let notched = IslandController.simulatedNotch != nil
+        let top = notched ? rest.height : 0
+        var taps = 0
+        for text in ["7zz is not installed. Install it with: brew install sevenzip",
+                     "No headphones with noise control are connected.",
+                     "hatchzip is not installed. Install it with: brew install xevrion/tap/hatchzip"] {
+            presenter.post(IslandNotice(id: "wrap", symbol: "exclamationmark.triangle", text: text)) { taps += 1 }
+            await IslandVerification.pause(0.45)
+            guard let art = controller.headline else { IslandVerification.require(false, "wrapped headline"); return }
+            let bounds = controller.outlineBounds
+            IslandVerification.require(art.fit.lines == 2 && !art.fit.truncated, "the whole notice fits on two lines")
+            IslandVerification.require(abs(bounds.width - art.size.width) < 0.5
+                && abs(bounds.height - top - art.size.height) < 0.5, "the outline settles at the card's size")
+            IslandVerification.require(controller.canvas.headlineOpacity > 0.99, "the wrapped text reaches full ink")
+            IslandVerification.require(controller.acceptsClicks, "the grown notice counts as resting")
+            controller.clickBackdrop(.leftMouseDown)
+        }
+        IslandVerification.require(taps == 3, "clicks on the grown notice run its tap")
+        presenter.hoverChanged(true)
+        await IslandVerification.pause(4.1)
+        IslandVerification.require(controller.headline?.notice.id == "wrap", "hover holds the notice past its dwell")
+        presenter.hoverChanged(false)
+        presenter.post(IslandNotice(id: "wrap", text: "Copied", seconds: 0.6), onTap: nil)
+        await IslandVerification.pause(0.4)
+        IslandVerification.require(controller.showsHeadline == notched
+            && controller.outlineBounds.height < top + 50, "a short notice contracts the card")
+        await IslandVerification.pause(0.6)
+        IslandVerification.require(controller.notice == nil && abs(controller.outlineBounds.width - rest.width) < 0.5
+            && abs(controller.outlineBounds.height - rest.height) < 0.5, "the island returns to rest")
+    }
+
     /// `notice-unseen`: a notice posted under the launcher, or with no resting pill, outlives its dwell.
     static func unseen(core: AppCore, controller: IslandController) async {
         let presenter = core.islandPresenter

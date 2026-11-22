@@ -100,21 +100,44 @@ struct IslandPageLabel: View {
     let title: String
     let detail: String?
     var tone: IslandTone?
+    var titleLines = 1
     @Environment(\.metrics) private var metrics
 
     var body: some View {
         HStack(spacing: metrics.spacing.md) {
             IslandPageArtwork(symbol: symbol, artwork: artwork, side: metrics.size.resultRowIcon, tone: tone)
             VStack(alignment: .leading, spacing: 0) {
-                Text(title).font(metrics.typography.rowTitle).foregroundStyle(Theme.Colors.textPrimary)
+                let headline = Text(title).font(metrics.typography.rowTitle).foregroundStyle(Theme.Colors.textPrimary)
+                    .lineLimit(titleLines)
+                if titleLines > 1 {
+                    IslandNoticeTitleLayout { headline }
+                } else {
+                    headline
+                }
                 if let detail {
                     Text(detail).font(metrics.typography.rowTrailing).foregroundStyle(Theme.Colors.textSecondary)
+                        .lineLimit(1)
                 }
             }
-            .lineLimit(1)
             .truncationMode(.tail)
             .frame(maxWidth: NotchTheme.Size.islandHeadlineMaxWidth, alignment: .leading)
         }
+    }
+}
+
+// The open page's ideal-size proposal has no width for a notice to wrap against.
+private struct IslandNoticeTitleLayout: Layout {
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        let title = subviews[0]
+        let cap = NotchTheme.Size.islandHeadlineMaxWidth
+        let width = min(title.sizeThatFits(.unspecified).width, proposal.width ?? cap, cap)
+        let height = title.sizeThatFits(ProposedViewSize(width: width, height: nil)).height
+        return CGSize(width: width, height: height)
+    }
+
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        subviews[0].place(at: bounds.origin, anchor: .topLeading,
+                          proposal: ProposedViewSize(width: bounds.width, height: nil))
     }
 }
 
