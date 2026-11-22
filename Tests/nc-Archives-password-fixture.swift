@@ -167,6 +167,7 @@ final class Record {
     }
 
     var asks: [Ask] = []
+    var askPriorities: [Bool] = []
     var answers: [String?] = []
     var besideAtAsk: [[String]] = []
     var holdAsk = false
@@ -227,7 +228,8 @@ final class Rig {
             return record.inPlaceAnswer
         }
         if hook {
-            context.askSecret = { title, message, field, confirm in
+            controller.wireAskSecret { _, title, message, field, confirm in
+                record.askPriorities.append(NotchcastQuestion.takesLauncherPriority)
                 record.asks.append(Record.Ask(title: title, message: message, field: field, confirm: confirm))
                 record.besideAtAsk.append(
                     ((try? FileManager.default.contentsOfDirectory(atPath: folder.path)) ?? []).filter { $0 != "support" }

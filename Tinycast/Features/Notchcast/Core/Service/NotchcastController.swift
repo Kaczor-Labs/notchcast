@@ -92,6 +92,10 @@ final class NotchcastController {
         return blocker(for: own, visiting: [])
     }
 
+    var hasPendingQuestion: Bool {
+        slots.contains { $0.context.module?.hasPendingQuestion == true || $0.recovery.module?.hasPendingQuestion == true }
+    }
+
     func start() {
         guard !isRunning else { return }
         isRunning = true

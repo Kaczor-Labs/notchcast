@@ -27,6 +27,8 @@ Every Notchcast feature on top of Tinycast is an add-on. An add-on plugs in with
 
 **Presentation** is the island's own API: `context.presenter` is `any IslandPresenting`, and add-ons post the Island value types (`IslandLevel`, `IslandNotice`, `IslandStatus`, `IslandMenuRow`, and `IslandPage` through `setPage`, with `watchPages` saying when its data is on show; notchcast/docs/island-shell.md "Presentation API" and "Pages"). `NotchcastCore` hands the controller `core.islandPresenter`, the island's own presenter, with no add-on stand-in between; what each call draws is the island's (island-shell.md).
 
+For fixed notice copy, aim for one line (about 40 characters), use two when needed, and put the status word first so a compact progress notice still reads clearly.
+
 **Doors** are the app's services an add-on reaches through `context`, one page each in [doors/](doors/). `NotchcastContext` and `NotchcastController` take them as one `services: NotchcastServices` value, which the controller passes through untouched; harnesses pass only the door they fake (`NotchcastServices(calendar: …)`) and the rest stay inert. A new door is three new files and two lines: `Core/Service/Notchcast<Door>.swift` (its type, inert default and `extension NotchcastContext` accessor), `Notchcast<Door>+Live.swift` beside `NotchcastCore.swift` (`init(core: AppCore)`), `doors/<door>.md`, one `var <door> = …` line in `Core/Service/NotchcastServices.swift` and one `<door> = …(core: core)` line in `NotchcastServices+Live.swift`. Both files merge by union (`.gitattributes`), so they hold one-line entries only.
 
 A switch with none of commands, settings action, taps or a module has no user path and fails the registry harness (v1 shipped 35 such switches).
@@ -72,7 +74,7 @@ Which add-ons a tab holds is in the README's generated list; an add-on PR never 
 | Display & Sound | Display & Sound | XDR, F102 Audio priority |
 | Keyboard & Mouse | Keyboard & Mouse | F12 Green button maximizes |
 | Launcher | Launcher Extras | F29 GitHub search, F30 Quick Look on Space |
-| Files & Downloads | Downloads | F59 Distill folder, F60 Convert files, F68 Media tools, F32 Paste image in Finder, F128–F130 Torrents |
+| Downloads | Downloads | F59 Distill folder, F60 Convert files, F68 Media tools, F32 Paste image in Finder, F128–F130 Torrents |
 | Power | Power | F101 Accessory batteries |
 | Music | Display & Sound | F49 covers, F52 resume player, F53 now playing, F54 Spotify Connect |
 | Agents | Agents | F15/I1 AI usage |

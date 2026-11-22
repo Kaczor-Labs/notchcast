@@ -13,6 +13,7 @@ final class ArchivesModule: NotchcastModule {
 
     private let context: NotchcastContext
     private let environment: ArchivesEnvironment
+    private var picker: Task<Void, Never>?
     private(set) var jobs: [ArchiveJob] = []
     private(set) var current: (job: ArchiveJob, task: Task<Void, Never>, resuming: UUID?)?
     private var pruning: Task<Void, Never>?
@@ -22,6 +23,10 @@ final class ArchivesModule: NotchcastModule {
     init(context: NotchcastContext, environment: ArchivesEnvironment) {
         self.context = context
         self.environment = environment
+    }
+
+    var hasPendingQuestion: Bool {
+        context.askSecret != nil && jobs.contains { $0.stopped == nil && $0.needsPassword == true }
     }
 
     func start() {
@@ -40,6 +45,8 @@ final class ArchivesModule: NotchcastModule {
 
     /// A switch turned off gives the archive types back; quitting the app keeps them.
     func stop() {
+        picker?.cancel()
+        picker = nil
         if !context.isEnabled(Self.switchID), context.defaults.bool(forKey: Self.defaultAppKey) {
             setDefaultApp(false)
         }
@@ -66,7 +73,15 @@ final class ArchivesModule: NotchcastModule {
         runNext()
     }
 
-    func pickAndOpen() { open(environment.pickArchives()) }
+    func pickAndOpen() {
+        guard picker == nil else { return }
+        picker = Task { [weak self, pick = environment.pickArchives] in
+            let files = await pick()
+            guard let self, !Task.isCancelled else { return }
+            self.picker = nil
+            self.open(files)
+        }
+    }
 
     func setDefaultApp(_ on: Bool) {
         context.defaults.set(on, forKey: Self.claimedKey)
@@ -332,12 +347,20 @@ final class ArchivesModule: NotchcastModule {
 
     /// Hands the answer straight back to the extractor; the module never keeps it.
     private func askPassword(_ job: ArchiveJob, wrong: Bool) async -> String? {
-        guard current?.job.id == job.id, let askSecret = context.askSecret else { return nil }
-        return await askSecret(
-            String(localized: "Password for \(job.name)", table: "NotchcastArchives"),
-            wrong ? String(localized: "That password did not work.", table: "NotchcastArchives") : nil,
-            String(localized: "Password", table: "NotchcastArchives"),
-            String(localized: "Extract", table: "NotchcastArchives"))
+        guard !Task.isCancelled, current?.job.id == job.id, let askSecret = context.askSecret,
+            let index = jobs.firstIndex(where: { $0.id == job.id })
+        else { return nil }
+        if jobs[index].needsPassword != true {
+            jobs[index].needsPassword = true
+            save()
+        }
+        return await NotchcastQuestion.$takesLauncherPriority.withValue(true) {
+            await askSecret(
+                String(localized: "Password for \(job.name)", table: "NotchcastArchives"),
+                wrong ? String(localized: "That password did not work.", table: "NotchcastArchives") : nil,
+                String(localized: "Password", table: "NotchcastArchives"),
+                String(localized: "Extract", table: "NotchcastArchives"))
+        }
     }
 
     private func markInPlace(_ id: UUID, _ on: Bool) {

@@ -38,12 +38,8 @@ extension DialogController {
                 DialogAction(title: String(localized: "Cancel"), role: .cancel)
             ],
             defaultIndex: 0, cancelIndex: 1, accessory: .secret(state))
-        let index = await withTaskCancellationHandler {
-            await present(request)
-        } onCancel: {
-            Task { @MainActor [weak self] in self?.dismissSecret(state) }
-        }
-        let answer = index == 0 && !Task.isCancelled ? state.text : nil
+        let index = await present(request)
+        let answer = index == 0 ? state.text : nil
         state.text = ""
         return answer
     }

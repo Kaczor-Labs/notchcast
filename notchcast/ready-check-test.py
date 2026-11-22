@@ -8,17 +8,20 @@ import shutil
 import subprocess
 import tarfile
 import tempfile
+from textwrap import dedent
 import unittest
 from unittest import mock
+
+from ci import config
 
 
 ROOT = Path(__file__).resolve().parent.parent
 WORKFLOW = ROOT / ".github/workflows/pr.yml"
+MAIN_HARNESSES = ROOT / ".github/workflows/main-harnesses.yml"
 SWIFT_ACTION = ROOT / ".github/actions/linux-swift/action.yml"
 SCRIPT = ROOT / "notchcast/ready-check.sh"
 # Every step of pr.yml and of the local actions it uses, and how ready-check.sh covers it.
 COVERED = {
-    ("pr.yml:route", "Linux runner availability"): "runner selection; no gate",
     ("pr.yml:route", "A harness-only run is never a train's"): "dispatched harness-only runs only",
     ("pr.yml:route", "actions/checkout"): "lane planning; no gate",
     ("pr.yml:route", "Lanes the diff needs"): "picks the jobs below; ready-check.sh runs them all",
@@ -35,15 +38,12 @@ COVERED = {
     ("pr.yml:mac", "Runner load at start"): "off a hosted runner: the job's own temp folder and load figures; no gate",
     ("pr.yml:mac", "Runner load at end"): "off a hosted runner: load figures; no gate",
     ("pr.yml:mac", "What the isolated runner proved"): "the isolated runner's stamp for its tested-tree record; no gate",
-    ("pr.yml:linux-checks", "Prepare clean Linux workspace"): "fresh runner workspace; no gate",
     ("pr.yml:linux-checks", "./.github/actions/linux-python"): "pin the CI Python version; no local step",
     ("pr.yml:linux-checks", "actions/checkout"): "the shared clone at HEAD",
     ("pr.yml:linux-checks", "Checks that need no Mac"): "ci-build.sh sources ci-checks.sh",
-    ("pr.yml:linux-harnesses", "Prepare clean Linux workspace"): "fresh runner workspace; no gate",
     ("pr.yml:linux-harnesses", "./.github/actions/linux-swift"): "Linux toolchain setup; ready-check.sh uses Xcode",
     ("pr.yml:linux-harnesses", "actions/checkout"): "the shared clone at HEAD",
     ("pr.yml:linux-harnesses", "Linux-ok harnesses the diff needs"): "ci-build.sh's harnesses step runs them all on the Mac",
-    ("pr.yml:script-tests", "Prepare clean Linux workspace"): "fresh runner workspace; no gate",
     ("pr.yml:script-tests", "./.github/actions/linux-python"): "pin the CI Python version; no local step",
     ("pr.yml:script-tests", "Install pinned jq"): "pin the CI jq version; no local step",
     ("pr.yml:script-tests", "./.github/actions/linux-node"): "pin the CI Node version; no local step",
@@ -52,7 +52,6 @@ COVERED = {
     ("pr.yml:script-tests", "Install pinned Gitleaks"): "pin the scanner used by the hook fixtures; no local step",
     ("pr.yml:script-tests", "actions/checkout"): "the shared clone at HEAD",
     ("pr.yml:script-tests", "Script tests"): "ci-build.sh's script-tests step",
-    ("pr.yml:build", "Prepare clean Linux workspace"): "fresh runner workspace; no gate",
     ("pr.yml:build", "./.github/actions/linux-python"): "pin the CI Python version; no local step",
     ("pr.yml:build", "A train run names its base"): "train branches only",
     ("pr.yml:build", "A train's Mac job proves its tree"): "train branches only",
@@ -114,7 +113,7 @@ class CoverageTest(unittest.TestCase):
         self.assertEqual(found - COVERED.keys(), set(), "a pr.yml step ready-check.sh does not cover")
         self.assertEqual(COVERED.keys() - found, set(), "COVERED names a step pr.yml no longer has")
 
-    def test_script_tests_install_pinned_tools_before_running_on_either_runner(self):
+    def test_script_tests_install_pinned_tools_before_running(self):
         lane = {signature(text): text for job, text in steps(WORKFLOW, 6) if job == "script-tests"}
         for name in ("./.github/actions/linux-swift", "Install pinned Ruby", "Install pinned Gitleaks"):
             with self.subTest(tool=name):
@@ -178,6 +177,8 @@ GATED_MAC = ("${{ github.event_name == 'workflow_dispatch' && !inputs.hosted && 
 # pr.yml's mac job also takes the runner label a dispatch names for a harness-only run (README Runners).
 HARNESS_MAC = ("${{ github.event_name == 'workflow_dispatch' && (inputs.harness_runner || !inputs.hosted "
                "&& vars.NOTCHCAST_MAC_RUNNER) || 'xcode-27' }}")
+POOL_MAC = ("${{ needs.mac-route.result == 'success' && needs.mac-route.outputs.mac-runner == 'notchcast-mbp' "
+            "&& 'notchcast-mbp' || 'xcode-27' }}")
 HARNESS_ONLY, FULL_RUN = "inputs.harness_runner != ''", "inputs.harness_runner == ''"
 # Labels a dispatch may name for a harness-only run (README Runners); free text names any runner.
 HARNESS_RUNNERS = ["", "notchcast-mba", "notchcast-mbp"]
@@ -188,29 +189,10 @@ MAC_JOBS = {"pr.yml": 1, "main-harnesses.yml": 1, "delete-check.yml": 1, "proof.
             "sync-release.yml": 2, "test-build.yml": 2, "tester.yml": 1}
 
 
-LINUX_JOBS = {
-    "pr.yml": {"linux-checks": "ubuntu-latest", "script-tests": "ubuntu-24.04",
-               "linux-harnesses": "ubuntu-24.04", "build": "ubuntu-latest"},
-    "design.yml": {"design": "ubuntu-latest"},
-    "leaks.yml": {"leaks": "ubuntu-latest"},
-    "main-harnesses.yml": {"plan": "ubuntu-latest"},
-    "proof.yml": {"plan": "ubuntu-latest"},
-    "delete-check.yml": {"plan": "ubuntu-latest", "summary": "ubuntu-latest"},
-    "test-build.yml": {"plan": "ubuntu-latest"},
-}
-SAME_REPO = ("(github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository"
-             " || github.event_name == 'push' || github.event_name == 'workflow_dispatch')")
-
-
-def linux_runner(hosted):
-    return f"${{{{ {SAME_REPO} && needs.route.outputs.linux-runner == 'linux-pool' && 'linux-pool' || '{hosted}' }}}}"
-
-
 class RunnerTest(unittest.TestCase):
     def check_runners(self, name, text):
         allowed = {"ubuntu-24.04", "ubuntu-latest", "xcode-27"}
-        gate = HARNESS_MAC if name == "pr.yml" else GATED_MAC
-        linux = LINUX_JOBS.get(name, {})
+        gate = {"pr.yml": HARNESS_MAC, MAIN_HARNESSES.name: POOL_MAC}.get(name, GATED_MAC)
         blocks = re.split(r"^  ([\w-]+):[ \t]*$", text.split("\njobs:\n", 1)[1], flags=re.M)
         jobs = dict(zip(blocks[1::2], blocks[2::2]))
         gated = mac = 0
@@ -219,10 +201,6 @@ class RunnerTest(unittest.TestCase):
             if not match:
                 continue
             value = match[1].strip()
-            if job in linux:
-                self.assertEqual(value, linux_runner(linux[job]), f"{name}:{job} must keep its same-repository gate")
-                self.assertNotRegex(body, r"(?m)\bsecrets\b|^    environment:|^ +[\w-]+: write$", f"{name}:{job} can receive secrets")
-                continue
             if value in (gate, "xcode-27"):
                 mac += 1
             if value == gate:
@@ -231,12 +209,6 @@ class RunnerTest(unittest.TestCase):
             labels = re.findall(r"[^\s\[\],'\"-][^\s\[\],'\"]*", re.sub(r"#.*", "", value))
             self.assertTrue(labels, f"{name}:{job} runs-on has no label")
             self.assertEqual(set(labels) - allowed, set(), f"{name}:{job} has an unapproved runner")
-        for job in linux:
-            self.assertIn("    runs-on: " + linux_runner(linux[job]), jobs[job])
-        if linux:
-            self.assertRegex(jobs["route"], r"(?m)^    runs-on: ubuntu-latest$")
-            self.assertIn("      linux-runner: ${{ steps.linux.outputs.runs-on }}", jobs["route"])
-            self.assertNotRegex(text.split("\njobs:\n", 1)[0], r"(?m)^ +[\w-]+: write$")
         self.assertEqual(gated, GATED_JOBS.get(name, 0), name)
         self.assertEqual(mac, MAC_JOBS.get(name, 0), name)
 
@@ -245,71 +217,10 @@ class RunnerTest(unittest.TestCase):
             with self.subTest(workflow.name):
                 self.check_runners(workflow.name, workflow.read_text())
 
-    def test_rejects_unsafe_linux_pool_routes(self):
-        expression = linux_runner("ubuntu-latest")
-        pr = WORKFLOW.read_text()
-        test_build = (WORKFLOW.parent / "test-build.yml").read_text()
-        mutations = {
-            "fork": ("pr.yml", pr.replace(SAME_REPO, "github.event_name == 'pull_request'", 1)),
-            "merge group": ("pr.yml", pr.replace(SAME_REPO, SAME_REPO[:-1] + " || github.event_name == 'merge_group')", 1)),
-            "unguarded": ("pr.yml", pr.replace(expression, "linux-pool", 1)),
-            "mac": ("pr.yml", pr.replace(HARNESS_MAC, expression, 1)),
-            "signing": ("test-build.yml", test_build.replace("    runs-on: xcode-27\n    timeout-minutes: 30",
-                                                             f"    runs-on: {expression}\n    timeout-minutes: 30")),
-            "secret": ("test-build.yml", test_build.replace("          GH_TOKEN: ${{ github.token }}",
-                                                            "          GH_TOKEN: ${{ secrets.SIGNING_P12_PASSWORD }}", 1)),
-        }
-        for case, (name, text) in mutations.items():
-            with self.subTest(case), self.assertRaises(AssertionError):
-                self.check_runners(name, text)
-
-    def test_linux_availability_falls_back_when_capacity_is_missing_or_stale(self):
-        route = next(step for job, step in steps(WORKFLOW, 6) if job == "route" and field(step, "id") == "linux")
-        for name in LINUX_JOBS:
-            found = next(step for job, step in steps(WORKFLOW.parent / name, 6)
-                         if job == "route" and field(step, "id") == "linux")
-            self.assertEqual(found, route, name)
-        self.assertEqual(env(route), {"POOL_FREE": "${{ vars.POOL_FREE_LINUX }}", "FORCE_HOSTED": "${{ inputs.hosted_linux }}"})
-        script = "\n".join(line[2:] for line in route.split("run: |\n", 1)[1].splitlines())
-        for capacity, force, expected in (
-            ("2 1800000000", "", "linux-pool"),
-            ("1 1799999821", "", "linux-pool"),
-            ("1 1799999820", "", "ubuntu-latest"),
-            ("0 1800000000", "", "ubuntu-latest"),
-            ("2 1800000001", "", "ubuntu-latest"),
-            ("2 1800000000", "true", "ubuntu-latest"),
-            ("", "", "ubuntu-latest"),
-            ("1 invalid", "", "ubuntu-latest"),
-        ):
-            with self.subTest(capacity=capacity, force=force):
-                result = subprocess.check_output(
-                    ["bash", "-e", "-c", "date() { echo 1800000000; }\n" + script],
-                    env={**os.environ, "POOL_FREE": capacity, "FORCE_HOSTED": force, "GITHUB_OUTPUT": "/dev/stdout"},
-                    text=True,
-                )
-                self.assertEqual(result.strip(), f"runs-on={expected}")
-
-    def test_forks_and_merge_groups_stay_hosted_even_when_route_reports_capacity(self):
-        expression = re.escape(SAME_REPO)
-        for name, jobs in LINUX_JOBS.items():
-            text = (WORKFLOW.parent / name).read_text()
-            for hosted in jobs.values():
-                self.assertRegex(text, expression + r" && needs\.route\.outputs\.linux-runner == 'linux-pool'"
-                                       + rf" && 'linux-pool' \|\| '{re.escape(hosted)}'")
-        condition = SAME_REPO.replace("&&", "and").replace("||", "or")
-        for event, repo, expected in (
-            ("pull_request", "owner/fork", False),
-            ("pull_request", "", False),
-            ("pull_request", "org/repo", True),
-            ("pull_request_target", "org/repo", False),
-            ("push", "", True),
-            ("workflow_dispatch", "", True),
-            ("merge_group", "", False),
-        ):
-            with self.subTest(event=event, head_repo=repo):
-                code = condition.replace("github.event.pull_request.head.repo.full_name", repr(repo))
-                code = code.replace("github.event_name", repr(event)).replace("github.repository", "'org/repo'")
-                self.assertEqual(eval(code, {"__builtins__": {}}), expected)
+    def test_workflows_do_not_reference_the_linux_pool(self):
+        for workflow in sorted((ROOT / ".github/workflows").glob("*.y*ml")):
+            with self.subTest(workflow.name):
+                self.assertNotRegex(workflow.read_text(), r"(?i)linux-pool|POOL_FREE_LINUX")
 
     def test_node_installs_in_runner_temp_only_after_verifying_the_archive(self):
         for name, job in (("pr.yml", "script-tests"), ("design.yml", "design")):
@@ -449,6 +360,155 @@ class RunnerTest(unittest.TestCase):
         self.assertIn("exit 1", refusal)
         self.assertRegex(text, r"\nconcurrency:\n  group: .*\$\{\{ inputs\.harness_runner && format\('-\{0\}', "
                                r"inputs\.harness_runner\) \|\| '' \}\}\n")
+
+
+class MacPoolTest(unittest.TestCase):
+    def run_route(self, *, pool="1 1800000000", tests="SafeTests", config_change=None,
+                  head_files=None, **variables):
+        step = next(text for _, text in steps(MAIN_HARNESSES, 6)
+                    if signature(text) == "Route the selected Mac harnesses")
+        script = dedent(step.split("\nrun: |\n", 1)[1])
+        cfg = config()
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+
+            def git(*args):
+                return subprocess.check_output(["git", *args], cwd=root, text=True, env=fixture_env({
+                    "GIT_AUTHOR_NAME": "Test", "GIT_AUTHOR_EMAIL": "test@example.com",
+                    "GIT_COMMITTER_NAME": "Test", "GIT_COMMITTER_EMAIL": "test@example.com",
+                })).strip()
+
+            git("init", "-q")
+            (root / "notchcast").mkdir()
+            (root / "Tests").mkdir()
+            config_path = root / "notchcast/config.env"
+            config_path.write_text((ROOT / "notchcast/config.env").read_text())
+            for name in ("ci-tests-test.sh", "ci-xcode.sh", "ci-tests.sh"):
+                shutil.copyfile(ROOT / "notchcast" / name, root / "notchcast" / name)
+            for name, content in {
+                "SafeTests": "// Pure harness fixture",
+                "FormInputTests": "// Listed in config.env",
+                "ClipboardTextTests": "// Listed in config.env",
+                "TaggedTests": "// notchcast-hosted-only",
+                "SkippedTests": "// notchcast-ci-skip",
+                "RiskyTests": "// NSWindow(",
+            }.items():
+                (root / f"Tests/{name}.swift").write_text(content + "\n")
+            git("add", ".")
+            git("commit", "-qm", "Main")
+            git("update-ref", "refs/remotes/origin/main", "HEAD")
+            if config_change:
+                config_path.write_text(config_change(config_path.read_text()))
+            for name, content in (head_files or {}).items():
+                path = root / name
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_text(content + "\n")
+            git("add", ".")
+            git("commit", "--allow-empty", "-qm", "Head")
+
+            head = git("rev-parse", "HEAD")
+            git("checkout", "-q", "--detach", "origin/main")
+            output = root / "output"
+            output.touch()
+            result = subprocess.run(
+                ["bash", "-euo", "pipefail", "-c", "date() { echo 1800000000; }\n" + script],
+                cwd=root, capture_output=True, text=True, timeout=10,
+                env=fixture_env({"LC_ALL": "C", "GITHUB_OUTPUT": str(output), "GITHUB_SHA": head,
+                                 "GITHUB_REPOSITORY": cfg["FORK_REPO"], "GITHUB_REF_TYPE": "branch",
+                                 "GITHUB_ACTOR": cfg["MAINTAINER_LOGIN"], "GITHUB_TRIGGERING_ACTOR": cfg["MAINTAINER_LOGIN"],
+                                 "POOL_FREE": pool, "TESTS": tests, **variables}),
+            )
+            self.assertEqual(result.returncode, 0, result.stderr)
+            return output.read_text()
+
+    def test_only_a_maintainer_dispatch_of_a_branch_selection_can_route(self):
+        workflow = MAIN_HARNESSES.read_text()
+        route = next(text for job, text in steps(MAIN_HARNESSES, 6)
+                     if job == "mac-route" and signature(text) == "Route the selected Mac harnesses")
+        self.assertIn("    if: ${{ !inputs.hosted && !inputs.all && vars.POOL_FREE_NOTCHCAST_MAC != '' "
+                      "&& needs.plan.outputs.tests != '' }}\n", workflow)
+        self.assertEqual(env(route)["POOL_FREE"], "${{ vars.POOL_FREE_NOTCHCAST_MAC }}")
+        self.assertIn(f"    runs-on: {POOL_MAC}\n", workflow)
+        self.assertNotIn("notchcast-mba", workflow)
+        self.assertNotIn("tested-tree", workflow)
+        for key, value in (("GITHUB_REPOSITORY", "other/fork"), ("GITHUB_REF_TYPE", "tag"),
+                           ("GITHUB_ACTOR", "bot"), ("GITHUB_TRIGGERING_ACTOR", "bot")):
+            with self.subTest(key=key):
+                self.assertEqual(self.run_route(**{key: value}), "")
+
+    def test_pool_requires_fresh_availability_and_equal_coverage(self):
+        for pool, tests, use_pool in (
+            ("1 1800000000", "SafeTests ", True),
+            ("4\t1799999821", "SafeTests", True),
+            ("4 1799999820", "SafeTests", False),
+            ("1 1800000001", "SafeTests", False),
+            ("0 1800000000", "SafeTests", False),
+            ("", "SafeTests", False),
+            ("1 1800000000 extra", "SafeTests", False),
+            ("1 999999999999999999999999999", "SafeTests", False),
+            ("-1 1800000000", "SafeTests", False),
+            ("1\n1800000000", "SafeTests", False),
+            ("1 1800000000", "", False),
+            ("1 1800000000", "SafeTests FormInputTests", False),
+            ("1 1800000000", "SafeTests ClipboardTextTests", False),
+            ("1 1800000000", "SafeTests MissingTests", False),
+        ):
+            with self.subTest(pool=pool, tests=tests):
+                self.assertEqual(self.run_route(pool=pool, tests=tests),
+                                 "runs-on=notchcast-mbp\n" if use_pool else "")
+
+    def test_config_must_match_main_including_the_lists(self):
+        def remove_listed(text):
+            return text.replace(" FormInputTests", "").replace('CI_SKIP_TESTS="ClipboardTextTests"', 'CI_SKIP_TESTS=""')
+
+        for test in ("FormInputTests", "ClipboardTextTests"):
+            with self.subTest(test=test):
+                self.assertEqual(self.run_route(tests=test, config_change=remove_listed), "")
+        self.assertEqual(self.run_route(config_change=remove_listed), "")
+        self.assertEqual(self.run_route(config_change=lambda text: text + '\n: "$GITHUB_OUTPUT"\n'), "")
+        self.assertEqual(self.run_route(config_change=lambda text: text.replace(
+            'CI_SKIP_TESTS="ClipboardTextTests"', 'CI_SKIP_TESTS="ClipboardTextTests SafeTests"')), "")
+
+    def test_base_and_head_tags_and_risky_apis_keep_the_selection_hosted(self):
+        for test, content in (("TaggedTests", "// notchcast-hosted-only"),
+                              ("SkippedTests", "// notchcast-ci-skip"),
+                              ("RiskyTests", "// NSWindow(")):
+            with self.subTest(test=test):
+                self.assertEqual(self.run_route(tests=test, head_files={f"Tests/{test}.swift": "// Pure harness fixture"}), "")
+                self.assertEqual(self.run_route(head_files={"Tests/SafeTests.swift": content}), "")
+
+
+    def test_ci_files_must_match_main(self):
+        for path in ("notchcast/actions/xcode/action.yml", "notchcast/actions/tests/action.yml",
+                     "notchcast/ci-xcode.sh", "notchcast/ci-tests.sh", "notchcast/swiftc-cache.py",
+                     "notchcast/test-harnesses.sh", "Scripts/run-tests.sh", "json.py"):
+            with self.subTest(path=path):
+                self.assertEqual(self.run_route(head_files={path: "# Different on head"}), "")
+        self.assertEqual(self.run_route(head_files={
+            "Tests/SafeTests.swift": "// Safe test change", "Tinycast/Feature.swift": "// Product change",
+        }), "runs-on=notchcast-mbp\n")
+
+    def test_copies_of_listed_or_tagged_harnesses_stay_hosted(self):
+        for test, content in (("ClipboardTextTests", "// Listed in config.env"),
+                              ("TaggedTests", "// notchcast-hosted-only"),
+                              ("SkippedTests", "// notchcast-ci-skip")):
+            with self.subTest(test=test):
+                self.assertEqual(self.run_route(tests="RenamedTests", head_files={
+                    "Tests/RenamedTests.swift": content, f"Tests/{test}.swift": "// Changed on head",
+                }), "")
+        self.assertEqual(self.run_route(tests="RenamedTests", head_files={
+            "Tests/RenamedTests.swift": "// New content in a listed harness",
+            "Tests/ClipboardTextTests.swift": "// New content in a listed harness",
+        }), "")
+
+    def test_skipped_or_empty_route_keeps_planned_harnesses_hosted(self):
+        job = MAIN_HARNESSES.read_text().split("\n  harnesses:\n", 1)[1]
+        job = dedent(job)
+        self.assertEqual(field(job, "needs"), "[plan, mac-route]")
+        self.assertEqual(field(job, "if"),
+                         "${{ !cancelled() && needs.plan.result == 'success' && needs.plan.outputs.shards != '[]' }}")
+        self.assertEqual(field(job, "runs-on"), POOL_MAC)
+        self.assertEqual(self.run_route(pool=""), "")
 
 
 # Machine git config (init.defaultBranch, signing, url rewrites) never reaches the fixture repos.
