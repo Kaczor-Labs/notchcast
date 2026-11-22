@@ -257,7 +257,9 @@ final class AppCore {
             guard let self else { return }
             isShowingDialog = isPresenting
             paletteCoordinator.dialogPresentationChanged(isPresenting)
-        })
+        },
+        onSecretPromptOpened: { [weak self] in self?.clipboardCoordinator.beginSecretPrompt() },
+        onSecretPromptClosed: { [weak self] in self?.clipboardCoordinator.endSecretPrompt(submitted: $0) })
     private let healthTicker = HealthTicker()
     /// Resolved once by AppKit, so it is what this process shows until it relaunches.
     private let launchLocalization = Bundle.main.preferredLocalizations.first

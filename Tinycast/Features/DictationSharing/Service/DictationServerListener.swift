@@ -13,12 +13,13 @@ enum DictationServerListener {
     static func reply(
         _ connection: NetworkConnection<TCP>, with work: @escaping @MainActor @Sendable () async -> Data
     ) async {
-        _ = await DictationServerClients.answer({
-            try? await connection.send(await work(), endOfStream: true)
-        }, unless: { await untilClosed(connection) })
+        await DictationServerClients.answer(work, unless: { await untilClosed(connection) }) { bytes in
+            try? await connection.send(bytes, endOfStream: true)
+        }
     }
 
     /// Returns when the client closes its side or the connection fails.
+    @MainActor
     private static func untilClosed(_ connection: NetworkConnection<TCP>) async {
         while let message = try? await connection.receive(atLeast: 1, atMost: 1), !message.metadata.endOfStream {}
     }
