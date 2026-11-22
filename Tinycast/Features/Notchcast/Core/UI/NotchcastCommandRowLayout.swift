@@ -1,27 +1,44 @@
 import SwiftUI
 
-struct NotchcastCommandRow<Title: View, Trailing: View, Controls: View>: View {
+struct NotchcastCommandRow<Title: View, Trailing: View, Fields: View, Checkbox: View>: View {
     @ViewBuilder let title: Title
     @ViewBuilder let trailing: Trailing
-    @ViewBuilder let controls: Controls
+    @ViewBuilder let fields: Fields
+    @ViewBuilder let checkbox: Checkbox
 
     var body: some View {
         NotchcastCommandRowLayout(horizontalSpacing: Theme.Spacing.lg, verticalSpacing: Theme.Spacing.md) {
             title.frame(maxWidth: .infinity, alignment: .leading)
-            HStack(spacing: Theme.Spacing.lg) { controls }
+            NotchcastCommandControlsLayout {
+                HStack(spacing: Theme.Spacing.lg) { fields }
+                checkbox
+            }
             HStack(spacing: Theme.Spacing.lg) { trailing }
                 .fixedSize()
         }
     }
 }
 
-struct NotchcastLauncherCheckboxLabel: View {
-    let title: Text
+private struct NotchcastCommandControlsLayout: Layout {
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        let fields = subviews[0].sizeThatFits(.unspecified)
+        let checkbox = subviews[1].sizeThatFits(.unspecified)
+        let inlineWidth = fields.width + Theme.Spacing.lg + checkbox.width
+        if inlineWidth <= (proposal.width ?? .infinity) {
+            return CGSize(width: inlineWidth, height: max(fields.height, checkbox.height))
+        }
+        return CGSize(width: max(fields.width, checkbox.width), height: fields.height + Theme.Spacing.md + checkbox.height)
+    }
 
-    var body: some View {
-        ViewThatFits(in: .horizontal) {
-            title.fixedSize()
-            Color.clear.frame(width: 0, height: 0)
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        let fields = subviews[0].sizeThatFits(.unspecified)
+        let checkbox = subviews[1].sizeThatFits(.unspecified)
+        if bounds.width >= fields.width + Theme.Spacing.lg + checkbox.width {
+            subviews[0].place(at: CGPoint(x: bounds.minX, y: bounds.midY), anchor: .leading, proposal: .unspecified)
+            subviews[1].place(at: CGPoint(x: bounds.maxX, y: bounds.midY), anchor: .trailing, proposal: .unspecified)
+        } else {
+            subviews[0].place(at: CGPoint(x: bounds.maxX, y: bounds.minY), anchor: .topTrailing, proposal: .unspecified)
+            subviews[1].place(at: CGPoint(x: bounds.maxX, y: bounds.maxY), anchor: .bottomTrailing, proposal: .unspecified)
         }
     }
 }

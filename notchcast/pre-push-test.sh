@@ -2,19 +2,26 @@
 # githooks/pre-push on fixture remotes: an orphan branch, a new branch and a normal branch are each checked over
 # exactly what the push adds, and a non-allowed identity in that range is refused with a reason.
 set -euo pipefail
-export LC_ALL=C
-root=$(git rev-parse --show-toplevel)
-scratch=$(mktemp -d)
+root=$(cd "$(dirname "$0")/.." && pwd -P)
+scratch=$(mktemp -d "${TMPDIR:-/tmp}/pre-push-fixture.XXXXXXXX")
 trap 'rm -rf "$scratch"' EXIT
-fail() { echo "FAIL: $1"; [ ! -s "$scratch/output" ] || cat "$scratch/output"; exit 1; }
+mkdir "$scratch/bin" "$scratch/home" "$scratch/tmp"
+for tool in git python3 gitleaks; do
+    binary=$(PATH="$PATH:/opt/homebrew/bin" type -P "$tool") || { echo "FAIL: $tool is required" >&2; exit 1; }
+    ln -s "$binary" "$scratch/bin/$tool"
+done
+env -i HOME="$scratch/home" TMPDIR="$scratch/tmp" PATH="$scratch/bin:/usr/bin:/bin" LC_ALL=C \
+    GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null /bin/bash -s -- "$root" "$scratch" <<'FIXTURE'
+set -euo pipefail
+root=$1 scratch=$2
+fail() {
+    printf 'FAIL: %s\n' "$1" >&2
+    if [ -f "$scratch/output" ]; then cat "$scratch/output" >&2; fi
+    exit 1
+}
+trap 'fail "fixture command failed: $BASH_COMMAND"' ERR
 email=$(sed -n 's/^MAINTAINER_EMAIL=//p' "$root/notchcast/config.env")
 export GIT_AUTHOR_NAME=Fixture GIT_COMMITTER_NAME=Fixture GIT_AUTHOR_EMAIL=$email GIT_COMMITTER_EMAIL=$email
-mkdir "$scratch/bin"
-if ! command -v gitleaks > /dev/null && [ ! -x /opt/homebrew/bin/gitleaks ]; then
-    printf '#!/bin/sh\nexit 0\n' > "$scratch/bin/gitleaks"
-    chmod +x "$scratch/bin/gitleaks"
-fi
-export PATH="$scratch/bin:$PATH"
 git init --quiet --bare -b main "$scratch/upstream.git"
 git init --quiet --bare -b main "$scratch/origin.git"
 git init --quiet -b main "$scratch/work"
@@ -89,10 +96,9 @@ refuses off-evidence
 # Both strings are assembled here so this file itself carries neither.
 plant off-evidence-path "notes in /Us""ers/fixture/notes"
 refused off-evidence 'a home path' 'check-identity: .*<home-path>'
-if [ ! -x "$scratch/bin/gitleaks" ]; then
-    plant off-evidence-token "token = ghp_$(tr -dc A-Za-z0-9 < /dev/urandom | head -c 36)"
-    refused off-evidence 'a token' 'leaks found: 1'
-fi
+token_suffix=$(printf 'pre-push fixture' | git hash-object --stdin)
+plant off-evidence-token "token = ghp_${token_suffix:0:36}"
+refused off-evidence 'a token' 'leaks found: 1'
 passes off-evidence 1
 echo 'PASS: a new branch off the orphan branch is checked from its first new commit; a bad identity, home path or token there is refused'
 
@@ -128,3 +134,4 @@ push rootless
 [ "$status" -ne 0 ] && grep -q '^pre-push: REFUSED: refs/heads/rootless would add root commit' "$scratch/output" \
     || fail 'a new root commit was not refused with a reason'
 echo 'PASS: a new branch with no history to check from is refused with a reason'
+FIXTURE

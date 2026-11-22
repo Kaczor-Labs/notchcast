@@ -61,10 +61,14 @@ final class IPhoneBackupStore {
 
     /// On but not in effect at launch: a question never answered, so the switch goes off unasked.
     func dropUnanswered() {
-        let current: IPhoneBackupPolicy.Value?
-        do { current = try system.read() } catch { return }
-        guard let journal = try? loadJournal(), !IPhoneBackupPolicy.isApplied(journal, current: current) else { return }
-        guard (try? clearJournal()) != nil else { return }
+        do {
+            let current = try system.read()
+            let journal = try loadJournal()
+            guard !IPhoneBackupPolicy.isApplied(journal, current: current) else { return }
+            try clearJournal()
+        } catch {
+            return
+        }
         context.defaults.removeObject(forKey: IPhoneBackupPolicy.skipRestoreKey)
         decline()
     }

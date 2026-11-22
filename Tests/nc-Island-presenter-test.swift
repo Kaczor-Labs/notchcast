@@ -64,6 +64,15 @@ struct IslandPresenterTest {
         precondition(IslandHeldKey(keyCode: 36) == .accept && IslandHeldKey(keyCode: 76) == .accept
                      && IslandHeldKey(keyCode: 53) == .cancel && IslandHeldKey(keyCode: 49) == nil,
                      "Return and keypad Enter accept, Escape cancels, any other key is not held")
+        island.place(notice: sync.id, on: 2)
+        island.post(sync, onTap: nil)
+        island.place(notice: sync.id, on: 3)
+        precondition(island.calls.suffix(3) == [
+            .place(notice: sync.id, on: 2), .post(sync, tappable: false), .place(notice: sync.id, on: 3),
+        ], "Placement works before the notice is posted and can change afterward")
+        island.end(notice: sync.id)
+        island.post(sync, onTap: nil)
+        precondition(island.displays[sync.id] == nil, "Ending a notice clears its placement")
         let silent: any IslandPresenting = SilentIslandPresenter()
         silent.holdKeys(for: sync.id, onFocus: { precondition(!$0) }) { _ in }
         silent.releaseKeys()
@@ -77,6 +86,7 @@ final class RecordingIslandPresenter: IslandPresenting {
     enum Call: Equatable {
         case showLevel(IslandLevel)
         case post(IslandNotice, tappable: Bool)
+        case place(notice: String, on: UInt32?)
         case end(notice: String)
         case setStatus(IslandStatus?, id: String)
         case setMenuRows([IslandMenuRow], owner: String)
@@ -85,6 +95,7 @@ final class RecordingIslandPresenter: IslandPresenting {
 
     private(set) var calls: [Call] = []
     private(set) var notice: IslandNotice?
+    private(set) var displays: [String: UInt32] = [:]
     private(set) var statuses: [String: IslandStatus] = [:]
     private var onTap: (@MainActor () -> Void)?
     private var onKey: (@MainActor (IslandHeldKey) -> Void)?
@@ -99,8 +110,14 @@ final class RecordingIslandPresenter: IslandPresenting {
         self.onTap = onTap
     }
 
+    func place(notice id: String, on display: UInt32?) {
+        calls.append(.place(notice: id, on: display))
+        displays[id] = display
+    }
+
     func end(notice id: String) {
         calls.append(.end(notice: id))
+        displays[id] = nil
         if notice?.id == id { notice = nil; onTap = nil }
     }
 

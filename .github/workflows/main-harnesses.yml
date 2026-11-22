@@ -28,7 +28,7 @@ concurrency:
 jobs:
   # On Linux, so a macOS runner is spent only on shards that have harnesses to run.
   plan:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
     outputs:
       tests: ${{ steps.shards.outputs.tests }}
@@ -38,6 +38,7 @@ jobs:
         with:
           fetch-depth: 0
           persist-credentials: false
+      - uses: ./.github/actions/linux-python
       - name: Changed harnesses
         if: ${{ !(github.event_name == 'workflow_dispatch' && inputs.all) }}
         run: |

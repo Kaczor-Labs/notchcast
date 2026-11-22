@@ -10,6 +10,7 @@ final class PaletteCoordinator {
     private let menuSearch: MenuSearchSession
     private let windowSwitch: WindowSwitchSession
     private let windowController: PaletteWindowController
+    private var isPresentingPriorityQuestion = false
     /// Features whose launcher rows are read from outside Tinycast re-read them on each open.
     var onLauncherShown: (() -> Void)?
     /// Screens that snapshot other apps re-read them on every open, a restored one included.
@@ -54,6 +55,18 @@ final class PaletteCoordinator {
         windowController.isVisible && palette.mode == mode
     }
 
+    func dialogPresentationChanged(_ isPresenting: Bool) {
+        isPresentingPriorityQuestion = isPresenting && NotchcastQuestion.takesLauncherPriority
+        if isPresentingPriorityQuestion, isVisible {
+            hidePalette(restoreFocus: false)
+        }
+    }
+
+    func showLauncherAtLaunch(launchedByUser: Bool, questionPending: Bool) {
+        guard launchedByUser, !questionPending else { return }
+        showPalette(mode: .launcher)
+    }
+
     func togglePalette() {
         if isShowing(.launcher) {
             hidePalette()
@@ -84,6 +97,7 @@ final class PaletteCoordinator {
     func showPalette(
         mode: PaletteMode, restoreAnyMode: Bool = false, seeding query: String? = nil
     ) {
+        guard !isPresentingPriorityQuestion else { return }
         let preserved = windowController.consumePreservedState()
         let restoring = preserved && (restoreAnyMode || palette.mode == mode)
         // Resetting a screen the pop to root already reset would only re-render the whole palette.
@@ -110,6 +124,7 @@ final class PaletteCoordinator {
 
     /// Root search onto `entry` alone, for a command whose shortcut lacks values.
     func showArguments(of entry: AppEntry, values: [String: String]) {
+        guard !isPresentingPriorityQuestion else { return }
         showPalette(mode: .launcher, seeding: entry.name)
         // After the show: `prepare` runs inside it and would clear everything set beforehand.
         palette.argumentEntryID = entry.id

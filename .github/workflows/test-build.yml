@@ -15,14 +15,13 @@ concurrency:
 jobs:
   plan:
     if: github.ref == 'refs/heads/main'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:
       contents: read
       pull-requests: read
     outputs:
       head: ${{ steps.plan.outputs.head }}
-      main: ${{ steps.plan.outputs.main }}
       version: ${{ steps.plan.outputs.version }}
       build: ${{ steps.plan.outputs.build }}
     steps:
@@ -30,6 +29,15 @@ jobs:
         with:
           fetch-depth: 0
           persist-credentials: false
+      - uses: ./.github/actions/linux-python
+      - name: Install pinned GitHub CLI
+        shell: bash
+        run: |
+          archive="$RUNNER_TEMP/gh.tar.gz"
+          curl -fsSL https://github.com/cli/cli/releases/download/v2.104.0/gh_2.104.0_linux_amd64.tar.gz -o "$archive"
+          echo "98cb101ad87dbbd3f6b2f2bfcbd43197ccd07643140121d8a9cfaa91eadbc24e  $archive" | sha256sum -c -
+          tar -xzf "$archive" -C "$RUNNER_TEMP" gh_2.104.0_linux_amd64/bin/gh
+          echo "$RUNNER_TEMP/gh_2.104.0_linux_amd64/bin" >> "$GITHUB_PATH"
       - name: Check the PR and the lanes its diff needs
         id: plan
         env:
@@ -61,14 +69,32 @@ jobs:
           # Never a snapshot version (update.sh's pattern), so a plain update always knows it for a test build.
           version="$base.pr$PR.${head:0:8}"
           echo "::notice::Test build $version of PR #$PR at $head"
-          printf 'build=true\nhead=%s\nversion=%s\nmain=%s\n' "$head" "$version" "$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+          printf 'build=true\nhead=%s\nversion=%s\n' "$head" "$version" >> "$GITHUB_OUTPUT"
   # Runs the PR's tree with no secret, as snapshot.yml's build job.
   build:
     needs: plan
     if: needs.plan.outputs.build == 'true'
     runs-on: xcode-27
     timeout-minutes: 120
+    permissions:
+      contents: read
+      pull-requests: read
     steps:
+      - name: Verify the PR before building for signing
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR: ${{ inputs.pr }}
+          HEAD: ${{ needs.plan.outputs.head }}
+          VERSION: ${{ needs.plan.outputs.version }}
+        run: |
+          [[ "$PR" =~ ^[1-9][0-9]*$ && "$HEAD" =~ ^[a-f0-9]{40}$ ]] || exit 1
+          [[ "$VERSION" =~ ^[0-9]+([.][0-9]+)*[.]pr${PR}[.]${HEAD:0:8}$ ]] || exit 1
+          IFS=$'	' read -r state cross current < <(gh pr view "$PR" -R "$GITHUB_REPOSITORY" \
+            --json state,isCrossRepository,headRefOid --jq '[.state, (.isCrossRepository | tostring), .headRefOid] | @tsv')
+          [[ "$state" == OPEN && "$cross" == false && "$current" == "$HEAD" ]] || {
+            echo "::error::PR #$PR moved, closed, or came from another repository"
+            exit 1
+          }
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           ref: ${{ needs.plan.outputs.head }}
@@ -76,7 +102,7 @@ jobs:
           persist-credentials: false
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
-          ref: ${{ needs.plan.outputs.main }}
+          ref: ${{ github.sha }}
           path: tools
           persist-credentials: false
       - uses: ./tools/notchcast/actions/xcode
@@ -103,7 +129,7 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
-          ref: ${{ needs.plan.outputs.main }}
+          ref: ${{ github.sha }}
           path: tools
           sparse-checkout: notchcast
           persist-credentials: false

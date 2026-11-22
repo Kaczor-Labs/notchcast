@@ -1,10 +1,12 @@
 #!/usr/bin/env python3
 """Verify ready-check.sh covers every pr.yml step and reports PASS or the first failing gate."""
+import hashlib
 import os
 from pathlib import Path
 import re
 import shutil
 import subprocess
+import tarfile
 import tempfile
 import unittest
 from unittest import mock
@@ -12,6 +14,7 @@ from unittest import mock
 
 ROOT = Path(__file__).resolve().parent.parent
 WORKFLOW = ROOT / ".github/workflows/pr.yml"
+SWIFT_ACTION = ROOT / ".github/actions/linux-swift/action.yml"
 SCRIPT = ROOT / "notchcast/ready-check.sh"
 # Every step of pr.yml and of the local actions it uses, and how ready-check.sh covers it.
 COVERED = {
@@ -31,14 +34,21 @@ COVERED = {
     ("pr.yml:mac", "Runner load at start"): "off a hosted runner: the job's own temp folder and load figures; no gate",
     ("pr.yml:mac", "Runner load at end"): "off a hosted runner: load figures; no gate",
     ("pr.yml:mac", "What the isolated runner proved"): "the isolated runner's stamp for its tested-tree record; no gate",
+    ("pr.yml:linux-checks", "./.github/actions/linux-python"): "pin the CI Python version; no local step",
     ("pr.yml:linux-checks", "actions/checkout"): "the shared clone at HEAD",
     ("pr.yml:linux-checks", "Checks that need no Mac"): "ci-build.sh sources ci-checks.sh",
-    ("pr.yml:linux-harnesses", "actions/cache"): "Linux Swift archive cache; no local step",
-    ("pr.yml:linux-harnesses", "Install the pinned Swift toolchain"): "GitHub's Linux toolchain setup; ready-check.sh uses Xcode",
+    ("pr.yml:linux-harnesses", "./.github/actions/linux-swift"): "Linux toolchain setup; ready-check.sh uses Xcode",
     ("pr.yml:linux-harnesses", "actions/checkout"): "the shared clone at HEAD",
     ("pr.yml:linux-harnesses", "Linux-ok harnesses the diff needs"): "ci-build.sh's harnesses step runs them all on the Mac",
+    ("pr.yml:script-tests", "./.github/actions/linux-python"): "pin the CI Python version; no local step",
+    ("pr.yml:script-tests", "Install pinned jq"): "pin the CI jq version; no local step",
+    ("pr.yml:script-tests", "./.github/actions/linux-node"): "pin the CI Node version; no local step",
+    ("pr.yml:script-tests", "./.github/actions/linux-swift"): "Linux toolchain setup; ready-check.sh uses Xcode",
+    ("pr.yml:script-tests", "Install pinned Ruby"): "pin the CI Ruby version; no local step",
+    ("pr.yml:script-tests", "Install pinned Gitleaks"): "pin the scanner used by the hook fixtures; no local step",
     ("pr.yml:script-tests", "actions/checkout"): "the shared clone at HEAD",
     ("pr.yml:script-tests", "Script tests"): "ci-build.sh's script-tests step",
+    ("pr.yml:build", "./.github/actions/linux-python"): "pin the CI Python version; no local step",
     ("pr.yml:build", "A train run names its base"): "train branches only",
     ("pr.yml:build", "A train's Mac job proves its tree"): "train branches only",
     ("pr.yml:build", "Every lane the diff needs passed, and only those were skipped"): "aggregate of the jobs above",
@@ -99,6 +109,21 @@ class CoverageTest(unittest.TestCase):
         self.assertEqual(found - COVERED.keys(), set(), "a pr.yml step ready-check.sh does not cover")
         self.assertEqual(COVERED.keys() - found, set(), "COVERED names a step pr.yml no longer has")
 
+    def test_script_tests_install_pinned_tools_before_running(self):
+        lane = {signature(text): text for job, text in steps(WORKFLOW, 6) if job == "script-tests"}
+        for name in ("./.github/actions/linux-swift", "Install pinned Ruby", "Install pinned Gitleaks"):
+            with self.subTest(tool=name):
+                self.assertLess(list(lane).index(name), list(lane).index("Script tests"))
+                self.assertIsNone(field(lane[name], "if"))
+                self.assertIsNone(field(lane[name], "continue-on-error"))
+        ruby = lane["Install pinned Ruby"]
+        self.assertRegex(env(ruby)["RUBY_VERSION"], r"^'\d+\.\d+\.\d+'$")
+        self.assertRegex(env(ruby)["RUBY_SHA256"], r"^[a-f0-9]{64}$")
+        self.assertIn('"$RUBY_SHA256" "$archive" | sha256sum --check', ruby)
+        swift = SWIFT_ACTION.read_text()
+        self.assertRegex(swift, r"version=\d+\.\d+\.\d+'")
+        self.assertRegex(swift, r"sha256=[a-f0-9]{64}'")
+
     def test_the_build_lane_is_ci_build(self):
         lane = next(text for scope, text in self.all_steps() if signature(text) == "Shared PR build lane")
         self.assertEqual(field(lane, "run"), "bash ../tools/notchcast/ci-build.sh")
@@ -109,12 +134,16 @@ class CoverageTest(unittest.TestCase):
         self.assertIn("bash notchcast/ci-build.sh", script)
 
     def test_the_linux_toolchain_is_verified_before_use_even_from_the_cache(self):
-        install = next(text for scope, text in self.all_steps() if signature(text) == "Install the pinned Swift toolchain")
-        script = install
+        action = {signature(text): text for _, text in steps(SWIFT_ACTION, 4)}
+        script = action["Install the pinned Swift toolchain"]
         check = script.index('printf \'%s  %s\\n\' "$SWIFT_SHA256" "$archive" | sha256sum --check')
         self.assertLess(script.index("fi"), check, "the check must run on a cache hit too")
         self.assertLess(check, script.index("tar "), "the archive must be verified before it is unpacked")
-        self.assertRegex(WORKFLOW.read_text(), r"key: swift-.*\$\{\{ env\.SWIFT_VERSION \}\}-\$\{\{ env\.SWIFT_SHA256 \}\}")
+        version = "${{ steps.pin.outputs.version }}"
+        sha256 = "${{ steps.pin.outputs.sha256 }}"
+        self.assertEqual(env(script)["SWIFT_VERSION"], version)
+        self.assertEqual(env(script)["SWIFT_SHA256"], sha256)
+        self.assertIn(f"key: swift-ubuntu24.04-${{{{ runner.arch }}}}-{version}-{sha256}", action["actions/cache"])
 
     def test_the_harness_step_matches_ci_build(self):
         ci_build = (ROOT / "notchcast/ci-build.sh").read_text()
@@ -155,32 +184,80 @@ MAC_JOBS = {"pr.yml": 1, "main-harnesses.yml": 1, "delete-check.yml": 1, "proof.
 
 
 class RunnerTest(unittest.TestCase):
-    def test_every_job_runs_on_a_hosted_image(self):
+    def check_runners(self, name, text):
         allowed = {"ubuntu-24.04", "ubuntu-latest", "xcode-27"}
-        gated, mac = {}, {}
+        gate = HARNESS_MAC if name == "pr.yml" else GATED_MAC
+        blocks = re.split(r"^  ([\w-]+):[ \t]*$", text.split("\njobs:\n", 1)[1], flags=re.M)
+        jobs = dict(zip(blocks[1::2], blocks[2::2]))
+        gated = mac = 0
+        for job, body in jobs.items():
+            match = re.search(r"^    runs-on:([^\n]*(?:\n      [^\n]*)*)", body, re.M)
+            if not match:
+                continue
+            value = match[1].strip()
+            if value in (gate, "xcode-27"):
+                mac += 1
+            if value == gate:
+                gated += 1
+                continue
+            labels = re.findall(r"[^\s\[\],'\"-][^\s\[\],'\"]*", re.sub(r"#.*", "", value))
+            self.assertTrue(labels, f"{name}:{job} runs-on has no label")
+            self.assertEqual(set(labels) - allowed, set(), f"{name}:{job} has an unapproved runner")
+        self.assertEqual(gated, GATED_JOBS.get(name, 0), name)
+        self.assertEqual(mac, MAC_JOBS.get(name, 0), name)
+
+    def test_every_job_runs_on_a_hosted_image(self):
         for workflow in sorted((ROOT / ".github/workflows").glob("*.y*ml")):
-            lines = workflow.read_text().splitlines()
-            for i, line in enumerate(lines):
-                match = re.match(r"(\s*)runs-on:(.*)", line)
-                if not match:
-                    continue
-                gate = HARNESS_MAC if workflow.name == "pr.yml" else GATED_MAC
-                if match[2].strip() == gate or match[2].strip() == "xcode-27":
-                    mac[workflow.name] = mac.get(workflow.name, 0) + 1
-                if match[2].strip() == gate:
-                    gated[workflow.name] = gated.get(workflow.name, 0) + 1
-                    continue
-                value = [match[2].split("#")[0]]
-                for more in lines[i + 1:]:
-                    if more.strip() and len(more) - len(more.lstrip()) <= len(match[1]):
-                        break
-                    value.append(more.split("#")[0])
-                labels = re.findall(r"[^\s\[\],'\"-][^\s\[\],'\"]*", " ".join(value))
-                with self.subTest(f"{workflow.name}:{i + 1}"):
-                    self.assertTrue(labels, "runs-on has no label")
-                    self.assertEqual(set(labels) - allowed, set(), "runs-on names a runner README Runners does not")
-        self.assertEqual(gated, GATED_JOBS, "only these jobs may leave the hosted images, behind the fork gate")
-        self.assertEqual(mac, MAC_JOBS, "a new macOS job needs a reason a Linux job cannot meet")
+            with self.subTest(workflow.name):
+                self.check_runners(workflow.name, workflow.read_text())
+
+    def test_workflows_do_not_reference_the_linux_pool(self):
+        for workflow in sorted((ROOT / ".github/workflows").glob("*.y*ml")):
+            with self.subTest(workflow.name):
+                self.assertNotRegex(workflow.read_text(), r"(?i)linux-pool|POOL_FREE_LINUX")
+
+    def test_node_installs_in_runner_temp_only_after_verifying_the_archive(self):
+        for name, job in (("pr.yml", "script-tests"), ("design.yml", "design")):
+            job_steps = [step for owner, step in steps(WORKFLOW.parent / name, 6) if owner == job]
+            signatures = [signature(step) for step in job_steps]
+            self.assertNotIn("actions/setup-node", signatures)
+            install = job_steps[signatures.index("./.github/actions/linux-node")]
+            self.assertRegex(install, r"(?m)^  version: '\d+\.\d+\.\d+'$")
+            self.assertRegex(install, r"(?m)^  sha256: [0-9a-f]{64}$")
+
+        action = ROOT / ".github/actions/linux-node/action.yml"
+        [(_, step)] = steps(action, 4)
+        self.assertEqual(env(step), {"NODE_VERSION": "${{ inputs.version }}", "NODE_SHA256": "${{ inputs.sha256 }}"})
+        script = step.split("run: |\n", 1)[1]
+        for valid in (False, True):
+            with self.subTest(valid=valid), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                runner_temp = root / "temp"
+                runner_temp.mkdir()
+                release = "node-v1.2.3-linux-x64"
+                binary = root / "node"
+                binary.write_text("#!/bin/bash\necho v1.2.3\n")
+                binary.chmod(0o755)
+                archive = root / "download.tar.xz"
+                with tarfile.open(archive, "w:xz") as tar:
+                    tar.add(binary, arcname=f"{release}/bin/node")
+                digest = hashlib.sha256(archive.read_bytes()).hexdigest()
+                path_file = root / "github-path"
+                result = subprocess.run(
+                    ["bash", "-e", "-c", 'curl() { cp "$NODE_FIXTURE" "$4"; }\n' + script],
+                    env={**os.environ, "NODE_VERSION": "1.2.3", "NODE_SHA256": digest if valid else "0" * 64,
+                         "NODE_FIXTURE": str(archive), "RUNNER_TEMP": str(runner_temp), "GITHUB_PATH": str(path_file),
+                         "RUNNER_TOOL_CACHE": str(root / "persistent-tools")},
+                    capture_output=True, text=True,
+                )
+                self.assertEqual(result.returncode == 0, valid, result.stdout + result.stderr)
+                self.assertEqual((runner_temp / release / "bin/node").exists(), valid)
+                self.assertFalse((root / "persistent-tools").exists())
+                if valid:
+                    self.assertIn("v1.2.3", result.stdout)
+                    self.assertEqual(path_file.read_text().strip(), str(runner_temp / release / "bin"))
+                else:
+                    self.assertFalse(path_file.exists())
 
     def test_a_train_passes_its_lane_to_every_workflow_that_can_leave_the_hosted_images(self):
         for name in GATED_JOBS:

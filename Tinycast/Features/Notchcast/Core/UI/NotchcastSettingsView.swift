@@ -68,16 +68,17 @@ struct NotchcastSettingsView: View {
                         .opacity(shown ? 1 : 0.45)
                 } trailing: {
                     EmptyView()
-                } controls: {
+                } fields: {
                     AliasField(key: command.id, name: command.name)
                     ShortcutRecorder(action: .notchcastCommand(entryID: command.id))
-                    Toggle(isOn: Binding(get: { shown }, set: { preferences.setShowsInLauncher(command.id, $0) })) {
-                        NotchcastLauncherCheckboxLabel(title: Text("Show in launcher"))
-                    }
-                        .toggleStyle(.checkbox)
-                        .launcherVisibilityHelp()
-                        .accessibilityLabel(
-                            String(localized: "Show \(command.name) in the launcher", table: "Notchcast"))
+                } checkbox: {
+                    Toggle("Show in launcher", isOn: Binding(
+                        get: { shown }, set: { preferences.setShowsInLauncher(command.id, $0) }
+                    ))
+                    .toggleStyle(.checkbox)
+                    .launcherVisibilityHelp()
+                    .accessibilityLabel(
+                        String(localized: "Show \(command.name) in the launcher", table: "Notchcast"))
                 }
             }
         } header: {

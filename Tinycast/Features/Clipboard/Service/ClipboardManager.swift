@@ -19,7 +19,7 @@ final class ClipboardManager {
     private let settings: AppSettings
     private var timer: Timer?
     private var sessionTokens: [NotificationToken] = []
-    private var lastChangeCount = 0
+    private var capturePolicy = ClipboardCapturePolicy()
     private var isCapturing = false
     private var isCapturePaused = false
 
@@ -71,7 +71,7 @@ final class ClipboardManager {
     // Re-baselining first is what stops a clip made in another session reading as new on resume.
     private func startPolling() {
         guard isCapturing, timer == nil else { return }
-        lastChangeCount = NSPasteboard.general.changeCount
+        capturePolicy.lastChangeCount = NSPasteboard.general.changeCount
         let timer = Timer(timeInterval: 0.5, repeats: true) { [weak self] _ in
             MainActor.assumeIsolated { self?.poll() }
         }
@@ -101,10 +101,14 @@ final class ClipboardManager {
         isCapturePaused = false
     }
 
+    func setSecretPromptOpen(_ isOpen: Bool) {
+        capturePolicy.setSecretPromptOpen(isOpen, changeCount: NSPasteboard.general.changeCount)
+    }
+
     // Load-bearing: a mismatched count means a foreign write the next poll must still see.
     func synchronizeAfterTinycastPasteboardMutation(changeCount: Int) {
         guard NSPasteboard.general.changeCount == changeCount else { return }
-        lastChangeCount = changeCount
+        capturePolicy.lastChangeCount = changeCount
     }
 
     /// A Finder select-all must not insert ten thousand rows on one poll tick.
@@ -148,8 +152,8 @@ final class ClipboardManager {
 
     private func poll() {
         let pb = NSPasteboard.general
-        guard !isCapturePaused, pb.changeCount != lastChangeCount else { return }
-        lastChangeCount = pb.changeCount
+        guard capturePolicy.shouldCapture(changeCount: pb.changeCount, isPaused: isCapturePaused)
+        else { return }
 
         if pb.types?.contains(Self.internalType) == true { return }
 
