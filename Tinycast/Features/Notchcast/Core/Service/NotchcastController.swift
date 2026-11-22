@@ -28,9 +28,12 @@ final class NotchcastController {
     private(set) var slots: [Slot] = []
     private(set) var enabledCommands: [NotchcastCommand] = []
     var onCommandsChanged: (([NotchcastCommand]) -> Void)?
+    var openSwitch: ((NotchcastSwitch) -> Void)?
+    private let presenter: any IslandPresenting
     private var enabled: Set<String> = []
     private var launcherIDs: [String] = []
     private var isRunning = false
+    private var hasPublishedCommands = false
 
     init(
         addons: [any NotchcastAddon.Type], defaults: UserDefaults, hub: NotchcastTapHub,
@@ -39,6 +42,7 @@ final class NotchcastController {
     ) {
         preferences = NotchcastPreferences(defaults: defaults, switches: addons.flatMap { $0.switches })
         self.hub = hub
+        self.presenter = presenter
         let transcription = NotchcastTranscriptionRunner(dictation: dictation)
         self.transcription = transcription
         func makeContext(recovery: NotchcastContext? = nil) -> NotchcastContext {
@@ -62,6 +66,31 @@ final class NotchcastController {
     }
 
     var switches: [NotchcastSwitch] { slots.flatMap { $0.addon.switches } }
+    private var declaredCommands: [NotchcastCommand] { slots.flatMap { $0.addon.commands } }
+    var offCommands: [NotchcastCommand] {
+        guard isRunning else { return [] }
+        return declaredCommands.filter { !enabled.contains($0.switchID) }
+    }
+
+    func name(ofCommand entryID: String) -> String? {
+        slots.flatMap(\.commands).first { $0.id == entryID }?.name
+    }
+
+    func switchOff(for entryID: String) -> NotchcastSwitch? {
+        guard let command = offCommands.first(where: { $0.id == entryID }) else { return nil }
+        let switches = self.switches
+        guard let own = switches.first(where: { $0.id == command.switchID }) else { return nil }
+
+        func blocker(for item: NotchcastSwitch, visiting: Set<String>) -> NotchcastSwitch {
+            guard !visiting.contains(item.id) else { return own }
+            guard preferences.isOn(item.id),
+                let dependency = item.dependencies.first(where: { !enabled.contains($0) })
+            else { return item }
+            guard let declared = switches.first(where: { $0.id == dependency }) else { return own }
+            return blocker(for: declared, visiting: visiting.union([item.id]))
+        }
+        return blocker(for: own, visiting: [])
+    }
 
     var hasPendingQuestion: Bool {
         slots.contains { $0.context.module?.hasPendingQuestion == true || $0.recovery.module?.hasPendingQuestion == true }
@@ -83,6 +112,7 @@ final class NotchcastController {
         guard isRunning else { return }
         isRunning = false
         apply([])
+        hasPublishedCommands = false
         for slot in slots {
             slot.recovery.module?.stop()
             slot.recovery.detach()
@@ -91,6 +121,18 @@ final class NotchcastController {
 
     /// False when the id is no enabled add-on command, so the caller falls through to stock.
     func run(entryID: String) -> Bool { submit(entryID: entryID, argument: "") }
+
+    func press(entryID: String) -> Bool {
+        if run(entryID: entryID) { return true }
+        guard let blocker = switchOff(for: entryID),
+            let command = declaredCommands.first(where: { $0.id == entryID })
+        else { return false }
+        let notice = IslandNotice(
+            id: "notchcast.commandOff", symbol: command.symbol,
+            text: String(localized: "\(command.name) is off", table: "Notchcast"), seconds: IslandNotice.failureSeconds)
+        presenter.post(notice, onTap: { [weak self] in self?.openSwitch?(blocker) })
+        return true
+    }
 
     /// The launcher's run: text typed in the command's inline field goes to its argument.
     func submit(entryID: String, argument: String) -> Bool {
@@ -151,7 +193,8 @@ final class NotchcastController {
         let shown = launcherCommands(commands).map(\.id)
         // A renamed run-time command keeps its id, so its name is compared too.
         let changed = commands.map { [$0.id, $0.name] } != enabledCommands.map { [$0.id, $0.name] }
-        guard changed || shown != launcherIDs else { return }
+        guard !hasPublishedCommands || !isRunning || changed || shown != launcherIDs else { return }
+        hasPublishedCommands = true
         enabledCommands = commands
         launcherIDs = shown
         onCommandsChanged?(commands)
