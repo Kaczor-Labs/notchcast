@@ -29,6 +29,7 @@ struct DialogView: View {
                 VStack(alignment: .leading, spacing: metrics.spacing.sm) {
                     Text(request.title)
                         .font(metrics.typography.panelTitle)
+                        .fixedSize(horizontal: false, vertical: true)
                     if let message = request.message {
                         Text(message)
                             .font(metrics.typography.rowTitle)

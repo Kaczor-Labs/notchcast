@@ -55,8 +55,34 @@ struct NotchcastHUDDialogSurfaceTest {
             check("dialog-\(name) icon is drawn", !pixels.inked(in: CGRect(x: top, y: top,
                 width: Theme.Size.dialogIcon, height: Theme.Size.dialogIcon)).isEmpty)
         }
+        checkLongDialogTitle()
         guard failures == 0 else { fatalError("\(failures) surface checks failed") }
         print("PASS HUD and dialog draw the island surface alone")
+    }
+
+    static func checkLongDialogTitle() {
+        let short = render("dialog-short-title") { linkQuestion(command: "Open Camera") }
+        let full = render("dialog-long-title") { linkQuestion(command: "Create Layout from Current Windows") }
+        let constrained = render("dialog-long-title-constrained", proposedHeight: short.size.height) {
+            linkQuestion(command: "Create Layout from Current Windows")
+        }
+        check("long title needs more height than a single line", full.height > short.height)
+        check("long title keeps its full height under a single-line proposal", constrained.height == full.height)
+    }
+
+    static func linkQuestion(command: String) -> some View {
+        DialogView(
+            request: DialogRequest(
+                title: "Run “\(command)” from a link?",
+                message: "An app or web page asked Notchcast to run this. Allow only links you trust.",
+                symbol: "link",
+                actions: [
+                    DialogAction(title: "Always Allow"),
+                    DialogAction(title: "Run Once"),
+                    DialogAction(title: "Cancel", role: .cancel),
+                ],
+                defaultIndex: 2, cancelIndex: 2),
+            width: Theme.Size.dialogCompactWidth, onChoose: { _ in })
     }
 
     static func check(_ label: String, _ ok: Bool) {
@@ -80,8 +106,11 @@ struct NotchcastHUDDialogSurfaceTest {
         check("\(name) corner is outside the shape", pixels.alpha(x: 0, y: 0) == 0)
     }
 
-    static func render(_ name: String, @ViewBuilder _ content: () -> some View) -> Pixels {
+    static func render(
+        _ name: String, proposedHeight: CGFloat? = nil, @ViewBuilder _ content: () -> some View
+    ) -> Pixels {
         let renderer = ImageRenderer(content: content().environment(\.colorScheme, .dark))
+        renderer.proposedSize = ProposedViewSize(width: nil, height: proposedHeight)
         renderer.scale = scale
         guard let image = renderer.cgImage else { fatalError("\(name) did not render") }
         if let folder = ProcessInfo.processInfo.environment["NC_SURFACE_RENDERS"],
