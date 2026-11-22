@@ -46,7 +46,8 @@ enum IslandProfileScenes {
     private static func near(_ a: Double, _ b: Double) -> Bool { abs(a - b) < 0.5 }
 
     private static func status(_ index: Int) -> IslandStatus {
-        IslandStatus(id: "status-\(index)", symbol: "arrow.triangle.2.circlepath", text: "Sync", label: "Sync \(index)")
+        let symbols = ["arrow.triangle.2.circlepath", "clock", "bolt", "wifi", "bell", "star"]
+        return IslandStatus(id: "status-\(index)", symbol: symbols[index], text: "Sync", label: "Sync \(index)")
     }
 
     private static func restingNotch(_ controller: IslandController) -> CGRect {
