@@ -23,7 +23,8 @@ final class SystemToolsPicker {
                 session: session, activate: { [weak self] in self?.activate($0) },
                 resized: { [weak self] in Task { @MainActor in self?.place() } }
             )
-            .environment(palette).environment(\.metrics, metrics).environment(\.islandFrosted, frosted))
+            .environment(palette).environment(\.metrics, metrics).environment(\.islandFrosted, frosted)
+            .environment(\.islandMenuKeyline, surfaces.outlinesMenus()))
         hosting.sizingOptions = [.intrinsicContentSize]
         panel.hasShadow = frosted
         panel.contentView = hosting
