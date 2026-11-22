@@ -9,6 +9,8 @@ final class DictationIslandCoordinator {
     private var presenter: (any IslandPresenting)?
     private var covered: @MainActor () -> Bool = { false }
     private var copies: @MainActor () -> Bool = { false }
+    private var captureDisplay: @MainActor () -> Void = {}
+    private var typingDisplay: @MainActor () -> UInt32? = { nil }
     private var showMissingCleanupModelHUD: @MainActor () -> Void = {}
     private let now: @MainActor () -> TimeInterval
     private let sleep: @MainActor (Duration) async throws -> Void
@@ -24,14 +26,16 @@ final class DictationIslandCoordinator {
 
     isolated deinit { ticker?.cancel() }
 
-    func start(core: AppCore) {
+    func start(core: AppCore, captureDisplay: @escaping @MainActor () -> Void,
+               typingDisplay: @escaping @MainActor () -> UInt32?) {
         let dictation = core.dictationCoordinator
         attach(
             presenter: core.islandPresenter,
             covered: { [weak core] in core.map { $0.palette.isVisible || $0.isShowingDialog } ?? false },
             copies: { [weak core, weak dictation] in
                 dictation?.field == nil && core?.settings.dictationDestination.pastes == false
-            })
+            },
+            captureDisplay: captureDisplay, typingDisplay: typingDisplay)
         let stock = dictation.showMessage
         showMissingCleanupModelHUD = { stock(DictationIslandSession.missingCleanupModel, .danger) }
         dictation.showMessage = { [weak self] text, tone in
@@ -46,10 +50,13 @@ final class DictationIslandCoordinator {
 
     /// The seam a Debug scene drives too, with its own presenter and no microphone.
     func attach(presenter: any IslandPresenting, covered: @escaping @MainActor () -> Bool,
-                copies: @escaping @MainActor () -> Bool) {
+                copies: @escaping @MainActor () -> Bool, captureDisplay: @escaping @MainActor () -> Void = {},
+                typingDisplay: @escaping @MainActor () -> UInt32? = { nil }) {
         self.presenter = presenter
         self.covered = covered
         self.copies = copies
+        self.captureDisplay = captureDisplay
+        self.typingDisplay = typingDisplay
         DictationPanelController.stand = { [weak self] in self?.stand(in: $0) }
     }
 
@@ -60,6 +67,8 @@ final class DictationIslandCoordinator {
         controller.state.levels = Array(repeating: 0, count: controller.state.levels.count)
         clear()
         session.begin(copies: copies(), at: now())
+        captureDisplay()
+        place()
         let generation = session.generation
         keysFocused = false
         presenter?.holdKeys(for: IslandNotice.dictationID, onFocus: { [weak self] focused in
@@ -83,14 +92,20 @@ final class DictationIslandCoordinator {
         ticker = Task { [weak self, sleep] in
             while !Task.isCancelled {
                 do { try await sleep(.seconds(1)) } catch { return }
-                guard !Task.isCancelled, self?.tick(generation: generation) == true else { return }
+                guard !Task.isCancelled, self?.tick(generation: generation, places: true) == true else { return }
             }
         }
     }
 
-    private func tick(generation: Int) -> Bool {
+    private func place() {
+        let display = typingDisplay()
+        if session.place(on: display) { presenter?.place(notice: IslandNotice.dictationID, on: display) }
+    }
+
+    private func tick(generation: Int, places: Bool = false) -> Bool {
         guard let state = controller?.state, state.phase == .listening,
               session.generation == generation, session.phase == .recording else { return false }
+        if places { place() }
         if session.hear(levels: state.levels, at: now()) { post() }
         return true
     }
@@ -113,7 +128,10 @@ final class DictationIslandCoordinator {
         if state.phase == .transcribing {
             ticker?.cancel()
             ticker = nil
-            if session.transcribe() { post() }
+            if session.transcribe() {
+                place()
+                post()
+            }
         } else {
             _ = tick(generation: generation)
         }
