@@ -34,6 +34,15 @@ func check(_ condition: Bool, _ message: @autoclosure () -> String) {
     if !condition { fatalError(message()) }
 }
 
+@MainActor private var regressionsFailed = false
+
+@MainActor
+private func regression(_ condition: Bool, _ message: String) {
+    guard !condition else { return }
+    regressionsFailed = true
+    FileHandle.standardError.write(Data("FAIL: \(message)\n".utf8))
+}
+
 /// Plays ditto, 7-Zip and bsdtar: each writes a stand-in archive where it is told to.
 final class FakeCompressors: Sendable {
     struct State {
@@ -122,9 +131,40 @@ final class FakePresenter: IslandPresenting {
 final class Record {
     var questions: [String] = []
     var answer = true
-    /// Keeps the next question open until the test answers it through `held`.
     var hold = false
-    var held: CheckedContinuation<Bool, Never>?
+    var ignoresCancel = false
+    private let question = Mutex((held: Optional<CheckedContinuation<Bool, Never>>.none, closed: 0))
+
+    var hasQuestion: Bool { question.withLock { $0.held != nil } }
+    var closed: Int { question.withLock { $0.closed } }
+
+    func confirm(_ title: String, _ message: String?) async -> Bool {
+        questions.append(title + "\n" + (message ?? ""))
+        guard !hasQuestion else { return false }
+        let honorsCancel = !ignoresCancel
+        guard !honorsCancel || !Task.isCancelled else { return false }
+        guard hold else { return answer }
+        let answer = await withTaskCancellationHandler {
+            await withCheckedContinuation { continuation in
+                question.withLock {
+                    if honorsCancel && Task.isCancelled { continuation.resume(returning: false) }
+                    else { $0.held = continuation }
+                }
+            }
+        } onCancel: {
+            if honorsCancel { self.answerQuestion(false, cancelled: true) }
+        }
+        return (!honorsCancel || !Task.isCancelled) && answer
+    }
+
+    nonisolated func answerQuestion(_ answer: Bool, cancelled: Bool = false) {
+        question.withLock {
+            guard let held = $0.held else { return }
+            $0.held = nil
+            if cancelled { $0.closed += 1 }
+            held.resume(returning: answer)
+        }
+    }
     var reveals: [URL] = []
     var selection: [URL] = []
     var selectionFailure: ArchiveFailure?
@@ -168,9 +208,7 @@ final class Rig {
         controller = NotchcastController(
             addons: [ArchivesAddon.self], defaults: defaults, hub: hub, dictation: FakeDictation(), presenter: presenter)
         controller.context(forSwitch: "archives")?.confirm = { title, message, _ in
-            record.questions.append(title + "\n" + (message ?? ""))
-            guard record.hold else { return record.answer }
-            return await withCheckedContinuation { record.held = $0 }
+            await record.confirm(title, message)
         }
         controller.start()
     }
@@ -355,21 +393,25 @@ func stopMidRun() async throws {
 }
 
 @MainActor
-func lateYes() async throws {
+func lateYes() async throws -> Int {
     let rig = try Rig()
     defer { rig.finish() }
     rig.tools.state.withLock { $0.hold = true }
     rig.record.hold = true
+    rig.record.ignoresCancel = true
     rig.module!.compress(.zip)
     await rig.waitForHeldTool()
     rig.presenter.posts[0].onTap?()
-    while rig.record.held == nil { await Task.yield() }
+    while !rig.record.hasQuestion { await Task.yield() }
+    rig.presenter.posts[0].onTap?()
+    for _ in 0..<5 { await Task.yield() }
     rig.tools.release()
     await rig.module!.drainCompression()
     rig.tools.state.withLock { ($0.held, $0.heldStarted) = (nil, false) }
     rig.module!.compress(.sevenZip)
     await rig.waitForHeldTool()
-    rig.record.held!.resume(returning: true)
+    let asks = rig.record.questions.count
+    rig.record.answerQuestion(true)
     for _ in 0..<5 { await Task.yield() }
     check(rig.module!.compression?.task.isCancelled == false, "a yes after its job ended leaves the next one running")
     rig.tools.release()
@@ -377,6 +419,7 @@ func lateYes() async throws {
     check(rig.presenter.texts == ["Compressing Trip.zip", "Compressed Trip.zip", "Compressing Trip.7z", "Compressed Trip.7z"],
           "\(rig.presenter.texts)")
     check(rig.visible == ["Trip.7z", "Trip.zip", "a.txt", "b.txt"], "both archives are kept: \(rig.visible)")
+    return asks
 }
 
 /// exFAT and SMB answer RENAME_EXCL with ENOTSUP; publishing then moves without overwriting.
@@ -429,16 +472,40 @@ func oneAtATime() async throws {
 }
 
 @MainActor
+func closesOnCompletion(lateYesAsks: Int) async throws {
+    let rig = try Rig()
+    defer { rig.finish() }
+    rig.tools.state.withLock { $0.hold = true }
+    rig.record.hold = true
+    rig.module!.compress(.zip)
+    await rig.waitForHeldTool()
+    rig.presenter.posts[0].onTap?()
+    while !rig.record.hasQuestion { await Task.yield() }
+    rig.tools.release()
+    await rig.module!.drainCompression()
+    regression(rig.record.closed == 1 && lateYesAsks == 1,
+               "compression closes its Stop question on completion and ignores a second tap (closed \(rig.record.closed), asks \(lateYesAsks))")
+    rig.record.answerQuestion(false)
+    check(rig.presenter.texts.last == "Compressed Trip.zip" && rig.bytes("Trip.zip") == "archive",
+          "completion keeps the archive: \(rig.presenter.texts) \(rig.visible)")
+}
+
+@MainActor
 func switchedOff() async throws {
     let rig = try Rig()
     defer { rig.finish() }
     rig.tools.state.withLock { $0.hold = true }
     rig.module!.compress(.tarZstd)
     await rig.waitForHeldTool()
+    rig.record.hold = true
+    rig.presenter.posts[0].onTap?()
+    while !rig.record.hasQuestion { await Task.yield() }
     let task = rig.module!.compression!.task
     rig.controller.preferences.set("archives", on: false)
     while rig.module != nil { await Task.yield() }
     await task.value
+    regression(rig.record.closed == 1, "switching Archives off closes the Stop compression question")
+    rig.record.answerQuestion(false)
     check(rig.visible == ["a.txt", "b.txt"] && rig.leftovers.isEmpty, "nothing is left: \(rig.visible) \(rig.leftovers)")
     check(rig.presenter.ends.contains("archives.compressing"), "the progress notice goes with the module")
     check(rig.presenter.texts == ["Compressing Trip.tar.zst"], "a switch-off posts nothing more: \(rig.presenter.texts)")
@@ -457,9 +524,10 @@ enum ArchivesCompressTest {
         try await refusesBeforeAnyTool()
         try await missingTools()
         try await stopMidRun()
-        try await lateYes()
+        try await closesOnCompletion(lateYesAsks: lateYes())
         try await oneAtATime()
         try await switchedOff()
+        if regressionsFailed { exit(EXIT_FAILURE) }
         print("nc-Archives-compress-test: ok")
     }
 }
