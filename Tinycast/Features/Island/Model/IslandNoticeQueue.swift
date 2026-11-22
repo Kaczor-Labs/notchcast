@@ -10,7 +10,7 @@ struct IslandNoticeQueue: Sendable {
     }
 
     private var entries: [Entry] = []
-    private var since: TimeInterval?
+    private var deadline: TimeInterval?
     private(set) var paused = false
 
     var notice: IslandNotice? { entries.last?.notice }
@@ -56,8 +56,8 @@ struct IslandNoticeQueue: Sendable {
 
     /// The top's dwell still to run, or nil while it is paused, untimed or gone.
     func remaining(at now: TimeInterval) -> TimeInterval? {
-        guard let since, let left = entries.last?.left else { return nil }
-        return max(left - (now - since), 0)
+        guard let deadline else { return nil }
+        return max(deadline - now, 0)
     }
 
     /// The notice under an expired top returns with the dwell it had left.
@@ -69,7 +69,6 @@ struct IslandNoticeQueue: Sendable {
             entries[top].notice.progress?.headline = false
             entries[top].left = nil
         }
-        since = nil
         run(at: now)
     }
 
@@ -85,13 +84,12 @@ struct IslandNoticeQueue: Sendable {
     }
 
     private mutating func settle(at now: TimeInterval) {
-        if let since, let top = entries.indices.last, let left = entries[top].left {
-            entries[top].left = max(left - (now - since), 0)
+        if let top = entries.indices.last, let left = remaining(at: now) {
+            entries[top].left = left
         }
-        since = nil
     }
 
     private mutating func run(at now: TimeInterval) {
-        since = !paused && entries.last?.left != nil ? now : nil
+        deadline = paused ? nil : entries.last?.left.map { now + $0 }
     }
 }
