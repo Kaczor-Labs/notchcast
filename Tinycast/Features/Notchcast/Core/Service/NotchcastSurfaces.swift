@@ -4,6 +4,7 @@ struct NotchcastSurfaces {
     /// The user's Interface Size, as `InterfaceMetrics(scale:)` takes it.
     var interfaceScale: () -> Double = { 1 }
     var isFrosted: () -> Bool = { false }
+    var outlinesMenus: () -> Bool = { true }
 }
 
 extension NotchcastContext {

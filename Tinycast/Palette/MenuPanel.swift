@@ -69,6 +69,7 @@ final class MenuPanelController {
     private weak var parent: NSWindow?
     private var placement: Placement?
     private var frosted = false
+    private var keyline = true
 
     var isOpen: Bool { panel?.isVisible ?? false }
 
@@ -78,6 +79,7 @@ final class MenuPanelController {
     ) {
         let panel = ensurePanel(state: core.palette)
         frosted = parent.screen.map { core.island.look(for: $0) == .frosted } ?? false
+        keyline = core.settings.islandOutlineWhenOpen
         panel.hasShadow = frosted
         configureCallbacks(
             for: panel, core: core, onKeyDown: onKeyDown, onDismiss: onDismiss)
@@ -104,7 +106,7 @@ final class MenuPanelController {
     }
 
     private func setContent(_ root: AnyView, in panel: MenuPanel) {
-        let root = AnyView(root.environment(\.islandFrosted, frosted))
+        let root = AnyView(root.environment(\.islandFrosted, frosted).environment(\.islandMenuKeyline, keyline))
         if let hosting {
             hosting.rootView = root
             return
