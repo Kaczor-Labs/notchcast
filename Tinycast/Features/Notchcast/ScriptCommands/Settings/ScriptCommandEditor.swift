@@ -2,8 +2,12 @@ import SwiftUI
 
 /// A row's fields; every edit saves at once, so the launcher name follows the typing.
 struct ScriptCommandEditor: View {
-    let id: String
-    let module: ScriptCommandsModule
+    @Environment(MainAppLink.self) private var mainApp
+    @State private var row: ScriptCommand
+
+    init(row: ScriptCommand) {
+        _row = State(initialValue: row)
+    }
 
     var body: some View {
         TextField(text: binding(\.name), prompt: Text("Update packages", tableName: "NotchcastScriptCommands")) {
@@ -37,11 +41,10 @@ struct ScriptCommandEditor: View {
 
     private func binding<Value>(_ field: WritableKeyPath<ScriptCommand, Value> & Sendable) -> Binding<Value> {
         Binding(
-            get: { module.rows.first { $0.id == id }.map { $0[keyPath: field] } ?? ScriptCommand(id: id)[keyPath: field] },
+            get: { row[keyPath: field] },
             set: { value in
-                guard var row = module.rows.first(where: { $0.id == id }) else { return }
                 row[keyPath: field] = value
-                module.update(row)
+                mainApp.sendNotchcast(.updateScript(row), to: ScriptCommandsAddon.self)
             })
     }
 
@@ -58,19 +61,29 @@ struct ScriptCommandEditor: View {
 
 /// The last run's whole output, selectable, with a copy button for pasting it elsewhere.
 struct ScriptCommandOutput: View {
+    @Environment(MainAppLink.self) private var mainApp
+    let id: String
     let name: String
-    let output: String
+    let revision: Int
+    @State private var expanded = false
+    @State private var output: String?
+    @State private var outputUnavailable = false
     private static let height: CGFloat = 160
 
     var body: some View {
-        DisclosureGroup {
+        DisclosureGroup(isExpanded: $expanded) {
             ScrollView {
                 Group {
-                    if output.isEmpty {
-                        Text("The last run printed nothing.", tableName: "NotchcastScriptCommands")
-                            .foregroundStyle(.secondary)
-                    } else {
-                        Text(verbatim: output).textSelection(.enabled)
+                    if let output {
+                        if output.isEmpty {
+                            Text("The last run printed nothing.", tableName: "NotchcastScriptCommands")
+                                .foregroundStyle(.secondary)
+                        } else {
+                            Text(verbatim: output).textSelection(.enabled)
+                        }
+                    } else if outputUnavailable {
+                        Text("Couldn’t load the last output.", tableName: "NotchcastScriptCommands")
+                            .foregroundStyle(Theme.Colors.destructive)
                     }
                 }
                 .font(Theme.Typography.code)
@@ -82,12 +95,25 @@ struct ScriptCommandOutput: View {
                 Text("Last output", tableName: "NotchcastScriptCommands")
                 Spacer()
                 Button {
-                    Paster.copyPlainText(output)
+                    if let output { Paster.copyPlainText(output) }
                 } label: {
                     Text("Copy Output", tableName: "NotchcastScriptCommands")
                 }
-                .disabled(output.isEmpty)
+                .disabled(output?.isEmpty != false)
                 .accessibilityLabel(String(localized: "Copy the last output of \(name)", table: "NotchcastScriptCommands"))
+            }
+        }
+        .task(id: expanded ? revision : nil) {
+            guard expanded else { return }
+            output = nil
+            outputUnavailable = false
+            do {
+                let text = try await mainApp.callNotchcast(id, to: ScriptCommandsAddon.self)
+                guard !Task.isCancelled else { return }
+                output = text
+                outputUnavailable = output == nil
+            } catch {
+                if !Task.isCancelled { outputUnavailable = true }
             }
         }
     }

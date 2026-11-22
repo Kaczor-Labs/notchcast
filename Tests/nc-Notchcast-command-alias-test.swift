@@ -158,6 +158,7 @@ enum NotchcastCommandAliasTests {
             check("\(entry.id) is stored under its stock-shaped key", action.defaultsKey == "hotkey." + entry.id)
         }
         let manager = HotKeyManager(defaults: defaults)
+        manager.activate()
         manager.extraActions = actions
         for (action, key) in zip(actions, [kVK_ANSI_1, kVK_ANSI_2]) {
             manager.setBinding(.combo(KeyShortcut(carbonKeyCode: key, carbonModifiers: controlKey | optionKey)),
@@ -167,6 +168,7 @@ enum NotchcastCommandAliasTests {
         var ran: [String] = []
         relaunched.onRunNotchcastCommand = { ran.append($0) }
         relaunched.extraActions = actions
+        relaunched.activate()
         let center = HotKeyCenter.current
         for action in actions { center?.entries[action.defaultsKey]?.onKeyDown(0) }
         check("both entries' chords reload and run exactly their commands", actions.count == 2 && ran == entries.map(\.id))
@@ -186,7 +188,7 @@ enum IconCache {
     static func observeStyle() {}
     static func icon(for source: EntryIcon, fileURL: URL) -> NSImage { NSImage() }
 }
-enum CommandID: String, CaseIterable, Sendable {
+enum CommandID: String, CaseIterable, Codable, Sendable {
     case fixture
     var name: String { rawValue }
     var sfSymbol: String { "" }
@@ -234,7 +236,7 @@ typealias CustomCommand = OtherEntry<CommandTag>
 typealias Quicklink = OtherEntry<QuicklinkTag>
 typealias AppleShortcut = OtherEntry<ShortcutTag>
 struct SystemAction: Sendable {
-    enum ID: String, CaseIterable, Sendable { case fixture }
+    enum ID: String, CaseIterable, Codable, Sendable { case fixture }
     var id = ID.fixture
     var entryID = ""
     var name = ""
@@ -248,7 +250,7 @@ enum SystemActionCatalog {
     static func action(id: SystemAction.ID) -> SystemAction { SystemAction() }
 }
 struct WindowCommand: Sendable {
-    enum ID: String, CaseIterable, Sendable { case fixture }
+    enum ID: String, CaseIterable, Codable, Sendable { case fixture }
     var id = ID.fixture
     var entryID = ""
     var name = ""

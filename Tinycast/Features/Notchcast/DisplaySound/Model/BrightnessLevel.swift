@@ -1,7 +1,7 @@
 import Foundation
 
 /// One display's level: 0…1 drives the hardware, −0.25…0 (extra dimming) dims the picture below it.
-struct BrightnessLevel: Equatable, Sendable {
+struct BrightnessLevel: Equatable, Codable, Sendable {
     static let step = 1.0 / 16
     static let extraDimmingRange = 0.25
     static let minimumPicture = 0.05
