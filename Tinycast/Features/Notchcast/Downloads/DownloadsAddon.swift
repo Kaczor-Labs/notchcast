@@ -16,30 +16,32 @@ enum DownloadsAddon: NotchcastAddon {
             subtitle: String(
                 localized: "Download video, audio, transcripts and webpages from clipboard links.",
                 table: "NotchcastDownloads"),
-            category: .downloads),
+            category: .downloads, searchTerms: ["files & downloads"]),
         NotchcastSwitch(
             id: "downloadsAria2",
             title: String(localized: "Fast Downloads with aria2c", table: "NotchcastDownloads"),
             subtitle: String(localized: "Media downloads only, when aria2c is installed.", table: "NotchcastDownloads"),
-            category: .downloads, dependencies: ["downloads"]),
+            category: .downloads, dependencies: ["downloads"],
+            searchTerms: ["use aria2c for faster media downloads"]),
         NotchcastSwitch(
             id: "distill",
             title: String(localized: "Distill", table: "NotchcastDownloads"),
             subtitle: String(
                 localized: "Save links and transcribe media into ~/Downloads/Distill/Raw.", table: "NotchcastDownloads"),
-            category: .downloads),
+            category: .downloads, searchTerms: ["files & downloads"]),
         NotchcastSwitch(
             id: "distillTimestamps",
             title: String(localized: "Distill Timestamps", table: "NotchcastDownloads"),
             subtitle: String(localized: "Approximate, one per chunk.", table: "NotchcastDownloads"),
-            category: .downloads, dependencies: ["distill"]),
+            category: .downloads, dependencies: ["distill"],
+            searchTerms: ["include approximate chunk timestamps in distill transcripts"]),
         NotchcastSwitch(
             id: "torrents",
             title: String(localized: "Torrents", table: "NotchcastDownloads"),
             subtitle: String(
                 localized: "Default app for magnet links and .torrent files; downloads them to ~/Downloads with aria2c.",
                 table: "NotchcastDownloads"),
-            category: .downloads),
+            category: .downloads, searchTerms: ["files & downloads"]),
         NotchcastSwitch(
             id: "torrentsKeepSharing",
             title: String(localized: "Keep sharing until ratio 1.0", table: "NotchcastDownloads"),

@@ -11,7 +11,8 @@ enum SmallCommandsAddon: NotchcastAddon {
             title: String(localized: "Small Tools", table: "NotchcastSmallCommands"),
             subtitle: String(localized: "Passwords, short links and AirDrop.", table: "NotchcastSmallCommands"),
             category: .launcher,
-            defaultEnabled: false
+            defaultEnabled: false,
+            searchTerms: ["small commands"]
         ),
     ]
 

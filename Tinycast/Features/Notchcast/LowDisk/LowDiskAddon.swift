@@ -9,7 +9,7 @@ enum LowDiskAddon: NotchcastAddon {
             title: String(localized: "Low disk warning", table: "NotchcastLowDisk"),
             subtitle: String(localized: "Warns on the island when the startup disk is nearly full.",
                              table: "NotchcastLowDisk"),
-            category: .notices
+            category: .notices, searchTerms: ["power"]
         ),
     ]
 

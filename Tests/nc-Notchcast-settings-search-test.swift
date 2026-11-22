@@ -24,9 +24,11 @@ struct NotchcastSettingsSearchTests {
         let shots = NotchcastSwitch(id: "shots", title: "Screenshots", subtitle: "Grab an area", category: .capture)
         let pages = NotchcastSwitch(id: "pages", title: "Agents page", subtitle: "", category: .islandPages)
         let plain = NotchcastSwitch(id: "plain", title: "Paste Plain Text", subtitle: "", category: .clipboard)
-        let distill = NotchcastSwitch(id: "distill", title: "Distill", subtitle: "", category: .downloads)
+        let distill = NotchcastSwitch(id: "distill", title: "Distill", subtitle: "", category: .downloads,
+                                     searchTerms: ["files & downloads"])
         let timestamps = NotchcastSwitch(id: "distillTimestamps", title: "Distill Timestamps", subtitle: "Include time codes",
-                                         category: .downloads, dependencies: ["distill"])
+                                         category: .downloads, dependencies: ["distill"],
+                                         searchTerms: ["include approximate chunk timestamps in distill transcripts"])
         let torrents = NotchcastSwitch(id: "torrents", title: "Torrents", subtitle: "", category: .downloads)
         let bond = NotchcastSwitch(id: "bond", title: "Use Wi-Fi and a plugged-in iPhone together", subtitle: "",
                                    category: .downloads, listedWhenAnyEnabled: ["torrents"])

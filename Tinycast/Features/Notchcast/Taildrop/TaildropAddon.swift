@@ -14,7 +14,8 @@ enum TaildropAddon: NotchcastAddon {
                 localized: "Send the Finder selection to another of your devices with Tailscale.",
                 table: "NotchcastTaildrop"),
             category: .files,
-            defaultEnabled: false
+            defaultEnabled: false,
+            searchTerms: ["files & downloads"]
         ),
     ]
 

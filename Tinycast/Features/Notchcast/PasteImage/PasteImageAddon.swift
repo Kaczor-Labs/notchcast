@@ -14,7 +14,8 @@ enum PasteImageAddon: NotchcastAddon {
                 localized: "⌘V in a Finder window saves a copied image there as a PNG file.",
                 table: "NotchcastPasteImage"),
             category: .finder,
-            requiredGrants: [.accessibility]
+            requiredGrants: [.accessibility],
+            searchTerms: ["files & downloads"]
         ),
     ]
 

@@ -12,7 +12,8 @@ enum ShowDesktopAddon: NotchcastAddon {
             subtitle: String(localized: "Press again to restore windows.", table: "NotchcastShowDesktop"),
             category: .keyboardMouse,
             defaultEnabled: true,
-            requiredGrants: [.accessibility]
+            requiredGrants: [.accessibility],
+            searchTerms: ["press f3 to show the desktop"]
         ),
     ]
 

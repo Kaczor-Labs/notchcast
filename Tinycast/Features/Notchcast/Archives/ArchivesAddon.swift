@@ -12,7 +12,7 @@ enum ArchivesAddon: NotchcastAddon {
             subtitle: String(
                 localized: "Extract archives with HatchZip and compress a Finder selection, next to the original.",
                 table: "NotchcastArchives"),
-            category: .files)
+            category: .files, searchTerms: ["files & downloads"])
     ]
 
     static let commands = [
