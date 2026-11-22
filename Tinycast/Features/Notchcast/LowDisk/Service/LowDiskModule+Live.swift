@@ -11,4 +11,8 @@ extension LowDiskModule {
     }
 
     static func isMainDisplayAsleep() -> Bool { CGDisplayIsAsleep(CGMainDisplayID()) != 0 }
+
+    static func waitForCheck(_ interval: Duration) async throws {
+        try await Task.sleep(for: interval, tolerance: interval == LowDiskPolicy.checkInterval ? .seconds(60) : .seconds(2))
+    }
 }

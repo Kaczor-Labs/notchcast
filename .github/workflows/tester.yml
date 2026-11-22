@@ -92,7 +92,10 @@ jobs:
         timeout-minutes: 10
         env:
           NC_AUDIT_RENDERS: ${{ runner.temp }}/out/renders
-          NOTCHCAST_ONLY_TESTS: nc-Notchcast-island-audit-render-test
+          NOTCHCAST_ONLY_TESTS: >-
+            nc-Notchcast-island-audit-notice-render-test
+            nc-Notchcast-island-audit-headline-render-test
+            nc-Notchcast-island-audit-status-pages-render-test
           LIBDISPATCH_COOPERATIVE_POOL_STRICT: '1'
           NOTCHCAST_TEST_HELPER_EXECUTABLE: '1'
         run: |

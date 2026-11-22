@@ -1,28 +1,13 @@
-// notchcast-sources: Tests/Kit/IslandAuditMenus.swift
 // notchcast-hosted-only
-// notchcast-sources: Tests/IslandNoticeAuditArtwork.swift
-// notchcast-sources: Tinycast/Platform/Appearance.swift Tinycast/DesignSystem/Theme.swift
-// notchcast-sources: Tinycast/DesignSystem/InterfaceMetrics.swift Tinycast/Features/Notchcast/NotchTheme.swift
+// notchcast-kit: notchcast-island-audit
+// notchcast-sources: Tests/Kit/IslandAuditMenus.swift
 // notchcast-sources: Tinycast/DesignSystem/KeyCapChip.swift Tinycast/DesignSystem/BarButton.swift
 // notchcast-sources: Tinycast/DesignSystem/ModalActionButtonStyle.swift Tinycast/DesignSystem/SymbolImage.swift
 // notchcast-sources: Tinycast/DesignSystem/Tooltip.swift Tinycast/DesignSystem/PopoverMenu.swift
 // notchcast-sources: Tinycast/Windows/HUD/MessageHUDView.swift Tinycast/Windows/Dialog/DialogView.swift
 // notchcast-sources: Tinycast/Windows/Dialog/DialogRequest.swift
-// notchcast-sources: Tinycast/Features/Island/Model/IslandPresentation.swift
-// notchcast-sources: Tinycast/Features/Island/Model/IslandHover.swift
 // notchcast-sources: Tinycast/Features/Notchcast/IslandButtonFill.swift
-// notchcast-sources: Tinycast/Features/Island/Model/IslandLevelDwell.swift
-// notchcast-sources: Tinycast/Features/Island/Model/PillMenuRows.swift Tinycast/Features/Calendar/Model/*.swift
-// notchcast-sources: Tinycast/Features/Island/Service/IslandNoticeArt.swift Tinycast/Features/Island/UI/IslandTone+Ink.swift
-// notchcast-sources: Tinycast/Features/Island/Service/IslandLevelArt.swift
-// notchcast-sources: Tinycast/Features/Island/Model/IslandKeyline.swift Tinycast/Features/Island/Model/IslandLook.swift
-// notchcast-sources: Tinycast/Features/Island/Service/IslandCanvas.swift
-// notchcast-sources: Tinycast/Features/Island/Service/IslandExpansionArt.swift
-// notchcast-sources: Tinycast/Features/Island/Service/IslandSongArt.swift Tinycast/Features/Island/Model/IslandPlayer.swift
-// notchcast-sources: Tinycast/Platform/Images/IconCache.swift
 // notchcast-sources: Tinycast/Features/Notchcast/NotchMenuInk.swift
-// notchcast-sources: Tinycast/Features/Island/Model/IslandLiveState.swift
-// notchcast-sources: Tinycast/Features/Island/Service/IslandPaletteSurface.swift
 // notchcast-sources: Tinycast/DesignSystem/FormTextInput.swift
 // notchcast-sources: Tinycast/Features/Updates/UI/UpdatePill.swift Tinycast/Features/Updates/Model/AppVersion.swift
 // notchcast-sources: Tinycast/Features/Updates/Model/ReleaseFeed.swift Tinycast/Features/Updates/Model/ReleaseChannel.swift
@@ -39,213 +24,24 @@
 import AppKit
 import SwiftUI
 
+@MainActor
+@main
+struct IslandAuditStatusPagesRenderTest {
+    static func main() {
+        IslandAuditRendering.prepare()
+        IslandAuditRendering.renderStatusAndPages()
+        print("PASS rendered island status pages audit surfaces to \(IslandAuditRendering.folder.path)")
+    }
+}
+
 // PopoverMenu reads it; the real one drags in the whole island, and a release build is never stock.
 @MainActor
 enum IslandVerification {
     static let stock = false
 }
 
-/// Audit only: renders the island's shared surfaces offscreen, in Dark on the island black, to PNGs
-/// for a look audit against notchcast/docs/design-system.md. `NC_AUDIT_RENDERS` names the folder.
-@MainActor
-@main
-struct NotchcastIslandAuditRenderTest {
-    static let folder = URL(fileURLWithPath: ProcessInfo.processInfo.environment["NC_AUDIT_RENDERS"]
-        ?? NSTemporaryDirectory() + "nc-island-audit-renders")
-    /// `NC_AUDIT_LOOK=frosted` renders Frosted on its glass tint over a white wallpaper.
-    static let frosted = ProcessInfo.processInfo.environment["NC_AUDIT_LOOK"] == "frosted"
-
-    static func write(_ name: String, _ image: CGImage?) {
-        guard let image else { preconditionFailure("\(name) did not render") }
-        let data = NSBitmapImageRep(cgImage: image).representation(using: .png, properties: [:])
-        guard let data else { preconditionFailure("\(name) has no PNG") }
-        do {
-            try data.write(to: folder.appendingPathComponent("\(name).png"))
-        } catch {
-            preconditionFailure("\(name): \(error)")
-        }
-    }
-
-    /// Every SwiftUI surface sits on the island in its look, the way the island hosts it.
-    static func render(_ name: String, @ViewBuilder _ content: () -> some View) {
-        let view = content()
-            .padding(16)
-            .background(ground(desk: false))
-            .environment(\.islandFrosted, frosted)
-            .environment(\.paletteOnIsland, true)
-            .environment(\.colorScheme, .dark)
-            .environment(PaletteState())
-        let renderer = ImageRenderer(content: view)
-        renderer.scale = 2
-        write(name, renderer.cgImage)
-    }
-
-    /// Engine art draws in AppKit into the pill's outline, so it renders the way the canvas does.
-    static func renderArt(_ name: String, _ art: some PillArt) {
-        let width = art.layout.leading + art.layout.trailing + 2 * Theme.Spacing.lg
-        let size = CGSize(width: max(width, NotchTheme.Size.islandRest.width), height: 36)
-        writeArt(name, size: CGSize(width: size.width + 32, height: size.height + 32)) { rect in
-            let pill = CGRect(x: 16, y: 16, width: size.width, height: size.height)
-            paintPill(rect, pill: NSBezierPath(roundedRect: pill, xRadius: size.height / 2, yRadius: size.height / 2))
-            art.draw(in: pill)
-        }
-    }
-
-    /// Black's pill on a grey desk; Frosted's glass tint over a white wallpaper, as the canvas fills it.
-    static func paintPill(_ rect: CGRect, pill: NSBezierPath) {
-        (frosted ? NSColor.white : blackDesk).setFill()
-        rect.fill()
-        NSColor(frosted ? NotchTheme.Colors.islandGlassTint : NotchTheme.Colors.islandSurface).setFill()
-        pill.fill()
-    }
-
-    static func writeArt(_ name: String, size: CGSize, _ draw: @escaping (CGRect) -> Void) {
-        let image = NSImage(size: size, flipped: false) { rect in
-            draw(rect)
-            return true
-        }
-        var proposed = CGRect(origin: .zero, size: size)
-        write(name, image.cgImage(forProposedRect: &proposed, context: nil, hints: [.ctm: AffineTransform(scale: 2)]))
-    }
-
-    /// The level band in the report slot: on Frosted it must leave the glass under it unpainted.
-    static func renderBand(_ name: String, _ art: IslandLevelArt) {
-        let band = IslandLevelBand(frame: CGRect(origin: .zero, size: art.bandSize))
-        band.art = art
-        let box = CGRect(x: 16, y: 16, width: art.bandSize.width, height: art.bandSize.height)
-        writeArt(name, size: CGSize(width: box.width + 32, height: box.height + 32)) { rect in
-            paintPill(rect, pill: NSBezierPath(rect: box))
-            let image = NSImage(size: box.size, flipped: false) { _ in
-                band.draw(band.bounds)
-                return true
-            }
-            image.draw(in: box)
-        }
-    }
-
-    /// #884's hover states at the screen's top edge: a 185 × 32 notch, or the 96 × 24 pill without one.
-    static func renderHover(_ meeting: MeetingEvent) {
-        let notchSize = CGSize(width: 185, height: 32)
-        let glance = IslandGlance(meeting, now: Date(timeIntervalSince1970: 0), locale: Locale(identifier: "en_US"))
-        let ready = IslandStatus(id: "update", symbol: "arrow.clockwise.circle", text: nil, label: "Update ready")
-        let download = IslandNotice(id: "dl", symbol: "arrow.down.circle", text: "Lecture 04.mp4",
-                                    progress: IslandProgress(fraction: 0.42, headline: false))
-        func hovered(_ top: IslandNotice?, _ statuses: [IslandStatus] = []) -> IslandNotice {
-            IslandHover.notice(top: top, statuses: statuses, glance: false, level: false, hovered: true)!
-        }
-        /// Draws the island hanging from the top edge, `body` tall below the notch, art in that lower part.
-        func island(_ name: String, width: CGFloat, body: CGFloat, notch: Bool, radius: CGFloat,
-                    notchLeft: CGFloat? = nil, _ draw: @escaping (CGRect) -> Void) {
-            let top = notch ? notchSize.height : 0
-            let size = CGSize(width: max(width, notch ? notchSize.width : NotchTheme.Size.islandRest.width) + 64,
-                              height: top + body + 32)
-            writeArt(name, size: size) { rect in
-                let shape = CGRect(x: 32, y: rect.maxY - top - body, width: size.width - 64, height: top + body)
-                let path = NSBezierPath()
-                path.move(to: CGPoint(x: shape.minX, y: rect.maxY))
-                path.line(to: CGPoint(x: shape.minX, y: shape.minY + radius))
-                path.appendArc(withCenter: CGPoint(x: shape.minX + radius, y: shape.minY + radius), radius: radius,
-                               startAngle: 180, endAngle: 270)
-                path.line(to: CGPoint(x: shape.maxX - radius, y: shape.minY))
-                path.appendArc(withCenter: CGPoint(x: shape.maxX - radius, y: shape.minY + radius), radius: radius,
-                               startAngle: 270, endAngle: 360)
-                path.line(to: CGPoint(x: shape.maxX, y: rect.maxY))
-                path.close()
-                paintPill(rect, pill: notch || body > NotchTheme.Size.islandRest.height ? path
-                          : NSBezierPath(roundedRect: shape, xRadius: body / 2, yRadius: body / 2))
-                if notch {
-                    NSColor.black.setFill()
-                    CGRect(x: shape.minX + (notchLeft ?? (shape.width - notchSize.width) / 2),
-                           y: rect.maxY - notchSize.height,
-                           width: notchSize.width, height: notchSize.height).fill()
-                }
-                draw(notch && body == 0 ? CGRect(x: shape.minX, y: shape.minY, width: shape.width, height: top)
-                     : CGRect(x: shape.minX, y: shape.minY, width: shape.width, height: body))
-            }
-        }
-        /// The compact pill: content hugs the ends, a notch keeps the middle, as the engine sizes the slots.
-        func compactWidth(_ art: some PillArt, notch: Bool) -> CGFloat {
-            let inner = notch ? Theme.Spacing.md : 0
-            return (notch ? notchSize.width : 0) + 2 * (Theme.Spacing.lg + inner) + art.layout.leading
-                + art.layout.trailing
-        }
-        func compact(_ name: String, _ art: some PillArt, notch: Bool) {
-            island(name, width: compactWidth(art, notch: notch), body: notch ? 0 : NotchTheme.Size.islandRest.height,
-                   notch: notch, radius: notch ? 10 : 12,
-                   notchLeft: Theme.Spacing.lg + Theme.Spacing.md + art.layout.leading) { art.draw(in: $0) }
-        }
-        let cover = NSImage(size: CGSize(width: 64, height: 64), flipped: false) { rect in
-            NSGradient(colors: [.systemOrange, .systemPink, .systemPurple])?.draw(in: rect, angle: 45)
-            return true
-        }
-        let art = cover.tiffRepresentation.flatMap(NSBitmapImageRep.init(data:))?.representation(using: .png, properties: [:])
-        let song = IslandNowPlaying(title: "Paper Lanterns", artist: "Juno Vale", artwork: art, time: nil, isPlaying: true,
-                                    id: "a")
-        var long = song
-        long.title = "Everything Everywhere at Once (Extended Midnight Version)"
-        long.artist = "Juno Vale, The Paper Lanterns Orchestra"
-        let look = frosted ? "frosted" : "black"
-        for notch in [false, true] {
-            let form = notch ? "notch" : "nonotch"
-            renderNoticeWrap(notch: notch ? notchSize.width : nil) { name, card in
-                island(name, width: card.size.width, body: card.size.height,
-                       notch: notch, radius: Theme.Radius.panel) { card.draw(in: $0) }
-            } pill: { name, art in compact(name, art, notch: notch) }
-            let meetingArt = GlanceArt(glance, notch: notch, frosted: frosted)
-            compact("884-04-meeting-\(form)-\(look)", meetingArt, notch: notch)
-            let expansion = IslandExpansionArt(glance, frosted: frosted)
-            island("884-05-meeting-hover-\(form)-\(look)",
-                   width: max(expansion.size.width, compactWidth(meetingArt, notch: notch)), body: expansion.size.height,
-                   notch: notch, radius: Theme.Radius.panel) { expansion.draw(in: $0) }
-            compact("884-06-status-\(form)-\(look)", IslandStatusArt([ready], notch: notch, frosted: frosted),
-                    notch: notch)
-            compact("884-08-download-\(form)-\(look)", IslandNoticeArt(download, notch: notch, frosted: frosted),
-                    notch: notch)
-            func songGlance(_ step: String, _ base: IslandNowPlaying,
-                            _ change: (inout IslandNowPlaying) -> Void = { _ in }) {
-                var shown = base
-                change(&shown)
-                let cover = IslandCover.image(shown.artwork, side: IslandSongArt.cell, scale: 2, frosted: frosted)
-                compact("850-\(step)-\(form)-\(look)", IslandSongArt(shown, notch: notch, frosted: frosted, still: true,
-                                                                     cover: cover), notch: notch)
-            }
-            island("850-00-no-song-\(form)-\(look)", width: notch ? 185 : NotchTheme.Size.islandRest.width,
-                   body: notch ? 0 : NotchTheme.Size.islandRest.height, notch: notch, radius: notch ? 10 : 12) { _ in }
-            songGlance("01-song-playing", song)
-            songGlance("02-song-paused", song) { $0.isPlaying = false }
-            songGlance("03-song-cover-loading", song) { $0.artwork = nil }
-            for overflow in IslandSongOverflow.allCases where !notch {
-                songGlance("04-song-long-\(overflow.rawValue)", long) { $0.overflow = overflow }
-            }
-            for (name, playing) in [("850-05-song-change", song), ("850-06-song-change-long", long)] where notch {
-                let cover = IslandCover.image(playing.artwork, side: IslandSongArt.cell, scale: 2, frosted: frosted)
-                let change = IslandExpansionArt(playing, cover: cover, frosted: frosted)
-                let width = compactWidth(IslandSongArt(playing, notch: true, frosted: frosted, still: true, cover: cover),
-                                         notch: true)
-                island("\(name)-\(form)-\(look)", width: max(change.size.width, width), body: change.size.height,
-                       notch: true, radius: Theme.Radius.panel) { change.draw(in: $0) }
-            }
-            for (step, top, statuses) in [("07-status", nil, [ready]), ("09-download", download, [])] {
-                let notice = hovered(top, statuses)
-                if notch {
-                    let line = IslandHeadlineArt(notice, notch: notchSize.width, frosted: frosted)
-                    island("884-\(step)-hover-\(form)-\(look)", width: line.size.width, body: line.size.height,
-                           notch: true, radius: Theme.Radius.panel) { line.draw(in: $0) }
-                } else {
-                    compact("884-\(step)-hover-\(form)-\(look)",
-                            IslandNoticeArt(notice, notch: false, frosted: frosted), notch: false)
-                }
-            }
-        }
-    }
-
-    static func main() {
-        _ = NSApplication.shared
-        NSApp.setActivationPolicy(.prohibited)
-        NSApp.appearance = NSAppearance(named: .darkAqua)
-        // ImageRenderer draws no Liquid Glass until a hosting view has laid glass out once.
-        NSHostingView(rootView: Color.clear.frosted(in: Circle())).layoutSubtreeIfNeeded()
-        try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+extension IslandAuditRendering {
+    static func renderStatusAndPages() {
         renderMenuKeylines()
 
         render("01-keycaps") {
@@ -366,14 +162,6 @@ struct NotchcastIslandAuditRenderTest {
         }
         for notch in [false, true] {
             let form = notch ? "notch" : "island"
-            renderArt("10-notice-glyph-\(form)", IslandNoticeArt(
-                IslandNotice(id: "a", symbol: "doc.on.clipboard", text: "Copied"), notch: notch, frosted: frosted))
-            renderArt("11-notice-installing-\(form)", IslandNoticeArt(
-                IslandNotice(id: "b", symbol: "arrow.down.circle", text: "Installing",
-                             progress: IslandProgress(fraction: 0.4, headline: false)), notch: notch, frosted: frosted))
-            renderArt("12-notice-failed-\(form)", IslandNoticeArt(
-                IslandNotice(id: "c", symbol: "exclamationmark.arrow.circlepath", text: "Update failed",
-                             isFailure: true, seconds: 4), notch: notch, frosted: frosted))
             renderArt("13-status-\(form)", IslandStatusArt(
                 [IslandStatus(id: "u", symbol: "arrow.clockwise.circle", text: nil, label: "Update ready")],
                 notch: notch, frosted: frosted))
@@ -404,17 +192,6 @@ struct NotchcastIslandAuditRenderTest {
         renderArt("14e-level-notch-low", IslandLevelArt(
             IslandLevel(source: "volume", symbol: "speaker.wave.1.fill", label: "Volume", value: 0.31),
             notch: true, frosted: frosted))
-        renderHeadline("21-headline-failed-notch", IslandHeadlineArt(
-            IslandNotice(id: "d", symbol: "exclamationmark.arrow.circlepath", text: "Update failed",
-                         isFailure: true, seconds: 4), notch: 200, frosted: frosted))
-        for (key, text, hex) in [("10s-notice-swatch-blue", "#12ABEF", 0x12ABEF), ("10t-notice-swatch-black", "#000000", 0),
-                                 ("10u-notice-swatch-white", "#FFFFFF", 0xFFFFFF), ("10v-notice-swatch-graphite", "#1C1D20",
-                                 0x1C1D20), ("10w-notice-swatch-rgb", "rgb(18, 171, 239)", 0x12ABEF)] {
-            let notice = IslandNotice(id: "pick", symbol: "eyedropper", text: text, swatch: IslandSwatch(red: Double(hex >> 16)
-                / 255, green: Double(hex >> 8 & 0xFF) / 255, blue: Double(hex & 0xFF) / 255))
-            renderArt("\(key)-island", IslandNoticeArt(notice, notch: false, frosted: frosted))
-            renderHeadline("21\(key.dropFirst(2))-notch", IslandHeadlineArt(notice, notch: 200, frosted: frosted))
-        }
         let meeting = MeetingEvent(id: "m", title: "Standup", start: Date(timeIntervalSince1970: 600),
             end: Date(timeIntervalSince1970: 2400), isAllDay: false, isDeclined: false, calendarID: "c",
             calendarName: "Work", calendarColor: nil, calendarItemID: "i", link: nil)
@@ -425,7 +202,7 @@ struct NotchcastIslandAuditRenderTest {
             paintPill(rect, pill: NSBezierPath(roundedRect: room, xRadius: 16, yRadius: 16))
             expansion.draw(in: room)
         }
-        renderHover(meeting)
+        renderMeetingAndSong(meeting)
         renderBand("22-level-band", IslandLevelArt(
             IslandLevel(source: "volume", symbol: "speaker.wave.2.fill", label: "Volume", value: 0.6),
             notch: false, frosted: frosted))
@@ -434,7 +211,86 @@ struct NotchcastIslandAuditRenderTest {
                 auditLauncherBottom(notch: notch)
             }
         }
-        print("PASS rendered island audit surfaces to \(folder.path)")
+    }
+
+    /// Every SwiftUI surface sits on the island in its look, the way the island hosts it.
+    static func render(_ name: String, @ViewBuilder _ content: () -> some View) {
+        let view = content()
+            .padding(16)
+            .background(ground(desk: false))
+            .environment(\.islandFrosted, frosted)
+            .environment(\.paletteOnIsland, true)
+            .environment(\.colorScheme, .dark)
+            .environment(PaletteState())
+        let renderer = ImageRenderer(content: view)
+        renderer.scale = 2
+        write(name, renderer.cgImage)
+    }
+
+    /// The level band in the report slot: on Frosted it must leave the glass under it unpainted.
+    static func renderBand(_ name: String, _ art: IslandLevelArt) {
+        let band = IslandLevelBand(frame: CGRect(origin: .zero, size: art.bandSize))
+        band.art = art
+        let box = CGRect(x: 16, y: 16, width: art.bandSize.width, height: art.bandSize.height)
+        writeArt(name, size: CGSize(width: box.width + 32, height: box.height + 32)) { rect in
+            paintPill(rect, pill: NSBezierPath(rect: box))
+            let image = NSImage(size: box.size, flipped: false) { _ in
+                band.draw(band.bounds)
+                return true
+            }
+            image.draw(in: box)
+        }
+    }
+
+    private static func renderMeetingAndSong(_ meeting: MeetingEvent) {
+        let glance = IslandGlance(meeting, now: Date(timeIntervalSince1970: 0), locale: Locale(identifier: "en_US"))
+        let ready = IslandStatus(id: "update", symbol: "arrow.clockwise.circle", text: nil, label: "Update ready")
+        let cover = NSImage(size: CGSize(width: 64, height: 64), flipped: false) { rect in
+            NSGradient(colors: [.systemOrange, .systemPink, .systemPurple])?.draw(in: rect, angle: 45)
+            return true
+        }
+        let art = cover.tiffRepresentation.flatMap(NSBitmapImageRep.init(data:))?.representation(using: .png, properties: [:])
+        let song = IslandNowPlaying(title: "Paper Lanterns", artist: "Juno Vale", artwork: art, time: nil, isPlaying: true,
+                                    id: "a")
+        var long = song
+        long.title = "Everything Everywhere at Once (Extended Midnight Version)"
+        long.artist = "Juno Vale, The Paper Lanterns Orchestra"
+        let look = frosted ? "frosted" : "black"
+        for notch in [false, true] {
+            let form = notch ? "notch" : "nonotch"
+            let meetingArt = GlanceArt(glance, notch: notch, frosted: frosted)
+            compact("884-04-meeting-\(form)-\(look)", meetingArt, notch: notch)
+            let expansion = IslandExpansionArt(glance, frosted: frosted)
+            island("884-05-meeting-hover-\(form)-\(look)",
+                   width: max(expansion.size.width, compactWidth(meetingArt, notch: notch)), body: expansion.size.height,
+                   notch: notch, radius: Theme.Radius.panel) { expansion.draw(in: $0) }
+            compact("884-06-status-\(form)-\(look)", IslandStatusArt([ready], notch: notch, frosted: frosted),
+                    notch: notch)
+            func songGlance(_ step: String, _ base: IslandNowPlaying,
+                            _ change: (inout IslandNowPlaying) -> Void = { _ in }) {
+                var shown = base
+                change(&shown)
+                let cover = IslandCover.image(shown.artwork, side: IslandSongArt.cell, scale: 2, frosted: frosted)
+                compact("850-\(step)-\(form)-\(look)", IslandSongArt(shown, notch: notch, frosted: frosted, still: true,
+                                                                     cover: cover), notch: notch)
+            }
+            island("850-00-no-song-\(form)-\(look)", width: notch ? 185 : NotchTheme.Size.islandRest.width,
+                   body: notch ? 0 : NotchTheme.Size.islandRest.height, notch: notch, radius: notch ? 10 : 12) { _ in }
+            songGlance("01-song-playing", song)
+            songGlance("02-song-paused", song) { $0.isPlaying = false }
+            songGlance("03-song-cover-loading", song) { $0.artwork = nil }
+            for overflow in IslandSongOverflow.allCases where !notch {
+                songGlance("04-song-long-\(overflow.rawValue)", long) { $0.overflow = overflow }
+            }
+            for (name, playing) in [("850-05-song-change", song), ("850-06-song-change-long", long)] where notch {
+                let cover = IslandCover.image(playing.artwork, side: IslandSongArt.cell, scale: 2, frosted: frosted)
+                let change = IslandExpansionArt(playing, cover: cover, frosted: frosted)
+                let width = compactWidth(IslandSongArt(playing, notch: true, frosted: frosted, still: true, cover: cover),
+                                         notch: true)
+                island("\(name)-\(form)-\(look)", width: max(change.size.width, width), body: change.size.height,
+                       notch: true, radius: Theme.Radius.panel) { change.draw(in: $0) }
+            }
+        }
     }
 }
 

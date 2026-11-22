@@ -44,17 +44,6 @@ enum ProcessListPolicy {
             || ["/windowserver", "/loginwindow", "/launchd"].contains { path.hasSuffix($0) }
     }
 
-    /// Mach ticks to nanoseconds without overflowing; nil when the timebase or total cannot fit.
-    static func nanoseconds(ticks: UInt64, numerator: UInt32, denominator: UInt32) -> UInt64? {
-        guard denominator > 0 else { return nil }
-        let divisor = UInt64(denominator)
-        let whole = (ticks / divisor).multipliedReportingOverflow(by: UInt64(numerator))
-        let remainder = (ticks % divisor).multipliedReportingOverflow(by: UInt64(numerator))
-        guard !whole.overflow, !remainder.overflow else { return nil }
-        let total = whole.partialValue.addingReportingOverflow(remainder.partialValue / divisor)
-        return total.overflow ? nil : total.partialValue
-    }
-
     /// A process absent from `previous` reads 0 % until the next reading.
     static func rows(
         previous: [ProcessSample], current: [ProcessSample], elapsedNanoseconds: UInt64, ownPID: Int32,

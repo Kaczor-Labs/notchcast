@@ -97,7 +97,9 @@ nonisolated struct ArchiveExtractor: Sendable {
             case .noSpace where !inPlace && !keepOnly:
                 let check = ArchiveCommandLine.check(archive: job.archive, staging: destination.staging)
                 let plan = try await run(extractor, check, secret)
-                guard await askInPlace(plan.output) else {
+                let accepted = await askInPlace(plan.output)
+                try Task.checkCancellation()
+                guard accepted else {
                     try? FileManager.default.removeItem(at: destination.staging)
                     throw failure
                 }

@@ -34,11 +34,11 @@ enum PlainPastePolicy {
 
     /// Only ⌥⇧⌘V: ⇧⌘V and ⌃ variants are other edit commands in several apps.
     static func isMatchStyleEquivalent(
-        bundleIdentifier: String?, commandCharacter: String?, modifierMask: UInt32?, isEnabled: Bool
+        bundleIdentifier: String?, commandCharacter: String?, modifierMask: UInt32?
     ) -> Bool {
         let shiftAndOption: UInt32 = 1 | 2
         return !otherEquivalentApps.contains(bundleIdentifier ?? "") && commandCharacter?.uppercased() == "V"
-            && modifierMask == shiftAndOption && isEnabled
+            && modifierMask == shiftAndOption
     }
 
     /// Nothing, or one link or media file name, as a browser or a chat copies an image beside it.
