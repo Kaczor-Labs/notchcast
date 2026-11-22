@@ -214,6 +214,7 @@ struct IslandPageRowView: View {
             Spacer(minLength: metrics.spacing.md)
             if let trailing = row.trailing {
                 Text(trailing).font(metrics.typography.rowTrailing).foregroundStyle(Theme.Colors.textSecondary)
+                    .fixedSize()
             }
         }
         .padding(.horizontal, metrics.spacing.md)
