@@ -9,6 +9,7 @@ final class ArchivesModule: NotchcastModule {
     /// Set once the archive types were claimed, so a later launch leaves the user's Finder choice alone.
     private static let claimedKey = "archivesClaimed"
     private static let noticeID = "archives.extracting"
+    private static let resultNoticeID = "archives.extractionResult"
     private static let compressNoticeID = "archives.compressing"
 
     private let context: NotchcastContext
@@ -17,6 +18,8 @@ final class ArchivesModule: NotchcastModule {
     private(set) var jobs: [ArchiveJob] = []
     private(set) var current: (job: ArchiveJob, task: Task<Void, Never>, resuming: UUID?, question: Task<Void, Never>?)?
     private var pruning: Task<Void, Never>?
+    private var isRunning = false
+    private var interruptedForSwitch = false
     /// `label` is nil while Finder's selection is still being read.
     private(set) var compression: (id: UUID, label: String?, task: Task<Void, Never>, question: Task<Void, Never>?)?
 
@@ -30,8 +33,11 @@ final class ArchivesModule: NotchcastModule {
     }
 
     func start() {
-        jobs = ArchiveJob.decode((try? Data(contentsOf: environment.journal)) ?? Data())
-        pruneStoppedJobs()
+        isRunning = true
+        if current == nil {
+            jobs = environment.loadJournal()
+            pruneStoppedJobs()
+        }
         context.handleOpenURL { [weak self] url in
             guard let self, url.isFileURL, ArchiveRoute(fileName: url.lastPathComponent) != nil else { return false }
             open([url])
@@ -45,16 +51,22 @@ final class ArchivesModule: NotchcastModule {
 
     /// A switch turned off gives the archive types back; quitting the app keeps them.
     func stop() {
+        isRunning = false
         picker?.cancel()
         picker = nil
-        if !context.isEnabled(Self.switchID), context.defaults.bool(forKey: Self.defaultAppKey) {
+        let switchedOff = !context.isEnabled(Self.switchID)
+        if switchedOff, context.defaults.bool(forKey: Self.defaultAppKey) {
             setDefaultApp(false)
         }
         pruning?.cancel()
         pruning = nil
+        if switchedOff, let current {
+            if !current.task.isCancelled { interruptedForSwitch = true }
+            context.recovery(ArchivesAddon.Recovery.self)?.stopping = self
+        }
         current?.task.cancel()
         current?.question?.cancel()
-        current = nil
+        if !switchedOff && !interruptedForSwitch { current = nil }
         context.presenter.end(notice: Self.noticeID)
         compression?.task.cancel()
         compression?.question?.cancel()
@@ -71,7 +83,7 @@ final class ArchivesModule: NotchcastModule {
             guard !jobs.contains(where: { $0.archive.path == url.path && $0.stopped == nil }) else { continue }
             jobs.append(ArchiveJob(id: UUID(), archive: url, inPlace: context.defaults.bool(forKey: Self.inPlaceKey)))
         }
-        save()
+        environment.saveJournal(jobs)
         runNext()
     }
 
@@ -95,7 +107,7 @@ final class ArchivesModule: NotchcastModule {
             current?.task.cancel()
         } else {
             jobs.removeAll { $0.id == id && $0.stopped == nil }
-            save()
+            environment.saveJournal(jobs)
         }
     }
 
@@ -103,7 +115,7 @@ final class ArchivesModule: NotchcastModule {
         let running = current?.job.id
         // A stopped entry holds the only path its archive can still be extracted into.
         jobs.removeAll { $0.id != running && $0.stopped == nil }
-        save()
+        environment.saveJournal(jobs)
         if let running { cancel(running) }
     }
 
@@ -201,7 +213,7 @@ final class ArchivesModule: NotchcastModule {
                 guard !Task.isCancelled, let self else { return }
                 if removed {
                     jobs.removeAll { $0.id == job.id }
-                    save()
+                    environment.saveJournal(jobs)
                 }
             }
             self?.pruning = nil
@@ -211,24 +223,12 @@ final class ArchivesModule: NotchcastModule {
 
     private func resumeStaging(_ job: ArchiveJob, reportedPath: String?) async -> URL? {
         guard current?.job.id == job.id, !Task.isCancelled,
-            let size = ArchiveExtractor.size(job.archive)
+            let entry = ArchiveExtractor.stoppedEntry(for: job, reportedPath: reportedPath, in: jobs)
         else { return nil }
-        let path: String?
-        if let reportedPath {
-            guard reportedPath.hasPrefix("/") else { return nil }
-            path = URL(filePath: reportedPath).resolvingSymlinksInPath().path
-        } else {
-            path = nil
-        }
-        let entry = jobs.first {
-            $0.archive.path == job.archive.path && $0.stopped?.size == size
-                && (path == nil || $0.staging.resolvingSymlinksInPath().path == path)
-        }
-        guard let entry else { return nil }
         if !FileManager.default.fileExists(atPath: job.archive.path + ".hatchzip") {
             if await ArchiveExtractor.removeStaging(for: entry), current?.job.id == job.id, !Task.isCancelled {
                 jobs.removeAll { $0.id == entry.id }
-                save()
+                environment.saveJournal(jobs)
             }
             return nil
         }
@@ -237,26 +237,33 @@ final class ArchivesModule: NotchcastModule {
     }
 
     private func runNext() {
-        guard pruning == nil, current == nil, let job = jobs.first(where: { $0.stopped == nil }) else { return }
+        guard isRunning, context.isEnabled(Self.switchID), pruning == nil, current == nil,
+            let job = jobs.first(where: { $0.stopped == nil })
+        else { return }
         let extractor = environment.extractor
         let ask: ArchiveExtractor.AskInPlace = { [weak self] plan in await self?.askInPlace(job, plan: plan) ?? false }
         let password: ArchiveExtractor.AskPassword = { [weak self] wrong in await self?.askPassword(job, wrong: wrong) }
         let askPassword = context.askSecret == nil ? nil : password
         let markInPlace: @Sendable (Bool) async -> Void = { [weak self] on in await self?.markInPlace(job.id, on) }
-        let task = Task { [weak self] in
+        let task = Task { [self] in
             do {
-                let placed = try await extractor.extract(
+                let staged = try await extractor.extract(
                     job, askPassword: askPassword, askInPlace: ask, onInPlace: markInPlace,
                     resumeStaging: { [weak self] path in await self?.resumeStaging(job, reportedPath: path) })
-                self?.finish(job, placed: placed, failure: nil)
-            } catch is CancellationError {
-                await self?.stopped(job, failure: nil, extractor: extractor)
+                guard current?.job.id == job.id else { return }
+                try Task.checkCancellation()
+                interruptedForSwitch = !context.isEnabled(Self.switchID)
+                guard !interruptedForSwitch else { throw CancellationError() }
+                let placed = try extractor.place(staged.job, stem: staged.stem)
+                finish(job, placed: placed, failure: nil)
             } catch {
-                let failure = error as? ArchiveFailure ?? .failed(error.localizedDescription)
-                await self?.stopped(job, failure: failure, extractor: extractor)
+                let failure = Task.isCancelled || error is CancellationError
+                    ? nil : error as? ArchiveFailure ?? .failed(error.localizedDescription)
+                await stopped(job, failure: failure, extractor: extractor)
             }
         }
         current = (job, task, nil, nil)
+        context.presenter.end(notice: Self.resultNoticeID)
         context.presenter.post(
             IslandNotice(id: Self.noticeID, symbol: "archivebox",
                          text: String(localized: "Extracting \(job.name)", table: "NotchcastArchives"),
@@ -264,7 +271,6 @@ final class ArchivesModule: NotchcastModule {
             onTap: { [weak self] in self?.confirmCancel(job) })
     }
 
-    /// A stop or failure discards or salvages the job; after a module stop it stays to resume.
     private func stopped(_ job: ArchiveJob, failure: ArchiveFailure?, extractor: ArchiveExtractor) async {
         guard current?.job.id == job.id else { return }
         switch failure {
@@ -288,26 +294,35 @@ final class ArchivesModule: NotchcastModule {
         stoppedSize: Int64? = nil
     ) {
         guard current?.job.id == job.id else { return }
-        let resumed = failure == nil && !cancelled ? current?.resuming : nil
-        current?.question?.cancel()
-        current = nil
-        if let stoppedSize, let index = jobs.firstIndex(where: { $0.id == job.id }) {
+        let resuming = current?.resuming
+        let index = jobs.firstIndex(where: { $0.id == job.id })
+        if let index, let stoppedSize {
             jobs[index].stopped = ArchiveFingerprint(size: stoppedSize, stoppedAt: context.now())
+        } else if interruptedForSwitch, cancelled, !job.inPlace, resuming == nil, let index {
+            var retry = ArchiveJob(id: UUID(), archive: job.archive, inPlace: false)
+            retry.needsPassword = job.needsPassword
+            jobs[index] = retry
         } else {
+            let resumed = failure == nil && !cancelled ? resuming : nil
             jobs.removeAll { $0.id == job.id || $0.id == resumed }
         }
-        save()
+        current?.question?.cancel()
+        current = nil
+        interruptedForSwitch = false
+        context.recovery(ArchivesAddon.Recovery.self)?.stopping = nil
+        environment.saveJournal(jobs)
         context.presenter.end(notice: Self.noticeID)
         if let failure {
             report(failure, salvaged: placed)
         } else if cancelled {
             post(String(localized: "Stopped extracting \(job.name)", table: "NotchcastArchives"),
-                 symbol: "xmark.circle", reveal: placed)
+                 id: Self.resultNoticeID, symbol: "xmark.circle", reveal: placed)
         } else if let placed {
             post(String(localized: "Extracted \(placed.lastPathComponent)", table: "NotchcastArchives"),
-                 symbol: "checkmark.circle", reveal: placed)
+                 id: Self.resultNoticeID, symbol: "checkmark.circle", reveal: placed)
         } else {
-            post(String(localized: "\(job.name) is empty", table: "NotchcastArchives"), symbol: "archivebox", reveal: nil)
+            post(String(localized: "\(job.name) is empty", table: "NotchcastArchives"),
+                 id: Self.resultNoticeID, symbol: "archivebox", reveal: nil)
         }
         runNext()
     }
@@ -318,9 +333,9 @@ final class ArchivesModule: NotchcastModule {
             onTap: revealing(salvaged))
     }
 
-    private func post(_ text: String, symbol: String, reveal url: URL?) {
+    private func post(_ text: String, id: String = "archives.done", symbol: String, reveal url: URL?) {
         context.presenter.post(
-            IslandNotice(id: "archives.done", symbol: symbol, text: text),
+            IslandNotice(id: id, symbol: symbol, text: text),
             onTap: revealing(url))
     }
 
@@ -345,7 +360,7 @@ final class ArchivesModule: NotchcastModule {
     }
 
     private func askInPlace(_ job: ArchiveJob, plan: String) async -> Bool {
-        guard current?.job.id == job.id, let confirm = context.confirm else { return false }
+        guard !Task.isCancelled, current?.job.id == job.id, let confirm = context.confirm else { return false }
         let title = String(localized: "Not enough space to keep \(job.name)", table: "NotchcastArchives")
         let message = String(
             localized: "Extract in place instead? The archive is removed as its files come out.\n\n\(plan)",
@@ -360,7 +375,7 @@ final class ArchivesModule: NotchcastModule {
         else { return nil }
         if jobs[index].needsPassword != true {
             jobs[index].needsPassword = true
-            save()
+            environment.saveJournal(jobs)
         }
         return await NotchcastQuestion.$takesLauncherPriority.withValue(true) {
             await askSecret(
@@ -374,15 +389,9 @@ final class ArchivesModule: NotchcastModule {
     private func markInPlace(_ id: UUID, _ on: Bool) {
         guard let index = jobs.firstIndex(where: { $0.id == id }) else { return }
         jobs[index].inPlace = on
-        save()
+        environment.saveJournal(jobs)
     }
 
     /// The journal's copy, which knows whether the user switched it to in place.
     private func latest(_ job: ArchiveJob) -> ArchiveJob { jobs.first { $0.id == job.id } ?? job }
-
-    private func save() {
-        let folder = environment.journal.deletingLastPathComponent()
-        try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
-        try? ArchiveJob.encode(jobs).write(to: environment.journal, options: .atomic)
-    }
 }

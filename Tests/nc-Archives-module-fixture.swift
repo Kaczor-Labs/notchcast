@@ -1,0 +1,256 @@
+import AppKit
+import Synchronization
+import SwiftUI
+
+// The shipped `live` and settings UI are left out: these stand in, so `makeModule` runs as shipped.
+
+struct ArchivesSettingsView: View {
+    init(context: NotchcastContext) {}
+    var body: some View { EmptyView() }
+}
+
+@MainActor var harnessEnvironment: ArchivesEnvironment?
+
+extension ArchivesEnvironment {
+    static func live() -> Self { harnessEnvironment! }
+}
+
+func check(_ condition: Bool, _ message: @autoclosure () -> String) {
+    if !condition { fatalError(message()) }
+}
+
+/// Plays each tool: listings come from `listings`, an extraction writes `files` where it is told.
+final class FakeTools: Sendable {
+    struct State {
+        var calls: [[String]] = []
+        var listings: [String: String] = [:]
+        var files: [String] = ["a.txt", "b/c.txt"]
+        var extractStatuses: [Int32] = []
+        var partialFile: String?
+        var hold: Set<String> = []
+        var held: CheckedContinuation<Void, Never>?
+        var heldStarted = false
+        var holdThroughCancellation = false
+        var installed: Set<String> = ["hatchzip", "bsdtar", "lsar", "unar", "gzip", "zstd"]
+        var journalInPlaceAtExtract: [Bool] = []
+    }
+
+    let state = Mutex(State())
+    let journal: URL
+
+    init(journal: URL) { self.journal = journal }
+
+    func locate(_ name: String) -> URL? {
+        state.withLock { $0.installed.contains(name) } ? URL(filePath: "/fake/bin/\(name)") : nil
+    }
+
+    func release() {
+        state.withLock { state in
+            defer { state.held = nil }
+            state.held?.resume()
+        }
+    }
+    func run(_ tool: URL, _ arguments: [String]) async throws -> ArchiveProcessResult {
+        // As the real `ArchiveProcess.run`, which starts nothing in a task that is already cancelled.
+        try Task.checkCancellation()
+        let name = tool.lastPathComponent
+        state.withLock { $0.calls.append([name] + arguments) }
+        switch (name, arguments.first) {
+        case ("hatchzip", "list"), ("bsdtar", "-tvf"), ("lsar", "-j"):
+            let archive = URL(filePath: arguments.last!).lastPathComponent
+            return ArchiveProcessResult(status: 0, output: state.withLock { $0.listings[archive] } ?? "")
+        case ("hatchzip", "check"):
+            return ArchiveProcessResult(status: 0, output: "required 29.9 MB")
+        case ("hatchzip", "restore"):
+            return ArchiveProcessResult(status: 1, errors: "error: nothing to restore")
+        default:
+            break
+        }
+        let journalled = ArchiveJob.decode((try? Data(contentsOf: journal)) ?? Data())
+        state.withLock { $0.journalInPlaceAtExtract.append(journalled.first?.inPlace ?? false) }
+        if state.withLock({ $0.hold.contains(URL(filePath: arguments[1]).lastPathComponent) }) {
+            let staging = URL(filePath: arguments[arguments.firstIndex(of: "-o")! + 1])
+            try Data("half".utf8).write(to: staging.appending(path: "partial.txt"))
+            let holdThroughCancellation = state.withLock { $0.holdThroughCancellation }
+            await withTaskCancellationHandler {
+                await withCheckedContinuation { continuation in
+                    state.withLock {
+                        if Task.isCancelled { return continuation.resume() }
+                        ($0.heldStarted, $0.held) = (true, continuation)
+                    }
+                }
+            } onCancel: {
+                if !holdThroughCancellation { self.release() }
+            }
+            if holdThroughCancellation { return ArchiveProcessResult(status: 0) }
+            try Task.checkCancellation()
+        }
+        let status = state.withLock { $0.extractStatuses.isEmpty ? 0 : $0.extractStatuses.removeFirst() }
+        guard status == 0 else {
+            if let file = state.withLock({ $0.partialFile }) {
+                let output = URL(filePath: arguments[arguments.firstIndex(of: "-o")! + 1])
+                try Data("partial".utf8).write(to: output.appending(path: file))
+            }
+            return ArchiveProcessResult(status: status, errors: "error: no room")
+        }
+        if name == "sh" {
+            try Data("x".utf8).write(to: URL(filePath: arguments[4]))
+            return ArchiveProcessResult(status: 0)
+        }
+        let output = URL(filePath: name == "bsdtar" ? arguments[3] : arguments[arguments.firstIndex(of: "-o")! + 1])
+        for file in state.withLock({ $0.files }) {
+            let url = output.appending(path: file)
+            try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+            try Data("x".utf8).write(to: url)
+        }
+        return ArchiveProcessResult(status: 0)
+    }
+}
+
+@MainActor
+final class FakePresenter: IslandPresenting {
+    var posts: [(notice: IslandNotice, onTap: (@MainActor () -> Void)?)] = []
+    var ends: [String] = []
+    var queue = IslandNoticeQueue()
+
+    var texts: [String] { posts.map(\.notice.text) }
+    var failures: [String] { posts.filter(\.notice.isFailure).map(\.notice.text) }
+
+    func showLevel(_ level: IslandLevel) {}
+    func post(_ notice: IslandNotice, onTap: (@MainActor () -> Void)?) {
+        posts.append((notice, onTap))
+        queue.post(notice, at: 0)
+    }
+
+    func end(notice id: String) {
+        ends.append(id)
+        queue.end(id, at: 0)
+    }
+    func setStatus(_ status: IslandStatus?, for id: String, onTap: (@MainActor () -> Void)?) {}
+    func setMenuRows(_ rows: [IslandMenuRow], owner: String, onSelect: @escaping @MainActor (String) -> Void) {}
+}
+
+/// What the fake Mac was asked to do.
+@MainActor
+final class Record {
+    var questions: [String] = []
+    var answer = true
+    var hold = false
+    var ignoresCancel = false
+    private let question = Mutex((held: Optional<CheckedContinuation<Bool, Never>>.none, closed: 0))
+    var hasQuestion: Bool { question.withLock { $0.held != nil } }
+    var closed: Int { question.withLock { $0.closed } }
+    func confirm(_ title: String, _ message: String?) async -> Bool {
+        questions.append(title + "\n" + (message ?? ""))
+        guard !hasQuestion else { return false }
+        let honorsCancel = !ignoresCancel
+        guard hold else { return (!honorsCancel || !Task.isCancelled) && answer }
+        let answer = await withTaskCancellationHandler {
+            await withCheckedContinuation { continuation in
+                question.withLock {
+                    if honorsCancel && Task.isCancelled { return continuation.resume(returning: false) }
+                    $0.held = continuation
+                }
+            }
+        } onCancel: {
+            if honorsCancel { self.answerQuestion(false, cancelled: true) }
+        }
+        return (!honorsCancel || !Task.isCancelled) && answer
+    }
+
+    nonisolated func answerQuestion(_ answer: Bool, cancelled: Bool = false) {
+        question.withLock {
+            guard let held = $0.held else { return }
+            $0.held = nil
+            if cancelled { $0.closed += 1 }
+            held.resume(returning: answer)
+        }
+    }
+    var reveals: [URL] = []
+    var defaultApp: [Bool] = []
+    var selection: [URL] = []
+}
+
+@MainActor
+final class Rig {
+    let suite: String
+    let defaults: UserDefaults
+    let folder = FileManager.default.temporaryDirectory.appending(path: "nc-archives-\(UUID())", directoryHint: .isDirectory)
+    let presenter = FakePresenter()
+    let tools: FakeTools
+    let record = Record()
+    let controller: NotchcastController
+
+    init(
+        switchOn: Bool = true, journal: [ArchiveJob] = [], listings: [String: String] = [:],
+        suite: String = "nc-Archives-test.\(UUID())"
+    ) throws {
+        self.suite = suite
+        defaults = UserDefaults(suiteName: suite)!
+        if defaults.object(forKey: "archives") == nil { defaults.set(switchOn, forKey: "archives") }
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        let journalURL = folder.appending(path: "support/archives.json")
+        tools = FakeTools(journal: journalURL)
+        tools.state.withLock { $0.listings = listings }
+        if !journal.isEmpty {
+            try FileManager.default.createDirectory(
+                at: journalURL.deletingLastPathComponent(), withIntermediateDirectories: true)
+            try ArchiveJob.encode(journal).write(to: journalURL)
+        }
+        let (tools, record) = (tools, record)
+        harnessEnvironment = ArchivesEnvironment(
+            journal: journalURL,
+            extractor: ArchiveExtractor(
+                locate: { tools.locate($0) }, run: { tool, arguments, _ in try await tools.run(tool, arguments) }),
+            compressor: ArchiveCompressor(locate: { URL(filePath: "/fake/bin/\($0)") }, run: { _, arguments in
+                try Data("zip".utf8).write(to: URL(filePath: arguments.last!))
+                return ArchiveProcessResult(status: 0)
+            }),
+            finderSelection: { record.selection },
+            setDefaultApp: { record.defaultApp.append($0) },
+            reveal: { record.reveals.append($0) },
+            pickArchives: { [] })
+        let hub = NotchcastTapHub(
+            syntheticTag: 0x54494E59, isTrusted: { true }, makeSession: { _ in fatalError("Archives installs no tap") })
+        controller = NotchcastController(
+            addons: [ArchivesAddon.self], defaults: defaults, hub: hub, dictation: FakeDictation(), presenter: presenter)
+        controller.context(forSwitch: "archives")?.confirm = { title, message, _ in
+            await record.confirm(title, message)
+        }
+        controller.start()
+    }
+
+    var module: ArchivesModule? { controller.context(forSwitch: "archives")?.module(ArchivesModule.self) }
+
+    func archive(_ name: String, listing: String = "") -> URL {
+        let url = folder.appending(path: name)
+        FileManager.default.createFile(atPath: url.path, contents: Data("archive".utf8))
+        tools.state.withLock { $0.listings[name] = listing }
+        return url
+    }
+
+    func exists(_ name: String) -> Bool { FileManager.default.fileExists(atPath: folder.appending(path: name).path) }
+
+    var visible: [String] {
+        ((try? FileManager.default.contentsOfDirectory(atPath: folder.path)) ?? []).filter { $0 != "support" }.sorted()
+    }
+
+    var calls: [[String]] { tools.state.withLock { $0.calls } }
+
+    func journal() -> [ArchiveJob] {
+        ArchiveJob.decode((try? Data(contentsOf: harnessEnvironment!.journal)) ?? Data())
+    }
+
+    func finish(keepingDefaults: Bool = false) {
+        controller.stop()
+        try? FileManager.default.removeItem(at: folder)
+        if !keepingDefaults { UserDefaults().removePersistentDomain(forName: suite) }
+    }
+}
+
+let twoFiles = """
+          Size  Name
+           1 B  a.txt
+           1 B  b/c.txt
+    2 entries, 2 B uncompressed, 7 B zip archive
+    """

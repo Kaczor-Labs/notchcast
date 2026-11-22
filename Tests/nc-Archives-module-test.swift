@@ -1,6 +1,7 @@
 // notchcast-sources: Tinycast/Features/Notchcast/Core/Model/*.swift
 // notchcast-sources: Tinycast/Features/Notchcast/Core/Service/*.swift
 // notchcast-sources: Tinycast/Features/Island/Model/IslandPresentation.swift
+// notchcast-sources: Tinycast/Features/Island/Model/IslandNoticeQueue.swift
 // notchcast-sources: Tinycast/Features/Island/Service/IslandPresenting.swift
 // notchcast-sources: Tinycast/Platform/NotificationToken.swift Tinycast/Platform/ProcessExit.swift
 // notchcast-sources: Tinycast/Platform/ExecutableLocator.swift
@@ -12,259 +13,10 @@
 // notchcast-sources: Tinycast/Features/Notchcast/Archives/Service/ArchiveCompressor.swift
 // notchcast-sources: Tinycast/Features/Notchcast/Archives/Service/ArchiveProcess.swift
 // notchcast-sources: Tests/NotchcastDictationFixture.swift
+// notchcast-sources: Tests/nc-Archives-module-fixture.swift
 
-import AppKit
+import Foundation
 import Synchronization
-import SwiftUI
-
-// The shipped `live` and settings UI are left out: these stand in, so `makeModule` runs as shipped.
-
-struct ArchivesSettingsView: View {
-    init(context: NotchcastContext) {}
-    var body: some View { EmptyView() }
-}
-
-@MainActor var harnessEnvironment: ArchivesEnvironment?
-
-extension ArchivesEnvironment {
-    static func live() -> Self { harnessEnvironment! }
-}
-
-func check(_ condition: Bool, _ message: @autoclosure () -> String) {
-    if !condition { fatalError(message()) }
-}
-
-@MainActor private var regressionsFailed = false
-
-@MainActor
-private func regression(_ condition: Bool, _ message: String) {
-    guard !condition else { return }
-    regressionsFailed = true
-    FileHandle.standardError.write(Data("FAIL: \(message)\n".utf8))
-}
-
-/// Plays each tool: listings come from `listings`, an extraction writes `files` where it is told.
-final class FakeTools: Sendable {
-    struct State {
-        var calls: [[String]] = []
-        var listings: [String: String] = [:]
-        var files: [String] = ["a.txt", "b/c.txt"]
-        var extractStatuses: [Int32] = []
-        var partialFile: String?
-        var hold: Set<String> = []
-        var held: CheckedContinuation<Void, Never>?
-        var heldStarted = false
-        var installed: Set<String> = ["hatchzip", "bsdtar", "lsar", "unar", "gzip", "zstd"]
-        var journalInPlaceAtExtract: [Bool] = []
-    }
-
-    let state = Mutex(State())
-    let journal: URL
-
-    init(journal: URL) { self.journal = journal }
-
-    func locate(_ name: String) -> URL? {
-        state.withLock { $0.installed.contains(name) } ? URL(filePath: "/fake/bin/\(name)") : nil
-    }
-
-    func release() {
-        state.withLock { state in
-            defer { state.held = nil }
-            state.held?.resume()
-        }
-    }
-    func run(_ tool: URL, _ arguments: [String]) async throws -> ArchiveProcessResult {
-        // As the real `ArchiveProcess.run`, which starts nothing in a task that is already cancelled.
-        try Task.checkCancellation()
-        let name = tool.lastPathComponent
-        state.withLock { $0.calls.append([name] + arguments) }
-        switch (name, arguments.first) {
-        case ("hatchzip", "list"), ("bsdtar", "-tvf"), ("lsar", "-j"):
-            let archive = URL(filePath: arguments.last!).lastPathComponent
-            return ArchiveProcessResult(status: 0, output: state.withLock { $0.listings[archive] } ?? "")
-        case ("hatchzip", "check"):
-            return ArchiveProcessResult(status: 0, output: "required 29.9 MB")
-        case ("hatchzip", "restore"):
-            return ArchiveProcessResult(status: 1, errors: "error: nothing to restore")
-        default:
-            break
-        }
-        let journalled = ArchiveJob.decode((try? Data(contentsOf: journal)) ?? Data())
-        state.withLock { $0.journalInPlaceAtExtract.append(journalled.first?.inPlace ?? false) }
-        if state.withLock({ $0.hold.contains(URL(filePath: arguments[1]).lastPathComponent) }) {
-            await withTaskCancellationHandler {
-                await withCheckedContinuation { continuation in
-                    state.withLock {
-                        if Task.isCancelled { return continuation.resume() }
-                        ($0.heldStarted, $0.held) = (true, continuation)
-                    }
-                }
-            } onCancel: {
-                self.release()
-            }
-            try Task.checkCancellation()
-        }
-        let status = state.withLock { $0.extractStatuses.isEmpty ? 0 : $0.extractStatuses.removeFirst() }
-        guard status == 0 else {
-            if let file = state.withLock({ $0.partialFile }) {
-                let output = URL(filePath: arguments[arguments.firstIndex(of: "-o")! + 1])
-                try Data("partial".utf8).write(to: output.appending(path: file))
-            }
-            return ArchiveProcessResult(status: status, errors: "error: no room")
-        }
-        if name == "sh" {
-            try Data("x".utf8).write(to: URL(filePath: arguments[4]))
-            return ArchiveProcessResult(status: 0)
-        }
-        let output = URL(filePath: name == "bsdtar" ? arguments[3] : arguments[arguments.firstIndex(of: "-o")! + 1])
-        for file in state.withLock({ $0.files }) {
-            let url = output.appending(path: file)
-            try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
-            try Data("x".utf8).write(to: url)
-        }
-        return ArchiveProcessResult(status: 0)
-    }
-}
-
-@MainActor
-final class FakePresenter: IslandPresenting {
-    var posts: [(notice: IslandNotice, onTap: (@MainActor () -> Void)?)] = []
-    var ends: [String] = []
-
-    var texts: [String] { posts.map(\.notice.text) }
-    var failures: [String] { posts.filter(\.notice.isFailure).map(\.notice.text) }
-
-    func showLevel(_ level: IslandLevel) {}
-    func post(_ notice: IslandNotice, onTap: (@MainActor () -> Void)?) { posts.append((notice, onTap)) }
-    func end(notice id: String) { ends.append(id) }
-    func setStatus(_ status: IslandStatus?, for id: String, onTap: (@MainActor () -> Void)?) {}
-    func setMenuRows(_ rows: [IslandMenuRow], owner: String, onSelect: @escaping @MainActor (String) -> Void) {}
-}
-
-/// What the fake Mac was asked to do.
-@MainActor
-final class Record {
-    var questions: [String] = []
-    var answer = true
-    var hold = false
-    var ignoresCancel = false
-    private let question = Mutex((held: Optional<CheckedContinuation<Bool, Never>>.none, closed: 0))
-    var hasQuestion: Bool { question.withLock { $0.held != nil } }
-    var closed: Int { question.withLock { $0.closed } }
-    func confirm(_ title: String, _ message: String?) async -> Bool {
-        questions.append(title + "\n" + (message ?? ""))
-        guard !hasQuestion else { return false }
-        let honorsCancel = !ignoresCancel
-        guard hold else { return (!honorsCancel || !Task.isCancelled) && answer }
-        let answer = await withTaskCancellationHandler {
-            await withCheckedContinuation { continuation in
-                question.withLock {
-                    if honorsCancel && Task.isCancelled { return continuation.resume(returning: false) }
-                    $0.held = continuation
-                }
-            }
-        } onCancel: {
-            if honorsCancel { self.answerQuestion(false, cancelled: true) }
-        }
-        return (!honorsCancel || !Task.isCancelled) && answer
-    }
-
-    nonisolated func answerQuestion(_ answer: Bool, cancelled: Bool = false) {
-        question.withLock {
-            guard let held = $0.held else { return }
-            $0.held = nil
-            if cancelled { $0.closed += 1 }
-            held.resume(returning: answer)
-        }
-    }
-    var reveals: [URL] = []
-    var defaultApp: [Bool] = []
-    var selection: [URL] = []
-}
-
-@MainActor
-final class Rig {
-    let suite: String
-    let defaults: UserDefaults
-    let folder = FileManager.default.temporaryDirectory.appending(path: "nc-archives-\(UUID())", directoryHint: .isDirectory)
-    let presenter = FakePresenter()
-    let tools: FakeTools
-    let record = Record()
-    let controller: NotchcastController
-
-    init(
-        switchOn: Bool = true, journal: [ArchiveJob] = [], listings: [String: String] = [:],
-        suite: String = "nc-Archives-test.\(UUID())"
-    ) throws {
-        self.suite = suite
-        defaults = UserDefaults(suiteName: suite)!
-        if defaults.object(forKey: "archives") == nil { defaults.set(switchOn, forKey: "archives") }
-        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
-        let journalURL = folder.appending(path: "support/archives.json")
-        tools = FakeTools(journal: journalURL)
-        tools.state.withLock { $0.listings = listings }
-        if !journal.isEmpty {
-            try FileManager.default.createDirectory(
-                at: journalURL.deletingLastPathComponent(), withIntermediateDirectories: true)
-            try ArchiveJob.encode(journal).write(to: journalURL)
-        }
-        let (tools, record) = (tools, record)
-        harnessEnvironment = ArchivesEnvironment(
-            journal: journalURL,
-            extractor: ArchiveExtractor(
-                locate: { tools.locate($0) }, run: { tool, arguments, _ in try await tools.run(tool, arguments) }),
-            compressor: ArchiveCompressor(locate: { URL(filePath: "/fake/bin/\($0)") }, run: { _, arguments in
-                try Data("zip".utf8).write(to: URL(filePath: arguments.last!))
-                return ArchiveProcessResult(status: 0)
-            }),
-            finderSelection: { record.selection },
-            setDefaultApp: { record.defaultApp.append($0) },
-            reveal: { record.reveals.append($0) },
-            pickArchives: { [] })
-        let hub = NotchcastTapHub(
-            syntheticTag: 0x54494E59, isTrusted: { true }, makeSession: { _ in fatalError("Archives installs no tap") })
-        controller = NotchcastController(
-            addons: [ArchivesAddon.self], defaults: defaults, hub: hub, dictation: FakeDictation(), presenter: presenter)
-        controller.context(forSwitch: "archives")?.confirm = { title, message, _ in
-            await record.confirm(title, message)
-        }
-        controller.start()
-    }
-
-    var module: ArchivesModule? { controller.context(forSwitch: "archives")?.module(ArchivesModule.self) }
-
-    func archive(_ name: String, listing: String = "") -> URL {
-        let url = folder.appending(path: name)
-        FileManager.default.createFile(atPath: url.path, contents: Data("archive".utf8))
-        tools.state.withLock { $0.listings[name] = listing }
-        return url
-    }
-
-    func exists(_ name: String) -> Bool { FileManager.default.fileExists(atPath: folder.appending(path: name).path) }
-
-    var visible: [String] {
-        ((try? FileManager.default.contentsOfDirectory(atPath: folder.path)) ?? []).filter { $0 != "support" }.sorted()
-    }
-
-    var calls: [[String]] { tools.state.withLock { $0.calls } }
-
-    func journal() -> [ArchiveJob] {
-        ArchiveJob.decode((try? Data(contentsOf: harnessEnvironment!.journal)) ?? Data())
-    }
-
-    func finish(keepingDefaults: Bool = false) {
-        controller.stop()
-        try? FileManager.default.removeItem(at: folder)
-        if !keepingDefaults { UserDefaults().removePersistentDomain(forName: suite) }
-    }
-}
-
-let twoFiles = """
-          Size  Name
-           1 B  a.txt
-           1 B  b/c.txt
-    2 entries, 2 B uncompressed, 7 B zip archive
-    """
 
 @MainActor
 func keepsByDefault() async throws {
@@ -353,48 +105,6 @@ func asksBeforeInPlace() async throws {
 }
 
 @MainActor
-func closesStopQuestionOnCompletion() async throws {
-    let rig = try Rig()
-    defer { rig.finish() }
-    rig.tools.state.withLock { $0.hold = ["Slow.zip"] }
-    rig.record.hold = true
-    rig.module!.open([rig.archive("Slow.zip", listing: twoFiles)])
-    while !rig.tools.state.withLock({ $0.heldStarted }) { await Task.yield() }
-    rig.presenter.posts[0].onTap?()
-    while !rig.record.hasQuestion { await Task.yield() }
-    rig.tools.release()
-    await rig.module!.drain()
-    regression(rig.record.closed == 1, "extraction closes its Stop question on completion")
-    rig.record.answerQuestion(false)
-    check(rig.presenter.texts.last == "Extracted Slow" && rig.exists("Slow/b/c.txt"), "extraction still finishes")
-}
-
-@MainActor
-func cancelsInPlaceQuestion(lateYes: Bool = false, switchOff: Bool = false) async throws {
-    let rig = try Rig()
-    defer { rig.finish() }
-    rig.tools.state.withLock { ($0.extractStatuses, $0.partialFile) = ([3], "partial.txt") }
-    rig.record.hold = true
-    rig.record.ignoresCancel = lateYes
-    rig.module!.open([rig.archive("Big.zip", listing: twoFiles)])
-    while !rig.record.hasQuestion { await Task.yield() }
-    check(rig.record.questions.first?.hasPrefix("Not enough space to keep Big.zip") == true, "asked to extract in place")
-    let task = rig.module!.current!.task
-    if switchOff {
-        rig.controller.preferences.set("archives", on: false)
-        while rig.module != nil { await Task.yield() }
-    } else { rig.module!.cancelAll() }
-    if lateYes { rig.record.answerQuestion(true) }
-    await task.value
-    guard lateYes else {
-        return check(rig.record.closed == 1, "the in-place question closes on \(switchOff ? "switch-off" : "Cancel All")")
-    }
-    regression(rig.presenter.texts.last == "Stopped extracting Big.zip" && rig.visible == ["Big.zip"],
-               "late Extract in Place yes after Cancel All leaves only Big.zip"
-                   + " (notices \(rig.presenter.texts), files \(rig.visible))")
-}
-
-@MainActor
 func fallbackEngines() async throws {
     let rig = try Rig()
     defer { rig.finish() }
@@ -406,65 +116,6 @@ func fallbackEngines() async throws {
     let tools = rig.calls.map { "\($0[0]) \($0[1])" }
     check(tools == ["bsdtar -tvf", "bsdtar -xf", "lsar -j", "unar -o", "sh -c"], "\(tools)")
     check(rig.exists("src/b/c.txt") && rig.exists("Old/a.txt") && rig.exists("dump.txt"), "\(rig.visible)")
-}
-
-@MainActor
-func cancelAndResume() async throws {
-    var rig = try Rig()
-    rig.tools.state.withLock { $0.hold = ["Slow.zip"] }
-    rig.module!.open([rig.archive("Slow.zip", listing: twoFiles), rig.archive("Next.zip", listing: twoFiles)])
-    while !rig.tools.state.withLock({ $0.heldStarted }) { await Task.yield() }
-    rig.presenter.posts[0].onTap?()
-    while rig.record.questions.isEmpty { await Task.yield() }
-    check(rig.record.questions[0].hasPrefix("Stop extracting Slow.zip?"), "tapping the progress asks first")
-    while rig.module!.current?.job.name == "Slow.zip" { await Task.yield() }
-    await rig.module!.drain()
-    check(rig.calls.contains { $0[1] == "restore" }, "a stopped HatchZip job drops its progress")
-    check(rig.presenter.texts.contains("Stopped extracting Slow.zip") && rig.exists("Next"), "the queue goes on")
-    check(!rig.exists("Slow") && rig.exists("Slow.zip"), "a kept archive stays and nothing half-done is placed")
-    check(rig.journal().isEmpty, "\(rig.journal())")
-    rig.finish()
-
-    rig = try Rig()
-    rig.tools.state.withLock { $0.hold = ["Long.zip"] }
-    rig.module!.open([rig.archive("Long.zip", listing: twoFiles)])
-    while !rig.tools.state.withLock({ $0.heldStarted }) { await Task.yield() }
-    rig.defaults.set(true, forKey: "archivesDefaultApp")
-    rig.controller.preferences.set("archives", on: false)
-    while rig.module != nil { await Task.yield() }
-    check(rig.record.defaultApp == [false], "switched off, the archive types go back")
-    check(rig.journal().map(\.name) == ["Long.zip"], "a switch-off keeps the job to resume")
-    let saved = rig.journal()
-    rig.finish()
-
-    rig = try Rig(journal: saved, listings: ["Long.zip": twoFiles])
-    await rig.module!.drain()
-    check(FileManager.default.fileExists(atPath: saved[0].archive.deletingLastPathComponent().appending(path: "Long").path),
-          "a relaunch resumes the journal")
-    try? FileManager.default.removeItem(at: saved[0].archive.deletingLastPathComponent())
-    rig.finish()
-}
-
-@MainActor
-func defaultApp() async throws {
-    let rig = try Rig(switchOn: false)
-    defer { rig.finish() }
-    rig.defaults.set(true, forKey: "archivesDefaultApp")
-    rig.controller.preferences.set("archives", on: true)
-    while rig.module == nil { await Task.yield() }
-    check(rig.record.defaultApp == [true], "with the option on, switching the add-on on claims the archive types")
-    rig.controller.stop()
-    check(rig.record.defaultApp == [true], "quitting the app keeps them")
-
-    var relaunch = try Rig(suite: rig.suite)
-    check(relaunch.record.defaultApp.isEmpty, "a launch never claims again, so a Finder choice made since stays")
-    relaunch.module!.setDefaultApp(false)
-    relaunch.module!.setDefaultApp(true)
-    check(relaunch.record.defaultApp == [false, true], "turning the option on claims at that moment")
-    relaunch.finish(keepingDefaults: true)
-    relaunch = try Rig(suite: rig.suite)
-    check(relaunch.record.defaultApp.isEmpty, "and the next launch leaves it alone too")
-    relaunch.finish(keepingDefaults: true)
 }
 
 /// Files opened with the app come through the core's claimers, beside Downloads' `.torrent` one.
@@ -547,7 +198,8 @@ func realHatchZip() async throws {
     let extractor = ArchiveExtractor(
         locate: { $0 == "hatchzip" ? hatchzip : nil }, run: { try await ArchiveProcess.run($0, $1, environment: $2) })
     let job = ArchiveJob(id: UUID(), archive: folder.appending(path: "Real.zip"), inPlace: false)
-    let placed = try await extractor.extract(job, askPassword: nil, askInPlace: { _ in false }, onInPlace: { _ in })
+    let staged = try await extractor.extract(job, askPassword: nil, askInPlace: { _ in false }, onInPlace: { _ in })
+    let placed = try extractor.place(staged.job, stem: staged.stem)
     check(placed?.lastPathComponent == "Real", "placed as a folder: \(String(describing: placed))")
     check(FileManager.default.fileExists(atPath: folder.appending(path: "Real/one/a.txt").path), "files extracted")
     check(FileManager.default.fileExists(atPath: job.archive.path), "the archive is kept")
@@ -582,19 +234,12 @@ enum ArchivesModuleTest {
         try await refusesBeforeWriting()
         try await missingTool()
         try await asksBeforeInPlace()
-        try await closesStopQuestionOnCompletion()
-        try await cancelsInPlaceQuestion(lateYes: true)
-        try await cancelsInPlaceQuestion()
-        try await cancelsInPlaceQuestion(switchOff: true)
         try await fallbackEngines()
-        try await cancelAndResume()
-        try await defaultApp()
         try await opensThroughTheCore()
         try await compressesBesideExtraction()
         try await abandonKeepsOnlyHatchZipWork()
         try await capsSingleStreams()
         try await realHatchZip()
-        if regressionsFailed { exit(EXIT_FAILURE) }
         print("nc-Archives-module-test: ok")
     }
 }
