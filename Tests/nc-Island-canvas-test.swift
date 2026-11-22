@@ -57,6 +57,7 @@ struct IslandCanvasTest {
         precondition(IslandNoticeArt.percent(0.29) == "29%" && IslandNoticeArt.percent(0.999) == "99%"
             && IslandNoticeArt.percent(1) == "100%" && IslandNoticeArt.percent(-1) == "0%",
             "The percent is rounded down, never early to 100%, and four characters at most")
+        coveredProgress()
         wrapping(canvas, copied: notice)
         drawsCompleteHeadline(IslandNotice(id: "headphones", symbol: "waveform.badge.minus",
             text: "No headphones with noise control are connected.", isFailure: true), lines: 2)
@@ -75,6 +76,24 @@ struct IslandCanvasTest {
         tones()
         print("Island canvas: headline, fade-out, expansion, cover, notch switch, percent, headline cap, swatch, tone "
             + "and clicks hold")
+    }
+
+    @MainActor static func coveredProgress() {
+        let frame = CGRect(x: 0, y: 0, width: 450, height: 220)
+        let canvas = IslandCanvas(frame: frame)
+        canvas.outline = CGPath(rect: frame, transform: nil)
+        canvas.covered = true
+        let progress = IslandNotice(id: "compress", symbol: "doc.zipper", text: "Compressing Folder.7z",
+                                    progress: IslandProgress(fraction: nil))
+        for look in IslandLook.allCases {
+            canvas.look = look
+            canvas.show(glance: nil, level: nil, notice: nil, statuses: [], expanded: false, notch: nil)
+            let background = pixels(bitmap(in: frame, scale: 2) { canvas.draw(frame) })
+            canvas.show(glance: nil, level: nil, notice: progress, statuses: [], expanded: false, notch: nil)
+            precondition(canvas.glance is IslandNoticeArt, "The archive progress fits in the compact pill")
+            let covered = pixels(bitmap(in: frame, scale: 2) { canvas.draw(frame) })
+            precondition(covered == background, "Compact progress must not paint inside the covered surface")
+        }
     }
 
     @MainActor static func wrapping(_ canvas: IslandCanvas, copied: IslandNotice) {
