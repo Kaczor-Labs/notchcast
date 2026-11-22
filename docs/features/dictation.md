@@ -129,8 +129,8 @@ compilation of its 2-bit weights; Ultra's encoder and both variants' decoder/joi
   within 30. Reading and parsing run off the main actor; only a decided request comes back to it.
 - An upload must start with the bytes of an allowed container (WAV, FLAC, Ogg, MP3, MP4/M4A, WebM),
   whatever its filename, and audio over 60 minutes is 413; both are refused before the request waits
-  for the model. A client that closes its connection, or only its sending side, cancels its
-  transcription.
+  for the model.
+- A client may close its sending side after a complete upload and read the full reply. An incomplete upload ends without transcription. A TCP reset or a terminal connection failure cancels in-flight transcription.
 - The user's own dictation always wins. Shared requests take the model one at a time in arrival order
   through the add-on transcription runner, and none starts while the user records or transcribes. A
   request still running when the user starts is cancelled and answered 503 with `Retry-After`, and the
@@ -162,8 +162,7 @@ without changing the system volume or downloading a model.
 and length caps, multipart forms fed byte by byte, responses, the head and body deadlines, the connection
 cap, cancellation when a client leaves, the crash-leftover sweep, and the dictation-wins queue through the
 add-on runner with fakes, without a socket, a timer or a model. `nc-DictationSharing-bind-test` starts the
-real listener on a free port and checks that 127.0.0.1 connects while `::1` and the Mac's network address
-are refused.
+real listener on a free port and checks that 127.0.0.1 connects while `::1` and the Mac's network address are refused. It also checks complete and incomplete half-closed uploads and cancellation on a TCP reset before or after a half-close.
 
 Also exercise all four real models, short and long recordings, downloads/removal, initial microphone
 grant and denial, hold/toggle shortcuts, Globe tap and hold, Return/Escape, output destinations, live insertion on and off, surrounding text with
