@@ -18,7 +18,8 @@ final class IslandPresenter: IslandPresenting {
     private var noticeTask: Task<Void, Never>?
     private var noticeDisplays: [String: UInt32] = [:]
     private weak var awayHost: IslandController?
-    private var statuses: [IslandStatus] = []
+    private var postedStatuses: [IslandStatus] = []
+    private var statuses: [IslandStatus] { IslandStatus.visible(in: postedStatuses) }
     private var hovered = false
     private var noticeTaps: [String: @MainActor () -> Void] = [:]
     private var statusTaps: [String: @MainActor () -> Void] = [:]
@@ -90,9 +91,9 @@ final class IslandPresenter: IslandPresenting {
     }
 
     func setStatus(_ status: IslandStatus?, for id: String, onTap: (@MainActor () -> Void)?) {
-        statuses.removeAll { $0.id == id }
+        postedStatuses.removeAll { $0.id == id }
         statusTaps[id] = status == nil ? nil : onTap
-        if let status { statuses.append(status) }
+        if let status { postedStatuses.append(status) }
         AppCore.shared.island.resting?.statuses = statuses
         if hoverOpensPill { showNotices() }
         showOnPages()
