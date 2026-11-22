@@ -5,7 +5,7 @@
 import Foundation
 
 /// A Soloist build read from `soloist --version`; Spotify's builds stop working 90 days after their date.
-struct SoloistBuild: Sendable, Equatable {
+struct SoloistBuild: Codable, Sendable, Equatable {
     static let lifetimeDays = 90
     /// One warning a week before the build stops (decision D10).
     static let noticeDays = 7
@@ -72,7 +72,7 @@ enum SoloistExit: Sendable, Equatable {
 }
 
 /// What the add-on is doing with Soloist; Notchcast keeps it running while the add-on is on.
-enum SoloistPhase: Sendable, Equatable {
+enum SoloistPhase: Codable, Sendable, Equatable {
     case stopped
     case needsKey
     case notInstalled

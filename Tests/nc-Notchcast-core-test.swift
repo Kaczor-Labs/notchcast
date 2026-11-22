@@ -9,7 +9,25 @@
 // notchcast-sources: Tinycast/Features/WindowManagement/Model/RoomWindow.swift Tinycast/Features/WindowManagement/Model/Room.swift Tinycast/Features/WindowManagement/Model/CustomWindowSize.swift Tinycast/Platform/LocalizedResource.swift Tinycast/Platform/NotificationToken.swift
 // notchcast-sources: Tests/NotchcastTapFixtures.swift
 // notchcast-sources: Tests/NotchcastDictationFixture.swift
+// notchcast-sources: Tests/NotchcastSettingsProcessFixture.swift
 // notchcast-reads: Tinycast/Features/Notchcast/NotchcastCore.swift
+// notchcast-reads: Tinycast/App/AppCore.swift
+// notchcast-reads: Tinycast/App/AppCore+SettingsProcess.swift
+// notchcast-reads: Tinycast/Features/Notchcast/Agents/Settings/AgentsSettingsView.swift
+// notchcast-reads: Tinycast/Features/Notchcast/Archives/UI/ArchivesSettingsView.swift
+// notchcast-reads: Tinycast/Features/Notchcast/AutoBackup/UI/AutoBackupSettingsView.swift
+// notchcast-reads: Tinycast/Features/Notchcast/ColorPicker/UI/ColorPickerSettingsView.swift
+// notchcast-reads: Tinycast/Features/Notchcast/Day/UI/DaySettingsView.swift
+// notchcast-reads: Tinycast/Features/Notchcast/DisplaySound/UI/BrightnessSettingsView.swift
+// notchcast-reads: Tinycast/Features/Notchcast/DisplaySound/UI/BrightnessDisplayRow.swift
+// notchcast-reads: Tinycast/Features/Notchcast/DisplaySound/UI/BrightnessDisplayRowState.swift
+// notchcast-reads: Tinycast/Features/Notchcast/Downloads/UI/TorrentsSettingsView.swift
+// notchcast-reads: Tinycast/Features/Notchcast/IPhoneBackup/UI/IPhoneBackupSettingsView.swift
+// notchcast-reads: Tinycast/Features/Notchcast/LowDisk/UI/LowDiskSettingsView.swift
+// notchcast-reads: Tinycast/Features/Notchcast/ScriptCommands/Settings/ScriptCommandsSettingsView.swift
+// notchcast-reads: Tinycast/Features/Notchcast/ScriptCommands/Settings/ScriptCommandEditor.swift
+// notchcast-reads: Tinycast/Features/Notchcast/Spotify/UI/SpotifySettingsView.swift
+// notchcast-reads: Tinycast/Features/DictationExtras/Settings/DictationExtrasSettingsSections.swift
 // notchcast-reads: Tinycast/Features/Notchcast/NotchcastClipboard+Live.swift
 // notchcast-reads: Tinycast/Features/Notchcast/NotchcastServices+Live.swift
 // notchcast-reads: Tinycast/Features/Notchcast/Core/UI/NotchcastSettingsView.swift
@@ -233,6 +251,7 @@ struct NotchcastCoreTest {
         recoveryHandoff(defaults)
         islandPresenter(defaults)
         settingsTabs()
+        settingsProcessTabs()
         print(failures == 0 ? "PASS NotchcastCoreTest (\(checks) checks)" : "FAILED \(failures)/\(checks)")
         if failures > 0 { exit(1) }
     }
@@ -514,45 +533,7 @@ struct NotchcastCoreTest {
         check("an add-on notice reaches the controller's presenter",
               presenter.log == ["post musicBlock Couldn't Stop Apple Music Opening"])
         controller.stop()
-        let path = "Tinycast/Features/Notchcast/NotchcastCore.swift"
-        let core = FileManager.default.contents(atPath: path).flatMap { String(data: $0, encoding: .utf8) } ?? ""
-        let calls = core.components(separatedBy: "NotchcastController(").dropFirst()
-        check("NotchcastCore builds one controller", calls.count == 1)
-        func arguments(_ tail: String) -> String {
-            var depth = 1
-            return String(tail.prefix { depth += $0 == "(" ? 1 : $0 == ")" ? -1 : 0; return depth > 0 })
-        }
-        check("NotchcastCore hands the controller the island presenter",
-              calls.allSatisfy {
-                  arguments($0).components(separatedBy: ",").contains { $0.trimmingCharacters(in: .whitespacesAndNewlines)
-                      == "presenter: core.islandPresenter" }
-              })
-        check("NotchcastCore hands the controller stock Dictation",
-              calls.allSatisfy { $0.contains("dictation: NotchcastDictationBridge(core: core)") })
-        check("NotchcastCore hands the controller the live doors, never the inert defaults",
-              calls.allSatisfy { arguments($0).contains("services: NotchcastServices(core: core)") })
-        func text(_ path: String) -> String {
-            FileManager.default.contents(atPath: path).flatMap { String(data: $0, encoding: .utf8) } ?? ""
-        }
-        let clipboard = text("Tinycast/Features/Notchcast/NotchcastClipboard+Live.swift")
-        check("the live clipboard door is clipboard history's own pair",
-              clipboard.contains("prepare: { history.prepareForTinycastPasteboardMutation() }")
-                  && clipboard.contains("history.synchronizeAfterTinycastPasteboardMutation(changeCount: $0)")
-                  && clipboard.contains("let history = core.clipboardManager"))
-        check("the live services wire clipboard history's door",
-              text("Tinycast/Features/Notchcast/NotchcastServices+Live.swift")
-                  .contains("clipboard = NotchcastClipboardMutation(core: core)"))
-        check("nc command entries are owned by their add-on tab, never gated by stock Commands",
-              core.contains("owner: .notchcast(tabs[$0.switchID]"))
-        let viewPath = "Tinycast/Features/Notchcast/Core/UI/NotchcastSettingsView.swift"
-        let view = FileManager.default.contents(atPath: viewPath).flatMap { String(data: $0, encoding: .utf8) } ?? ""
-        check("each add-on switch draws its commands' alias and hotkey fields",
-              view.contains("AliasField(key: command.id, name: command.name)")
-                && view.contains("ShortcutRecorder(action: .notchcastCommand(entryID: command.id))"))
-        check("each add-on command draws its own Show in launcher checkbox",
-              view.contains("preferences.setShowsInLauncher(command.id, $0)"))
-        check("that checkbox says what it does on screen, not only to VoiceOver",
-              view.contains("Toggle(\"Show in launcher\", isOn:") && !view.contains(".labelsHidden()"))
+        notchcastCoreWiring()
     }
 
     /// The Notchcast sidebar section: which tab holds which category, which tabs show, and their links.

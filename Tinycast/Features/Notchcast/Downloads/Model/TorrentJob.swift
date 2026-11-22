@@ -2,7 +2,7 @@ import Foundation
 
 /// One torrent the user asked for, from its first check to its last state.
 nonisolated struct TorrentJob: Identifiable, Equatable, Sendable {
-    enum State: Equatable, Sendable {
+    enum State: Equatable, Codable, Sendable {
         case findingPeers, downloading, sharing, finished, failed(String), cancelled
 
         var isActive: Bool { [.findingPeers, .downloading, .sharing].contains(self) }
