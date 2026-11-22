@@ -325,6 +325,7 @@
 		3874370DBA63F3E99F8CF4E0 /* IslandInstallReportScenes.swift in Sources */ = {isa = PBXBuildFile; fileRef = C84A27BD2930EB102BD86B19 /* IslandInstallReportScenes.swift */; };
 		3891DA96CC148D13893F4494 /* ShortcutCaptureSession.swift in Sources */ = {isa = PBXBuildFile; fileRef = B235DFF451FF4D52A8E44D00 /* ShortcutCaptureSession.swift */; };
 		38A29B90790C657415863C29 /* IslandCardSlots.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4B099053BE1D72B5AF279305 /* IslandCardSlots.swift */; };
+		390AFE94CD9E5587DD4CF786 /* MonitorVolumes.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC372E9B4745A17F11C90E90 /* MonitorVolumes.swift */; };
 		390E7A799CBFB1F703906F83 /* DisplaySpeakerController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 69A65837FBEDCA02E6237D98 /* DisplaySpeakerController.swift */; };
 		3917193B62450F226297B3F1 /* SelectionReveal.swift in Sources */ = {isa = PBXBuildFile; fileRef = 648F0F43FEEE537F6451756B /* SelectionReveal.swift */; };
 		394AF7EBEFA5C5413D7D8E9B /* ExtensionListing.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4479345B4ECF587F3BC08093 /* ExtensionListing.swift */; };
@@ -2771,6 +2772,7 @@
 		CBFF39C46E98D0808B188E2E /* FileSearchIgnoreList.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FileSearchIgnoreList.swift; sourceTree = "<group>"; };
 		CC02192DE787DBE081C589B8 /* KeychainSecretStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeychainSecretStore.swift; sourceTree = "<group>"; };
 		CC31D97947BC3D42881837CA /* ChildProcess.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChildProcess.swift; sourceTree = "<group>"; };
+		CC372E9B4745A17F11C90E90 /* MonitorVolumes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MonitorVolumes.swift; sourceTree = "<group>"; };
 		CC39721B6964B279FB5D5DC3 /* FileIconStamp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FileIconStamp.swift; sourceTree = "<group>"; };
 		CC407C844BE73916C6C526F1 /* SettingsScrollTarget.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsScrollTarget.swift; sourceTree = "<group>"; };
 		CC4763D2FB9FF59A23719174 /* DownloadsAddon+Settings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "DownloadsAddon+Settings.swift"; sourceTree = "<group>"; };
@@ -6269,6 +6271,7 @@
 				9876F886EB44C5382303C48C /* MonitorHeat.swift */,
 				5D28D05B1BE6A6596E878DAD /* MonitorPage.swift */,
 				AAC300FE125161526EE0DB9E /* MonitorReading.swift */,
+				CC372E9B4745A17F11C90E90 /* MonitorVolumes.swift */,
 			);
 			path = Model;
 			sourceTree = "<group>";
@@ -8071,6 +8074,7 @@
 				E2DEC42455322FA08E5CC93D /* MonitorReading.swift in Sources */,
 				220E16AE061A57C6FA104E87 /* MonitorSystem+Live.swift in Sources */,
 				6207C174A40FD8B24F7B527E /* MonitorSystem.swift in Sources */,
+				390AFE94CD9E5587DD4CF786 /* MonitorVolumes.swift in Sources */,
 				ADD7C0A10467500111A27420 /* Motion.swift in Sources */,
 				B38297E8015D3DD7D920E8C8 /* MusicBlockAddon.swift in Sources */,
 				A840CB2694AE1BA145DCA2CB /* MusicBlockModule.swift in Sources */,
