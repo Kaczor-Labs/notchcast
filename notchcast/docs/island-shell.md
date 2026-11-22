@@ -53,7 +53,7 @@ Latency uses the prototype protocol: five alternating stock/island runs, 60 inse
 | `CommandEscapeTap.swift` | Disable the global event tap for the isolated Debug path. |
 | `PaletteWindowController.swift` | Replace `positionPanel`'s anchor lookup and supply the level at summon and key regain. |
 | `RootPaletteView.swift` | Disable root glass, apply island accent and observe Debug frame submission. |
-| `DialogController.swift` | Replace only the question placement call. |
+| `DialogController.swift` | Place questions through the island, notify clipboard capture when a secret prompt opens or closes, and close questions when their asking tasks are cancelled. |
 | `HUDPresenter.swift` | Island placement for message reports; retain stock volume placement. |
 | `DialogPanel.swift`, `HUDPanel.swift` | Notify the island after every native `orderOut`, including HUD fade completion. |
 | `DialogView.swift` | Replace the question glass backing with black. |
