@@ -7,6 +7,8 @@ final class FakeDictation: NotchcastTranscribing {
     var result: Result<String, any Error> = .success("")
     var holds = false
     var pieces = 1
+    var onHold: (() -> Void)?
+    var onCancel: (@Sendable () -> Void)?
     /// A model reply that already arrived still comes back after cancellation.
     var finishesDespiteCancel = false
     /// The model store's single guard, held through the async cleanup a cancellation runs.
@@ -29,7 +31,14 @@ final class FakeDictation: NotchcastTranscribing {
         for _ in 0..<pieces {
             guard !isInterrupted() else { throw NotchcastTranscribeError.busy }
             admittedPieces += 1
-            if holds { await withCheckedContinuation { held.append($0) } }
+            if holds {
+                await withTaskCancellationHandler {
+                    await withCheckedContinuation {
+                        held.append($0)
+                        onHold?()
+                    }
+                } onCancel: { [onCancel] in onCancel?() }
+            }
             if Task.isCancelled, !finishesDespiteCancel {
                 for _ in 0..<5 { await Task.yield() }
                 throw CancellationError()
