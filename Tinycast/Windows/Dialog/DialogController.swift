@@ -6,9 +6,12 @@ import SwiftUI
 final class DialogController: NSObject, NSWindowDelegate {
     private let settings: AppSettings
     private let onPresentationChanged: (Bool) -> Void
+    private let onSecretPromptOpened: () -> Void
+    private let onSecretPromptClosed: (String?) -> Void
     private var panel: DialogPanel?
     private var accessory: DialogAccessory?
     private var continuation: CheckedContinuation<Int, Never>?
+    private var questionID = 0
     private var secureInput = SecureInputHold()
     #if DEBUG
     /// The open question, so a scene can tell which one an island tap raised.
@@ -16,9 +19,14 @@ final class DialogController: NSObject, NSWindowDelegate {
     private(set) var lastAnswer: Int?
     #endif
 
-    init(settings: AppSettings, onPresentationChanged: @escaping (Bool) -> Void) {
+    init(
+        settings: AppSettings, onPresentationChanged: @escaping (Bool) -> Void,
+        onSecretPromptOpened: @escaping () -> Void, onSecretPromptClosed: @escaping (String?) -> Void
+    ) {
         self.settings = settings
         self.onPresentationChanged = onPresentationChanged
+        self.onSecretPromptOpened = onSecretPromptOpened
+        self.onSecretPromptClosed = onSecretPromptClosed
     }
 
     func confirm(
@@ -113,10 +121,11 @@ final class DialogController: NSObject, NSWindowDelegate {
         return state.text
     }
 
-    func present(_ request: DialogRequest) async -> Int {
+    private func open(_ request: DialogRequest) async -> Int {
         guard continuation == nil else { return request.cancelIndex }
         return await withCheckedContinuation { continuation in
             self.continuation = continuation
+            if request.accessory?.isSecret == true { onSecretPromptOpened() }
             onPresentationChanged(true)
             let width =
                 switch request.accessory {
@@ -129,7 +138,7 @@ final class DialogController: NSObject, NSWindowDelegate {
                 DialogView(
                     request: request, width: width,
                     onChoose: { [weak self] index in
-                        self?.finish(index)
+                        self?.finish(index, cancelIndex: request.cancelIndex)
                     }),
                 width: width, minHeight: 0)
             let panel = DialogPanel(content: content, cornerRadius: metrics.radius.panel)
@@ -141,9 +150,9 @@ final class DialogController: NSObject, NSWindowDelegate {
                 guard let self else { return }
                 switch key {
                 case .cancel:
-                    finish(request.cancelIndex)
+                    finish(request.cancelIndex, cancelIndex: request.cancelIndex)
                 case .confirm:
-                    finish(request.defaultIndex)
+                    finish(request.defaultIndex, cancelIndex: request.cancelIndex)
                 case .increment, .decrement:
                     // Keying the slider lands on the same values Volume Up/Down produce.
                     guard case .volume(let volume) = request.accessory else { return }
@@ -165,12 +174,13 @@ final class DialogController: NSObject, NSWindowDelegate {
         }
     }
 
-    private func finish(_ index: Int) {
+    private func finish(_ index: Int, cancelIndex: Int) {
         guard let continuation else { return }
         self.continuation = nil
         onPresentationChanged(false)
         let closing = panel
         panel = nil
+        let closingAccessory = accessory
         accessory = nil
         secureInput.set(false)
         #if DEBUG
@@ -180,13 +190,28 @@ final class DialogController: NSObject, NSWindowDelegate {
         closing?.delegate = nil
         closing?.onKey = nil
         closing?.makeFirstResponder(nil)
-        continuation.resume(returning: index)
         closing?.orderOut(nil)
+        if case .secret(let field) = closingAccessory {
+            onSecretPromptClosed(index == cancelIndex ? nil : field.text)
+        }
+        continuation.resume(returning: index)
     }
 
-    /// Cancels the open question only while it still is `state`'s, so a stopped job's prompt closes.
-    func dismissSecret(_ state: SecretFieldState) {
-        guard case .secret(let open) = accessory, open === state else { return }
+    func present(_ request: DialogRequest) async -> Int {
+        guard continuation == nil else { return request.cancelIndex }
+        questionID += 1
+        let id = questionID
+        let index = await withTaskCancellationHandler {
+            guard !Task.isCancelled else { return request.cancelIndex }
+            return await open(request)
+        } onCancel: {
+            Task { @MainActor [weak self] in self?.dismissQuestion(id) }
+        }
+        return Task.isCancelled ? request.cancelIndex : index
+    }
+
+    private func dismissQuestion(_ id: Int) {
+        guard id == questionID else { return }
         panel?.onKey?(.cancel)
     }
 

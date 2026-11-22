@@ -191,7 +191,9 @@ final class DictationServer {
         let step: DictationServerReader.Step
         do {
             step = try await withThrowingTaskGroup(of: DictationServerReader.Step.self) { group in
-                group.addTask { try await Self.read(connection, reader: reader, progress: progress) }
+                group.addTask {
+                    try await DictationServerListener.readRequest(connection, reader: reader) { progress.markRead() }
+                }
                 group.addTask {
                     try await DictationServerHTTP.expire(headRead: { progress.isRead() }) { try await Task.sleep(for: $0) }
                     throw URLError(.timedOut)
@@ -215,27 +217,6 @@ final class DictationServer {
         case .more, .sendContinue: return
         }
         try? await connection.send(response.encoded, endOfStream: true)
-    }
-
-    /// Off the main actor: nothing an unauthenticated client sends is parsed there.
-    @concurrent
-    private nonisolated static func read(
-        _ connection: NetworkConnection<TCP>, reader: DictationServerReader, progress: HeadProgress
-    ) async throws -> DictationServerReader.Step {
-        var reader = reader
-        while true {
-            let message = try await connection.receive(atLeast: 1, atMost: reader.wanted)
-            let step = reader.feed(message.content)
-            if reader.hasHead { progress.markRead() }
-            switch step {
-            case .more:
-                if message.metadata.endOfStream { throw CancellationError() }
-            case .sendContinue:
-                try await connection.send(DictationServerResponse.continueHead, endOfStream: false)
-            case let step:
-                return step
-            }
-        }
     }
 
     private func transcribe(_ body: Data, boundary: String) async -> DictationServerResponse {

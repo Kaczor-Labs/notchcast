@@ -14,11 +14,10 @@ struct NotchcastIslandSettingsRows: View {
             }
             Toggle(isOn: $settings.islandOutlineWhenOpen) {
                 SettingsRowTitle(NotchcastSettingsSearch.island, NotchcastSettingsSearch.outlineWhenOpen)
-                Text("A faint line around the open island in Dark.", tableName: "Notchcast")
+                Text("A faint line around the open island and its menus.", tableName: "Notchcast")
             }
             Toggle(isOn: $settings.islandOpensOnHover) {
                 SettingsRowTitle(NotchcastSettingsSearch.island, NotchcastSettingsSearch.opensOnHover)
-                Text("Resting the pointer on the island opens what it shows.", tableName: "Notchcast")
             }
             Picker(selection: $settings.islandPosition) {
                 Text("Top edge", tableName: "Notchcast").tag(IslandPosition.topEdge)
@@ -26,7 +25,6 @@ struct NotchcastIslandSettingsRows: View {
                 Text("Menu bar bottom", tableName: "Notchcast").tag(IslandPosition.menuBarBottom)
             } label: {
                 SettingsRowTitle(NotchcastSettingsSearch.island, NotchcastSettingsSearch.position)
-                Text("A notch always decides where the island sits.", tableName: "Notchcast")
             }
         } header: {
             SettingsSectionHeader(NotchcastSettingsSearch.island)

@@ -2,6 +2,8 @@
 
 ## Invariants
 
+- **A Notchcast password question suspends clipboard capture for its entire presentation.** Opening the question invalidates pending image captures, and closing it discards any unpolled copy from that time. Submitting removes matching text, including variants with or without one trailing line ending, from memory and SQLite together with owned side files. This includes pins and entries outside the loaded window. If a reader blocks truncating the SQLite write-ahead log, the store schedules a retry. On the next open it checkpoints and truncates any remaining log before loading history and resumes retrying if a reader still blocks it.
+
 - **`clipboardEnabled` ships on, the only feature switch that does.** Absence of the key therefore
   has to outrank a stored `false` in `AppSettings.init`, and off means fully off: the poller stops,
   the SQLite file closes, the launcher commands and their shortcuts go, and Tab skips the screen.

@@ -6,6 +6,7 @@ import Foundation
 @main
 struct IslandPresenterTest {
     @MainActor static func main() {
+        checkVisibleStatuses()
         let island = RecordingIslandPresenter()
         let volume = IslandLevel(source: "volume", symbol: "speaker.wave.2.fill", label: "Volume", value: 0.5)
         let sync = IslandNotice(id: "sync", symbol: nil, text: "Syncing", progress: IslandProgress(fraction: 0.2))
@@ -64,10 +65,34 @@ struct IslandPresenterTest {
         precondition(IslandHeldKey(keyCode: 36) == .accept && IslandHeldKey(keyCode: 76) == .accept
                      && IslandHeldKey(keyCode: 53) == .cancel && IslandHeldKey(keyCode: 49) == nil,
                      "Return and keypad Enter accept, Escape cancels, any other key is not held")
+        island.place(notice: sync.id, on: 2)
+        island.post(sync, onTap: nil)
+        island.place(notice: sync.id, on: 3)
+        precondition(island.calls.suffix(3) == [
+            .place(notice: sync.id, on: 2), .post(sync, tappable: false), .place(notice: sync.id, on: 3),
+        ], "Placement works before the notice is posted and can change afterward")
+        island.end(notice: sync.id)
+        island.post(sync, onTap: nil)
+        precondition(island.displays[sync.id] == nil, "Ending a notice clears its placement")
         let silent: any IslandPresenting = SilentIslandPresenter()
         silent.holdKeys(for: sync.id, onFocus: { precondition(!$0) }) { _ in }
         silent.releaseKeys()
         print("Island presenter: the fake records calls in order and clears status, menu rows, notices and held keys")
+    }
+
+    private static func checkVisibleStatuses() {
+        let plain = IslandStatus(id: "plain", symbol: "battery.25percent", label: "On battery")
+        let warning = IslandStatus(id: "warning", symbol: plain.symbol, text: "Low", label: "Low battery", tone: .warning)
+        let critical = IslandStatus(id: "critical", symbol: plain.symbol, label: "Charge now", tone: .critical)
+        let tied = IslandStatus(id: "tied", symbol: plain.symbol, label: "Battery warning", tone: .warning)
+        let timer = IslandStatus(id: "timer", symbol: "timer", label: "Timer")
+
+        precondition(IslandStatus.visible(in: [plain, warning]) == [warning], "One glyph keeps the more urgent status")
+        precondition(IslandStatus.visible(in: [warning, plain]) == [warning], "Posting order cannot hide the warning")
+        precondition(IslandStatus.visible(in: [warning, critical]) == [critical], "Critical takes precedence over warning")
+        precondition(IslandStatus.visible(in: [warning, tied]) == [warning], "Ties keep the first status")
+        precondition(IslandStatus.visible(in: [plain, timer]) == [plain, timer], "Different symbols both show in order")
+        print("Island status: duplicate symbols keep the most urgent status and distinct symbols stay in order")
     }
 }
 
@@ -77,6 +102,7 @@ final class RecordingIslandPresenter: IslandPresenting {
     enum Call: Equatable {
         case showLevel(IslandLevel)
         case post(IslandNotice, tappable: Bool)
+        case place(notice: String, on: UInt32?)
         case end(notice: String)
         case setStatus(IslandStatus?, id: String)
         case setMenuRows([IslandMenuRow], owner: String)
@@ -85,6 +111,7 @@ final class RecordingIslandPresenter: IslandPresenting {
 
     private(set) var calls: [Call] = []
     private(set) var notice: IslandNotice?
+    private(set) var displays: [String: UInt32] = [:]
     private(set) var statuses: [String: IslandStatus] = [:]
     private var onTap: (@MainActor () -> Void)?
     private var onKey: (@MainActor (IslandHeldKey) -> Void)?
@@ -99,8 +126,14 @@ final class RecordingIslandPresenter: IslandPresenting {
         self.onTap = onTap
     }
 
+    func place(notice id: String, on display: UInt32?) {
+        calls.append(.place(notice: id, on: display))
+        displays[id] = display
+    }
+
     func end(notice id: String) {
         calls.append(.end(notice: id))
+        displays[id] = nil
         if notice?.id == id { notice = nil; onTap = nil }
     }
 

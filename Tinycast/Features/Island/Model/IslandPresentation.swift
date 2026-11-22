@@ -31,7 +31,13 @@ struct IslandNotice: Equatable, Sendable {
     static let failureSeconds: TimeInterval = 4
 
     var spoken: String { spokenText ?? text }
-    var dwell: TimeInterval { seconds ?? (isFailure ? Self.failureSeconds : Self.messageSeconds) }
+    var dwell: TimeInterval {
+        let base = seconds ?? (isFailure ? Self.failureSeconds : Self.messageSeconds)
+        let characters = text.count
+        if characters > 90 { return max(base, 6) }
+        if characters > 45 { return max(base, 4) }
+        return base
+    }
     /// On a notch, its text expands below the notch; otherwise it keeps to the wings (design §10).
     var isHeadline: Bool { !quiet && (progress?.headline ?? true) }
     /// The readout leads the text, so the open page's row and the wings read alike.
@@ -45,6 +51,29 @@ struct IslandNotice: Equatable, Sendable {
             let level = meter[index].isFinite ? min(max(meter[index], 0), 1) : 0
             return floor + (1 - floor) * level
         }
+    }
+}
+
+struct IslandNoticeFit {
+    static let maxLines = 3
+
+    static func wraps(width: CGFloat, room: CGFloat, hasLineBreaks: Bool) -> Bool {
+        width > room || hasLineBreaks
+    }
+
+    let textWidth: CGFloat
+    let lines: Int
+    let truncated: Bool
+    let size: CGSize
+
+    init(singleWidth: CGFloat, lineHeight: CGFloat, wrapped: CGSize?, insets: CGFloat,
+         minimum: CGFloat, cap: CGFloat) {
+        let room = cap - insets
+        let measuredLines = wrapped.map { max(1, Int(ceil($0.height / lineHeight))) } ?? 1
+        lines = min(measuredLines, Self.maxLines)
+        truncated = measuredLines > Self.maxLines
+        textWidth = min(room, wrapped.map { ceil($0.width) + 1 } ?? singleWidth)
+        size = CGSize(width: min(cap, max(minimum, insets + textWidth)), height: CGFloat(lines) * lineHeight)
     }
 }
 
@@ -128,6 +157,23 @@ struct IslandStatus: Equatable, Sendable {
     var label: String
     /// Nil inks the glyph as text; the text itself never takes the tone.
     var tone: IslandTone?
+
+    static func visible(in statuses: [Self]) -> [Self] {
+        var winnerBySymbol: [String: Int] = [:]
+        for (index, status) in statuses.enumerated() {
+            if let winner = winnerBySymbol[status.symbol], statuses[winner].urgency >= status.urgency { continue }
+            winnerBySymbol[status.symbol] = index
+        }
+        return statuses.indices.filter { winnerBySymbol[statuses[$0].symbol] == $0 }.map { statuses[$0] }
+    }
+
+    private var urgency: Int {
+        switch tone {
+        case nil: 0
+        case .warning: 1
+        case .critical: 2
+        }
+    }
 }
 
 /// An add-on's pill-menu row; an unchecked row keeps its check column empty, so rows line up.
@@ -246,6 +292,7 @@ struct IslandPageRow: Equatable, Sendable {
     var trailing: String?
     /// What VoiceOver reads instead of the row, as a notice's `spokenText`.
     var spoken: String?
+    var titleLines = 1
 }
 
 /// A labelled bar, 0...1, with its value as text.

@@ -10,8 +10,15 @@ extension DownloadsModule {
         switch command {
         case .clipboard: submit(TorrentInput.parse(clipboard: environment.clipboard()))
         case .file:
-            let files = torrents.pick()
-            if !files.isEmpty { submit(files.map(TorrentInput.file)) }
+            guard torrentPicker == nil else { return }
+            torrentPicker = Task { [weak self, pick = torrents.pick] in
+                let files = await pick()
+                guard let self, !Task.isCancelled else { return }
+                self.torrentPicker = nil
+                if !files.isEmpty, self.context.isEnabled(Self.torrentsSwitchID) {
+                    self.submit(files.map(TorrentInput.file))
+                }
+            }
         case .cancelAll: torrents.cancelAll()
         }
     }

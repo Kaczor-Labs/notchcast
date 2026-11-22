@@ -11,7 +11,7 @@ extension ArchivesEnvironment {
                 .appending(path: "Notchcast", directoryHint: .isDirectory).appending(path: "archives.json"),
             extractor: ArchiveExtractor(
                 locate: { await ExecutableLocator.locate($0) },
-                run: { try await ArchiveProcess.run($0, $1) }),
+                run: { try await ArchiveProcess.run($0, $1, environment: $2) }),
             compressor: ArchiveCompressor(
                 locate: { await ExecutableLocator.locate($0) },
                 run: { try await ArchiveProcess.run($0, $1) }),
@@ -47,13 +47,10 @@ extension ArchivesEnvironment {
         }
     }
 
-    private static func pickArchives() -> [URL] {
-        let panel = NSOpenPanel()
-        panel.allowsMultipleSelection = true
-        panel.canChooseDirectories = false
-        panel.treatsFilePackagesAsDirectories = false
-        panel.prompt = String(localized: "Extract", table: "NotchcastArchives")
-        NSApp.activate()
-        return panel.runModal() == .OK ? panel.urls : []
+    private static func pickArchives() async -> [URL] {
+        await NotchcastAppleEvents.pickFiles { panel in
+            panel.treatsFilePackagesAsDirectories = false
+            panel.prompt = String(localized: "Extract", table: "NotchcastArchives")
+        }
     }
 }

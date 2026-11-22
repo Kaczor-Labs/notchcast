@@ -1,7 +1,10 @@
 {
   "sourceLanguage" : "en",
   "strings" : {
-    "A faint line around the open island in Dark." : {
+    "%@ is off" : {
+
+    },
+    "A faint line around the open island and its menus." : {
 
     },
     "A notch always decides where the island sits." : {

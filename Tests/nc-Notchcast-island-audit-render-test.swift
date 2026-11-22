@@ -1,4 +1,6 @@
+// notchcast-sources: Tests/Kit/IslandAuditMenus.swift
 // notchcast-hosted-only
+// notchcast-sources: Tests/IslandNoticeAuditArtwork.swift
 // notchcast-sources: Tinycast/Platform/Appearance.swift Tinycast/DesignSystem/Theme.swift
 // notchcast-sources: Tinycast/DesignSystem/InterfaceMetrics.swift Tinycast/Features/Notchcast/NotchTheme.swift
 // notchcast-sources: Tinycast/DesignSystem/KeyCapChip.swift Tinycast/DesignSystem/BarButton.swift
@@ -78,43 +80,6 @@ struct NotchcastIslandAuditRenderTest {
         write(name, renderer.cgImage)
     }
 
-    /// A field or scroll view is AppKit-backed and blank to `ImageRenderer`, so a window caches it.
-    static func renderHosted(_ name: String, size: CGSize, desk: Bool = false, @ViewBuilder _ content: () -> some View) {
-        let view = content()
-            .padding(16)
-            .frame(width: size.width, height: size.height, alignment: .top)
-            .background(ground(desk: desk))
-            .environment(\.islandFrosted, frosted)
-            .environment(\.paletteOnIsland, true)
-            .environment(\.colorScheme, .dark)
-            .environment(PaletteState())
-        let host = NSHostingView(rootView: view)
-        let window = NSWindow(contentRect: CGRect(origin: .zero, size: size), styleMask: .borderless,
-                              backing: .buffered, defer: false)
-        window.appearance = NSAppearance(named: .darkAqua)
-        window.contentView = host
-        host.frame = CGRect(origin: .zero, size: size)
-        host.layoutSubtreeIfNeeded()
-        RunLoop.main.run(until: Date().addingTimeInterval(0.3))
-        host.layoutSubtreeIfNeeded()
-        guard let bitmap = host.bitmapImageRepForCachingDisplay(in: host.bounds) else {
-            preconditionFailure("\(name) has no bitmap")
-        }
-        host.cacheDisplay(in: host.bounds, to: bitmap)
-        write(name, bitmap.cgImage)
-    }
-
-    /// Black is the island black; Frosted its tint over white, or white alone under a floating menu.
-    @ViewBuilder static func ground(desk: Bool) -> some View {
-        if !frosted {
-            NotchTheme.Colors.islandSurface
-        } else if desk {
-            Color.white
-        } else {
-            NotchTheme.Colors.islandGlassTint.background(Color.white)
-        }
-    }
-
     /// Engine art draws in AppKit into the pill's outline, so it renders the way the canvas does.
     static func renderArt(_ name: String, _ art: some PillArt) {
         let width = art.layout.leading + art.layout.trailing + 2 * Theme.Spacing.lg
@@ -128,7 +93,7 @@ struct NotchcastIslandAuditRenderTest {
 
     /// Black's pill on a grey desk; Frosted's glass tint over a white wallpaper, as the canvas fills it.
     static func paintPill(_ rect: CGRect, pill: NSBezierPath) {
-        (frosted ? NSColor.white : NSColor(white: 0.18, alpha: 1)).setFill()
+        (frosted ? NSColor.white : blackDesk).setFill()
         rect.fill()
         NSColor(frosted ? NotchTheme.Colors.islandGlassTint : NotchTheme.Colors.islandSurface).setFill()
         pill.fill()
@@ -141,15 +106,6 @@ struct NotchcastIslandAuditRenderTest {
         }
         var proposed = CGRect(origin: .zero, size: size)
         write(name, image.cgImage(forProposedRect: &proposed, context: nil, hints: [.ctm: AffineTransform(scale: 2)]))
-    }
-
-    /// The notch headline below the hardware, drawn at the bottom of the grown island.
-    static func renderHeadline(_ name: String, _ art: IslandHeadlineArt) {
-        let box = CGRect(x: 16, y: 16, width: art.size.width, height: art.size.height)
-        writeArt(name, size: CGSize(width: box.width + 32, height: box.height + 32)) { rect in
-            paintPill(rect, pill: NSBezierPath(roundedRect: box, xRadius: 16, yRadius: 16))
-            art.draw(in: box)
-        }
     }
 
     /// The level band in the report slot: on Frosted it must leave the glass under it unpainted.
@@ -231,6 +187,10 @@ struct NotchcastIslandAuditRenderTest {
         let look = frosted ? "frosted" : "black"
         for notch in [false, true] {
             let form = notch ? "notch" : "nonotch"
+            renderNoticeWrap(notch: notch ? notchSize.width : nil) { name, card in
+                island(name, width: card.size.width, body: card.size.height,
+                       notch: notch, radius: Theme.Radius.panel) { card.draw(in: $0) }
+            } pill: { name, art in compact(name, art, notch: notch) }
             let meetingArt = GlanceArt(glance, notch: notch, frosted: frosted)
             compact("884-04-meeting-\(form)-\(look)", meetingArt, notch: notch)
             let expansion = IslandExpansionArt(glance, frosted: frosted)
@@ -286,6 +246,7 @@ struct NotchcastIslandAuditRenderTest {
         // ImageRenderer draws no Liquid Glass until a hosting view has laid glass out once.
         NSHostingView(rootView: Color.clear.frosted(in: Circle())).layoutSubtreeIfNeeded()
         try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        renderMenuKeylines()
 
         render("01-keycaps") {
             HStack(spacing: 8) {
@@ -362,7 +323,7 @@ struct NotchcastIslandAuditRenderTest {
                     defaultIndex: 1, cancelIndex: 0),
                 width: 420, onChoose: { _ in })
         }
-        renderHosted("09-popover-menu", size: CGSize(width: 360, height: 300), desk: true) {
+        renderHosted("09-popover-menu", size: CGSize(width: 360, height: 300), desk: frosted) {
             PopoverMenu(
                 header: "Notchcast",
                 items: [

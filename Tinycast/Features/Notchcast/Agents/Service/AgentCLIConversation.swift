@@ -10,7 +10,7 @@ final class AgentCLIConversation {
     static let exitGrace: Duration = .seconds(2)
     static let terminateGrace: Duration = .seconds(1)
     /// A CLI that ignores SIGTERM is killed this long after it.
-    static let killGrace: Duration = .milliseconds(500)
+    static let killDelay: @Sendable () async -> Void = { try? await Task.sleep(for: .milliseconds(500)) }
 
     /// The part cancellation, the deadline and the output handler reach from other threads.
     private final class Handle: Sendable {
@@ -26,11 +26,13 @@ final class AgentCLIConversation {
         let lines: AsyncStream<Data>
         private let continuation: AsyncStream<Data>.Continuation
         private let state = Mutex(State())
+        private let waitBeforeKill: @Sendable () async -> Void
 
-        init(process: Process, input: FileHandle, output: FileHandle) {
+        init(process: Process, input: FileHandle, output: FileHandle, waitBeforeKill: @escaping @Sendable () async -> Void) {
             self.process = process
             self.input = input
             self.output = output
+            self.waitBeforeKill = waitBeforeKill
             (lines, continuation) = AsyncStream.makeStream(of: Data.self)
         }
 
@@ -64,8 +66,8 @@ final class AgentCLIConversation {
             guard process.isRunning else { return }
             process.terminate()
             let process = process
-            Task.detached {
-                try? await Task.sleep(for: AgentCLIConversation.killGrace)
+            Task.detached { [waitBeforeKill] in
+                await waitBeforeKill()
                 if process.isRunning { kill(process.processIdentifier, SIGKILL) }
             }
         }
@@ -75,7 +77,11 @@ final class AgentCLIConversation {
     private var lines: AsyncStream<Data>.Iterator
     private let deadline: Task<Void, Never>
 
-    private init?(_ executable: URL, arguments: [String], environment: [String: String], timeout: Duration) {
+    private init?(
+        _ executable: URL, arguments: [String], environment: [String: String],
+        waitForDeadline: @escaping @Sendable () async throws -> Void,
+        waitBeforeKill: @escaping @Sendable () async -> Void
+    ) {
         let process = Process()
         let input = Pipe()
         let output = Pipe()
@@ -89,7 +95,10 @@ final class AgentCLIConversation {
         process.standardError = FileHandle.nullDevice
         // A CLI that exits early fails a write instead of ending the app.
         guard fcntl(input.fileHandleForWriting.fileDescriptor, F_SETNOSIGPIPE, 1) != -1 else { return nil }
-        let handle = Handle(process: process, input: input.fileHandleForWriting, output: output.fileHandleForReading)
+        let handle = Handle(
+            process: process, input: input.fileHandleForWriting, output: output.fileHandleForReading,
+            waitBeforeKill: waitBeforeKill
+        )
         output.fileHandleForReading.readabilityHandler = { file in
             let chunk = file.availableData
             if chunk.isEmpty { file.readabilityHandler = nil }
@@ -104,18 +113,21 @@ final class AgentCLIConversation {
         self.handle = handle
         lines = handle.lines.makeAsyncIterator()
         deadline = Task {
-            guard (try? await Task.sleep(for: timeout)) != nil else { return }
+            guard (try? await waitForDeadline()) != nil, !Task.isCancelled else { return }
             handle.stop()
         }
     }
 
     /// Runs `body` against a fresh process and ends it after; nil when the CLI cannot start.
     static func run<T>(
-        _ executable: URL, arguments: [String], environment: [String: String], timeout: Duration,
+        _ executable: URL, arguments: [String], environment: [String: String],
+        waitForDeadline: @escaping @Sendable () async throws -> Void,
+        waitBeforeKill: @escaping @Sendable () async -> Void = killDelay,
         _ body: (AgentCLIConversation) async -> T
     ) async -> T? {
         guard let conversation = AgentCLIConversation(
-            executable, arguments: arguments, environment: environment, timeout: timeout)
+            executable, arguments: arguments, environment: environment, waitForDeadline: waitForDeadline,
+            waitBeforeKill: waitBeforeKill)
         else { return nil }
         let handle = conversation.handle
         let result = await withTaskCancellationHandler {
@@ -155,7 +167,6 @@ final class AgentCLIConversation {
         // A stopped conversation already escalates on its own; its caller does not wait for the child.
         guard !handle.isStopped, !Task.isCancelled else { return handle.stop() }
         let process = handle.process
-        // A cancel inside either wait hands the child to `stop`, which still gives it `killGrace`.
         if await exits(process, within: Self.exitGrace) || Task.isCancelled { return handle.stop() }
         process.terminate()
         if await exits(process, within: Self.terminateGrace) || Task.isCancelled { return handle.stop() }

@@ -37,6 +37,10 @@ final class NotchcastCore {
             await core?.askSecret(
                 requester: requester, title: title, message: message, fieldTitle: fieldTitle, confirmTitle: confirmTitle)
         }
+        controller.openSwitch = { [weak core] item in
+            let target = SettingsTarget.row(NotchcastSettingsSearch.anchor(item.category), item.title)
+            core?.settingsCoordinator.showSettings(tab: target.tab, revealing: target)
+        }
         let commands = addons.flatMap { $0.commands }
         NotchcastSettingsSearch.install(
             controller.switches,
@@ -52,10 +56,17 @@ final class NotchcastCore {
                 AppEntry(notchcastCommand: $0.id, name: $0.name, symbol: $0.symbol, keywords: $0.keywords,
                          owner: .notchcast(tabs[$0.switchID] ?? .island))
             }
-            core?.hotKeys.extraActions = commands.map { .notchcastCommand(entryID: $0.id) }
+            core?.hotKeys.extraActions = (commands + (controller?.offCommands ?? [])).map {
+                .notchcastCommand(entryID: $0.id)
+            }
+        }
+        let stockDisplayName = core.hotKeys.displayName
+        core.hotKeys.displayName = { [weak controller] action in
+            if case .notchcastCommand(let entryID) = action { return controller?.name(ofCommand: entryID) }
+            return stockDisplayName?(action)
         }
         core.hotKeys.onRunNotchcastCommand = { [weak controller] entryID in
-            _ = controller?.run(entryID: entryID)
+            _ = controller?.press(entryID: entryID)
         }
         launcher.runExtraCommand = { [weak controller, weak core] entryID in
             guard let controller, let core, controller.enabledCommands.contains(where: { $0.id == entryID })
@@ -81,7 +92,10 @@ final class NotchcastCore {
             visibility: core.visibility, preferences: controller.preferences, commandIDs: Set(commands.map(\.id)))
         trustMonitor = NotchcastTrustMonitor(hub: hub)
         globeTrigger = NotchcastGlobeTrigger(core: core, hub: hub)
-        dictationIsland.start(core: core)
+        let typingDisplay = TypingDisplayReader()
+        dictationIsland.start(core: core, captureDisplay: { [weak dictation = core.dictationCoordinator] in
+            typingDisplay.capture(dictation?.target)
+        }, typingDisplay: typingDisplay.display)
         if let seed = DictationFirstModel.seed(
             stored: UserDefaults.standard.string(forKey: AppSettingsKey.dictationModel.rawValue)),
             let model = DictationModel(rawValue: seed) { core.settings.dictationModel = model }

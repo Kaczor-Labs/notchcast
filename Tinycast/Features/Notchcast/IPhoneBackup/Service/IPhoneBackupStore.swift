@@ -59,6 +59,20 @@ final class IPhoneBackupStore {
         context.preferences.set(IPhoneBackupAddon.switchID, on: false)
     }
 
+    /// On but not in effect at launch: a question never answered, so the switch goes off unasked.
+    func dropUnanswered() {
+        do {
+            let current = try system.read()
+            let journal = try loadJournal()
+            guard !IPhoneBackupPolicy.isApplied(journal, current: current) else { return }
+            try clearJournal()
+        } catch {
+            return
+        }
+        context.defaults.removeObject(forKey: IPhoneBackupPolicy.skipRestoreKey)
+        decline()
+    }
+
     /// A failed write or unavailable storage keeps the capture and, by default, the switch on, so switching off retries.
     /// A corrupt journal is kept and reported once; restores skip it quietly until it loads again.
     @discardableResult
@@ -85,11 +99,15 @@ final class IPhoneBackupStore {
 
     private func restoreJournal() throws {
         let journal = try loadJournal()
-        if let write = IPhoneBackupPolicy.restore(journal: journal, current: try? system.read()) {
+        if !journal.isEmpty, let write = IPhoneBackupPolicy.restore(journal: journal, current: try system.read()) {
             guard system.write(write) else { throw WriteFailed() }
         }
+        try clearJournal()
+    }
+
+    private func clearJournal() throws {
         if FileManager.default.fileExists(atPath: journalFile.path(percentEncoded: false)) {
-            try FileManager.default.removeItem(at: journalFile)
+            try system.removeFile(journalFile)
         }
         context.defaults.removeObject(forKey: IPhoneBackupPolicy.journalKey)
     }

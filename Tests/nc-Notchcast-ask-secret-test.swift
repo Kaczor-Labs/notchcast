@@ -39,7 +39,18 @@ struct NotchcastAskSecretTest {
         NSApp.setActivationPolicy(.accessory)
         NSApp.appearance = NSAppearance(named: .darkAqua)
         NSApp.activate()
-        let controller = DialogController(settings: AppSettings(), onPresentationChanged: { _ in })
+        var presentations = 0
+        var isSecretPromptOpen = false
+        var submitted = [String?]()
+        let controller = DialogController(
+            settings: AppSettings(), onPresentationChanged: { presented in
+                if presented { presentations += 1 }
+            },
+            onSecretPromptOpened: { isSecretPromptOpen = true },
+            onSecretPromptClosed: { answer in
+                isSecretPromptOpen = false
+                submitted.append(answer)
+            })
         let suite = "nc-Notchcast-ask-secret-test.\(UUID())"
         defer { UserDefaults().removePersistentDomain(forName: suite) }
         let addons = NotchcastController(
@@ -53,7 +64,13 @@ struct NotchcastAskSecretTest {
                 requester: requester, title: title, message: message, fieldTitle: fieldTitle,
                 confirmTitle: confirmTitle)
         }
-        context = addons.slots[0].context
+        let asking = addons.slots[0].context
+        asking.confirm = { title, message, confirmTitle in
+            await controller.confirm(
+                title: title, message: message, symbol: nil, tone: .neutral, confirmTitle: confirmTitle,
+                confirmRole: .standard)
+        }
+        context = asking
         let pasteboard = NSPasteboard.general
         pasteboard.clearContents()
         pasteboard.setString("!pw", forType: .string)
@@ -96,6 +113,7 @@ struct NotchcastAskSecretTest {
         spin { !panel.isKeyWindow }
         check("another window took key status", !panel.isKeyWindow)
         check("click-away keeps the secret question open", controller.shown != nil && answer == nil)
+        check("click-away keeps clipboard capture paused", isSecretPromptOpen)
         check("Secure Input is off while another window is key", !IsSecureEventInputEnabled())
         other.orderOut(nil)
         panel.makeKeyAndOrderFront(nil)
@@ -106,6 +124,7 @@ struct NotchcastAskSecretTest {
         spin { answer != nil }
         check("Return answers the typed text, got \(shape(answer))", answer == .some("hunter2!pw"))
         closed(controller, state, "Return")
+        check("Return reports the submitted text and resumes capture", submitted == ["hunter2!pw"] && !isSecretPromptOpen)
 
         // Esc cancels.
         answer = nil
@@ -144,6 +163,7 @@ struct NotchcastAskSecretTest {
         spin { answer != nil }
         check("job cancelled: the answer is nil, never the typed text, got \(shape(answer))", answer == .some(nil))
         closed(controller, jobState, "job cancelled")
+        check("all cancellations resume capture without text", submitted == ["hunter2!pw", nil, nil, nil] && !isSecretPromptOpen)
 
         var confirmed: Bool?
         Task {
@@ -159,11 +179,67 @@ struct NotchcastAskSecretTest {
         other.orderOut(nil)
 
         proveRequesterIsDrawn(controller, addons.slots.map(\.context))
+        proveQuestionCancellation(controller, asking, presentations: { presentations })
 
         check(
             "the pasteboard, and so clipboard history, never saw the secret",
             pasteboard.changeCount == pasteboardCount && pasteboard.string(forType: .string) == "!pw")
         finish()
+    }
+
+    static func proveQuestionCancellation(
+        _ controller: DialogController, _ asking: NotchcastContext, presentations: () -> Int
+    ) {
+        var answer: Bool?
+        let job = Task { answer = await asking.confirm?("Cancel while open?", nil, "Yes") }
+        guard let panel = spinForPanel() else { return }
+        job.cancel()
+        spin { answer != nil }
+        check(
+            "a cancelled asker gets Cancel and the open question closes",
+            answer == false && controller.shown == nil
+                && !NSApp.windows.contains { $0 is DialogPanel && $0.isVisible })
+
+        panel.sendEvent(key(kVK_Return, "\r"))
+        spin { answer != nil }
+        check("Return sent to the cancelled question has no effect", answer == false && controller.lastAnswer == 1)
+
+        answer = nil
+        let answeredJob = Task { answer = await asking.confirm?("Answer and cancel?", nil, "Yes") }
+        guard let answeredPanel = spinForPanel() else { return }
+        answeredPanel.onKey?(.confirm)
+        answeredJob.cancel()
+        spin { answer != nil }
+        check("cancellation wins in the same turn as Return", controller.lastAnswer == 0 && answer == false)
+
+        answer = nil
+        let before = presentations()
+        Task {
+            withUnsafeCurrentTask { $0?.cancel() }
+            answer = await asking.confirm?("Already cancelled?", nil, "Yes")
+        }
+        spin { answer != nil || controller.shown != nil }
+        check("an already-cancelled asker gets Cancel without opening a question", answer == false && presentations() == before)
+        if let openPanel = NSApp.windows.compactMap({ $0 as? DialogPanel }).first(where: \.isVisible) {
+            openPanel.onKey?(.cancel)
+            spin { answer != nil }
+        }
+
+        var firstAnswer: Bool?
+        let first = Task { firstAnswer = await asking.confirm?("First question?", nil, "Yes") }
+        guard let firstPanel = spinForPanel() else { return }
+        firstPanel.onKey?(.cancel)
+        var nextAnswer: Bool?
+        Task.immediate { nextAnswer = await asking.confirm?("Next question?", nil, "Yes") }
+        first.cancel()
+        spin { firstAnswer != nil }
+        let nextPanel = NSApp.windows.compactMap { $0 as? DialogPanel }.first(where: \.isVisible)
+        check(
+            "a stale cancellation leaves the next question open",
+            firstAnswer == false && controller.shown?.title == "Next question?" && nextAnswer == nil && nextPanel != nil)
+        nextPanel?.onKey?(.confirm)
+        spin { nextAnswer != nil }
+        check("the question slot is reusable after cancellation", nextAnswer == true)
     }
 
     static var context: NotchcastContext?
@@ -302,6 +378,7 @@ struct NotchcastAskSecretTest {
     static func finish() {
         guard failures == 0 else { fatalError("\(failures) ask-secret checks failed") }
         print("PASS askSecret answers, cancels, survives click-away and leaves Secure Input off")
+        print("PASS question cancellation closes the panel, drops late answers and frees the slot")
     }
 
     static func spinForPanel() -> DialogPanel? {

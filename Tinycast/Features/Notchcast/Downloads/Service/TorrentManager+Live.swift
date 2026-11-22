@@ -60,12 +60,9 @@ nonisolated enum TorrentFileReader {
 
     /// The multi-select Open panel for `.torrent` files.
     @MainActor
-    static func pick() -> [URL] {
-        let panel = NSOpenPanel()
-        panel.allowsMultipleSelection = true
-        panel.canChooseDirectories = false
-        panel.allowedContentTypes = [UTType(filenameExtension: "torrent") ?? .data]
-        NSApp.activate()
-        return panel.runModal() == .OK ? panel.urls : []
+    static func pick() async -> [URL] {
+        await NotchcastAppleEvents.pickFiles { panel in
+            panel.allowedContentTypes = [UTType(filenameExtension: "torrent") ?? .data]
+        }
     }
 }
