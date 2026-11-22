@@ -48,6 +48,7 @@ COVERED = {
     ("pr.yml:script-tests", "Install pinned jq"): "pin the CI jq version; no local step",
     ("pr.yml:script-tests", "./.github/actions/linux-node"): "pin the CI Node version; no local step",
     ("pr.yml:script-tests", "./.github/actions/linux-swift"): "Linux toolchain setup; ready-check.sh uses Xcode",
+    ("pr.yml:script-tests", "actions/cache"): "Linux Ruby archive cache; no local gate",
     ("pr.yml:script-tests", "Install pinned Ruby"): "pin the CI Ruby version; no local step",
     ("pr.yml:script-tests", "Install pinned Gitleaks"): "pin the scanner used by the hook fixtures; no local step",
     ("pr.yml:script-tests", "actions/checkout"): "the shared clone at HEAD",
@@ -121,9 +122,13 @@ class CoverageTest(unittest.TestCase):
                 self.assertIsNone(field(lane[name], "if"))
                 self.assertIsNone(field(lane[name], "continue-on-error"))
         ruby = lane["Install pinned Ruby"]
-        self.assertRegex(env(ruby)["RUBY_VERSION"], r"^'\d+\.\d+\.\d+'$")
-        self.assertRegex(env(ruby)["RUBY_SHA256"], r"^[a-f0-9]{64}$")
+        job = WORKFLOW.read_text().split("\n  script-tests:\n", 1)[1].split("\n    steps:\n", 1)[0]
+        pins = env(dedent(job))
+        self.assertRegex(pins["RUBY_VERSION"], r"^'\d+\.\d+\.\d+'$")
+        self.assertRegex(pins["RUBY_SHA256"], r"^[a-f0-9]{64}$")
+        self.assertTrue({"RUBY_VERSION", "RUBY_SHA256"}.isdisjoint(env(ruby)))
         self.assertIn('"$RUBY_SHA256" "$archive" | sha256sum --check', ruby)
+        self.assertIn("key: ruby-linux-x64-${{ env.RUBY_VERSION }}-${{ env.RUBY_SHA256 }}", lane["actions/cache"])
         swift = SWIFT_ACTION.read_text()
         self.assertRegex(swift, r"version=\d+\.\d+\.\d+'")
         self.assertRegex(swift, r"sha256=[a-f0-9]{64}'")
