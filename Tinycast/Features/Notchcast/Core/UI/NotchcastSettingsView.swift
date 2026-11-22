@@ -46,7 +46,10 @@ private struct NotchcastSwitchRows: View {
     }
 
     var body: some View {
-        Toggle(isOn: Binding(get: { preferences.isOn(item.id) }, set: { preferences.set(item.id, on: $0) })) {
+        Toggle(isOn: Binding(
+            get: { preferences.isOn(item.id) },
+            set: { controller.setEnabledFromSettings(item.id, enabled: $0) }
+        )) {
             SettingsRowTitle(anchor, verbatim: item.title)
             if !item.subtitle.isEmpty { Text(item.subtitle) }
         }
@@ -86,6 +89,13 @@ private struct NotchcastSwitchRows: View {
                 }
             }
             if let context = controller.context(forSwitch: item.id) {
+                if context.usesCalendar, context.services.calendar.needsAccess() {
+                    LabeledContent {
+                        Button("Grant Access…") { Task { await context.services.calendar.requestAccess(true) } }
+                    } label: {
+                        Text("Calendar access is needed")
+                    }
+                }
                 ForEach(controller.slots.flatMap(\.settings).filter { $0.row.switchID == item.id }) { entry in
                     entry.row.view(context)
                 }

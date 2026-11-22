@@ -1,3 +1,5 @@
 # Door: Calendar
 
-**Calendar** is stock Calendar behind `context.calendar` (`NotchcastCalendar`, `Core/Service/NotchcastCalendar.swift`): `events()` returns what the Calendar feature holds now as `NotchcastEvent` values (declined ones left out; empty while Calendar is off or has no access) and `showSchedule()` opens its My Schedule screen. `NotchcastCalendar+Live.swift` builds both closures from `AppCore`, so no add-on names a Calendar type; a harness passes its own, and the default is an empty calendar. The Day add-on (`Day/`, [day-page.md](../day-page.md)) is its user.
+`context.calendar` exposes stock Calendar's EventKit service to the Day add-on. `events()` returns the current snapshot as `NotchcastEvent` values, excluding declined events. `showSchedule()` opens My Schedule from Day's event rows. `NotchcastCalendar+Live.swift` connects these operations to `AppCore`. The default door returns an empty snapshot and does nothing for actions.
+
+Turning on Day in the Island requests macOS calendar access when it is undetermined. The bridge reuses an existing grant and enables the event store only after access is granted. Day's Grant Access button also opens Calendars privacy settings if macOS has denied access. Settings restores and launch use previous consent without presenting a prompt. See [hidden.md](../hidden.md) for the Calendar surfaces.

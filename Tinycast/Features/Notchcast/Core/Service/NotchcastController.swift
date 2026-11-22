@@ -31,6 +31,7 @@ final class NotchcastController {
     var openSwitch: ((NotchcastSwitch) -> Void)?
     private let presenter: any IslandPresenting
     private var enabled: Set<String> = []
+    private var calendarConsentFromSettings: Set<String> = []
     private var launcherIDs: [String] = []
     private var isRunning = false
     private var hasPublishedCommands = false
@@ -160,6 +161,12 @@ final class NotchcastController {
         slots.first { $0.addon.switches.contains { $0.id == id } }?.context
     }
 
+    func setEnabledFromSettings(_ id: String, enabled: Bool) {
+        if enabled, !preferences.isOn(id) { calendarConsentFromSettings.insert(id) }
+        if !enabled { calendarConsentFromSettings.remove(id) }
+        preferences.set(id, on: enabled)
+    }
+
     private func reconcile() {
         guard isRunning else { return }
         let ids = switches.map(\.id)
@@ -174,6 +181,8 @@ final class NotchcastController {
     /// Runs outside the tracking closure so a module's own reads never re-trigger reconcile.
     private func apply(_ now: Set<String>) {
         enabled = now
+        let consent = calendarConsentFromSettings.intersection(now)
+        calendarConsentFromSettings.removeAll()
         for slot in slots {
             let wanted = slot.addon.switches.contains { now.contains($0.id) }
             if !wanted, let module = slot.context.module {
@@ -182,6 +191,10 @@ final class NotchcastController {
             } else if wanted, slot.context.module == nil, let module = slot.addon.makeModule(slot.context) {
                 slot.context.attach(module)
                 module.start()
+            }
+            if slot.context.usesCalendar, slot.addon.switches.contains(where: { consent.contains($0.id) }) {
+                let calendar = slot.context.services.calendar
+                Task { await calendar.requestAccess(false) }
             }
         }
         applyTaps()

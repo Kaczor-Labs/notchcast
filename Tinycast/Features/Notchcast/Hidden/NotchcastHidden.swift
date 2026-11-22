@@ -9,6 +9,7 @@ enum NotchcastHidden {
         .quickActions,
         .commands,
         .notes,
+        .calendar,
         .ai,
         .fallbacks,
     ]
@@ -22,16 +23,7 @@ enum NotchcastHidden {
         ],
         .notes: ["Show in Menu Bar"],
         .about: ["Support"],
-        .calendar: [
-            "Calendar in Menu Bar", "Show Upcoming Events", "Only show events with meetings",
-            "Hide when there are no upcoming events", "Hide Current Event",
-            "Upcoming meetings in launcher",
-            "Auto Join Meetings",
-            "Only join known meeting services",
-            "Confirm before joining",
-            "Camera Preview",
-            "Calendar commands",
-        ],
+        .permissions: ["Calendars"],
     ]
 
     static func hides(tab: SettingsTab, keywords: [String]) -> Bool {

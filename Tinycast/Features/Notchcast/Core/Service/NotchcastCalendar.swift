@@ -13,8 +13,6 @@ struct NotchcastEvent: Equatable, Sendable {
 struct NotchcastCalendar {
     var events: @MainActor () -> [NotchcastEvent] = { [] }
     var showSchedule: @MainActor () -> Void = {}
-}
-
-extension NotchcastContext {
-    var calendar: NotchcastCalendar { services.calendar }
+    var needsAccess: @MainActor () -> Bool = { false }
+    var requestAccess: @MainActor (_ openSettingsIfDenied: Bool) async -> Void = { _ in }
 }

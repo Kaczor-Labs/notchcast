@@ -110,6 +110,7 @@ struct PermissionsSettingsView: View {
             } header: {
                 SettingsSectionHeader(.permissionsCalendars)
             }
+            .notchcastHidden(NotchcastHidden.tabs.contains(.calendar))
 
             Section {
                 LabeledContent {
