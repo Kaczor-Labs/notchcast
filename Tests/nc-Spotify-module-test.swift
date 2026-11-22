@@ -20,7 +20,6 @@ import SwiftUI
 
 // The shipped `live` system and settings view are left out: these stand in, so `makeModule` runs as shipped.
 struct SpotifySettingsView: View {
-    init(context: NotchcastContext) {}
     var body: some View { EmptyView() }
 }
 
