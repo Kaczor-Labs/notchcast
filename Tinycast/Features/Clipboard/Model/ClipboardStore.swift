@@ -314,7 +314,10 @@ final class ClipboardStore {
     /// Idempotent, so the coordinator can re-open the file when the feature is switched back on.
     func open() {
         guard db == nil else { return }
-        if openDatabase() { return }
+        if openDatabase() {
+            finishSecretPurge()
+            return
+        }
         // Captured, not authored: discard a corrupt or outdated database and start over.
         closeDatabase()
         for suffix in ["", "-wal", "-shm"] {
@@ -523,6 +526,11 @@ final class ClipboardStore {
             items.removeAll { deletedIDs.contains($0.id) }
         }
         guard deletedRows > 0 || secretPurgeRetry != nil else { return true }
+        return finishSecretPurge()
+    }
+
+    @discardableResult
+    private func finishSecretPurge() -> Bool {
         if truncateSecretWAL() {
             secretPurgeRetry?.cancel()
             secretPurgeRetry = nil
