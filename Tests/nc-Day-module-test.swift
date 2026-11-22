@@ -163,7 +163,6 @@ struct DayModuleTests {
 
     static func settingsFields() {
         let (module, context) = make(FakeWorld(), PageRecorder())
-        context.attach(module)
         let descriptor = DayAddon.switches[0]
         let row = DayAddon.settings[0]
         let form = Form {
@@ -179,10 +178,15 @@ struct DayModuleTests {
         host.frame = CGRect(x: 0, y: 0, width: 560, height: 300)
         host.layoutSubtreeIfNeeded()
 
+        check(editableValues(in: host).isEmpty, "City and Symbols should be absent before the module attaches")
+        context.attach(module)
+        host.layoutSubtreeIfNeeded()
+
         let expected = [DayFixtures.place.name, "AAPL, BTC-USD"]
         let actual = editableValues(in: host)
-        check(actual.sorted() == expected.sorted(), "City and Symbols should show their saved values. Found: \(actual)")
-        print("PASS Day settings show City and Symbols with their saved values")
+        check(actual.sorted() == expected.sorted(),
+              "City and Symbols should show their saved values after attachment. Found: \(actual)")
+        print("PASS Day settings show saved City and Symbols after the module attaches")
     }
 
     static func editableValues(in view: NSView) -> [String] {
