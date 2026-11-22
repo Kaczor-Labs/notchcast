@@ -12,13 +12,6 @@ final class ArchivesModule: NotchcastModule {
     private static let resultNoticeID = "archives.extractionResult"
     private static let compressNoticeID = "archives.compressing"
 
-    final class Recovery: NotchcastModule {
-        weak var stopping: ArchivesModule?
-
-        func start() {}
-        func stop() { stopping = nil }
-    }
-
     private let context: NotchcastContext
     private let environment: ArchivesEnvironment
     private var picker: Task<Void, Never>?
@@ -42,7 +35,7 @@ final class ArchivesModule: NotchcastModule {
     func start() {
         isRunning = true
         if current == nil {
-            jobs = ArchiveJob.decode((try? Data(contentsOf: environment.journal)) ?? Data())
+            jobs = environment.loadJournal()
             pruneStoppedJobs()
         }
         context.handleOpenURL { [weak self] url in
@@ -69,7 +62,7 @@ final class ArchivesModule: NotchcastModule {
         pruning = nil
         if switchedOff, let current {
             if !current.task.isCancelled { interruptedForSwitch = true }
-            context.recovery(Recovery.self)?.stopping = self
+            context.recovery(ArchivesAddon.Recovery.self)?.stopping = self
         }
         current?.task.cancel()
         if !switchedOff && !interruptedForSwitch { current = nil }
@@ -88,7 +81,7 @@ final class ArchivesModule: NotchcastModule {
             guard !jobs.contains(where: { $0.archive.path == url.path && $0.stopped == nil }) else { continue }
             jobs.append(ArchiveJob(id: UUID(), archive: url, inPlace: context.defaults.bool(forKey: Self.inPlaceKey)))
         }
-        save()
+        environment.saveJournal(jobs)
         runNext()
     }
 
@@ -112,7 +105,7 @@ final class ArchivesModule: NotchcastModule {
             current?.task.cancel()
         } else {
             jobs.removeAll { $0.id == id && $0.stopped == nil }
-            save()
+            environment.saveJournal(jobs)
         }
     }
 
@@ -120,7 +113,7 @@ final class ArchivesModule: NotchcastModule {
         let running = current?.job.id
         // A stopped entry holds the only path its archive can still be extracted into.
         jobs.removeAll { $0.id != running && $0.stopped == nil }
-        save()
+        environment.saveJournal(jobs)
         if let running { cancel(running) }
     }
 
@@ -216,7 +209,7 @@ final class ArchivesModule: NotchcastModule {
                 guard !Task.isCancelled, let self else { return }
                 if removed {
                     jobs.removeAll { $0.id == job.id }
-                    save()
+                    environment.saveJournal(jobs)
                 }
             }
             self?.pruning = nil
@@ -226,24 +219,12 @@ final class ArchivesModule: NotchcastModule {
 
     private func resumeStaging(_ job: ArchiveJob, reportedPath: String?) async -> URL? {
         guard current?.job.id == job.id, !Task.isCancelled,
-            let size = ArchiveExtractor.size(job.archive)
+            let entry = ArchiveExtractor.stoppedEntry(for: job, reportedPath: reportedPath, in: jobs)
         else { return nil }
-        let path: String?
-        if let reportedPath {
-            guard reportedPath.hasPrefix("/") else { return nil }
-            path = URL(filePath: reportedPath).resolvingSymlinksInPath().path
-        } else {
-            path = nil
-        }
-        let entry = jobs.first {
-            $0.archive.path == job.archive.path && $0.stopped?.size == size
-                && (path == nil || $0.staging.resolvingSymlinksInPath().path == path)
-        }
-        guard let entry else { return nil }
         if !FileManager.default.fileExists(atPath: job.archive.path + ".hatchzip") {
             if await ArchiveExtractor.removeStaging(for: entry), current?.job.id == job.id, !Task.isCancelled {
                 jobs.removeAll { $0.id == entry.id }
-                save()
+                environment.saveJournal(jobs)
             }
             return nil
         }
@@ -267,10 +248,8 @@ final class ArchivesModule: NotchcastModule {
                     resumeStaging: { [weak self] path in await self?.resumeStaging(job, reportedPath: path) })
                 guard current?.job.id == job.id else { return }
                 try Task.checkCancellation()
-                if !context.isEnabled(Self.switchID) {
-                    interruptedForSwitch = true
-                    throw CancellationError()
-                }
+                interruptedForSwitch = !context.isEnabled(Self.switchID)
+                guard !interruptedForSwitch else { throw CancellationError() }
                 let placed = try extractor.place(staged.job, stem: staged.stem)
                 finish(job, placed: placed, failure: nil)
             } catch {
@@ -325,8 +304,8 @@ final class ArchivesModule: NotchcastModule {
         }
         current = nil
         interruptedForSwitch = false
-        context.recovery(Recovery.self)?.stopping = nil
-        save()
+        context.recovery(ArchivesAddon.Recovery.self)?.stopping = nil
+        environment.saveJournal(jobs)
         context.presenter.end(notice: Self.noticeID)
         if let failure {
             report(failure, salvaged: placed)
@@ -388,7 +367,7 @@ final class ArchivesModule: NotchcastModule {
         else { return nil }
         if jobs[index].needsPassword != true {
             jobs[index].needsPassword = true
-            save()
+            environment.saveJournal(jobs)
         }
         return await NotchcastQuestion.$takesLauncherPriority.withValue(true) {
             await askSecret(
@@ -402,15 +381,9 @@ final class ArchivesModule: NotchcastModule {
     private func markInPlace(_ id: UUID, _ on: Bool) {
         guard let index = jobs.firstIndex(where: { $0.id == id }) else { return }
         jobs[index].inPlace = on
-        save()
+        environment.saveJournal(jobs)
     }
 
     /// The journal's copy, which knows whether the user switched it to in place.
     private func latest(_ job: ArchiveJob) -> ArchiveJob { jobs.first { $0.id == job.id } ?? job }
-
-    private func save() {
-        let folder = environment.journal.deletingLastPathComponent()
-        try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
-        try? ArchiveJob.encode(jobs).write(to: environment.journal, options: .atomic)
-    }
 }

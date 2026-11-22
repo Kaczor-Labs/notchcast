@@ -198,6 +198,21 @@ nonisolated struct ArchiveExtractor: Sendable {
         }
     }
 
+    static func stoppedEntry(for job: ArchiveJob, reportedPath: String?, in jobs: [ArchiveJob]) -> ArchiveJob? {
+        guard let size = size(job.archive) else { return nil }
+        let path: String?
+        if let reportedPath {
+            guard reportedPath.hasPrefix("/") else { return nil }
+            path = URL(filePath: reportedPath).resolvingSymlinksInPath().path
+        } else {
+            path = nil
+        }
+        return jobs.first {
+            $0.archive.path == job.archive.path && $0.stopped?.size == size
+                && (path == nil || $0.staging.resolvingSymlinksInPath().path == path)
+        }
+    }
+
     static func size(_ url: URL) -> Int64? {
         ((try? FileManager.default.attributesOfItem(atPath: url.path))?[.size] as? NSNumber)?.int64Value
     }
