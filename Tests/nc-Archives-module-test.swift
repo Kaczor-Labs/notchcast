@@ -376,22 +376,22 @@ func cancelsInPlaceQuestion(lateYes: Bool = false, switchOff: Bool = false) asyn
     rig.tools.state.withLock { ($0.extractStatuses, $0.partialFile) = ([3], "partial.txt") }
     rig.record.hold = true
     rig.record.ignoresCancel = lateYes
-    let module = rig.module!
-    module.open([rig.archive("Big.zip", listing: twoFiles)])
+    rig.module!.open([rig.archive("Big.zip", listing: twoFiles)])
     while !rig.record.hasQuestion { await Task.yield() }
     check(rig.record.questions.first?.hasPrefix("Not enough space to keep Big.zip") == true, "asked to extract in place")
-    let task = module.current!.task
+    let task = rig.module!.current!.task
     if switchOff {
         rig.controller.preferences.set("archives", on: false)
         while rig.module != nil { await Task.yield() }
-    } else { module.cancelAll() }
+    } else { rig.module!.cancelAll() }
     if lateYes { rig.record.answerQuestion(true) }
     await task.value
     guard lateYes else {
         return check(rig.record.closed == 1, "the in-place question closes on \(switchOff ? "switch-off" : "Cancel All")")
     }
     regression(rig.presenter.texts.last == "Stopped extracting Big.zip" && rig.visible == ["Big.zip"],
-               "late Extract in Place yes after Cancel All leaves only Big.zip (notices \(rig.presenter.texts), files \(rig.visible))")
+               "late Extract in Place yes after Cancel All leaves only Big.zip"
+                   + " (notices \(rig.presenter.texts), files \(rig.visible))")
 }
 
 @MainActor

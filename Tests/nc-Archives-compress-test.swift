@@ -147,8 +147,8 @@ final class Record {
         let answer = await withTaskCancellationHandler {
             await withCheckedContinuation { continuation in
                 question.withLock {
-                    if honorsCancel && Task.isCancelled { continuation.resume(returning: false) }
-                    else { $0.held = continuation }
+                    if honorsCancel && Task.isCancelled { return continuation.resume(returning: false) }
+                    $0.held = continuation
                 }
             }
         } onCancel: {
@@ -484,7 +484,8 @@ func closesOnCompletion(lateYesAsks: Int) async throws {
     rig.tools.release()
     await rig.module!.drainCompression()
     regression(rig.record.closed == 1 && lateYesAsks == 1,
-               "compression closes its Stop question on completion and ignores a second tap (closed \(rig.record.closed), asks \(lateYesAsks))")
+               "compression closes its Stop question on completion and ignores a second tap"
+                   + " (closed \(rig.record.closed), asks \(lateYesAsks))")
     rig.record.answerQuestion(false)
     check(rig.presenter.texts.last == "Compressed Trip.zip" && rig.bytes("Trip.zip") == "archive",
           "completion keeps the archive: \(rig.presenter.texts) \(rig.visible)")
