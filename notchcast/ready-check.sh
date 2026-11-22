@@ -1,6 +1,7 @@
 #!/bin/bash
 # Runs land.sh's drift gates, the private-data checks leaks.yml runs, then every gate pr.yml runs in its order (ci-build.sh, harnesses included),
 # then check-addon-delete.py --rotate when the branch changes Tinycast/Features/Notchcast/, on HEAD against a base ref.
+# The Linux Ruby archive cache only speeds up hosted setup; the local script tests use the local Ruby.
 # Prints ignored harnesses then PASS, or FAIL with the first failing gate. ready-check-test.py ties it to pr.yml.
 set -euo pipefail
 [[ $# -le 1 ]] || { echo 'usage: ready-check.sh [base-ref, default origin/main]' >&2; exit 2; }
