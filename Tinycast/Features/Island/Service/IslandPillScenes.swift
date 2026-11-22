@@ -9,10 +9,13 @@ enum IslandPillScenes {
                              "glance-modal", "pill-busy", "window-guard-new", "window-guard-raise",
                              "window-guard-deferred", "island-ax", "update", "notice-queue",
                              "notice-wrap", "notice-wrap-notch",
-                             "notice-unseen", "pill-menu-rows", "capture-sharing", "dictation", "dictation-notch"]
+                             "notice-unseen", "pill-menu-rows", "capture-sharing", "dictation", "dictation-notch",
+                             "dictation-away", "dictation-away-notch"]
 
     static func run(_ scene: String, core: AppCore, screen: NSScreen) async {
-        if scene == "dictation-notch" { IslandController.simulatedNotch = DictationIslandScenes.notch }
+        if scene == "dictation-notch" || scene == "dictation-away-notch" {
+            IslandController.simulatedNotch = DictationIslandScenes.notch
+        }
         if scene == "notice-wrap-notch" { IslandController.simulatedNotch = CGSize(width: 185, height: 32) }
         core.island.start()
         await IslandVerification.pause(0.6)
@@ -45,7 +48,8 @@ enum IslandPillScenes {
         case "notice-queue": await IslandNoticeScenes.run(core: core, controller: controller)
         case "notice-unseen": await IslandNoticeScenes.unseen(core: core, controller: controller)
         case "notice-wrap", "notice-wrap-notch": await IslandNoticeScenes.wrap(core: core, controller: controller)
-        case "dictation", "dictation-notch": await DictationIslandScenes.run(scene: scene, core: core, controller: controller)
+        case "dictation", "dictation-notch", "dictation-away", "dictation-away-notch":
+            await DictationIslandScenes.run(scene: scene, core: core, controller: controller)
         default: await glance(core: core, controller: controller)
         }
         IslandScenes.pass(scene, screen: screen)

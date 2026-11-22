@@ -318,6 +318,7 @@
 		370A6B0520ADE757C79F3226 /* SecureInputHold.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8CDC4071D33665E126F8C208 /* SecureInputHold.swift */; };
 		373C39B789DAA8799CDD8B21 /* DictationCleanupPrompt.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5FE1A9896362C0BC7BBE81D5 /* DictationCleanupPrompt.swift */; };
 		37B1198628F46CD94AA6CD05 /* ScriptRun.swift in Sources */ = {isa = PBXBuildFile; fileRef = FE0068D593FD35D9F33BBA02 /* ScriptRun.swift */; };
+		37C074AA6A1C33876FE79AB1 /* ArchivePassword.swift in Sources */ = {isa = PBXBuildFile; fileRef = 87BA1BABEB976100A5D62BF5 /* ArchivePassword.swift */; };
 		38293D211B4A43328B1D4A2A /* ExtensionSyncSource.swift in Sources */ = {isa = PBXBuildFile; fileRef = E0CFDE06F3FFB4BEA29BB5A9 /* ExtensionSyncSource.swift */; };
 		383A577E1A70AF702C474B0F /* ClipDragPayload.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6491D532351DEB940B4FBD1A /* ClipDragPayload.swift */; };
 		3874370DBA63F3E99F8CF4E0 /* IslandInstallReportScenes.swift in Sources */ = {isa = PBXBuildFile; fileRef = C84A27BD2930EB102BD86B19 /* IslandInstallReportScenes.swift */; };
@@ -2346,6 +2347,7 @@
 		8756FBB625DFAE931D8D5D9D /* ColorSpaces.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ColorSpaces.swift; sourceTree = "<group>"; };
 		87A6FD8B9919D2B41CF35497 /* ExtensionGitHubPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExtensionGitHubPanel.swift; sourceTree = "<group>"; };
 		87B371C21B46ADEA1F840207 /* BondingPolicy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BondingPolicy.swift; sourceTree = "<group>"; };
+		87BA1BABEB976100A5D62BF5 /* ArchivePassword.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ArchivePassword.swift; sourceTree = "<group>"; };
 		87C6479121B0371B3491FA8A /* AIConnectionEditorPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIConnectionEditorPanel.swift; sourceTree = "<group>"; };
 		87F282D4BBC2F147D3A98FFB /* ExtensionCleanup.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExtensionCleanup.swift; sourceTree = "<group>"; };
 		88499DF2F503F2A3A19DEF07 /* OverflowFade.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OverflowFade.swift; sourceTree = "<group>"; };
@@ -5778,6 +5780,7 @@
 				0812B4EBDBB512AAD6284C68 /* ArchiveFailure.swift */,
 				B1289426B5A32FC55B1E7149 /* ArchiveJob.swift */,
 				BCDFE0EA9E2AE6A941ACF6DD /* ArchiveListing.swift */,
+				87BA1BABEB976100A5D62BF5 /* ArchivePassword.swift */,
 				B648E47A2015FEF3BF447725 /* ArchivePlacement.swift */,
 				8713584C8E72D4374078FE4D /* ArchiveRoute.swift */,
 				777BE46B5AAB3C6262CD55AB /* ArchiveSafety.swift */,
@@ -7308,6 +7311,7 @@
 				46E805EBBAEC374713AA1A54 /* ArchiveFailure.swift in Sources */,
 				DDA92CE7345040C9FA42BC62 /* ArchiveJob.swift in Sources */,
 				BE8FCE3D76B50212E5D2C9E2 /* ArchiveListing.swift in Sources */,
+				37C074AA6A1C33876FE79AB1 /* ArchivePassword.swift in Sources */,
 				D526D0C8ADC18918DFFA86C7 /* ArchivePlacement.swift in Sources */,
 				65552930C5EFAD5B60877FD7 /* ArchiveProcess.swift in Sources */,
 				190C62DFE9B56992348BD2A4 /* ArchiveRoute.swift in Sources */,

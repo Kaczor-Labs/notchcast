@@ -13,10 +13,15 @@ final class IslandKeyHold {
         lease.take(during: notice)
         let panel = panel ?? IslandKeyPanel()
         self.panel = panel
-        if let shape { panel.setFrameOrigin(CGPoint(x: shape.midX, y: shape.midY)) }
+        move(near: shape)
         let focused = acquire(panel, onFocus: onFocus, onKey: onKey)
         if !focused { retake(onFocus: onFocus, onKey: onKey) }
         onFocus(focused)
+    }
+
+    func move(near shape: CGRect?) {
+        guard lease.held, let shape else { return }
+        panel?.setFrameOrigin(CGPoint(x: shape.midX, y: shape.midY))
     }
 
     private func acquire(_ panel: IslandKeyPanel, onFocus: @escaping @MainActor (Bool) -> Void,

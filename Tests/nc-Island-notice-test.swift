@@ -16,6 +16,20 @@ struct IslandNoticeTest {
         queue.expire(at: 2.4)
         precondition(queue.notice == nil, "The notice leaves once its dwell runs out")
 
+        for (length, dwell) in [(45, 2.4), (46, 4), (91, 6)] {
+            let held = IslandNotice(id: "held", text: String(repeating: "a", count: length))
+            queue.pause(true, at: 15.2)
+            queue.post(held, at: 15.2)
+            queue.expire(at: 25.6)
+            precondition(queue.notice == held, "A notice waits while it is unseen")
+            queue.pause(false, at: 25.6)
+            let deadline = 25.6 + dwell
+            queue.expire(at: deadline.nextDown)
+            precondition(queue.notice == held, "A resumed notice still shows just before its full dwell")
+            queue.expire(at: deadline)
+            precondition(queue.notice == nil, "A resumed notice expires at its full dwell")
+        }
+
         queue.post(IslandNotice(id: "failed", text: "Failed", isFailure: true), at: 0)
         precondition(near(queue.remaining(at: 1), 3), "A failure notice dwells 4 s by default")
         queue.post(IslandNotice(id: "failed", text: "Failed", isFailure: true, seconds: 5), at: 0)
