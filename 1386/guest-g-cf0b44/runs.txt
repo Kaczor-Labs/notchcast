@@ -1,0 +1,35 @@
+PR #1386 head 70e808fcd, Test build run 44986586303, installed 0.12.15.pr1386.70e808fc in a throwaway macOS 27.2.1 guest.
+Before: main snapshot 0.12.15.snapshot.20261122050207.
+Input: vncdo keydown/keyup events; on this VNC `alt` = Command (checked: `meta`+a typed "å", i.e. meta = Option).
+Every press sent as separate events: keydown alt, keydown q, keyup q, keyup alt (6b: keyup alt before keyup q).
+App under test: Calculator (frontmost, confirmed by lsappinfo). "QUIT"/"STAYED" read by pgrep 1.5 s after the keys.
+
+BEFORE (main, Pressing ⌘Q twice)
+B1 ⌘Q, release ⌘, 0.15 s, ⌘Q        STAYED   (bug reproduced)
+B2 ⌘ held, Q, Q                    QUIT
+B3 single ⌘Q                       STAYED
+
+PR BUILD (Pressing ⌘Q twice)
+1  ⌘Q, release ⌘, 0.15 s, ⌘Q        STAYED   x2
+1  same, 0.4 s gap                  STAYED
+1  same, 0.05 s gap, slow modifiers STAYED
+1  same, 0.3 s gap                  STAYED
+1  three presses 0.1 s apart        STAYED
+1  after a harmless ⌘C first        STAYED   x2
+1  final rerun                      STAYED   x2
+2  ⌘ held, Q, Q                     QUIT     x3
+3  single ⌘Q                        STAYED   x2
+4  ⌘Q, 1.2 s, ⌘Q                    STAYED
+5  ⌘Q held 2 s                      STAYED   (VNC gives no key autorepeat: not a repeat test)
+6a Q up then ⌘ up, 0.15 s, ⌘Q       STAYED
+6b ⌘ up then Q up, 0.15 s, ⌘Q       STAYED
+Side run: an in-guest key-logger app quit once on ⌘Q, release ⌘, ⌘Q (its log: ⌘ down 0x100108, ⌘ up 0x100, ⌘ down, then gone); 4 later key-logger runs received no keys at all, so they prove nothing.
+
+PR BUILD (Holding ⌘Q)
+7a ⌘Q down, ⌘ up at 0.3 s, Q up at 1.2 s  STAYED
+7b single tap                            STAYED
+7c ⌘Q, release ⌘, ⌘Q                     STAYED
+7d hold ⌘Q 1.2 s                         QUIT
+
+PR BUILD (Quit Protection off)
+8  single ⌘Q                         QUIT
