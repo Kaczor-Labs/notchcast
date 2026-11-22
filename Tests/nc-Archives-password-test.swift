@@ -213,15 +213,10 @@ func resumeAfterRelaunch() async throws {
         try FakeTools.writeJournal(archive: job.archive, output: job.staging)
         let rig = try Rig(folder: folder, answers: [answer], journal: [job], passwords: ["Photos.zip": right])
         defer { rig.finish() }
-        let context = rig.controller.context(forSwitch: "archives")!
-        let ask = context.askSecret!
-        context.askSecret = { title, message, field, confirm in
-            check(NotchcastQuestion.takesLauncherPriority, "the password prompt takes launcher priority")
-            return await ask(title, message, field, confirm)
-        }
-        check(rig.controller.hasPendingQuestion == needsPassword, "startup reads the journal before the tool runs")
+        check(rig.controller.hasPendingQuestion == needsPassword, "the journal marker registers a pending launcher question")
         await rig.module!.drain()
         check(rig.record.asks.count == 1, "a resumed job asks again")
+        check(rig.record.askPriorities == [true], "the password prompt reaches the core with launcher priority")
         if answer == nil {
             check(rig.steps == ["list", "restore"], "\(rig.steps)")
             check(rig.exists("a.txt") && rig.presenter.texts.contains("Stopped extracting Photos.zip"), "\(rig.visible)")
