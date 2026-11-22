@@ -58,7 +58,12 @@ struct IslandCanvasTest {
             && IslandNoticeArt.percent(1) == "100%" && IslandNoticeArt.percent(-1) == "0%",
             "The percent is rounded down, never early to 100%, and four characters at most")
         wrapping(canvas, copied: notice)
-        drawsThreeLines()
+        drawsCompleteHeadline(IslandNotice(id: "headphones", symbol: "waveform.badge.minus",
+            text: "No headphones with noise control are connected.", isFailure: true), lines: 2)
+        drawsCompleteHeadline(IslandNotice(id: "torrent-long", symbol: "exclamationmark.triangle",
+            text: "A Long Linux Distribution Image File.iso: This torrent is already running.", isFailure: true), lines: 2)
+        drawsCompleteHeadline(IslandNotice(id: "three-lines", symbol: "checkmark",
+            text: "Rebuild the search index for every project folder and then sync the results to the cloud finished"), lines: 3)
         let short = IslandHeadlineArt(IslandNotice(id: "s", symbol: "checkmark.circle",
                                                    text: "Downloaded Swift Concurrency.pdf"), notch: notch, frosted: false)
         print("short headline: width \(short.size.width), text \(short.textWidth) of \(ceil(short.text.size().width))")
@@ -116,15 +121,17 @@ struct IslandCanvasTest {
         precondition(canvas.headline == nil && canvas.glance is IslandNoticeArt, "Spent progress returns to the wings")
     }
 
-    @MainActor static func drawsThreeLines() {
-        let notice = IslandNotice(id: "three-lines", symbol: "checkmark",
-            text: "Rebuild the search index for every project folder and then sync the results to the cloud finished")
+    @MainActor static func drawsCompleteHeadline(_ notice: IslandNotice, lines: Int) {
         let inset = Theme.Spacing.lg
         let indent = NotchTheme.Typography.islandGlanceNSFont.pointSize + Theme.Spacing.xs + Theme.Spacing.sm
+        let canvas = IslandCanvas()
         for frosted in [false, true] {
+            canvas.look = frosted ? .frosted : .black
             for notch: CGFloat? in [nil, 185] {
-                let art = IslandHeadlineArt(notice, notch: notch, frosted: frosted)
-                precondition(art.fit.lines == 3 && !art.fit.truncated, "The guest's script result fits in three lines")
+                canvas.show(glance: nil, level: nil, notice: notice, statuses: [], expanded: false, notch: notch)
+                guard let art = canvas.headline else { preconditionFailure("\(notice.id) needs a card") }
+                precondition(art.fit.lines == lines && !art.fit.truncated && art.text.string == notice.text,
+                             "\(notice.id) fits in \(lines) lines")
                 let frame = CGRect(origin: .zero, size: art.size)
                 let x = frame.midX + (indent - art.textWidth) / 2
                 let drawn = bitmap(in: frame, scale: 2) {
