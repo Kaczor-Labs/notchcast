@@ -31,18 +31,29 @@ struct QuitProtectionTests {
         check(engine.consume(.keyUp(q), at: 10.7, target: target) == .swallow, "Confirmed release swallowed")
         check(engine.consume(.tick, at: 11, target: target) == .pass, "Confirmation runs only once")
 
+        for commandReleasedFirst in [false, true] {
+            engine.reset()
+            check(engine.consume(.keyDown(q, .command, isRepeat: false), at: 15, target: target) == .swallow,
+                  "A single ⌘Q only arms")
+            let firstRelease: QuitProtectionEngine.Event = commandReleasedFirst ? .modifiersChanged([]) : .keyUp(q)
+            let secondRelease: QuitProtectionEngine.Event = commandReleasedFirst ? .keyUp(q) : .modifiersChanged([])
+            _ = engine.consume(firstRelease, at: 15.1, target: target)
+            _ = engine.consume(secondRelease, at: 15.2, target: target)
+            _ = engine.consume(.modifiersChanged(.command), at: 15.3, target: target)
+            check(engine.consume(.keyDown(q, .command, isRepeat: false), at: 15.4, target: target) == .quit(target),
+                  "Two ⌘Q presses confirm even when Command is released between them")
+        }
+
         engine.reset()
         _ = engine.consume(.keyDown(q, .command, isRepeat: false), at: 20, target: target)
         _ = engine.consume(.keyUp(q), at: 20.1, target: target)
+        _ = engine.consume(.modifiersChanged([]), at: 20.2, target: target)
+        _ = engine.consume(.modifiersChanged(.command), at: 20.5, target: target)
         check(engine.consume(.keyDown(q, .command, isRepeat: false), at: 20.601, target: target) == .swallow,
               "Expired press starts a new window")
         _ = engine.consume(.keyUp(q), at: 20.7, target: target)
         check(engine.consume(.keyDown(q, .command, isRepeat: false), at: 20.8, target: other) == .swallow,
               "PID change cannot inherit confirmation")
-        _ = engine.consume(.keyUp(q), at: 20.9, target: other)
-        _ = engine.consume(.modifiersChanged([]), at: 21, target: other)
-        check(engine.consume(.keyDown(q, .command, isRepeat: false), at: 21.1, target: other) == .swallow,
-              "Releasing Command cancels confirmation")
 
         engine.reset()
         check(engine.consume(.keyDown(w, .command, isRepeat: false), at: 30, target: target) == .pass,
@@ -87,7 +98,8 @@ struct QuitProtectionTests {
         engine.reset()
         _ = engine.consume(.keyDown(q, .command, isRepeat: false), at: 70, target: target)
         _ = engine.consume(.modifiersChanged([]), at: 70.1, target: target)
-        check(engine.consume(.keyDown(q, [], isRepeat: false), at: 70.2, target: target) == .pass,
+        check(engine.consume(.tick, at: 70.8, target: target) == .pass, "Releasing Command cancels a hold")
+        check(engine.consume(.keyDown(q, [], isRepeat: false), at: 70.9, target: target) == .pass,
               "Modifier change recovers a lost Q release")
         _ = engine.consume(.keyDown(q, .command, isRepeat: false), at: 71, target: target)
         _ = engine.consume(.keyDown(.init(code: 0, commandCharacter: "a"), [], isRepeat: false), at: 71.1, target: target)
