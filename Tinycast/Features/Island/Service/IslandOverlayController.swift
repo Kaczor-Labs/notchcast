@@ -55,7 +55,7 @@ final class IslandOverlayController: NSObject {
 
     func reposition() {
         reports.removeAll { $0.panel == nil }
-        var framesByDisplay: [CGDirectDisplayID: [CGRect]] = [:]
+        var framesByDisplay: [CGDirectDisplayID: (frames: [CGRect], hasQuestion: Bool)] = [:]
         let overlays = (question.map { [$0] } ?? []) + reports
         for entry in overlays {
             if let (screen, _, _) = island.overlayContext(screen: entry.screen) { entry.screen = screen }
@@ -74,9 +74,12 @@ final class IslandOverlayController: NSObject {
             let panels = reports.filter { $0.screen?.islandDisplayID == id }.compactMap(\.panel)
             let frames = layout.reports(panels.map { $0.frame.size }, question: questionFrame)
             for (panel, frame) in zip(panels, frames) { panel.setFrameOrigin(frame.origin) }
-            framesByDisplay[id] = questionFrame.map { [$0] + frames } ?? frames
+            framesByDisplay[id] = (questionFrame.map { [$0] + frames } ?? frames, questionFrame != nil)
         }
-        for (id, controller) in entries { controller.setOverlays(framesByDisplay[id] ?? []) }
+        for (id, controller) in entries {
+            let overlays = framesByDisplay[id]
+            controller.setOverlays(overlays?.frames ?? [], hasQuestion: overlays?.hasQuestion == true)
+        }
         entries = entries.filter { framesByDisplay[$0.key] != nil }
     }
 
@@ -90,5 +93,24 @@ final class IslandOverlayController: NSObject {
             self.panel = panel
             self.screen = screen
         }
+    }
+}
+
+extension IslandController {
+    func overlaySize(layout: IslandLayout, palette: CGRect?) -> CGSize? {
+        let overlayLayout = IslandOverlayLayout(screen: layout.screen,
+            contentTop: layout.openingTop, palette: palette,
+            inset: NotchTheme.Spacing.islandInset, gap: Theme.Spacing.xl)
+        var frames = overlays
+        canvas.progressReport = nil
+        if canvas.hasQuestion, let notice, notice.progress != nil {
+            let art = IslandHeadlineArt(notice, notch: nil, frosted: canvas.look == .frosted, still: canvas.still)
+            let lowest = (frames + [page?.frame].compactMap { $0 }).min { $0.minY < $1.minY }
+            if let frame = overlayLayout.reports([art.size], question: lowest).first {
+                frames.append(frame)
+                canvas.progressReport = (art, frame.offsetBy(dx: -layout.window.minX, dy: -layout.window.minY))
+            }
+        }
+        return overlayLayout.surface(frames)
     }
 }

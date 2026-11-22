@@ -7,6 +7,9 @@
 // notchcast-sources: Tinycast/Features/Island/UI/IslandTone+Ink.swift
 // notchcast-sources: Tinycast/Features/Island/Service/IslandLevelArt.swift
 // notchcast-sources: Tinycast/Features/Island/Model/IslandKeyline.swift Tinycast/Features/Island/Model/IslandLook.swift
+// notchcast-sources: Tinycast/Features/Island/Model/IslandOverlayLayout.swift
+// notchcast-sources: Tinycast/Features/Island/Model/IslandLayout.swift
+// notchcast-sources: Tinycast/Features/Island/Model/IslandPosition.swift
 // notchcast-sources: Tinycast/Features/Island/Service/IslandCanvas.swift
 // notchcast-sources: Tinycast/Features/Island/Service/IslandExpansionArt.swift
 // notchcast-sources: Tinycast/Features/Island/Service/IslandSongArt.swift Tinycast/Features/Island/Model/IslandPlayer.swift
@@ -57,6 +60,10 @@ struct IslandCanvasTest {
         precondition(IslandNoticeArt.percent(0.29) == "29%" && IslandNoticeArt.percent(0.999) == "99%"
             && IslandNoticeArt.percent(1) == "100%" && IslandNoticeArt.percent(-1) == "0%",
             "The percent is rounded down, never early to 100%, and four characters at most")
+        NSAppearance(named: .darkAqua)!.performAsCurrentDrawingAppearance {
+            coveredProgress()
+            progressBelowQuestion()
+        }
         wrapping(canvas, copied: notice)
         drawsCompleteHeadline(IslandNotice(id: "headphones", symbol: "waveform.badge.minus",
             text: "No headphones with noise control are connected.", isFailure: true), lines: 2)
@@ -75,6 +82,86 @@ struct IslandCanvasTest {
         tones()
         print("Island canvas: headline, fade-out, expansion, cover, notch switch, percent, headline cap, swatch, tone "
             + "and clicks hold")
+    }
+
+    @MainActor static func coveredProgress() {
+        let frame = CGRect(x: 0, y: 0, width: 460, height: 300)
+        let palette = CGRect(x: 12, y: 60, width: 436, height: 234)
+        let canvas = IslandCanvas(frame: frame)
+        canvas.outline = CGPath(roundedRect: palette, cornerWidth: Theme.Radius.panel,
+                                cornerHeight: Theme.Radius.panel, transform: nil)
+        canvas.covered = true
+        let progress = IslandNotice(id: "compress", symbol: "doc.zipper", text: "Compressing Folder.7z",
+                                    progress: IslandProgress(fraction: nil))
+        for look in IslandLook.allCases {
+            canvas.look = look
+            canvas.show(glance: nil, level: nil, notice: nil, statuses: [], expanded: false, notch: nil)
+            let background = bitmap(in: frame, scale: 2) { canvas.draw(frame) }
+            canvas.show(glance: nil, level: nil, notice: progress, statuses: [], expanded: false, notch: nil)
+            precondition(canvas.glance is IslandNoticeArt, "The archive progress fits in the compact pill")
+            let covered = bitmap(in: frame, scale: 2) { canvas.draw(frame) }
+            precondition(!inkBounds(from: background, to: covered).isNull,
+                         "Progress still paints while the launcher covers the island")
+        }
+    }
+
+    @MainActor static func progressBelowQuestion() {
+        let screen = CGRect(x: -1280, y: 120, width: 1280, height: 800)
+        let frame = CGRect(x: 0, y: 0, width: 500, height: 300)
+        let canvas = IslandCanvas(frame: frame)
+        canvas.covered = true
+        canvas.hasQuestion = true
+        let notice = IslandNotice(id: "extract", symbol: "archivebox", text: "Extracting Folder.zip",
+                                  progress: IslandProgress(fraction: nil, headline: false))
+        for look in IslandLook.allCases {
+            canvas.look = look
+            for notch in [CGSize.zero, CGSize(width: 185, height: 32)] {
+                let layout = IslandLayout(screen: screen, notch: notch, canvas: frame.size, position: .menuBarCenter,
+                                          menuBar: 36, pill: NotchTheme.Size.islandRest.height)
+                let overlays = IslandOverlayLayout(screen: screen, contentTop: layout.openingTop, palette: nil,
+                    inset: NotchTheme.Spacing.islandInset, gap: Theme.Spacing.xl)
+                let question = overlays.question(CGSize(width: 420, height: 130))
+                let art = IslandHeadlineArt(notice, notch: nil, frosted: look == .frosted)
+                let report = overlays.reports([art.size], question: question)[0]
+                precondition(report.maxY == question.minY - Theme.Spacing.xl)
+                let size = overlays.surface([question, report])!
+                var transform = layout.stageTransform(width: size.width)
+                let grown = CGRect(x: 0, y: layout.top, width: size.width, height: size.height + layout.expandedPadding)
+                canvas.outline = CGPath(roundedRect: grown, cornerWidth: Theme.Radius.panel,
+                                        cornerHeight: Theme.Radius.panel, transform: &transform)
+                let slot = report.offsetBy(dx: -layout.window.minX, dy: -layout.window.minY)
+
+                canvas.progressReport = nil
+                canvas.show(glance: nil, level: nil, notice: nil, statuses: [], expanded: false, notch: layout.notchWidth)
+                let background = bitmap(in: frame, scale: 2) { canvas.draw(frame) }
+                canvas.show(glance: nil, level: nil, notice: notice, statuses: [], expanded: false,
+                            notch: layout.notchWidth)
+                canvas.progressReport = (art, slot)
+                let drawn = bitmap(in: frame, scale: 2) { canvas.draw(frame) }
+                let ink = inkBounds(from: background, to: drawn)
+                guard !ink.isNull, slot.contains(ink) else {
+                    let message = "Progress must paint only in the report slot: \(ink) in \(slot)\n"
+                    FileHandle.standardError.write(Data(message.utf8))
+                    exit(EXIT_FAILURE)
+                }
+            }
+        }
+    }
+
+    static func inkBounds(from background: NSBitmapImageRep, to drawn: NSBitmapImageRep) -> CGRect {
+        let original = background.bitmapData!
+        let updated = drawn.bitmapData!
+        var ink = CGRect.null
+        for row in 0..<drawn.pixelsHigh {
+            for column in 0..<drawn.pixelsWide {
+                let offset = row * drawn.bytesPerRow + column * 4
+                if (0..<4).contains(where: { original[offset + $0] != updated[offset + $0] }) {
+                    let y = drawn.pixelsHigh - row - 1
+                    ink = ink.union(CGRect(x: CGFloat(column) / 2, y: CGFloat(y) / 2, width: 0.5, height: 0.5))
+                }
+            }
+        }
+        return ink
     }
 
     @MainActor static func wrapping(_ canvas: IslandCanvas, copied: IslandNotice) {
