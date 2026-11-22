@@ -1,5 +1,4 @@
 import AppKit
-import CoreServices
 import Darwin
 import UniformTypeIdentifiers
 
@@ -62,32 +61,8 @@ nonisolated enum TorrentFileReader {
     /// The multi-select Open panel for `.torrent` files.
     @MainActor
     static func pick() async -> [URL] {
-        guard !Task.isCancelled, NSApp.modalWindow == nil else { return [] }
-        let previousApp = NSApp.isActive ? nil : NSWorkspace.shared.menuBarOwningApplication
-        defer {
-            if let previousApp, previousApp != .current, NSApp.isActive, NSApp.modalWindow == nil {
-                NSApp.yieldActivation(to: previousApp)
-                previousApp.activate(from: .current, options: [])
-            }
+        await NotchcastAppleEvents.pickFiles { panel in
+            panel.allowedContentTypes = [UTType(filenameExtension: "torrent") ?? .data]
         }
-        if !NSApp.isActive {
-            let configuration = NSWorkspace.OpenConfiguration()
-            configuration.addsToRecentItems = false
-            configuration.promptsUserIfNeeded = false
-            // An activation event brings us forward without reopening the palette.
-            configuration.appleEvent = NSAppleEventDescriptor(
-                eventClass: kCoreEventClass, eventID: kAEActivate, targetDescriptor: nil,
-                returnID: AEReturnID(kAutoGenerateReturnID), transactionID: AETransactionID(kAnyTransactionID))
-            _ = try? await NSWorkspace.shared.openApplication(at: Bundle.main.bundleURL, configuration: configuration)
-            guard !Task.isCancelled, NSApp.modalWindow == nil else { return [] }
-        }
-        let panel = NSOpenPanel()
-        panel.allowsMultipleSelection = true
-        panel.canChooseDirectories = false
-        panel.allowedContentTypes = [UTType(filenameExtension: "torrent") ?? .data]
-        panel.level = .modalPanel
-        NSApp.activate()
-        panel.makeKeyAndOrderFront(nil)
-        return panel.runModal() == .OK ? panel.urls : []
     }
 }
