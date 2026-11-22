@@ -25,11 +25,11 @@ struct IslandNoticeQueue: Sendable {
         if notice.progress == nil {
             left = notice.dwell
         } else if let index, let shown = entries[index].notice.progress {
-            let headline = shown.headline && notice.isHeadline
+            let headline = shown.headline && notice.progress?.headline == true
             notice.progress?.headline = headline
             left = headline ? entries[index].left : nil
         } else {
-            left = notice.isHeadline ? IslandNotice.messageSeconds : nil
+            left = notice.progress?.headline == true ? notice.dwell : nil
         }
         if let index {
             let was = entries[index]
