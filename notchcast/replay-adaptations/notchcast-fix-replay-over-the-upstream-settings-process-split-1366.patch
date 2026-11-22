@@ -111,52 +111,72 @@ index 399ddef54..1483b988a 100644
  }
  
 diff --git a/Tests/nc-IPhoneBackup-module-test.swift b/Tests/nc-IPhoneBackup-module-test.swift
-index a303802c4..67ae26bc8 100644
+index a303802c4..7f4eb87b3 100644
 --- a/Tests/nc-IPhoneBackup-module-test.swift
 +++ b/Tests/nc-IPhoneBackup-module-test.swift
 @@ -20,7 +20,6 @@ import SwiftUI
  // The shipped `live` and settings view are left out: only a scratch domain is ever read or written here.
- 
+
  struct IPhoneBackupSettingsView: View {
 -    init(store: IPhoneBackupStore) {}
      var body: some View { EmptyView() }
  }
- 
-@@ -141,13 +140,17 @@ final class Rig {
-     var hasModule: Bool { context.module(IPhoneBackupModule.self) != nil }
+
+@@ -138,16 +137,16 @@ final class Rig {
+
+     var context: NotchcastContext { controller.context(forSwitch: IPhoneBackupAddon.switchID)! }
+     var isOn: Bool { controller.preferences.isOn(IPhoneBackupAddon.switchID) }
+-    var hasModule: Bool { context.module(IPhoneBackupModule.self) != nil }
++    var module: IPhoneBackupModule? { context.module(IPhoneBackupModule.self) }
++    var hasModule: Bool { module != nil }
      var journal: Policy.Journal { decoded(journalOnDisk() ?? defaults.data(forKey: Policy.journalKey)) }
- 
+
 -    /// The row's own store, built as the shipped settings row builds it.
-+    /// The store behind the fixture’s module context.
-     func store() -> IPhoneBackupStore { IPhoneBackupStore(context: context, system: .live) }
- 
-     /// The row's question as the shipped view drives it, after its `onAppear`.
+-    func store() -> IPhoneBackupStore { IPhoneBackupStore(context: context, system: .live) }
+-
+-    /// The row's question as the shipped view drives it, after its `onAppear`.
      func ask() -> IPhoneBackupConfirmation {
 -        let confirmation = IPhoneBackupConfirmation(store: store())
 -        confirmation.appear()
-+        let store = store()
-+        store.refresh()
-+        let confirmation = IPhoneBackupConfirmation { accepted in
-+            if accepted { store.apply() } else { store.decline() }
++        let status = module!.settingsStatus()
++        let confirmation = IPhoneBackupConfirmation { [weak self] accepted in
++            self?.module?.answer(accepted)
 +        }
-+        confirmation.appear(isApplied: store.isApplied)
++        confirmation.appear(isApplied: status.isApplied)
          return confirmation
      }
- 
-@@ -274,8 +277,11 @@ enum IPhoneBackupModuleTests {
+
+@@ -273,17 +272,16 @@ enum IPhoneBackupModuleTests {
+         await rig.set(true)
          precondition(rig.hasModule, "the module runs while the switch is on")
          precondition(fake.writes.isEmpty, "turning the switch on writes nothing by itself")
-         let store = rig.store()
+-        let store = rig.store()
 -        var ask = IPhoneBackupConfirmation(store: store)
 -        ask.appear()
-+        store.refresh()
-+        var ask = IPhoneBackupConfirmation { accepted in
-+            if accepted { store.apply() } else { store.decline() }
-+        }
-+        ask.appear(isApplied: store.isApplied)
-         precondition(ask.isPresented && !store.backupsOff, "the row asks: nothing applied yet")
+-        precondition(ask.isPresented && !store.backupsOff, "the row asks: nothing applied yet")
++        var ask = rig.ask()
++        precondition(ask.isPresented && !rig.module!.settingsStatus().backupsOff, "the row asks: nothing applied yet")
          precondition(rig.isOn && fake.writes.isEmpty, "asking writes nothing")
          ask.accept()
+         precondition(!ask.isPresented && rig.isOn, "accept: the question closes, the switch stays on")
+         precondition(fake.writes == [.set(.bool(true))], "accept writes disabled = true")
+         precondition(fake.capturedAtWrite == [true], "the capture is on disk before the system write")
+         precondition(rig.defaults.data(forKey: Policy.journalKey) == nil, "the capture lives in the file")
+-        precondition(store.isApplied && store.backupsOff, "the row reads backups off")
++        let status = rig.module!.settingsStatus()
++        precondition(status.isApplied && status.backupsOff, "the row reads backups off")
+         precondition(!rig.journal.isEmpty, "the capture is saved")
+         ask.setPresented(false)
+         await drain()
+@@ -296,6 +294,8 @@ enum IPhoneBackupModuleTests {
+         let kept = rig.suite
+         rig = Rig(suite: kept)
+         precondition(rig.isOn && rig.hasModule && fake.writes.count == 1, "relaunch keeps the switch, writes nothing")
++        precondition(fake.reads == 1, "relaunch reads only for recovery")
++        precondition(!rig.ask().isPresented, "the first Settings status sees the applied change")
+
+         await rig.set(false)
+         precondition(!rig.hasModule, "the module stops")
 diff --git a/Tests/nc-Notchcast-command-alias-test.swift b/Tests/nc-Notchcast-command-alias-test.swift
 index e48bcd14b..7c3a66365 100644
 --- a/Tests/nc-Notchcast-command-alias-test.swift
@@ -1241,10 +1261,10 @@ index 62cf5906d..c21e11df6 100644
      static func makeModule(_ context: NotchcastContext) -> (any NotchcastModule)? {
 diff --git a/Tinycast/Features/Notchcast/IPhoneBackup/IPhoneBackupSettingsEndpoint.swift b/Tinycast/Features/Notchcast/IPhoneBackup/IPhoneBackupSettingsEndpoint.swift
 new file mode 100644
-index 000000000..bb3a30f6d
+index 000000000..4a15c5d69
 --- /dev/null
 +++ b/Tinycast/Features/Notchcast/IPhoneBackup/IPhoneBackupSettingsEndpoint.swift
-@@ -0,0 +1,19 @@
+@@ -0,0 +1,20 @@
 +import Foundation
 +
 +extension IPhoneBackupAddon: NotchcastSettingsEndpoint {
@@ -1257,7 +1277,8 @@ index 000000000..bb3a30f6d
 +
 +    static func settingsStatus(_ context: NotchcastContext) -> Status? {
 +        guard let iPhone = context.settingsModule(IPhoneBackupModule.self, for: settingsID) else { return nil }
-+        return Status(isApplied: iPhone.isApplied, backupsOff: iPhone.backupsOff)
++        let status = iPhone.settingsStatus()
++        return Status(isApplied: status.isApplied, backupsOff: status.backupsOff)
 +    }
 +
 +    static func perform(_ accepted: Bool, context: NotchcastContext) {
@@ -1305,25 +1326,36 @@ index 70b81285c..9f6a51d81 100644
  
      /// SwiftUI may clear the binding before a button's action runs, so a dismissal waits one turn.
 diff --git a/Tinycast/Features/Notchcast/IPhoneBackup/Service/IPhoneBackupModule.swift b/Tinycast/Features/Notchcast/IPhoneBackup/Service/IPhoneBackupModule.swift
-index 160752fa8..685fdb17b 100644
+index 160752fa8..eb1eb2eff 100644
 --- a/Tinycast/Features/Notchcast/IPhoneBackup/Service/IPhoneBackupModule.swift
 +++ b/Tinycast/Features/Notchcast/IPhoneBackup/Service/IPhoneBackupModule.swift
-@@ -10,7 +10,14 @@ final class IPhoneBackupModule: NotchcastModule {
-         store = IPhoneBackupStore(context: context, system: system)
-     }
- 
--    func start() {}
-+    var isApplied: Bool { store.isApplied }
-+    var backupsOff: Bool { store.backupsOff }
-+
-+    func start() { store.refresh() }
+@@ -4,6 +4,7 @@ import Foundation
+ final class IPhoneBackupModule: NotchcastModule {
+     private let context: NotchcastContext
+     private let store: IPhoneBackupStore
++    private var hasReadSettingsStatus = false
+
+     init(context: NotchcastContext, system: IPhoneBackupSystem) {
+         self.context = context
+@@ -12,6 +13,18 @@ final class IPhoneBackupModule: NotchcastModule {
+
+     func start() {}
+
++    func settingsStatus() -> (isApplied: Bool, backupsOff: Bool) {
++        if !hasReadSettingsStatus {
++            hasReadSettingsStatus = true
++            store.refresh()
++        }
++        return (store.isApplied, store.backupsOff)
++    }
 +
 +    func answer(_ accepted: Bool) {
 +        if accepted { store.apply() } else { store.decline() }
 +    }
- 
++
      /// Quitting stops the module with the switch still on, and must leave backups off.
      func stop() {
+         guard !context.isEnabled(IPhoneBackupAddon.switchID) else { return }
 diff --git a/Tinycast/Features/Notchcast/IPhoneBackup/UI/IPhoneBackupSettingsView.swift b/Tinycast/Features/Notchcast/IPhoneBackup/UI/IPhoneBackupSettingsView.swift
 index 21fe73144..bc143383f 100644
 --- a/Tinycast/Features/Notchcast/IPhoneBackup/UI/IPhoneBackupSettingsView.swift
