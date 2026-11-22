@@ -59,7 +59,7 @@ struct NotchcastModuleCommandsTest {
         controller.preferences.set("publishMain", on: true)
         drain()
         precondition(observed.withLock { $0 }, "a view reading the add-on's commands redraws on setCommands")
-        precondition(published == [["command:nc-publish-run"]], "a module's own command is published: \(published)")
+        precondition(published == [[], ["command:nc-publish-run"]], "a module's own command is published: \(published)")
         precondition(
             controller.slots[0].commands.map(\.name) == ["Published"], "the add-on's rows list it")
         precondition(controller.run(entryID: "command:nc-publish-run"), "run(entryID:) finds it")
@@ -70,6 +70,9 @@ struct NotchcastModuleCommandsTest {
         precondition(published.last == [], "it is withdrawn once the switch goes off")
         precondition(controller.context(forSwitch: "publishMain")?.commands.isEmpty == true, "the context drops it")
         precondition(!controller.run(entryID: "command:nc-publish-run"), "a withdrawn command no longer runs")
+        precondition(
+            !controller.press(entryID: "command:nc-publish-run") && presenter.log == ["post publish Published ran"],
+            "a run-time command is unknown once its module stops")
         controller.stop()
         print("PASS Notchcast module commands: published, run by entry id, gone with the switch")
     }

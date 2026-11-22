@@ -1,6 +1,9 @@
 {
   "sourceLanguage" : "en",
   "strings" : {
+    "%@ is off" : {
+
+    },
     "A faint line around the open island in Dark." : {
 
     },
