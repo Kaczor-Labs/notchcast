@@ -24,7 +24,10 @@ struct DictationBindTest {
     }
 
     static func main() async {
-        guard let (port, serving) = try? await listen({ connection, _ in
+        guard let (port, serving) = try? await listen({ connection, port in
+            let reader = DictationServerReader(token: token, port: Int(port))
+            guard case .models = try? await DictationServerListener.readRequest(connection, reader: reader, onHead: {})
+            else { return }
             await DictationServerListener.reply(connection) { reply }
         }) else {
             print("FAILED could not create the listener")
@@ -39,9 +42,10 @@ struct DictationBindTest {
             } else {
                 print("note: no non-loopback IPv4 address, so the off-loopback refusal is not checked")
             }
-            let request = Data("POST /v1/audio/transcriptions HTTP/1.1\r\nHost: 127.0.0.1\r\n\r\n".utf8)
+            let fields = ["GET /v1/models HTTP/1.1", "Host: 127.0.0.1:\(port)", "Authorization: Bearer \(token)", "", ""]
+            let request = Data(fields.joined(separator: "\r\n").utf8)
             let received = await roundTrip(port: port, request: request, halfClosed: false)
-            check("an open client gets the whole reply", received == reply)
+            check("an open client gets the whole reply (\(received?.count ?? -1) bytes)", received == reply)
         }
         serving.cancel()
         _ = await serving.value
