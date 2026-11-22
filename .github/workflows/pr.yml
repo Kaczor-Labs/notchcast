@@ -7,10 +7,6 @@ on:
     types: [opened, synchronize, reopened]
   workflow_dispatch:
     inputs:
-      hosted_linux:
-        description: Run Linux checks on GitHub-hosted runners
-        type: boolean
-        default: false
       base:
         description: Base commit the checks compare against, as a PR's base (notchcast/train.sh)
         default: ''
@@ -44,7 +40,6 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     outputs:
-      linux-runner: ${{ steps.linux.outputs.runs-on }}
       build: ${{ steps.lanes.outputs.build }}
       scripts: ${{ steps.lanes.outputs.scripts }}
       harness-planned: ${{ steps.select.outputs.planned }}
@@ -52,19 +47,6 @@ jobs:
       harness-unsure: ${{ steps.select.outputs.unsure }}
       harness-only: ${{ steps.select.outputs.only }}
     steps:
-      - name: Linux runner availability
-        id: linux
-        env:
-          POOL_FREE: ${{ vars.POOL_FREE_LINUX }}
-          FORCE_HOSTED: ${{ inputs.hosted_linux }}
-        shell: bash
-        run: |
-          runner=ubuntu-latest
-          if [[ "$FORCE_HOSTED" != true && "$POOL_FREE" =~ ^([1-9][0-9]{0,8})[[:blank:]]([0-9]{10})$ ]]; then
-            age=$(( $(date +%s) - 10#${BASH_REMATCH[2]} ))
-            if (( age >= 0 && age < 180 )); then runner=linux-pool; fi
-          fi
-          echo "runs-on=$runner" >> "$GITHUB_OUTPUT"
       # train.sh reads a train's PR run by its conclusion alone, and a harness-only run builds nothing.
       - name: A harness-only run is never a train's
         if: inputs.harness_runner != '' && startsWith(github.ref, 'refs/heads/train/')
@@ -223,17 +205,9 @@ jobs:
   linux-checks:
     needs: route
     if: needs.route.outputs.build == 'true' && inputs.harness_runner == ''
-    runs-on: ${{ (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository || github.event_name == 'push' || github.event_name == 'workflow_dispatch') && needs.route.outputs.linux-runner == 'linux-pool' && 'linux-pool' || 'ubuntu-latest' }}
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
-      - name: Prepare clean Linux workspace
-        shell: bash
-        run: |
-          if [[ "$RUNNER_ENVIRONMENT" == self-hosted ]]; then
-            find "${GITHUB_WORKSPACE:?}" -mindepth 1 -delete
-          fi
-          mkdir -p "$RUNNER_TEMP/home"
-          printf 'HOME=%s/home\nTMPDIR=%s\nnpm_config_cache=%s/npm\n' "$RUNNER_TEMP" "$RUNNER_TEMP" "$RUNNER_TEMP" >> "$GITHUB_ENV"
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           fetch-depth: 0
@@ -248,17 +222,9 @@ jobs:
   script-tests:
     needs: route
     if: needs.route.outputs.scripts == 'true' && inputs.harness_runner == ''
-    runs-on: ${{ (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository || github.event_name == 'push' || github.event_name == 'workflow_dispatch') && needs.route.outputs.linux-runner == 'linux-pool' && 'linux-pool' || 'ubuntu-24.04' }}
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
-      - name: Prepare clean Linux workspace
-        shell: bash
-        run: |
-          if [[ "$RUNNER_ENVIRONMENT" == self-hosted ]]; then
-            find "${GITHUB_WORKSPACE:?}" -mindepth 1 -delete
-          fi
-          mkdir -p "$RUNNER_TEMP/home"
-          printf 'HOME=%s/home\nTMPDIR=%s\nnpm_config_cache=%s/npm\n' "$RUNNER_TEMP" "$RUNNER_TEMP" "$RUNNER_TEMP" >> "$GITHUB_ENV"
       - name: Install pinned jq
         shell: bash
         run: |
@@ -307,17 +273,9 @@ jobs:
   linux-harnesses:
     needs: route
     if: needs.route.outputs.build == 'true' && inputs.harness_runner == ''
-    runs-on: ${{ (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository || github.event_name == 'push' || github.event_name == 'workflow_dispatch') && needs.route.outputs.linux-runner == 'linux-pool' && 'linux-pool' || 'ubuntu-24.04' }}
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
-      - name: Prepare clean Linux workspace
-        shell: bash
-        run: |
-          if [[ "$RUNNER_ENVIRONMENT" == self-hosted ]]; then
-            find "${GITHUB_WORKSPACE:?}" -mindepth 1 -delete
-          fi
-          mkdir -p "$RUNNER_TEMP/home"
-          printf 'HOME=%s/home\nTMPDIR=%s\nnpm_config_cache=%s/npm\n' "$RUNNER_TEMP" "$RUNNER_TEMP" "$RUNNER_TEMP" >> "$GITHUB_ENV"
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           fetch-depth: 0
@@ -336,17 +294,9 @@ jobs:
   build:
     needs: [route, mac, linux-checks, linux-harnesses, script-tests]
     if: ${{ !cancelled() && inputs.harness_runner == '' }}
-    runs-on: ${{ (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository || github.event_name == 'push' || github.event_name == 'workflow_dispatch') && needs.route.outputs.linux-runner == 'linux-pool' && 'linux-pool' || 'ubuntu-latest' }}
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
-      - name: Prepare clean Linux workspace
-        shell: bash
-        run: |
-          if [[ "$RUNNER_ENVIRONMENT" == self-hosted ]]; then
-            find "${GITHUB_WORKSPACE:?}" -mindepth 1 -delete
-          fi
-          mkdir -p "$RUNNER_TEMP/home"
-          printf 'HOME=%s/home\nTMPDIR=%s\nnpm_config_cache=%s/npm\n' "$RUNNER_TEMP" "$RUNNER_TEMP" "$RUNNER_TEMP" >> "$GITHUB_ENV"
       - name: A train run names its base
         if: startsWith(github.ref, 'refs/heads/train/') && inputs.base == ''
         run: |

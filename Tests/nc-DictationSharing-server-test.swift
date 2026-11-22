@@ -4,6 +4,7 @@
 // notchcast-sources: Tinycast/Features/Notchcast/Core/Service/NotchcastTranscription.swift Tests/NotchcastDictationFixture.swift
 // notchcast-linux-ok
 import Foundation
+import Synchronization
 
 /// A fixed byte stream, so token generation is checked without real randomness.
 private struct CountingGenerator: RandomNumberGenerator {
@@ -14,12 +15,10 @@ private struct CountingGenerator: RandomNumberGenerator {
     }
 }
 
-/// What the scheduling tasks did, readable after they ran.
 @MainActor
 private final class Log {
-    var admitted = false
-    var order: [Int] = []
     var waits: [Duration] = []
+    var answers: [String] = []
 
     func waited(_ duration: Duration) { waits.append(duration) }
 }
@@ -302,25 +301,29 @@ struct DictationServerTest {
 
     // MARK: Scheduling
 
-    /// Lets started tasks reach their suspension points before the test looks.
-    static func settle() async {
-        for _ in 0..<20 { await Task.yield() }
+    static func enqueue(
+        _ queue: DictationServerQueue, admitted: @escaping @MainActor () -> Void = {}
+    ) async -> Task<Void, any Error> {
+        let (waiting, registered) = AsyncStream<Void>.makeStream()
+        let waiter = Task {
+            defer { registered.finish() }
+            try await queue.enter { registered.finish() }
+            admitted()
+        }
+        for await _ in waiting {}
+        return waiter
     }
 
     static func queueWaitsForUser() async {
         let queue = DictationServerQueue(capacity: 4)
         queue.setUserDictating(true)
-        let log = Log()
-        let waiter = Task {
-            try await queue.enter()
-            log.admitted = true
-        }
-        await settle()
-        check("a request during the user's dictation waits", !log.admitted && queue.waitingCount == 1)
+        let waiter = await enqueue(queue)
+        check("a request during the user's dictation waits", !queue.isHeld && queue.waitingCount == 1)
         queue.setUserDictating(false)
-        await settle()
-        check("it runs once the user is done", log.admitted && queue.isHeld)
-        _ = await waiter.result
+        let admitted = queue.isHeld && queue.waitingCount == 0
+        if !admitted { waiter.cancel() }
+        let entered = (try? await waiter.value) != nil
+        check("it runs once the user is done", admitted && entered)
         queue.leave()
         check("leaving frees the model", !queue.isHeld)
     }
@@ -328,34 +331,52 @@ struct DictationServerTest {
     static func queueRunsInOrder() async {
         let queue = DictationServerQueue(capacity: 4)
         try? await queue.enter()
-        let log = Log()
+        let (admissions, admitted) = AsyncStream<Int>.makeStream()
+        var waiters: [Task<Void, any Error>] = []
         for number in 1...3 {
-            Task {
-                try await queue.enter()
-                log.order.append(number)
+            waiters.append(await enqueue(queue) {
+                admitted.yield(number)
+            })
+        }
+        let queued = queue.waitingCount == 3
+        check("others wait behind the holder", queued)
+        var next = admissions.makeAsyncIterator()
+        if queued {
+            for number in 1...3 {
+                queue.leave()
+                let oneAdmitted = queue.isHeld && queue.waitingCount == 3 - number
+                check("the remaining waiters stay queued", oneAdmitted)
+                guard oneAdmitted else {
+                    check("waiter \(number) takes its turn in arrival order", false)
+                    break
+                }
+                let actual = await next.next()
+                check("waiter \(number) takes its turn in arrival order", actual == number)
             }
-            await settle()
         }
-        check("others wait behind the holder", log.order.isEmpty && queue.waitingCount == 3)
-        for _ in 1...3 {
-            queue.leave()
-            await settle()
+        admitted.finish()
+        for waiter in waiters { waiter.cancel() }
+        for waiter in waiters {
+            _ = await waiter.result
         }
-        check("they run in arrival order, one at a time", log.order == [1, 2, 3])
         queue.leave()
     }
 
     static func queueRefusesWhenFull() async {
         let queue = DictationServerQueue(capacity: 1)
         try? await queue.enter()
-        let first = Task { try await queue.enter() }
-        await settle()
-        let second = await Task { () -> Bool in
-            do { try await queue.enter() } catch is DictationServerQueue.Full { return true } catch {}
-            return false
-        }.value
-        check("a full queue refuses at once", second)
+        let first = await enqueue(queue)
+        let second = await enqueue(queue)
+        second.cancel()
+        let refused: Bool
+        if case .failure(let error) = await second.result {
+            refused = error is DictationServerQueue.Full
+        } else {
+            refused = false
+        }
+        check("a full queue refuses at once", refused)
         queue.leave()
+        if !queue.isHeld { first.cancel() }
         _ = await first.result
         queue.leave()
     }
@@ -363,10 +384,8 @@ struct DictationServerTest {
     static func queueDropsCancelledWaiter() async {
         let queue = DictationServerQueue(capacity: 4)
         queue.setUserDictating(true)
-        let waiter = Task { try await queue.enter() }
-        await settle()
+        let waiter = await enqueue(queue)
         waiter.cancel()
-        await settle()
         let cancelled: Bool
         if case .failure(let error) = await waiter.result { cancelled = error is CancellationError } else { cancelled = false }
         check("a cancelled waiter leaves with CancellationError", cancelled)
@@ -379,9 +398,14 @@ struct DictationServerTest {
     static func userWinsRunningRequest() async {
         let fake = FakeDictation()
         fake.holds = true
+        let (held, holding) = AsyncStream<Void>.makeStream()
+        let cancelled = Mutex(false)
+        fake.onHold = { holding.finish() }
+        fake.onCancel = { cancelled.withLock { $0 = true } }
         let runner = NotchcastTranscriptionRunner(dictation: fake)
         let queue = DictationServerQueue(capacity: 4)
         let request = Task { () -> Result<String, any Error> in
+            defer { holding.finish() }
             try? await queue.enter()
             defer { queue.leave() }
             do {
@@ -390,13 +414,15 @@ struct DictationServerTest {
                 return .failure(error)
             }
         }
-        await settle()
-        check("the request reached the model", fake.calls.count == 1)
-        let user = Task { await fake.userDictates() }
-        await settle()
-        fake.release()
+        for await _ in held {}
+        check("the request reached the model", fake.modelBusy)
+        let user = Task {
+            Task { fake.release() }
+            return await fake.userDictates()
+        }
         let userGotModel = await user.value
         let outcome = await request.value
+        check("the user cancels the running transcription", cancelled.withLock { $0 })
         check("the user's dictation gets the model", userGotModel)
         if case .failure(let error) = outcome {
             check("the request is answered busy", (error as? NotchcastTranscribeError) == .busy)
@@ -441,20 +467,22 @@ struct DictationServerTest {
     static func clientLeavingCancelsTranscription() async {
         let fake = FakeDictation()
         fake.holds = true
+        let (held, holding) = AsyncStream<Void>.makeStream()
+        let cancelled = Mutex(false)
+        fake.onHold = { holding.finish() }
+        fake.onCancel = { cancelled.withLock { $0 = true } }
         let runner = NotchcastTranscriptionRunner(dictation: fake)
-        let (closed, client) = AsyncStream<Void>.makeStream()
-        let request = Task {
-            await DictationServerClients.answer({
-                (try? await runner.transcribe(URL(fileURLWithPath: "/clip.wav"))) ?? "refused"
-            }, unless: { for await _ in closed {} })
-        }
-        await settle()
-        check("the request reached the model", fake.calls.count == 1)
-        client.finish()
-        await settle()
-        fake.release()
-        check("a client that leaves gets no answer", await request.value == nil)
-        await settle()
+        let log = Log()
+        await DictationServerClients.answer({
+            defer { holding.finish() }
+            return (try? await runner.transcribe(URL(fileURLWithPath: "/clip.wav"))) ?? "refused"
+        }, unless: {
+            for await _ in held {}
+            check("the request reached the model before the client left", fake.modelBusy)
+            Task { fake.release() }
+        }) { log.answers.append($0) }
+        check("a client that leaves cancels its transcription", cancelled.withLock { $0 })
+        check("a client that leaves gets no answer", log.answers.isEmpty)
         check("its transcription let go of the model", !fake.modelBusy)
         fake.holds = false
         fake.result = .success("next")
@@ -464,8 +492,9 @@ struct DictationServerTest {
 
     static func clientStayingGetsAnswer() async {
         let (open, client) = AsyncStream<Void>.makeStream()
-        let answer = await DictationServerClients.answer({ "text" }, unless: { for await _ in open {} })
-        check("a client that stays gets the answer", answer == "text")
+        let log = Log()
+        await DictationServerClients.answer({ "text" }, unless: { for await _ in open {} }) { log.answers.append($0) }
+        check("a client that stays gets the answer", log.answers == ["text"])
         client.finish()
     }
 }

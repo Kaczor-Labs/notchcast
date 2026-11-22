@@ -193,7 +193,7 @@ nor adds bundled resources.
 
 Cleanup and history are Notchcast's, in `Tinycast/Features/DictationExtras/`. Dictation calls in through two hooks on `DictationCoordinator`, `cleanUp` before formatting and `didDictate` after a finished session, which `DictationExtrasCoordinator` sets in `start(core:)`.
 
-Notchcast never builds the capsule: `DictationIslandCoordinator` stands in for it and shows the session on the island, which also holds Return and Escape ([island-shell.md](../../notchcast/docs/island-shell.md#dictation)).
+Notchcast never builds the capsule: `DictationIslandCoordinator` stands in for it and shows the session on the island on the display being typed on, which also holds Return and Escape ([island-shell.md](../../notchcast/docs/island-shell.md#dictation)).
 
 - Cleanup is off by default; only its switch in Settings turns it on. `DictationCleanupPolicy.sends` is the one gate: with the switch off, nothing is sent. With it on, a shortcut finish (toggle, released hold or the length limit) cleans up: Return pastes the raw transcript, and live insertion and AI Chat's composer mic never clean up, because their text is already in place or the composer is its own editor.
 - The transcript goes through the AI provider layer ([ai.md](ai.md)) with `permissiveContentTransformations` guardrails, never through a second provider path. The cleanup model is its own stored `AIModelSelection` (`dictationCleanupModel`, local, like Quick Actions' model); Automatic picks the installed Claude CLI, else Codex, each one's lightest model, so the user's subscription cleans up without an API key. The installed CLIs are probed while cleanup is on, even with AI and Quick Actions off.

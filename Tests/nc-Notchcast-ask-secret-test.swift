@@ -39,7 +39,15 @@ struct NotchcastAskSecretTest {
         NSApp.setActivationPolicy(.accessory)
         NSApp.appearance = NSAppearance(named: .darkAqua)
         NSApp.activate()
-        let controller = DialogController(settings: AppSettings(), onPresentationChanged: { _ in })
+        var isSecretPromptOpen = false
+        var submitted = [String?]()
+        let controller = DialogController(
+            settings: AppSettings(), onPresentationChanged: { _ in },
+            onSecretPromptOpened: { isSecretPromptOpen = true },
+            onSecretPromptClosed: { answer in
+                isSecretPromptOpen = false
+                submitted.append(answer)
+            })
         let suite = "nc-Notchcast-ask-secret-test.\(UUID())"
         defer { UserDefaults().removePersistentDomain(forName: suite) }
         let addons = NotchcastController(
@@ -96,6 +104,7 @@ struct NotchcastAskSecretTest {
         spin { !panel.isKeyWindow }
         check("another window took key status", !panel.isKeyWindow)
         check("click-away keeps the secret question open", controller.shown != nil && answer == nil)
+        check("click-away keeps clipboard capture paused", isSecretPromptOpen)
         check("Secure Input is off while another window is key", !IsSecureEventInputEnabled())
         other.orderOut(nil)
         panel.makeKeyAndOrderFront(nil)
@@ -106,6 +115,7 @@ struct NotchcastAskSecretTest {
         spin { answer != nil }
         check("Return answers the typed text, got \(shape(answer))", answer == .some("hunter2!pw"))
         closed(controller, state, "Return")
+        check("Return reports the submitted text and resumes capture", submitted == ["hunter2!pw"] && !isSecretPromptOpen)
 
         // Esc cancels.
         answer = nil
@@ -144,6 +154,7 @@ struct NotchcastAskSecretTest {
         spin { answer != nil }
         check("job cancelled: the answer is nil, never the typed text, got \(shape(answer))", answer == .some(nil))
         closed(controller, jobState, "job cancelled")
+        check("all cancellations resume capture without text", submitted == ["hunter2!pw", nil, nil, nil] && !isSecretPromptOpen)
 
         var confirmed: Bool?
         Task {

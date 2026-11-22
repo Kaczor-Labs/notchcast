@@ -16,19 +16,29 @@ final class DictationServerClients {
 
     func release() { active -= 1 }
 
-    /// The work's answer, or nil when `left` returns first; the other side is cancelled either way.
+    /// Keep watching for close until the reply finishes sending.
     static func answer<Value: Sendable>(
-        _ work: @escaping @MainActor @Sendable () async -> Value, unless left: @escaping @Sendable () async -> Void
-    ) async -> Value? {
-        await withTaskGroup(of: Value?.self) { group in
-            group.addTask { await work() }
-            group.addTask {
-                await left()
-                return nil
+        _ work: @escaping @MainActor @Sendable () async -> Value,
+        unless left: @escaping @MainActor @Sendable () async -> Void,
+        send: @escaping @MainActor @Sendable (Value) async -> Void
+    ) async {
+        let reply = Task {
+            let value = await work()
+            guard !Task.isCancelled else { return }
+            await send(value)
+        }
+        let watchClose: @MainActor @Sendable () async -> Void = {
+            await left()
+            reply.cancel()
+        }
+        await withTaskCancellationHandler {
+            await withTaskGroup(of: Void.self) { group in
+                group.addTask(operation: watchClose)
+                await reply.value
+                group.cancelAll()
             }
-            defer { group.cancelAll() }
-            guard let first = await group.next() else { return nil }
-            return first
+        } onCancel: {
+            reply.cancel()
         }
     }
 }

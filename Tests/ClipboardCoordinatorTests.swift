@@ -8,6 +8,7 @@ struct ClipboardCoordinatorTests {
     static var passes = 0
 
     static func main() async throws {
+        openingSecretPromptInvalidatesPendingImages()
         await followsEditedEntry()
         try await writeFailureKeepsHistoryAndClipboard()
         await closedStoreIsNotDeletion()
@@ -17,6 +18,15 @@ struct ClipboardCoordinatorTests {
         await cancelledAndEmptyEditsChangeNothing()
         print("\(passes) passed, \(failures) failed")
         if failures > 0 { exit(1) }
+    }
+
+    static func openingSecretPromptInvalidatesPendingImages() {
+        let fixture = Fixture()
+        defer { fixture.cleanUp() }
+        let inFlight = fixture.store.captureGeneration
+        fixture.coordinator.beginSecretPrompt()
+        expect(fixture.store.captureGeneration != inFlight, "opening the password question retires pending images")
+        fixture.coordinator.endSecretPrompt(submitted: nil)
     }
 
     static func followsEditedEntry() async {
@@ -244,6 +254,7 @@ final class AppIndex {
 
 @MainActor
 final class ClipboardManager {
+    func setSecretPromptOpen(_ isOpen: Bool) {}
     func start() {}
     func stop() {}
     func prepareForTinycastPasteboardMutation() {}

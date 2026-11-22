@@ -17,7 +17,7 @@ final class TorrentManager {
         var sleep: @Sendable (Duration) async throws -> Void = { try await Task.sleep(for: $0) }
         /// Extra aria2c flags read at each session start; Wi-Fi and iPhone bonding plugs in here.
         var extraArguments: @MainActor () -> [String] = { [] }
-        var pick: @MainActor () -> [URL] = { [] }
+        var pick: @MainActor () async -> [URL] = { [] }
         var reveal: @MainActor @Sendable ([URL]) -> Void = { _ in }
     }
 
@@ -36,7 +36,7 @@ final class TorrentManager {
     private(set) var isRunning = false
     let downloads: URL
     @ObservationIgnored let reveal: @MainActor @Sendable ([URL]) -> Void
-    @ObservationIgnored let pick: @MainActor () -> [URL]
+    @ObservationIgnored let pick: @MainActor () async -> [URL]
     /// The last session stop, so a harness can wait for aria2c to be gone.
     @ObservationIgnored private(set) var stopping: Task<Void, Never>?
     @ObservationIgnored private let environment: Environment

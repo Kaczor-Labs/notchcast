@@ -47,13 +47,10 @@ extension ArchivesEnvironment {
         }
     }
 
-    private static func pickArchives() -> [URL] {
-        let panel = NSOpenPanel()
-        panel.allowsMultipleSelection = true
-        panel.canChooseDirectories = false
-        panel.treatsFilePackagesAsDirectories = false
-        panel.prompt = String(localized: "Extract", table: "NotchcastArchives")
-        NSApp.activate()
-        return panel.runModal() == .OK ? panel.urls : []
+    private static func pickArchives() async -> [URL] {
+        await NotchcastAppleEvents.pickFiles { panel in
+            panel.treatsFilePackagesAsDirectories = false
+            panel.prompt = String(localized: "Extract", table: "NotchcastArchives")
+        }
     }
 }
