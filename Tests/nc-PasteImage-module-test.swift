@@ -27,6 +27,7 @@ final class FakeSystem {
     var image: PasteImageClip? = png
     var focus: PasteImageFocus? = PasteImageFocus(pid: 7, role: "AXOutline")
     var hold = false
+    var pendingSave: CheckedContinuation<Void, Never>?
     var failure: PasteImageFailure?
     var saves: [Date] = []
     var replays: [Int] = []
@@ -41,8 +42,14 @@ final class FakeSystem {
     func save(_ clip: PasteImageClip, _ date: Date) async -> PasteImageFailure? {
         precondition(clip == png, "the clipboard image is what is saved")
         saves.append(date)
-        while hold && !Task.isCancelled { await Task.yield() }
+        if hold { await withCheckedContinuation { pendingSave = $0 } }
         return failure
+    }
+
+    func resumeSave() {
+        hold = false
+        pendingSave?.resume()
+        pendingSave = nil
     }
 }
 
@@ -207,11 +214,11 @@ enum PasteImageModuleTests {
 
         fake.hold = true
         precondition(rig.send(9) == .swallow, "a held save")
-        await until("save starts") { fake.saves.count == 2 }
+        await until("save starts") { fake.pendingSave != nil }
         precondition(rig.send(9) == .pass, "a ⌘V while saving is a normal ⌘V")
         precondition(rig.send(9, repeat: true) == .pass && rig.send(9, down: false) == .pass, "and passes whole")
         fake.failure = .notSaved
-        fake.hold = false
+        fake.resumeSave()
         await until("failure shows") { rig.module?.work == nil && !rig.presenter.posts.isEmpty }
         let notice = rig.presenter.posts[0]
         precondition(notice.isFailure && notice.id == "pasteImage", "one failure notice")
@@ -263,7 +270,7 @@ enum PasteImageModuleTests {
         fake.failure = .notSaved
         let postsBeforeOff = rig.presenter.posts.count
         precondition(rig.send(9) == .swallow, "a held key")
-        await until("held save") { fake.saves.count == beforeLeft + 1 }
+        await until("held save") { fake.pendingSave != nil }
         let beforeReset = fake.finderReads
         guard case .reenable(let ids) = rig.session!.router.receive(
             type: .tapDisabledByTimeout, event: CGEvent(source: nil)!)
@@ -273,9 +280,12 @@ enum PasteImageModuleTests {
         precondition(rig.send(9, down: false) == .pass, "after lost events no key-up is held")
 
         let task = rig.module?.work
-        precondition(task != nil, "still saving")
+        weak let module = rig.module
+        precondition(task != nil && module != nil, "still saving")
         rig.controller.preferences.set("pasteImage", on: false)
         await until("switch off") { rig.module == nil }
+        precondition(module == nil, "switch-off must release the module while save is still suspended")
+        fake.resumeSave()
         await task?.value
         precondition(rig.presenter.posts.count == postsBeforeOff, "a paste cut off by switch-off posts nothing")
         precondition(rig.hub.subscriberCount == 0 && rig.session?.isRunning == false, "switch off removes the tap")
