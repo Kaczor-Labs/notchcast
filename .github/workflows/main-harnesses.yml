@@ -136,21 +136,18 @@ jobs:
           [[ 'NSWindow(' =~ $risky && -n "$risky" ]] || exit 0
           for test in "${selected[@]}"; do
             path="Tests/$test.swift"
-            for tree in "$GITHUB_SHA" "$main"; do
-              entry=$(git ls-tree --format='%(objectmode) %(objecttype) %(objectname)' "$tree" -- "$path") || exit 0
-              if [[ "$tree" == "$main" && -z "$entry" ]]; then continue; fi
-              read -r mode type blob <<< "$entry"
-              [[ "$mode" == 100??? && "$type" == blob && -n "$blob" ]] || exit 0
-              [[ "$blocked_blobs" != *" $blob "* ]] || exit 0
-              harness=$(git show "$blob") || exit 0
-              grep -Eaq "$risky|$tag" <<< "$harness" && exit 0
-              [[ $? == 1 ]] || exit 0
-            done
+            entry=$(git ls-tree --format='%(objectmode) %(objecttype) %(objectname)' "$GITHUB_SHA" -- "$path") || exit 0
+            read -r mode type blob <<< "$entry"
+            [[ "$mode" == 100??? && "$type" == blob && -n "$blob" ]] || exit 0
+            [[ "$blocked_blobs" != *" $blob "* ]] || exit 0
+            harness=$(git show "$blob") || exit 0
+            grep -Eaq "$risky|$tag" <<< "$harness" && exit 0
+            [[ $? == 1 ]] || exit 0
           done
           echo "runs-on=notchcast-mbp" >> "$GITHUB_OUTPUT"
   harnesses:
     needs: [plan, mac-route]
-    # The status check lets a skipped route leave planned shards eligible for hosted execution.
+    # Skipped routes fall back to hosted. Skip empty selections because empty matrices fail.
     if: ${{ !cancelled() && needs.plan.result == 'success' && needs.plan.outputs.shards != '[]' }}
     runs-on: ${{ needs.mac-route.result == 'success' && needs.mac-route.outputs.mac-runner == 'notchcast-mbp' && 'notchcast-mbp' || 'xcode-27' }}
     timeout-minutes: 30
