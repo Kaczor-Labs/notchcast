@@ -1,0 +1,40 @@
+diff --git a/Tinycast/Features/Backup/Service/BackupActions.swift b/Tinycast/Features/Backup/Service/BackupActions.swift
+index 95e0079d9..50c964f94 100644
+--- a/Tinycast/Features/Backup/Service/BackupActions.swift
++++ b/Tinycast/Features/Backup/Service/BackupActions.swift
+@@ -102,8 +102,8 @@ enum BackupActions {
+         }
+     }
+ 
+-    static func runImportCommand(core: AppCore) async {
+-        guard let file = chooseBackupFile() else { return }
++    static func runImportCommand(core: AppCore, file: URL? = nil) async {
++        guard let file = file ?? chooseBackupFile() else { return }
+         do {
+             let (staging, preview) = try await openBackup(at: file)
+             defer { staging.discard() }
+diff --git a/Tinycast/Features/Notchcast/NotchcastSettingsBackupBridge.swift b/Tinycast/Features/Notchcast/NotchcastSettingsBackupBridge.swift
+index 31204bbce..051bef255 100644
+--- a/Tinycast/Features/Notchcast/NotchcastSettingsBackupBridge.swift
++++ b/Tinycast/Features/Notchcast/NotchcastSettingsBackupBridge.swift
+@@ -44,19 +44,6 @@ struct NotchcastSettingsBackupBridge: NotchcastSettingsBackup {
+     /// Backup › Import for a known file, so the stock confirmation and report come with it.
+     func restore(_ file: URL) async {
+         guard let core else { return }
+-        let symbol = "square.and.arrow.down"
+-        do {
+-            let (staging, manifest) = try await BackupActions.openBackup(at: file)
+-            defer { staging.discard() }
+-            guard let summary = await BackupActions.applyBackup(manifest.categories, from: staging, to: core)
+-            else { return }
+-            await core.showNotice(
+-                title: String(localized: "Backup Imported"), message: BackupActions.summaryText(summary),
+-                symbol: symbol, tone: .success)
+-        } catch {
+-            await core.showNotice(
+-                title: String(localized: "Import Failed"), message: error.localizedDescription, symbol: symbol,
+-                tone: .danger)
+-        }
++        await BackupActions.runImportCommand(core: core, file: file)
+     }
+ }
