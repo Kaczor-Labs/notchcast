@@ -166,12 +166,12 @@ gh run download <run id> -D <scratch dir>
 
 - `launcher` (`notchcast/tester/launcher.sh`): builds the branch's Debug app, launches it, opens the palette, types through System Events, clicks an app row that is not selected and checks that app opened, then types `Activity Monitor`, presses Return and checks it opened; a screenshot after each step, a `PASS`/`FAIL` line per check in `scenario.log`, the app's stdout, stderr and unified log beside them.
 - `keychain` (`notchcast/tester/keychain.sh`): the app's own `KeychainSecretStore` sets, reads and updates a secret in a job-local keychain; the login keychain is taken out of the search list first (left in, a prompt nobody can answer hangs the job) and the step has a 3-minute timeout.
-- `renders`: the island audit harness (`nc-Notchcast-island-audit-render-test`) writes its offscreen PNGs (Dark, 2x) into `renders/`.
+- `renders`: the notice, headline and status/pages island audit harnesses write offscreen PNGs (Dark, 2x) into `renders/`.
 - `all`: the three in one job.
 
 The Debug build is cached two ways, keyed by Xcode and the `Tinycast/` tree and `project.yml`: the same tree restores the built app and skips `xcodebuild`; another tree restores the newest Xcode compilation cache (`COMPILATION_CACHE_ENABLE_CACHING=YES`, content-addressed, so a fresh checkout's mtimes do not matter). A branch reads main's caches, never another branch's. The workflow holds no secret, its token reads only, and its first step fails on any runner that is not GitHub-hosted.
 
-What stays in a lume guest (`gate pick notchcast try --guest`): permission prompts and anything behind a TCC grant the VM does not hold, Notchcast's own global hotkeys (sent over `vnc`), and the island verify scenes (`--island-verify`, island-shell.md). Neither has a notch: the notch form is rendered offscreen by the audit harness, and a real notch, Touch ID, devices, audio and brightness stay a maintainer's hand checks on a real Mac.
+What stays in a lume guest (`gate pick notchcast try --guest`): permission prompts and anything behind a TCC grant the VM does not hold, Notchcast's own global hotkeys (sent over `vnc`), and the island verify scenes (`--island-verify`, island-shell.md). Neither has a notch: the notch form is rendered offscreen by the audit harnesses, and a real notch, Touch ID, devices, audio and brightness stay a maintainer's hand checks on a real Mac.
 
 ## Drift gates
 
