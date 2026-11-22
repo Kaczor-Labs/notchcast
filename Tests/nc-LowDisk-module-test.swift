@@ -25,6 +25,16 @@ final class FakeDisk {
     var free: Int64 = gb(50)
     var fails = false
     var displayAsleep = false
+    weak var watcher: FileSystemWatcher?
+}
+
+@MainActor
+final class FileSystemWatcher {
+    let onChange: @MainActor @Sendable () -> Void
+
+    init(onChange: @escaping @MainActor @Sendable () -> Void) {
+        self.onChange = onChange
+    }
 }
 
 @MainActor let disk = FakeDisk()
@@ -38,6 +48,12 @@ extension LowDiskModule {
     }
 
     static func isMainDisplayAsleep() -> Bool { disk.displayAsleep }
+
+    static func watchStartupDisk(_ onChange: @escaping @MainActor @Sendable () -> Void) -> FileSystemWatcher? {
+        let watcher = FileSystemWatcher(onChange: onChange)
+        disk.watcher = watcher
+        return watcher
+    }
 }
 
 final class FakeSession: NotchcastTapSession {
@@ -107,6 +123,7 @@ enum LowDiskModuleTests {
         descriptor()
         policy()
         await warnsOnceAndRearms()
+        await clearsAfterDiskChange()
         await waitsForTheDisplay()
         await command()
         await statusTap()
@@ -254,6 +271,24 @@ enum LowDiskModuleTests {
         }
         rig.controller.onCommandsChanged = nil
         precondition(rig.module == nil, "the switch stopped the module")
+    }
+
+    static func clearsAfterDiskChange() async {
+        let suite = "nc-LowDisk-module-test.\(UUID())"
+        defer { UserDefaults().removePersistentDomain(forName: suite) }
+        disk.free = gb(5)
+        disk.fails = false
+
+        let rig = Rig(suite: suite, on: true)
+        defer { rig.controller.stop() }
+        await rig.settle()
+        precondition(rig.presenter.statuses == [lowDiskStatus], "the warning starts with its glyph showing")
+
+        disk.free = gb(11)
+        disk.watcher?.onChange()
+        await rig.settle()
+        precondition(rig.presenter.statuses == [lowDiskStatus, nil], "a startup disk change clears the recovered glyph")
+        precondition(disk.watcher == nil, "recovery releases the watcher")
     }
 
     static func waitsForTheDisplay() async {

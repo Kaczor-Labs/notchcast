@@ -1,6 +1,6 @@
 import AppKit
 
-/// Reads the startup disk at start, when the screens wake and every half hour, and warns once on the island.
+/// Warns once on the island and watches the startup disk for recovery while the glyph shows.
 @MainActor
 final class LowDiskModule: NotchcastModule {
     typealias Reader = @Sendable () async throws -> Int64
@@ -13,6 +13,7 @@ final class LowDiskModule: NotchcastModule {
     private let isDisplayAsleep: @MainActor () -> Bool
     private var policy = LowDiskPolicy()
     private var postedStatus: IslandStatus?
+    private var diskWatcher: FileSystemWatcher?
     private var wakeObserver: NotificationCenter.ObservationToken?
     private var timer: Task<Void, Never>?
     private(set) var checking: Task<Void, Never>?
@@ -109,9 +110,12 @@ final class LowDiskModule: NotchcastModule {
     private func apply(_ free: Int64) {
         guard free >= 0, !isDisplayAsleep() else { return }
         let stored = context.defaults.object(forKey: LowDiskPolicy.thresholdKey) as? Int
+        let hadWarned = policy.hasWarned
         let warns = policy.shouldWarn(
             free: free, thresholdGB: LowDiskPolicy.thresholdGB(stored: stored), displayAsleep: false)
-        context.defaults.set(policy.hasWarned, forKey: LowDiskPolicy.warnedKey)
+        if policy.hasWarned != hadWarned {
+            context.defaults.set(policy.hasWarned, forKey: LowDiskPolicy.warnedKey)
+        }
         if warns {
             context.presenter.post(
                 IslandNotice(id: Self.noticeID, symbol: Self.symbol, text: LowDiskPolicy.warning(free: free),
@@ -124,6 +128,10 @@ final class LowDiskModule: NotchcastModule {
     private func setStatus(_ status: IslandStatus?) {
         guard status != postedStatus else { return }
         postedStatus = status
+        diskWatcher = status == nil ? nil : Self.watchStartupDisk { [weak self] in
+            guard let self, self.postedStatus != nil else { return }
+            self.check()
+        }
         let tap: @MainActor () -> Void = { [weak self] in self?.showFreeSpace() }
         context.presenter.setStatus(status, for: Self.noticeID, onTap: status == nil ? nil : tap)
     }
