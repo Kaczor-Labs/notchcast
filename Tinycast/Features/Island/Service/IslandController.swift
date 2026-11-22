@@ -20,7 +20,7 @@ final class IslandController: NSObject {
     private let pageClip = CAShapeLayer()
     let keyline = CAShapeLayer()
     private(set) var overlays: [CGRect] = []
-    private var hasQuestion = false
+    private(set) var hasQuestion = false
     #if DEBUG
     private(set) var samples: [String] = []
     let frames = IslandFrameTrace()
@@ -213,20 +213,7 @@ final class IslandController: NSObject {
         let suspended = NSApp.modalWindow != nil || sunk
         if suspended { backdrop.orderOut(nil) }
         let palette = panel.flatMap { $0.isVisible ? $0.frame : nil }
-        let overlayLayout = IslandOverlayLayout(screen: layout.screen,
-            contentTop: layout.openingTop, palette: palette,
-            inset: NotchTheme.Spacing.islandInset, gap: Theme.Spacing.xl)
-        var frames = overlays
-        canvas.progressReport = nil
-        if hasQuestion, let notice, notice.progress != nil {
-            let art = IslandHeadlineArt(notice, notch: nil, frosted: canvas.look == .frosted, still: canvas.still)
-            let lowest = (frames + [page?.frame].compactMap { $0 }).min { $0.minY < $1.minY }
-            if let frame = overlayLayout.reports([art.size], question: lowest).first {
-                frames.append(frame)
-                canvas.progressReport = (art, frame.offsetBy(dx: -layout.window.minX, dy: -layout.window.minY))
-            }
-        }
-        let overlay = overlayLayout.surface(frames)
+        let overlay = overlaySize(layout: layout, palette: palette)
         let size = CGSize(width: max(palette?.width ?? 0, overlay?.width ?? 0),
                           height: max(palette?.height ?? 0, overlay?.height ?? 0))
         glancing = size != .zero || page != nil || canvas.expansion != nil || level != nil || notice != nil
