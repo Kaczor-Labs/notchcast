@@ -25,6 +25,10 @@ final class ArchivesModule: NotchcastModule {
         self.environment = environment
     }
 
+    var hasPendingQuestion: Bool {
+        context.askSecret != nil && jobs.contains { $0.stopped == nil && $0.needsPassword == true }
+    }
+
     func start() {
         jobs = ArchiveJob.decode((try? Data(contentsOf: environment.journal)) ?? Data())
         pruneStoppedJobs()
@@ -343,12 +347,20 @@ final class ArchivesModule: NotchcastModule {
 
     /// Hands the answer straight back to the extractor; the module never keeps it.
     private func askPassword(_ job: ArchiveJob, wrong: Bool) async -> String? {
-        guard current?.job.id == job.id, let askSecret = context.askSecret else { return nil }
-        return await askSecret(
-            String(localized: "Password for \(job.name)", table: "NotchcastArchives"),
-            wrong ? String(localized: "That password did not work.", table: "NotchcastArchives") : nil,
-            String(localized: "Password", table: "NotchcastArchives"),
-            String(localized: "Extract", table: "NotchcastArchives"))
+        guard !Task.isCancelled, current?.job.id == job.id, let askSecret = context.askSecret,
+            let index = jobs.firstIndex(where: { $0.id == job.id })
+        else { return nil }
+        if jobs[index].needsPassword != true {
+            jobs[index].needsPassword = true
+            save()
+        }
+        return await NotchcastQuestion.$takesLauncherPriority.withValue(true) {
+            await askSecret(
+                String(localized: "Password for \(job.name)", table: "NotchcastArchives"),
+                wrong ? String(localized: "That password did not work.", table: "NotchcastArchives") : nil,
+                String(localized: "Password", table: "NotchcastArchives"),
+                String(localized: "Extract", table: "NotchcastArchives"))
+        }
     }
 
     private func markInPlace(_ id: UUID, _ on: Bool) {

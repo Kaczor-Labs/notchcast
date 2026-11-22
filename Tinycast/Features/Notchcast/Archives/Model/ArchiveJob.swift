@@ -8,6 +8,7 @@ nonisolated struct ArchiveJob: Codable, Equatable, Identifiable, Sendable {
     var staging: URL
     var inPlace: Bool
     var stopped: ArchiveFingerprint?
+    var needsPassword: Bool?
 
     init(id: UUID, archive: URL, inPlace: Bool) {
         self.id = id
