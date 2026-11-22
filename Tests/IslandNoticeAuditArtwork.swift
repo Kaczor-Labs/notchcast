@@ -15,7 +15,12 @@ extension NotchcastIslandAuditRenderTest {
         let notices = [
             IslandNotice(id: "7zz", symbol: "exclamationmark.triangle",
                          text: "7zz is not installed. Install it with: brew install sevenzip", isFailure: true),
-            IslandNotice(id: "headphones", symbol: "headphones", text: "No headphones with noise control are connected."),
+            IslandNotice(id: "headphones", symbol: "waveform.badge.minus",
+                         text: "No headphones with noise control are connected.", isFailure: true),
+            IslandNotice(id: "torrent", symbol: "exclamationmark.triangle",
+                         text: "<name>: This torrent is already running.", isFailure: true),
+            IslandNotice(id: "torrent-long", symbol: "exclamationmark.triangle",
+                text: "A Long Linux Distribution Image File.iso: This torrent is already running.", isFailure: true),
             IslandNotice(id: "hatchzip", symbol: "exclamationmark.triangle",
                 text: "hatchzip is not installed. Install it with: brew install xevrion/tap/hatchzip", isFailure: true),
             IslandNotice(id: "ellipsis", symbol: "doc",
