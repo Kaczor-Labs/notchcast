@@ -31,6 +31,28 @@
 import Foundation
 
 @MainActor
+func switchOffPreservesProtectedRecovery() async throws {
+    let rig = try Rig(answers: [right], passwords: ["Vault.7z": right], hiddenNames: ["Vault.7z"])
+    defer { rig.finish() }
+    rig.tools.state.withLock { $0.hold = ["Vault.7z"] }
+    rig.module!.open([rig.archive("Vault.7z")])
+    while !rig.tools.state.withLock({ $0.heldStarted }) { await Task.yield() }
+    let running = rig.module!.current!
+    rig.controller.preferences.set("archives", on: false)
+    while rig.module != nil { await Task.yield() }
+    await running.task.value
+    check(rig.journal().first?.stopped?.stoppedAt == Rig.testDate, "switching off journals protected recovery")
+    check(rig.staging == [running.job.staging.lastPathComponent] && rig.exists("Vault.7z.hatchzip"),
+          "the protected checkpoint stays private")
+    check(rig.presenter.texts.last == "Stopped extracting Vault.7z", "\(rig.presenter.texts)")
+
+    rig.controller.preferences.set("archives", on: true)
+    while rig.module == nil { await Task.yield() }
+    await rig.module!.drain()
+    check(rig.steps == ["list", "list", "extract", "restore"], "only reopening resumes a protected checkpoint")
+}
+
+@MainActor
 func stoppedEncryptedNames(moved: Bool) async throws {
     var rig = try Rig(answers: [right], passwords: ["Vault.7z": right], hiddenNames: ["Vault.7z"])
     let folder = rig.folder
@@ -240,6 +262,7 @@ func pruneStopped() async throws {
 enum ArchivesRecoveryTest {
     @MainActor
     static func main() async throws {
+        try await switchOffPreservesProtectedRecovery()
         try await stoppedEncryptedNames(moved: false)
         try await stoppedEncryptedNames(moved: true)
         try await reopenWithoutSideFile(replaced: false)

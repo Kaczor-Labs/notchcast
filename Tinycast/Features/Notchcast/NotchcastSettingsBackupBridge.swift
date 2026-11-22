@@ -44,19 +44,6 @@ struct NotchcastSettingsBackupBridge: NotchcastSettingsBackup {
     /// Backup › Import for a known file, so the stock confirmation and report come with it.
     func restore(_ file: URL) async {
         guard let core else { return }
-        let symbol = "square.and.arrow.down"
-        do {
-            let (staging, manifest) = try await BackupActions.openBackup(at: file)
-            defer { staging.discard() }
-            guard let summary = await BackupActions.applyBackup(manifest.categories, from: staging, to: core)
-            else { return }
-            await core.showNotice(
-                title: String(localized: "Backup Imported"), message: BackupActions.summaryText(summary),
-                symbol: symbol, tone: .success)
-        } catch {
-            await core.showNotice(
-                title: String(localized: "Import Failed"), message: error.localizedDescription, symbol: symbol,
-                tone: .danger)
-        }
+        await BackupActions.runImportCommand(core: core, file: file)
     }
 }

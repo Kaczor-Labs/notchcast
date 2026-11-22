@@ -20,7 +20,6 @@ import SwiftUI
 // The shipped `live` and settings view are left out: only a scratch domain is ever read or written here.
 
 struct IPhoneBackupSettingsView: View {
-    init(store: IPhoneBackupStore) {}
     var body: some View { EmptyView() }
 }
 
@@ -138,16 +137,16 @@ final class Rig {
 
     var context: NotchcastContext { controller.context(forSwitch: IPhoneBackupAddon.switchID)! }
     var isOn: Bool { controller.preferences.isOn(IPhoneBackupAddon.switchID) }
-    var hasModule: Bool { context.module(IPhoneBackupModule.self) != nil }
+    var module: IPhoneBackupModule? { context.module(IPhoneBackupModule.self) }
+    var hasModule: Bool { module != nil }
     var journal: Policy.Journal { decoded(journalOnDisk() ?? defaults.data(forKey: Policy.journalKey)) }
 
-    /// The row's own store, built as the shipped settings row builds it.
-    func store() -> IPhoneBackupStore { IPhoneBackupStore(context: context, system: .live) }
-
-    /// The row's question as the shipped view drives it, after its `onAppear`.
     func ask() -> IPhoneBackupConfirmation {
-        let confirmation = IPhoneBackupConfirmation(store: store())
-        confirmation.appear()
+        let status = module!.settingsStatus()
+        let confirmation = IPhoneBackupConfirmation { [weak self] accepted in
+            self?.module?.answer(accepted)
+        }
+        confirmation.appear(isApplied: status.isApplied)
         return confirmation
     }
 
@@ -273,17 +272,16 @@ enum IPhoneBackupModuleTests {
         await rig.set(true)
         precondition(rig.hasModule, "the module runs while the switch is on")
         precondition(fake.writes.isEmpty, "turning the switch on writes nothing by itself")
-        let store = rig.store()
-        var ask = IPhoneBackupConfirmation(store: store)
-        ask.appear()
-        precondition(ask.isPresented && !store.backupsOff, "the row asks: nothing applied yet")
+        var ask = rig.ask()
+        precondition(ask.isPresented && !rig.module!.settingsStatus().backupsOff, "the row asks: nothing applied yet")
         precondition(rig.isOn && fake.writes.isEmpty, "asking writes nothing")
         ask.accept()
         precondition(!ask.isPresented && rig.isOn, "accept: the question closes, the switch stays on")
         precondition(fake.writes == [.set(.bool(true))], "accept writes disabled = true")
         precondition(fake.capturedAtWrite == [true], "the capture is on disk before the system write")
         precondition(rig.defaults.data(forKey: Policy.journalKey) == nil, "the capture lives in the file")
-        precondition(store.isApplied && store.backupsOff, "the row reads backups off")
+        let status = rig.module!.settingsStatus()
+        precondition(status.isApplied && status.backupsOff, "the row reads backups off")
         precondition(!rig.journal.isEmpty, "the capture is saved")
         ask.setPresented(false)
         await drain()
@@ -296,6 +294,8 @@ enum IPhoneBackupModuleTests {
         let kept = rig.suite
         rig = Rig(suite: kept)
         precondition(rig.isOn && rig.hasModule && fake.writes.count == 1, "relaunch keeps the switch, writes nothing")
+        precondition(fake.reads == 1, "relaunch reads only for recovery")
+        precondition(!rig.ask().isPresented, "the first Settings status sees the applied change")
 
         await rig.set(false)
         precondition(!rig.hasModule, "the module stops")

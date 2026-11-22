@@ -41,6 +41,7 @@ extension NotchcastCoreTest {
             ("AutoBackup/UI/AutoBackupSettingsView.swift", "mainApp.send(.notchcast(.restoreAutomaticBackup"),
             ("ColorPicker/UI/ColorPickerSettingsView.swift", "mainApp.sendNotchcast("),
             ("Day/UI/DaySettingsView.swift", "mainApp.callNotchcast(city, to: DayAddon.self)"),
+            ("Day/UI/DaySettingsView.swift", "mainApp.sendNotchcast(.requestCalendarAccess, to: DayAddon.self)"),
             ("DisplaySound/UI/BrightnessSettingsView.swift",
              "mainApp.callNotchcast(.init(value: value, display: id), to: DisplaySoundAddon.self)"),
             ("DisplaySound/UI/BrightnessDisplayRow.swift", "setLevel:"),

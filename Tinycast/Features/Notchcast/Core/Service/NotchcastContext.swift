@@ -20,12 +20,6 @@ final class NotchcastContext {
     private let recoveryContext: NotchcastContext?
     private(set) var wantedTaps: [(token: UUID, tap: NotchcastTap)] = []
     private(set) var module: (any NotchcastModule)?
-    private(set) var usesCalendar = false
-
-    var calendar: NotchcastCalendar {
-        if !usesCalendar { usesCalendar = true }
-        return services.calendar
-    }
     /// Entry ids the module cannot run right now: the launcher drops them, their hotkeys still run.
     private(set) var unavailableCommands: Set<String> = []
     /// Commands made at run time, one per user row; they go when the module detaches.

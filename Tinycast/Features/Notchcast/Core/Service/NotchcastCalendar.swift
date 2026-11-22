@@ -16,3 +16,7 @@ struct NotchcastCalendar {
     var needsAccess: @MainActor () -> Bool = { false }
     var requestAccess: @MainActor (_ openSettingsIfDenied: Bool) async -> Void = { _ in }
 }
+
+extension NotchcastContext {
+    var calendar: NotchcastCalendar { services.calendar }
+}

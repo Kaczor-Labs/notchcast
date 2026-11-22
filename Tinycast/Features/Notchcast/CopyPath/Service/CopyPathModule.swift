@@ -39,6 +39,7 @@ final class CopyPathModule: NotchcastModule {
         guard isRunning else { return }
         cancelRun()
         let app = system.frontApp()
+        context.surfaces.dismissLauncher()
         let (home, reader, operation) = (system.home, system.reader, operation)
         runTask = Task { [weak self] in
             let result: Result<CopyPathCopy?, any Error>
