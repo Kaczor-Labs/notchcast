@@ -6,6 +6,7 @@ extension EnvironmentValues {
     @Entry var paletteOnIsland = false
     /// The palette's display has the Frosted look, so island fills let its glass show.
     @Entry var islandFrosted = false
+    @Entry var islandMenuKeyline = true
     /// Text on a selection slab or a wash, which costs Frosted inks their 4.5:1.
     @Entry var islandInkLifted = false
 }
@@ -116,9 +117,9 @@ private struct IslandRowBlur<S: Shape>: NSViewRepresentable {
 }
 
 extension View {
-    /// A menu's backing: the island black, or Frosted's denser menu glass and edge.
     func islandMenuBacking(in shape: some Shape) -> some View {
         background { IslandMenuBacking(shape: shape) }
+            .overlay { IslandMenuKeyline(shape: shape).allowsHitTesting(false) }
     }
 }
 
@@ -131,16 +132,25 @@ private struct IslandMenuBacking<S: Shape>: View {
     var body: some View {
         if !frosted {
             shape.fill(NotchTheme.Colors.islandSurface)
+        } else if reduceTransparency || contrast == .increased {
+            shape.fill(NotchTheme.Colors.islandGlassSolid)
         } else {
-            Group {
-                if reduceTransparency || contrast == .increased {
-                    shape.fill(NotchTheme.Colors.islandGlassSolid)
-                } else {
-                    IslandMenuBlur(shape: shape).overlay(shape.fill(NotchTheme.Frosted.menuTint))
-                }
-            }
-            // The menu clips to its shape, so half of this line is the 1 pt edge inside it.
-            .overlay(shape.stroke(NotchTheme.Colors.islandEdge, lineWidth: 2))
+            IslandMenuBlur(shape: shape).overlay(shape.fill(NotchTheme.Frosted.menuTint))
+        }
+    }
+}
+
+private struct IslandMenuKeyline<S: Shape>: View {
+    let shape: S
+    @Environment(\.islandMenuKeyline) private var enabled
+    @Environment(\.islandFrosted) private var frosted
+    @Environment(\.displayScale) private var displayScale
+
+    var body: some View {
+        if enabled {
+            let width = IslandKeyline.width(scale: displayScale, look: frosted ? .frosted : .black)
+            let color = frosted ? NotchTheme.Colors.islandEdge : NotchTheme.Colors.islandKeyline
+            shape.stroke(color, lineWidth: 2 * width).clipShape(shape)
         }
     }
 }

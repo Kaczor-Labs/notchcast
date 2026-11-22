@@ -1,3 +1,4 @@
+// notchcast-sources: Tests/Kit/IslandAuditMenus.swift
 // notchcast-hosted-only
 // notchcast-sources: Tinycast/Platform/Appearance.swift Tinycast/DesignSystem/Theme.swift
 // notchcast-sources: Tinycast/DesignSystem/InterfaceMetrics.swift Tinycast/Features/Notchcast/NotchTheme.swift
@@ -76,55 +77,6 @@ struct NotchcastIslandAuditRenderTest {
         let renderer = ImageRenderer(content: view)
         renderer.scale = 2
         write(name, renderer.cgImage)
-    }
-
-    private static let hostedPadding: CGFloat = 16
-    private static let blackDesk = NSColor(white: 0.18, alpha: 1)
-
-    /// A field or scroll view is AppKit-backed and blank to `ImageRenderer`, so a window caches it.
-    @discardableResult
-    static func renderHosted(
-        _ name: String, size: CGSize, desk: Bool = false, frosted: Bool = Self.frosted,
-        @ViewBuilder _ content: () -> some View
-    ) -> NSBitmapImageRep {
-        let scale: CGFloat = 2
-        let view = content()
-            .padding(hostedPadding)
-            .frame(width: size.width, height: size.height, alignment: .top)
-            .background(ground(desk: desk, frosted: frosted))
-            .environment(\.islandFrosted, frosted)
-            .environment(\.paletteOnIsland, true)
-            .environment(\.colorScheme, .dark)
-            .environment(\.displayScale, scale)
-            .environment(PaletteState())
-        let host = NSHostingView(rootView: view)
-        let window = NSWindow(contentRect: CGRect(origin: .zero, size: size), styleMask: .borderless,
-                              backing: .buffered, defer: false)
-        window.appearance = NSAppearance(named: .darkAqua)
-        window.contentView = host
-        host.frame = CGRect(origin: .zero, size: size)
-        host.layoutSubtreeIfNeeded()
-        RunLoop.main.run(until: Date().addingTimeInterval(0.3))
-        host.layoutSubtreeIfNeeded()
-        guard let bitmap = NSBitmapImageRep(
-            bitmapDataPlanes: nil, pixelsWide: Int(size.width * scale), pixelsHigh: Int(size.height * scale),
-            bitsPerSample: 8, samplesPerPixel: 4, hasAlpha: true, isPlanar: false, colorSpaceName: .deviceRGB,
-            bytesPerRow: 0, bitsPerPixel: 0
-        ) else { preconditionFailure("\(name) has no bitmap") }
-        bitmap.size = size
-        host.cacheDisplay(in: host.bounds, to: bitmap)
-        write(name, bitmap.cgImage)
-        return bitmap
-    }
-
-    @ViewBuilder static func ground(desk: Bool, frosted: Bool = Self.frosted) -> some View {
-        if desk {
-            frosted ? Color.white : Color(nsColor: blackDesk)
-        } else if frosted {
-            NotchTheme.Colors.islandGlassTint.background(Color.white)
-        } else {
-            NotchTheme.Colors.islandSurface
-        }
     }
 
     /// Engine art draws in AppKit into the pill's outline, so it renders the way the canvas does.
@@ -291,66 +243,6 @@ struct NotchcastIslandAuditRenderTest {
         }
     }
 
-    private static let menuWidth = Theme.Size.actionMenuWidth
-    private static let menuInset = Theme.Spacing.md
-    private static let searchSample = Theme.Size.menuRowHeight + Theme.Spacing.xxs
-    private static let launcherSize = CGSize(width: Theme.Size.panelWidth, height: Theme.Size.panelHeight)
-
-    static func actionsMenu(notch: Bool, frosted: Bool) -> some View {
-        ZStack(alignment: .bottomTrailing) {
-            auditLauncherBottom(notch: notch)
-                .padding(.top, notch ? 16 : 0)
-                .background(ground(desk: false, frosted: frosted))
-                .clipShape(UnevenRoundedRectangle(
-                    topLeadingRadius: notch ? 0 : Theme.Radius.panel, bottomLeadingRadius: Theme.Radius.panel,
-                    bottomTrailingRadius: Theme.Radius.panel, topTrailingRadius: notch ? 0 : Theme.Radius.panel))
-            PopoverMenu(
-                items: [
-                    PopoverMenuItem(title: "Open Application", systemImage: "arrow.up.right", shortcut: "↵") {},
-                    PopoverMenuItem(title: "Show in Finder", systemImage: "folder", shortcut: "⌘↵") {},
-                    PopoverMenuItem(title: "Copy Path", systemImage: "document.on.document", startsSection: true) {},
-                ],
-                selection: .constant(0), onActivate: { _ in }, attachment: .bottomTrailing,
-                search: .init(placeholder: "Search for actions…", placement: .bottom))
-                .padding([.trailing, .bottom], menuInset)
-        }
-        .frame(width: launcherSize.width, height: launcherSize.height)
-    }
-
-    static func menuPixels(_ bitmap: NSBitmapImageRep, leading: CGFloat, row: CGFloat) -> [Int] {
-        let scale = CGFloat(bitmap.pixelsWide) / bitmap.size.width
-        let x = Int(leading * scale)
-        let y = Int(row * scale)
-        return (0...Int(4 * scale)).map { offset in
-            let color = bitmap.colorAt(x: x + offset, y: y)!.usingColorSpace(.sRGB)!
-            return Int((max(color.redComponent, color.greenComponent, color.blueComponent) * 255).rounded())
-        }
-    }
-
-    static func checkMenu(_ passed: Bool, _ name: String, _ detail: String) {
-        guard passed else {
-            print("FAIL \(name): \(detail)")
-            exit(1)
-        }
-    }
-
-    static func renderMenuKeylines() {
-        let size = CGSize(width: launcherSize.width + hostedPadding * 2, height: launcherSize.height + hostedPadding * 2)
-        let leading = hostedPadding + launcherSize.width - menuInset - menuWidth
-        let row = size.height - hostedPadding - menuInset - searchSample
-        for notch in [false, true] {
-            let name = "1264-actions-menu-\(notch ? "notch" : "nonotch")-on-black"
-            let bitmap = renderHosted(name, size: size, desk: true, frosted: false) {
-                actionsMenu(notch: notch, frosted: false)
-            }
-            let pixels = menuPixels(bitmap, leading: leading, row: row)
-            let scale = CGFloat(bitmap.pixelsWide) / bitmap.size.width
-            let edge = pixels.prefix(Int(2 * scale)).max()!
-            let body = pixels.last!
-            checkMenu(edge >= body + 8, name, "edge \(edge), body \(body)")
-        }
-    }
-
     static func main() {
         _ = NSApplication.shared
         NSApp.setActivationPolicy(.prohibited)
@@ -358,6 +250,7 @@ struct NotchcastIslandAuditRenderTest {
         // ImageRenderer draws no Liquid Glass until a hosting view has laid glass out once.
         NSHostingView(rootView: Color.clear.frosted(in: Circle())).layoutSubtreeIfNeeded()
         try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        renderMenuKeylines()
 
         render("01-keycaps") {
             HStack(spacing: 8) {
@@ -545,7 +438,6 @@ struct NotchcastIslandAuditRenderTest {
                 auditLauncherBottom(notch: notch)
             }
         }
-        renderMenuKeylines()
         print("PASS rendered island audit surfaces to \(folder.path)")
     }
 }
