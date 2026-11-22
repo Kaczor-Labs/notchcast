@@ -36,8 +36,10 @@ struct DistillSettingsView: View {
                      tableName: "NotchcastDownloads")
             }
         }
-        Toggle(isOn: $convertDrops) {
-            SettingsRowTitle(Self.anchor, LocalizedStringResource("Convert dropped files", table: "NotchcastDownloads"))
+        notchcastSettingsToggle(
+            SettingsRowTitle(Self.anchor, LocalizedStringResource("Convert dropped files", table: "NotchcastDownloads")),
+            isOn: $convertDrops
+        ) {
             Text(Self.convertHelp)
         }
         .settingsEnabled(folder != nil)

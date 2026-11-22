@@ -30,20 +30,26 @@ struct AccessoriesSettingsView: View {
                     .foregroundStyle(Theme.Colors.warning)
             }
         }
-        Toggle(isOn: $connect) {
-            SettingsRowTitle(Self.anchor, LocalizedStringResource("Connected", table: "NotchcastAccessories"))
+        notchcastSettingsToggle(
+            SettingsRowTitle(Self.anchor, LocalizedStringResource("Connected", table: "NotchcastAccessories")),
+            isOn: $connect
+        ) {
             Text("When headphones, a keyboard, a mouse or another Bluetooth accessory connects. Never computers or phones.",
                  tableName: "NotchcastAccessories")
         }
         .toggleStyle(.checkbox)
-        Toggle(isOn: $low) {
-            SettingsRowTitle(Self.anchor, LocalizedStringResource("Low battery", table: "NotchcastAccessories"))
+        notchcastSettingsToggle(
+            SettingsRowTitle(Self.anchor, LocalizedStringResource("Low battery", table: "NotchcastAccessories")),
+            isOn: $low
+        ) {
             Text("Once per discharge, when an accessory falls to 20 percent. Charging it to 25 percent arms it again.",
                  tableName: "NotchcastAccessories")
         }
         .toggleStyle(.checkbox)
-        Toggle(isOn: $hideBanner) {
-            SettingsRowTitle(Self.anchor, LocalizedStringResource("Hide the system banner", table: "NotchcastAccessories"))
+        notchcastSettingsToggle(
+            SettingsRowTitle(Self.anchor, LocalizedStringResource("Hide the system banner", table: "NotchcastAccessories")),
+            isOn: $hideBanner
+        ) {
             Text("Hides macOS's own banner for an accessory the island just announced. It still reaches Notification Center.",
                  tableName: "NotchcastAccessories")
         }
