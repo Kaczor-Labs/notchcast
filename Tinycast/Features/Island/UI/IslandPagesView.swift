@@ -53,6 +53,7 @@ struct IslandPagesView: View {
                 SymbolImage(name: page?.symbol ?? "house", size: metrics.scaled(Theme.Typography.menuSymbolSize),
                             monochrome: true)
                 Text(title).font(metrics.typography.bar)
+                    .fixedSize(horizontal: true, vertical: false)
                 if badge > 0 { KeyCapChip(text: "\(badge)", style: .outline, scale: .compact) }
             }
             .foregroundStyle(selected ? Theme.Colors.textPrimary : Theme.Colors.textSecondary)
