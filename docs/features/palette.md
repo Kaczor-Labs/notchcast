@@ -52,9 +52,7 @@ The command palette is a borderless floating `NSPanel` hosting SwiftUI; see
 Everything resolved "once per summon" is resolved there deliberately, not per render. `AppCore` holds
 only the closure wiring; the behaviour is `PaletteCoordinator`'s.
 
-Opening the app summons the launcher too: a Dock click or a second open through `handleReopen`, and a
-cold launch from Finder, Spotlight or a relaunch through `start(launchedByUser:)`. A login-item or URL
-launch shows nothing, and the very first launch shows onboarding instead.
+Opening the app summons the launcher too: a Dock click or a second open through `handleReopen`, and a cold launch from Finder, Spotlight or a relaunch through `start(launchedByUser:)`. A login-item or URL launch skips the startup launcher, and the very first launch shows onboarding. A pending question, including a password question due from the archive queue, skips the startup launcher. A password question that arrives while the launcher is visible closes it before appearing. Answering or cancelling leaves the launcher closed until the user opens it.
 
 ## Screens
 

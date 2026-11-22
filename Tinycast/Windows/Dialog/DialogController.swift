@@ -5,7 +5,7 @@ import SwiftUI
 @MainActor
 final class DialogController: NSObject, NSWindowDelegate {
     private let settings: AppSettings
-    private let onPresentationChanged: (Bool) -> Void
+    private let onPresentationChanged: (DialogRequest?) -> Void
     private var panel: DialogPanel?
     private var accessory: DialogAccessory?
     private var continuation: CheckedContinuation<Int, Never>?
@@ -16,7 +16,7 @@ final class DialogController: NSObject, NSWindowDelegate {
     private(set) var lastAnswer: Int?
     #endif
 
-    init(settings: AppSettings, onPresentationChanged: @escaping (Bool) -> Void) {
+    init(settings: AppSettings, onPresentationChanged: @escaping (DialogRequest?) -> Void) {
         self.settings = settings
         self.onPresentationChanged = onPresentationChanged
     }
@@ -117,7 +117,7 @@ final class DialogController: NSObject, NSWindowDelegate {
         guard continuation == nil else { return request.cancelIndex }
         return await withCheckedContinuation { continuation in
             self.continuation = continuation
-            onPresentationChanged(true)
+            onPresentationChanged(request)
             let width =
                 switch request.accessory {
                 case nil, .volume, .secret: metrics.size.dialogCompactWidth
@@ -168,7 +168,7 @@ final class DialogController: NSObject, NSWindowDelegate {
     private func finish(_ index: Int) {
         guard let continuation else { return }
         self.continuation = nil
-        onPresentationChanged(false)
+        onPresentationChanged(nil)
         let closing = panel
         panel = nil
         accessory = nil

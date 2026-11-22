@@ -24,6 +24,10 @@ final class ArchivesModule: NotchcastModule {
         self.environment = environment
     }
 
+    var hasQuestionToResume: Bool {
+        context.askSecret != nil && jobs.contains { $0.stopped == nil && $0.needsPassword == true }
+    }
+
     func start() {
         jobs = ArchiveJob.decode((try? Data(contentsOf: environment.journal)) ?? Data())
         pruneStoppedJobs()
@@ -332,7 +336,13 @@ final class ArchivesModule: NotchcastModule {
 
     /// Hands the answer straight back to the extractor; the module never keeps it.
     private func askPassword(_ job: ArchiveJob, wrong: Bool) async -> String? {
-        guard current?.job.id == job.id, let askSecret = context.askSecret else { return nil }
+        guard !Task.isCancelled, current?.job.id == job.id, let askSecret = context.askSecret,
+            let index = jobs.firstIndex(where: { $0.id == job.id })
+        else { return nil }
+        if jobs[index].needsPassword != true {
+            jobs[index].needsPassword = true
+            save()
+        }
         return await askSecret(
             String(localized: "Password for \(job.name)", table: "NotchcastArchives"),
             wrong ? String(localized: "That password did not work.", table: "NotchcastArchives") : nil,

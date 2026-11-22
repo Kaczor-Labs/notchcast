@@ -23,8 +23,13 @@ extension NotchcastAddon {
 
 @MainActor
 protocol NotchcastModule: AnyObject {
+    var hasQuestionToResume: Bool { get }
     func start()
     func stop()
+}
+
+extension NotchcastModule {
+    var hasQuestionToResume: Bool { false }
 }
 
 /// A launcher command; its entry id doubles as the hotkey's key, `hotkey.command:nc-<slug>`.
