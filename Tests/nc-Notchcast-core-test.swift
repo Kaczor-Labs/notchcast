@@ -13,6 +13,7 @@
 // notchcast-reads: Tinycast/Features/Notchcast/NotchcastClipboard+Live.swift
 // notchcast-reads: Tinycast/Features/Notchcast/NotchcastServices+Live.swift
 // notchcast-reads: Tinycast/Features/Notchcast/Core/UI/NotchcastSettingsView.swift
+// notchcast-reads: Tinycast/Features/Notchcast/Core/UI/NotchcastCommandRowLayout.swift
 import AppKit
 import CoreGraphics
 import Foundation
@@ -544,15 +545,17 @@ struct NotchcastCoreTest {
                   .contains("clipboard = NotchcastClipboardMutation(core: core)"))
         check("nc command entries are owned by their add-on tab, never gated by stock Commands",
               core.contains("owner: .notchcast(tabs[$0.switchID]"))
-        let viewPath = "Tinycast/Features/Notchcast/Core/UI/NotchcastSettingsView.swift"
-        let view = FileManager.default.contents(atPath: viewPath).flatMap { String(data: $0, encoding: .utf8) } ?? ""
+        let view = text("Tinycast/Features/Notchcast/Core/UI/NotchcastSettingsView.swift")
+        let layout = text("Tinycast/Features/Notchcast/Core/UI/NotchcastCommandRowLayout.swift")
         check("each add-on switch draws its commands' alias and hotkey fields",
               view.contains("AliasField(key: command.id, name: command.name)")
                 && view.contains("ShortcutRecorder(action: .notchcastCommand(entryID: command.id))"))
         check("each add-on command draws its own Show in launcher checkbox",
               view.contains("preferences.setShowsInLauncher(command.id, $0)"))
         check("that checkbox says what it does on screen, not only to VoiceOver",
-              view.contains("Toggle(\"Show in launcher\", isOn:") && !view.contains(".labelsHidden()"))
+              view.contains("} checkbox: {\n                    Toggle(\"Show in launcher\", isOn:")
+                && !layout.contains("EmptyView")
+                && ![view, layout].contains { $0.contains(".labelsHidden") || $0.contains("ViewThatFits") })
     }
 
     /// The Notchcast sidebar section: which tab holds which category, which tabs show, and their links.

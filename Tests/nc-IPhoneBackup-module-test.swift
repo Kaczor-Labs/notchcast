@@ -32,15 +32,19 @@ final class FakeSystem {
     var writes: [Policy.Write] = []
     var failingWrites = 0
     var failureMutates = false
+    var reads = 0
+    var failOnRead: Int?
     var readFails = false
     var failingReadBacks = 0
     var filesUnreadable = false
+    var removalFails = false
     var capturedAtWrite: [Bool] = []
 }
 
 @MainActor let fake = FakeSystem()
 
 struct ReadFailed: Error {}
+struct RemovalFailed: Error {}
 
 let scratch = FileManager.default.temporaryDirectory
     .appending(path: "nc-IPhoneBackup-test.\(UUID())", directoryHint: .isDirectory)
@@ -56,7 +60,8 @@ func plantJournal(_ data: Data) {
 extension IPhoneBackupSystem {
     static let live = IPhoneBackupSystem(
         read: {
-            if fake.readFails { throw ReadFailed() }
+            fake.reads += 1
+            if fake.readFails || fake.reads == fake.failOnRead { throw ReadFailed() }
             return fake.value
         },
         write: { write in
@@ -80,6 +85,10 @@ extension IPhoneBackupSystem {
                 throw ReadFailed()
             }
             return try Data(contentsOf: url)
+        },
+        removeFile: { url in
+            if fake.removalFails { throw RemovalFailed() }
+            try FileManager.default.removeItem(at: url)
         }
     )
 }
@@ -123,6 +132,7 @@ final class Rig {
         controller = NotchcastController(
             addons: [IPhoneBackupAddon.self], defaults: defaults, hub: hub,
             dictation: FakeDictation(), presenter: presenter)
+        fake.reads = 0
         controller.start()
     }
 
@@ -166,9 +176,11 @@ func reset(_ value: Policy.Value?) {
     fake.writes = []
     fake.failingWrites = 0
     fake.failureMutates = false
+    fake.failOnRead = nil
     fake.readFails = false
     fake.failingReadBacks = 0
     fake.filesUnreadable = false
+    fake.removalFails = false
     fake.capturedAtWrite = []
     try? FileManager.default.removeItem(at: scratch)
 }
@@ -230,7 +242,6 @@ func preferenceSource() {
 enum IPhoneBackupModuleTests {
     @MainActor
     static func main() async {
-        // Write plan: on writes disabled = true and captures the prior value; off writes it back or deletes.
         let absent = Policy.apply(current: nil, journal: [:])
         precondition(absent.write == .set(.bool(true)), "on writes AutomaticDeviceBackupsDisabled = true")
         precondition(Policy.restore(journal: absent.journal, current: .bool(true)) == .delete, "absent → delete")
@@ -250,14 +261,12 @@ enum IPhoneBackupModuleTests {
         precondition(entry.domain == "com.apple.AMPDevicesClient", "the domain v1 wrote")
         precondition(entry.key == "AutomaticDeviceBackupsDisabled", "the key v1 wrote")
 
-        // v1 journal: Damian's capture decodes and restores; ours round-trips.
         let v1 = decoded(Data(v1Journal.utf8))
         precondition(Policy.isApplied(v1, current: .bool(true)), "a v1 capture counts as applied")
         precondition(Policy.restore(journal: v1, current: .bool(true)) == .set(.integer(0)), "v1 prior restores")
         precondition(decoded(try? Policy.data(prior.journal)) == prior.journal, "round trip")
         precondition((try? Policy.journal(from: Data("[1]".utf8))) == nil, "an unreadable journal throws")
 
-        // Switch on: nothing is written until the row's question is accepted.
         reset(.bool(false))
         var rig = Rig()
         precondition(!rig.isOn && !rig.hasModule, "off by default")
@@ -281,7 +290,6 @@ enum IPhoneBackupModuleTests {
         precondition(rig.isOn && fake.writes.count == 1, "the dismissal after accept declines nothing")
         precondition(!rig.ask().isPresented, "once applied, the row asks no more")
 
-        // Quitting stops the module with the switch on: backups stay off, the capture stays.
         rig.controller.stop()
         precondition(fake.writes.count == 1, "quitting writes nothing")
         precondition(!rig.journal.isEmpty, "quitting keeps the capture")
@@ -289,14 +297,12 @@ enum IPhoneBackupModuleTests {
         rig = Rig(suite: kept)
         precondition(rig.isOn && rig.hasModule && fake.writes.count == 1, "relaunch keeps the switch, writes nothing")
 
-        // Switch off: the prior value comes back and the capture goes.
         await rig.set(false)
         precondition(!rig.hasModule, "the module stops")
         precondition(fake.writes == [.set(.bool(true)), .set(.bool(false))], "off restores the prior value")
         precondition(rig.journal.isEmpty && journalOnDisk() == nil, "the journal file is deleted once restored")
         rig.finish()
 
-        // A key that was absent is deleted again.
         reset(nil)
         rig = Rig()
         await rig.set(true)
@@ -305,7 +311,6 @@ enum IPhoneBackupModuleTests {
         precondition(fake.writes == [.set(.bool(true)), .delete] && fake.value == nil, "absent key is deleted")
         rig.finish()
 
-        // Damian's v1 state: switch on and a v1 capture; no question, and off restores the v1 prior.
         reset(.bool(true))
         let v1Suite = "nc-IPhoneBackup-test.\(UUID())"
         UserDefaults(suiteName: v1Suite)!.set(true, forKey: IPhoneBackupAddon.switchID)
@@ -318,7 +323,6 @@ enum IPhoneBackupModuleTests {
         precondition(rig.journal.isEmpty && !rig.isOn, "after the v1 restore nothing is applied")
         rig.finish()
 
-        // The journal cannot be written: nothing reaches the system, the switch goes off, one notice.
         reset(.bool(false))
         FileManager.default.createFile(atPath: scratch.path(percentEncoded: false), contents: nil)
         rig = Rig()
@@ -330,7 +334,6 @@ enum IPhoneBackupModuleTests {
         try? FileManager.default.removeItem(at: scratch)
         rig.finish()
 
-        // Cancel turns the switch back off and writes nothing; a late accept writes nothing either.
         reset(.bool(false))
         rig = Rig()
         await rig.set(true)
@@ -343,7 +346,6 @@ enum IPhoneBackupModuleTests {
         precondition(fake.writes.isEmpty, "an accept after the switch went off writes nothing")
         rig.finish()
 
-        // A dismissal without an answer is a cancel.
         reset(.bool(false))
         rig = Rig()
         await rig.set(true)
@@ -354,7 +356,6 @@ enum IPhoneBackupModuleTests {
         precondition(!rig.isOn && !rig.hasModule && fake.writes.isEmpty, "dismiss: switch off, nothing written")
         rig.finish()
 
-        // SwiftUI clearing the binding before the accept action still applies.
         reset(.bool(false))
         rig = Rig()
         await rig.set(true)
@@ -365,7 +366,6 @@ enum IPhoneBackupModuleTests {
         precondition(rig.isOn && fake.writes == [.set(.bool(true))], "binding first, then accept: applied")
         rig.finish()
 
-        // A failed sync that still wrote: the capture rolls the value back, the switch goes off.
         reset(.bool(false))
         rig = Rig()
         await rig.set(true)
@@ -378,7 +378,6 @@ enum IPhoneBackupModuleTests {
         precondition(rig.journal.isEmpty, "a rolled-back apply leaves no capture")
         rig.finish()
 
-        // The rollback fails too: the switch stays on with the capture, so switching off retries.
         reset(.bool(false))
         rig = Rig()
         await rig.set(true)
@@ -392,7 +391,6 @@ enum IPhoneBackupModuleTests {
         precondition(!rig.isOn && fake.value == .bool(false) && rig.journal.isEmpty, "switching off retries the rollback")
         rig.finish()
 
-        // An unreadable key at capture writes nothing and turns the switch off.
         reset(.bool(false))
         rig = Rig()
         await rig.set(true)
@@ -437,7 +435,6 @@ enum IPhoneBackupModuleTests {
         precondition(rig.journal.isEmpty, "the retry drops the capture")
         rig.finish()
 
-        // A value the user changed after the apply is kept: switching off restores nothing over it.
         reset(.bool(true))
         rig = Rig()
         await rig.set(true)
@@ -538,6 +535,50 @@ enum IPhoneBackupModuleTests {
             precondition(!rig.isOn && fake.value == .bool(false) && rig.journal.isEmpty, "launch restores the pending capture")
             rig.finish()
         }
+
+        for (captured, removalFails) in [(false, false), (true, false), (true, true)] {
+            reset(.bool(false))
+            let leftOn = "nc-IPhoneBackup-test.\(UUID())"
+            UserDefaults(suiteName: leftOn)!.set(true, forKey: IPhoneBackupAddon.switchID)
+            if captured { plantJournal(Data(v1Journal.utf8)) }
+            fake.failOnRead = 2
+            fake.removalFails = removalFails
+            rig = Rig(suite: leftOn)
+            precondition(fake.reads == 1, "stale switch recovery uses only the first system read")
+            if removalFails {
+                precondition(rig.isOn && rig.presenter.posts.isEmpty, "failed deletion keeps the switch on quietly")
+                precondition(journalOnDisk() == Data(v1Journal.utf8), "failed deletion keeps the journal")
+                rig.controller.stop()
+                fake.removalFails = false
+                rig = Rig(suite: leftOn)
+            }
+            precondition(!rig.isOn && !rig.hasModule, "left on, not applied: the switch is off at launch")
+            precondition(fake.writes.isEmpty && rig.presenter.posts.isEmpty, "turned off quietly, nothing written")
+            precondition(rig.journal.isEmpty && journalOnDisk() == nil, "a capture the system no longer holds goes")
+            rig.finish()
+        }
+
+        reset(.bool(true))
+        let unreadable = "nc-IPhoneBackup-test.\(UUID())"
+        UserDefaults(suiteName: unreadable)!.set(true, forKey: IPhoneBackupAddon.switchID)
+        let captured = Data(v1Journal.utf8)
+        plantJournal(captured)
+        fake.failOnRead = 1
+        rig = Rig(suite: unreadable)
+        precondition(rig.isOn && fake.writes.isEmpty, "a failed read at launch decides nothing")
+        precondition(journalOnDisk() == captured, "a failed first read keeps the journal")
+        rig.finish()
+
+        // A corrupt journal at launch keeps the switch as it was and the journal's bytes.
+        reset(.bool(false))
+        let corrupt = "nc-IPhoneBackup-test.\(UUID())"
+        UserDefaults(suiteName: corrupt)!.set(true, forKey: IPhoneBackupAddon.switchID)
+        let garbage = Data("not a journal".utf8)
+        plantJournal(garbage)
+        rig = Rig(suite: corrupt)
+        precondition(rig.isOn && fake.writes.isEmpty, "a corrupt journal at launch decides nothing")
+        precondition(journalOnDisk() == garbage, "a corrupt journal at launch is kept")
+        rig.finish()
 
         // A v1 journal of the wrong type is corrupt, not absent: nothing is written, the value is kept.
         reset(.bool(false))
