@@ -117,7 +117,13 @@ struct IslandPagesRenderTest {
                      .meter(IslandPageMeter(label: "Disk", fraction: 0.42, value: "212 GB free"))])
         let day = IslandPage(id: "day", title: "Day", symbol: "sun.max", order: 30,
             line: IslandPageLine(symbol: "sun.max", text: "14° Partly cloudy", detail: "Stand-up at 10:30"),
-            blocks: [.row(IslandPageRow(symbol: "calendar", title: "Stand-up", trailing: "10:30"))])
+            blocks: [.row(IslandPageRow(symbol: "chart.line.uptrend.xyaxis", title: "Markets"))]
+                + ["AAPL", "AMZN", "GOOG", "META", "MSFT", "NVDA", "SPY", "VTI"].map {
+                    .row(IslandPageRow(title: $0, trailing: "100.00  ▲ 0.25%"))
+                }
+                + [.row(IslandPageRow(symbol: "calendar", title: "Today")),
+                   .row(IslandPageRow(title: "Design review", trailing: "10:30")),
+                   .row(IslandPageRow(title: "Lunch", trailing: "12:00"))])
         let usage = IslandPage(id: "usage", title: "Usage", symbol: "gauge.with.dots.needle.33percent", order: 40,
             line: IslandPageLine(symbol: "gauge.with.dots.needle.33percent", text: "AI plan 64 % left"),
             blocks: [.meter(IslandPageMeter(label: "AI plan", fraction: 0.64, value: "64 % left"))])
@@ -152,6 +158,7 @@ struct IslandPagesRenderTest {
             ("3-home-tones", deck([calm, toned(system, .warning, "CPU 96 %"), toned(day, .critical, "Disk almost full")])),
             ("3-home-untoned", deck([calm, toned(system, nil, "CPU 96 %"), toned(day, nil, "Disk almost full")])),
             ("3-player", deck([calm, player, system], select: .page(IslandPlayerPage.id))),
+            ("2-day-quotes", deck([day, usage], select: .page(day.id))),
             ("5-home", deck([agents, player, system, day, usage])),
             ("5-system", deck([agents, player, system, day, usage], select: .page("system"))),
         ]
@@ -308,6 +315,23 @@ struct IslandPagesRenderTest {
         return bitmap
     }
 
+    static func checkInkBottom(_ pages: some View, fit: CGSize, name: String) {
+        let canvas = CGSize(width: fit.width, height: fit.height + 200)
+        let view = pages.frame(width: canvas.width, height: canvas.height, alignment: .top)
+            .background(Color.black)
+        let bitmap = snapshot(view, size: canvas)
+        let lastInk = (0..<bitmap.pixelsHigh).reversed().first { y in
+            (0..<bitmap.pixelsWide).contains { x in
+                guard let color = bitmap.colorAt(x: x, y: y)?.usingColorSpace(.sRGB) else { return false }
+                return max(color.redComponent, color.greenComponent, color.blueComponent) > 0.05
+            }
+        }
+        guard let lastInk else { preconditionFailure("\(name) rendered no ink") }
+        let bottom = CGFloat(lastInk + 1) * canvas.height / CGFloat(bitmap.pixelsHigh)
+        let limit = fit.height - InterfaceMetrics.standard.spacing.md
+        precondition(bottom <= limit, "\(name) ink ends at \(bottom) pt, past \(limit) pt")
+    }
+
     /// The island hanging from the screen's top edge, sized as `IslandPageHost` sizes it, below a notch or not.
     static func render(_ name: String, deck: IslandPageDeck, notch: Bool,
                        frosted: Bool) -> (CGSize, NSBitmapImageRep) {
@@ -317,6 +341,7 @@ struct IslandPagesRenderTest {
             .environment(\.paletteOnIsland, true)
             .environment(\.colorScheme, .dark)
         let fit = NSHostingView(rootView: pages).fittingSize
+        if deck.current?.id == "day" { checkInkBottom(pages, fit: fit, name: name) }
         let size = IslandPageDeck.outline(content: fit, rest: NotchTheme.Size.islandRest,
                                           notch: notch ? notchSize.width : nil, radius: Theme.Radius.panel,
                                           maxHeight: 2000)
