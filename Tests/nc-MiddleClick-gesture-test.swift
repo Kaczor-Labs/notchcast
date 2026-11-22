@@ -1,9 +1,17 @@
 // notchcast-hosted-only
+// notchcast-sources: Tinycast/Features/Notchcast/Core/Model/*.swift Tinycast/Features/Notchcast/Core/Service/*.swift
+// notchcast-sources: Tinycast/Features/Island/Model/IslandPresentation.swift
+// notchcast-sources: Tinycast/Features/Island/Service/IslandPresenting.swift
+// notchcast-sources: Tinycast/Platform/NotificationToken.swift
+// notchcast-sources: Tinycast/Features/Notchcast/MiddleClick/MiddleClickAddon.swift
 // notchcast-sources: Tinycast/Features/Notchcast/MiddleClick/Model/*.swift
-// notchcast-sources: Tinycast/Features/Notchcast/MiddleClick/Service/MiddleClickTouchSource.swift
+// notchcast-sources: Tinycast/Features/Notchcast/MiddleClick/Service/*.swift
+// notchcast-sources: Tests/NotchcastTapFixtures.swift Tests/NotchcastDictationFixture.swift
 import CoreGraphics
 import Foundation
 import Synchronization
+
+private enum Paster { static let tinycastEventTag: Int64 = 0x54494E59 }
 
 /// Pins the middle click guards, their order and the engine's pairing of presses and releases.
 @main
@@ -11,7 +19,9 @@ struct MiddleClickGestureTests {
     static let fingers = (0..<3).map { TouchPoint(id: Int32($0), x: Float($0) / 10, y: 0.5, down: true) }
     static let lifted = fingers.map { TouchPoint(id: $0.id, x: $0.x, y: $0.y, down: false) }
 
+    @MainActor
     static func main() {
+        moduleLifecycle()
         gesture()
         realFrames()
         guards()
@@ -32,7 +42,29 @@ struct MiddleClickGestureTests {
         moved[0].x = .nan
         precondition(MiddleClickTouchSource.isSane(fingers))
         precondition(!MiddleClickTouchSource.isSane(moved))
-        print("Middle click gesture, guards, engine pairing, bounce, lost hold, reset and relay fence passed")
+        print("Middle click module lifecycle, gesture, guards, engine pairing, bounce, lost hold, reset and relay fence passed")
+    }
+
+    @MainActor
+    static func moduleLifecycle() {
+        let suite = "nc-middleclick-gesture-test.\(UUID())"
+        let defaults = UserDefaults(suiteName: suite)!
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let system = FakeSystem()
+        let hub = system.makeHub()
+        let controller = NotchcastController(
+            addons: [MiddleClickAddon.self], defaults: defaults, hub: hub,
+            dictation: FakeDictation(), presenter: RecordingPresenter())
+
+        controller.start()
+        let mask = NotchcastTapPolicy.mask(for: .leftMouseDown) |
+            NotchcastTapPolicy.mask(for: .leftMouseDragged) | NotchcastTapPolicy.mask(for: .leftMouseUp)
+        precondition(system.live?.mask == mask && system.live?.options == .defaultTap,
+                     "the module subscribes synchronously to the left-button sequence")
+        precondition(hub.subscriberCount == 1)
+
+        controller.stop()
+        precondition(hub.subscriberCount == 0 && system.live == nil, "stop removes the module's tap")
     }
 
     static func gesture() {
