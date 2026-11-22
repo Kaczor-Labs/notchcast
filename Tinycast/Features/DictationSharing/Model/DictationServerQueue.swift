@@ -21,7 +21,7 @@ final class DictationServerQueue {
     }
 
     /// Returns holding the turn, which the caller gives back with `leave()`.
-    func enter() async throws {
+    func enter(onWait: () -> Void = {}) async throws {
         try Task.checkCancellation()
         if !holder, !userDictating, waiting.isEmpty {
             holder = true
@@ -30,7 +30,10 @@ final class DictationServerQueue {
         guard waiting.count < capacity else { throw Full() }
         let id = UUID()
         try await withTaskCancellationHandler {
-            try await withCheckedThrowingContinuation { waiting.append((id, $0)) }
+            try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, any Error>) in
+                waiting.append((id, continuation))
+                onWait()
+            }
         } onCancel: {
             Task { @MainActor [weak self] in self?.withdraw(id) }
         }
