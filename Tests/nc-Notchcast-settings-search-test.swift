@@ -25,7 +25,7 @@ struct NotchcastSettingsSearchTests {
         let pages = NotchcastSwitch(id: "pages", title: "Agents page", subtitle: "", category: .islandPages)
         let plain = NotchcastSwitch(id: "plain", title: "Paste Plain Text", subtitle: "", category: .clipboard)
         let distill = NotchcastSwitch(id: "distill", title: "Distill", subtitle: "", category: .downloads)
-        let timestamps = NotchcastSwitch(id: "timestamps", title: "Distill Timestamps", subtitle: "Include time codes",
+        let timestamps = NotchcastSwitch(id: "distillTimestamps", title: "Distill Timestamps", subtitle: "Include time codes",
                                          category: .downloads, dependencies: ["distill"])
         let torrents = NotchcastSwitch(id: "torrents", title: "Torrents", subtitle: "", category: .downloads)
         let bond = NotchcastSwitch(id: "bond", title: "Use Wi-Fi and a plugged-in iPhone together", subtitle: "",
@@ -71,6 +71,7 @@ struct NotchcastSettingsSearchTests {
         check("a dependent switch's name lands on the listed parent",
               SettingsSearchCatalog.results(for: "Distill Timestamps").first?.target == target)
         check("dependent subtitles find the parent", finds("include time codes", "Distill"))
+        check("the regrouped Distill terms find the parent", finds("files & downloads distill transcripts", "Distill"))
         check("option names land on the listed parent",
               SettingsSearchCatalog.results(for: "Markdown folder").contains { $0.target == target })
         check("a conditional switch finds a visible parent",
@@ -81,6 +82,12 @@ struct NotchcastSettingsSearchTests {
               SettingsSearchCatalog.results(for: "Cleanup prompt").contains {
                   $0.target == .row(.dictationCleanup, "Clean up text")
               })
+        for term in ["AI providers", "api key", "openai", "anthropic", "openrouter", "apple intelligence"] {
+            check("\(term) lands on the Clean up text row",
+                  SettingsSearchCatalog.results(for: term).contains {
+                      $0.target == .row(.dictationCleanup, "Clean up text")
+                  })
+        }
         check("the notch keyword finds the Island tab",
               SettingsSearchCatalog.results(for: "notch").first?.tab == .notchcast(.island))
         check("the island keyword finds the Island tab", SettingsSearchCatalog.results(for: "island").first?.anchor == nil)

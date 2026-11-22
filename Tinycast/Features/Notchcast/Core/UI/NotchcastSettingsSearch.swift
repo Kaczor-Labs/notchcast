@@ -23,6 +23,21 @@ enum NotchcastSettingsSearch {
         SettingsSearchEntry(island, position, keywords: ["position", "notch", "menu bar", "top"]),
         SettingsSearchEntry(group: look, lookTitle, keywords: ["frosted", "glass", "black", "blur", "display", "monitor"])]
 
+    private static let switchSearchAliases = [
+        "archives": ["files & downloads"],
+        "distill": ["files & downloads"],
+        "distillTimestamps": ["include approximate chunk timestamps in distill transcripts"],
+        "downloads": ["files & downloads"],
+        "downloadsAria2": ["use aria2c for faster media downloads"],
+        "lowDiskWarning": ["power"],
+        "musicBlockAppleMusic": ["prevent media keys from launching apple music"],
+        "pasteImage": ["files & downloads"],
+        "showDesktop": ["press f3 to show the desktop"],
+        "smallCommands": ["small commands"],
+        "taildrop": ["files & downloads"],
+        "torrents": ["files & downloads"],
+    ]
+
     static func anchor(_ category: NotchcastCategory) -> SettingsAnchor {
         SettingsAnchor(tab: .notchcast(.holding(category)), title: LocalizedStringResource(stringLiteral: category.title))
     }
@@ -42,6 +57,7 @@ enum NotchcastSettingsSearch {
         for item in switches {
             var words = [item.title, item.subtitle, item.id] + commandWords[item.id, default: []]
             words += optionWords[item.id, default: []]
+            words += switchSearchAliases[item.id, default: []]
             if item.requiredGrants.contains(.accessibility) {
                 words.append(String(localized: "Needs Accessibility access", table: "Notchcast"))
             }

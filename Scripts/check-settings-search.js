@@ -71,3 +71,14 @@ if (problems.length > 0) {
   console.error("  Mark the row with SettingsRowTitle, or make the entry a `group:` one.");
   process.exit(1);
 }
+
+// The providers row is hidden while cleanup is off, so its terms belong on the visible switch.
+const cleanupKeywords = catalog.match(
+  /\.init\(\s*\.dictationCleanup,\s*LocalizedStringResource\("Clean up text", table: "Notchcast"\),\s*keywords: \[([^\]]*)\]/
+)?.[1] ?? "";
+const providerTerms = ["api key", "openai", "anthropic", "openrouter", "apple intelligence"];
+const missingProviderTerms = providerTerms.filter((term) => !cleanupKeywords.includes(`"${term}"`));
+if (missingProviderTerms.length > 0) {
+  console.error(`✗ Clean up text is missing AI provider search terms: ${missingProviderTerms.join(", ")}`);
+  process.exit(1);
+}

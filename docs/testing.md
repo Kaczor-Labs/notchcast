@@ -274,6 +274,8 @@ The script then runs `Scripts/check-settings-search.js`, one check SwiftLint can
 marked by a `SettingsRowTitle`. Either gap compiles and reads fine, and fails only at runtime as a
 search result that navigates and then sits there.
 
+The Settings search check also requires AI provider terms on the Clean up text switch so those queries have a visible target while cleanup is off.
+
 Last, `Scripts/check-migrations.sh` fails once a stable release has shipped a migration, which is the
 cue to delete it. See [migrations.md](migrations.md).
 
