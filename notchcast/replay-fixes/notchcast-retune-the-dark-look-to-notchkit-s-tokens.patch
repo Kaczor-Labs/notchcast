@@ -1,5 +1,5 @@
 diff --git a/docs/ui.md b/docs/ui.md
-index 604404931..5be5f4711 100644
+index 45b7a976d..9632d28d7 100644
 --- a/docs/ui.md
 +++ b/docs/ui.md
 @@ -110,7 +110,7 @@ groups. See "Section headers" below.
@@ -60,12 +60,12 @@ index 604404931..5be5f4711 100644
  - **`BarButton`** is the shared bar control: bare label at rest, a `rowHover` capsule on hover, `barButtonHeight 28`. Set `isSelected` and it fills with `selection` instead, which beats hover; the Notes formatting bar lights its buttons this way. Set `isCompact` for `sm` padding instead of `md`: around a 16-point glyph frame that makes a 28-point square. It carries the footer's two buttons and the clipboard header's type filter, so those hover identically. Hover state lives inside it, so sweeping one never re-renders the palette body.
  
  ---
-@@ -476,14 +476,14 @@ Source: `Launcher/UI/LauncherList.swift`, `Clipboard/UI/ClipboardView.swift`,
+@@ -484,14 +484,14 @@ Source: `Launcher/UI/LauncherList.swift`, `Clipboard/UI/ClipboardView.swift`,
  All lists share one row grammar so launcher and clipboard look identical:
  
  - `HStack(spacing: lg)`: leading 26pt icon/thumbnail, title (`.body`, `lineLimit(1)`), optional trailing keycaps/kind label, `Spacer`. Insets: `.horizontal md`, `.vertical sm`.
--- **The palette result slot is always `Theme.Size.resultRowIcon`, whatever fills it.** A glyph smaller than an app icon (the uninstall list's 16pt checkbox) is centred _inside_ that 26pt slot rather than sizing the slot to itself. Every list then starts its title at the same x, so switching palette modes doesn't jog the column sideways. The slot doubles as the hit target. Settings keeps the existing 24pt `rowIcon`.
-+- **The palette result slot is always `Theme.Size.resultRowIcon`, whatever fills it.** A glyph smaller than an app icon (the uninstall list's 16pt checkbox) is centred _inside_ that 28pt slot rather than sizing the slot to itself. Every list then starts its title at the same x, so switching palette modes doesn't jog the column sideways. The slot doubles as the hit target. Settings keeps the existing 24pt `rowIcon`.
+-- **The palette result slot is always `Theme.Size.resultRowIcon`, whatever fills it.** A glyph smaller than an app icon (the uninstall list's 16pt checkbox) is centred _inside_ that 26pt slot rather than sizing the slot to itself. Every list then starts its title at the same x, so switching palette modes doesn't jog the column sideways. The slot doubles as the hit target. A Settings list keeps its own 25pt `SettingsListMetrics.iconSize`, whose icon body matches a sidebar tile.
++- **The palette result slot is always `Theme.Size.resultRowIcon`, whatever fills it.** A glyph smaller than an app icon (the uninstall list's 16pt checkbox) is centred _inside_ that 28pt slot rather than sizing the slot to itself. Every list then starts its title at the same x, so switching palette modes doesn't jog the column sideways. The slot doubles as the hit target. A Settings list keeps its own 25pt `SettingsListMetrics.iconSize`, whose icon body matches a sidebar tile.
  - Clipboard thumbnails use `IconCache.appIconExtent` within that slot. A symbol entry draws its [icon pack](#icon-pack) tile at an app icon's body size.
  - Background is a `RoundedRectangle(row, .continuous)` filled by `fill`: **selection → hover → clear**, in that precedence. This `fill` computed property is copy-identical across `AppRow`, `ClipboardRow` and `UninstallRow`; keep them in sync. The launcher's lead cards don't restate it: `.leadCard(selected:)` (`Features/Launcher/UI/LeadCard.swift`) owns their fill and hover, so a card can't answer a selection differently from its siblings.
  - **Hover state lives on the row**, not the list, so a mouse sweep repaints only the rows entering/leaving (a list-level hover rebuilds every row per move; don't do that).

@@ -1,0 +1,13 @@
+diff --git a/Tinycast/Features/Backup/Settings/RaycastImportSelection.swift b/Tinycast/Features/Backup/Settings/RaycastImportSelection.swift
+index 9d4cb08f3..882eb12f3 100644
+--- a/Tinycast/Features/Backup/Settings/RaycastImportSelection.swift
++++ b/Tinycast/Features/Backup/Settings/RaycastImportSelection.swift
+@@ -42,7 +42,7 @@ struct RaycastImportSelection: View {
+             label: String(localized: "Pop to root")),
+         .init(
+             option: .compactMode, symbol: "macwindow", tint: .gray, label: String(localized: "Compact mode"))
+-    ]
++    ].filter { $0.option != .menuBarVisibility }
+ 
+     private static let columns = Array(
+         repeating: GridItem(.flexible(), spacing: Theme.Spacing.md, alignment: .leading), count: 2)
