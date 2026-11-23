@@ -12,10 +12,12 @@ final class CleanerTestFileSystem: CleanerFileSystem {
     }
 
     private let state = Mutex(State())
+    private let beforeInspect: @Sendable (URL) -> Void
     static let area = CleanerArea(home: URL(fileURLWithPath: "/Users/example", isDirectory: true))
     static let now = Date(timeIntervalSince1970: 10_000)
 
-    init() {
+    init(beforeInspect: @escaping @Sendable (URL) -> Void = { _ in }) {
+        self.beforeInspect = beforeInspect
         for path in ["/", "/Users", Self.area.home.path, Self.area.home.path + "/Library", Self.area.root.path] {
             put(URL(filePath: path, directoryHint: .notDirectory), directory: true)
         }
@@ -59,7 +61,8 @@ final class CleanerTestFileSystem: CleanerFileSystem {
     }
 
     func inspect(_ url: URL) throws -> CleanerFile {
-        try state.withLock {
+        beforeInspect(url)
+        return try state.withLock {
             $0.reads += 1
             guard let file = $0.files[url.path] else { throw CleanerFileError.missing }
             return file

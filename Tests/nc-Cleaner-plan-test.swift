@@ -5,11 +5,17 @@
 // notchcast-sources: Tests/nc-Cleaner-fixture.swift
 
 import Foundation
+import Synchronization
 
 @main
 @MainActor
 struct CleanerPlanTest {
     static func main() async throws {
+        try await checksSelection()
+        try await givesEachRowItsOwnBudget()
+    }
+
+    private static func checksSelection() async throws {
         let fs = CleanerTestFileSystem()
         let safe = CleanerTestFileSystem.item("com.example.atlas #1")
         let recent = CleanerTestFileSystem.item("com.example.recent")
@@ -50,5 +56,29 @@ struct CleanerPlanTest {
         selection.set(running, checked: true, in: plan)
         precondition(selection.checked == [safe])
         precondition(fs.trashCalls.isEmpty)
+    }
+
+    private static func givesEachRowItsOwnBudget() async throws {
+        let large = CleanerTestFileSystem.item("a-large")
+        let slow = CleanerTestFileSystem.item("b-slow")
+        let small = CleanerTestFileSystem.item("c-small")
+        let now = Mutex(ContinuousClock.now)
+        let fs = CleanerTestFileSystem { url in
+            if url == slow { now.withLock { $0 = $0.advanced(by: .seconds(3)) } }
+        }
+        fs.put(large, directory: true)
+        for index in 0..<19_999 {
+            fs.put(large.appending(component: "\(index)"))
+        }
+        fs.put(slow, directory: true)
+        fs.put(slow.appending(component: "entry"))
+        fs.put(small, size: 64)
+
+        var scanner = fs.scanner
+        scanner.monotonic = { now.withLock { $0 } }
+        let plan = try await scanner.scan(CleanerTestFileSystem.area, apps: .init())
+        precondition(plan.items.map(\.standing) == [.recommended, .locked(.scanLimit), .recommended])
+        precondition(plan.items.last?.size?.bytes == 64)
+        precondition(plan.defaultSelection.checked == [large, small])
     }
 }

@@ -5,6 +5,7 @@ import Observation
 @Observable
 final class CleanerSession {
     enum Phase {
+        case idle
         case needsAccess
         case scanning
         case review
@@ -13,7 +14,7 @@ final class CleanerSession {
         case scanFailed
     }
 
-    private(set) var phase: Phase = .needsAccess
+    private(set) var phase: Phase = .idle
     private(set) var items: [CleanerItem] = []
     private(set) var selection: CleanerSelection?
     private(set) var report: CleanerReport?
@@ -22,6 +23,7 @@ final class CleanerSession {
     private let runner: CleanerRunner
     private let hasAccess: @MainActor () -> Bool
     private var plan: CleanerPlan?
+    @ObservationIgnored private var scanOperation = 0
 
     init(area: CleanerArea, runner: CleanerRunner, hasAccess: @escaping @MainActor () -> Bool) {
         self.area = area
@@ -30,7 +32,9 @@ final class CleanerSession {
     }
 
     func open() async {
-        guard phase != .scanning, phase != .cleaning else { return }
+        guard phase != .cleaning else { return }
+        scanOperation += 1
+        let operation = scanOperation
         items = []
         plan = nil
         selection = nil
@@ -41,16 +45,20 @@ final class CleanerSession {
         }
         phase = .scanning
         do {
+            try Task.checkCancellation()
             let scanned = try await runner.scanner.scan(area, apps: runner.runningApps()) { [weak self] item in
-                self?.items.append(item)
+                guard let self, self.scanOperation == operation, !Task.isCancelled else { return }
+                self.items.append(item)
             }
+            guard scanOperation == operation else { return }
             try Task.checkCancellation()
             plan = scanned
             selection = scanned.defaultSelection
             phase = .review
         } catch {
+            guard scanOperation == operation else { return }
             items = []
-            phase = .scanFailed
+            phase = error is CancellationError || Task.isCancelled ? .idle : .scanFailed
         }
     }
 

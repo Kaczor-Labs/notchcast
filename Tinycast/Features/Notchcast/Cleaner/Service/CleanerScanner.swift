@@ -18,8 +18,6 @@ struct CleanerScanner: Sendable {
         let names = try fileSystem.children(of: area.root, limit: Self.maxEntries)
         var items: [CleanerItem] = []
         var snapshots: [URL: CleanerSnapshot] = [:]
-        var remaining = Self.maxEntries
-        let deadline = monotonic().advanced(by: Self.budget)
 
         for name in names.sorted() {
             try Task.checkCancellation()
@@ -27,8 +25,7 @@ struct CleanerScanner: Sendable {
             let url = try child(name, of: area.root)
             let item: CleanerItem
             do {
-                let snapshot = try snapshot(
-                    of: url, in: area, parents: parents, remaining: &remaining, deadline: deadline)
+                let snapshot = try snapshot(of: url, in: area, parents: parents)
                 let size = MeasuredSize(bytes: snapshot.entries.values.reduce(0) { $0 + $1.size })
                 let standing: CleanerItem.Standing
                 if apps.holds(url) {
@@ -67,17 +64,15 @@ struct CleanerScanner: Sendable {
     }
 
     func snapshot(of url: URL, in area: CleanerArea) throws -> CleanerSnapshot {
-        let parents = try parentIdentities(in: area)
-        var remaining = Self.maxEntries
-        return try snapshot(
-            of: url, in: area, parents: parents, remaining: &remaining, deadline: monotonic().advanced(by: Self.budget))
+        try snapshot(of: url, in: area, parents: parentIdentities(in: area))
     }
 
     private func snapshot(
-        of url: URL, in area: CleanerArea, parents: [CleanerFile.Identity],
-        remaining: inout Int, deadline: ContinuousClock.Instant
+        of url: URL, in area: CleanerArea, parents: [CleanerFile.Identity]
     ) throws -> CleanerSnapshot {
         guard area.contains(url) else { throw CleanerHoldBack.unsafePath }
+        var remaining = Self.maxEntries
+        let deadline = monotonic().advanced(by: Self.budget)
         var pending = [url]
         var entries: [URL: CleanerFile] = [:]
         while let path = pending.popLast() {
