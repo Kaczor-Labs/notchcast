@@ -1,6 +1,6 @@
 // notchcast-hosted-only
 // notchcast-kit: notchcast-island-audit
-// notchcast-sources: Tests/Kit/IslandAuditMenus.swift
+// notchcast-sources: Tests/Kit/IslandAuditMenus.swift Tests/ImageRendererBitmap.swift
 // notchcast-sources: Tinycast/DesignSystem/KeyCapChip.swift Tinycast/DesignSystem/BarButton.swift
 // notchcast-sources: Tinycast/DesignSystem/ModalActionButtonStyle.swift Tinycast/DesignSystem/SymbolImage.swift
 // notchcast-sources: Tinycast/DesignSystem/Tooltip.swift Tinycast/DesignSystem/PopoverMenu.swift
@@ -213,7 +213,7 @@ extension IslandAuditRendering {
         }
     }
 
-    /// Every SwiftUI surface sits on the island in its look, the way the island hosts it.
+    /// Every SwiftUI surface sits on the island in its look; Liquid Glass needs `renderHosted`.
     static func render(_ name: String, @ViewBuilder _ content: () -> some View) {
         let view = content()
             .padding(16)
@@ -224,7 +224,7 @@ extension IslandAuditRendering {
             .environment(PaletteState())
         let renderer = ImageRenderer(content: view)
         renderer.scale = 2
-        write(name, renderer.cgImage)
+        write(name, renderer.bitmap)
     }
 
     /// The level band in the report slot: on Frosted it must leave the glass under it unpainted.
