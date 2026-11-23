@@ -95,6 +95,7 @@ struct DictationSettingsView: View {
                         Text(
                             settings.dictationModel.family.summary + " · " + settings.dictationModel.coverage)
                     }
+                    .disabled(true)
                     Picker(selection: $settings.dictationModel) {
                         ForEach(
                             DictationModel.allCases.filter { $0.family == settings.dictationModel.family }
@@ -105,6 +106,8 @@ struct DictationSettingsView: View {
                         SettingsRowTitle(.dictationModel, "Model")
                         Text(settings.dictationModel.summary)
                     }
+
+                    .disabled(true)
 
                     let installed = models.isInstalled(settings.dictationModel)
                     let downloading = models.downloading == settings.dictationModel

@@ -1,5 +1,6 @@
 import ApplicationServices
 import Foundation
+import Observation
 
 /// The one owner of the add-on system: created by AppCore in `start`, stopped at terminate.
 @MainActor
@@ -10,16 +11,20 @@ final class NotchcastCore {
     private var launcherHides: NotchcastLauncherHides?
     private var globeTrigger: NotchcastGlobeTrigger?
     private let dictationIsland = DictationIslandCoordinator()
+    private let modelDownload: NotchcastModelDownload
 
     init(
         core: AppCore, addons: [any NotchcastAddon.Type] = NotchcastRegistry.addons, startsRuntime: Bool = true
     ) {
+        let modelDownload = NotchcastModelDownload(models: core.dictationModels, presenter: core.islandPresenter)
+        self.modelDownload = modelDownload
         let defaults = core.notchcastDefaults
         let hub = NotchcastTapHub(
             syntheticTag: Paster.tinycastEventTag, isTrusted: { AXIsProcessTrusted() },
             makeSession: NotchcastTapThread.start)
         controller = NotchcastController(
-            addons: addons, defaults: defaults, hub: hub, dictation: NotchcastDictationBridge(core: core),
+            addons: addons, defaults: defaults, hub: hub,
+            dictation: NotchcastDictationBridge(core: core, modelDownload: modelDownload),
             services: startsRuntime ? NotchcastServices(core: core) : NotchcastServices(),
             presenter: core.islandPresenter)
         dictationServer = DictationServer(
@@ -99,18 +104,66 @@ final class NotchcastCore {
         dictationIsland.start(core: core, captureDisplay: { [weak dictation = core.dictationCoordinator] in
             typingDisplay.capture(dictation?.target)
         }, typingDisplay: typingDisplay.display)
-        if let seed = DictationFirstModel.seed(
-            stored: UserDefaults.standard.string(forKey: AppSettingsKey.dictationModel.rawValue)),
-            let model = DictationModel(rawValue: seed) { core.settings.dictationModel = model }
+        core.dictationCoordinator.prepareModel = modelDownload.install
         controller.start()
         dictationServer.start()
     }
 
     func stop() {
+        modelDownload.stop()
         dictationServer.stop()
         trustMonitor = nil
         globeTrigger?.stop()
         controller.stop()
         controller.hub.stop()
     }
+}
+
+@MainActor
+final class NotchcastModelDownload {
+    private static let noticeID = "dictation.model.download"
+    private let models: DictationModelStore
+    private let presenter: any IslandPresenting
+    private var download: Task<Void, Error>?
+
+    init(models: DictationModelStore, presenter: any IslandPresenting) {
+        self.models = models
+        self.presenter = presenter
+    }
+
+    func install(_ model: DictationModel) async throws {
+        try Task.checkCancellation()
+        guard !models.isInstalled(model) else { return }
+        if let download {
+            try await download.value
+            try Task.checkCancellation()
+            return
+        }
+
+        let task = Task {
+            let progress = Task { [models, presenter] in
+                for await fraction in Observations({
+                    guard let bytes = models.downloadProgress, bytes.total > 0 else { return nil as Double? }
+                    return Double(bytes.received) / Double(bytes.total)
+                }) {
+                    guard !Task.isCancelled else { return }
+                    presenter.post(IslandNotice(
+                        id: Self.noticeID, symbol: "arrow.down.circle",
+                        text: String(localized: "Downloading Parakeet Ultra", table: "Notchcast"),
+                        progress: IslandProgress(fraction: fraction)), onTap: nil)
+                }
+            }
+            defer {
+                progress.cancel()
+                presenter.end(notice: Self.noticeID)
+                download = nil
+            }
+            try await models.download(model)
+        }
+        download = task
+        try await task.value
+        try Task.checkCancellation()
+    }
+
+    func stop() { download?.cancel() }
 }

@@ -3,7 +3,7 @@
 Dictation is off by default. A user-selected global shortcut records from the chosen microphone,
 transcribes locally and sends the result through `TextInjector`. Parakeet Ultra (quality) and Redux
 (lightweight) support 25 languages. Qwen3-ASR 0.6B and 1.7B support 30 languages and 22 Chinese dialects.
-No model is bundled. The Settings pane downloads a pinned Core ML conversion on request.
+Notchcast always uses Parakeet Ultra. The first recording or audio transcription fetches its pinned Core ML conversion automatically and continues when it is ready. Settings also offers a manual download.
 
 Recognition uses Apple's Core ML and Accelerate, with no external library. Each model family has
 its own adapter inside the bundled helper; both variants share that family's implementation.
@@ -11,8 +11,7 @@ The same audio-to-text channel feeds the coordinator regardless of which model i
 Parakeet variants declare their joint model, blank token and encoder placement in `DictationModel`, alongside the pinned
 download metadata. A new variant must match the adapter's tensor shapes and TDT decoding contract;
 sharing a model-family name alone does not establish compatibility.
-Redux is the default upstream; Notchcast seeds Ultra once on a profile with no stored model
-(`DictationFirstModel`). Redux's encoder uses CPU/GPU to avoid the several-minute initial Neural Engine
+Redux's encoder uses CPU/GPU to avoid the several-minute initial Neural Engine
 compilation of its 2-bit weights; Ultra's encoder and both variants' decoder/joint use CPU/Neural Engine.
 
 ## Invariants
@@ -101,8 +100,7 @@ compilation of its 2-bit weights; Ultra's encoder and both variants' decoder/joi
   SHA-256 checksums match. Settings shows combined byte counts and a percentage in a full-width
   progress row for the selected model. Download delegate callbacks report actual transferred bytes,
   with intermediate updates limited to one per 100 ms per file; each verified file reports its final
-  count immediately. Progress observation stays in the download row. Switching
-  selection leaves its download running in the background. Cancellation and
+  count immediately. An automatic download also shows one progress notice on the island. Cancellation and
   normal quit remove staging files without publishing a partial model. A new download removes stale
   staging directories left by a crash or forced quit, without touching installed models or other files.
   A nonblocking file lock covers cleanup through publication, rejecting another download sharing

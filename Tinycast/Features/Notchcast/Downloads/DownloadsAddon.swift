@@ -27,7 +27,7 @@ enum DownloadsAddon: NotchcastAddon {
             title: String(localized: "Distill", table: "NotchcastDownloads"),
             subtitle: String(
                 localized: "Save links and transcribe media into ~/Downloads/Distill/Raw.", table: "NotchcastDownloads"),
-            category: .filesDownloads),
+            category: .filesDownloads, defaultEnabled: true),
         NotchcastSwitch(
             id: "distillTimestamps",
             title: String(localized: "Distill Timestamps", table: "NotchcastDownloads"),

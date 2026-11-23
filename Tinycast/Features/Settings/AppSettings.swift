@@ -388,7 +388,8 @@ final class AppSettings {
     }
 
     var dictationModel: DictationModel {
-        didSet { defaults.set(dictationModel.rawValue, forKey: Key.dictationModel.rawValue) }
+        get { .ultra }
+        set { _ = newValue }
     }
 
     /// Nil lets macOS follow the system input device as it changes.
@@ -990,9 +991,6 @@ final class AppSettings {
         dictationMode =
             defaults.string(forKey: Key.dictationMode.rawValue)
             .flatMap(DictationMode.init) ?? .toggle
-        dictationModel =
-            defaults.string(forKey: Key.dictationModel.rawValue)
-            .flatMap(DictationModel.init) ?? .redux
         dictationMicrophone = defaults.string(forKey: Key.dictationMicrophone.rawValue)
         dictationDestination =
             defaults.string(forKey: Key.dictationDestination.rawValue)

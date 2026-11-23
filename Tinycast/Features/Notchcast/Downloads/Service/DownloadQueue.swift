@@ -79,6 +79,8 @@ final class DownloadQueue {
     func release(_ kind: String) {
         for index in jobs.indices where jobs[index].kind == kind && jobs[index].state == .held {
             jobs[index].state = .waiting
+            jobs[index].detail = nil
+            jobs[index].progress = nil
         }
         save()
         pump()
@@ -187,6 +189,10 @@ final class DownloadQueue {
             case .success(let output):
                 jobs[index].state = .done
                 jobs[index].output = output?.path
+            case .failure(let pause as DownloadRunPause):
+                jobs[index].state = .held
+                jobs[index].detail = pause.detail
+                jobs[index].finished = nil
             case .failure(let error):
                 jobs[index].state = error is CancellationError ? .cancelled : .failed
                 jobs[index].detail = error is CancellationError ? nil : error.localizedDescription

@@ -64,7 +64,7 @@ final class DownloadsIslandBridge {
             presenter.post(IslandNotice(id: noticeID + ".cancelled", symbol: "xmark.circle",
                                         text: String(localized: "Cancelled", table: "NotchcastDownloads")), onTap: nil)
         }
-        if !result.saved.isEmpty {
+        if !result.saved.isEmpty, !result.failures.contains(where: { $0.state == .held }) {
             presenter.post(IslandNotice(id: noticeID + ".saved", symbol: "checkmark.circle",
                                         text: DownloadsIslandPolicy.savedMessage(for: result.saved)), onTap: nil)
         }

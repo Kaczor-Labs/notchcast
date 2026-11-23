@@ -14,12 +14,12 @@ struct DownloadsIslandPolicy: Equatable, Sendable {
 
     /// Failures already in the queue when it loads were reported by an earlier run.
     init(loaded jobs: [DownloadJob]) {
-        failed = Set(jobs.filter { $0.state == .failed }.map(\.id))
+        failed = Set(jobs.filter(Self.hasFailure).map(\.id))
     }
 
     mutating func update(_ jobs: [DownloadJob]) -> (shown: Shown?, failures: [DownloadJob], saved: [DownloadJob], cancelled: [DownloadJob]) {
-        let failures = jobs.filter { $0.state == .failed && !failed.contains($0.id) }
-        failed = Set(jobs.filter { $0.state == .failed }.map(\.id))
+        let failures = jobs.filter { Self.hasFailure($0) && !failed.contains($0.id) }
+        failed = Set(jobs.filter(Self.hasFailure).map(\.id))
         let pending = jobs.filter(\.state.isDue).map(\.id)
         guard !pending.isEmpty else {
             let saved = jobs.filter { batch.contains($0.id) && $0.state == .done }
@@ -32,6 +32,10 @@ struct DownloadsIslandPolicy: Equatable, Sendable {
         let current = DownloadsActivity(jobs: jobs)
         return (Shown(title: current.currentTitle, done: inBatch.count { $0.state.isFinished },
                       total: inBatch.count, progress: current.fraction), failures, [], [])
+    }
+
+    private static func hasFailure(_ job: DownloadJob) -> Bool {
+        job.state == .failed || (job.state == .held && job.detail != nil)
     }
 
     /// Called with at least one job: "Saved page.html" for one, "Saved 3 items" for a batch; the title when a job left no file.
