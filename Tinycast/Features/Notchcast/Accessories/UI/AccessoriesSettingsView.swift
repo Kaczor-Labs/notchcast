@@ -30,24 +30,27 @@ struct AccessoriesSettingsView: View {
                     .foregroundStyle(Theme.Colors.warning)
             }
         }
-        Toggle(isOn: $connect) {
-            SettingsRowTitle(Self.anchor, LocalizedStringResource("Connected", table: "NotchcastAccessories"))
-            Text("When headphones, a keyboard, a mouse or another Bluetooth accessory connects. Never computers or phones.",
-                 tableName: "NotchcastAccessories")
-        }
-        .toggleStyle(.checkbox)
-        Toggle(isOn: $low) {
-            SettingsRowTitle(Self.anchor, LocalizedStringResource("Low battery", table: "NotchcastAccessories"))
-            Text("Once per discharge, when an accessory falls to 20 percent. Charging it to 25 percent arms it again.",
-                 tableName: "NotchcastAccessories")
-        }
-        .toggleStyle(.checkbox)
-        Toggle(isOn: $hideBanner) {
-            SettingsRowTitle(Self.anchor, LocalizedStringResource("Hide the system banner", table: "NotchcastAccessories"))
-            Text("Hides macOS's own banner for an accessory the island just announced. It still reaches Notification Center.",
-                 tableName: "NotchcastAccessories")
-        }
-        .toggleStyle(.checkbox)
+        notchcastSettingsCheckbox(
+            SettingsRowTitle(Self.anchor, LocalizedStringResource("Connected", table: "NotchcastAccessories")),
+            isOn: $connect,
+            subtitle: Text(
+                "When headphones, a keyboard, a mouse or another Bluetooth accessory connects. Never computers or phones.",
+                tableName: "NotchcastAccessories")
+        )
+        notchcastSettingsCheckbox(
+            SettingsRowTitle(Self.anchor, LocalizedStringResource("Low battery", table: "NotchcastAccessories")),
+            isOn: $low,
+            subtitle: Text(
+                "Once per discharge, when an accessory falls to 20 percent. Charging it to 25 percent arms it again.",
+                tableName: "NotchcastAccessories")
+        )
+        notchcastSettingsCheckbox(
+            SettingsRowTitle(Self.anchor, LocalizedStringResource("Hide the system banner", table: "NotchcastAccessories")),
+            isOn: $hideBanner,
+            subtitle: Text(
+                "Hides macOS's own banner for an accessory the island just announced. It still reaches Notification Center.",
+                tableName: "NotchcastAccessories")
+        )
         .onChange(of: hideBanner) { trusted = Permissions.isAccessibilityTrusted() }
         // macOS announces no Accessibility grant; returning from System Settings keys the window.
         .onReceive(NotificationCenter.default.publisher(for: NSWindow.didBecomeKeyNotification)) { _ in

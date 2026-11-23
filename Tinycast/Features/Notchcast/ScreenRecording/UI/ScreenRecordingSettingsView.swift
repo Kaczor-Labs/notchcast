@@ -18,12 +18,16 @@ struct ScreenRecordingSettingsView: View {
     }
 
     var body: some View {
-        Toggle(isOn: $systemAudio) {
-            SettingsRowTitle(Self.anchor, LocalizedStringResource("Record system audio", table: "NotchcastScreenRecording"))
+        notchcastSettingsToggle(
+            SettingsRowTitle(Self.anchor, LocalizedStringResource("Record system audio", table: "NotchcastScreenRecording")),
+            isOn: $systemAudio
+        ) {
             Text("Sound from other apps.", tableName: "NotchcastScreenRecording")
         }
-        Toggle(isOn: $microphone) {
-            SettingsRowTitle(Self.anchor, LocalizedStringResource("Record microphone", table: "NotchcastScreenRecording"))
+        notchcastSettingsToggle(
+            SettingsRowTitle(Self.anchor, LocalizedStringResource("Record microphone", table: "NotchcastScreenRecording")),
+            isOn: $microphone
+        ) {
             Text("Asks for Microphone access the first time.", tableName: "NotchcastScreenRecording")
         }
         Picker(selection: $codec) {
