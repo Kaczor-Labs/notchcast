@@ -1,0 +1,79 @@
+// Adapted from Dragos Tugui's Peel, SpaceRemoval.swift and TrashService.swift @ 20230794 (GPL-3.0).
+import Foundation
+
+struct CleanerRunner: Sendable {
+    let scanner: CleanerScanner
+    let runningApps: @MainActor @Sendable () -> CleanerRunningApps
+
+    @concurrent
+    func run(_ plan: CleanerPlan, selection: CleanerSelection) async -> CleanerReport {
+        var report = CleanerReport()
+        var openFiles = OpenFiles()
+        for item in plan.items where selection.checked.contains(item.id) {
+            do {
+                try Task.checkCancellation()
+                let outcome = try await move(item, in: plan, openFiles: &openFiles)
+                report.entries.append(.init(id: item.id, outcome: outcome))
+            } catch is CancellationError {
+                report.cancelled = true
+                break
+            } catch {
+                report.entries.append(.init(id: item.id, outcome: .failed))
+            }
+        }
+        return report
+    }
+
+    private struct OpenFiles {
+        var identities: Set<CleanerFile.Identity> = []
+        var expires: ContinuousClock.Instant?
+    }
+
+    private func move(
+        _ item: CleanerItem, in plan: CleanerPlan, openFiles: inout OpenFiles
+    ) async throws -> CleanerReport.Outcome {
+        let url = item.id
+        guard item.standing.isSelectable, plan.area.contains(url), let scanned = plan.snapshots[url] else {
+            return .skipped(.heldBack(.unsafePath))
+        }
+
+        let apps = await runningApps()
+        if CleanerPolicy.isExcluded(url.lastPathComponent, ownNames: apps.own) {
+            return .skipped(.heldBack(.protectedData))
+        }
+        if apps.holds(url) { return .skipped(.heldBack(.runningApp)) }
+
+        do {
+            guard try scanner.parentIdentities(in: plan.area) == scanned.parents else {
+                return .skipped(.changed)
+            }
+            guard try scanner.fileSystem.inspect(url) == scanned.entries[url] else { return .skipped(.changed) }
+            if openFiles.expires.map({ scanner.monotonic() >= $0 }) != false {
+                let started = scanner.monotonic()
+                openFiles.identities = try scanner.fileSystem.openFiles()
+                openFiles.expires = started.advanced(by: .seconds(1))
+            }
+            let current = try scanner.snapshot(of: url, in: plan.area)
+            guard current == scanned else { return .skipped(.changed) }
+            if current.entries.values.contains(where: { openFiles.identities.contains($0.identity) }) {
+                return .skipped(.heldBack(.openFile))
+            }
+            if scanner.hasRecentWrite(current, now: scanner.clock()) { return .skipped(.heldBack(.recentWrite)) }
+
+            try Task.checkCancellation()
+            guard try scanner.parentIdentities(in: plan.area) == scanned.parents,
+                try scanner.fileSystem.inspect(url) == scanned.entries[url]
+            else { return .skipped(.changed) }
+            try scanner.fileSystem.trash(url)
+            return .trashed(item.size)
+        } catch CleanerFileError.missing {
+            return .skipped(.missing)
+        } catch CleanerFileError.unreadable {
+            return .skipped(.heldBack(.unreadable))
+        } catch let reason as CleanerHoldBack {
+            return .skipped(.heldBack(reason))
+        } catch let error as CocoaError where error.code == .fileNoSuchFile || error.code == .fileReadNoSuchFile {
+            return .skipped(.missing)
+        }
+    }
+}

@@ -1,0 +1,61 @@
+// notchcast-sources: Tinycast/Features/Notchcast/Cleaner/Model/*.swift
+// notchcast-sources: Tinycast/Features/Notchcast/Cleaner/Service/CleanerScanner.swift
+// notchcast-sources: Tinycast/Features/Notchcast/Cleaner/Service/CleanerRunner.swift
+// notchcast-sources: Tinycast/Features/Notchcast/Cleaner/Service/CleanerRunningApps.swift
+// notchcast-sources: Tinycast/Features/Uninstall/Model/*.swift
+// notchcast-sources: Tests/nc-Cleaner-fixture.swift
+
+import Foundation
+
+@main
+struct CleanerRunnerTest {
+    static func main() async throws {
+        try await checksEachItem()
+        try await rejectsChangedRoot()
+    }
+
+    private static func checksEachItem() async throws {
+        let fs = CleanerTestFileSystem()
+        let failed = CleanerTestFileSystem.item("a-failed")
+        let changed = CleanerTestFileSystem.item("b-changed")
+        let missing = CleanerTestFileSystem.item("c-missing")
+        let inUse = CleanerTestFileSystem.item("d-running")
+        let openFolder = CleanerTestFileSystem.item("e-open")
+        let good = CleanerTestFileSystem.item("f-good")
+        let child = changed.appending(component: "entry")
+        let openFile = openFolder.appending(component: "entry")
+
+        for folder in [changed, openFolder] { fs.put(folder, directory: true) }
+        for file in [failed, child, missing, inUse, openFile, good] { fs.put(file, size: 64) }
+
+        let plan = try await fs.scanner.scan(CleanerTestFileSystem.area, apps: .init())
+        precondition(plan.defaultSelection.checked == [failed, changed, missing, inUse, openFolder, good])
+        fs.put(child, size: 64)
+        fs.remove(missing)
+        fs.failTrash(of: failed)
+        try fs.holdOpen(openFile)
+        let runner = CleanerRunner(scanner: fs.scanner, runningApps: { .init(running: ["drunning"]) })
+        let report = await runner.run(plan, selection: plan.defaultSelection)
+        precondition(report.entries.map(\.outcome) == [
+            .failed, .skipped(.changed), .skipped(.missing), .skipped(.heldBack(.runningApp)),
+            .skipped(.heldBack(.openFile)), .trashed(MeasuredSize(bytes: 64))
+        ])
+        precondition(report.movedCount == 1 && report.knownMovedBytes == 64)
+        precondition(fs.trashCalls == [failed, good])
+        _ = try fs.inspect(plan.area.root)
+    }
+
+    private static func rejectsChangedRoot() async throws {
+        let fs = CleanerTestFileSystem()
+        let item = CleanerTestFileSystem.item("example")
+        fs.put(item, size: 100)
+        let area = CleanerTestFileSystem.area
+        let plan = try await fs.scanner.scan(area, apps: .init())
+        let runner = CleanerRunner(scanner: fs.scanner, runningApps: { .init() })
+
+        fs.put(area.root, link: true)
+        let report = await runner.run(plan, selection: plan.defaultSelection)
+        precondition(report.entries == [.init(id: item, outcome: .skipped(.heldBack(.unsafePath)))])
+        precondition(fs.trashCalls.isEmpty)
+    }
+}
