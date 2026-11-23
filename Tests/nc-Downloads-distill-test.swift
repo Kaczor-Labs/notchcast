@@ -103,7 +103,23 @@ struct DownloadsDistillTest {
         let bin = root.appending(path: "bin", directoryHint: .isDirectory)
         try FileManager.default.createDirectory(at: bin, withIntermediateDirectories: true)
         try tool(bin, "yt-dlp", """
-            for a in "$@"; do [ "$a" = --skip-download ] && { echo '{"id":"v","title":"Talk: One","channel":"Chan"}'; exit 0; }; done
+            prev=; folder=; captions=no
+            for a in "$@"; do
+              [ "$prev" != --paths ] || folder="$a"
+              [ "$a" != --write-subs ] || captions=yes
+              prev="$a"
+            done
+            case "$prev:$captions" in
+              *v=caption:yes)
+                printf 'WEBVTT\\n\\n01:02.345 --> 01:04.000\\nOwn captions\\n' > "$folder/Caption.en.vtt"
+                exit 0;;
+            esac
+            for a in "$@"; do
+              if [ "$a" = --skip-download ]; then
+                echo '{"id":"v","title":"Talk: One","channel":"Chan"}'
+                exit 0
+              fi
+            done
             prev=; for a in "$@"; do [ "$prev" = -o ] && out="${a%.*}.m4a"; prev=$a; done
             printf audio > "$out"
             """)
@@ -162,6 +178,11 @@ struct DownloadsDistillTest {
         try expect(String(contentsOf: URL(filePath: timed.output!), encoding: .utf8)
                == "[00:00:00] hello\n[00:04:00] hello\n[00:08:00] hello\n", "timestamps on: each chunk's start")
 
+        let caption = try await distilled("https://www.youtube.com/watch?v=caption")
+        try expect(String(contentsOf: URL(filePath: caption.output!), encoding: .utf8) == "[00:01:02] Own captions",
+                   "YouTube captions retain their own timings and go straight to Raw")
+        expect(dictation.calls.count == 6, "a usable caption track never invokes the speech model")
+
         let raw = module.distill.destination
         let before = Set(try FileManager.default.contentsOfDirectory(atPath: raw.path))
         func transcripts() -> Set<String> {
@@ -217,10 +238,10 @@ struct DownloadsDistillTest {
         clipboard = "https://www.youtube.com/watch?v=busy https://www.youtube.com/watch?v=later"
         command("add-links-to-distill")
         command("run-distill")
-        try await eventually { jobs().contains { $0.source.hasSuffix("busy") && $0.state.isFinished } }
+        try await eventually { jobs().contains { $0.source.hasSuffix("busy") && $0.detail != nil } }
         try await Task.sleep(for: .milliseconds(100))
         let busy = jobs().first { $0.source.hasSuffix("busy") }!
-        expect(busy.state == .failed, "busy fails the link at once, never waits")
+        expect(busy.state == .held, "busy puts the current link back on hold")
         let notice = presenter.notices.first { $0.id == "distill.progress.failed." + busy.id }
         expect(notice?.isFailure == true && notice?.seconds == nil, "busy is a failure notice without seconds")
         expect(notice?.text.hasSuffix("Dictation is in use. Run Distill again when it is free.") == true,
@@ -228,6 +249,7 @@ struct DownloadsDistillTest {
         expect(jobs().first { $0.source.hasSuffix("later") }?.state == .held, "busy ends the run: the rest waits")
         expect(dictation.calls.count == calls, "busy reaches no dictation")
         dictation.isDictating = false
+        module.distill.queue!.cancel(busy.id)
 
         dictation.holds = true
         command("run-distill")
@@ -241,6 +263,44 @@ struct DownloadsDistillTest {
         expect(dictation.calls.count == calls + 1, "cancel mid-chunk: no further chunk is transcribed")
         let cancelled = jobs().first { $0.id == later.id }
         expect(cancelled?.state == .cancelled && cancelled?.output == nil, "a cancelled link writes no transcript")
+        dictation.result = .failure(NotchcastTranscribeError.unavailable)
+        clipboard = "https://example.com/one.mp3\nhttps://example.com/two.mp3"
+        command("add-links-to-distill")
+        let beforePause = presenter.notices.count
+        command("run-distill")
+        try await eventually { presenter.notices.dropFirst(beforePause).contains { $0.isFailure } }
+        expect(jobs().suffix(2).allSatisfy { $0.state == .held }, "a model download failure retains both links")
+        expect(presenter.notices.dropFirst(beforePause).filter { $0.isFailure }.count == 1,
+               "a model download failure posts once")
+        dictation.result = .success("hello")
+        command("run-distill")
+        try await eventually { jobs().suffix(2).allSatisfy { $0.state == .done } }
+
+        preferences.set("downloads", on: true)
+        try await eventually { module.downloads.queue != nil }
+        clipboard = "https://www.youtube.com/watch?v=download-one\nhttps://www.youtube.com/watch?v=download-two"
+        dictation.result = .failure(NotchcastTranscribeError.unavailable)
+        let transcriptCalls = dictation.calls.count
+        let beforeTranscriptPause = presenter.notices.count
+        command("download-youtube-transcript")
+        try await eventually { presenter.notices.dropFirst(beforeTranscriptPause).contains { $0.isFailure } }
+        let paused = module.downloads.queue!.jobs
+        expect(paused.count == 2 && paused.allSatisfy { $0.state == .held }, "Transcript holds the whole batch")
+        expect(dictation.calls.count == transcriptCalls + 1, "Later links do not try the unavailable model")
+        expect(presenter.notices.dropFirst(beforeTranscriptPause).filter { $0.isFailure }.count == 1,
+               "A Transcript batch reports its blocker once")
+        clipboard = ""
+        dictation.result = .success("hello")
+        command("download-youtube-transcript")
+        try await eventually {
+            let transcripts = module.downloads.queue?.jobs ?? []
+            return transcripts.count == 2 && transcripts.allSatisfy { $0.state == .done }
+        }
+        for job in module.downloads.queue!.jobs {
+            let downloaded = URL(filePath: job.output!)
+            try expect(String(contentsOf: downloaded, encoding: .utf8) == "hello\nhello\nhello\n",
+                       "Download Transcript uses the same speech fallback without contending with itself")
+        }
         module.stop()
     }
 

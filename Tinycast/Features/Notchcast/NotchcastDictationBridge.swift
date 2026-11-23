@@ -1,7 +1,7 @@
 import AVFoundation
 import Foundation
 
-/// Stock Dictation behind the core's transcription hook, with the user's own model and language.
+/// Stock Dictation behind the core's transcription hook, using the app's speech model.
 @MainActor
 struct NotchcastDictationBridge: NotchcastTranscribing {
     private nonisolated static let decodeFrames: AVAudioFrameCount = 65_536
@@ -9,11 +9,22 @@ struct NotchcastDictationBridge: NotchcastTranscribing {
     private nonisolated static let minimumSamples = 1_600
 
     weak var core: AppCore?
+    let modelDownload: NotchcastModelDownload
 
     var isDictating: Bool { core?.dictationCoordinator.isActive ?? false }
 
     func onUserStart(_ hook: @escaping @MainActor () async -> Void) {
         core?.dictationCoordinator.willStart = hook
+    }
+
+    func prepareModel() async throws {
+        guard let core else { throw NotchcastTranscribeError.unavailable }
+        do {
+            try await modelDownload.install(core.settings.dictationModel)
+        } catch {
+            try Task.checkCancellation()
+            throw NotchcastTranscribeError.unavailable
+        }
     }
 
     func transcribe(

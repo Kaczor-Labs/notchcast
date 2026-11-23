@@ -1,3 +1,7 @@
+// notchcast-sources: Tinycast/Features/Notchcast/Downloads/Model/CaptionText.swift
+// notchcast-sources: Tinycast/Features/Notchcast/Downloads/Model/MediaArguments.swift
+// notchcast-sources: Tinycast/Features/Notchcast/Downloads/Model/MediaFailure.swift
+// notchcast-sources: Tinycast/Features/Notchcast/Downloads/Service/TranscriptDownloadRunner.swift
 // notchcast-sources: Tinycast/Features/Notchcast/Core/Service/NotchcastTranscription.swift
 // notchcast-sources: Tinycast/Features/Notchcast/Downloads/Model/DistillDrop.swift
 // notchcast-sources: Tinycast/Features/Notchcast/Downloads/Model/DistillNote.swift

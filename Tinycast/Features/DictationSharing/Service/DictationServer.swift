@@ -225,7 +225,6 @@ final class DictationServer {
         case .success(let parsed): upload = parsed
         case .failure(let refusal): return refusal
         }
-        guard coordinator.models.isInstalled(settings.dictationModel) else { return .modelMissing }
         guard let file = await Self.stage(upload) else { return .error(500, "Could not stage the audio.") }
         defer { try? FileManager.default.removeItem(at: file) }
         if let refusal = await Self.lengthRefusal(file) { return refusal }
@@ -243,7 +242,7 @@ final class DictationServer {
         } catch let failure as NotchcastTranscribeError {
             switch failure {
             case .busy: return .busy
-            case .unavailable: return .modelMissing
+            case .unavailable: return .modelUnavailable
             case .unreadableAudio: return .unreadable
             case .failed: return .error(500, "Transcription failed.")
             }

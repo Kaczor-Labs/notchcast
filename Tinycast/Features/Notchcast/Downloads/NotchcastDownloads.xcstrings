@@ -1,6 +1,24 @@
 {
   "sourceLanguage" : "en",
   "strings" : {
+    "Dictation is in use. Choose Download Transcript when it is free." : {
+
+    },
+    "Parakeet Ultra could not be prepared. Choose Run Distill to retry." : {
+
+    },
+    "Parakeet Ultra could not be prepared. Choose Download Transcript to retry." : {
+
+    },
+    "Install %@ with %@, then choose Run Distill." : {
+
+    },
+    "Distill could not write its output. Choose Run Distill when the folder is writable." : {
+
+    },
+    "YouTube throttled the caption download. Try again later." : {
+
+    },
     "Cancel All Torrents" : {
 
     },
@@ -151,9 +169,6 @@
 
     },
     "Dictation is in use. Run Distill again when it is free." : {
-
-    },
-    "Dictation is not available. Set up a dictation model first." : {
 
     },
     "Distill" : {

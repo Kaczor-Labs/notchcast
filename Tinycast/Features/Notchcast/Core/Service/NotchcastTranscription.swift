@@ -1,7 +1,7 @@
 import Foundation
 
 enum NotchcastTranscribeError: Error, Equatable, Sendable {
-    /// No dictation model is installed, or stock Dictation cannot run.
+    /// The shared model could not be prepared, or Dictation cannot run.
     case unavailable
     /// The user's own dictation, or another add-on's transcription, holds Dictation.
     case busy
@@ -16,11 +16,16 @@ protocol NotchcastTranscribing: Sendable {
     var isDictating: Bool { get }
     /// Installs what stock Dictation awaits when the user starts, before its microphone opens.
     func onUserStart(_ hook: @escaping @MainActor () async -> Void)
+    func prepareModel() async throws
     /// Asks `isInterrupted` before each piece of audio enters the model, and stops when it says so.
     /// A nil `language` keeps the user's own Dictation language.
     func transcribe(
         _ audioURL: URL, language: String?, isInterrupted: @escaping @MainActor @Sendable () -> Bool
     ) async throws -> String
+}
+
+extension NotchcastTranscribing {
+    func prepareModel() async throws {}
 }
 
 /// One transcription at a time across add-ons, and never alongside the user's own dictation.
@@ -47,6 +52,9 @@ final class NotchcastTranscriptionRunner {
         try Task.checkCancellation()
         guard running == nil, !dictation.isDictating else { throw NotchcastTranscribeError.busy }
         let start = userStarts
+        try await dictation.prepareModel()
+        try Task.checkCancellation()
+        guard running == nil, !dictation.isDictating, userStarts == start else { throw NotchcastTranscribeError.busy }
         let dictation = dictation
         let isInterrupted: @MainActor @Sendable () -> Bool = { [weak self] in
             self?.userStarts != start || dictation.isDictating

@@ -616,7 +616,7 @@ and the Actions menu's own chords, and dies with the window.
 - **The composer's mic is Dictation's, and only shown while Dictation is on.** A click runs
   `DictationCoordinator.toggle(into:)` for this field whatever the shortcut's hold-or-toggle mode or
   the window's focus; a second click or Return finishes, Escape cancels, and the transcript goes in
-  at the caret, never to the clipboard. With no model installed the click opens Settings → Dictation.
+  at the caret, never to the clipboard. The first recording downloads Parakeet Ultra if needed.
   The field is a `ComposerTextView`, an `InjectableTextView`, so the Dictation shortcut, snippets and
   Quick Actions write into it in process, as they do into a note.
   Switching chats or closing the window cancels dictation targeting its composer before the editor

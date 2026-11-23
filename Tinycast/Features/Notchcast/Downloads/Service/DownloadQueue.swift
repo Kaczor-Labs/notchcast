@@ -79,6 +79,8 @@ final class DownloadQueue {
     func release(_ kind: String) {
         for index in jobs.indices where jobs[index].kind == kind && jobs[index].state == .held {
             jobs[index].state = .waiting
+            jobs[index].detail = nil
+            jobs[index].progress = nil
         }
         save()
         pump()
@@ -134,12 +136,15 @@ final class DownloadQueue {
     private func pump() {
         guard !stopped else { return }
         while tasks.count < maxConcurrent,
-              let job = jobs.first(where: {
-                  $0.state == .waiting && tasks[$0.id] == nil && runners[$0.kind] != nil
-              }),
+              let job = jobs.first(where: canStart),
               let runner = runners[job.kind] {
             begin(job, runner: runner)
         }
+    }
+
+    private func canStart(_ job: DownloadJob) -> Bool {
+        guard job.state == .waiting, tasks[job.id] == nil, let runner = runners[job.kind] else { return false }
+        return !runner.runsSerially || !jobs.contains { $0.kind == job.kind && tasks[$0.id] != nil }
     }
 
     private func begin(_ job: DownloadJob, runner: any DownloadRunner) {
@@ -187,6 +192,10 @@ final class DownloadQueue {
             case .success(let output):
                 jobs[index].state = .done
                 jobs[index].output = output?.path
+            case .failure(let pause as DownloadRunPause):
+                jobs[index].state = .held
+                jobs[index].detail = pause.detail
+                jobs[index].finished = nil
             case .failure(let error):
                 jobs[index].state = error is CancellationError ? .cancelled : .failed
                 jobs[index].detail = error is CancellationError ? nil : error.localizedDescription
