@@ -2214,9 +2214,9 @@ index 96bd7c6a0..cf03a9303 100644
 --- a/Tinycast/Features/Settings/AppSettings.swift
 +++ b/Tinycast/Features/Settings/AppSettings.swift
 @@ -791,6 +791,10 @@ final class AppSettings {
-         case .autoSwitchInputSource: adopt(\.autoSwitchInputSourceID, from: stored)
          case .paletteDraggable: adopt(\.paletteDraggable, from: stored)
          case .animationsEnabled: adopt(\.animationsEnabled, from: stored)
+         case .iconStyle: adopt(\.iconStyle, from: stored)
 +        case .islandShowsInCaptures: adopt(\.islandShowsInCaptures, from: stored)
 +        case .islandOutlineWhenOpen: adopt(\.islandOutlineWhenOpen, from: stored)
 +        case .islandOpensOnHover: adopt(\.islandOpensOnHover, from: stored)

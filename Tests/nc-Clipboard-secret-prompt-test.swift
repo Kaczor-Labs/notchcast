@@ -60,7 +60,12 @@ struct ClipboardSecretPromptTest {
         defer { sqlite3_close(reader) }
         precondition(sqlite3_exec(reader, "BEGIN; SELECT text FROM items", nil, nil, nil) == SQLITE_OK)
 
-        precondition(!store.removeEntries(matchingSubmittedSecret: secret), "a busy WAL must keep the purge pending")
+        // Wall clock on purpose: the purge runs on the main actor, so it must not wait out a busy handler.
+        let purge = ContinuousClock().measure {
+            precondition(
+                !store.removeEntries(matchingSubmittedSecret: secret), "a busy WAL must keep the purge pending")
+        }
+        precondition(purge < .seconds(1), "a busy WAL defers the purge without waiting, took \(purge)")
         precondition(store.items.isEmpty, "the row is removed even when the WAL is busy")
         let busyWAL = try Data(contentsOf: wal)
         precondition(busyWAL.range(of: bytes) != nil, "reader keeps the WAL bytes in place")
