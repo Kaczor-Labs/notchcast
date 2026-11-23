@@ -283,6 +283,7 @@ struct GlanceArt: PillArt {
         let symbol = NSImage.SymbolConfiguration(pointSize: NotchTheme.Typography.islandGlanceNSFont.pointSize, weight: .medium)
             .applying(.init(paletteColors: [tone]))
         return NSImage(systemSymbolName: name, accessibilityDescription: nil)?.withSymbolConfiguration(symbol)
+            .map(IslandOptics.inked)
     }
 
     /// `pill` is the visible part of the outline; content hugs its ends, as the slots were sized.
@@ -290,12 +291,11 @@ struct GlanceArt: PillArt {
         let edge = Theme.Spacing.lg
         var x = pill.minX + edge
         func place(_ text: NSAttributedString) {
-            text.draw(at: CGPoint(x: x, y: pill.midY - text.size().height / 2))
+            text.draw(at: CGPoint(x: x, y: IslandOptics.lineBottom(text, midY: pill.midY, notch: notch)))
             x += text.size().width
         }
         if let glyph {
-            glyph.draw(in: CGRect(x: x, y: pill.midY - glyph.size.height / 2, width: glyph.size.width,
-                                  height: glyph.size.height))
+            glyph.draw(in: IslandOptics.glyphRect(glyph, x: x, midY: pill.midY, notch: notch))
             x += glyph.size.width + gap
         }
         if layout.showsTitle, !notch { place(title) }
@@ -306,5 +306,53 @@ struct GlanceArt: PillArt {
             if layout.showsTitle { place(separator) }
             place(countdown)
         }
+    }
+}
+
+/// Beside a notch a glyph and its text meet where they ink: the shape, and the cap height.
+@MainActor
+enum IslandOptics {
+    private static let font = NotchTheme.Typography.islandGlanceNSFont
+    /// How far above its line box's bottom string drawing sets the baseline.
+    private static let baselineRise: CGFloat = {
+        let storage = NSTextStorage(string: "0", attributes: [.font: font])
+        let layout = NSLayoutManager()
+        layout.addTextContainer(NSTextContainer(size: CGSize(width: 1_000, height: 1_000)))
+        storage.addLayoutManager(layout)
+        return layout.lineFragmentRect(forGlyphAt: 0, effectiveRange: nil).height - layout.location(forGlyphAt: 0).y
+    }()
+
+    /// The bottom of a glance-font line box; the pill keeps centring the box itself.
+    static func lineBottom(_ text: NSAttributedString, midY: CGFloat, notch: Bool) -> CGFloat {
+        notch ? midY - font.capHeight / 2 - baselineRise : midY - text.size().height / 2
+    }
+
+    /// Where a `GlanceArt.glyph` draws so its inked middle sits on `midY`.
+    static func glyphRect(_ glyph: NSImage, x: CGFloat, midY: CGFloat, notch: Bool) -> CGRect {
+        let middle = notch ? glyph.alignmentRect.midY : glyph.size.height / 2
+        return CGRect(x: x, y: midY - middle, width: glyph.size.width, height: glyph.size.height)
+    }
+
+    /// The alignment rect becomes the inked rows, as a symbol pads its shape unevenly (#1495).
+    static func inked(_ image: NSImage) -> NSImage {
+        let scale = 4.0
+        let size = image.size
+        guard let bitmap = NSBitmapImageRep(bitmapDataPlanes: nil, pixelsWide: Int(ceil(size.width * scale)),
+                pixelsHigh: Int(ceil(size.height * scale)), bitsPerSample: 8, samplesPerPixel: 4, hasAlpha: true,
+                isPlanar: false, colorSpaceName: .deviceRGB, bytesPerRow: 0, bitsPerPixel: 0),
+              let context = NSGraphicsContext(bitmapImageRep: bitmap), let pixels = bitmap.bitmapData
+        else { return image }
+        bitmap.size = size
+        NSGraphicsContext.saveGraphicsState()
+        NSGraphicsContext.current = context
+        image.draw(in: CGRect(origin: .zero, size: size))
+        NSGraphicsContext.restoreGraphicsState()
+        let inked = (0..<bitmap.pixelsHigh).filter { row in
+            (0..<bitmap.pixelsWide).contains { pixels[row * bitmap.bytesPerRow + $0 * 4 + 3] > 127 }
+        }
+        guard let top = inked.first, let bottom = inked.last else { return image }
+        let low = size.height - Double(bottom + 1) / scale
+        image.alignmentRect = CGRect(x: 0, y: low, width: size.width, height: Double(bottom + 1 - top) / scale)
+        return image
     }
 }
