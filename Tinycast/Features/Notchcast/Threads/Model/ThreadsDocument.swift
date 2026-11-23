@@ -63,8 +63,10 @@ struct ThreadsDocument: Equatable, Sendable {
 
     /// ISO 8601 with the writer's offset, with or without fractional seconds.
     static func date(_ text: String) -> Date? {
-        (try? Date(text, strategy: .iso8601))
-            ?? (try? Date(text, strategy: Date.ISO8601FormatStyle(includingFractionalSeconds: true)))
+        for style in [Date.ISO8601FormatStyle(), Date.ISO8601FormatStyle(includingFractionalSeconds: true)] {
+            do { return try Date(text, strategy: style) } catch { continue }
+        }
+        return nil
     }
 
     private static func nonEmpty(_ text: String) -> String? {

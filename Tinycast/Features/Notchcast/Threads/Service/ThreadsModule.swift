@@ -147,7 +147,7 @@ final class ThreadsModule: NotchcastModule {
         guard let deadline = board.freshUntil else { return }
         let wait = deadline.timeIntervalSince(board.now) + 1
         expiry = Task { [weak self, sleep] in
-            try? await sleep(.seconds(wait))
+            do { try await sleep(.seconds(wait)) } catch { return }
             guard !Task.isCancelled else { return }
             self?.post()
         }
