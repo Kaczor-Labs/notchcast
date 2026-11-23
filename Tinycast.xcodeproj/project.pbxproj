@@ -950,6 +950,7 @@
 		9DB09F96E6F8C226BD9AB1C9 /* SymbolCatalog.swift in Sources */ = {isa = PBXBuildFile; fileRef = 387BE675F580496656E72559 /* SymbolCatalog.swift */; };
 		9DB4319C835DCF8C0723356D /* MenuBarItem.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2902B904C7BD2FC23856EDB9 /* MenuBarItem.swift */; };
 		9DB73F12214137B60AE00828 /* RaycastScriptImport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 00CF6A57ECFDA17248393EA8 /* RaycastScriptImport.swift */; };
+		9DD3302C6E9BE2BF0BDB7279 /* TaildropSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D8286430334231E487A5C9AD /* TaildropSettingsView.swift */; };
 		9DFBDD9863EB307D4F102524 /* AIModelChecklist.swift in Sources */ = {isa = PBXBuildFile; fileRef = A022043AE60501848E0C5026 /* AIModelChecklist.swift */; };
 		9DFE7A312D079C7125DB43DE /* AppleShortcutsSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 072DA32B7365FAAB7C38F25C /* AppleShortcutsSettingsView.swift */; };
 		9E4497ECAD183E5C2B49475B /* MeetingDay.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0599199132DAFBE12C59FBD /* MeetingDay.swift */; };
@@ -2896,6 +2897,7 @@
 		D7FCA9FA81B1CF8B8C37E48A /* BackupApplier.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackupApplier.swift; sourceTree = "<group>"; };
 		D817AF0E23DDCC95147B5AFB /* InstalledAIStream.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InstalledAIStream.swift; sourceTree = "<group>"; };
 		D82429FF6F119E34C8924143 /* MonitorBoard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MonitorBoard.swift; sourceTree = "<group>"; };
+		D8286430334231E487A5C9AD /* TaildropSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TaildropSettingsView.swift; sourceTree = "<group>"; };
 		D8775F7E123C97F7EBA9CA9F /* IslandLook.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IslandLook.swift; sourceTree = "<group>"; };
 		D8B10DA3A9B1CBD9A03F3DE5 /* NoteDocument.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NoteDocument.swift; sourceTree = "<group>"; };
 		D8DAA9518A3738174E33DC77 /* CloudSyncCategoryRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CloudSyncCategoryRow.swift; sourceTree = "<group>"; };
@@ -3295,6 +3297,7 @@
 			children = (
 				65B37EF592B63D3CEC3F7413 /* Model */,
 				5027520E7C1AE75F837917FD /* Service */,
+				5540C403C45F643539E4DC31 /* Settings */,
 				4E3E343BBEAEE07053F0502C /* NotchcastTaildrop.xcstrings */,
 				F6463D284A9B6C0CFBFB1A4B /* TaildropAddon.swift */,
 			);
@@ -4314,6 +4317,14 @@
 				A724FAAD08B77AA54D080E45 /* MCPTrustPolicy.swift */,
 			);
 			path = Model;
+			sourceTree = "<group>";
+		};
+		5540C403C45F643539E4DC31 /* Settings */ = {
+			isa = PBXGroup;
+			children = (
+				D8286430334231E487A5C9AD /* TaildropSettingsView.swift */,
+			);
+			path = Settings;
 			sourceTree = "<group>";
 		};
 		5642CE0EFEBE52F48D9CD60A /* Service */ = {
@@ -8646,6 +8657,7 @@
 				27894B6BCA7CB68AACBF5B67 /* TaildropModule.swift in Sources */,
 				4D640F3734B6CE91C8A2455E /* TaildropPlan.swift in Sources */,
 				856391D866F908888749BDFF /* TaildropSend.swift in Sources */,
+				9DD3302C6E9BE2BF0BDB7279 /* TaildropSettingsView.swift in Sources */,
 				8E0061909E57357C5DDA544E /* TaildropSystem+Live.swift in Sources */,
 				63D69E5915746E1E8C53DFC2 /* TaildropTarget.swift in Sources */,
 				005B39EF22378D1736CE5805 /* TerminalLogView.swift in Sources */,
