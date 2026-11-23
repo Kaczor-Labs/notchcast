@@ -3,7 +3,7 @@ import Synchronization
 
 /// The Notchcast sidebar section's tabs, in order; a later add-on adds its tab here.
 enum NotchcastPane: CaseIterable, Sendable {
-    case island, agents, keyboardMouse, displaySound, capture, launcher, downloads, power, notices, macTweaks
+    case island, islandContent, keyboardMouse, displaySound, capture, clipboardFiles, downloads, launcher, macTweaks
 
     /// Installed by NotchcastCore from the registered switches before Settings can open.
     private static let registered = Mutex<Set<NotchcastCategory>>([])
@@ -27,14 +27,13 @@ enum NotchcastPane: CaseIterable, Sendable {
     var categories: [NotchcastCategory] {
         switch self {
         case .island: []
-        case .agents: [.agents]
+        case .islandContent: [.islandPages, .notices]
         case .keyboardMouse: [.keyboardMouse]
-        case .displaySound: [.displaySound, .music]
+        case .displaySound: [.display, .sound]
         case .capture: [.capture]
+        case .clipboardFiles: [.clipboard, .finder, .files]
+        case .downloads: [.downloads]
         case .launcher: [.launcher]
-        case .downloads: [.filesDownloads]
-        case .power: [.power]
-        case .notices: [.notices]
         case .macTweaks: [.macTweaks]
         }
     }
@@ -43,14 +42,13 @@ enum NotchcastPane: CaseIterable, Sendable {
     var slug: String {
         switch self {
         case .island: "notchcast-island"
-        case .agents: "notchcast-agents"
+        case .islandContent: "notchcast-island-content"
         case .keyboardMouse: "notchcast-keyboard-mouse"
         case .displaySound: "notchcast-display-sound"
         case .capture: "notchcast-capture"
-        case .launcher: "notchcast-launcher"
+        case .clipboardFiles: "notchcast-clipboard-files"
         case .downloads: "notchcast-downloads"
-        case .power: "notchcast-power"
-        case .notices: "notchcast-notices"
+        case .launcher: "notchcast-launcher"
         case .macTweaks: "notchcast-mac-tweaks"
         }
     }
@@ -58,14 +56,13 @@ enum NotchcastPane: CaseIterable, Sendable {
     var title: String {
         switch self {
         case .island: String(localized: "Island", table: "Notchcast")
-        case .agents: String(localized: "Agents", table: "Notchcast")
+        case .islandContent: String(localized: "Island Content", table: "Notchcast")
         case .keyboardMouse: String(localized: "Keyboard & Mouse", table: "Notchcast")
         case .displaySound: String(localized: "Display & Sound", table: "Notchcast")
         case .capture: String(localized: "Capture", table: "Notchcast")
-        case .launcher: String(localized: "Launcher Extras", table: "Notchcast")
+        case .clipboardFiles: String(localized: "Clipboard & Files", table: "Notchcast")
         case .downloads: String(localized: "Downloads", table: "Notchcast")
-        case .power: String(localized: "Power")
-        case .notices: String(localized: "Notices", table: "Notchcast")
+        case .launcher: String(localized: "Launcher Extras", table: "Notchcast")
         case .macTweaks: String(localized: "Mac Tweaks", table: "Notchcast")
         }
     }
@@ -73,14 +70,13 @@ enum NotchcastPane: CaseIterable, Sendable {
     var systemImage: String {
         switch self {
         case .island: "capsule.fill"
-        case .agents: "gauge.with.needle"
+        case .islandContent: "rectangle.stack.fill"
         case .keyboardMouse: "keyboard"
         case .displaySound: "speaker.wave.2"
         case .capture: "camera.viewfinder"
-        case .launcher: "plus.magnifyingglass"
+        case .clipboardFiles: "doc.on.clipboard.fill"
         case .downloads: "arrow.down.circle"
-        case .power: "bolt"
-        case .notices: "bell.badge"
+        case .launcher: "plus.magnifyingglass"
         case .macTweaks: "wrench.and.screwdriver"
         }
     }

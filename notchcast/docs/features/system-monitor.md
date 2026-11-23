@@ -1,6 +1,6 @@
 # System page
 
-The SystemMonitor add-on (`Tinycast/Features/Notchcast/SystemMonitor/`, switch `systemPage`, "System in the Island" in Settings › Notchcast › Mac Tweaks, off by default) puts a System page in the open island: CPU, memory, disk and network tiles, ejectable disks, and the busiest processes, plus a glyph on the closed island while something runs hot. It is an add-on under [addons.md](../addons.md): one folder; the registry is generated from its descriptor's `notchcast-addon-order` comment.
+The SystemMonitor add-on (`Tinycast/Features/Notchcast/SystemMonitor/`, switch `systemPage`, "System in the Island" in Settings › Notchcast › Island Content › Pages, off by default) puts a System page in the open island: CPU, memory, disk and network tiles, ejectable disks, and the busiest processes, plus a glyph on the closed island while something runs hot. It is an add-on under [addons.md](../addons.md): one folder; the registry is generated from its descriptor's `notchcast-addon-order` comment.
 
 ## Invariants
 
@@ -48,5 +48,5 @@ The Disks section draws on Vorssaint at 9075c62 for volume eligibility and order
 
 ## Deviations, numbered for review
 
-1. The switch sits in Mac Tweaks, as Day's does; a tab for island pages is a core change.
+1. The switch sits in Island Content › Pages.
 2. Processes are not grouped under their app, so a browser's helpers list one by one.

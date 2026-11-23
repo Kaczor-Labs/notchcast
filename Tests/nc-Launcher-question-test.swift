@@ -81,7 +81,7 @@ enum LauncherQuestionTests {
 
 private enum QuestionAddon: NotchcastAddon {
     static let switches = [
-        NotchcastSwitch(id: "question", title: "Question", subtitle: "", category: .filesDownloads, defaultEnabled: true)
+        NotchcastSwitch(id: "question", title: "Question", subtitle: "", category: .downloads, defaultEnabled: true)
     ]
 
     static func makeModule(_ context: NotchcastContext) -> (any NotchcastModule)? {

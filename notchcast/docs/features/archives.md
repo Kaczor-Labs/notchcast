@@ -1,6 +1,6 @@
 # Archives
 
-The Archives add-on (`Tinycast/Features/Notchcast/Archives/`), under the **Archives** switch in Settings › Notchcast › Downloads, extracts archives in place of Archive Utility and compresses a Finder selection. Progress, results and failures are island notices; a question goes through the core's `confirm` dialog, a password through its `askSecret` dialog.
+The Archives add-on (`Tinycast/Features/Notchcast/Archives/`), under the **Archives** switch in Settings › Notchcast › Clipboard & Files › Files, extracts archives in place of Archive Utility and compresses a Finder selection. Progress, results and failures are island notices; a question goes through the core's `confirm` dialog, a password through its `askSecret` dialog.
 
 ## Invariants
 
