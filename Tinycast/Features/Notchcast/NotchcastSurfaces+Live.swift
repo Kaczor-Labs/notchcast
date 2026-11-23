@@ -10,17 +10,25 @@ extension NotchcastSurfaces {
             },
             presentPalette: { [weak core] title, prompt, makeScreen, onClose in
                 guard let core else { return }
+                let palette = core.palette
                 core.paletteCoordinator.showPalette(mode: .customScreen, seeding: "") {
-                    core.palette.installCustomScreen(
-                        .init(title: title, prompt: prompt, makeScreen: makeScreen, onClose: onClose))
+                    palette.installCustomScreen(.init(title: title, prompt: prompt, makeScreen: { [weak palette] query in
+                        let reset = palette?.resetToken
+                        return makeScreen(query) { [weak palette] index in
+                            guard let palette, palette.mode == .customScreen, palette.resetToken == reset,
+                                palette.query == query, index >= 0
+                            else { return }
+                            palette.selection = index
+                        }
+                    }, onClose: onClose))
                 }
             })
     }
 
     func openPalette(
-        title: String, prompt: String, makeScreen: @escaping (String) -> any PaletteScreen,
+        title: String, prompt: String, makeScreen: @escaping (String, @escaping (Int) -> Void) -> any PaletteScreen,
         onClose: @escaping () -> Void
     ) {
-        presentPalette(title, prompt, { makeScreen($0) }, onClose)
+        presentPalette(title, prompt, { makeScreen($0, $1) }, onClose)
     }
 }
