@@ -213,7 +213,7 @@ extension IslandAuditRendering {
         }
     }
 
-    /// Every SwiftUI surface sits on the island in its look, the way the island hosts it.
+    /// Every SwiftUI surface sits on the island in its look; Liquid Glass needs `renderHosted`.
     static func render(_ name: String, @ViewBuilder _ content: () -> some View) {
         let view = content()
             .padding(16)

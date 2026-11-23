@@ -1,7 +1,7 @@
 import SwiftUI
 
 extension ImageRenderer {
-    /// `cgImage` rasterizes lazily on the GPU and comes back without pixels when it drops the frame.
+    /// `cgImage` rasterizes lazily on the GPU and returns no pixels when it drops the frame.
     @MainActor var bitmap: CGImage? {
         var image: CGImage?
         render(rasterizationScale: scale) { size, draw in
