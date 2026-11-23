@@ -14,6 +14,8 @@ private struct MacTweaksPage: View {
     let page: Page
     @Binding var snapshot: MacTweakSnapshot?
     @Environment(MainAppLink.self) private var mainApp
+    @Environment(SettingsNavigationState.self) private var navigation
+    @Environment(\.dismiss) private var dismiss
     @State private var request: MacTweaksAddon.Request? = .snapshot
     @State private var notice: String?
     @State private var confirmsUndo = false
@@ -52,25 +54,35 @@ private struct MacTweaksPage: View {
             }
             .onAppear { if request == nil { request = .snapshot } }
             .task(id: request) { await runRequest() }
-            feedback
+            feedback()
         case .finder:
             Form {
-                feedback
                 Section {
                     ForEach(MacTweakCatalog.finder) { tweak in
                         finderRow(tweak)
                     }
+                } header: {
+                    feedback(reservesSpace: true)
                 }
             }
             .formStyle(.grouped)
-            .navigationTitle(Text("Finder", tableName: "NotchcastMacTweaks"))
+            .navigationTitle(String(localized: "Mac Tweaks – Finder", table: "NotchcastMacTweaks"))
+            .onChange(of: navigation.tab) { _, tab in
+                if tab != .notchcast(.macTweaks) { dismiss() }
+            }
             .task(id: request) { await runRequest() }
         }
     }
 
     @ViewBuilder
-    private var feedback: some View {
-        if let request {
+    private func feedback(reservesSpace: Bool = false) -> some View {
+        if request == nil, let notice {
+            LabeledContent {
+                Button { request = .snapshot } label: { Text("Refresh", tableName: "NotchcastMacTweaks") }
+            } label: {
+                Text(notice)
+            }
+        } else if request != nil || reservesSpace {
             ProgressView {
                 if request == .snapshot {
                     Text("Reading settings…", tableName: "NotchcastMacTweaks")
@@ -78,12 +90,8 @@ private struct MacTweaksPage: View {
                     Text("Changing settings…", tableName: "NotchcastMacTweaks")
                 }
             }
-        } else if let notice {
-            LabeledContent {
-                Button { request = .snapshot } label: { Text("Refresh", tableName: "NotchcastMacTweaks") }
-            } label: {
-                Text(notice)
-            }
+            .opacity(request == nil ? 0 : 1)
+            .accessibilityHidden(request == nil)
         }
     }
 
