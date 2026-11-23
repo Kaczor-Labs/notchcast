@@ -107,8 +107,9 @@ struct LiveCleanerFileSystem: CleanerFileSystem {
     // A process runs from its program and, for a script runner, from each script named as an argument.
     private static func programs(runBy pid: pid_t) -> [String] {
         var buffer = [CChar](repeating: 0, count: 4 * Int(MAXPATHLEN))
-        guard proc_pidpath(pid, &buffer, UInt32(buffer.count)) > 0 else { return [] }
-        let program = String(decoding: buffer.prefix { $0 != 0 }.map { UInt8(bitPattern: $0) }, as: UTF8.self)
+        guard proc_pidpath(pid, &buffer, UInt32(buffer.count)) > 0,
+            let program = String(bytes: buffer.prefix { $0 != 0 }.map { UInt8(bitPattern: $0) }, encoding: .utf8)
+        else { return [] }
         let name = URL(filePath: program).lastPathComponent
         guard ["node", "deno", "bun", "ruby", "perl"].contains(name) || name.hasPrefix("python") else { return [program] }
         return [program] + (arguments(of: pid) ?? []).dropFirst().filter { $0.hasPrefix("/") }
@@ -130,9 +131,11 @@ struct LiveCleanerFileSystem: CleanerFileSystem {
         while index < size, buffer[index] != 0 { index += 1 }
         while index < size, buffer[index] == 0 { index += 1 }
         var arguments: [String] = []
-        while arguments.count < count, index < size {
+        var read: Int32 = 0
+        while read < count, index < size {
             let end = buffer[index..<size].firstIndex(of: 0) ?? size
-            arguments.append(String(decoding: buffer[index..<end], as: UTF8.self))
+            if let argument = String(bytes: buffer[index..<end], encoding: .utf8) { arguments.append(argument) }
+            read += 1
             index = end + 1
         }
         return arguments
