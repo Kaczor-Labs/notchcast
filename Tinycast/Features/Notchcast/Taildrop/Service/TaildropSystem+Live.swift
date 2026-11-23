@@ -4,6 +4,10 @@ import Synchronization
 extension TaildropSystem {
     static let live = TaildropSystem(
         cli: { TaildropSend.cliPaths.first(where: FileManager.default.isExecutableFile(atPath:)) },
+        trusted: { @concurrent path in
+            guard let requirement = TaildropSend.requirement(for: path) else { return true }
+            return NotchcastCodeCheck.file(URL(filePath: path), satisfies: requirement)
+        },
         run: { try await TaildropProcess.run($0, $1) },
         finderSelection: { try await TaildropFinder.selection() },
         isFolder: { path in

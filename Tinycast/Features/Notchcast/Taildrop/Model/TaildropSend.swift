@@ -10,6 +10,7 @@ nonisolated struct TaildropOutput: Equatable, Sendable {
 nonisolated struct TaildropSystem: Sendable {
     /// The `tailscale` executable, nil when it is not installed.
     let cli: @Sendable () -> String?
+    let trusted: @Sendable (String) async -> Bool
     /// Runs a tool to its end; a cancelled task ends the tool and throws `CancellationError`.
     let run: @Sendable (_ executable: String, _ arguments: [String]) async throws -> TaildropOutput
     let finderSelection: @Sendable () async throws -> [String]
@@ -21,15 +22,24 @@ nonisolated struct TaildropSystem: Sendable {
 
 nonisolated enum TaildropSend {
     static let zipTool = "/usr/bin/ditto"
+    private static let appCLI = "/Applications/Tailscale.app/Contents/MacOS/Tailscale"
     /// The CLI inside the Tailscale app, which matches the running daemon, then Homebrew's.
-    static let cliPaths = [
-        "/Applications/Tailscale.app/Contents/MacOS/Tailscale",
-        "/opt/homebrew/bin/tailscale", "/usr/local/bin/tailscale",
-    ]
+    static let cliPaths = [appCLI, "/opt/homebrew/bin/tailscale", "/usr/local/bin/tailscale"]
+
+    static func requirement(for cli: String) -> String? {
+        guard cli == appCLI else { return nil }
+        return """
+            anchor apple generic and (identifier "io.tailscale.ipn.macsys" or identifier "io.tailscale.ipn.macos") \
+            and (certificate leaf[field.1.2.840.113635.100.6.1.9] \
+            or certificate 1[field.1.2.840.113635.100.6.2.6] \
+            and certificate leaf[field.1.2.840.113635.100.6.1.13] and certificate leaf[subject.OU] = "W5364U7YZB")
+            """
+    }
 
     /// The devices that can receive files now, never empty.
     static func targets(_ system: TaildropSystem) async throws -> [TaildropTarget] {
         guard let cli = system.cli() else { throw TaildropFailure.notInstalled }
+        guard await system.trusted(cli) else { throw TaildropFailure.untrusted }
         let listing = try await system.run(cli, ["file", "cp", "--targets"])
         guard listing.status == 0 else {
             let status = try await system.run(cli, ["status", "--json"])
@@ -49,6 +59,7 @@ nonisolated enum TaildropSend {
         }
         guard target.isOnline else { throw TaildropFailure.deviceOffline(target.name) }
         guard let cli = system.cli() else { throw TaildropFailure.notInstalled }
+        guard await system.trusted(cli) else { throw TaildropFailure.untrusted }
         let items = try await system.finderSelection().compactMap { raw -> (path: String, isFolder: Bool)? in
             guard let path = TaildropPlan.localPath(raw), let isFolder = system.isFolder(path) else { return nil }
             return (path, isFolder)
