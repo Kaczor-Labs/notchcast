@@ -11,7 +11,9 @@ extension CleanerModule {
         context.surfaces.openPalette(
             title: String(localized: "Clean Up Mac", table: "NotchcastCleaner"),
             prompt: String(localized: "Filter items…", table: "NotchcastCleaner"),
-            makeScreen: { [self] query in CleanerScreen(module: self, query: query) },
+            makeScreen: { [self] query, selectRow in
+                CleanerScreen(module: self, query: query, selectRow: selectRow)
+            },
             onClose: { [weak self] in self?.cancelScan() })
         scan()
     }

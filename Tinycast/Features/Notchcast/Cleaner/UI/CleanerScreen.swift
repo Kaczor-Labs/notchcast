@@ -3,6 +3,7 @@ import SwiftUI
 struct CleanerScreen: PaletteScreen {
     let module: CleanerModule
     let query: String
+    let selectRow: (Int) -> Void
 
     private var session: CleanerSession { module.session }
 
@@ -105,7 +106,7 @@ struct CleanerScreen: PaletteScreen {
             CleanerReviewLayout(
                 rows: rows, selected: rows.indices.contains(selection) ? rows[selection] : nil,
                 checked: session.selection?.checked ?? [], bytes: session.selectedBytes, scroll: scroll,
-                onCheck: toggle)
+                onCheck: toggle, onSelect: selectRow)
         }
     }
 
@@ -123,10 +124,13 @@ private struct CleanerReviewLayout: View {
     let bytes: Int64
     let scroll: ScrollIntent
     let onCheck: (CleanerItem.ID) -> Void
+    let onSelect: (Int) -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            CleanerReviewView(rows: rows, selected: selected, checked: checked, scroll: scroll, onCheck: onCheck)
+            CleanerReviewView(
+                rows: rows, selected: selected, checked: checked, scroll: scroll, onCheck: onCheck,
+                onSelect: onSelect)
             Text("\(checked.count) selected · \(MeasuredSize(bytes: bytes).formatted)", tableName: "NotchcastCleaner")
                 .font(metrics.typography.bar)
                 .foregroundStyle(Theme.Colors.textSecondary)

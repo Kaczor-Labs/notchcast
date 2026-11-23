@@ -8,6 +8,7 @@ struct CleanerReviewView: View {
     let checked: Set<CleanerItem.ID>
     let scroll: ScrollIntent
     let onCheck: (CleanerItem.ID) -> Void
+    let onSelect: (Int) -> Void
 
     var body: some View {
         HStack(spacing: 0) {
@@ -39,7 +40,7 @@ struct CleanerReviewView: View {
                         }
                         CleanerReviewRow(
                             item: item, selected: item.id == selected?.id, checked: checked.contains(item.id),
-                            toggle: { onCheck(item.id) })
+                            toggle: { onCheck(item.id) }, select: { onSelect(index) })
                             .id(item.id.path)
                             .selectionFrame(item.id == selected?.id)
                     }
@@ -51,6 +52,13 @@ struct CleanerReviewView: View {
             .hideNativeScrollers()
             .edgeDissolve()
             .thinScrollbar()
+            .focusable()
+            .focusEffectDisabled()
+            .onKeyPress(.space) {
+                guard let selected, selected.standing.isSelectable else { return .ignored }
+                onCheck(selected.id)
+                return .handled
+            }
             .scrollFollowsSelection(
                 scroll, row: selected?.id.path, atOrigin: selected?.id == rows.first?.id, proxy: proxy)
         }
@@ -65,6 +73,7 @@ private struct CleanerReviewRow: View {
     let selected: Bool
     let checked: Bool
     let toggle: () -> Void
+    let select: () -> Void
 
     var body: some View {
         HStack(spacing: metrics.spacing.md) {
@@ -82,7 +91,7 @@ private struct CleanerReviewRow: View {
                     .accessibilityHidden(true)
             }
 
-            Button(action: toggle) {
+            Button(action: select) {
                 HStack(spacing: metrics.spacing.md) {
                     VStack(alignment: .leading, spacing: metrics.spacing.xs) {
                         Text(verbatim: item.id.lastPathComponent)
