@@ -50,6 +50,7 @@ private struct MacTweaksPage: View {
             } message: {
                 Text("Restore the settings Notchcast changed. Finder may restart.", tableName: "NotchcastMacTweaks")
             }
+            .onAppear { if request == nil { request = .snapshot } }
             .task(id: request) { await runRequest() }
             feedback
         case .finder:
@@ -59,8 +60,6 @@ private struct MacTweaksPage: View {
                     ForEach(MacTweakCatalog.finder) { tweak in
                         finderRow(tweak)
                     }
-                } header: {
-                    Text("Finder", tableName: "NotchcastMacTweaks")
                 }
             }
             .formStyle(.grouped)

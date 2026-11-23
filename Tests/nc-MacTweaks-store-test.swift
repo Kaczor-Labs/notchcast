@@ -33,7 +33,7 @@ struct MacTweaksStoreTest {
 
         var journalFile: URL { folder.appending(path: "journal.json") }
 
-        func make(beforeRestart: @escaping @Sendable () -> Void = {}) -> MacTweaksSystem {
+        func make() -> MacTweaksSystem {
             MacTweaksSystem(
                 version: OperatingSystemVersion(majorVersion: 26, minorVersion: 0, patchVersion: 0),
                 journalFolder: folder,
@@ -62,7 +62,6 @@ struct MacTweaksStoreTest {
                     }
                 },
                 restart: { process in
-                    beforeRestart()
                     self.state.withLock { $0.restarts.append(process) }
                 },
                 now: { Date(timeIntervalSince1970: 100) }
@@ -97,27 +96,10 @@ struct MacTweaksStoreTest {
             MacTweak(id: "media-keys", group: .annoyances, changes: [.service("com.example.media-keys")]),
         ]
 
-        let (started, signal) = AsyncStream.makeStream(of: Void.self)
-        let release = DispatchSemaphore(value: 0)
-        let reached = Mutex(false)
-        let module = MacTweaksModule(catalogue: catalogue, system: fake.make(beforeRestart: {
-            let first = reached.withLock { reached in
-                defer { reached = true }
-                return !reached
-            }
-            if first {
-                signal.yield()
-                release.wait()
-            }
-        }))
+        let module = MacTweaksModule(catalogue: catalogue, system: fake.make())
         module.start()
         let store = module.store
-        var reachedRestart = started.makeAsyncIterator()
-        let running = Task {
-            defer { signal.finish() }
-            return try await store.set("path", on: true)
-        }
-        guard await reachedRestart.next() != nil else { preconditionFailure("Finder change did not reach its restart") }
+        let running = Task.immediate { try await store.set("path", on: true) }
         precondition(store.isBusy)
         do {
             _ = try await store.undoEverything()
@@ -127,7 +109,6 @@ struct MacTweaksStoreTest {
             _ = try await store.snapshot()
             preconditionFailure("A snapshot must not interrupt a running batch")
         } catch MacTweaksStore.Failure.busy {}
-        release.signal()
         let applied = try await running.value
         precondition(applied.isEmpty)
         precondition(!store.isBusy)

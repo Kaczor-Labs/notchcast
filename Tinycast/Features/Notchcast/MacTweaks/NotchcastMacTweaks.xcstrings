@@ -17,6 +17,7 @@
     "Reading settings…" : {},
     "Refresh" : {},
     "Restarts Finder and may interrupt file copies." : {},
+    "Restore all changed settings?" : {},
     "Restore the settings Notchcast changed. Finder may restart." : {},
     "Save new documents on this Mac" : {},
     "Search the current folder" : {},
@@ -40,7 +41,6 @@
     "The undo history can’t be read. Changes are paused to keep it safe." : {},
     "Unavailable on this macOS version" : {},
     "Undo Everything" : {},
-    "Restore all changed settings?" : {},
     "Undo Everything…" : {}
   },
   "version" : "1.0"
