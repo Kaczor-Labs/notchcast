@@ -46,8 +46,10 @@ private struct NotchcastSwitchRows: View {
     }
 
     var body: some View {
-        Toggle(isOn: Binding(get: { preferences.isOn(item.id) }, set: { preferences.set(item.id, on: $0) })) {
-            SettingsRowTitle(anchor, verbatim: item.title)
+        notchcastSettingsToggle(
+            SettingsRowTitle(anchor, verbatim: item.title),
+            isOn: Binding(get: { preferences.isOn(item.id) }, set: { preferences.set(item.id, on: $0) })
+        ) {
             if !item.subtitle.isEmpty { Text(item.subtitle) }
         }
         .settingsEnabled(dependenciesMet)
@@ -92,4 +94,24 @@ private struct NotchcastSwitchRows: View {
             }
         }
     }
+}
+
+@MainActor
+func notchcastSettingsToggle<Subtitle: View>(
+    _ title: SettingsRowTitle,
+    isOn: Binding<Bool>,
+    @ViewBuilder subtitle: () -> Subtitle = { EmptyView() }
+) -> some View {
+    Toggle(isOn: isOn) {
+        title
+        subtitle()
+    }
+    .accessibilityLabel(Text(verbatim: title.title))
+}
+
+@MainActor
+func notchcastSettingsCheckbox(_ title: SettingsRowTitle, isOn: Binding<Bool>, subtitle: Text) -> some View {
+    notchcastSettingsToggle(title, isOn: isOn) { subtitle }
+        .accessibilityHint(subtitle)
+        .toggleStyle(.checkbox)
 }

@@ -11,8 +11,10 @@ struct SudoTouchIDSettingsView: View {
 
     var body: some View {
         let isOn = Binding(get: { store.isEnabled || store.isByHand }, set: { on in Task { await store.set(on) } })
-        Toggle(isOn: isOn) {
-            SettingsRowTitle(Self.anchor, LocalizedStringResource("Touch ID for sudo", table: "NotchcastSystemTools"))
+        notchcastSettingsToggle(
+            SettingsRowTitle(Self.anchor, LocalizedStringResource("Touch ID for sudo", table: "NotchcastSystemTools")),
+            isOn: isOn
+        ) {
             if !store.isSupported {
                 Text("This Mac’s sudo setup no longer reads sudo_local.", tableName: "NotchcastSystemTools")
             } else if store.isByHand {

@@ -13,8 +13,10 @@ struct ScreenshotsSettingsView: View {
     }
 
     var body: some View {
-        Toggle(isOn: $editAfterCapture) {
-            SettingsRowTitle(Self.anchor, LocalizedStringResource("Edit after capture", table: "NotchcastScreenshots"))
+        notchcastSettingsToggle(
+            SettingsRowTitle(Self.anchor, LocalizedStringResource("Edit after capture", table: "NotchcastScreenshots")),
+            isOn: $editAfterCapture
+        ) {
             Text("Open each new screenshot in the editor before it is copied or saved.",
                  tableName: "NotchcastScreenshots")
         }
