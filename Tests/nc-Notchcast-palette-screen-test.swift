@@ -1,3 +1,4 @@
+// notchcast-hosted-only
 // notchcast-sources: Tinycast/Palette/PaletteState.swift Tinycast/Palette/PaletteMode.swift
 // notchcast-sources: Tinycast/Palette/HoverArming.swift Tinycast/Palette/PaletteCoordinator.swift
 // notchcast-sources: Tinycast/Features/Notchcast/Core/Service/NotchcastSurfaces.swift
