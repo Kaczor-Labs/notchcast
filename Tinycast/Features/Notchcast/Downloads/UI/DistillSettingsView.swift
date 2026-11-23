@@ -43,6 +43,7 @@ struct DistillSettingsView: View {
             Text(Self.convertHelp)
         }
         .settingsEnabled(folder != nil)
+        DistillQueueView()
     }
 
     private func chooseFolder() {

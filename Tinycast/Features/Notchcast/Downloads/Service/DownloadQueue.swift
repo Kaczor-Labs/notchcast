@@ -103,6 +103,14 @@ final class DownloadQueue {
         pump()
     }
 
+    func remove(_ id: String) {
+        guard let index = jobs.firstIndex(where: { $0.id == id }) else { return }
+        tasks[id]?.cancel()
+        jobs.remove(at: index)
+        save()
+        pump()
+    }
+
     func retry(_ id: String) {
         guard let index = jobs.firstIndex(where: { $0.id == id }), jobs[index].state.isFinished else { return }
         var job = jobs.remove(at: index)

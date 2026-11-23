@@ -81,7 +81,7 @@ private struct TorrentJobRow: View {
     }
 
     private func perform(_ action: DownloadsAddon.TorrentAction) {
-        mainApp.sendNotchcast(.init(id: job.id, operation: action), to: DownloadsAddon.self)
+        mainApp.sendNotchcast(.torrent(job.id, action), to: DownloadsAddon.self)
     }
 
     private var detail: String {
