@@ -79,6 +79,10 @@ final class CleanerTestFileSystem: CleanerFileSystem {
         _ = state.withLock { $0.openFiles.running.insert(identity) }
     }
 
+    func runScript(named path: String) {
+        _ = state.withLock { $0.openFiles.runningPaths.insert(path) }
+    }
+
     func swapDuringTrash(of url: URL) {
         _ = state.withLock { $0.swapped.insert(url.path) }
     }

@@ -50,17 +50,17 @@ struct CleanerRunningApps: Sendable {
     static func live() -> Self {
         var names = Self()
         for app in NSWorkspace.shared.runningApplications where !app.isTerminated {
-            let keys = [
+            let spellings = [
                 app.bundleIdentifier,
                 app.bundleIdentifier.map { $0 + ".ShipIt" },
                 app.bundleIdentifier?.split(separator: ".").last.map(String.init),
-                app.bundleIdentifier.flatMap(CleanerPolicy.vendor(of:)),
                 app.bundleURL?.deletingPathExtension().lastPathComponent,
                 app.bundleURL?.pathComponents.first { $0.hasSuffix(".app") }.map {
                     String($0.dropLast(".app".count))
                 },
                 app.localizedName
-            ].compactMap { $0 }.map(CleanerPolicy.appKey).filter { !$0.isEmpty }
+            ].compactMap { $0 } + (app.bundleIdentifier.map(CleanerPolicy.makerNames(of:)) ?? [])
+            let keys = spellings.map(CleanerPolicy.appKey).filter { !$0.isEmpty }
             if app.processIdentifier == ProcessInfo.processInfo.processIdentifier {
                 names.own.formUnion(keys)
                 names.ownBundle = app.bundleURL

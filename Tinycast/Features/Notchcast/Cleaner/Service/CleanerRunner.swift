@@ -59,7 +59,7 @@ struct CleanerRunner: Sendable {
             let appsBeforeWalk = area.isSharedContainer ? latestApps.includingGroups(read: scanner.readGroups) : latestApps
             let current = try scanner.snapshot(of: url, in: area)
             guard current == scanned else { return .skipped(.changed) }
-            if let reason = openFiles.identities.hold(on: current) { return .skipped(.heldBack(reason)) }
+            if let reason = openFiles.identities.hold(on: current, row: url) { return .skipped(.heldBack(reason)) }
             let currentApps = refreshAfterWalk ? await runningApps() : appsBeforeWalk
             if scanner.isExcluded(url, in: area, ownNames: currentApps.own) {
                 return .skipped(.heldBack(.protectedData))

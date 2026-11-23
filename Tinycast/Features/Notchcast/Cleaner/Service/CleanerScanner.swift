@@ -54,7 +54,7 @@ struct CleanerScanner: Sendable {
                     let standing: CleanerItem.Standing
                     if let reason = hold(for: url, in: area, snapshot: snapshot, apps: areaApps) {
                         standing = .heldBack(reason)
-                    } else if let reason = openFileHold(in: snapshot, area: area, openFiles: openFiles) {
+                    } else if let reason = openFileHold(in: snapshot, row: url, area: area, openFiles: openFiles) {
                         standing = .heldBack(reason)
                     } else {
                         standing = area.needsOptIn ? .optional : .recommended
@@ -75,10 +75,10 @@ struct CleanerScanner: Sendable {
     }
 
     private func openFileHold(
-        in snapshot: CleanerSnapshot, area: CleanerArea, openFiles: Result<CleanerOpenFiles, Error>?
+        in snapshot: CleanerSnapshot, row: URL, area: CleanerArea, openFiles: Result<CleanerOpenFiles, Error>?
     ) -> CleanerHoldBack? {
         guard case .success(let openFiles) = openFiles else { return .unreadable }
-        return openFiles.hold(on: snapshot, checkingHeld: area.kind != .caches)
+        return openFiles.hold(on: snapshot, row: row, checkingHeld: area.kind != .caches)
     }
 
     private func candidateURLs(in area: CleanerArea, apps: CleanerRunningApps) throws -> [URL] {
@@ -172,7 +172,7 @@ struct CleanerScanner: Sendable {
     ) -> CleanerHoldBack? {
         if area.kind == .mailDownloads { return .mailDownloadMayContainEdits }
         if apps.holds(area.ownerName(of: url)) { return .runningApp }
-        if snapshot.entries.keys.contains(where: { CleanerPolicy.repositoryMarkers.contains($0.lastPathComponent) }) {
+        if snapshot.entries.keys.contains(where: { CleanerPolicy.repositoryMarkers.contains($0.lastPathComponent.lowercased()) }) {
             return .holdsRepository
         }
         if area.isSharedContainer, apps.groupMembershipUnknown { return .unreadable }

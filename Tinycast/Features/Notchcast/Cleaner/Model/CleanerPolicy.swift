@@ -1,5 +1,5 @@
 // Adapted from Dragos Tugui's Peel, SpaceRemoval.swift, Leftover.swift and FileSize.swift @ 20230794 (GPL-3.0).
-// The maker's name follows Peel's Naming.swift @ 20230794 (GPL-3.0).
+// The maker's names follow Peel's Naming.swift and InstalledApp.swift @ 20230794 (GPL-3.0).
 import Foundation
 
 enum CleanerPolicy {
@@ -16,14 +16,16 @@ enum CleanerPolicy {
         "com.electron", "com.yourcompany", "com.todesktop", "com.install4j"
     ]
 
-    // A maker's folder holds its apps' caches, as Caches/Google holds Chrome's.
-    static func vendor(of identifier: String) -> String? {
+    // A maker's folder holds its apps' caches, under its name or domain, as Logs/jetbrains.com.
+    static func makerNames(of identifier: String) -> [String] {
         var folded = identifier.lowercased()
         if folded.hasPrefix("maccatalyst.") { folded.removeFirst("maccatalyst.".count) }
         let components = folded.split(separator: ".")
-        guard components.count >= 3 else { return nil }
-        guard sharedDomains.contains(components.prefix(2).joined(separator: ".")) else { return String(components[1]) }
-        return components.count >= 4 ? String(components[2]) : nil
+        guard components.count >= 3 else { return [] }
+        let isShared = sharedDomains.contains(components.prefix(2).joined(separator: "."))
+        guard !isShared || components.count >= 4 else { return [] }
+        let domain = components.prefix(isShared ? 3 : 2)
+        return [String(domain.last ?? ""), domain.joined(separator: "."), domain.reversed().joined(separator: ".")]
     }
 
     static func groupOwner(_ name: String) -> String {

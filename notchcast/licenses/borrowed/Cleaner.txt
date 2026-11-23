@@ -24,3 +24,4 @@ Cleaner: Model/CleanerFileSystem.swift ← TuguiDragos/Peel@20230794/Packages/Pe
 Cleaner: Model/CleanerPolicy.swift ← TuguiDragos/Peel@20230794/Packages/PeelCore/Sources/PeelCore/Support/FileSize.swift (GPL-3.0)
 Cleaner: Model/CleanerPolicy.swift ← TuguiDragos/Peel@20230794/Packages/PeelCore/Sources/PeelCore/Leftovers/Naming.swift (GPL-3.0)
 Cleaner: Service/CleanerFileSystem+Live.swift ← TuguiDragos/Peel@20230794/Packages/PeelCore/Sources/PeelPrivileged/RunningProgram.swift (GPL-3.0)
+Cleaner: Model/CleanerPolicy.swift ← TuguiDragos/Peel@20230794/Packages/PeelCore/Sources/PeelCore/Apps/InstalledApp.swift (GPL-3.0)

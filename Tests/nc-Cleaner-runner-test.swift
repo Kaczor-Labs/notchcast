@@ -15,6 +15,7 @@ struct CleanerRunnerTest {
         try await checksEachItem()
         try await rejectsChangedRoot()
         try await checksWhatWentToTheTrash()
+        try await rechecksMakersAndScripts()
     }
 
     private static func checksEachItem() async throws {
@@ -83,5 +84,25 @@ struct CleanerRunnerTest {
         precondition(report.movedCount == 1 && report.knownMovedBytes == 32)
         precondition(fs.trashCalls == [swapped, good])
         _ = try fs.inspect(CleanerTestFileSystem.trash.appending(component: "c-good"))
+    }
+
+    private static func rechecksMakersAndScripts() async throws {
+        let fs = CleanerTestFileSystem()
+        let maker = CleanerTestFileSystem.item("jetbrains.com")
+        let scripted = CleanerTestFileSystem.item("tool")
+        for folder in [maker, scripted] { fs.put(folder, directory: true) }
+        fs.put(maker.appending(component: "idea.log"), size: 16)
+        fs.put(scripted.appending(component: "worker.js"), size: 16)
+        let plan = try await fs.scanner.scan(home: CleanerTestFileSystem.area.home, apps: .init())
+        precondition(plan.defaultSelection.checked == [maker, scripted])
+
+        fs.runScript(named: scripted.path + "/worker.js")
+        let names = Set(CleanerPolicy.makerNames(of: "com.jetbrains.intellij").map(CleanerPolicy.appKey))
+        let runner = CleanerRunner(scanner: fs.scanner, runningApps: { .init(running: names) })
+        let report = await runner.run(plan, selection: plan.defaultSelection)
+        precondition(report.entries.map(\.outcome) == [
+            .skipped(.heldBack(.runningApp)), .skipped(.heldBack(.runningProgram))
+        ])
+        precondition(fs.trashCalls.isEmpty)
     }
 }
