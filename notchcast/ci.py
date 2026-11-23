@@ -14,8 +14,8 @@
     ci.py design-notice <tree> <old upstream> <new upstream>
     ci.py hold <moved_at> [<now>]           PR list JSON on stdin: exit 0 while the rebase hold is on (kick.sh), else 1
     ci.py tested-key [<commit>]             tree of the commit without project, scheme, README, registry: pr.yml names its artifact by it, plan looks main's up
-    ci.py tested-run [<commit>]             URL of the green PR build of that tree, or nothing: land.sh skips its harness pass on it
-    ci.py isolated-proof [<commit>]         the green isolated-runner PR build of that tree: its URL, toolchain and excused harnesses, or nothing
+    ci.py tested-run [<commit> [<head>]]    URL of the green PR build of that tree (only a run on <head>), or nothing: land.sh skips its harness pass on it
+    ci.py isolated-proof [<commit> [<head>]]  the green isolated-runner PR build of that tree: its URL, toolchain and excused harnesses, or nothing
 
 Our commits are merge-base(main, upstream main)..main without sync merges and their upstream side. Replaying cherry-picks them in order without the GENERATED
 files, so those never conflict and never travel in our diffs. Two commits are made afresh instead of picked:
@@ -162,18 +162,19 @@ def tested_run(artifacts, fetch_run):
     return None
 
 
-def tested_build(commit, repo, kind=""):
+def tested_build(commit, repo, kind="", head=""):
     """The green PR run of our repo that built and tested commit's tree (tested_key), else None; kind "isolated-" asks
-    for a run whose Mac job was the isolated runner's."""
+    for a run whose Mac job was the isolated runner's, head for a run on that commit only (a train's own)."""
     key = tested_key(commit)
     listing = json.loads(run("gh", "api", f"repos/{repo}/actions/artifacts?name=tested-tree-{kind}{key}&per_page=100"))
-    return tested_run(listing["artifacts"], lambda id: json.loads(run("gh", "api", f"repos/{repo}/actions/runs/{id}")))
+    artifacts = [artifact for artifact in listing["artifacts"] if not head or artifact["workflow_run"]["head_sha"] == head]
+    return tested_run(artifacts, lambda id: json.loads(run("gh", "api", f"repos/{repo}/actions/runs/{id}")))
 
 
-def tested_build_url(commit="HEAD"):
+def tested_build_url(commit="HEAD", head=""):
     """land.sh: print the URL of the green PR build of commit's tree, or nothing. Any error means no build."""
     try:
-        found = tested_build(commit, config()["FORK_REPO"])
+        found = tested_build(commit, config()["FORK_REPO"], head=head)
     except (subprocess.CalledProcessError, ValueError, KeyError, TypeError, AttributeError) as error:
         print(f"tested-run lookup skipped: {error}", file=sys.stderr)
         return
@@ -181,13 +182,13 @@ def tested_build_url(commit="HEAD"):
         print(found["html_url"])
 
 
-def isolated_proof(commit="HEAD"):
+def isolated_proof(commit="HEAD", head=""):
     """land.sh: three lines for the isolated-runner build of commit's tree: its URL, its toolchain stamp and the
     harnesses it excused (red there and on upstream, so proven by it nowhere). Nothing when there is none; any error
     means none."""
     try:
         repo = config()["FORK_REPO"]
-        found = tested_build(commit, repo, "isolated-")
+        found = tested_build(commit, repo, "isolated-", head)
         if not found:
             return
         with tempfile.TemporaryDirectory() as scratch:

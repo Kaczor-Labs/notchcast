@@ -339,10 +339,11 @@ pick_batch() {
     awk -v cutoff="$(jq -rn --argjson at "$((now - LAND_SETTLE_SECONDS))" '$at | todate')" '$1 <= cutoff' "$scratch/signed" \
         | cut -d' ' -f2 | paste -sd' ' -
 }
-# Lines "<runner> <config> <pr>@<head>...": batches land.sh refused for good (exit 3) at those heads on a train whose
-# Mac jobs ran on <runner>, under config.env blob <config>. Both such refusals judge a self-hosted runner's record, so a
-# hosted train is the run that can change the verdict: the queue trains a batch refused on a self-hosted runner hosted,
-# and leaves one refused on a hosted train out. Kept beside the detached train logs, so every tick's tree sees it.
+# Lines "<runner> <config> <pr>@<head>...": batches land.sh refused for good (exit 3), or whose train's record it could
+# not read (exit 5), at those heads on a train whose Mac jobs ran on <runner>, under config.env blob <config>. Each
+# judges, or misses, a self-hosted runner's record, so a hosted train is the run that can change the verdict: the queue
+# trains a batch refused on a self-hosted runner hosted, and leaves one refused on a hosted train out, so no batch is
+# trained over and over. Kept beside the detached train logs, so every tick's tree sees it.
 refused_file="$(cd "$(git rev-parse --git-common-dir)" && pwd)/notchcast-refused"
 config_key=$(git hash-object notchcast/config.env)
 # Forgets each refusal under another config or with a head that moved (open PRs in $scratch/heads), and writes the
@@ -365,22 +366,24 @@ still_refused() {
     done < "$refused_file"
     cat "$scratch/refusals" > "$refused_file"
 }
-# Batch $1 of train branch $2, its Mac jobs on runner $3, refused for good by the land.sh output in $scratch/landing:
-# recorded at its heads, and told once, on each PR and to notchcast_notify.
+# Batch $1 of train branch $2, its Mac jobs on runner $3, refused by the land.sh output in $scratch/landing with exit
+# $4: recorded at its heads and told once to notchcast_notify; one refused for good (3), on each PR too. An unread
+# record (5) says nothing about a PR, so it gets no comment.
 refused_for_good() {
-    local pr record='' reason next
+    local pr record='' reason next good=' for good' label='REFUSED FOR GOOD'
+    [ "$4" -eq 3 ] || { good=; label='RECORD UNREAD'; }
     reason=$(sed -n 's/^REFUSED: //p' "$scratch/landing" | tail -1)
     for pr in $1; do record="$record${record:+ }$pr@$(< "$scratch/head-$pr")"; done
     echo "$3 $config_key $record" >> "$refused_file"
     next='the queue leaves these PRs out until one has a new head or config.env changes'
     [ "$3" = hosted ] || next='the queue trains these PRs hosted next, the run that can change that verdict'
-    echo "REFUSED FOR GOOD #$1: its train branch $2 stays; $next"
-    for pr in $1; do
+    echo "$label #$1: its train branch $2 stays; $next"
+    [ -z "$good" ] || for pr in $1; do
         gh pr comment "$pr" -R "$FORK_REPO" >/dev/null \
             --body "Refused for good at its head $(< "$scratch/head-$pr"): land.sh refused the green train $2 (#${1// / #}) on the $3 runner: $reason. Next, $next." \
             || echo "WARN: could not comment on #$pr" >&2
     done
-    notify "land.sh refused the green train $2 (#${1// / #}) for good on the $3 runner: $reason; $next"
+    notify "land.sh refused the green train $2 (#${1// / #})$good on the $3 runner: $reason; $next"
 }
 # The one place a batch lands. A batch whose union needs no Mac (#1033's linux-ok) plugs its Linux landing in here.
 land_batch() { bash notchcast/land.sh --train-run "$@"; }
@@ -505,9 +508,9 @@ while [ ${#queue[@]} -gt 0 ]; do
                 echo "LANDED #$landed"
                 rest=$(tr ' ' '\n' <<< "$train" | grep -vxF "$landed" | paste -sd' ' - || true)
                 [ -z "$held" ] || echo "HELD #${rest// / #}: landing is held for #$held, so land.sh landed only it; the queue takes the rest again"
-            elif [ "$landing" -eq 3 ]; then
+            elif [ "$landing" -eq 3 ] || [ "$landing" -eq 5 ]; then
                 status=1
-                refused_for_good "$train" "$branch" "$runner"
+                refused_for_good "$train" "$branch" "$runner" "$landing"
             else
                 status=1
                 echo "NOT LANDED #$train: land.sh refused above; its train branch $branch stays"

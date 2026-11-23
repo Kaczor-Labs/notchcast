@@ -434,7 +434,7 @@ refuse_for_good() { echo "REFUSED: $*" >&2; exit 3; }
 # if there is one. Refuses a toolchain other than ISOLATED_TOOLCHAIN, and an excused harness only a hosted run proves.
 isolated_proof() {
     local found url stamp excused need
-    found=$(python3 "$(dirname "$selector")/ci.py" isolated-proof HEAD) || found=
+    found=$(python3 "$(dirname "$selector")/ci.py" isolated-proof HEAD $train_run) || found=
     [ -n "$found" ] || return 0
     { read -r url; read -r stamp; read -r excused || true; } <<< "$found"
     [ "$stamp" = "$ISOLATED_TOOLCHAIN" ] \
@@ -484,7 +484,7 @@ refuse_unprovable() {
 # Not covered without an Xcode build of this tree: code no selected harness compiles (UI, AppCore wiring,
 # resources); the PR build covered each head alone, and Sync and Snapshot follow on main.
 harnesses() {
-    local pr commit proof= names why tested= unproven= skipped isolated= left= unprovable merged_lists
+    local pr commit proof= names why tested= unproven= skipped isolated= left= unprovable merged_lists try tries=5
     : > "$scratch/linux"
     for pr in "${train[@]}"; do
         commit=$(< "$scratch/commit-$pr")
@@ -507,11 +507,19 @@ harnesses() {
     # a Linux landing never proves one itself, whatever runner it is on.
     { [ "$platform" = mac ] && { [ "${RUNNER_ENVIRONMENT:-}" = github-hosted ] || [ "${NOTCHCAST_ISOLATED_RUNNER:-}" = 1 ]; }; } \
         || unproven=$(grep -xF -f <(tr ' ' '\n' <<< "$HOSTED_ONLY_TESTS") "$scratch/selected" | paste -sd' ' - || true)
-    [ "$check" -eq 1 ] || proof=$(python3 "$(dirname "$selector")/ci.py" tested-run HEAD) || proof=
-    [ "$check" -eq 1 ] || [ -n "$proof" ] || isolated_proof
-    # Only the record says what a self-hosted Mac job skipped: one this train made and land.sh cannot read proves nothing.
-    [ -z "$covered" ] || [ -n "$proof" ] || [ "$(train_record)" = skipped ] \
-        || refuse "train ${train_run:0:8} recorded the tree it tested, and that record cannot be read (expired, or the lookup or the download failed), so nothing says which harnesses its Mac job skipped: run notchcast/train.sh ${train[*]} again"
+    # A train is judged by its own run's record, never an older run's of the same tree: only that record says what a
+    # self-hosted Mac job skipped. GitHub can list it late, so it is read $tries times, then exit 5 (train.sh --queue).
+    for ((try = 1; check == 0; try++)); do
+        proof=$(python3 "$(dirname "$selector")/ci.py" tested-run HEAD $train_run) || proof=
+        [ -n "$proof" ] || isolated_proof
+        [ -n "$covered" ] && [ -z "$proof" ] && [ "$(train_record)" != skipped ] || break
+        if [ "$try" -eq "$tries" ]; then
+            echo "REFUSED: train ${train_run:0:8} recorded the tree it tested, and that record cannot be read after $tries tries (expired, or the lookup or the download failed), so nothing says which harnesses its Mac job skipped: land it once the record reads (notchcast/land.sh --train-run $train_run ${train[*]}), or delete its branch and run notchcast/train.sh ${train[*]} again" >&2
+            exit 5
+        fi
+        echo "train ${train_run:0:8}: its record is not readable yet (try $try of $tries)" >&2
+        sleep "${NOTCHCAST_TRAIN_POLL:-60}"
+    done
     [ -z "$unproven" ] || [ "$check" -eq 1 ] || [ -n "$proof" ] \
         || refuse "hosted-only harnesses are selected and no hosted run tested this tree: $unproven; this machine never runs them (HOSTED_ONLY_TESTS, notchcast/config.env): land on a train run that ran hosted (notchcast/train.sh ${train[*]})"
     # A covered train run tested this exact tree on GitHub; only the harnesses its hosted runner skips are left.

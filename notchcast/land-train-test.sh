@@ -12,6 +12,11 @@ seed="$scratch/seed"
 mkdir -p "$scratch/bin" "$scratch/home" "$seed/notchcast" "$seed/Scripts" "$seed/Tests" "$seed/src" "$seed/Tinycast/Features/Notchcast/Core"
 cat > "$scratch/bin/gh" <<'STUB'
 #!/bin/bash
+# A record of the tree by run $1: an older run's and, unless OLDER names its kind $2, that of each train on origin.
+records() {
+    { echo older; [[ " ${OLDER:-} " == *" $2 "* ]] || git -C "$FIXTURE/origin.git" for-each-ref --format='%(objectname)' refs/heads/train/; } \
+        | jq -Rn --argjson id "$1" '{artifacts: [inputs | {workflow_run: {id: $id, head_sha: .}}]}'
+}
 case "$*" in
     # The real --jq filter over every fixture PR.
     'pr list '*)
@@ -99,7 +104,7 @@ case "$*" in
         echo "$verdict" ;;
     *statuses*) ;;
     # ISOLATED is "<toolchain>|<excused harnesses>": the isolated runner's record of the tree, run 8.
-    *'artifacts?name=tested-tree-isolated-'*) if [ -n "${ISOLATED:-}" ]; then echo '{"artifacts":[{"workflow_run":{"id":8}}]}'; else echo '{"artifacts":[]}'; fi ;;
+    *'artifacts?name=tested-tree-isolated-'*) if [ -n "${ISOLATED:-}" ]; then records 8 isolated; else echo '{"artifacts":[]}'; fi ;;
     *actions/runs/8*) printf '{"id":8,"name":"PR","path":".github/workflows/pr.yml","conclusion":"success","repository":{"id":5},"head_repository":{"id":5,"full_name":"%s"},"html_url":"https://fixture.invalid/runs/8"}\n' "$FORK_REPO" ;;
     'run download 8 '*)
         [ -z "${DOWNLOAD_FAILS:-}" ] || { echo 'HTTP 502' >&2; exit 1; }
@@ -113,7 +118,10 @@ case "$*" in
         jq -n --arg label "${POOL:-}" '{runners: [select($label != "") | {status: "online", labels: [{name: "self-hosted"}, {name: $label}]}]}' | jq -r "${*: -1}" ;;
     'variable get NOTCHCAST_POOL_RUNNER'*) [ -n "${POOL_VAR:-}" ] && echo "$POOL_VAR" || { echo 'variable NOTCHCAST_POOL_RUNNER was not found' >&2; exit 1; } ;;
     'variable get NOTCHCAST_MAC_RUNNER'*) [ -n "${MAC_RUNNER:-}" ] && echo "$MAC_RUNNER" || { echo 'variable NOTCHCAST_MAC_RUNNER was not found' >&2; exit 1; } ;;
-    *actions/artifacts*) if [ -n "${TESTED:-}" ]; then echo '{"artifacts":[{"workflow_run":{"id":7}}]}'; else echo '{"artifacts":[]}'; fi ;;
+    # LATE: GitHub lists the hosted record only after that many lookups.
+    *actions/artifacts*)
+        echo >> "$FIXTURE/lookups"
+        if [ -n "${TESTED:-}" ] && [ "$(wc -l < "$FIXTURE/lookups")" -gt "${LATE:-0}" ]; then records 7 hosted; else echo '{"artifacts":[]}'; fi ;;
     *actions/runs/7*) printf '{"name":"PR","path":".github/workflows/pr.yml","conclusion":"success","repository":{"id":5},"head_repository":{"id":5,"full_name":"%s"},"html_url":"https://fixture.invalid/runs/7"}\n' "$FORK_REPO" ;;
     'variable get LANDING_HOLD'*) [ -s "$FIXTURE/hold" ] && cat "$FIXTURE/hold" || { echo 'variable LANDING_HOLD was not found' >&2; exit 1; } ;;
     'variable set LANDING_HOLD'*) echo "${*: -1}" > "$FIXTURE/hold" ;;
@@ -242,7 +250,7 @@ open_pr() {
 selection() { notchcast/changed-harnesses.sh "$base" "$1"; }
 land() {
     status=0
-    bash notchcast/land.sh "$@" > "$FIXTURE/output" 2>&1 || status=$?
+    NOTCHCAST_TRAIN_POLL=0 bash notchcast/land.sh "$@" > "$FIXTURE/output" 2>&1 || status=$?
 }
 fail() { cat "$FIXTURE/output"; echo "FAIL: $1"; exit 1; }
 origin() { git -C "$FIXTURE/origin.git" "$@"; }
@@ -665,7 +673,8 @@ echo "$train_sha" > "$FIXTURE/green"
 for lost in ISOLATED= 'ISOLATED=fixture toolchain|'; do
     export RECORDED=1 DOWNLOAD_FAILS=1 "$lost"
     land --train-run "$train_sha" 1
-    [ "$status" -eq 1 ] && grep -q "^REFUSED: train ${train_sha:0:8} recorded the tree it tested, and that record cannot be read" "$FIXTURE/output" \
+    [ "$status" -eq 5 ] && grep -q "^REFUSED: train ${train_sha:0:8} recorded the tree it tested, and that record cannot be read after 5 tries" "$FIXTURE/output" \
+        && [ "$(grep -c 'its record is not readable yet' "$FIXTURE/output")" -eq 4 ] \
         && untouched && [ ! -s "$PASSES" ] || fail "a pool train whose record is missing or unreadable (${lost%%=*}='${lost#*=}') landed as a hosted one"
 done
 unset DOWNLOAD_FAILS
@@ -1166,8 +1175,33 @@ ISOLATED='fixture toolchain|' MAC_RUNNER=fixture-mac queue
 [ "$status" -eq 0 ] && grep -q '^train: train/1 is left from an earlier run; scrapping it$' "$FIXTURE/train-output" && grep -q '^LANDED #1$' "$FIXTURE/train-output" \
     && [ "$(wc -l < "$FIXTURE/dispatched")" -eq 12 ] && [ "$(landed)" = 'Notchcast: Add B (#1)' ] && [ ! -s .git/notchcast-refused ] \
     || queue_fail 'a new head on a refused PR did not clear its record and dispatch it again'
-rm "$HOME/.config/notchcast/private.env"
 echo 'PASS: a new head on a PR of a refused batch clears the record, and the next tick dispatches it again'
+# GitHub never returns the record of a green hosted train: land.sh reads it 5 times, then the queue leaves the batch out
+# at its heads, tells the keeper once and no PR, and trains nothing more; the kept train lands once the record reads.
+fixture
+open_pr 1 pr-b 'Add B' src/b.txt
+RECORDED=1 NOTCHCAST_TRAIN_MAC=hosted queue
+first="$status $(grep -c 'its record is not readable yet' "$FIXTURE/train-output" || true) $(grep -c '^RECORD UNREAD #1: its train branch train/1 stays; the queue leaves these PRs out ' "$FIXTURE/train-output" || true)"
+RECORDED=1 NOTCHCAST_TRAIN_MAC=hosted queue
+[ "$first" = '1 4 1' ] && [ "$status" -eq 0 ] && grep -q '^queue: #1 left out: land.sh refused them for good at these heads$' "$FIXTURE/train-output" \
+    && [ "$(wc -l < "$FIXTURE/dispatched")" -eq 4 ] && [ ! -e "$FIXTURE/comments" ] && [ "$(wc -l < "$FIXTURE/notified")" -eq 1 ] && untouched \
+    && grep -q '^Notchcast: land.sh refused the green train train/1 (#1) on the hosted runner: .* that record cannot be read after 5 tries' "$FIXTURE/notified" \
+    || queue_fail "a hosted train whose record stays unreadable: the first tick ended '$first' (status, reads again, left out), then $(grep -c . "$FIXTURE/dispatched") workflows were dispatched in all, told as '$(cat "$FIXTURE/comments" "$FIXTURE/notified" 2>/dev/null)'"
+RECORDED=1 TESTED=1 land --train-run "$(origin rev-parse train/1)" 1
+[ "$status" -eq 0 ] && [ "$(landed)" = 'Notchcast: Add B (#1)' ] || fail "the kept train landed '$(landed)' once its record read"
+echo 'PASS: a hosted train whose record stays unreadable is read 5 times, then left out with no retrain and no PR comment'
+# An older pool run of the same tree is not the hosted train's record: its toolchain refuses nothing while that is late.
+fixture
+open_pr 1 pr-b 'Add B' src/b.txt
+ISOLATED='other toolchain|' POOL=mac-pool queue
+rm -f "$FIXTURE/lookups"
+RECORDED=1 TESTED=1 LATE=1 OLDER=isolated ISOLATED='other toolchain|' POOL=mac-pool queue
+[ "$status" -eq 0 ] && ! grep -q -e '^REFUSED' -e 'other toolchain' "$FIXTURE/train-output" && grep -q '^LANDED #1$' "$FIXTURE/train-output" \
+    && [ "$(grep -c 'its record is not readable yet' "$FIXTURE/train-output")" -eq 1 ] && [ "$(wc -l < "$FIXTURE/comments")" -eq 1 ] \
+    && [ "$(landed)" = 'Notchcast: Add B (#1)' ] \
+    || queue_fail "a hosted train with its record late was judged by an older pool record, and told as '$(cat "$FIXTURE/comments")'"
+rm "$HOME/.config/notchcast/private.env"
+echo 'PASS: a hosted train is judged by its own record, read again while late, never by an older pool record of the tree'
 
 fixture
 open_pr 1 pr-b 'Add B' src/b.txt
