@@ -55,8 +55,8 @@ jobs:
       - name: Refuse a working Mac
         if: runner.environment != 'github-hosted'
         run: |
-          [ "${NOTCHCAST_ISOLATED_RUNNER:-}" = 1 ] && exit 0
-          echo "::error::Proof launches the app: hosted or isolated runner only"
+          [ "${NOTCHCAST_ISOLATED_RUNNER:-}" = 1 ] && [ "$(sysctl -n kern.hv_vmm_present 2>/dev/null)" = 1 ] && exit 0
+          echo "::error::App proof runs only in a guest or GitHub-hosted CI."
           exit 1
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
