@@ -44,8 +44,9 @@ struct CleanerModuleTest {
             presenter: presenter, hub: hub, transcription: NotchcastTranscriptionRunner(dictation: FakeDictation()),
             now: { .now }, onTapsChanged: {})
         context.confirm = { _, _, _ in presenter.moveAccepted }
-        context.confirmDestructive = { _, _, _ in
+        context.presentDestructiveQuestion = { _, _, _, cancelTitle in
             precondition(presenter.posts.last?.progress?.fraction == 1)
+            precondition(cancelTitle == "Not Now")
             presenter.offers += 1
             return presenter.emptyAccepted
         }

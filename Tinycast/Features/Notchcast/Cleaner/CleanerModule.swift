@@ -8,7 +8,7 @@ final class CleanerModule: NotchcastModule {
     static let offersEmptyTrash = "cleanerOffersEmptyTrash"
 
     let session: CleanerSession
-    private let context: NotchcastContext
+    let context: NotchcastContext
     private let emptyTrash: @MainActor () async throws -> Void
     @ObservationIgnored private var scanTask: Task<Void, Never>?
     @ObservationIgnored private var cleanTask: Task<Void, Never>?
@@ -108,10 +108,11 @@ final class CleanerModule: NotchcastModule {
     }
 
     private func confirmEmptyTrash() async -> Bool {
-        await context.confirmDestructive?(
+        await context.confirmDestructive(
             String(localized: "Empty the Trash?", table: "NotchcastCleaner"),
             String(localized: "This permanently deletes everything in the Trash.", table: "NotchcastCleaner"),
-            String(localized: "Empty Trash", table: "NotchcastCleaner")) == true
+            String(localized: "Empty Trash", table: "NotchcastCleaner"),
+            cancelTitle: String(localized: "Not Now", table: "NotchcastCleaner"))
     }
 
     private static func notice(for report: CleanerReport) -> IslandNotice {

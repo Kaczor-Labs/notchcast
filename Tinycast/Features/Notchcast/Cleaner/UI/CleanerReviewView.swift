@@ -7,7 +7,6 @@ struct CleanerReviewView: View {
     let selected: CleanerItem?
     let checked: Set<CleanerItem.ID>
     let scroll: ScrollIntent
-    let onSelect: (CleanerItem.ID) -> Void
     let onCheck: (CleanerItem.ID) -> Void
 
     var body: some View {
@@ -40,7 +39,7 @@ struct CleanerReviewView: View {
                         }
                         CleanerReviewRow(
                             item: item, selected: item.id == selected?.id, checked: checked.contains(item.id),
-                            select: { onSelect(item.id) }, toggle: { onCheck(item.id) })
+                            toggle: { onCheck(item.id) })
                             .id(item.id.path)
                             .selectionFrame(item.id == selected?.id)
                     }
@@ -65,7 +64,6 @@ private struct CleanerReviewRow: View {
     let item: CleanerItem
     let selected: Bool
     let checked: Bool
-    let select: () -> Void
     let toggle: () -> Void
 
     var body: some View {
@@ -84,7 +82,7 @@ private struct CleanerReviewRow: View {
                     .accessibilityHidden(true)
             }
 
-            Button(action: select) {
+            Button(action: toggle) {
                 HStack(spacing: metrics.spacing.md) {
                     VStack(alignment: .leading, spacing: metrics.spacing.xs) {
                         Text(verbatim: item.id.lastPathComponent)

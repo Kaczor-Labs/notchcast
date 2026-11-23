@@ -2,13 +2,13 @@ import SwiftUI
 
 struct CleanerScreen: PaletteScreen {
     let module: CleanerModule
-    let palette: PaletteState
+    let query: String
 
     private var session: CleanerSession { module.session }
 
     var rows: [CleanerItem] {
         guard session.phase == .review || session.phase == .confirming else { return [] }
-        let query = palette.query.trimmingCharacters(in: .whitespacesAndNewlines)
+        let query = query.trimmingCharacters(in: .whitespacesAndNewlines)
         let matches = session.items.filter {
             query.isEmpty || $0.id.lastPathComponent.localizedStandardContains(query)
         }
@@ -105,9 +105,6 @@ struct CleanerScreen: PaletteScreen {
             CleanerReviewLayout(
                 rows: rows, selected: rows.indices.contains(selection) ? rows[selection] : nil,
                 checked: session.selection?.checked ?? [], bytes: session.selectedBytes, scroll: scroll,
-                onSelect: { id in
-                    if let index = rows.firstIndex(where: { $0.id == id }) { palette.selection = index }
-                },
                 onCheck: toggle)
         }
     }
@@ -125,13 +122,11 @@ private struct CleanerReviewLayout: View {
     let checked: Set<CleanerItem.ID>
     let bytes: Int64
     let scroll: ScrollIntent
-    let onSelect: (CleanerItem.ID) -> Void
     let onCheck: (CleanerItem.ID) -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            CleanerReviewView(rows: rows, selected: selected, checked: checked, scroll: scroll,
-                              onSelect: onSelect, onCheck: onCheck)
+            CleanerReviewView(rows: rows, selected: selected, checked: checked, scroll: scroll, onCheck: onCheck)
             Text("\(checked.count) selected · \(MeasuredSize(bytes: bytes).formatted)", tableName: "NotchcastCleaner")
                 .font(metrics.typography.bar)
                 .foregroundStyle(Theme.Colors.textSecondary)
