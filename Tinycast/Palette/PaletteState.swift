@@ -10,7 +10,20 @@ struct PaletteFrame: Equatable {
 @MainActor
 @Observable
 final class PaletteState {
-    var mode: PaletteMode = .launcher { didSet { restoredSelection = nil } }
+    struct CustomScreen {
+        let title: String
+        let prompt: String
+        let makeScreen: (String) -> Any
+        let onClose: () -> Void
+    }
+
+    private(set) var customScreen: CustomScreen?
+    var mode: PaletteMode = .launcher {
+        didSet {
+            restoredSelection = nil
+            if oldValue == .customScreen, mode != .customScreen { clearCustomScreen() }
+        }
+    }
     /// The screens below `mode`, innermost last: a summon starts a new one, navigating pushes on.
     private(set) var backStack: [PaletteFrame] = []
     var query: String = "" { didSet { restoredSelection = nil } }
@@ -82,6 +95,18 @@ final class PaletteState {
 
     func noteVisible(_ visible: Bool) {
         isVisible = visible
+        if !visible, mode == .customScreen { prepare(mode: .launcher) }
+    }
+
+    func installCustomScreen(_ screen: CustomScreen) {
+        clearCustomScreen()
+        customScreen = screen
+    }
+
+    private func clearCustomScreen() {
+        let close = customScreen?.onClose
+        customScreen = nil
+        close?()
     }
 
     var canGoBack: Bool { !backStack.isEmpty }
@@ -98,7 +123,7 @@ final class PaletteState {
     }
 
     func push(mode: PaletteMode) {
-        if !self.mode.isNativeEditor {
+        if !self.mode.isNativeEditor, self.mode != .customScreen {
             backStack.append(PaletteFrame(mode: self.mode, query: query, selection: selection))
         }
         replace(mode: mode)
@@ -117,7 +142,9 @@ final class PaletteState {
 
     /// Tab's step deeper into the ring: the screen crossed from is the step back, query and all.
     func pushCarryingQuery(mode: PaletteMode) {
-        backStack.append(PaletteFrame(mode: self.mode, query: query, selection: selection))
+        if self.mode != .customScreen {
+            backStack.append(PaletteFrame(mode: self.mode, query: query, selection: selection))
+        }
         self.mode = mode
     }
 

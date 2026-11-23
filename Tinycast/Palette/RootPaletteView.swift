@@ -53,6 +53,9 @@ struct RootPaletteView: View {
 
     private var screen: any PaletteScreen {
         switch vm.mode {
+        case .customScreen:
+            if let custom = vm.customScreen?.makeScreen(vm.query) as? any PaletteScreen { return custom }
+            fallthrough
         case .launcher:
             return LauncherScreen(
                 appIndex: appIndex, favorites: favorites, visibility: visibility,
@@ -814,6 +817,14 @@ struct RootPaletteView: View {
             }
             // slot + xl equals a row's icon + lg, so the query starts where the row titles do.
             headerGutter(width: metrics.spacing.xl)
+            if let title = vm.customScreen?.title {
+                Text(title)
+                    .font(metrics.typography.searchField)
+                    .foregroundStyle(Theme.Colors.textPrimary)
+                    .lineLimit(1)
+                    .accessibilityAddTraits(.isHeader)
+                headerGutter(width: metrics.spacing.xl)
+            }
             // One structural position: a field inside a branch loses first responder when it flips.
             headerField
                 .simultaneousGesture(TapGesture().onEnded { resetCompactSelection() })
@@ -971,7 +982,7 @@ struct RootPaletteView: View {
         if vm.mode == .extensionCommand, let placeholder = extensionScreen.searchPlaceholder {
             return placeholder
         }
-        return vm.mode.placeholder
+        return vm.customScreen?.prompt ?? vm.mode.placeholder
     }
 
     /// The one search field — empty it's a drag handle, and any text hands every press to editing.

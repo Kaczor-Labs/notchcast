@@ -49,6 +49,7 @@ struct NotchcastCommand: Identifiable, Sendable {
     let run: @MainActor @Sendable (NotchcastContext) -> Void
     /// An inline launcher field; a hotkey or an empty field still runs `run`.
     var argument: NotchcastArgument?
+    var diskCleanUpTitle: String?
 
     var id: String { Self.idPrefix + slug }
 }

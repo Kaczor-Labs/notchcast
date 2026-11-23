@@ -7,6 +7,7 @@
     "GB" : {},
     "Low disk space" : {},
     "Low disk space: %@" : {},
+    "Low disk space: %@. %@" : {},
     "Low disk warning" : {},
     "The island warns once when free space drops below this, then shows a drive icon until space is back." : {},
     "Warn below" : {},

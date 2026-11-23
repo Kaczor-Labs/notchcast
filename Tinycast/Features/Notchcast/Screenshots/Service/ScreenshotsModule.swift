@@ -216,10 +216,10 @@ final class ScreenshotsModule: NotchcastModule {
     /// Our own dialog; with none to ask (no app running) the edits are kept.
     private func askToDiscard() {
         export = Task {
-            let discard = await context.confirmDestructive?(
+            let discard = await context.confirmDestructive(
                 String(localized: "Discard this screenshot's edits?", table: "NotchcastScreenshots"),
                 String(localized: "It was not copied or saved yet.", table: "NotchcastScreenshots"),
-                String(localized: "Discard", table: "NotchcastScreenshots")) ?? false
+                String(localized: "Discard", table: "NotchcastScreenshots"))
             guard !Task.isCancelled else { return }
             export = nil
             if discard { endEditing() }
