@@ -40,11 +40,11 @@ A failed fetch, or an answer that does not parse, marks that feed stale (`isOffl
 
 ## Settings
 
-Under **Day in the Island**, set **City** and **Symbols** with Return. An unknown city leaves the old one in place, an empty city clears it, and symbols are uppercased and deduplicated. Turning on Day asks macOS for calendar access if needed. **Grant Access…** under the switch is available while access is missing.
+Under the switch: **City** (looked up on Return; an unknown city says so and keeps the old one; empty clears it) and **Symbols** (comma or space separated, applied on Return, normalised to upper case without repeats). A note under them says events come from the Calendar feature and need its calendar access; the add-on never asks for that access itself.
 
 ## Sources of code
 
-`Model/DayAgenda.swift` is adapted from Vorssaint's notch calendar (GPL-3.0-or-later, `vorssaint/vorssaint-utils@89d2626`): which events belong to a day, their order, the next one and a start as text. It keeps Vorssaint's notice and has its lines in `notchcast/licenses/borrowed.md`. Not taken: the calendar views (an add-on describes a page, the island draws it), the month grid and week strip, the EventKit reader (events come from stock Calendar) or the closed-island countdown. Vorssaint has no weather or markets.
+`Model/DayAgenda.swift` is adapted from Vorssaint's notch calendar (GPL-3.0-or-later, `vorssaint/vorssaint-utils@89d2626`): which events belong to a day, their order, the next one and a start as text. It keeps Vorssaint's notice and has its lines in `notchcast/licenses/borrowed.md`. Not taken: the calendar views (an add-on describes a page, the island draws it), the month grid and week strip, the EventKit reader (events come from stock Calendar) and the closed-island countdown (the island's own meeting glance does that). Vorssaint has no weather or markets.
 
 ## Proof
 
