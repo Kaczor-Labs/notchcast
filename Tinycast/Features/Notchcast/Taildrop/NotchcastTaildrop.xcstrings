@@ -3,6 +3,7 @@
   "strings" : {
     "%@ is offline." : {},
     "Allow Automation access to read the Finder selection." : {},
+    "Blocked: Tailscale failed its signature check." : {},
     "Cancelled" : {},
     "Could not zip %@." : {},
     "No device can receive files." : {},
