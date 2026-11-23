@@ -1,6 +1,8 @@
+import AppKit
+
 extension NotchcastCalendar {
     @MainActor
-    init(core: AppCore) {
+    init(core: AppCore, activate: @escaping @MainActor () -> Void = { NSApp.activate() }) {
         var requestingAccess = false
         self.init(
             events: { [weak core] in
@@ -11,27 +13,25 @@ extension NotchcastCalendar {
             showSchedule: { [weak core] in core?.calendarCoordinator.showSchedule() },
             needsAccess: { [weak core] in
                 guard let core else { return false }
-                return !core.settings.calendarEnabled || core.calendarStore.access != .granted
+                return core.calendarStore.access != .granted
             },
             requestAccess: { [weak core] openSettingsIfDenied in
                 guard let core, !requestingAccess else { return }
                 let store = core.calendarStore
+                let previousAccess = store.access
                 store.refreshAccess()
                 switch store.access {
                 case .granted:
-                    break
+                    if previousAccess != .granted { store.start() }
                 case .notDetermined:
                     requestingAccess = true
                     defer { requestingAccess = false }
-                    guard await store.requestAccess() else { return }
+                    activate()
+                    _ = await Permissions.requestCalendarAccess()
+                    store.refreshAccess()
+                    if store.access == .granted { store.start() }
                 case .denied:
                     if openSettingsIfDenied { Permissions.openCalendarSettings() }
-                    return
-                }
-                if !core.settings.calendarEnabled {
-                    core.settings.calendarEnabled = true
-                } else {
-                    store.start()
                 }
             })
     }

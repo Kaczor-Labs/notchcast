@@ -40,7 +40,7 @@ A failed fetch, or an answer that does not parse, marks that feed stale (`isOffl
 
 ## Settings
 
-Under **Day in the Island**, set **City** and **Symbols** with Return. An unknown city leaves the old one in place, an empty city clears it, and symbols are uppercased and deduplicated. When calendar access is missing, click **Grant Access…** under the switch. Day sends that action from Settings to the main app.
+Under **Day in the Island**, set **City** and **Symbols** with Return. An unknown city leaves the old one in place, an empty city clears it, and symbols are uppercased and deduplicated. When full calendar access is missing, click **Grant Access…** under the switch. The main app asks macOS for access on the first request. If access has already been denied, the button opens Privacy & Security › Calendars.
 
 ## Sources of code
 
