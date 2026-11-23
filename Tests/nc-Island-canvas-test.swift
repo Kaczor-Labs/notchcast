@@ -80,8 +80,9 @@ struct IslandCanvasTest {
         dictation()
         swatches()
         tones()
-        print("Island canvas: headline, fade-out, expansion, cover, notch switch, percent, headline cap, swatch, tone "
-            + "and clicks hold")
+        NSAppearance(named: .darkAqua)!.performAsCurrentDrawingAppearance { level(glance) }
+        print("Island canvas: headline, fade-out, expansion, cover, notch switch, percent, headline cap, swatch, tone, "
+            + "level pairs and clicks hold")
     }
 
     @MainActor static func coveredProgress() {
@@ -144,6 +145,38 @@ struct IslandCanvasTest {
                     FileHandle.standardError.write(Data(message.utf8))
                     exit(EXIT_FAILURE)
                 }
+            }
+        }
+    }
+
+    /// Beside a notch every glyph and its text share a visible middle, to half a pixel at 2x (#1495).
+    @MainActor static func level(_ glance: IslandGlance) {
+        let pill = CGRect(x: 0, y: 0, width: 400, height: 32)
+        let recording = IslandNotice(id: "rec", symbol: "record.circle", text: "Recording",
+                                     progress: IslandProgress(fraction: nil, headline: false, readout: "0:42"))
+        let volume = IslandLevel(source: "volume", symbol: "speaker.wave.2.fill", label: "Volume", value: 0.6)
+        let hot = IslandStatus(id: "cpu", symbol: "cpu", text: "Hot", label: "CPU running hot")
+        let cpu = GlanceArt.glyph("cpu", tone: .white)!.size.width
+        let statusSplit = Int(pill.maxX - Theme.Spacing.lg - IslandStatusArt([hot], notch: true, frosted: false)
+            .layout.trailing + cpu + Theme.Spacing.xs / 2) * 2
+        for frosted in [false, true] {
+            let pairs: [(String, any PillArt, Int)] = [
+                ("meeting", GlanceArt(glance, notch: true, frosted: frosted), 400),
+                ("readout", IslandNoticeArt(recording, notch: true, frosted: frosted, still: true), 400),
+                ("level", IslandLevelArt(volume, notch: true, frosted: frosted), 400),
+                ("status", IslandStatusArt([hot], notch: true, frosted: frosted), statusSplit),
+            ]
+            for (name, art, split) in pairs {
+                let rep = bitmap(in: pill, scale: 2) { art.draw(in: pill) }
+                func middle(_ columns: Range<Int>) -> Double {
+                    let rows = (0..<rep.pixelsHigh).filter { row in
+                        columns.contains { rep.bitmapData![row * rep.bytesPerRow + $0 * 4 + 3] > 127 }
+                    }
+                    return Double(rows.first! + rows.last! + 1) / 2
+                }
+                let glyph = middle(0..<split), text = middle(split..<rep.pixelsWide)
+                print("level \(name) frosted=\(frosted): glyph \(glyph) px, text \(text) px")
+                precondition(abs(glyph - text) <= 0.5, "Beside a notch the \(name) glyph sits level with its text")
             }
         }
     }
