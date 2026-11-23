@@ -39,7 +39,7 @@ The in-app updater stays off in Notchcast. To keep a Mac current, clone this rep
 - **Settings › Notchcast.** One tab per area, each add-on with its own switch; an add-on's tab shows only while that add-on is in the build.
   <!-- addon-tabs:start -->
   - **Island**: look, outline when open, open on hover, position on displays without a notch, show in screenshots and videos.
-  - **Agents**: Agents in the Island, a page with how much of each Claude and Codex plan is left.
+  - **Agents**: Agents in the Island, a page with how much of each Claude and Codex plan is left, Threads waiting on you, from t3chad.
   - **Keyboard & Mouse**: hide with ⌘M, Show Desktop with F3, Quit Protection, trackpad middle click, Paste Plain Text.
   - **Display & Sound**: stop Apple Music opening on media keys, the play key resumes Spotify if you played it last, brightness keys for every display, volume in the island, AirPods and Beats noise control from the launcher, Spotify in the Island through Soloist.
   - **Capture**: screenshots of an area, window or display, and an editor to mark one up with arrows, shapes, highlights, text, pixelation and a crop before copying, saving or dragging it out, screen recordings you trim before keeping them, copy a color from anywhere on the screen.
