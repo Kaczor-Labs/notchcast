@@ -13,4 +13,14 @@ struct ArchivesEnvironment {
     var setDefaultApp: (Bool) -> Void
     var reveal: (URL) -> Void
     var pickArchives: () async -> [URL]
+
+    func loadJournal() -> [ArchiveJob] {
+        ArchiveJob.decode((try? Data(contentsOf: journal)) ?? Data())
+    }
+
+    func saveJournal(_ jobs: [ArchiveJob]) {
+        let folder = journal.deletingLastPathComponent()
+        try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        try? ArchiveJob.encode(jobs).write(to: journal, options: .atomic)
+    }
 }

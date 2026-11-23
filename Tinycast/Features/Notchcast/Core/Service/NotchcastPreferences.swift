@@ -19,10 +19,20 @@ final class NotchcastPreferences {
     init(defaults: UserDefaults, switches: [NotchcastSwitch]) {
         self.defaults = defaults
         self.switches = Dictionary(switches.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
-        stored = self.switches.keys.reduce(into: [:]) { stored, id in
-            if let value = defaults.object(forKey: id) as? Bool { stored[id] = value }
+        stored = [:]
+        launcherHidden = []
+        reload()
+    }
+
+    func reload() {
+        let updated = switches.keys.reduce(into: [String: Bool]()) { values, id in
+            if let value = defaults.object(forKey: id) as? Bool { values[id] = value }
         }
-        launcherHidden = Set(defaults.stringArray(forKey: Self.launcherHiddenKey) ?? [])
+        if updated != stored { stored = updated }
+        let hidden = Set(defaults.stringArray(forKey: Self.launcherHiddenKey) ?? [])
+        guard hidden != launcherHidden else { return }
+        launcherHidden = hidden
+        onLauncherChange?()
     }
 
     /// A command's own "Show in launcher", on until the user turns it off.

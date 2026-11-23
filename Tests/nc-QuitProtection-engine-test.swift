@@ -19,6 +19,20 @@ struct QuitProtectionTests {
 
     @MainActor static func main() {
         var engine = QuitProtectionEngine(configuration: .init(mode: .doublePress))
+        for commandReleasedFirst in [false, true] {
+            engine.reset()
+            check(engine.consume(.keyDown(q, .command, isRepeat: false), at: 5, target: target) == .swallow,
+                  "A single ⌘Q only arms")
+            let firstRelease: QuitProtectionEngine.Event = commandReleasedFirst ? .modifiersChanged([]) : .keyUp(q)
+            let secondRelease: QuitProtectionEngine.Event = commandReleasedFirst ? .keyUp(q) : .modifiersChanged([])
+            _ = engine.consume(firstRelease, at: 5.1, target: target)
+            _ = engine.consume(secondRelease, at: 5.2, target: target)
+            _ = engine.consume(.modifiersChanged(.command), at: 5.3, target: target)
+            check(engine.consume(.keyDown(q, .command, isRepeat: false), at: 5.9, target: target) == .quit(target),
+                  "Second ⌘Q at +0.9 s quits after releasing Command")
+        }
+
+        engine.reset()
         check(engine.consume(.keyDown(q, .command, isRepeat: false), at: 10, target: target) == .swallow,
               "First quit is swallowed")
         check(engine.consume(.keyDown(q, .command, isRepeat: true), at: 10.1, target: target) == .swallow,
@@ -26,33 +40,20 @@ struct QuitProtectionTests {
         check(engine.consume(.keyDown(q, .command, isRepeat: false), at: 10.2, target: target) == .swallow,
               "A release is required between presses")
         check(engine.consume(.keyUp(q), at: 10.3, target: target) == .swallow, "First release swallowed")
-        check(engine.consume(.keyDown(q, .command, isRepeat: false), at: 10.6, target: target) == .quit(target),
-              "600 ms boundary confirms")
-        check(engine.consume(.keyUp(q), at: 10.7, target: target) == .swallow, "Confirmed release swallowed")
-        check(engine.consume(.tick, at: 11, target: target) == .pass, "Confirmation runs only once")
-
-        for commandReleasedFirst in [false, true] {
-            engine.reset()
-            check(engine.consume(.keyDown(q, .command, isRepeat: false), at: 15, target: target) == .swallow,
-                  "A single ⌘Q only arms")
-            let firstRelease: QuitProtectionEngine.Event = commandReleasedFirst ? .modifiersChanged([]) : .keyUp(q)
-            let secondRelease: QuitProtectionEngine.Event = commandReleasedFirst ? .keyUp(q) : .modifiersChanged([])
-            _ = engine.consume(firstRelease, at: 15.1, target: target)
-            _ = engine.consume(secondRelease, at: 15.2, target: target)
-            _ = engine.consume(.modifiersChanged(.command), at: 15.3, target: target)
-            check(engine.consume(.keyDown(q, .command, isRepeat: false), at: 15.4, target: target) == .quit(target),
-                  "Two ⌘Q presses confirm even when Command is released between them")
-        }
+        check(engine.consume(.keyDown(q, .command, isRepeat: false), at: 11, target: target) == .quit(target),
+              "1 s boundary confirms")
+        check(engine.consume(.keyUp(q), at: 11.1, target: target) == .swallow, "Confirmed release swallowed")
+        check(engine.consume(.tick, at: 11.2, target: target) == .pass, "Confirmation runs only once")
 
         engine.reset()
         _ = engine.consume(.keyDown(q, .command, isRepeat: false), at: 20, target: target)
         _ = engine.consume(.keyUp(q), at: 20.1, target: target)
         _ = engine.consume(.modifiersChanged([]), at: 20.2, target: target)
         _ = engine.consume(.modifiersChanged(.command), at: 20.5, target: target)
-        check(engine.consume(.keyDown(q, .command, isRepeat: false), at: 20.601, target: target) == .swallow,
-              "Expired press starts a new window")
-        _ = engine.consume(.keyUp(q), at: 20.7, target: target)
-        check(engine.consume(.keyDown(q, .command, isRepeat: false), at: 20.8, target: other) == .swallow,
+        check(engine.consume(.keyDown(q, .command, isRepeat: false), at: 21.001, target: target) == .swallow,
+              "Second ⌘Q at +1.001 s starts a new window without quitting")
+        _ = engine.consume(.keyUp(q), at: 21.1, target: target)
+        check(engine.consume(.keyDown(q, .command, isRepeat: false), at: 21.2, target: other) == .swallow,
               "PID change cannot inherit confirmation")
 
         engine.reset()
