@@ -27,7 +27,7 @@ enum SyncSettingScope {
         // The island sits on this Mac's own notch and displays.
         case .islandShowsInCaptures, .islandOutlineWhenOpen, .islandOpensOnHover, .islandPosition: nil
         case .showInMenuBar: .showInMenuBar
-        case .appearance, .animationsEnabled: .appearance
+        case .appearance, .animationsEnabled, .iconStyle: .appearance
         case .interfaceSize: .interfaceSize
         case .compactMode, .compactBarCommands: .windowMode
         case .aiSystemPrompt, .aiSystemPromptEnabled: .aiCommands

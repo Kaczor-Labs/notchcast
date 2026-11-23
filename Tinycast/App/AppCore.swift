@@ -171,8 +171,9 @@ final class AppCore {
         settings: settings, appIndex: appIndex, hotKeys: hotKeys, favorites: favorites,
         visibility: visibility, ranking: launcherRanking, aliases: aliases,
         paletteCoordinator: paletteCoordinator, core: self)
-    /// Window state, not a preference: it rides `UserDefaults` like the active note's filename.
+    /// Window state, not preferences: they ride `UserDefaults` like the active note's filename.
     private nonisolated static let noteFormattingBarKey = "notesFormattingBarExpanded"
+    private nonisolated static let noteWindowFitsKey = "notesWindowFitsNote"
     @ObservationIgnored private(set) lazy var notesCoordinator = NotesCoordinator(
         store: notesStore,
         settings: settings,
@@ -181,7 +182,9 @@ final class AppCore {
         isFormattingBarExpanded: UserDefaults.standard.bool(forKey: Self.noteFormattingBarKey),
         saveFormattingBarExpanded: {
             UserDefaults.standard.set($0, forKey: Self.noteFormattingBarKey)
-        })
+        },
+        fitsWindowToNote: UserDefaults.standard.object(forKey: Self.noteWindowFitsKey) as? Bool ?? true,
+        saveFitsWindowToNote: { UserDefaults.standard.set($0, forKey: Self.noteWindowFitsKey) })
 
     @ObservationIgnored private(set) lazy var launcherCoordinator = LauncherCoordinator(
         ranking: launcherRanking, windowController: windowController,
@@ -493,6 +496,7 @@ final class AppCore {
         UserDefaults.standard.register(defaults: ["NSInitialToolTipDelay": 250])
         applyAppearance()
         applyMotion()
+        applyIconStyle()
         observeEffectiveAppearance()
         appIndex.start(settings: settings)
         Task { await appIndex.refresh() }
@@ -762,6 +766,7 @@ final class AppCore {
     private func observeSharedSettings() {
         track({ _ = $0.appearance }, reproject: { $0.applyAppearance() })
         track({ _ = $0.animationsEnabled }, reproject: { $0.applyMotion() })
+        track({ _ = $0.iconStyle }, reproject: { $0.applyIconStyle() })
         track(
             {
                 _ = $0.dictationEnabled
@@ -909,6 +914,10 @@ final class AppCore {
         for case let panel as any AnimatedPanel in NSApp.windows {
             panel.followMotion()
         }
+    }
+
+    private func applyIconStyle() {
+        IconCache.style.tilesFollowSystem = settings.iconStyle == .system
     }
 
     private var isLanguagePending: Bool { settings.language.rawValue != launchLocalization }

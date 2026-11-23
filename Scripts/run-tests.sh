@@ -119,7 +119,7 @@ run() {
 
 L=Tinycast/Features/Launcher/Model
 # What a sync source needs from iCloud Sync, for harnesses compiling a whole Service folder.
-SYNC="Tinycast/Features/CloudSync/Model/*.swift Tinycast/Features/CloudSync/Service/SyncSource.swift Tinycast/Features/CloudSync/Service/RecordSyncSource.swift Tinycast/Features/Settings/Model/SettingsFileKey.swift"
+SYNC="Tinycast/Features/CloudSync/Model/*.swift Tinycast/Features/CloudSync/Service/SyncSource.swift Tinycast/Features/CloudSync/Service/RecordSyncSource.swift Tinycast/Features/Settings/Model/SettingsFileKey.swift Tinycast/DesignSystem/IconTint.swift"
 run slow -O FuzzTests      $L/SearchRelevance.swift $L/ScriptRomanization.swift \
                            $L/LauncherMatch.swift $L/EntryNaming.swift $L/LauncherOrder.swift \
                            $L/LauncherRankingStore.swift $L/LauncherSuggestions.swift
@@ -197,6 +197,14 @@ run ClipboardTests         Tinycast/Features/Clipboard/Model/ClipboardStore.swif
                            Tinycast/Features/Clipboard/Model/ColorValue.swift \
                            Tinycast/Features/Clipboard/Model/ColorFormat.swift \
                            Tinycast/Features/Clipboard/Model/ColorSpaces.swift
+run ClipboardSyncTests     Tinycast/Features/Clipboard/Service/ClipboardSyncSource.swift \
+                           Tinycast/Features/Clipboard/Model/ClipboardStore.swift \
+                           Tinycast/Platform/Images/ImageDerivative.swift \
+                           Tinycast/Features/Clipboard/Model/ClipboardFilter.swift \
+                           Tinycast/Features/Clipboard/Model/ClipboardFileKind.swift \
+                           Tinycast/Features/Clipboard/Model/ColorValue.swift \
+                           Tinycast/Features/Clipboard/Model/ColorFormat.swift \
+                           Tinycast/Features/Clipboard/Model/ColorSpaces.swift $SYNC
 run ClipboardCoordinatorTests Tinycast/Features/Clipboard/UI/ClipboardCoordinator.swift \
                            Tinycast/Features/Clipboard/Model/*.swift \
                            Tinycast/Platform/Images/ImageDerivative.swift \
@@ -274,24 +282,28 @@ run AppearanceTests        Tinycast/Platform/Appearance.swift \
                            Tinycast/DesignSystem/Theme.swift \
                            Tinycast/DesignSystem/InterfaceMetrics.swift \
                            Tinycast/Features/Settings/AppAppearance.swift \
+                           Tinycast/Platform/Images/SystemIconTheme.swift \
                            Tinycast/DesignSystem/IconTint.swift
 run LanguageTests          Tinycast/Features/Settings/AppLanguage.swift
 run LocalizedResourceTests Tinycast/Platform/LocalizedResource.swift
 run RelaunchTests          Tinycast/App/AppDelegate.swift Tinycast/Platform/RelaunchRunner.swift
 run InterfaceSizeTests     Tinycast/Platform/Appearance.swift \
                            Tinycast/DesignSystem/Theme.swift \
+                           Tinycast/Platform/Images/SystemIconTheme.swift \
                            Tinycast/DesignSystem/InterfaceMetrics.swift \
                            Tinycast/Features/Settings/InterfaceSize.swift \
                            Tinycast/Features/Extensions/Model/ExtensionFormMetrics.swift \
                            Tinycast/DesignSystem/IconTint.swift
 run PalettePlacementTests  Tinycast/Platform/Appearance.swift \
                            Tinycast/DesignSystem/Theme.swift \
+                           Tinycast/Platform/Images/SystemIconTheme.swift \
                            Tinycast/DesignSystem/InterfaceMetrics.swift \
                            Tinycast/Features/Settings/InterfaceSize.swift \
                            Tinycast/Palette/PalettePlacement.swift \
                            Tinycast/DesignSystem/IconTint.swift
 run PaletteMenuClickTests  Tinycast/Platform/Appearance.swift \
                            Tinycast/DesignSystem/Theme.swift \
+                           Tinycast/Platform/Images/SystemIconTheme.swift \
                            Tinycast/Platform/WindowLevel.swift \
                            Tinycast/Platform/NotificationToken.swift \
                            Tinycast/DesignSystem/Interaction/KeyboardFocus.swift \
@@ -301,6 +313,7 @@ run PaletteMenuClickTests  Tinycast/Platform/Appearance.swift \
                            Tinycast/DesignSystem/IconTint.swift
 run FormInputTests         Tinycast/Platform/Appearance.swift \
                            Tinycast/DesignSystem/Theme.swift \
+                           Tinycast/Platform/Images/SystemIconTheme.swift \
                            Tinycast/DesignSystem/InterfaceMetrics.swift \
                            Tinycast/DesignSystem/FormTextInput.swift \
                            Tinycast/DesignSystem/FormTextArea.swift \
@@ -390,6 +403,7 @@ run DictationFieldTests    Tinycast/Features/Dictation/Model/DictationModel.swif
                            Tinycast/Platform/AccessibilityText.swift \
                            Tinycast/Platform/PasteboardFiles.swift \
                            Tinycast/Platform/Appearance.swift Tinycast/DesignSystem/Theme.swift \
+                           Tinycast/Platform/Images/SystemIconTheme.swift \
                            Tinycast/DesignSystem/IconTint.swift
 run DictationVolumeTests   Tinycast/Features/Dictation/Model/DictationVolumeSnapshot.swift \
                            Tinycast/Features/Dictation/Service/DictationAudioDucker.swift \
@@ -439,19 +453,23 @@ run HotKeyTests            Tinycast/Features/HotKeys/Model/DoubleTapModifier.swi
                            Tinycast/DesignSystem/IconTint.swift
 run CalloutTests           Tinycast/Platform/Appearance.swift \
                            Tinycast/DesignSystem/Theme.swift \
+                           Tinycast/Platform/Images/SystemIconTheme.swift \
                            Tinycast/DesignSystem/InterfaceMetrics.swift \
                            Tinycast/Features/HotKeys/UI/CalloutPlacement.swift \
                            Tinycast/DesignSystem/IconTint.swift
 run IconCacheTests         Tinycast/Platform/Appearance.swift \
                            Tinycast/Platform/Images/IconCache.swift \
+                           Tinycast/Platform/Images/SystemIconTheme.swift \
                            Tinycast/DesignSystem/IconTint.swift
 run EntryIconTests         Tinycast/Platform/Appearance.swift \
                            Tinycast/Platform/Images/IconCache.swift \
+                           Tinycast/Platform/Images/SystemIconTheme.swift \
                            Tinycast/Platform/Images/FileIconStamp.swift \
                            Tinycast/DesignSystem/IconTint.swift
 run ExtensionIconTests     Tinycast/Platform/Appearance.swift \
                            Tinycast/Platform/AppDisplayName.swift \
                            Tinycast/Platform/Images/IconCache.swift \
+                           Tinycast/Platform/Images/SystemIconTheme.swift \
                            Tinycast/Platform/Compression/Zlib.swift \
                            Tinycast/DesignSystem/Theme.swift \
                            Tinycast/DesignSystem/InterfaceMetrics.swift \
@@ -625,6 +643,7 @@ run NotesTests             Tinycast/Platform/Signposts.swift \
 run NotesEditorTests       Tinycast/Platform/Signposts.swift \
                            Tinycast/Platform/Appearance.swift \
                            Tinycast/DesignSystem/Theme.swift \
+                           Tinycast/Platform/Images/SystemIconTheme.swift \
                            Tinycast/DesignSystem/InterfaceMetrics.swift \
                            Tinycast/Platform/NotificationToken.swift \
                            Tinycast/Features/TextInjection/Service/InjectableTextView.swift \
@@ -653,6 +672,7 @@ run -O index NotesEditorPerformanceTests \
                            Tinycast/Platform/Signposts.swift \
                            Tinycast/Platform/Appearance.swift \
                            Tinycast/DesignSystem/Theme.swift \
+                           Tinycast/Platform/Images/SystemIconTheme.swift \
                            Tinycast/DesignSystem/InterfaceMetrics.swift \
                            Tinycast/Platform/NotificationToken.swift \
                            Tinycast/Features/TextInjection/Service/InjectableTextView.swift \
@@ -690,7 +710,8 @@ run slow -O RaycastTests   Tinycast/Features/Backup/Model/RaycastImportError.swi
                            Tinycast/Features/Clipboard/Model/ColorFormat.swift \
                            Tinycast/Features/Clipboard/Model/ColorSpaces.swift
 run CloudSyncTests         Tinycast/Features/CloudSync/Model/*.swift \
-                           Tinycast/Features/Settings/Model/SettingsFileKey.swift
+                           Tinycast/Features/Settings/Model/SettingsFileKey.swift \
+                           Tinycast/DesignSystem/IconTint.swift
 run SettingsBackupTests    Tinycast/Features/Settings/AppSettingsKey.swift \
                            Tinycast/Features/Backup/Model/SettingsBackupCoverage.swift
 run HyperKeyEngineTests    Tinycast/Features/HotKeys/Model/HyperKeyEngine.swift \
@@ -725,9 +746,35 @@ run BackupArchiveTests     Tinycast/Platform/AppPaths.swift \
                            Tinycast/Features/Backup/Model/BackupArchive.swift \
                            Tinycast/Features/Backup/Model/BackupBundle.swift \
                            Tinycast/Features/Backup/Model/BackupCategory.swift \
+                           Tinycast/DesignSystem/IconTint.swift \
                            Tinycast/Features/Backup/Model/BackupClipboardItem.swift \
                            Tinycast/Features/Backup/Model/BackupManifest.swift \
-                           Tinycast/Features/Backup/Service/BackupStaging.swift
+                           Tinycast/Features/Backup/Service/BackupStaging.swift \
+                           Tinycast/Features/Backup/Model/SettingsBackup.swift \
+                           Tinycast/Features/CustomCommands/Model/CustomCommand.swift \
+                           Tinycast/Features/Quicklinks/Model/Quicklink.swift \
+                           Tinycast/Features/Quicklinks/Model/QuicklinkDestination.swift \
+                           Tinycast/Features/WindowManagement/Model/WindowCommand.swift \
+                           Tinycast/Features/WindowManagement/Model/WindowCycle.swift \
+                           Tinycast/Features/WindowManagement/Model/WindowPlacementEngine.swift \
+                           Tinycast/Features/WindowManagement/Model/WindowLayoutAnchor.swift \
+                           Tinycast/Features/WindowManagement/Model/WindowLayoutDisplay.swift \
+                           Tinycast/Features/WindowManagement/Model/WindowLayout.swift \
+                           Tinycast/Features/WindowManagement/Model/WindowLayoutGeometry.swift \
+                           Tinycast/Features/WindowManagement/Model/RoomLayoutKind.swift \
+                           Tinycast/Features/WindowManagement/Model/RoomLayoutEngine.swift \
+                           Tinycast/Features/WindowManagement/Model/RoomGrid.swift \
+                           Tinycast/Features/WindowManagement/Model/RoomWindow.swift \
+                           Tinycast/Features/WindowManagement/Model/Room.swift \
+                           Tinycast/Features/WindowManagement/Model/CustomWindowSize.swift \
+                           Tinycast/Features/HotKeys/Model/HotKeyBinding.swift \
+                           Tinycast/Features/HotKeys/Model/ModifierKey.swift \
+                           Tinycast/Features/HotKeys/Model/HyperKey.swift \
+                           Tinycast/Features/HotKeys/Model/HIDKeyMapping.swift \
+                           Tinycast/Features/HotKeys/Model/DoubleTapModifier.swift \
+                           Tinycast/Features/HotKeys/Service/KeyShortcut.swift \
+                           Tinycast/Platform/ASCIIKeyboardLayout.swift \
+                           Tinycast/Platform/LocalizedResource.swift
 E=Tinycast/Features/Extensions
 run SymbolsTests           $E/Service/SymbolCatalog.swift
 run ExtensionCleanupTests  $E/Service/ExtensionCleanup.swift \
@@ -777,6 +824,7 @@ run slow ExtensionTests    -parse-as-library \
                            Tinycast/Platform/Appearance.swift \
                            Tinycast/Platform/AppDisplayName.swift \
                            Tinycast/Platform/Images/IconCache.swift \
+                           Tinycast/Platform/Images/SystemIconTheme.swift \
                            Tinycast/DesignSystem/Theme.swift \
                            Tinycast/DesignSystem/InterfaceMetrics.swift \
                            $E/Model/ExtensionBootConfig.swift \
@@ -879,6 +927,7 @@ run AIResponsesTests       Tinycast/Features/AI/Model/AIConnection.swift \
                            Tinycast/Features/AI/Service/AIToolLoopProvider.swift
 run ChatMarkdownTests      Tinycast/Platform/Appearance.swift \
                            Tinycast/DesignSystem/Theme.swift \
+                           Tinycast/Platform/Images/SystemIconTheme.swift \
                            Tinycast/DesignSystem/InterfaceMetrics.swift \
                            Tinycast/Features/Notchcast/NotchTheme.swift \
                            Tinycast/Features/Notchcast/IslandCardStyle.swift \

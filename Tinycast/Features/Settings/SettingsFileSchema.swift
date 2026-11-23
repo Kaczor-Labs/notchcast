@@ -44,6 +44,7 @@ enum SettingsFileSchema {
         case .language: return bind(settings, \.language)
         case .appearance: return bind(settings, \.appearance)
         case .animationsEnabled: return bind(settings, \.animationsEnabled)
+        case .iconStyle: return bind(settings, \.iconStyle)
         case .interfaceSize: return bind(settings, \.interfaceSize)
         case .compactMode: return bind(settings, \.compactMode)
         case .compactBarCommands:
@@ -184,6 +185,7 @@ extension PopToRootTimeout: SettingsFileRawValue {}
 extension EscapeKeyBehavior: SettingsFileRawValue {}
 extension CommandID: SettingsFileRawValue {}
 extension AppAppearance: SettingsFileRawValue {}
+extension IconStyle: SettingsFileRawValue {}
 extension AppLanguage: SettingsFileRawValue {}
 extension InterfaceSize: SettingsFileRawValue {}
 extension HyperKeyPhysicalKey: SettingsFileRawValue {}
