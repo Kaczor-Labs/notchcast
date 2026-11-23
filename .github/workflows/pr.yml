@@ -14,6 +14,10 @@ on:
         description: Run the macOS job on hosted xcode-27 even while NOTCHCAST_MAC_RUNNER is set (full proof)
         type: boolean
         default: false
+      pool:
+        description: Run the macOS job on our Mac pool (mac-pool); it proves the tree but the hosted-only harnesses (README, Runners)
+        type: boolean
+        default: false
       harness_runner:
         description: Runner label for a harness-only macOS job (notchcast-mba, notchcast-mbp); no build, no proof of any tree (README, Runners)
         type: choice
@@ -81,12 +85,12 @@ jobs:
           git sparse-checkout disable
           python3 notchcast/harness-select.py plan "${BASE:-$(git merge-base origin/main HEAD)}" HEAD
   # The one macOS job of a run: GitHub runs at most 5 at once for the account, so every lane that needs a Mac runs here in turn.
-  # Only a dispatch reaches vars.NOTCHCAST_MAC_RUNNER, a self-hosted Mac: a pull_request, a fork's too, stays hosted.
+  # Only a dispatch reaches vars.NOTCHCAST_MAC_RUNNER or the mac-pool: a pull_request, a fork's too, stays hosted.
   # inputs.harness_runner names the runner of a harness-only job: the harness steps alone, and no other job of the run.
   mac:
     needs: route
     if: needs.route.outputs.scripts == 'true' || inputs.harness_runner != ''
-    runs-on: ${{ github.event_name == 'workflow_dispatch' && (inputs.harness_runner || !inputs.hosted && vars.NOTCHCAST_MAC_RUNNER) || 'xcode-27' }}
+    runs-on: ${{ github.event_name == 'workflow_dispatch' && (inputs.harness_runner || inputs.pool && 'mac-pool' || !inputs.hosted && vars.NOTCHCAST_MAC_RUNNER) || 'xcode-27' }}
     timeout-minutes: 90
     outputs:
       kind: ${{ steps.runner.outputs.kind }}
@@ -111,19 +115,23 @@ jobs:
           NOTCHCAST_XCODE_FROM_RUNNER: '1'
         run: bash tools/notchcast/ci-xcode.sh
       # hosted is GitHub's VM and isolated a Mac user of its own (README, Runners): both run everything. working is a
-      # maintainer's own session: its run skips what could touch that Mac and proves no tree. A harness-only run is
-      # working on any runner: it never builds, so it never records a tree.
+      # maintainer's own session: its run skips what could touch that Mac and proves no tree. pool is a working Mac of
+      # the mac-pool: it skips the same, but records its tree with every hosted-only harness as excused. A harness-only
+      # run is working on any runner: it never builds, so it never records a tree.
       - name: Runner kind
         id: runner
         env:
           HOSTED: ${{ runner.environment == 'github-hosted' }}
           HARNESS_ONLY: ${{ inputs.harness_runner != '' }}
+          POOL: ${{ inputs.pool == true }}
         run: |
           kind=working
           if [ "$HOSTED" = true ]; then kind=hosted; elif [ "${NOTCHCAST_ISOLATED_RUNNER:-}" = 1 ]; then kind=isolated; fi
+          if [ "$kind" = working ] && [ "$POOL" = true ]; then kind=pool; fi
           if [ "$HARNESS_ONLY" = true ]; then kind=working; echo "::notice::SKIPPED on a harness-only run: the build lane, every Linux job, the build check"; fi
           echo "kind=$kind" >> "$GITHUB_OUTPUT"
           [ "$kind" != working ] || echo "::notice::SKIPPED on a working Mac: the macOS script tests, HOSTED_ONLY_TESTS harnesses, the tested-tree record"
+          [ "$kind" != pool ] || echo "::notice::SKIPPED on the Mac pool: the macOS script tests, HOSTED_ONLY_TESTS harnesses (excused in its tree record)"
       # Runners of one Mac share its temp folder: each job keeps its harness logs in its own. The figures only print.
       - name: Runner load at start
         if: steps.runner.outputs.kind != 'hosted'
@@ -132,7 +140,7 @@ jobs:
           sysctl -n hw.ncpu hw.memsize; uptime; vm_stat | head -8; sysctl vm.swapusage
       # Each test gets its own TMPDIR so it can run beside the Debug build.
       - name: Script tests that need macOS
-        if: steps.runner.outputs.kind != 'working'
+        if: steps.runner.outputs.kind == 'hosted' || steps.runner.outputs.kind == 'isolated'
         working-directory: src
         run: |
           out="$RUNNER_TEMP/macos-script-tests"
@@ -164,7 +172,7 @@ jobs:
         run: bash ../tools/notchcast/ci-build.sh
       # Also after a failed or skipped build lane; a run cancelled meanwhile never reaches it, so never passes.
       - name: Result of the script tests that need macOS
-        if: ${{ !cancelled() && steps.runner.outputs.kind != 'working' }}
+        if: ${{ !cancelled() && (steps.runner.outputs.kind == 'hosted' || steps.runner.outputs.kind == 'isolated') }}
         timeout-minutes: 10
         run: |
           out="$RUNNER_TEMP/macos-script-tests"
@@ -194,13 +202,19 @@ jobs:
       - name: Runner load at end
         if: ${{ !cancelled() && steps.runner.outputs.kind != 'hosted' }}
         run: sysctl -n hw.ncpu hw.memsize; uptime; vm_stat | head -8; sysctl vm.swapusage
-      # For the tested-tree record: the toolchain, and the harnesses red here and on upstream, which this run proved nowhere.
+      # For the tested-tree record: the toolchain, and the harnesses red here and on upstream, which this run proved
+      # nowhere; on the pool also every hosted-only harness and the runner's own skips, which it never ran.
       - name: What the isolated runner proved
         id: proved
-        if: steps.runner.outputs.kind == 'isolated' && needs.route.outputs.build == 'true'
+        if: (steps.runner.outputs.kind == 'isolated' || steps.runner.outputs.kind == 'pool') && needs.route.outputs.build == 'true'
+        working-directory: src
+        env:
+          KIND: ${{ steps.runner.outputs.kind }}
         run: |
           echo "toolchain=$({ xcodebuild -version; sw_vers; } | tr -s '\t\n' ' ' | sed 's/ $//')" >> "$GITHUB_OUTPUT"
-          echo "excused=$(paste -sd' ' "$RUNNER_TEMP/harness-excused")" >> "$GITHUB_OUTPUT"
+          skipped=
+          if [ "$KIND" = pool ]; then skipped="$(set -a; . notchcast/config.env; echo $HOSTED_ONLY_TESTS) ${NOTCHCAST_RUNNER_SKIP_TESTS:-}"; fi
+          echo "excused=$(echo $(cat "$RUNNER_TEMP/harness-excused") $skipped)" >> "$GITHUB_OUTPUT"
   # ci-build.sh's checks that need no Mac (notchcast/ci-checks.sh), beside mac.
   linux-checks:
     needs: route
@@ -346,7 +360,7 @@ jobs:
         run: python3 notchcast/check-config.py
       # Only after a green build of the whole suite: a selection proves no tree, so it records none.
       # Hosted: Sync's plan skips testing a tree (GENERATED aside) a PR build already proved.
-      # Isolated: a record of its own name with the runner's stamp, which only land.sh reads and judges (README, Runners).
+      # Isolated or pool: a record of its own name with the runner's stamp, which only land.sh reads and judges (README, Runners).
       - name: Record the tested tree
         if: needs.route.outputs.build == 'true' && needs.mac.outputs.kind != 'working' && needs.route.outputs.harness-only == ''
         id: tree
@@ -358,7 +372,7 @@ jobs:
           echo "key=$(python3 notchcast/ci.py tested-key HEAD)" >> "$GITHUB_OUTPUT"
           mkdir "$RUNNER_TEMP/tested"
           git rev-parse HEAD > "$RUNNER_TEMP/tested/tested-commit"
-          if [ "$KIND" = isolated ]; then
+          if [ "$KIND" = isolated ] || [ "$KIND" = pool ]; then
             [ -n "$TOOLCHAIN" ] || { echo "::error::the isolated runner left no toolchain stamp"; exit 1; }
             printf '%s\n' "$TOOLCHAIN" > "$RUNNER_TEMP/tested/toolchain"
             printf '%s\n' "$EXCUSED" > "$RUNNER_TEMP/tested/excused"
@@ -366,7 +380,7 @@ jobs:
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         if: needs.route.outputs.build == 'true' && needs.mac.outputs.kind != 'working' && needs.route.outputs.harness-only == ''
         with:
-          name: tested-tree-${{ needs.mac.outputs.kind == 'isolated' && 'isolated-' || '' }}${{ steps.tree.outputs.key }}
+          name: tested-tree-${{ (needs.mac.outputs.kind == 'isolated' || needs.mac.outputs.kind == 'pool') && 'isolated-' || '' }}${{ steps.tree.outputs.key }}
           path: ${{ runner.temp }}/tested
           if-no-files-found: error
           overwrite: true

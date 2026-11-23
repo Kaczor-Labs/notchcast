@@ -155,13 +155,18 @@ notify() {
 workflows='pr.yml proof.yml design.yml leaks.yml'
 # The ones with a Mac job, which take the train's lane as their hosted input (ready-check-test.py: GATED_JOBS).
 mac_workflows='pr.yml proof.yml'
-# A train's Mac jobs run on the isolated runner while NOTCHCAST_MAC_RUNNER names one (README, Runners), else hosted.
+# A train's Mac jobs run on the isolated runner while NOTCHCAST_MAC_RUNNER names one, else PR's on the mac-pool while
+# one of its runners is online, else hosted (README, Runners).
 mac=hosted
 label=$(gh variable get NOTCHCAST_MAC_RUNNER -R "$FORK_REPO" 2>/dev/null || true)
 if [ "${NOTCHCAST_TRAIN_MAC:-}" != hosted ] && [ -n "$label" ]; then
     # A job for a label with no runner online stays queued for good, so such a train goes hosted.
     online=$(gh api "repos/$FORK_REPO/actions/runners" --jq '.runners[] | select(.status == "online") | .labels[].name' 2>/dev/null || true)
-    if grep -qxF "$label" <<< "$online"; then mac=isolated; else echo "train: no runner labelled $label is online, so the Mac jobs are hosted"; fi
+    if grep -qxF "$label" <<< "$online"; then mac=isolated; else echo "train: no runner labelled $label is online"; fi
+fi
+if [ "${NOTCHCAST_TRAIN_MAC:-}" != hosted ] && [ "$mac" = hosted ]; then
+    pool=$(gh api "orgs/${FORK_REPO%%/*}/actions/runners" --jq '[.runners[] | select(.status == "online" and any(.labels[]; .name == "mac-pool"))] | length' 2>/dev/null || true)
+    if [ "${pool:-0}" -gt 0 ] 2>/dev/null; then mac=pool; else echo "train: no mac-pool runner is online, so the Mac jobs are hosted"; fi
 fi
 # HOSTED_ONLY_TESTS of the tree in the current directory, every line that sets it.
 hosted_only_list() { sed -n 's/^HOSTED_ONLY_TESTS="\(.*\)"$/\1/p' notchcast/config.env | paste -sd' ' -; }
@@ -184,23 +189,41 @@ preflight() {
     runner=$mac
     if ! (while read -r pr commit; do bash notchcast/changed-harnesses.sh "$commit^1" "$commit" > "$scratch/selected-$pr" || exit 1; done) < "$scratch/merges"; then
         cd "$top"
-        [ "$mac" = isolated ] || return 0
+        [ "$mac" != hosted ] || return 0
         runner=hosted
-        echo "train: changed-harnesses.sh failed, so no selection says the isolated runner may prove it, and its Mac jobs are hosted"
+        echo "train: changed-harnesses.sh failed, so no selection says the $mac runner may prove it, and its Mac jobs are hosted"
         return 0
     fi
     while read -r pr commit; do cat "$scratch/selected-$pr"; done < "$scratch/merges" > "$scratch/selected"
     cd "$top"
-    [ "$mac" = isolated ] || return 0
+    [ "$mac" != hosted ] || return 0
     if [ -s "$scratch/hosted-prs" ] && cut -d' ' -f1 "$scratch/merges" | grep -qxF -f "$scratch/hosted-prs"; then
         runner=hosted
-        echo "train: land.sh refused a PR of it for good on the isolated runner at its head, so its Mac jobs are hosted"
+        echo "train: land.sh refused a PR of it for good on the $mac runner at its head, so its Mac jobs are hosted"
         return 0
     fi
     hosted_only=$(listed_in "$hosted_list" "$scratch/selected")
-    [ -n "$hosted_only" ] || return 0
+    if [ -n "$hosted_only" ]; then
+        runner=hosted
+        echo "train: it selects hosted-only harnesses ($hosted_only), which land.sh trusts only from a hosted run, so its Mac jobs are hosted"
+        return 0
+    fi
+    [ "$mac" = pool ] || return 0
+    local covered
+    covered=$(macos_script_inputs | paste -sd' ' -)
+    [ -n "$covered" ] || return 0
     runner=hosted
-    echo "train: it selects hosted-only harnesses ($hosted_only), which land.sh trusts only from a hosted run, so its Mac jobs are hosted"
+    echo "train: it changes $covered, which the macOS script tests read and a pool runner never runs, so its Mac jobs are hosted"
+}
+# Files of $base..$tip that a macOS script test (# script-tests: macos) is or names; a pool run skips those tests.
+macos_script_inputs() {
+    local test file
+    git diff --name-only "$base" "$tip" > "$scratch/changed"
+    git grep -lE '^(#|//) script-tests: macos' "$tip" -- notchcast | sed "s/^$tip://" | while read -r test; do
+        while read -r file; do
+            [ "$file" = "$test" ] || git show "$tip:$test" | grep -qF "$(basename "$file")" && echo "$file"
+        done < "$scratch/changed"
+    done | sort -u
 }
 # Pushes $sha as new branch $branch and dispatches its workflows against base $1.
 start_train() {
@@ -211,7 +234,9 @@ start_train() {
     for file in $workflows; do
         if [ "$file" = design.yml ]; then
             gh workflow run "$file" -R "$FORK_REPO" --ref "$branch" >&2
-        elif [ "$runner" = hosted ] && [[ " $mac_workflows " == *" $file "* ]]; then
+        elif [ "$runner" = pool ] && [ "$file" = pr.yml ]; then
+            gh workflow run "$file" -R "$FORK_REPO" --ref "$branch" -f "base=$base" -f pool=true >&2
+        elif [ "$runner" != isolated ] && [[ " $mac_workflows " == *" $file "* ]]; then
             gh workflow run "$file" -R "$FORK_REPO" --ref "$branch" -f "base=$base" -f hosted=true >&2
         else
             gh workflow run "$file" -R "$FORK_REPO" --ref "$branch" -f "base=$base" >&2
