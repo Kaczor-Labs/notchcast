@@ -87,14 +87,17 @@ jobs:
           HEAD: ${{ needs.plan.outputs.head }}
           VERSION: ${{ needs.plan.outputs.version }}
         run: |
-          [[ "$PR" =~ ^[1-9][0-9]*$ && "$HEAD" =~ ^[a-f0-9]{40}$ ]] || exit 1
-          [[ "$VERSION" =~ ^[0-9]+([.][0-9]+)*[.]pr${PR}[.]${HEAD:0:8}$ ]] || exit 1
+          fail() { echo "::error::$1"; exit 1; }
+          [[ "$PR" =~ ^[1-9][0-9]*$ ]] || fail "pr must be a PR number, got '$PR'"
+          [[ "$HEAD" =~ ^[a-f0-9]{40}$ ]] || fail "the planned head '$HEAD' is not a commit id"
+          [[ "$VERSION" =~ ^[0-9]+([.][0-9]+)*(-[a-z]+[.][0-9]+)?[.]pr${PR}[.]${HEAD:0:8}$ ]] \
+            || fail "the planned version '$VERSION' is not <snapshot base>.pr$PR.${HEAD:0:8}"
           IFS=$'	' read -r state cross current < <(gh pr view "$PR" -R "$GITHUB_REPOSITORY" \
-            --json state,isCrossRepository,headRefOid --jq '[.state, (.isCrossRepository | tostring), .headRefOid] | @tsv')
-          [[ "$state" == OPEN && "$cross" == false && "$current" == "$HEAD" ]] || {
-            echo "::error::PR #$PR moved, closed, or came from another repository"
-            exit 1
-          }
+            --json state,isCrossRepository,headRefOid --jq '[.state, (.isCrossRepository | tostring), .headRefOid] | @tsv') \
+            || fail "could not read PR #$PR from GitHub"
+          [ "$state" = OPEN ] || fail "PR #$PR is $state; only an open PR gets a test build"
+          [ "$cross" = false ] || fail "PR #$PR comes from another repository; refusing"
+          [ "$current" = "$HEAD" ] || fail "PR #$PR moved from the planned head $HEAD to $current"
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           ref: ${{ needs.plan.outputs.head }}

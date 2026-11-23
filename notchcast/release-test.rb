@@ -193,15 +193,27 @@ Dir.mktmpdir('test-build-plan-') do |directory|
   end
   File.write(script, verify_step.fetch('run'))
   version = '0.12.7.pr7.abcdef01'
-  [['still open at the planned commit', pr.(), head, version, true],
-   ['closed after planning', pr.(state: 'CLOSED'), head, version, false],
-   ['fork reported by GitHub', pr.(cross: true), head, version, false],
-   ['different commit from GitHub', pr.(), '0' * 40, '0.12.7.pr7.00000000', false],
-   ['unexpected version', pr.(), head, '0.12.7.pr9.abcdef01', false]].each do |name, json, sha, planned_version, ok|
-    env = {'PATH' => "#{directory}/bin:#{ENV.fetch('PATH')}", 'PR' => '7', 'PR_JSON' => json,
-           'HEAD' => sha, 'VERSION' => planned_version, 'GITHUB_REPOSITORY' => 'owner/repo'}
+  beta_head = '05f7006571f7610675a50b34a2d3e89310b36521'
+  beta = '0.13.0-beta.145.pr1436.05f70065'
+  [['still open at the planned commit', '7', pr.(), head, version, nil],
+   ['beta snapshot base', '1436', pr.().sub(head, beta_head), beta_head, beta, nil],
+   ['closed after planning', '7', pr.(state: 'CLOSED'), head, version, 'is CLOSED'],
+   ['fork reported by GitHub', '7', pr.(cross: true), head, version, 'another repository'],
+   ['different commit from GitHub', '7', pr.(), '0' * 40, '0.12.7.pr7.00000000', 'moved from the planned head'],
+   ['no answer from GitHub', '7', '', head, version, 'could not read PR #7'],
+   ['not a number', '7; true', pr.(), head, version, 'must be a PR number'],
+   ['head is not a commit id', '7', pr.(), 'abcdef01', version, 'is not a commit id'],
+   ['unexpected version', '7', pr.(), head, '0.12.7.pr9.abcdef01', 'planned version'],
+   ['beta version of another PR', '1437', pr.().sub(head, beta_head), beta_head, beta, 'planned version'],
+   ['beta version of another head', '1436', pr.(), head, beta, 'planned version'],
+   ['snapshot version', '7', pr.(), head, '0.12.7.snapshot.20261108000000.pr7.abcdef01', 'planned version']
+  ].each do |name, number, json, sha, planned, error|
+    env = {'PATH' => "#{directory}/bin:#{ENV.fetch('PATH')}", 'PR' => number, 'PR_JSON' => json,
+           'HEAD' => sha, 'VERSION' => planned, 'GITHUB_REPOSITORY' => 'owner/repo'}
     output, status = Open3.capture2e(env, 'bash', '-eo', 'pipefail', script, chdir: directory)
-    assert(status.success? == ok, "test-build verification, #{name}: #{output}")
+    assert(status.success? == error.nil?, "test-build verification, #{name}: #{output}")
+    assert(error.nil? || output.match?(/^::error::.*#{Regexp.escape(error)}/),
+           "test-build verification, #{name}: no ::error:: naming '#{error}': #{output}")
     puts "PASS test-build verification: #{name}"
   end
 end
