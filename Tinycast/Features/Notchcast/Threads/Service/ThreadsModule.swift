@@ -64,7 +64,11 @@ final class ThreadsModule: NotchcastModule {
         reading?.cancel()
         let task = Task { [weak self] in
             let read = await ThreadsFile.read(url)
-            guard let self, !Task.isCancelled, current == generation else { return }
+            guard let self else { return }
+            guard !Task.isCancelled, current == generation else {
+                await reading?.value
+                return
+            }
             apply(read)
         }
         reading = task

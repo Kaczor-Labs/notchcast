@@ -8,7 +8,7 @@ import SwiftUI
 enum ThreadsAddon: NotchcastAddon {
     static let switches = [
         NotchcastSwitch(
-            id: ThreadsPreferences.switchID,
+            id: "threads",
             title: String(localized: "Threads page", table: "NotchcastThreads"),
             subtitle: String(
                 localized: "Announces each thread that starts waiting on you once, and lists them on a page in the island.",
