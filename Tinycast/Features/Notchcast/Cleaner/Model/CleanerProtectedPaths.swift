@@ -1,6 +1,6 @@
 // Adapted from Dragos Tugui's Peel, ProtectedData.swift and SystemFolders.swift @ 20230794 (GPL-3.0).
 // The Apple cache names also draw on RemoveMacAI, Storage.swift @ 12cef18 (MIT).
-// E5RT safety rule from tw93 and Mole contributors, lib/core/app_protection.sh @ f3804188 (GPL-3.0).
+// E5RT and Codex rules from tw93 and Mole contributors, lib/core/app_protection.sh @ f3804188 (GPL-3.0).
 import Foundation
 
 enum CleanerProtectedPaths {
@@ -40,8 +40,12 @@ enum CleanerProtectedPaths {
             || (folded.hasPrefix("aaprofilepicture_") && folded.hasSuffix(".png"))
     }
 
+    static func isCodexLog(_ url: URL) -> Bool {
+        (url.path.lowercased() + "/").contains("/library/logs/com.openai.codex/")
+    }
+
     static func isProtected(_ url: URL) -> Bool {
-        protectedNames.contains(url.lastPathComponent.lowercased())
+        isCodexLog(url) || protectedNames.contains(url.lastPathComponent.lowercased())
             || protectedExtensions.contains(url.pathExtension.lowercased())
     }
 }

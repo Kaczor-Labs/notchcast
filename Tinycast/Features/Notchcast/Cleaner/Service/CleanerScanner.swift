@@ -3,6 +3,7 @@ import Foundation
 
 struct CleanerScanner: Sendable {
     let fileSystem: any CleanerFileSystem
+    var readGroups: @Sendable (URL) -> [String] = CleanerRunningApps.applicationGroups
     var clock: @Sendable () -> Date = { .now }
     var monotonic: @Sendable () -> ContinuousClock.Instant = { .now }
 
@@ -16,6 +17,7 @@ struct CleanerScanner: Sendable {
     ) async throws -> CleanerPlan {
         try Task.checkCancellation()
         let extra = try additionalAreas(home: home)
+        let appsWithGroups = extra.areas.contains(where: \.isSharedContainer) ? apps.includingGroups(read: readGroups) : apps
         var items = extra.blocked
         var snapshots: [URL: CleanerSnapshot] = [:]
         var seenRoots: Set<URL> = []
@@ -24,9 +26,10 @@ struct CleanerScanner: Sendable {
 
         for area in CleanerArea.userAreas(home: home) + extra.areas where seenRoots.insert(area.root).inserted {
             try Task.checkCancellation()
+            let areaApps = area.isSharedContainer ? appsWithGroups : apps
             let candidates: [URL]
             do {
-                candidates = try candidateURLs(in: area, apps: apps)
+                candidates = try candidateURLs(in: area, apps: areaApps)
             } catch CleanerFileError.missing {
                 continue
             } catch {
@@ -49,7 +52,7 @@ struct CleanerScanner: Sendable {
                     let snapshot = try snapshot(of: url, in: area)
                     let size = MeasuredSize(bytes: snapshot.entries.values.reduce(0) { $0 + $1.size })
                     let standing: CleanerItem.Standing
-                    if let reason = hold(for: url, in: area, snapshot: snapshot, apps: apps) {
+                    if let reason = hold(for: url, in: area, snapshot: snapshot, apps: areaApps) {
                         standing = .heldBack(reason)
                     } else if area.kind != .caches,
                         let reason = openFileHold(in: snapshot, openFiles: openFiles)
@@ -169,6 +172,7 @@ struct CleanerScanner: Sendable {
     func hold(
         for url: URL, in area: CleanerArea, snapshot: CleanerSnapshot, apps: CleanerRunningApps
     ) -> CleanerHoldBack? {
+        if area.kind == .mailDownloads { return .mailDownloadMayContainEdits }
         if apps.holds(area.ownerName(of: url)) { return .runningApp }
         let now = clock()
         if snapshot.entries.values.contains(where: { now.timeIntervalSince($0.modified) < area.minimumAge }) {
@@ -193,7 +197,8 @@ struct CleanerScanner: Sendable {
         case .caches:
             return CleanerProtectedPaths.isAppleCache(name) || Self.browserCacheParents.contains(folded)
         case .logs:
-            return !area.filesOnly && (folded == "diagnosticreports" || (area.owner == nil && folded == "homebrew"))
+            return CleanerProtectedPaths.isCodexLog(url)
+                || (!area.filesOnly && (folded == "diagnosticreports" || (area.owner == nil && folded == "homebrew")))
         case .savedState:
             return url.pathExtension != "savedState"
                 || CleanerProtectedPaths.isAppleCache(url.deletingPathExtension().lastPathComponent)

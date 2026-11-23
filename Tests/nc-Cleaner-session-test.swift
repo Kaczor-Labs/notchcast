@@ -6,6 +6,7 @@
 // notchcast-sources: Tests/nc-Cleaner-fixture.swift
 
 import Dispatch
+import Synchronization
 
 private enum CleanerScanTask {
     @TaskLocal static var first = false
@@ -53,19 +54,23 @@ struct CleanerSessionTest {
 
     private static func checksCancellationAndReopen() async {
         let releaseFirstScan = DispatchSemaphore(value: 0)
+        let started = Mutex(false)
+        let (starts, signalStart) = AsyncStream<Void>.makeStream()
         let fs = CleanerTestFileSystem { url in
-            // Keep the first scan in flight until the next open reaches the session.
-            if CleanerScanTask.first, url.path == "/" { releaseFirstScan.wait() }
+            guard CleanerScanTask.first, url.path == "/" else { return }
+            let isFirstInspection = started.withLock { started in
+                let wasStarted = started
+                started = true
+                return !wasStarted
+            }
+            guard isFirstInspection else { return }
+            signalStart.yield(())
+            releaseFirstScan.wait()
         }
         let item = CleanerTestFileSystem.item("org.example.reopened")
         fs.put(item, size: 32)
-        let (starts, signalStart) = AsyncStream<Void>.makeStream()
         let runner = CleanerRunner(scanner: fs.scanner, runningApps: {
-            if CleanerScanTask.first {
-                signalStart.yield(())
-            } else {
-                releaseFirstScan.signal()
-            }
+            if !CleanerScanTask.first { releaseFirstScan.signal() }
             return .init()
         })
         let session = CleanerSession(home: CleanerTestFileSystem.area.home, runner: runner, hasAccess: { true })
@@ -77,7 +82,6 @@ struct CleanerSessionTest {
         _ = await events.next()
         first.cancel()
         await session.open()
-        releaseFirstScan.signal()
         await first.value
         signalStart.finish()
 

@@ -19,3 +19,4 @@ Cleaner: Model/CleanerProtectedPaths.swift ← tw93/Mole@f3804188/lib/core/app_p
 Cleaner: Service/CleanerBrowserVersions.swift ← tw93/Mole@f3804188/lib/clean/user.sh (GPL-3.0)
 Cleaner: Service/CleanerUserAreas.swift ← TuguiDragos/Peel@20230794/Packages/PeelCore/Sources/PeelCore/Space/SpaceReport.swift (GPL-3.0)
 Cleaner: Service/CleanerUserAreas.swift ← tw93/Mole@f3804188/lib/clean/user.sh (GPL-3.0)
+Cleaner: Service/CleanerRunningApps.swift ← TuguiDragos/Peel@20230794/Packages/PeelCore/Sources/PeelCore/Apps/AppInspector.swift (GPL-3.0)

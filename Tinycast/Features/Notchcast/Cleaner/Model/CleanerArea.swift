@@ -37,7 +37,11 @@ struct CleanerArea: Sendable, Equatable {
         ]
     }
 
-    var needsOptIn: Bool { kind == .mailDownloads || kind == .savedState || kind == .browserVersions }
+    var needsOptIn: Bool { kind == .savedState || kind == .browserVersions }
+
+    var isSharedContainer: Bool {
+        kind == .containerCaches && root.path.hasPrefix(home.path + "/Library/Group Containers/")
+    }
 
     var minimumAge: TimeInterval {
         // BSD find's -mtime +30 starts matching after 31 full days.

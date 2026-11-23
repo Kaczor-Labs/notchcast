@@ -54,11 +54,17 @@ struct CleanerRunner: Sendable {
                 openFiles.identities = try scanner.fileSystem.openFiles()
                 openFiles.expires = started.advanced(by: .seconds(1))
             }
-            let currentApps = area.kind == .caches ? apps : await runningApps()
+            let refreshAfterWalk = area.kind == .browserVersions
+            let latestApps = area.kind == .caches || refreshAfterWalk ? apps : await runningApps()
+            let appsBeforeWalk = area.isSharedContainer ? latestApps.includingGroups(read: scanner.readGroups) : latestApps
             let current = try scanner.snapshot(of: url, in: area)
             guard current == scanned else { return .skipped(.changed) }
             if current.entries.values.contains(where: { openFiles.identities.contains($0.identity) }) {
                 return .skipped(.heldBack(.openFile))
+            }
+            let currentApps = refreshAfterWalk ? await runningApps() : appsBeforeWalk
+            if scanner.isExcluded(url, in: area, ownNames: currentApps.own) {
+                return .skipped(.heldBack(.protectedData))
             }
             if let reason = scanner.hold(for: url, in: area, snapshot: current, apps: currentApps) {
                 return .skipped(.heldBack(reason))

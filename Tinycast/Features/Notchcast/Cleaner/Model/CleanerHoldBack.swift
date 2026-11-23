@@ -7,6 +7,7 @@ enum CleanerHoldBack: Error, Equatable, Sendable {
     case openFile
     case recentWrite
     case recentSavedState
+    case mailDownloadMayContainEdits
     case activeBrowserVersion
     case unreadable
     case scanLimit
