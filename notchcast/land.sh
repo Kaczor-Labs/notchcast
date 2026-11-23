@@ -446,6 +446,18 @@ isolated_proof() {
     proof=$url
     isolated=1
 }
+# Prints skipped when no green PR run of the train recorded a tested tree (pr.yml, build: its build lane was off).
+train_record() {
+    local id ids steps=
+    ids=$(gh api "repos/$FORK_REPO/actions/runs?head_sha=$train_run&per_page=100" \
+        --jq '.workflow_runs[] | select(.path == ".github/workflows/pr.yml" and .conclusion == "success") | .id') || return 0
+    [ -n "$ids" ] || return 0
+    for id in $ids; do
+        steps+=$(gh api "repos/$FORK_REPO/actions/runs/$id/jobs?per_page=100" \
+            --jq '[.jobs[] | select(.name == "build") | .steps[] | select(.name == "Record the tested tree") | .conclusion] | if . == ["skipped"] then "" else "recorded" end') || return 0
+    done
+    [ -n "$steps" ] || echo skipped
+}
 refuse_unprovable() {
     local blocked=$1 base_lists=$2 merged_lists=$3 pr selected detail= index commit added
     if [ "$check" -eq 0 ]; then
@@ -497,6 +509,9 @@ harnesses() {
         || unproven=$(grep -xF -f <(tr ' ' '\n' <<< "$HOSTED_ONLY_TESTS") "$scratch/selected" | paste -sd' ' - || true)
     [ "$check" -eq 1 ] || proof=$(python3 "$(dirname "$selector")/ci.py" tested-run HEAD) || proof=
     [ "$check" -eq 1 ] || [ -n "$proof" ] || isolated_proof
+    # Only the record says what a self-hosted Mac job skipped: one this train made and land.sh cannot read proves nothing.
+    [ -z "$covered" ] || [ -n "$proof" ] || [ "$(train_record)" = skipped ] \
+        || refuse "train ${train_run:0:8} recorded the tree it tested, and that record cannot be read (expired, or the lookup or the download failed), so nothing says which harnesses its Mac job skipped: run notchcast/train.sh ${train[*]} again"
     [ -z "$unproven" ] || [ "$check" -eq 1 ] || [ -n "$proof" ] \
         || refuse "hosted-only harnesses are selected and no hosted run tested this tree: $unproven; this machine never runs them (HOSTED_ONLY_TESTS, notchcast/config.env): land on a train run that ran hosted (notchcast/train.sh ${train[*]})"
     # A covered train run tested this exact tree on GitHub; only the harnesses its hosted runner skips are left.

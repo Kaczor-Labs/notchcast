@@ -87,6 +87,8 @@ jobs:
       - name: Regenerate project
         working-directory: src
         run: '"$XCODEGEN" generate --quiet'
+      # Only the two hosted proofs of the whole suite count, Sync's own and a PR build's that Sync reused (ci.py):
+      # after any other description, a self-hosted run's too, the harnesses run here.
       - name: Find a green tested status
         id: tested
         env:
@@ -94,9 +96,13 @@ jobs:
           MAIN: ${{ needs.plan.outputs.main }}
         run: |
           source tools/notchcast/config.env
-          state=$(gh api "repos/$GITHUB_REPOSITORY/commits/$MAIN/status" \
-            --jq "[.statuses[] | select(.context == \"$TESTED_CONTEXT\")][0].state // empty") || state=
-          echo "green=$([ "$state" = success ] && echo true || echo false)" >> "$GITHUB_OUTPUT"
+          proof=$(gh api "repos/$GITHUB_REPOSITORY/commits/$MAIN/status" \
+            --jq "[.statuses[] | select(.context == \"$TESTED_CONTEXT\")][0] | select(.state == \"success\") | .description") || proof=
+          case "$proof" in
+            'Debug build and upstream tests green'|'Tree built and tested green by a PR build') green=true ;;
+            *) green=false ;;
+          esac
+          echo "green=$green" >> "$GITHUB_OUTPUT"
       - uses: ./tools/notchcast/actions/tests
         id: tests
         if: steps.tested.outputs.green != 'true'

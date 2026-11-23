@@ -50,7 +50,12 @@ case "$*" in
         sha=$*
         sha=${sha#*head_sha=}
         [ ! -e "$FIXTURE/workflow-runs-fail-${sha%%&*}" ] || { echo '{"message":"Server Error","status":"502"}'; exit 1; }
-        jq -r "${*: -1}" "$FIXTURE/workflow-runs-${sha%%&*}" ;;
+        # A head without a listing has one green PR run, 9, as a train's tip has.
+        if [ -e "$FIXTURE/workflow-runs-${sha%%&*}" ]; then jq -r "${*: -1}" "$FIXTURE/workflow-runs-${sha%%&*}"
+        else jq -n '{workflow_runs: [{id: 9, path: ".github/workflows/pr.yml", conclusion: "success"}]}' | jq -r "${*: -1}"; fi ;;
+    # RECORDED: run 9's build job recorded a tested tree, as a run with the build lane does; unset, it skipped that step.
+    *actions/runs/9/jobs*)
+        jq -n --arg step "${RECORDED:+success}" '{jobs: [{name: "build", steps: [{name: "Record the tested tree", conclusion: ($step | if . == "" then "skipped" else . end)}]}]}' | jq -r "${*: -1}" ;;
     *check-runs*)
         sha=$*
         sha=${sha#*commits/}
@@ -97,6 +102,7 @@ case "$*" in
     *'artifacts?name=tested-tree-isolated-'*) if [ -n "${ISOLATED:-}" ]; then echo '{"artifacts":[{"workflow_run":{"id":8}}]}'; else echo '{"artifacts":[]}'; fi ;;
     *actions/runs/8*) printf '{"id":8,"name":"PR","path":".github/workflows/pr.yml","conclusion":"success","repository":{"id":5},"head_repository":{"id":5,"full_name":"%s"},"html_url":"https://fixture.invalid/runs/8"}\n' "$FORK_REPO" ;;
     'run download 8 '*)
+        [ -z "${DOWNLOAD_FAILS:-}" ] || { echo 'HTTP 502' >&2; exit 1; }
         echo "${ISOLATED%%|*}" > "${*: -1}/toolchain"
         echo "${ISOLATED#*|}" > "${*: -1}/excused" ;;
     # MAC_RUNNER: the repository's runner of that label, online unless OFFLINE; POOL: the organization's, through the real --jq.
@@ -650,6 +656,23 @@ git switch --quiet main
 POOL=mac-pool pool_train
 on_pool 'a train that changes a macOS script test input stayed off the pool, which runs those tests'
 echo 'PASS: a train that changes a macOS script test or a file one names goes to the pool, which runs them'
+# A pool train recorded its tree: with that record gone or unreadable nothing says what the pool skipped, so no landing.
+fixture
+open_pr 1 pr-b 'Add B' src/b.txt
+POOL=mac-pool pool_train
+on_pool 'a train of app code stayed off the pool'
+echo "$train_sha" > "$FIXTURE/green"
+for lost in ISOLATED= 'ISOLATED=fixture toolchain|'; do
+    export RECORDED=1 DOWNLOAD_FAILS=1 "$lost"
+    land --train-run "$train_sha" 1
+    [ "$status" -eq 1 ] && grep -q "^REFUSED: train ${train_sha:0:8} recorded the tree it tested, and that record cannot be read" "$FIXTURE/output" \
+        && untouched && [ ! -s "$PASSES" ] || fail "a pool train whose record is missing or unreadable (${lost%%=*}='${lost#*=}') landed as a hosted one"
+done
+unset DOWNLOAD_FAILS
+land --train-run "$train_sha" 1
+[ "$status" -eq 0 ] && [ ! -s "$PASSES" ] && [ "$(landed)" = 'Notchcast: Add B (#1)' ] || fail "a pool train with its record landed '$(landed)'"
+unset RECORDED ISOLATED
+echo 'PASS: a pool train lands on its record, and is refused while that record is missing or unreadable'
 
 fixture
 open_pr 1 pr-b 'Add B' src/b.txt
