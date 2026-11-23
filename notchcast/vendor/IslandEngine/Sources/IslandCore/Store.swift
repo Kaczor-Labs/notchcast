@@ -483,10 +483,12 @@ public final class IslandStore<Content>: SequenceIsland {
         recordCall?(.end(id))
         flushPending(id)
         guard let ending = snapshot.activities.first(where: { sameString($0.id, id) }) else { return }
-        let expanded = sameString(snapshot.expanded?.id, id) ? nil : snapshot.expanded
+        let wasExpanded = sameString(snapshot.expanded?.id, id)
+        let expanded = wasExpanded ? nil : snapshot.expanded
         // An activity handed to mid-handoff that ends calls the handoff off.
         let handingTo = ending.group.map { sameString(snapshot.handoff, $0) && sameString(snapshot.front[$0], id) } ?? false
-        if expanded == nil || handingTo { clearAlert() }
+        // A pending handoff has no expanded activity yet.
+        if wasExpanded || handingTo { clearAlert() }
         commit {
             $0.activities.removeAll { sameString($0.id, id) }
             $0.expanded = expanded
