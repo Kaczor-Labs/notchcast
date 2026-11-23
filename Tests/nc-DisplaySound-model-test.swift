@@ -89,6 +89,10 @@ enum DisplaySoundModelTests {
         check(DisplayDDC.parse(corrupt, .luminance) == nil, "bad checksum dropped")
         check(DisplayDDC.deviceValue(-0.2, maximum: 100) == 0, "extra dimming writes 0")
         check(DisplayDDC.deviceValue(0.5, maximum: 80) == 40, "scaled to the monitor's maximum")
+        check(DisplayDDC.chip(providerClass: "AppleDCPMCDP29XX") == 0xB7,
+              "a monitor on the built-in HDMI port is addressed through its converter")
+        check(DisplayDDC.chip(providerClass: "DCPDP13Service") == 0x37 && DisplayDDC.chip(providerClass: nil) == 0x37,
+              "every other monitor keeps the standard DDC address")
         check(BrightnessRecoveryPolicy.channelOutcome(writeAccepted: true, reply: nil) == .writeOnly, "write-only")
         check(BrightnessRecoveryPolicy.channelOutcome(writeAccepted: false, reply: nil) == .dead, "dead")
         check(BrightnessRecoveryPolicy.channelOutcome(writeAccepted: false, reply: (1, 2)) == .live(current: 1, maximum: 2),
