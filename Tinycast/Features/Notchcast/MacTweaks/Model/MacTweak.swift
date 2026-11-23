@@ -43,7 +43,6 @@ struct MacTweak: Identifiable, Sendable {
     let group: MacTweakGroup
     let changes: [MacTweakChange]
     var restarts: Set<MacTweakRestart> = []
-    var presets: Set<MacTweakPreset> = []
     var since = OperatingSystemVersion(majorVersion: 26, minorVersion: 0, patchVersion: 0)
 
     func isSupported(on version: OperatingSystemVersion) -> Bool {
@@ -52,11 +51,11 @@ struct MacTweak: Identifiable, Sendable {
     }
 }
 
-enum MacTweakHeldElsewhere: Equatable, Sendable {
+enum MacTweakHeldElsewhere: Codable, Equatable, Sendable {
     case thisMac, everyApp, everyAccount
 }
 
-enum MacTweakState: Equatable, Sendable {
+enum MacTweakState: Codable, Equatable, Sendable {
     case applied, notApplied, partial, managed, unsupported
     case heldElsewhere(MacTweakHeldElsewhere)
     case unavailable

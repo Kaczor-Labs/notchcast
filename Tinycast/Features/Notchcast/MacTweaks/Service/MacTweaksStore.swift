@@ -18,7 +18,6 @@ final class MacTweaksStore {
 
     private enum Request: Sendable {
         case set(MacTweak.ID, Bool)
-        case preset(MacTweakPreset)
         case undoEverything
     }
 
@@ -42,10 +41,6 @@ final class MacTweaksStore {
 
     func set(_ id: MacTweak.ID, on: Bool) async throws -> [Issue] {
         try await perform(.set(id, on))
-    }
-
-    func runPreset(_ preset: MacTweakPreset) async throws -> [Issue] {
-        try await perform(.preset(preset))
     }
 
     func undoEverything() async throws -> [Issue] {
@@ -140,50 +135,44 @@ final class MacTweaksStore {
             switch request {
             case .set(let id, let on):
                 guard let tweak = catalogue.first(where: { $0.id == id }) else { throw Failure.unknownTweak }
-                let snapshot = snapshot([tweak], journal: journal, system: system)
-                if let block = snapshot.states[id], !block.canChange {
-                    issues.append(.blocked(id, block))
+                let state = state(of: tweak, system: system)
+                guard state.canChange else {
+                    issues.append(.blocked(id, state))
                     return
                 }
-                try execute(MacTweakPlan.make(
-                    wanted: on ? [id] : [], catalogue: [tweak], snapshot: snapshot, undo: on ? [] : [id]
-                ))
-            case .preset(let preset):
-                let snapshot = snapshot(catalogue, journal: journal, system: system)
-                let wanted = preset.wanted(in: catalogue)
-                for id in wanted.sorted() {
-                    if let state = snapshot.states[id], !state.canChange {
-                        issues.append(.blocked(id, state))
+                if on, state != .applied {
+                    for change in tweak.changes {
+                        if let (target, value) = change.localWrite {
+                            try apply(tweak, target: target, value: value)
+                        }
                     }
+                } else if !on {
+                    try setOff(tweak, state: state)
                 }
-                let selected = catalogue.filter { wanted.contains($0.id) }
-                try execute(MacTweakPlan.make(wanted: wanted, catalogue: selected, snapshot: snapshot))
             case .undoEverything:
                 for entry in journal.restoreAll() { try restore(entry) }
             }
         }
 
-        mutating func execute(_ plan: MacTweakPlan) throws {
-            let recorded = Set(journal.entries.map(\.target))
-            for entry in journal.restoreAll() where plan.restore.contains(entry.tweakID) {
+        mutating func setOff(_ tweak: MacTweak, state: MacTweakState) throws {
+            let recorded = journal.restoreAll().filter { $0.tweakID == tweak.id }
+            for entry in recorded where entry.target != .libraryHidden || entry.written != .bool(true) {
                 try restore(entry, includingRemovals: false)
             }
-            for tweak in plan.clear {
-                for change in tweak.changes {
-                    guard let (target, value) = change.localWrite, case .preference = target,
-                          !recorded.contains(target) else { continue }
-                    try Task.checkCancellation()
-                    guard let reading = writableReading(target, tweakID: tweak.id),
-                          value.matches(reading.stored) else { continue }
-                    try recordAndWrite(tweak, target: target, value: nil, previous: reading.stored)
+            guard state == .applied || state == .partial else { return }
+            let recordedTargets = Set(recorded.map(\.target))
+            for change in tweak.changes {
+                guard let (target, value) = change.localWrite, !recordedTargets.contains(target) else { continue }
+                let offValue: MacTweakValue?
+                switch target {
+                case .preference: offValue = nil
+                case .libraryHidden: offValue = .bool(true)
+                case .service: continue
                 }
-            }
-            for tweak in plan.apply {
-                for change in tweak.changes {
-                    if let (target, value) = change.localWrite {
-                        try apply(tweak, target: target, value: value)
-                    }
-                }
+                try Task.checkCancellation()
+                guard let reading = writableReading(target, tweakID: tweak.id),
+                      value.matches(reading.stored) else { continue }
+                try recordAndWrite(tweak, target: target, value: offValue, previous: reading.stored)
             }
         }
 
@@ -191,7 +180,12 @@ final class MacTweaksStore {
             try Task.checkCancellation()
             guard let reading = writableReading(target, tweakID: tweak.id),
                   !value.matches(reading.effective) else { return }
-            try recordAndWrite(tweak, target: target, value: value, previous: reading.stored)
+            if let entry = journal.entries.first(where: { $0.target == target && $0.tweakID == tweak.id }),
+               entry.owns(reading.stored), value.matches(entry.previous) {
+                try restore(entry)
+            } else {
+                try recordAndWrite(tweak, target: target, value: value, previous: reading.stored)
+            }
         }
 
         mutating func recordAndWrite(

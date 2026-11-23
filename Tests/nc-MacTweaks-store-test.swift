@@ -89,13 +89,12 @@ struct MacTweaksStoreTest {
         }
         let catalogue = [
             MacTweak(id: "path", group: .finder, changes: [.preference(pathBar, .bool(true))],
-                     restarts: [.finder], presets: [.recommended]),
+                     restarts: [.finder]),
             MacTweak(id: "status", group: .finder, changes: [.preference(statusBar, .bool(true))],
-                     restarts: [.finder], presets: [.recommended]),
+                     restarts: [.finder]),
             MacTweak(id: "locked", group: .finder, changes: [.preference(locked, .bool(true))]),
             MacTweak(id: "inherited", group: .finder, changes: [.preference(inherited, .bool(true))]),
-            MacTweak(id: "media-keys", group: .annoyances, changes: [.service("com.example.media-keys")],
-                     presets: [.maximumPrivacy]),
+            MacTweak(id: "media-keys", group: .annoyances, changes: [.service("com.example.media-keys")]),
         ]
 
         let (started, signal) = AsyncStream.makeStream(of: Void.self)
@@ -116,9 +115,9 @@ struct MacTweaksStoreTest {
         var reachedRestart = started.makeAsyncIterator()
         let running = Task {
             defer { signal.finish() }
-            return try await store.runPreset(.maximumPrivacy)
+            return try await store.set("path", on: true)
         }
-        guard await reachedRestart.next() != nil else { preconditionFailure("Preset did not reach its restart") }
+        guard await reachedRestart.next() != nil else { preconditionFailure("Finder change did not reach its restart") }
         precondition(store.isBusy)
         do {
             _ = try await store.undoEverything()
@@ -132,6 +131,9 @@ struct MacTweaksStoreTest {
         let applied = try await running.value
         precondition(applied.isEmpty)
         precondition(!store.isBusy)
+        let statusApplied = try await store.set("status", on: true)
+        let serviceApplied = try await store.set("media-keys", on: true)
+        precondition(statusApplied.isEmpty && serviceApplied.isEmpty)
         let after = try await store.snapshot()
         precondition(after.applied == ["path", "status", "media-keys"])
         precondition(after.states["locked"] == .managed)
@@ -151,10 +153,10 @@ struct MacTweaksStoreTest {
         precondition(rowRestored.isEmpty)
         fake.state.withLock {
             precondition($0.values[pathBar] == start[pathBar])
-            precondition($0.restarts == [.finder, .finder])
+            precondition($0.restarts == [.finder, .finder, .finder])
             $0.restarts.removeAll()
         }
-        let reapplied = try await restoreStore.runPreset(.recommended)
+        let reapplied = try await restoreStore.set("path", on: true)
         precondition(reapplied.isEmpty)
         fake.state.withLock { $0.restarts.removeAll() }
 
@@ -166,8 +168,9 @@ struct MacTweaksStoreTest {
             precondition(!$0.writes.contains(locked) && !$0.writes.contains(inherited))
         }
 
-        let beforeFailure = try await restoreStore.runPreset(.recommended)
-        precondition(beforeFailure.isEmpty)
+        let beforeFailure = try await restoreStore.set("path", on: true)
+        let secondChange = try await restoreStore.set("status", on: true)
+        precondition(beforeFailure.isEmpty && secondChange.isEmpty)
         fake.state.withLock {
             $0.values[pathBar] = .integer(1)
             $0.refuseWrites.insert(statusBar)
@@ -225,12 +228,85 @@ struct MacTweaksStoreTest {
         try corrupt.write(to: fake.journalFile)
         let writesBeforeCorruption = fake.state.withLock { $0.writes.count }
         do {
-            _ = try await restoreStore.runPreset(.recommended)
+            _ = try await restoreStore.set("path", on: true)
             preconditionFailure("Corruption must block the batch")
         } catch MacTweaksStore.Failure.corruptJournal {}
         let afterCorruption = try Data(contentsOf: fake.journalFile)
         precondition(afterCorruption == corrupt)
         precondition(fake.state.withLock { $0.writes.count } == writesBeforeCorruption)
-        print("Mac Tweaks store passed")
+        let finderFolder = folder.appending(path: "finder")
+        try await checkFinderCatalogue(in: finderFolder)
+        print("Mac Tweaks store and Finder catalogue passed")
+    }
+    @MainActor
+    private static func checkFinderCatalogue(in folder: URL) async throws {
+        let finder = MacTweakCatalog.finder
+        let ids = finder.map(\.id)
+        precondition(ids == [
+            "file-extensions", "hidden-files", "path-bar", "status-bar", "folders-first",
+            "search-this-folder", "extension-warning", "path-in-title", "network-ds-store",
+            "trash-30-days", "save-locally", "expanded-save", "show-library",
+        ])
+        precondition(finder.allSatisfy { $0.group == .finder && $0.changes.count == 1 })
+        let targets = finder.flatMap(\.changes).compactMap { $0.localWrite?.target }
+        precondition(Set(targets).count == finder.count)
+
+        let fake = FakeSystem(folder: folder)
+        let initial: [MacTweakTarget: MacTweakValue] = [
+            .preference(domain: "com.apple.finder", key: "ShowPathbar"): .integer(0),
+            .preference(domain: "com.apple.finder", key: "FXDefaultSearchScope"): .string("SCev"),
+            .libraryHidden: .bool(true),
+        ]
+        fake.state.withLock { $0.values = initial }
+        let module = MacTweaksModule(catalogue: finder, system: fake.make())
+        module.start()
+        let initialSnapshot = try await module.store.snapshot()
+        precondition(initialSnapshot.applied.isEmpty)
+        for tweak in finder {
+            let issues = try await module.store.set(tweak.id, on: true)
+            let snapshot = try await module.store.snapshot()
+            precondition(issues.isEmpty)
+            precondition(snapshot.states[tweak.id] == .applied && snapshot.journaled.contains(tweak.id))
+        }
+        let enabled = try await module.store.snapshot()
+        precondition(enabled.applied == Set(ids))
+        precondition(fake.state.withLock { $0.writes } == targets)
+
+        for tweak in finder {
+            let issues = try await module.store.set(tweak.id, on: false)
+            let snapshot = try await module.store.snapshot()
+            precondition(issues.isEmpty && snapshot.states[tweak.id] == .notApplied)
+        }
+        precondition(fake.state.withLock { $0.values } == initial)
+
+        for tweak in finder {
+            let issues = try await module.store.set(tweak.id, on: true)
+            precondition(issues.isEmpty)
+        }
+        module.stop()
+        fake.state.withLock { $0.restarts.removeAll() }
+        let reopened = MacTweaksModule(catalogue: finder, system: fake.make())
+        reopened.start()
+        let undoIssues = try await reopened.store.undoEverything()
+        let restored = try await reopened.store.snapshot()
+        precondition(undoIssues.isEmpty && restored.applied.isEmpty && restored.journaled.isEmpty)
+        fake.state.withLock {
+            precondition($0.values == initial)
+            precondition($0.restarts == [.finder])
+            $0.values[.libraryHidden] = .bool(false)
+        }
+        for _ in 0..<2 {
+            let issues = try await reopened.store.set("show-library", on: false)
+            precondition(issues.isEmpty)
+            precondition(fake.state.withLock { $0.values[.libraryHidden] } == .bool(true))
+        }
+        let showAgain = try await reopened.store.set("show-library", on: true)
+        let shown = try await reopened.store.snapshot()
+        precondition(showAgain.isEmpty && shown.states["show-library"] == .applied && shown.journaled.isEmpty)
+        let hideAgain = try await reopened.store.set("show-library", on: false)
+        precondition(hideAgain.isEmpty)
+        let undoHide = try await reopened.store.undoEverything()
+        precondition(undoHide.isEmpty)
+        precondition(fake.state.withLock { $0.values[.libraryHidden] } == .bool(false))
     }
 }
