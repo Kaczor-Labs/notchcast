@@ -5,17 +5,22 @@ import Foundation
 final class ThreadsModule: NotchcastModule {
     let context: NotchcastContext
     private let openURL: @MainActor (URL) -> Void
+    private let sleep: @MainActor (Duration) async throws -> Void
     private var watcher: ThreadsWatcher?
     private var document: ThreadsDocument?
     private var configured = false
+    private var readFailed = false
+    private var expiry: Task<Void, Never>?
     private var reading: Task<Void, Never>?
     private var generation = 0
     private var rows: [ThreadsDocument.Wait] = []
     private var commandSlugs: [String] = []
 
-    init(context: NotchcastContext, open: @escaping @MainActor (URL) -> Void) {
+    init(context: NotchcastContext, open: @escaping @MainActor (URL) -> Void,
+         sleep: @escaping @MainActor (Duration) async throws -> Void = { try await Task.sleep(for: $0) }) {
         self.context = context
         openURL = open
+        self.sleep = sleep
     }
 
     private var preferences: ThreadsPreferences { ThreadsPreferences(defaults: context.defaults) }
@@ -31,6 +36,8 @@ final class ThreadsModule: NotchcastModule {
     func stop() {
         reading?.cancel()
         reading = nil
+        expiry?.cancel()
+        expiry = nil
         watcher?.cancel()
         watcher = nil
         context.presenter.watchPages(id: ThreadsPage.id, onChange: nil)
@@ -81,29 +88,37 @@ final class ThreadsModule: NotchcastModule {
         openURL(url)
     }
 
-    /// A missing or broken read keeps the last good list, which then ages into "not reporting".
+    /// A missing or broken read keeps the last good list, shown at once as "not reporting".
     private func apply(_ read: ThreadsRead) {
         switch read {
         case .unset:
             configured = false
+            readFailed = false
             document = nil
         case .missing, .unreadable:
             configured = true
+            readFailed = true
         case .loaded(let loaded):
             configured = true
+            readFailed = false
             document = loaded
         }
         announce()
         post()
     }
 
-    private var board: ThreadsBoard { ThreadsBoard(configured: configured, document: document, now: context.now()) }
+    private var board: ThreadsBoard {
+        ThreadsBoard(configured: configured, document: document, now: context.now(), readFailed: readFailed)
+    }
 
     private func announce() {
-        var shown = preferences.shown
-        let fresh = shown.take(board.announceable)
+        let board = board
+        guard let document = board.document, !board.readFailed else { return }
+        let before = preferences.shown
+        var shown = before
+        let fresh = shown.take(board.announceable, present: document.waits)
+        if shown != before { preferences.shown = shown }
         guard !fresh.isEmpty else { return }
-        preferences.shown = shown
         for (notice, wait) in ThreadsPage.notices(fresh) {
             let link = wait.flatMap(ThreadsLink.url)
             context.presenter.post(notice) { [weak self] in
@@ -122,6 +137,20 @@ final class ThreadsModule: NotchcastModule {
             self?.showPage()
         }
         publishCommands(board)
+        expire(board)
+    }
+
+    /// A writer that stops quietly turns the list silent on time; this only republishes, never reads.
+    private func expire(_ board: ThreadsBoard) {
+        expiry?.cancel()
+        expiry = nil
+        guard let deadline = board.freshUntil else { return }
+        let wait = deadline.timeIntervalSince(board.now) + 1
+        expiry = Task { [weak self, sleep] in
+            try? await sleep(.seconds(wait))
+            guard !Task.isCancelled else { return }
+            self?.post()
+        }
     }
 
     private func act(_ action: String) {
@@ -133,13 +162,13 @@ final class ThreadsModule: NotchcastModule {
         }
     }
 
-    /// One command per waiting thread, named after it; only a change reaches the launcher.
+    /// One command per waiting thread; only a change, target included, reaches the launcher.
     private func publishCommands(_ board: ThreadsBoard) {
         let commands = ThreadsCommands.commands(board.waiting, switchID: ThreadsPreferences.switchID)
-        let slugs = commands.map { "\($0.slug)\u{1F}\($0.name)\u{1F}\($0.symbol)" }
+        let slugs = commands.map { "\($0.command.slug)\u{1F}\($0.command.name)\u{1F}\($0.command.symbol)\u{1F}\($0.link)" }
         guard slugs != commandSlugs else { return }
         commandSlugs = slugs
-        context.setCommands(commands)
+        context.setCommands(commands.map(\.command))
     }
 }
 
@@ -147,16 +176,19 @@ final class ThreadsModule: NotchcastModule {
 enum ThreadsCommands {
     static let slugPrefix = "thread-"
 
-    static func commands(_ waits: [ThreadsDocument.Wait], switchID: String) -> [NotchcastCommand] {
+    /// The newest wait per thread wins, so asks that share a thread share one command.
+    static func commands(_ waits: [ThreadsDocument.Wait], switchID: String) -> [(command: NotchcastCommand, link: URL)] {
         var seen: Set<String> = []
         return waits.compactMap { wait in
-            guard let id = wait.id, let link = ThreadsLink.url(wait) else { return nil }
+            guard let id = wait.id, let link = ThreadsLink.url(wait), seen.insert(link.absoluteString).inserted else {
+                return nil
+            }
             let slug = slugPrefix + String(id.map { $0.isASCII && ($0.isLetter || $0.isNumber) ? $0 : "-" })
             guard seen.insert(slug).inserted else { return nil }
-            return NotchcastCommand(
+            return (NotchcastCommand(
                 slug: slug, name: ThreadsBoard.title(wait), symbol: ThreadsPage.symbol(wait), switchID: switchID,
                 keywords: [wait.machine] + (ThreadsPage.detail(wait).map { [$0] } ?? []),
-                run: { $0.module(ThreadsModule.self)?.open(link) })
+                run: { $0.module(ThreadsModule.self)?.open(link) }), link)
         }
     }
 }

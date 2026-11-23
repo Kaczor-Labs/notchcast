@@ -68,6 +68,9 @@ struct ThreadsModuleTests {
         await oldAndMissing()
         await opens()
         await fileEvent()
+        await expiresWithoutReading()
+        await oldWaitStaysShown()
+        await commandsFollowTarget()
         print("PASSED")
     }
 
@@ -77,6 +80,8 @@ struct ThreadsModuleTests {
         let folder: URL
         var file: URL { folder.appending(path: "waits.json") }
         var opened: [URL] = []
+        var now = ThreadsFixtures.now
+        let alarm = Alarm()
 
         init() {
             defaults = UserDefaults(suiteName: suite) ?? .standard
@@ -107,11 +112,31 @@ struct ThreadsModuleTests {
             let context = NotchcastContext(
                 defaults: defaults, preferences: NotchcastPreferences(defaults: defaults, switches: []),
                 presenter: presenter, hub: hub, transcription: NotchcastTranscriptionRunner(dictation: FakeDictation()),
-                now: { ThreadsFixtures.now }, onTapsChanged: {})
-            let module = ThreadsModule(context: context) { [unowned self] in opened.append($0) }
+                now: { [unowned self] in now }, onTapsChanged: {})
+            let alarm = alarm
+            let module = ThreadsModule(context: context, open: { [unowned self] in opened.append($0) },
+                                       sleep: { await alarm.sleep($0) })
             context.attach(module)
             module.start()
             return (module, context)
+        }
+    }
+
+    /// Stands in for the expiry's sleep: records each delay and returns only when rung.
+    @MainActor
+    final class Alarm {
+        var asked: [Duration] = []
+        private var sleepers: [CheckedContinuation<Void, Never>] = []
+
+        func sleep(_ delay: Duration) async {
+            asked.append(delay)
+            await withCheckedContinuation { sleepers.append($0) }
+        }
+
+        func ring() {
+            let woken = sleepers
+            sleepers = []
+            woken.forEach { $0.resume() }
         }
     }
 
@@ -188,13 +213,19 @@ struct ThreadsModuleTests {
             unsafe.threadID = bad
             check(ThreadsLink.url(unsafe) == nil, "\(bad) never reaches a URL")
         }
+        var prefixed = wait
+        prefixed.threadID = "box:thread-one"
+        let url = ThreadsLink.url(prefixed)
+        check(url?.absoluteString == "t3code://threads/env-one/box%3Athread-one"
+              && url?.host == "threads" && url?.pathComponents == ["/", "env-one", "box:thread-one"],
+              "a prefixed id is one encoded segment: \(String(describing: url))")
         check(!ThreadsLink.isOpenable(URL(string: "https://example.com")!), "only T3's scheme opens")
         var shown = ThreadsShown()
         let waits = ThreadsFixtures.document(rows: [ThreadsFixtures.question, ThreadsFixtures.door]).waits
-        check(shown.take(waits).count == 2 && shown.take(waits).isEmpty, "a wait is taken once")
-        var full = ThreadsShown(ids: (0..<ThreadsShown.cap).map { "old-\($0)" })
-        _ = full.take(waits)
-        check(full.ids.count == ThreadsShown.cap && full.ids.last == "wait-door-report", "the oldest ids go first")
+        check(shown.take(waits, present: waits).count == 2 && shown.take(waits, present: waits).isEmpty,
+              "a wait is taken once")
+        _ = shown.take([], present: [waits[1]])
+        check(shown.ids == ["wait-door-report"], "an id leaves once its wait leaves the file: \(shown.ids)")
     }
 
     static func unset() async {
@@ -256,11 +287,12 @@ struct ThreadsModuleTests {
             preconditionFailure("remove: \(error)")
         }
         await module.reload().value
-        check(presenter.rows.map(\.title) == ["Billing page redesign"], "a vanished file keeps the last list")
+        check(presenter.rows.map(\.title) == ["t3chad is not reporting", "Billing page redesign"],
+              "a vanished file warns at once over the last list: \(presenter.rows.map(\.title))")
         rig.write(Data("{ not json".utf8))
         await module.reload().value
-        check(presenter.rows.map(\.title) == ["Billing page redesign"] && presenter.notices.count == 1,
-              "a broken file never errors on the island")
+        check(presenter.rows.map(\.title) == ["t3chad is not reporting", "Billing page redesign"]
+              && presenter.notices.count == 1, "a broken file warns at once and announces nothing")
         module.stop()
     }
 
@@ -302,6 +334,75 @@ struct ThreadsModuleTests {
             try? await Task.sleep(for: .milliseconds(20))
         }
         check(presenter.pageCalls > before && presenter.notices.count == 1, "a write to the file is read without a poll")
+        module.stop()
+    }
+
+    /// A writer that stops quietly: one expiry at the deadline turns the list silent with no read.
+    static func expiresWithoutReading() async {
+        let rig = Rig()
+        rig.write(ThreadsFixtures.json(rows: [ThreadsFixtures.question]))
+        let presenter = ThreadsRecorder()
+        let (module, _) = rig.start(presenter)
+        await module.reload().value
+        check(presenter.rows.first?.title == "Billing page redesign", "fresh at first")
+        check(rig.alarm.asked.last == .seconds(ThreadsBoard.silentAfter - 30 + 1),
+              "one expiry at the deadline: \(rig.alarm.asked)")
+        rig.defaults.removeObject(forKey: ThreadsPreferences.fileKey)
+        rig.now = ThreadsFixtures.now.addingTimeInterval(ThreadsBoard.silentAfter)
+        rig.alarm.ring()
+        for _ in 0..<100 where presenter.rows.first?.title != "t3chad is not reporting" { await Task.yield() }
+        check(presenter.rows.map(\.title) == ["t3chad is not reporting", "Billing page redesign"],
+              "the expiry republishes the last list as silent, reading nothing: \(presenter.rows.map(\.title))")
+        let asked = rig.alarm.asked.count
+        module.post()
+        check(rig.alarm.asked.count == asked, "a silent list schedules no further expiry")
+        module.stop()
+    }
+
+    /// An open wait stays announced however many newer ones come, across a restart.
+    static func oldWaitStaysShown() async {
+        let rig = Rig()
+        rig.write(ThreadsFixtures.json(rows: [ThreadsFixtures.question]))
+        let presenter = ThreadsRecorder()
+        var (module, context) = rig.start(presenter)
+        await module.reload().value
+        check(presenter.notices.count == 1, "the old wait is announced")
+        let newer = (0..<501).map {
+            ThreadsFixtures.Row(id: "wait-new-\($0)", kind: "question", machine: "neo", title: "New \($0)",
+                                question: nil, minutes: 1, thread: "thread-new-\($0)")
+        }
+        rig.write(ThreadsFixtures.json(rows: [ThreadsFixtures.question] + newer))
+        await module.reload().value
+        module.stop()
+        context.detach()
+        let again = ThreadsRecorder()
+        (module, context) = rig.start(again)
+        await module.reload().value
+        check(!again.notices.contains { $0.text.contains("Billing page redesign") },
+              "after 501 newer waits and a restart the old one is not announced again: \(again.notices.count)")
+        module.stop()
+    }
+
+    /// A command opens its wait's current thread, and asks that share a thread share one command.
+    static func commandsFollowTarget() async {
+        let rig = Rig()
+        rig.write(ThreadsFixtures.json(rows: [ThreadsFixtures.door]))
+        let presenter = ThreadsRecorder()
+        let (module, context) = rig.start(presenter)
+        await module.reload().value
+        var moved = ThreadsFixtures.door
+        moved.thread = "thread-door-moved"
+        rig.write(ThreadsFixtures.json(rows: [moved]))
+        await module.reload().value
+        context.commands.first?.run(context)
+        check(rig.opened.last?.absoluteString == "t3code://threads/env-one/thread-door-moved",
+              "the command follows the door's new thread: \(rig.opened)")
+        var second = ThreadsFixtures.door
+        second.id = "wait-door-second"
+        second.question = "Archive last year's invoices?"
+        rig.write(ThreadsFixtures.json(rows: [ThreadsFixtures.door, second]))
+        await module.reload().value
+        check(context.commands.count == 1, "two asks on one thread are one command: \(context.commands.map(\.slug))")
         module.stop()
     }
 }

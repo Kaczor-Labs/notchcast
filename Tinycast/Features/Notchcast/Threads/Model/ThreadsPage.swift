@@ -16,7 +16,7 @@ enum ThreadsPage {
         let later = board.later
         var blocks: [IslandPageBlock] = []
         if board.notReporting {
-            let detail = board.documentAge.map {
+            let detail = (board.readFailed ? nil : board.documentAge).map {
                 String(localized: "Last update \(ThreadsBoard.duration($0)) ago. This list may be out of date.",
                        table: "NotchcastThreads")
             } ?? String(localized: "No readable waits file at the path in Settings.", table: "NotchcastThreads")

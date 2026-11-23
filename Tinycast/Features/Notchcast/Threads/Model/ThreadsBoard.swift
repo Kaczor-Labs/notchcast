@@ -9,6 +9,8 @@ struct ThreadsBoard: Sendable {
     var configured: Bool
     var document: ThreadsDocument?
     var now: Date
+    /// The latest read failed: the last good rows stay, but never as current.
+    var readFailed = false
 
     /// Waiting on the user, newest first.
     var waiting: [ThreadsDocument.Wait] {
@@ -25,7 +27,10 @@ struct ThreadsBoard: Sendable {
     var documentAge: TimeInterval? { document.map { max(0, now.timeIntervalSince($0.generatedAt)) } }
 
     /// Silence never passes for "nothing waits": no readable document, or one t3chad stopped rewriting.
-    var notReporting: Bool { configured && (documentAge.map { $0 > Self.silentAfter } ?? true) }
+    var notReporting: Bool { configured && (readFailed || (documentAge.map { $0 > Self.silentAfter } ?? true)) }
+
+    /// When a document that is fresh now turns silent with no new read.
+    var freshUntil: Date? { notReporting ? nil : document.map { $0.generatedAt.addingTimeInterval(Self.silentAfter) } }
 
     /// Machines whose own reading is old in a document that is itself fresh; nil age is one never read.
     var silentMachines: [(machine: String, age: TimeInterval?)] {
@@ -64,18 +69,16 @@ struct ThreadsBoard: Sendable {
 
 /// The wait ids already announced, kept across restarts so a wait is announced once.
 struct ThreadsShown: Equatable, Sendable {
-    /// Far above the waits one user keeps; the oldest ids go first.
-    static let cap = 500
-
     private(set) var ids: [String]
 
-    init(ids: [String] = []) { self.ids = Array(ids.suffix(Self.cap)) }
+    init(ids: [String] = []) { self.ids = ids }
 
-    /// The waits not announced before, now counted as announced.
-    mutating func take(_ waits: [ThreadsDocument.Wait]) -> [ThreadsDocument.Wait] {
+    /// The waits not announced before, now counted as announced; an id leaves only once its wait has.
+    mutating func take(_ waits: [ThreadsDocument.Wait], present: [ThreadsDocument.Wait]) -> [ThreadsDocument.Wait] {
+        let inFile = Set(present.compactMap(\.id))
         var known = Set(ids)
         let fresh = waits.filter { wait in wait.id.map { known.insert($0).inserted } ?? false }
-        ids = Array((ids + fresh.compactMap(\.id)).suffix(Self.cap))
+        ids = ids.filter(inFile.contains) + fresh.compactMap(\.id)
         return fresh
     }
 }
@@ -87,7 +90,7 @@ enum ThreadsLink {
     static func url(_ wait: ThreadsDocument.Wait) -> URL? {
         guard let environment = wait.environmentID, let thread = wait.threadID,
               isSafe(environment), isSafe(thread) else { return nil }
-        return URL(string: "\(scheme)://threads/\(environment)/\(thread)")
+        return URL(string: "\(scheme)://threads/\(segment(environment))/\(segment(thread))")
     }
 
     static func isOpenable(_ url: URL) -> Bool { url.scheme == scheme }
@@ -97,5 +100,12 @@ enum ThreadsLink {
         !id.isEmpty && id.count <= 128 && !id.hasPrefix(".") && id.unicodeScalars.allSatisfy(allowed.contains)
     }
 
-    private static let allowed = Set("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_.".unicodeScalars)
+    /// A `prefix:` id stays one segment: the colon goes out as `%3A`.
+    private static func segment(_ id: String) -> String {
+        id.addingPercentEncoding(withAllowedCharacters: unreserved) ?? id
+    }
+
+    private static let unreservedText = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_."
+    private static let unreserved = CharacterSet(charactersIn: unreservedText)
+    private static let allowed = Set((unreservedText + ":").unicodeScalars)
 }
