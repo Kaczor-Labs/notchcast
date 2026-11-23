@@ -17,6 +17,12 @@ enum MacTweakTarget: Codable, Hashable, Sendable {
     case preference(domain: String, key: String, appOnly: Bool = false)
     case service(label: String)
     case libraryHidden
+
+    // Both global-domain names and either appOnly write the same key of the same layer.
+    var canonical: Self {
+        guard case .preference(let domain, let key, _) = self else { return self }
+        return .preference(domain: domain == ".GlobalPreferences" ? "NSGlobalDomain" : domain, key: key)
+    }
 }
 
 enum MacTweakChange: Equatable, Sendable {

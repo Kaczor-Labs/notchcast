@@ -9,7 +9,11 @@ extension MacTweaksSystem {
         case invalidProcessOutput
         case refused
         case processFailed(String, Int32)
+        case stopped(String)
     }
+
+    // killall exits 1 when no process matched, so there is nothing to restart.
+    static let killallDone: Set<Int32> = [0, 1]
 
     static func live() -> Self {
         let session = "gui/\(getuid())"
@@ -17,23 +21,23 @@ extension MacTweaksSystem {
             version: ProcessInfo.processInfo.operatingSystemVersion,
             journalFolder: AppPaths.applicationSupport().appending(path: "Notchcast/MacTweaks", directoryHint: .isDirectory),
             read: { target in
-                switch target {
-                case .preference(let domain, let key, let appOnly):
-                    return try readPreference(domain, key: key, appOnly: appOnly)
-                case .service(let label):
-                    try validate(label)
-                    let output = try run("/bin/launchctl", ["print-disabled", session]).checked()
-                    let value = MacTweakValue.bool(disabledServices(output).contains(label))
-                    return Reading(stored: value, effective: value)
-                case .libraryHidden:
-                    let library = FileManager.default.homeDirectoryForCurrentUser
-                        .appending(path: "Library", directoryHint: .isDirectory)
-                    guard let hidden = try library.resourceValues(forKeys: [.isHiddenKey]).isHidden else {
-                        throw LiveFailure.refused
-                    }
-                    let value = MacTweakValue.bool(hidden)
-                    return Reading(stored: value, effective: value)
+                try read(target, synchronize: true) { try disabledServices(session: session) }
+            },
+            readAll: { targets in
+                var synchronized: Set<String> = []
+                var services: Result<Set<String>, any Error>?
+                func disabled() throws -> Set<String> {
+                    let result = services ?? Result { try disabledServices(session: session) }
+                    services = result
+                    return try result.get()
                 }
+                return Dictionary(targets.map { target in
+                    var synchronize = true
+                    if case .preference(let domain, _, _) = target.canonical {
+                        synchronize = synchronized.insert(domain).inserted
+                    }
+                    return (target, Result { try read(target, synchronize: synchronize, disabled: disabled) })
+                }, uniquingKeysWith: { first, _ in first })
             },
             write: { target, value in
                 switch target {
@@ -52,22 +56,47 @@ extension MacTweaksSystem {
                 }
             },
             restart: { process in
-                _ = try run("/usr/bin/killall", [process.rawValue]).checked()
+                _ = try run("/usr/bin/killall", [process.rawValue]).checked(accepting: killallDone)
             },
             now: { Date() }
         )
     }
 
-    private static func readPreference(_ domain: String, key: String, appOnly: Bool) throws -> Reading {
+    private static func read(
+        _ target: MacTweakTarget, synchronize: Bool, disabled: () throws -> Set<String>
+    ) throws -> Reading {
+        switch target {
+        case .preference(let domain, let key, let appOnly):
+            return try readPreference(domain, key: key, appOnly: appOnly, synchronize: synchronize)
+        case .service(let label):
+            try validate(label)
+            let value = MacTweakValue.bool(try disabled().contains(label))
+            return Reading(stored: value, effective: value)
+        case .libraryHidden:
+            let library = FileManager.default.homeDirectoryForCurrentUser
+                .appending(path: "Library", directoryHint: .isDirectory)
+            guard let hidden = try library.resourceValues(forKeys: [.isHiddenKey]).isHidden else {
+                throw LiveFailure.refused
+            }
+            let value = MacTweakValue.bool(hidden)
+            return Reading(stored: value, effective: value)
+        }
+    }
+
+    private static func disabledServices(session: String) throws -> Set<String> {
+        disabledServices(try run("/bin/launchctl", ["print-disabled", session]).checked())
+    }
+
+    private static func readPreference(
+        _ domain: String, key: String, appOnly: Bool, synchronize: Bool = true
+    ) throws -> Reading {
         let global = domain == "NSGlobalDomain" || domain == ".GlobalPreferences"
         let application = global ? kCFPreferencesAnyApplication : domain as CFString
         let name = key as CFString
-        if global {
-            guard CFPreferencesSynchronize(application, kCFPreferencesCurrentUser, kCFPreferencesAnyHost) else {
-                throw LiveFailure.refused
-            }
-        } else {
-            guard CFPreferencesAppSynchronize(application) else { throw LiveFailure.refused }
+        if synchronize, !(global
+            ? CFPreferencesSynchronize(application, kCFPreferencesCurrentUser, kCFPreferencesAnyHost)
+            : CFPreferencesAppSynchronize(application)) {
+            throw LiveFailure.refused
         }
         func copy(_ user: CFString, _ host: CFString, from scope: CFString) -> CFPropertyList? {
             CFPreferencesCopyValue(name, scope, user, host)
@@ -193,27 +222,39 @@ extension MacTweaksSystem {
         }
     }
 
-    private struct CommandResult {
+    struct CommandResult {
         let name: String
         let status: Int32
         let output: String
 
-        func checked() throws -> String {
-            guard status == 0 else { throw LiveFailure.processFailed(name, status) }
+        func checked(accepting success: Set<Int32> = [0]) throws -> String {
+            guard success.contains(status) else { throw LiveFailure.processFailed(name, status) }
             return output
         }
     }
 
-    private static func run(_ path: String, _ arguments: [String]) throws -> CommandResult {
+    // Peel's limit for launchctl and killall: asked to stop after `timeout`, killed after 2 s more.
+    static func run(_ path: String, _ arguments: [String], timeout: TimeInterval = 10) throws -> CommandResult {
         let process = Process()
         let output = Pipe()
         process.executableURL = URL(fileURLWithPath: path)
         process.arguments = arguments
+        process.standardInput = FileHandle.nullDevice
         process.standardOutput = output
         process.standardError = output
         let exit = try process.runObservingExit()
+        let stop = DispatchWorkItem {
+            guard process.isRunning else { return }
+            process.terminate()
+            DispatchQueue.global(qos: .userInitiated).asyncAfter(deadline: .now() + 2) {
+                if process.isRunning { kill(process.processIdentifier, SIGKILL) }
+            }
+        }
+        DispatchQueue.global(qos: .userInitiated).asyncAfter(deadline: .now() + timeout, execute: stop)
         let data = output.fileHandleForReading.readDataToEndOfFile()
         exit.wait()
+        stop.cancel()
+        guard process.terminationReason == .exit else { throw LiveFailure.stopped(path) }
         guard let text = String(data: data, encoding: .utf8) else { throw LiveFailure.invalidProcessOutput }
         return CommandResult(name: path, status: process.terminationStatus, output: text)
     }

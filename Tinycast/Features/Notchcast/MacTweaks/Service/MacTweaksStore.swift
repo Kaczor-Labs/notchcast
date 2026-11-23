@@ -33,11 +33,9 @@ final class MacTweaksStore {
         self.system = system
     }
 
+    // Reads without waiting for an operation, as Peel's refresh; the pane reads again after each one.
     func snapshot() async throws -> MacTweakSnapshot {
-        guard !isBusy else { throw Failure.busy }
-        isBusy = true
-        defer { isBusy = false }
-        return try await Self.readSnapshot(catalogue: catalogue, system: system)
+        try await Self.readSnapshot(catalogue: catalogue, system: system)
     }
 
     func set(_ id: MacTweak.ID, on: Bool) async throws -> [Issue] {
@@ -70,7 +68,7 @@ final class MacTweaksStore {
         _ request: Request, catalogue: [MacTweak], system: MacTweaksSystem
     ) async throws -> [Issue] {
         try Task.checkCancellation()
-        var batch = try Batch(system: system)
+        var batch = try Batch(system: system, catalogue: catalogue)
         do {
             try batch.run(request, catalogue: catalogue)
         } catch {
@@ -84,22 +82,28 @@ final class MacTweaksStore {
     private nonisolated static func snapshot(
         _ catalogue: [MacTweak], journal: MacTweakJournal, system: MacTweaksSystem
     ) -> MacTweakSnapshot {
-        let states = catalogue.map { ($0.id, state(of: $0, system: system)) }
+        let supported = catalogue.filter { $0.isSupported(on: system.version) }
+        let readings = system.readAll(supported.flatMap { $0.changes.compactMap(\.localWrite?.target) })
+        let states = catalogue.map { ($0.id, state(of: $0, version: system.version, readings: readings)) }
         return MacTweakSnapshot(
             states: Dictionary(uniqueKeysWithValues: states),
-            journaled: Set(journal.entries.map(\.tweakID))
+            journaled: Set(journal.restoreAll(known: catalogue).map(\.tweakID))
         )
     }
 
-    private nonisolated static func state(of tweak: MacTweak, system: MacTweaksSystem) -> MacTweakState {
-        guard tweak.isSupported(on: system.version), !tweak.changes.isEmpty else { return .unsupported }
+    private nonisolated static func state(
+        of tweak: MacTweak,
+        version: OperatingSystemVersion,
+        readings: [MacTweakTarget: Result<MacTweaksSystem.Reading, any Error>]
+    ) -> MacTweakState {
+        guard tweak.isSupported(on: version), !tweak.changes.isEmpty else { return .unsupported }
         var applied = 0
         var blocked: MacTweakState?
         for change in tweak.changes {
             guard let (target, value) = change.localWrite else { return .unsupported }
-            guard let reading = try? system.read(target) else { return .unavailable }
+            guard let reading = try? readings[target]?.get() else { return .unavailable }
             if reading.managed { return .managed }
-            blocked = blocked ?? reading.block
+            blocked = blocked ?? reading.block(wanting: value)
             if value.matches(reading.effective) { applied += 1 }
         }
         if let blocked { return blocked }
@@ -127,12 +131,14 @@ final class MacTweaksStore {
 
     private nonisolated struct Batch {
         let system: MacTweaksSystem
+        let catalogue: [MacTweak]
         var journal: MacTweakJournal
         var restarts: Set<MacTweakRestart> = []
         var issues: [Issue] = []
 
-        init(system: MacTweaksSystem) throws {
+        init(system: MacTweaksSystem, catalogue: [MacTweak]) throws {
             self.system = system
+            self.catalogue = catalogue
             journal = try loadJournal(file(in: system))
         }
 
@@ -145,9 +151,7 @@ final class MacTweaksStore {
                     issues.append(.blocked(id, block))
                     return
                 }
-                try execute(MacTweakPlan.make(
-                    wanted: on ? [id] : [], catalogue: [tweak], snapshot: snapshot, undo: on ? [] : [id]
-                ))
+                try execute(MacTweakPlan.make(wanted: on ? [id] : [], catalogue: [tweak], snapshot: snapshot))
             case .preset(let preset):
                 let snapshot = snapshot(catalogue, journal: journal, system: system)
                 let wanted = preset.wanted(in: catalogue)
@@ -159,19 +163,19 @@ final class MacTweaksStore {
                 let selected = catalogue.filter { wanted.contains($0.id) }
                 try execute(MacTweakPlan.make(wanted: wanted, catalogue: selected, snapshot: snapshot))
             case .undoEverything:
-                for entry in journal.restoreAll() { try restore(entry) }
+                for entry in journal.restoreAll(known: catalogue) { try restore(entry) }
             }
         }
 
         mutating func execute(_ plan: MacTweakPlan) throws {
             let recorded = Set(journal.entries.map(\.target))
-            for entry in journal.restoreAll() where plan.restore.contains(entry.tweakID) {
+            for entry in journal.restoreAll(known: catalogue) where plan.restore.contains(entry.tweakID) {
                 try restore(entry, includingRemovals: false)
             }
             for tweak in plan.clear {
                 for change in tweak.changes {
                     guard let (target, value) = change.localWrite, case .preference = target,
-                          !recorded.contains(target) else { continue }
+                          !recorded.contains(target.canonical) else { continue }
                     try Task.checkCancellation()
                     guard let reading = writableReading(target, tweakID: tweak.id),
                           value.matches(reading.stored) else { continue }

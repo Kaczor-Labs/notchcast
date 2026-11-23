@@ -17,6 +17,15 @@ struct MacTweakJournal: Codable, Equatable, Sendable {
         func owns(_ current: MacTweakValue?) -> Bool {
             current == written || (hasSupersededWrite && current == supersededWrite)
         }
+
+        func isKnown(by catalogue: [MacTweak]) -> Bool {
+            catalogue.contains { tweak in
+                tweak.id == tweakID && tweak.changes.contains { change in
+                    guard let (known, value) = change.localWrite, known.canonical == target else { return false }
+                    return written == nil || written == value
+                }
+            }
+        }
     }
 
     enum Restore: Equatable {
@@ -38,6 +47,7 @@ struct MacTweakJournal: Codable, Equatable, Sendable {
         now: Date
     ) -> Self? {
         guard !(value?.matches(current) ?? (current == nil)) else { return nil }
+        let target = target.canonical
         let owned = entries.first { $0.target == target && $0.owns(current) }
         var next = self
         next.forget(target)
@@ -58,16 +68,17 @@ struct MacTweakJournal: Codable, Equatable, Sendable {
         entry.owns(current) && current != entry.previous ? .write(entry.previous) : .forget
     }
 
-    func restoreAll() -> [Entry] {
-        Array(entries.reversed())
+    // An entry no catalogue tweak writes stays in the file and is never acted on.
+    func restoreAll(known catalogue: [MacTweak]) -> [Entry] {
+        entries.reversed().filter { $0.isKnown(by: catalogue) }
     }
 
     mutating func forget(_ target: MacTweakTarget) {
-        entries.removeAll { $0.target == target }
+        entries.removeAll { $0.target == target.canonical }
     }
 
     mutating func finishWrite(_ target: MacTweakTarget) {
-        if let index = entries.firstIndex(where: { $0.target == target }) {
+        if let index = entries.firstIndex(where: { $0.target == target.canonical }) {
             entries[index].supersededWrite = nil
             entries[index].supersededRemoval = nil
         }
@@ -75,7 +86,8 @@ struct MacTweakJournal: Codable, Equatable, Sendable {
 
     static func decode(_ data: Data) throws -> Self {
         let journal = try JSONDecoder().decode(Self.self, from: data)
-        guard Set(journal.entries.map(\.target)).count == journal.entries.count else {
+        let targets = journal.entries.map(\.target)
+        guard targets.allSatisfy({ $0 == $0.canonical }), Set(targets).count == targets.count else {
             throw InvalidJournal.invalidEntries
         }
         return journal

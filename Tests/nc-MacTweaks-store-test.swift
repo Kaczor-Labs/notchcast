@@ -19,6 +19,9 @@ struct MacTweaksStoreTest {
             var values: [MacTweakTarget: MacTweakValue] = [:]
             var managed: Set<MacTweakTarget> = []
             var elsewhere: [MacTweakTarget: MacTweakHeldElsewhere] = [:]
+            var fallback: [MacTweakTarget: MacTweakValue] = [:]
+            var reads = 0
+            var readAlls = 0
             var refuseWrites: Set<MacTweakTarget> = []
             var writes: [MacTweakTarget] = []
             var restarts: [MacTweakRestart] = []
@@ -33,24 +36,36 @@ struct MacTweaksStoreTest {
 
         var journalFile: URL { folder.appending(path: "journal.json") }
 
+        func reading(_ target: MacTweakTarget) -> MacTweaksSystem.Reading {
+            state.withLock { state in
+                if state.values[target] == nil, let fallback = state.fallback[target] {
+                    return MacTweaksSystem.Reading(stored: nil, effective: fallback, heldElsewhere: .everyApp)
+                }
+                return MacTweaksSystem.Reading(
+                    stored: state.values[target],
+                    effective: state.values[target],
+                    managed: state.managed.contains(target),
+                    heldElsewhere: state.elsewhere[target]
+                )
+            }
+        }
+
         func make(beforeRestart: @escaping @Sendable () -> Void = {}) -> MacTweaksSystem {
             MacTweaksSystem(
                 version: OperatingSystemVersion(majorVersion: 26, minorVersion: 0, patchVersion: 0),
                 journalFolder: folder,
                 read: { target in
-                    self.state.withLock { state in
-                        MacTweaksSystem.Reading(
-                            stored: state.values[target],
-                            effective: state.values[target],
-                            managed: state.managed.contains(target),
-                            heldElsewhere: state.elsewhere[target]
-                        )
-                    }
+                    self.state.withLock { $0.reads += 1 }
+                    return self.reading(target)
+                },
+                readAll: { targets in
+                    self.state.withLock { $0.readAlls += 1 }
+                    return Dictionary(targets.map { ($0, .success(self.reading($0))) }, uniquingKeysWith: { a, _ in a })
                 },
                 write: { target, value in
                     let journal = try MacTweakJournal.decode(Data(contentsOf: self.journalFile))
                     self.state.withLock { state in
-                        let entry = journal.entries.first { $0.target == target }
+                        let entry = journal.entries.first { $0.target == target.canonical }
                         precondition(entry != nil, "System write reached the seam without a journal entry")
                         precondition(entry?.written == value || entry?.previous == value)
                         precondition(!state.managed.contains(target) && state.elsewhere[target] == nil)
@@ -124,16 +139,18 @@ struct MacTweaksStoreTest {
             _ = try await store.undoEverything()
             preconditionFailure("Concurrent mutations must be refused")
         } catch MacTweaksStore.Failure.busy {}
-        do {
-            _ = try await store.snapshot()
-            preconditionFailure("A snapshot must not interrupt a running batch")
-        } catch MacTweaksStore.Failure.busy {}
+        let readsBefore = fake.state.withLock { ($0.reads, $0.readAlls) }
+        let during = try await store.snapshot()
+        precondition(during.states["media-keys"] == .applied, "A snapshot reads while a batch restarts")
+        precondition(fake.state.withLock { ($0.reads, $0.readAlls) } == (readsBefore.0, readsBefore.1 + 1),
+                     "A snapshot reads every target in one pass")
+        precondition(store.isBusy)
         release.signal()
         let applied = try await running.value
         precondition(applied.isEmpty)
         precondition(!store.isBusy)
         let after = try await store.snapshot()
-        precondition(after.applied == ["path", "status", "media-keys"])
+        precondition(Set(after.states.filter { $0.value == .applied }.keys) == ["path", "status", "media-keys"])
         precondition(after.states["locked"] == .managed)
         precondition(after.states["inherited"] == .heldElsewhere(.thisMac))
         module.stop()
@@ -161,10 +178,18 @@ struct MacTweaksStoreTest {
         let undone = try await restoreStore.undoEverything()
         precondition(undone.isEmpty)
         fake.state.withLock {
-            precondition($0.values == start, "Undo must include entries missing from the current catalogue")
+            precondition($0.values[service] == .bool(true), "An entry the catalogue does not know is left alone")
+            $0.values[service] = start[service]
+            precondition($0.values == start)
+            $0.values[service] = .bool(true)
             precondition($0.restarts == [.finder])
             precondition(!$0.writes.contains(locked) && !$0.writes.contains(inherited))
         }
+        let kept = try MacTweakJournal.decode(Data(contentsOf: fake.journalFile))
+        precondition(kept.entries.map(\.target) == [service], "An unknown entry stays in the journal")
+        let fullUndo = try await MacTweaksStore(catalogue: catalogue, system: fake.make()).undoEverything()
+        precondition(fullUndo.isEmpty)
+        precondition(fake.state.withLock { $0.values } == start)
 
         let beforeFailure = try await restoreStore.runPreset(.recommended)
         precondition(beforeFailure.isEmpty)
@@ -220,6 +245,71 @@ struct MacTweaksStoreTest {
         fake.state.withLock {
             precondition($0.values[pathBar] == .integer(1) && $0.values[statusBar] == nil)
         }
+
+        struct Tampered: Encodable { let entries: [MacTweakJournal.Entry] }
+        let foreign = MacTweakTarget.preference(domain: "com.example.other", key: "Anything")
+        let tampered = try JSONEncoder().encode(Tampered(entries: [
+            .init(tweakID: "path", target: foreign, previous: .string("theirs"), written: .bool(true),
+                  restarts: [.dock], date: Date(timeIntervalSince1970: 1)),
+            .init(tweakID: "path", target: pathBar, previous: .string("theirs"), written: .string("not ours"),
+                  restarts: [.dock], date: Date(timeIntervalSince1970: 1)),
+        ]))
+        try tampered.write(to: fake.journalFile)
+        fake.state.withLock {
+            $0.values[foreign] = .bool(true)
+            $0.values[pathBar] = .string("not ours")
+            $0.writes.removeAll()
+            $0.restarts.removeAll()
+        }
+        let untrusted = try await restoreStore.undoEverything()
+        precondition(untrusted.isEmpty)
+        let untrustedSnapshot = try await restoreStore.snapshot()
+        precondition(untrustedSnapshot.journaled.isEmpty)
+        fake.state.withLock {
+            precondition($0.writes.isEmpty && $0.restarts.isEmpty, "Untrusted entries must never be acted on")
+            $0.values[foreign] = nil
+            $0.values[pathBar] = .integer(1)
+        }
+        let afterTampering = try Data(contentsOf: fake.journalFile)
+        precondition(afterTampering == tampered)
+        try FileManager.default.removeItem(at: fake.journalFile)
+
+        let heldOn = MacTweakTarget.preference(domain: "com.example.finder", key: "HeldOn")
+        let fallbackOff = MacTweakTarget.preference(domain: "com.example.finder", key: "FallbackOff")
+        fake.state.withLock { $0.fallback = [heldOn: .bool(true), fallbackOff: .bool(false)] }
+        let fallbackStore = MacTweaksStore(catalogue: [
+            MacTweak(id: "held-on", group: .finder, changes: [.preference(heldOn, .bool(true))]),
+            MacTweak(id: "fallback-off", group: .finder, changes: [.preference(fallbackOff, .bool(true))]),
+        ], system: fake.make())
+        let fallbackStates = try await fallbackStore.snapshot().states
+        precondition(fallbackStates["held-on"] == .heldElsewhere(.everyApp), "A fallback holding it on blocks")
+        precondition(fallbackStates["fallback-off"] == .notApplied, "A fallback holding it off does not block")
+        let heldOff = try await fallbackStore.set("held-on", on: false)
+        guard case .blocked("held-on", .heldElsewhere(.everyApp))? = heldOff.first
+        else { preconditionFailure("Turning off a fallback's value must report why") }
+        let fallbackOn = try await fallbackStore.set("fallback-off", on: true)
+        precondition(fallbackOn.isEmpty)
+        precondition(fake.state.withLock { $0.values[fallbackOff] } == .bool(true))
+        let overFallback = try await fallbackStore.snapshot()
+        precondition(overFallback.states["fallback-off"] == .applied)
+        let backToFallback = try await fallbackStore.set("fallback-off", on: false)
+        precondition(backToFallback.isEmpty)
+        fake.state.withLock {
+            precondition($0.values[fallbackOff] == nil && $0.values[heldOn] == nil)
+            $0.fallback = [:]
+        }
+
+        // Real child processes, never a system command: these check only the live interface's process rules.
+        _ = try MacTweaksSystem.run("/bin/sh", ["-c", "exit 1"]).checked(accepting: MacTweaksSystem.killallDone)
+        do {
+            _ = try MacTweaksSystem.run("/bin/sh", ["-c", "exit 2"]).checked(accepting: MacTweaksSystem.killallDone)
+            preconditionFailure("A restart that failed must still throw")
+        } catch {}
+        do {
+            // An OS timer contract: the sleep's own 5 s caps the wait if the limit never fires.
+            _ = try MacTweaksSystem.run("/bin/sleep", ["5"], timeout: 0.2)
+            preconditionFailure("A hung child process must be stopped")
+        } catch {}
 
         let corrupt = Data("keep these bytes".utf8)
         try corrupt.write(to: fake.journalFile)
