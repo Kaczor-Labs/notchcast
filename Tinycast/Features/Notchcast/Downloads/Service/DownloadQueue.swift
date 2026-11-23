@@ -136,12 +136,15 @@ final class DownloadQueue {
     private func pump() {
         guard !stopped else { return }
         while tasks.count < maxConcurrent,
-              let job = jobs.first(where: {
-                  $0.state == .waiting && tasks[$0.id] == nil && runners[$0.kind] != nil
-              }),
+              let job = jobs.first(where: canStart),
               let runner = runners[job.kind] {
             begin(job, runner: runner)
         }
+    }
+
+    private func canStart(_ job: DownloadJob) -> Bool {
+        guard job.state == .waiting, tasks[job.id] == nil, let runner = runners[job.kind] else { return false }
+        return !runner.runsSerially || !jobs.contains { $0.kind == job.kind && tasks[$0.id] != nil }
     }
 
     private func begin(_ job: DownloadJob, runner: any DownloadRunner) {

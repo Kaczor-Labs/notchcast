@@ -3,6 +3,7 @@ import Foundation
 struct TranscriptDownloadRunner: DownloadRunner {
     static let kind = "transcript"
     var kind: String { Self.kind }
+    var runsSerially: Bool { true }
     var tools: [DownloadTool] { [.ytDlp] }
     var rateLimitPause = MediaArguments.rateLimitPause
     var transcribeAudio: (@Sendable (String, DownloadRunContext) async throws -> URL)?

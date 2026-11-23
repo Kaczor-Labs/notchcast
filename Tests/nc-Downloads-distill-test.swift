@@ -278,12 +278,17 @@ struct DownloadsDistillTest {
 
         preferences.set("downloads", on: true)
         try await eventually { module.downloads.queue != nil }
-        clipboard = "https://www.youtube.com/watch?v=download-transcript"
+        clipboard = "https://www.youtube.com/watch?v=download-one\nhttps://www.youtube.com/watch?v=download-two"
         command("download-youtube-transcript")
-        try await eventually { module.downloads.queue?.jobs.last?.state == .done }
-        let downloaded = URL(filePath: module.downloads.queue!.jobs.last!.output!)
-        try expect(String(contentsOf: downloaded, encoding: .utf8) == "hello\nhello\nhello\n",
-                   "Download Transcript uses the same speech fallback")
+        try await eventually {
+            let transcripts = module.downloads.queue?.jobs ?? []
+            return transcripts.count == 2 && transcripts.allSatisfy { $0.state == .done }
+        }
+        for job in module.downloads.queue!.jobs {
+            let downloaded = URL(filePath: job.output!)
+            try expect(String(contentsOf: downloaded, encoding: .utf8) == "hello\nhello\nhello\n",
+                       "Download Transcript uses the same speech fallback without contending with itself")
+        }
         module.stop()
     }
 
