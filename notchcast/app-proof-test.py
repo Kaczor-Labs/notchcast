@@ -33,7 +33,7 @@ print("PROOF PASS " + os.environ["NOTCHCAST_PROOF"])
 
 class AppProofTests(unittest.TestCase):
     def test_run_refuses_a_host_before_starting_work(self):
-        for env in ({}, {"CI": "true", "NOTCHCAST_ISOLATED_RUNNER": "1"},
+        for env in ({}, {"CI": "true"},
                     {**CI, "GITHUB_JOB": "mac"}, {**CI, "RUNNER_ENVIRONMENT": "self-hosted"}):
             with self.subTest(env=env), patch.dict(os.environ, env, clear=True), \
                     patch.object(sys, "argv", [str(SCRIPT), "run", "addon-off"]), \
