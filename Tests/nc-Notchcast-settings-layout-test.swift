@@ -73,6 +73,25 @@ enum NotchcastSettingsLayoutTests {
         precondition(layout.listedOwners(of: orphan).isEmpty && layout.listedOwners(of: loopA).isEmpty,
                      "invalid dependency chains get no search target")
         precondition(layout.listedOwners(of: bond) == ["download", "torrents"], "any-of search reaches both parents")
+
+        func headers(_ pane: NotchcastPane, _ enabled: Set<String>) -> [String?] {
+            [pane.title] + groups(enabled, in: pane).flatMap { group in
+                [group.header] + group.details.flatMap { detail in
+                    let commands = detail.hasOptions ? "Commands" : detail.title
+                    return (detail.hasOptions ? [detail.title] : []) + (detail.hasCommands ? [commands] : [])
+                }
+            }
+        }
+        let everything = Set(switches.map(\.id))
+        for pane in NotchcastPane.allCases {
+            for enabled in [[], everything] {
+                let titles = headers(pane, enabled)
+                precondition(!zip(titles, titles.dropFirst()).contains { $0 != nil && $0 == $1 },
+                             "two adjacent sections share a title in \(pane.title): \(titles)")
+            }
+        }
+        precondition(groups([], in: .downloads).map(\.header) == [nil], "a pane's lone category repeats no title")
+        precondition(off.map(\.header) == ["Display", "Sound"], "categories under another pane title keep theirs")
         print("PASSED")
     }
 }

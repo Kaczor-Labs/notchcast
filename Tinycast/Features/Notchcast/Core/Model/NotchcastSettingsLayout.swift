@@ -3,6 +3,8 @@ import Foundation
 struct NotchcastSettingsLayout {
     struct Group: Identifiable {
         let category: NotchcastCategory
+        /// Nil when it would repeat the pane's own title right above it.
+        let header: String?
         let switches: [NotchcastSwitch]
         let details: [Detail]
 
@@ -16,6 +18,7 @@ struct NotchcastSettingsLayout {
         let hasCommands: Bool
 
         var id: String { item.id }
+        var title: String { item.settingsTitle ?? item.title }
         var hasOptions: Bool { hasRows || !dependents.isEmpty }
     }
 
@@ -49,7 +52,8 @@ struct NotchcastSettingsLayout {
         return pane.categories.compactMap { category in
             let listed = switches.filter { $0.category == category && $0.dependencies.isEmpty && isVisible($0) }
             guard !listed.isEmpty else { return nil }
-            return Group(category: category, switches: listed, details: listed.flatMap(details))
+            return Group(category: category, header: category.title == pane.title ? nil : category.title,
+                         switches: listed, details: listed.flatMap(details))
         }
     }
 

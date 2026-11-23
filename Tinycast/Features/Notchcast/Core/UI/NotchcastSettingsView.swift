@@ -10,7 +10,7 @@ struct NotchcastSettingsView: View {
         let commands = Dictionary(grouping: controller.slots.flatMap { $0.addon.commands }, by: \.switchID)
         let rows = Dictionary(grouping: controller.slots.flatMap(\.settings), by: \.row.switchID)
         let groups = NotchcastSettingsLayout(switches: controller.switches).groups(
-            in: pane, isEnabled: preferences.isEnabled, withCommands: Set(commands.keys), withRows: Set(rows.keys))
+            in: pane, isEnabled: preferences.isEnabled, withCommands: Set(commands.keys), withRows: controller.settingsRowOwners)
         Form {
             if pane == .island {
                 NotchcastIslandSettingsRows()
@@ -18,12 +18,11 @@ struct NotchcastSettingsView: View {
             }
             ForEach(groups) { group in
                 let anchor = NotchcastSettingsSearch.anchor(group.category)
-                Section {
-                    ForEach(group.switches) { item in
-                        switchRows(item, anchor: anchor)
-                    }
-                } header: {
-                    SettingsSectionHeader(anchor)
+                let list = ForEach(group.switches) { item in switchRows(item, anchor: anchor) }
+                if group.header == nil {
+                    Section { list }.settingsAnchor(anchor)
+                } else {
+                    Section { list } header: { SettingsSectionHeader(anchor) }
                 }
                 ForEach(group.details) { detail in
                     if detail.hasOptions {
@@ -53,7 +52,7 @@ struct NotchcastSettingsView: View {
                 }
             }
         } header: {
-            Text(detail.item.settingsTitle ?? detail.item.title)
+            Text(detail.title)
         }
     }
 
@@ -87,7 +86,7 @@ struct NotchcastSettingsView: View {
             if detail.hasOptions {
                 Text("Commands")
             } else {
-                Text(detail.item.settingsTitle ?? detail.item.title)
+                Text(detail.title)
             }
         }
     }

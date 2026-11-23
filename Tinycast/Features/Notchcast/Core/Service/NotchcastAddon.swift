@@ -63,5 +63,7 @@ struct NotchcastArgument: Sendable {
 struct NotchcastSettingsRow: Sendable {
     let switchID: String
     var searchTerms: [String] = []
+    /// True while the row draws nothing, so its feature shows no empty titled section.
+    var isEmpty: @MainActor @Sendable (NotchcastContext) -> Bool = { _ in false }
     let view: @MainActor @Sendable (NotchcastContext) -> AnyView
 }
