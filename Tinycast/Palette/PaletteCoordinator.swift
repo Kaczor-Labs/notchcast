@@ -95,9 +95,11 @@ final class PaletteCoordinator {
 
     /// Shows the palette, honoring Pop to Root Search. See docs/features/palette.md#state-flow.
     func showPalette(
-        mode: PaletteMode, restoreAnyMode: Bool = false, seeding query: String? = nil
+        mode: PaletteMode, restoreAnyMode: Bool = false, seeding query: String? = nil,
+        preparing: () -> Void = {}
     ) {
         guard !isPresentingPriorityQuestion else { return }
+        preparing()
         let preserved = windowController.consumePreservedState()
         let restoring = preserved && (restoreAnyMode || palette.mode == mode)
         // Resetting a screen the pop to root already reset would only re-render the whole palette.

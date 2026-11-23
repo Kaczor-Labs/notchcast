@@ -53,6 +53,9 @@ struct RootPaletteView: View {
 
     private var screen: any PaletteScreen {
         switch vm.mode {
+        case .customScreen:
+            if let custom = vm.customScreen?.makeScreen(vm.query) as? any PaletteScreen { return custom }
+            fallthrough
         case .launcher:
             return LauncherScreen(
                 appIndex: appIndex, favorites: favorites, visibility: visibility,
@@ -248,15 +251,14 @@ struct RootPaletteView: View {
                     core.supportCoordinator.showSupport()
                 },
                 PopoverMenuItem(
-                    title: String(localized: "Settings"), systemImage: "gearshape",
-                    startsSection: true, shortcut: "⌘,"
+                    title: String(localized: "Settings"), systemImage: "gearshape", shortcut: "⌘,"
                 ) {
                     core.settingsCoordinator.showSettings()
                 },
                 PopoverMenuItem(
                     title: String(localized: "Quit \(appName)"),
                     systemImage: "rectangle.portrait.and.arrow.right",
-                    isDestructive: true
+                    startsSection: true, isDestructive: true
                 ) {
                     NSApp.terminate(nil)
                 }
@@ -584,14 +586,14 @@ struct RootPaletteView: View {
                 if menuOpen { return .handled }
                 if vm.isComposing { return .ignored }
                 if moveCompactSelection(-1, modifiers: press.modifiers) { return .handled }
-                return moveHorizontally(-1) ? .handled : .ignored
+                return moveHorizontally(-1, modifiers: press.modifiers) ? .handled : .ignored
             }
             .onKeyPress(keys: [.rightArrow], phases: [.down, .repeat]) { press in
                 if vm.isControlListOpen { return .ignored }
                 if menuOpen { return .handled }
                 if vm.isComposing { return .ignored }
                 if moveCompactSelection(1, modifiers: press.modifiers) { return .handled }
-                return moveHorizontally(1) ? .handled : .ignored
+                return moveHorizontally(1, modifiers: press.modifiers) ? .handled : .ignored
             }
             // Plain ↵ runs an open menu's row or non-form selection; ⌘↵ submits forms.
             .onKeyPress(keys: [.return, KeyEquivalent("\u{3}")], phases: .down) { press in
@@ -815,6 +817,14 @@ struct RootPaletteView: View {
             }
             // slot + xl equals a row's icon + lg, so the query starts where the row titles do.
             headerGutter(width: metrics.spacing.xl)
+            if let title = vm.customScreen?.title {
+                Text(title)
+                    .font(metrics.typography.searchField)
+                    .foregroundStyle(Theme.Colors.textPrimary)
+                    .lineLimit(1)
+                    .accessibilityAddTraits(.isHeader)
+                headerGutter(width: metrics.spacing.xl)
+            }
             // One structural position: a field inside a branch loses first responder when it flips.
             headerField
                 .simultaneousGesture(TapGesture().onEnded { resetCompactSelection() })
@@ -972,7 +982,7 @@ struct RootPaletteView: View {
         if vm.mode == .extensionCommand, let placeholder = extensionScreen.searchPlaceholder {
             return placeholder
         }
-        return vm.mode.placeholder
+        return vm.customScreen?.prompt ?? vm.mode.placeholder
     }
 
     /// The one search field — empty it's a drag handle, and any text hands every press to editing.
@@ -1428,8 +1438,9 @@ struct RootPaletteView: View {
         return .handled
     }
 
-    /// ←/→: consumed only by a horizontally navigating screen, else the caret keeps them.
-    private func moveHorizontally(_ delta: Int) -> Bool {
+    /// Bare ←/→ only, on a horizontally navigating screen; ⇧⌥⌘ chords always edit the search text.
+    private func moveHorizontally(_ delta: Int, modifiers: EventModifiers) -> Bool {
+        guard modifiers.isDisjoint(with: [.command, .control, .option, .shift]) else { return false }
         let screen = screen
         guard let next = screen.move(delta, axis: .horizontal, from: selection(in: screen)) else {
             return false

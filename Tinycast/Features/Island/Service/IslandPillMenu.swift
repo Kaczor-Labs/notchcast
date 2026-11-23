@@ -113,8 +113,9 @@ final class IslandPillMenu: NSObject {
         let settings = core.settings
         let meeting = core.island.glance.meeting
         let menus = (core.islandPresenter as? IslandPresenter)?.menus ?? []
+        let calendarVisible = meeting != nil || (!NotchcastHidden.tabs.contains(.calendar) && settings.calendarEnabled)
         var sections = PillMenuRow.sections(clipboard: settings.clipboardEnabled,
-            calendar: settings.calendarEnabled || meeting != nil, notes: settings.notesEnabled, carded: meeting != nil)
+            calendar: calendarVisible, notes: settings.notesEnabled, carded: meeting != nil)
             .map { $0.map { (key: RowKey.stock($0), item: item($0, meeting: meeting)) } }
         // Add-on rows go above the two sections that always close the menu.
         sections.insert(addOnItems(menus), at: sections.count - 2)

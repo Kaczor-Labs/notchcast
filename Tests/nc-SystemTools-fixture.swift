@@ -149,7 +149,7 @@ final class Rig {
         controller = NotchcastController(
             addons: [SystemToolsAddon.self], defaults: defaults, hub: hub, dictation: FakeDictation(),
             presenter: presenter)
-        controller.context(forSwitch: SystemToolsAddon.switchID)?.confirmDestructive = { title, _, _ in
+        controller.context(forSwitch: SystemToolsAddon.switchID)?.presentDestructiveQuestion = { title, _, _, _ in
             fake.questions.append(title)
             return fake.answer
         }

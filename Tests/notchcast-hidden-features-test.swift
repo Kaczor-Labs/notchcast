@@ -4,13 +4,58 @@
 // notchcast-sources: Tinycast/Features/Settings/SettingsSearchCatalog.swift
 // notchcast-sources: Tinycast/Features/Launcher/Model/SearchRelevance.swift
 // notchcast-sources: Tinycast/Platform/LocalizedResource.swift
+// notchcast-sources: Tinycast/Features/Launcher/Model/CommandID.swift
+// notchcast-sources: Tinycast/Features/QuickActions/Model/BuiltInQuickAction.swift
+// notchcast-sources: Tinycast/Features/Notchcast/Hidden/NotchcastHiddenCommands.swift
+// notchcast-sources: Tinycast/Features/Calendar/Model/*.swift
+// notchcast-sources: Tinycast/Features/Calendar/Service/CalendarStore.swift
+// notchcast-sources: Tinycast/Platform/CalendarAccess.swift Tinycast/Platform/NotificationToken.swift
 import AppKit
 import Foundation
 
+enum AppEntry { enum Kind { case systemSettings } }
+enum HotKeyAction { case command(CommandID) }
+enum Quicklink { static let sfSymbol = "link" }
+
+@MainActor
+enum Permissions {
+    static var access: CalendarAccess = .granted
+    private(set) static var reads = 0
+
+    static func calendarAccess() -> CalendarAccess {
+        reads += 1
+        return access
+    }
+
+    static func requestCalendarAccess() async -> Bool {
+        preconditionFailure("Starting the shared store must never prompt")
+    }
+}
+
 @main
+@MainActor
 struct HiddenFeaturesTest {
     static func main() {
+        checkCalendarStoreStartsWithCalendarOff()
+
         let visible = SettingsSection.allCases.flatMap(\.tabs)
+        let calendarChecks = [
+            ("Calendar is absent from the sidebar", !visible.contains(.calendar)),
+            ("settings/calendar is rejected", SettingsTab(slug: "calendar") == nil),
+            ("Calendar is absent from Settings search", !SettingsSearchCatalog.entries.contains { $0.tab == .calendar }),
+            ("Calendars permission is absent from Settings search",
+             !SettingsSearchCatalog.entries.contains { $0.anchor == .permissionsCalendars }),
+        ]
+        let failures = calendarChecks.filter { !$0.1 }
+        for (message, _) in failures { print("FAIL: \(message)") }
+        if !failures.isEmpty { exit(1) }
+        let calendarCommands: [CommandID] = [
+            .joinNextMeeting, .mySchedule, .createEvent, .copyMeetingLink, .openInCalendar,
+        ]
+        for command in calendarCommands {
+            precondition(NotchcastHiddenCommands.commands.contains(command), "Hidden Calendar command: \(command)")
+        }
+
         for tab in [
             SettingsTab.extensions, .appleShortcuts, .iCloudSync, .systemSettings, .navigation, .quickActions,
             .commands, .notes, .ai, .fallbacks,
@@ -19,7 +64,7 @@ struct HiddenFeaturesTest {
             precondition(SettingsTab(slug: tab.slug) == nil, "settings/\(tab.slug) opens nothing")
             precondition(!SettingsSearchCatalog.entries.contains { $0.tab == tab }, "Search omits \(tab.slug)")
         }
-        for tab in [SettingsTab.backup, .about, .systemActions, .calendar] {
+        for tab in [SettingsTab.backup, .about, .systemActions] {
             precondition(visible.contains(tab), "Stock tab stays visible: \(tab.slug)")
             precondition(SettingsTab(slug: tab.slug) == tab, "settings/\(tab.slug) still opens")
             precondition(SettingsSearchCatalog.entries.contains { $0.tab == tab })
@@ -32,16 +77,6 @@ struct HiddenFeaturesTest {
             ]),
             (.notes, ["Show in Menu Bar"]),
             (.about, ["Support"]),
-            (.calendar, [
-                "Calendar in Menu Bar", "Show Upcoming Events", "Only show events with meetings",
-                "Hide when there are no upcoming events", "Hide Current Event",
-                "Upcoming meetings in launcher",
-                "Auto Join Meetings",
-                "Only join known meeting services",
-                "Confirm before joining",
-                "Camera Preview",
-                "Calendar commands",
-            ]),
         ]
         for (tab, titles) in hiddenRows {
             for title in titles {
@@ -60,7 +95,7 @@ struct HiddenFeaturesTest {
         precondition(
             SettingsSearchCatalog.entries.contains { $0.tab == .dictation && $0.keywords.contains("AI providers") },
             "With the AI tab hidden, Dictation's Cleanup holds the AI providers row")
-        for title in ["Show animations", "Interface size", "Window mode", "Days to Show"] {
+        for title in ["Show animations", "Interface size", "Window mode"] {
             precondition(
                 SettingsSearchCatalog.entries.contains { $0.keywords.contains(title) },
                 "Search keeps the stock row: \(title)")
@@ -68,16 +103,20 @@ struct HiddenFeaturesTest {
         for title in ["Enable Quick Actions", "Add Quick Action"] {
             precondition(!SettingsSearchCatalog.entries.contains { $0.keywords.contains(title) }, "Search omits \(title)")
         }
-        for title in [
-            "Join meetings from Tinycast", "Show the meeting card", "Open Meeting Links In", "Days to Show", "Calendars",
-        ] {
-            precondition(
-                SettingsSearchCatalog.entries.contains { $0.tab == .calendar && $0.keywords.contains(title) },
-                "Calendar keeps its row: \(title)")
-        }
         precondition(
             SettingsSearchCatalog.entries.contains { $0.tab == .about && $0.keywords.contains("Links") },
             "About keeps its Links")
-        print("Hidden features: the hidden tabs and rows stay out of Settings")
+        print("Hidden features: tabs, rows and Calendar commands stay hidden. The granted Calendar store still starts.")
+    }
+
+    private static func checkCalendarStoreStartsWithCalendarOff() {
+        let store = CalendarStore()
+        let readsBeforeStart = Permissions.reads
+        NotchcastHidden.applyDisabledCalendarStore(start: store.start, stop: {
+            preconditionFailure("Disabling hidden Calendar must keep the shared event store running")
+        })
+        Permissions.access = .denied
+        precondition(store.access == .granted && Permissions.reads == readsBeforeStart + 1,
+                     "A store starting with Calendar off must refresh and accept an existing grant")
     }
 }

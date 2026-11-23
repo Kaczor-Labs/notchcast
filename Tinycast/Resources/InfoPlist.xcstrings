@@ -131,7 +131,7 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Tinycast accesses your events to show your schedule and let you join meetings."
+            "value" : "Tinycast reads your calendar to show today’s events in Day in the Island."
           }
         },
         "es" : {

@@ -5,4 +5,5 @@ struct NotchcastServices {
     var surfaces = NotchcastSurfaces()
     var settingsBackup: any NotchcastSettingsBackup = NotchcastNoSettingsBackup()
     var calendar = NotchcastCalendar()
+    var cleanUp = NotchcastCleanUp()
 }

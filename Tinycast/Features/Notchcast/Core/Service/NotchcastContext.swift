@@ -29,9 +29,7 @@ final class NotchcastContext {
     private(set) var launcherShown: (@MainActor () -> Void)?
     /// Notchcast's own yes/no dialog, never `NSAlert`; nil where no app runs, as in harnesses.
     var confirm: (@MainActor @Sendable (_ title: String, _ message: String?, _ confirmTitle: String) async -> Bool)?
-    /// The same dialog with a destructive confirm button, for a step that loses something.
-    var confirmDestructive:
-        (@MainActor @Sendable (_ title: String, _ message: String?, _ confirmTitle: String) async -> Bool)?
+    var presentDestructiveQuestion: (@MainActor @Sendable (String, String?, String, String) async -> Bool)?
     /// The same dialog with one hidden-text field: the typed text, or nil on Cancel or Esc.
     var askSecret:
         (@MainActor @Sendable (_ title: String, _ message: String?, _ fieldTitle: String, _ confirmTitle: String)
@@ -54,6 +52,13 @@ final class NotchcastContext {
         self.onCommandsChanged = onCommandsChanged
         self.services = services
         recoveryContext = recovery
+    }
+
+    func confirmDestructive(
+        _ title: String, _ message: String?, _ confirmTitle: String, cancelTitle: String? = nil
+    ) async -> Bool {
+        await presentDestructiveQuestion?(title, message, confirmTitle, cancelTitle ?? String(localized: "Cancel"))
+            ?? false
     }
 
     var isAccessibilityTrusted: Bool { hub.isTrusted }
