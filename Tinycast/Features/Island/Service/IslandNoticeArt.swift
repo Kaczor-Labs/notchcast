@@ -44,10 +44,11 @@ struct IslandNoticeArt: PillArt {
     func draw(in pill: CGRect) {
         let cell = IslandNoticeMark.cell
         let box = CGRect(x: pill.minX + edge, y: pill.midY - cell / 2, width: cell, height: cell)
-        mark.draw(in: box)
+        mark.draw(in: box, notch: notch)
         let height = text.size().height
         let x = notch ? pill.maxX - edge - textWidth : box.maxX + gap
-        text.draw(with: CGRect(x: x, y: pill.midY - height / 2, width: textWidth, height: height),
+        let y = IslandOptics.lineBottom(text, midY: pill.midY, notch: notch)
+        text.draw(with: CGRect(x: x, y: y, width: textWidth, height: height),
                   options: [.usesLineFragmentOrigin, .truncatesLastVisibleLine])
     }
 }
@@ -147,7 +148,7 @@ private struct IslandNoticeMark {
             .foregroundColor: Theme.Colors.textPrimary.islandInk(frosted: frosted), .paragraphStyle: paragraph])
     }
 
-    func draw(in box: CGRect) {
+    func draw(in box: CGRect, notch: Bool = false) {
         if let bars {
             meter(bars, in: box)
         } else if let fraction {
@@ -158,8 +159,8 @@ private struct IslandNoticeMark {
             NSBezierPath(roundedRect: box, xRadius: radius, yRadius: radius).fill()
             IslandCover.edge(in: box, frosted: frosted)
         } else if let glyph {
-            glyph.draw(in: CGRect(x: box.midX - glyph.size.width / 2, y: box.midY - glyph.size.height / 2,
-                                  width: glyph.size.width, height: glyph.size.height))
+            glyph.draw(in: IslandOptics.glyphRect(glyph, x: box.midX - glyph.size.width / 2, midY: box.midY,
+                                                  notch: notch))
         }
     }
 
@@ -234,13 +235,12 @@ struct IslandStatusArt: PillArt {
         var x = notch ? pill.maxX - edge - width : pill.midX - width / 2
         for item in items {
             if let glyph = item.glyph {
-                glyph.draw(in: CGRect(x: x, y: pill.midY - glyph.size.height / 2, width: glyph.size.width,
-                                      height: glyph.size.height))
+                glyph.draw(in: IslandOptics.glyphRect(glyph, x: x, midY: pill.midY, notch: notch))
                 x += glyph.size.width
             }
             if let text = item.text {
                 x += Theme.Spacing.xs
-                text.draw(at: CGPoint(x: x, y: pill.midY - text.size().height / 2))
+                text.draw(at: CGPoint(x: x, y: IslandOptics.lineBottom(text, midY: pill.midY, notch: notch)))
                 x += text.size().width
             }
             x += gap

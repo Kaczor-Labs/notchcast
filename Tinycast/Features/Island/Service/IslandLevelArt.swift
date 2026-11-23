@@ -6,6 +6,7 @@ struct IslandLevelArt: PillArt {
     let layout: IslandGlanceLayout
     let level: IslandLevel
     let frosted: Bool
+    private let notch: Bool
     private let glyph: NSImage?
     private let readout: NSAttributedString
     /// Fixed, so a glyph swap on repeat never resizes the slots and restarts the pill's spring.
@@ -18,6 +19,7 @@ struct IslandLevelArt: PillArt {
     init(_ level: IslandLevel, notch: Bool, frosted: Bool) {
         self.level = level
         self.frosted = frosted
+        self.notch = notch
         glyph = GlanceArt.glyph(level.symbol, tone: Theme.Colors.textPrimary.islandInk(frosted: frosted))
         readout = NSAttributedString(string: level.readout, attributes: [
             .font: NotchTheme.Typography.islandGlanceNSFont,
@@ -31,8 +33,7 @@ struct IslandLevelArt: PillArt {
     func draw(in pill: CGRect) {
         if let glyph {
             let x = pill.minX + edge + (cell - glyph.size.width) / 2
-            glyph.draw(in: CGRect(x: x, y: pill.midY - glyph.size.height / 2, width: glyph.size.width,
-                                  height: glyph.size.height))
+            glyph.draw(in: IslandOptics.glyphRect(glyph, x: x, midY: pill.midY, notch: notch))
         }
         let height = Theme.Size.volumeTrackHeight
         let origin = CGPoint(x: pill.maxX - edge - readoutWidth - gap - track, y: pill.midY - height / 2)
@@ -53,7 +54,8 @@ struct IslandLevelArt: PillArt {
         Theme.Colors.textPrimary.islandInk(frosted: frosted).setFill()
         if extents.fill.upperBound > extents.fill.lowerBound { bar(extents.fill).fill() }
         let text = readout.size()
-        readout.draw(at: CGPoint(x: pill.maxX - edge - text.width, y: pill.midY - text.height / 2))
+        readout.draw(at: CGPoint(x: pill.maxX - edge - text.width,
+                                 y: IslandOptics.lineBottom(readout, midY: pill.midY, notch: notch)))
     }
 }
 
