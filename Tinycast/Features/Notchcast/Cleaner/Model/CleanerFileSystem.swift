@@ -3,6 +3,7 @@ import Foundation
 protocol CleanerFileSystem: Sendable {
     func inspect(_ url: URL) throws -> CleanerFile
     func children(of folder: URL, limit: Int) throws -> [String]
+    func linkDestination(of url: URL) throws -> String
     func openFiles() throws -> Set<CleanerFile.Identity>
     func trash(_ url: URL) throws
 }

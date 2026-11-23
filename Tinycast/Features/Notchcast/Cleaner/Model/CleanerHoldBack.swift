@@ -6,6 +6,8 @@ enum CleanerHoldBack: Error, Equatable, Sendable {
     case runningApp
     case openFile
     case recentWrite
+    case recentSavedState
+    case activeBrowserVersion
     case unreadable
     case scanLimit
     case locked(UninstallProtection)

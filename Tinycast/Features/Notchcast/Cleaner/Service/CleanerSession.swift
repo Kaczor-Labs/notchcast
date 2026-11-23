@@ -19,14 +19,14 @@ final class CleanerSession {
     private(set) var selection: CleanerSelection?
     private(set) var report: CleanerReport?
 
-    private let area: CleanerArea
+    private let home: URL
     private let runner: CleanerRunner
     private let hasAccess: @MainActor () -> Bool
     private var plan: CleanerPlan?
     @ObservationIgnored private var scanOperation = 0
 
-    init(area: CleanerArea, runner: CleanerRunner, hasAccess: @escaping @MainActor () -> Bool) {
-        self.area = area
+    init(home: URL, runner: CleanerRunner, hasAccess: @escaping @MainActor () -> Bool) {
+        self.home = home
         self.runner = runner
         self.hasAccess = hasAccess
     }
@@ -46,7 +46,7 @@ final class CleanerSession {
         phase = .scanning
         do {
             try Task.checkCancellation()
-            let scanned = try await runner.scanner.scan(area, apps: runner.runningApps()) { [weak self] item in
+            let scanned = try await runner.scanner.scan(home: home, apps: runner.runningApps()) { [weak self] item in
                 guard let self, self.scanOperation == operation, !Task.isCancelled else { return }
                 self.items.append(item)
             }
@@ -84,7 +84,7 @@ final class CleanerSession {
 
     static func live() -> CleanerSession {
         CleanerSession(
-            area: CleanerArea(home: FileManager.default.homeDirectoryForCurrentUser),
+            home: FileManager.default.homeDirectoryForCurrentUser,
             runner: CleanerRunner(
                 scanner: CleanerScanner(fileSystem: LiveCleanerFileSystem()), runningApps: CleanerRunningApps.live),
             hasAccess: Permissions.hasFullDiskAccess)

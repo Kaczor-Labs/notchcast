@@ -25,7 +25,7 @@ struct CleanerSessionTest {
         fs.put(item, size: 64)
         var hasAccess = false
         let session = CleanerSession(
-            area: CleanerTestFileSystem.area, runner: CleanerRunner(scanner: fs.scanner, runningApps: { .init() }),
+            home: CleanerTestFileSystem.area.home, runner: CleanerRunner(scanner: fs.scanner, runningApps: { .init() }),
             hasAccess: { hasAccess })
 
         await session.open()
@@ -68,7 +68,7 @@ struct CleanerSessionTest {
             }
             return .init()
         })
-        let session = CleanerSession(area: CleanerTestFileSystem.area, runner: runner, hasAccess: { true })
+        let session = CleanerSession(home: CleanerTestFileSystem.area.home, runner: runner, hasAccess: { true })
         let first = Task {
             await CleanerScanTask.$first.withValue(true) { await session.open() }
         }

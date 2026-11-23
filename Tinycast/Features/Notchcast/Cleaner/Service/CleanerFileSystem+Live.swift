@@ -57,6 +57,14 @@ struct LiveCleanerFileSystem: CleanerFileSystem {
         }
     }
 
+    func linkDestination(of url: URL) throws -> String {
+        do {
+            return try FileManager.default.destinationOfSymbolicLink(atPath: url.path)
+        } catch {
+            throw CleanerFileError.unreadable
+        }
+    }
+
     func openFiles() throws -> Set<CleanerFile.Identity> {
         let capacity = proc_listallpids(nil, 0) + 64
         var pids = [pid_t](repeating: 0, count: Int(capacity))

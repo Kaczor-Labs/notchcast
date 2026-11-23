@@ -4,6 +4,7 @@ import Synchronization
 final class CleanerTestFileSystem: CleanerFileSystem {
     private struct State {
         var files: [String: CleanerFile] = [:]
+        var links: [String: String] = [:]
         var trashCalls: [URL] = []
         var openFiles: Set<CleanerFile.Identity> = []
         var refused: Set<String> = []
@@ -44,6 +45,18 @@ final class CleanerTestFileSystem: CleanerFileSystem {
                 facts: PathFacts(path: url.path, isSymbolicLink: link, isUserImmutable: locked, isDirectory: directory),
                 size: size, modifiedSeconds: modified, modifiedNanoseconds: 0, changedSeconds: modified,
                 changedNanoseconds: 0, isRegularFile: !directory && !link)
+        }
+    }
+
+    func putLink(_ url: URL, destination: String) {
+        put(url, link: true)
+        state.withLock { $0.links[url.path] = destination }
+    }
+
+    func linkDestination(of url: URL) throws -> String {
+        try state.withLock {
+            guard let destination = $0.links[url.path] else { throw CleanerFileError.unreadable }
+            return destination
         }
     }
 

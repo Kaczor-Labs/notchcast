@@ -5,8 +5,9 @@ struct CleanerRunningApps: Sendable {
     var running: Set<String> = []
     var own: Set<String> = []
 
-    func holds(_ item: URL) -> Bool {
-        running.contains(CleanerPolicy.appKey(item.lastPathComponent))
+    func holds(_ owner: String) -> Bool {
+        running.contains(CleanerPolicy.appKey(owner)) || running.contains(CleanerPolicy.appKey(
+            CleanerPolicy.groupOwner(owner)))
     }
 
     @MainActor
@@ -18,6 +19,9 @@ struct CleanerRunningApps: Sendable {
                 app.bundleIdentifier.map { $0 + ".ShipIt" },
                 app.bundleIdentifier?.split(separator: ".").last.map(String.init),
                 app.bundleURL?.deletingPathExtension().lastPathComponent,
+                app.bundleURL?.pathComponents.first { $0.hasSuffix(".app") }.map {
+                    String($0.dropLast(".app".count))
+                },
                 app.localizedName
             ].compactMap { $0 }.map(CleanerPolicy.appKey).filter { !$0.isEmpty }
             if app.processIdentifier == ProcessInfo.processInfo.processIdentifier {

@@ -8,10 +8,15 @@ enum CleanerPolicy {
         String(name.lowercased().filter { $0.isLetter || $0.isNumber })
     }
 
-    static func isExcluded(_ name: String, ownNames: Set<String>) -> Bool {
-        [".ds_store", ".localized"].contains(name.lowercased())
-            || CleanerProtectedPaths.isAppleCache(name)
-            || ownNames.contains(appKey(name))
+    static func groupOwner(_ name: String) -> String {
+        var components = name.split(separator: ".")
+        if let first = components.first, first.count == 10, first.allSatisfy({ $0.isASCII && ($0.isLetter || $0.isNumber) }) {
+            components.removeFirst()
+        }
+        if let first = components.first, ["group", "groups", "systemgroup"].contains(first.lowercased()) {
+            components.removeFirst()
+        }
+        return components.joined(separator: ".")
     }
 
     static func protection(for file: CleanerFile, in area: CleanerArea) -> CleanerHoldBack? {

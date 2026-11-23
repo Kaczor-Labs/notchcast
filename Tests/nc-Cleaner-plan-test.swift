@@ -1,5 +1,7 @@
 // notchcast-sources: Tinycast/Features/Notchcast/Cleaner/Model/*.swift
 // notchcast-sources: Tinycast/Features/Notchcast/Cleaner/Service/CleanerScanner.swift
+// notchcast-sources: Tinycast/Features/Notchcast/Cleaner/Service/CleanerBrowserVersions.swift
+// notchcast-sources: Tinycast/Features/Notchcast/Cleaner/Service/CleanerUserAreas.swift
 // notchcast-sources: Tinycast/Features/Notchcast/Cleaner/Service/CleanerRunningApps.swift
 // notchcast-sources: Tinycast/Features/Uninstall/Model/*.swift
 // notchcast-sources: Tests/nc-Cleaner-fixture.swift
@@ -39,7 +41,7 @@ struct CleanerPlanTest {
 
         var streamed: [CleanerItem] = []
         let apps = CleanerRunningApps(running: ["examplepainter"], own: ["comexamplecleaner"])
-        let plan = try await fs.scanner.scan(CleanerTestFileSystem.area, apps: apps) { streamed.append($0) }
+        let plan = try await fs.scanner.scan(home: CleanerTestFileSystem.area.home, apps: apps) { streamed.append($0) }
         let rows = Dictionary(uniqueKeysWithValues: plan.items.map { ($0.id, $0) })
         precondition(streamed == plan.items)
         precondition(Set(rows.keys) == [safe, recent, running, locked, privateWork, link])
@@ -51,7 +53,7 @@ struct CleanerPlanTest {
         precondition(rows[link]?.standing == .locked(.unsafePath))
         precondition(plan.knownBytes == 96 && plan.unknownCount == 3)
         precondition(plan.defaultSelection.checked == [safe])
-        var selection = CleanerSelection(plan: plan, checked: Set(rows.keys).union([plan.area.root]))
+        var selection = CleanerSelection(plan: plan, checked: Set(rows.keys).union([CleanerTestFileSystem.area.root]))
         selection.set(locked, checked: true, in: plan)
         selection.set(running, checked: true, in: plan)
         precondition(selection.checked == [safe])
@@ -76,7 +78,7 @@ struct CleanerPlanTest {
 
         var scanner = fs.scanner
         scanner.monotonic = { now.withLock { $0 } }
-        let plan = try await scanner.scan(CleanerTestFileSystem.area, apps: .init())
+        let plan = try await scanner.scan(home: CleanerTestFileSystem.area.home, apps: .init())
         precondition(plan.items.map(\.standing) == [.recommended, .locked(.scanLimit), .recommended])
         precondition(plan.items.last?.size?.bytes == 64)
         precondition(plan.defaultSelection.checked == [large, small])

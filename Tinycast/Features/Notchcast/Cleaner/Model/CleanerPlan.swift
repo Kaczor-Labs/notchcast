@@ -1,7 +1,6 @@
 import Foundation
 
 struct CleanerPlan: Sendable {
-    let area: CleanerArea
     let items: [CleanerItem]
     let snapshots: [URL: CleanerSnapshot]
 

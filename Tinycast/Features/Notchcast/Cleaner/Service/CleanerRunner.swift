@@ -33,18 +33,19 @@ struct CleanerRunner: Sendable {
         _ item: CleanerItem, in plan: CleanerPlan, openFiles: inout OpenFiles
     ) async throws -> CleanerReport.Outcome {
         let url = item.id
-        guard item.standing.isSelectable, plan.area.contains(url), let scanned = plan.snapshots[url] else {
+        let area = item.area
+        guard item.standing.isSelectable, area.contains(url), let scanned = plan.snapshots[url] else {
             return .skipped(.heldBack(.unsafePath))
         }
 
         let apps = await runningApps()
-        if CleanerPolicy.isExcluded(url.lastPathComponent, ownNames: apps.own) {
+        if scanner.isExcluded(url, in: area, ownNames: apps.own) {
             return .skipped(.heldBack(.protectedData))
         }
-        if apps.holds(url) { return .skipped(.heldBack(.runningApp)) }
+        if apps.holds(area.ownerName(of: url)) { return .skipped(.heldBack(.runningApp)) }
 
         do {
-            guard try scanner.parentIdentities(in: plan.area) == scanned.parents else {
+            guard try scanner.parentIdentities(of: url, in: area) == scanned.parents else {
                 return .skipped(.changed)
             }
             guard try scanner.fileSystem.inspect(url) == scanned.entries[url] else { return .skipped(.changed) }
@@ -53,15 +54,18 @@ struct CleanerRunner: Sendable {
                 openFiles.identities = try scanner.fileSystem.openFiles()
                 openFiles.expires = started.advanced(by: .seconds(1))
             }
-            let current = try scanner.snapshot(of: url, in: plan.area)
+            let currentApps = area.kind == .caches ? apps : await runningApps()
+            let current = try scanner.snapshot(of: url, in: area)
             guard current == scanned else { return .skipped(.changed) }
             if current.entries.values.contains(where: { openFiles.identities.contains($0.identity) }) {
                 return .skipped(.heldBack(.openFile))
             }
-            if scanner.hasRecentWrite(current, now: scanner.clock()) { return .skipped(.heldBack(.recentWrite)) }
+            if let reason = scanner.hold(for: url, in: area, snapshot: current, apps: currentApps) {
+                return .skipped(.heldBack(reason))
+            }
 
             try Task.checkCancellation()
-            guard try scanner.parentIdentities(in: plan.area) == scanned.parents,
+            guard try scanner.parentIdentities(of: url, in: area) == scanned.parents,
                 try scanner.fileSystem.inspect(url) == scanned.entries[url]
             else { return .skipped(.changed) }
             try scanner.fileSystem.trash(url)

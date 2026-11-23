@@ -1,5 +1,7 @@
 // notchcast-sources: Tinycast/Features/Notchcast/Cleaner/Model/*.swift
 // notchcast-sources: Tinycast/Features/Notchcast/Cleaner/Service/CleanerScanner.swift
+// notchcast-sources: Tinycast/Features/Notchcast/Cleaner/Service/CleanerBrowserVersions.swift
+// notchcast-sources: Tinycast/Features/Notchcast/Cleaner/Service/CleanerUserAreas.swift
 // notchcast-sources: Tinycast/Features/Notchcast/Cleaner/Service/CleanerRunner.swift
 // notchcast-sources: Tinycast/Features/Notchcast/Cleaner/Service/CleanerRunningApps.swift
 // notchcast-sources: Tinycast/Features/Uninstall/Model/*.swift
@@ -28,7 +30,7 @@ struct CleanerRunnerTest {
         for folder in [changed, openFolder] { fs.put(folder, directory: true) }
         for file in [failed, child, missing, inUse, openFile, good] { fs.put(file, size: 64) }
 
-        let plan = try await fs.scanner.scan(CleanerTestFileSystem.area, apps: .init())
+        let plan = try await fs.scanner.scan(home: CleanerTestFileSystem.area.home, apps: .init())
         precondition(plan.defaultSelection.checked == [failed, changed, missing, inUse, openFolder, good])
         fs.put(child, size: 64)
         fs.remove(missing)
@@ -42,7 +44,7 @@ struct CleanerRunnerTest {
         ])
         precondition(report.movedCount == 1 && report.knownMovedBytes == 64)
         precondition(fs.trashCalls == [failed, good])
-        _ = try fs.inspect(plan.area.root)
+        _ = try fs.inspect(CleanerTestFileSystem.area.root)
     }
 
     private static func rejectsChangedRoot() async throws {
@@ -50,7 +52,7 @@ struct CleanerRunnerTest {
         let item = CleanerTestFileSystem.item("example")
         fs.put(item, size: 100)
         let area = CleanerTestFileSystem.area
-        let plan = try await fs.scanner.scan(area, apps: .init())
+        let plan = try await fs.scanner.scan(home: area.home, apps: .init())
         let runner = CleanerRunner(scanner: fs.scanner, runningApps: { .init() })
 
         fs.put(area.root, link: true)

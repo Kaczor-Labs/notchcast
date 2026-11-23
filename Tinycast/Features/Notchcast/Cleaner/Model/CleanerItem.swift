@@ -11,6 +11,7 @@ struct CleanerItem: Identifiable, Equatable, Sendable {
     }
 
     let id: URL
+    let area: CleanerArea
     let size: MeasuredSize?
     let standing: Standing
 }
