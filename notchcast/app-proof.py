@@ -20,6 +20,18 @@ def command(args, **kwargs):
     return subprocess.run(args, cwd=ROOT, check=True, **kwargs)
 
 
+def can_run_proof():
+    if (os.environ.get("GITHUB_ACTIONS") == "true"
+            and os.environ.get("GITHUB_JOB") == "proof"
+            and os.environ.get("RUNNER_ENVIRONMENT") == "github-hosted"):
+        return True
+    try:
+        result = command(["/usr/sbin/sysctl", "-n", "kern.hv_vmm_present"], capture_output=True, text=True)
+    except (OSError, subprocess.CalledProcessError):
+        return False
+    return result.stdout.strip() == "1"
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     modes = parser.add_subparsers(dest="mode", required=True)
@@ -37,6 +49,8 @@ def main():
             if any(fnmatch.fnmatchcase(path, glob) for path in paths for glob in globs):
                 print(name)
         return
+    if not can_run_proof():
+        raise SystemExit("App proof runs only in a guest or CI.")
     # samefile catches /applications and the /System/Volumes/Data firmlink, which string checks miss.
     if args.app and any(parent.exists() and os.path.samefile(parent, "/Applications")
                         for path in (args.app.absolute(), args.app.resolve()) for parent in (path, *path.parents)):

@@ -283,8 +283,9 @@ class RunnerTest(unittest.TestCase):
         self.assertEqual(signature(first), "Refuse a working Mac")
         self.assertEqual(field(first, "if"), "runner.environment != 'github-hosted'")
         self.assertIsNone(field(first, "continue-on-error"), "a guard that may fail lets a working Mac through")
-        self.assertIn('[ "${NOTCHCAST_ISOLATED_RUNNER:-}" = 1 ] && exit 0\n'
-                      '  echo "::error::Proof launches the app: hosted or isolated runner only"\n  exit 1', first)
+        self.assertIn('[ "${NOTCHCAST_ISOLATED_RUNNER:-}" = 1 ] && '
+                      '[ "$(sysctl -n kern.hv_vmm_present 2>/dev/null)" = 1 ] && exit 0\n'
+                      '  echo "::error::App proof runs only in a guest or GitHub-hosted CI."\n  exit 1', first)
 
     def test_a_working_mac_proves_no_tree_and_an_isolated_one_records_under_its_own_name(self):
         found = {(job, signature(text)): text for job, text in steps(WORKFLOW, 6)}
