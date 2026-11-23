@@ -3,13 +3,17 @@ import SwiftUI
 @main
 enum TinycastLaunch {
     static func main() {
+        LaunchedExecutable.pin()
         #if DEBUG
-        if IslandVerification.enabled { IslandVerification.main(); return }
+        if ProcessRole.current == .main, IslandVerification.enabled { IslandVerification.main(); return }
         #endif
         ICloudSyncOffMigration.run()
         NotchcastAppProof.runIfRequested()
         AppSettings.pinLanguage()
-        TinycastApp.main()
+        switch ProcessRole.current {
+        case .main: TinycastApp.main()
+        case .settings: SettingsApp.main()
+        }
     }
 }
 
@@ -83,12 +87,8 @@ struct TinycastApp: App {
                 .keyboardShortcut(",")
         }
         CommandGroup(replacing: .appTermination) {
-            Button("Close Window") {
-                // The chat window closes itself when it is in front; otherwise ⌘Q is Settings'.
-                guard !AppCore.shared.aiChatCoordinator.closeWindowIfKey() else { return }
-                AppCore.shared.settingsCoordinator.closeSettings()
-            }
-            .keyboardShortcut("q")
+            Button("Close Window") { _ = AppCore.shared.aiChatCoordinator.closeWindowIfKey() }
+                .keyboardShortcut("q")
         }
     }
 }

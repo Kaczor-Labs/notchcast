@@ -6,8 +6,8 @@ extension DownloadsAddon {
             NotchcastSettingsRow(switchID: DownloadsModule.torrentsSwitchID, searchTerms: [
                 "aria2c",
                 "default torrent app",
-            ]) {
-                AnyView(TorrentsSettingsView(context: $0))
+            ]) { _ in
+                AnyView(TorrentsSettingsView())
             },
             NotchcastSettingsRow(switchID: DownloadsModule.distillSwitchID, searchTerms: [
                 "markdown folder",

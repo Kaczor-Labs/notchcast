@@ -33,8 +33,8 @@ enum SpotifyAddon: NotchcastAddon {
             "sign out",
             "sign in…",
             "open dashboard…",
-        ]) {
-            AnyView(SpotifySettingsView(context: $0))
+        ]) { _ in
+            AnyView(SpotifySettingsView())
         },
         NotchcastSettingsRow(switchID: "spotify", searchTerms: [
             "long song names",

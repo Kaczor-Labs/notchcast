@@ -26,9 +26,7 @@ enum ColorPickerAddon: NotchcastAddon {
             "color format",
             "recent picks",
         ]) { context in
-            AnyView(ColorPickerSettingsView(defaults: context.defaults) {
-                context.module(ColorPickerModule.self)?.copy($0)
-            })
+            AnyView(ColorPickerSettingsView(defaults: context.defaults))
         },
     ]
 
