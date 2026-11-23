@@ -180,9 +180,9 @@ class SelectionTest(unittest.TestCase):
 # The one way to a self-hosted Mac (README Runners): a dispatch, which no fork can start; unset, it is xcode-27.
 GATED_MAC = ("${{ github.event_name == 'workflow_dispatch' && !inputs.hosted && vars.NOTCHCAST_MAC_RUNNER "
              "|| 'xcode-27' }}")
-# pr.yml's mac job also takes the runner label a dispatch names for a harness-only run, or the mac-pool (README Runners).
-HARNESS_MAC = ("${{ github.event_name == 'workflow_dispatch' && (inputs.harness_runner || inputs.pool && 'mac-pool' "
-               "|| !inputs.hosted && vars.NOTCHCAST_MAC_RUNNER) || 'xcode-27' }}")
+# pr.yml's mac job also takes the runner label a dispatch names for a harness-only run, or the pool runner (README Runners).
+HARNESS_MAC = ("${{ github.event_name == 'workflow_dispatch' && (inputs.harness_runner || inputs.pool "
+               "&& (vars.NOTCHCAST_POOL_RUNNER || 'mac-pool') || !inputs.hosted && vars.NOTCHCAST_MAC_RUNNER) || 'xcode-27' }}")
 POOL_MAC = ("${{ needs.mac-route.result == 'success' && needs.mac-route.outputs.mac-runner == 'notchcast-mbp' "
             "&& 'notchcast-mbp' || 'xcode-27' }}")
 HARNESS_ONLY, FULL_RUN = "inputs.harness_runner != ''", "inputs.harness_runner == ''"
@@ -319,9 +319,10 @@ class RunnerTest(unittest.TestCase):
             return eval(re.sub(r"\b(?:github|inputs|vars)\.(\w+)", r"v['\1']", code), {"v": values})
         for event in ("pull_request", "pull_request_target", "push", "workflow_dispatch"):
             for label in HARNESS_RUNNERS:
-                for hosted, pool, variable in itertools.product((False, True), (False, True), ("", "notchcast-mbp")):
+                for hosted, pool, variable, pool_variable in itertools.product(
+                        (False, True), (False, True), ("", "notchcast-mbp"), ("", "notchcast-mbp")):
                     values = {"event_name": event, "harness_runner": label, "hosted": hosted, "pool": pool,
-                              "NOTCHCAST_MAC_RUNNER": variable}
+                              "NOTCHCAST_MAC_RUNNER": variable, "NOTCHCAST_POOL_RUNNER": pool_variable}
                     runner = runs_on(HARNESS_MAC, **values)
                     with self.subTest(values):
                         if event != "workflow_dispatch":
@@ -329,7 +330,7 @@ class RunnerTest(unittest.TestCase):
                         elif label:
                             self.assertEqual(runner, label)
                         elif pool:
-                            self.assertEqual(runner, "mac-pool")
+                            self.assertEqual(runner, pool_variable or "mac-pool")
                         else:
                             self.assertEqual(runner, runs_on(GATED_MAC, **values), "an empty input changes nothing")
 

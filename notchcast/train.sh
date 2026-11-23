@@ -155,18 +155,26 @@ notify() {
 workflows='pr.yml proof.yml design.yml leaks.yml'
 # The ones with a Mac job, which take the train's lane as their hosted input (ready-check-test.py: GATED_JOBS).
 mac_workflows='pr.yml proof.yml'
-# A train's Mac jobs run on the isolated runner while NOTCHCAST_MAC_RUNNER names one, else PR's on the mac-pool while
-# one of its runners is online, else hosted (README, Runners).
+# Labels of every online runner the repository's jobs can reach, its own and the organization's.
+online_labels() {
+    gh api "repos/$FORK_REPO/actions/runners" --jq '.runners[] | select(.status == "online") | .labels[].name' 2>/dev/null || true
+    gh api "orgs/${FORK_REPO%%/*}/actions/runners" --jq '.runners[] | select(.status == "online") | .labels[].name' 2>/dev/null || true
+}
+# A train's Mac jobs run on the isolated runner while NOTCHCAST_MAC_RUNNER names one, else PR's on the pool runner
+# NOTCHCAST_POOL_RUNNER names (mac-pool unset) while one is online, else hosted (README, Runners).
 mac=hosted
-label=$(gh variable get NOTCHCAST_MAC_RUNNER -R "$FORK_REPO" 2>/dev/null || true)
-if [ "${NOTCHCAST_TRAIN_MAC:-}" != hosted ] && [ -n "$label" ]; then
-    # A job for a label with no runner online stays queued for good, so such a train goes hosted.
-    online=$(gh api "repos/$FORK_REPO/actions/runners" --jq '.runners[] | select(.status == "online") | .labels[].name' 2>/dev/null || true)
-    if grep -qxF "$label" <<< "$online"; then mac=isolated; else echo "train: no runner labelled $label is online"; fi
-fi
-if [ "${NOTCHCAST_TRAIN_MAC:-}" != hosted ] && [ "$mac" = hosted ]; then
-    pool=$(gh api "orgs/${FORK_REPO%%/*}/actions/runners" --jq '[.runners[] | select(.status == "online" and any(.labels[]; .name == "mac-pool"))] | length' 2>/dev/null || true)
-    if [ "${pool:-0}" -gt 0 ] 2>/dev/null; then mac=pool; else echo "train: no mac-pool runner is online, so the Mac jobs are hosted"; fi
+if [ "${NOTCHCAST_TRAIN_MAC:-}" != hosted ]; then
+    online=$(online_labels)
+    label=$(gh variable get NOTCHCAST_MAC_RUNNER -R "$FORK_REPO" 2>/dev/null || true)
+    pool_label=$(gh variable get NOTCHCAST_POOL_RUNNER -R "$FORK_REPO" 2>/dev/null || true)
+    pool_label=${pool_label:-mac-pool}
+    # A job for a label with no runner online stays queued for good, so such a train goes elsewhere.
+    if [ -n "$label" ]; then
+        if grep -qxF "$label" <<< "$online"; then mac=isolated; else echo "train: no runner labelled $label is online"; fi
+    fi
+    if [ "$mac" = hosted ]; then
+        if grep -qxF "$pool_label" <<< "$online"; then mac=pool; else echo "train: no runner labelled $pool_label is online, so the Mac jobs are hosted"; fi
+    fi
 fi
 # HOSTED_ONLY_TESTS of the tree in the current directory, every line that sets it.
 hosted_only_list() { sed -n 's/^HOSTED_ONLY_TESTS="\(.*\)"$/\1/p' notchcast/config.env | paste -sd' ' -; }
@@ -209,19 +217,26 @@ preflight() {
         return 0
     fi
     [ "$mac" = pool ] || return 0
-    local covered
+    local covered tooling
     covered=$(macos_script_inputs | paste -sd' ' -)
-    [ -n "$covered" ] || return 0
+    if [ -n "$covered" ]; then
+        runner=hosted
+        echo "train: it changes $covered, which the macOS script tests read and a pool runner never runs, so its Mac jobs are hosted"
+        return 0
+    fi
+    # A pool run skips the macOS script tests and runs on a maintainer's Mac: the fork's own tooling stays hosted.
+    tooling=$(grep '^notchcast/' "$scratch/changed" | grep -v '\.md$' | paste -sd' ' - || true)
+    [ -n "$tooling" ] || return 0
     runner=hosted
-    echo "train: it changes $covered, which the macOS script tests read and a pool runner never runs, so its Mac jobs are hosted"
+    echo "train: it changes notchcast/ tooling ($tooling), which a pool run never proves, so its Mac jobs are hosted"
 }
 # Files of $base..$tip that a macOS script test (# script-tests: macos) is or names; a pool run skips those tests.
 macos_script_inputs() {
     local test file
     git diff --name-only "$base" "$tip" > "$scratch/changed"
-    git grep -lE '^(#|//) script-tests: macos' "$tip" -- notchcast | sed "s/^$tip://" | while read -r test; do
+    for test in $(git grep -lE '^(#|//) script-tests: macos' "$tip" -- notchcast | sed "s/^$tip://"); do
         while read -r file; do
-            [ "$file" = "$test" ] || git show "$tip:$test" | grep -qF "$(basename "$file")" && echo "$file"
+            if [ "$file" = "$test" ] || git grep -qF "$(basename "$file")" "$tip" -- "$test"; then echo "$file"; fi
         done < "$scratch/changed"
     done | sort -u
 }
@@ -330,7 +345,7 @@ pick_batch() {
         done | sort > "$scratch/signed" || return 1
     still_refused
     [ ! -s "$scratch/hosted-prs" ] \
-        || echo "queue: #$(paste -sd' ' "$scratch/hosted-prs" | sed 's/ / #/g') train hosted: land.sh refused them for good on the isolated runner at these heads" >&2
+        || echo "queue: #$(paste -sd' ' "$scratch/hosted-prs" | sed 's/ / #/g') train hosted: land.sh refused them for good on a self-hosted runner at these heads" >&2
     if [ -s "$scratch/refused-prs" ]; then
         echo "queue: #$(paste -sd' ' "$scratch/refused-prs" | sed 's/ / #/g') left out: land.sh refused them for good at these heads" >&2
         awk 'NR == FNR { out[$1]; next } !($2 in out)' "$scratch/refused-prs" "$scratch/signed" > "$scratch/kept"
@@ -348,13 +363,13 @@ pick_batch() {
         | cut -d' ' -f2 | paste -sd' ' -
 }
 # Lines "<runner> <config> <pr>@<head>...": batches land.sh refused for good (exit 3) at those heads on a train whose
-# Mac jobs ran on <runner>, under config.env blob <config>. Both such refusals judge an isolated runner's record, so a
-# hosted train is the run that can change the verdict: the queue trains a batch refused on the isolated runner hosted,
+# Mac jobs ran on <runner>, under config.env blob <config>. Both such refusals judge a self-hosted runner's record, so a
+# hosted train is the run that can change the verdict: the queue trains a batch refused on a self-hosted runner hosted,
 # and leaves one refused on a hosted train out. Kept beside the detached train logs, so every tick's tree sees it.
 refused_file="$(cd "$(git rev-parse --git-common-dir)" && pwd)/notchcast-refused"
 config_key=$(git hash-object notchcast/config.env)
 # Forgets each refusal under another config or with a head that moved (open PRs in $scratch/heads), and writes the
-# PRs of the rest to $scratch/hosted-prs (refused on the isolated runner) or $scratch/refused-prs (refused hosted).
+# PRs of the rest to $scratch/hosted-prs (refused on a self-hosted runner) or $scratch/refused-prs (refused hosted).
 still_refused() {
     local runner key heads
     : > "$scratch/refusals"

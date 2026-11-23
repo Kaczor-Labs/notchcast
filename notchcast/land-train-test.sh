@@ -99,7 +99,13 @@ case "$*" in
     'run download 8 '*)
         echo "${ISOLATED%%|*}" > "${*: -1}/toolchain"
         echo "${ISOLATED#*|}" > "${*: -1}/excused" ;;
-    *actions/runners*) [ -n "${OFFLINE:-}" ] || echo "${MAC_RUNNER:-}" ;;
+    # MAC_RUNNER: the repository's runner of that label, online unless OFFLINE; POOL: the organization's, through the real --jq.
+    *' repos/'*actions/runners*)
+        jq -n --arg label "${MAC_RUNNER:-}" --arg status "${OFFLINE:+offline}" \
+            '{runners: [select($label != "") | {status: ($status | if . == "" then "online" else . end), labels: [{name: "self-hosted"}, {name: $label}]}]}' | jq -r "${*: -1}" ;;
+    *' orgs/'*actions/runners*)
+        jq -n --arg label "${POOL:-}" '{runners: [select($label != "") | {status: "online", labels: [{name: "self-hosted"}, {name: $label}]}]}' | jq -r "${*: -1}" ;;
+    'variable get NOTCHCAST_POOL_RUNNER'*) [ -n "${POOL_VAR:-}" ] && echo "$POOL_VAR" || { echo 'variable NOTCHCAST_POOL_RUNNER was not found' >&2; exit 1; } ;;
     'variable get NOTCHCAST_MAC_RUNNER'*) [ -n "${MAC_RUNNER:-}" ] && echo "$MAC_RUNNER" || { echo 'variable NOTCHCAST_MAC_RUNNER was not found' >&2; exit 1; } ;;
     *actions/artifacts*) if [ -n "${TESTED:-}" ]; then echo '{"artifacts":[{"workflow_run":{"id":7}}]}'; else echo '{"artifacts":[]}'; fi ;;
     *actions/runs/7*) printf '{"name":"PR","path":".github/workflows/pr.yml","conclusion":"success","repository":{"id":5},"head_repository":{"id":5,"full_name":"%s"},"html_url":"https://fixture.invalid/runs/7"}\n' "$FORK_REPO" ;;
@@ -434,16 +440,16 @@ fixture
 open_pr 1 pr-h 'Add H' src/hosted.txt src/b.txt src/clipboard-text.txt
 ISOLATED='other toolchain|' land 1
 [ "$status" -eq 3 ] && [ "$(origin rev-parse main)" = "$base" ] && [ ! -s "$PASSES" ] \
-    && grep -q "^REFUSED: the isolated run https://fixture.invalid/runs/8 tested this tree with 'other toolchain', and landing expects 'fixture toolchain'" "$FIXTURE/output" \
+    && grep -q "^REFUSED: the self-hosted run https://fixture.invalid/runs/8 tested this tree with 'other toolchain', and landing expects 'fixture toolchain'" "$FIXTURE/output" \
     || fail 'an isolated run with another toolchain was not refused'
 echo 'PASS: an isolated run of the tree with a toolchain landing does not expect is refused'
 ISOLATED='fixture toolchain|hosted-test' land 1
 [ "$status" -eq 3 ] && [ "$(origin rev-parse main)" = "$base" ] && [ ! -s "$PASSES" ] \
-    && grep -q '^REFUSED: the isolated run https://fixture.invalid/runs/8 did not prove hosted-test ' "$FIXTURE/output" \
+    && grep -q '^REFUSED: the self-hosted run https://fixture.invalid/runs/8 did not prove hosted-test ' "$FIXTURE/output" \
     || fail 'an isolated run that excused a selected hosted-only harness was not refused by name'
 echo 'PASS: an isolated run that excused a selected hosted-only harness is refused by name'
 ISOLATED='fixture toolchain|b-test other-test' land 1
-[ "$status" -eq 0 ] && grep -q 'the isolated run https://fixture.invalid/runs/8 proved all of them but b-test$' "$FIXTURE/output" \
+[ "$status" -eq 0 ] && grep -q 'the self-hosted run https://fixture.invalid/runs/8 proved all of them but b-test$' "$FIXTURE/output" \
     && [ "$(paste -sd'|' "$PASSES")" = b-test ] && [ "$(landed)" = 'Notchcast: Add H (#1)' ] \
     || fail "with an isolated run that excused b-test the passes were '$(paste -sd'|' "$PASSES")' and '$(landed)' landed"
 echo 'PASS: an isolated run of the tree lands it, and only a selected harness it excused runs here'
@@ -549,7 +555,8 @@ rm "$FIXTURE/dispatched"
 OFFLINE=1 MAC_RUNNER=fixture-mac train 1
 [ "$status" -eq 0 ] && grep -q '^workflow run pr.yml .*hosted=true' "$FIXTURE/dispatched" \
     && grep -q '^workflow run proof.yml .*hosted=true' "$FIXTURE/dispatched" \
-    && grep -q '^train: no runner labelled fixture-mac is online, so the Mac jobs are hosted$' "$FIXTURE/train-output" \
+    && grep -q '^train: no runner labelled fixture-mac is online$' "$FIXTURE/train-output" \
+    && grep -q '^train: no runner labelled mac-pool is online, so the Mac jobs are hosted$' "$FIXTURE/train-output" \
     || fail 'a train went to a named runner that is offline'
 echo 'PASS: a train stays hosted while no runner with the named label is online'
 origin push --quiet . --delete train/1 2>/dev/null || origin update-ref -d refs/heads/train/1
@@ -587,11 +594,66 @@ MAC_RUNNER=fixture-mac train 1
     && grep -q '^train: train/1 has its Mac jobs on the isolated runner$' "$FIXTURE/train-output" || fail "with a runner named the train dispatched '$(paste -sd'|' "$FIXTURE/dispatched")'"
 echo "$train_sha" > "$FIXTURE/green"
 ISOLATED='other toolchain|' land --train-run "$train_sha" 1
-[ "$status" -eq 3 ] && grep -q "^REFUSED: the isolated run .* tested this tree with 'other toolchain'" "$FIXTURE/output" && untouched \
+[ "$status" -eq 3 ] && grep -q "^REFUSED: the self-hosted run .* tested this tree with 'other toolchain'" "$FIXTURE/output" && untouched \
     || fail 'a train whose isolated run has another toolchain landed'
 ISOLATED='fixture toolchain|' land --train-run "$train_sha" 1
 [ "$status" -eq 0 ] && [ ! -s "$PASSES" ] && [ "$(landed)" = 'Notchcast: Add B (#1)' ] || fail "a train proven by the isolated runner landed '$(landed)'"
 echo 'PASS: a train goes to the named Mac runner unless told hosted, and lands on its isolated run only with the expected toolchain'
+
+# With no isolated runner online, a train's PR Mac job goes to the pool runner NOTCHCAST_POOL_RUNNER names (mac-pool
+# unset), Proof stays hosted, and only a train a pool run can prove goes there.
+pool_train() {
+    origin update-ref -d refs/heads/train/1 2>/dev/null || true
+    rm -f "$FIXTURE/dispatched"
+    train 1
+}
+on_pool() {
+    [ "$status" -eq 0 ] && grep -q '^workflow run pr.yml .*-f pool=true' "$FIXTURE/dispatched" && ! grep -q '^workflow run pr.yml .*hosted=true' "$FIXTURE/dispatched" \
+        && grep -q '^workflow run proof.yml .*hosted=true' "$FIXTURE/dispatched" && grep -q '^train: train/1 has its Mac jobs on the pool runner$' "$FIXTURE/train-output" \
+        || { cat "$FIXTURE/train-output"; fail "$1"; }
+}
+off_pool() {
+    [ "$status" -eq 0 ] && ! grep -q 'pool=true' "$FIXTURE/dispatched" && [ "$(grep -c 'hosted=true' "$FIXTURE/dispatched")" -eq 2 ] \
+        && grep -q "$2" "$FIXTURE/train-output" && grep -q '^train: train/1 has its Mac jobs on the hosted runner$' "$FIXTURE/train-output" \
+        || { cat "$FIXTURE/train-output"; fail "$1"; }
+}
+fixture
+open_pr 1 pr-b 'Add B' src/b.txt
+POOL=fixture-pool POOL_VAR=fixture-pool OFFLINE=1 MAC_RUNNER=fixture-mac pool_train
+on_pool 'a train did not go to the pool runner the variable names while the isolated one is offline'
+POOL=mac-pool pool_train
+on_pool 'a train did not go to the mac-pool label while the variable is unset'
+POOL=mac-pool POOL_VAR=fixture-pool pool_train
+off_pool 'a train went to the pool while no runner with the label the variable names is online' '^train: no runner labelled fixture-pool is online, so the Mac jobs are hosted$'
+POOL=mac-pool NOTCHCAST_TRAIN_MAC=hosted pool_train
+off_pool 'NOTCHCAST_TRAIN_MAC=hosted did not keep a pool train hosted' .
+echo 'PASS: a train runs PR on the pool runner the variable names and Proof hosted, and stays hosted with none online'
+fixture
+open_pr 1 pr-h 'Add H' src/hosted.txt
+POOL=mac-pool pool_train
+off_pool 'a train that selects a hosted-only harness went to the pool' '^train: it selects hosted-only harnesses (hosted-test)'
+echo 'PASS: a train that selects a hosted-only harness stays off the pool'
+fixture
+open_pr 1 pr-t 'Add tool' notchcast/tool.sh
+POOL=mac-pool pool_train
+off_pool 'a train that changes notchcast/ tooling went to the pool' '^train: it changes notchcast/ tooling (notchcast/tool.sh), which a pool run never proves'
+fixture
+open_pr 1 pr-d 'Add notes' notchcast/notes.md src/b.txt
+POOL=mac-pool pool_train
+on_pool 'a train that changes only a notchcast/ doc beside app code stayed off the pool'
+echo 'PASS: a train that changes notchcast/ tooling stays off the pool; a notchcast/ doc does not'
+fixture
+git switch --quiet -c pr-s "$base"
+echo 'echo pkg' > Scripts/pkg.sh
+printf '#!/bin/bash\n# script-tests: macos (pkg.sh)\n' > notchcast/pkg-test.sh
+git add Scripts/pkg.sh notchcast/pkg-test.sh
+git commit --quiet -m 'Add S'
+git push --quiet origin pr-s pr-s:refs/pull/1/head
+jq -n --arg head "$(git rev-parse HEAD)" '{number: 1, createdAt: "2026-01-01T00:00:00Z", comments: [], state: "OPEN", isDraft: false, headRefOid: $head, headRefName: "pr-s", baseRefName: "main", isCrossRepository: false, title: "Add S", body: "", labels: []}' > "$FIXTURE/pr-1.json"
+git switch --quiet main
+POOL=mac-pool pool_train
+off_pool 'a train that changes a macOS script test input went to the pool' '^train: it changes Scripts/pkg.sh notchcast/pkg-test.sh, which the macOS script tests read and a pool runner never runs'
+echo 'PASS: a train that changes a macOS script test or a file one names stays off the pool'
 
 fixture
 open_pr 1 pr-b 'Add B' src/b.txt
@@ -1013,11 +1075,11 @@ refused_once() {
     head1=$(head_of 1)
     key=$(git hash-object notchcast/config.env)
     ISOLATED='other toolchain|' MAC_RUNNER=fixture-mac queue
-    [ "$status" -eq 1 ] && grep -q '^REFUSED: the isolated run https://fixture.invalid/runs/8 tested this tree with .other toolchain.' "$FIXTURE/train-output" \
+    [ "$status" -eq 1 ] && grep -q '^REFUSED: the self-hosted run https://fixture.invalid/runs/8 tested this tree with .other toolchain.' "$FIXTURE/train-output" \
         && grep -qxF 'REFUSED FOR GOOD #1: its train branch train/1 stays; the queue trains these PRs hosted next, the run that can change that verdict' "$FIXTURE/train-output" \
         && [ "$(wc -l < "$FIXTURE/dispatched")" -eq 4 ] && ! grep -q 'hosted=true' "$FIXTURE/dispatched" && untouched \
         || queue_fail 'a green train refused for good on the isolated runner was not recorded'
-    [ "$(wc -l < "$FIXTURE/comments")" -eq 1 ] && grep -q "^1 Refused for good at its head $head1: land.sh refused the green train train/1 (#1) on the isolated runner: the isolated run " "$FIXTURE/comments" \
+    [ "$(wc -l < "$FIXTURE/comments")" -eq 1 ] && grep -q "^1 Refused for good at its head $head1: land.sh refused the green train train/1 (#1) on the isolated runner: the self-hosted run " "$FIXTURE/comments" \
         && [ "$(wc -l < "$FIXTURE/notified")" -eq 1 ] && grep -q '^Notchcast: land.sh refused the green train train/1 (#1) for good on the isolated runner: ' "$FIXTURE/notified" \
         || queue_fail "the refusal was told as '$(cat "$FIXTURE/comments")' and '$(cat "$FIXTURE/notified" 2>/dev/null)'"
     [ "$(cat .git/notchcast-refused)" = "isolated $key 1@$head1" ] || queue_fail "the record is '$(cat .git/notchcast-refused 2>/dev/null)'"
@@ -1030,7 +1092,7 @@ hosted_tick() {
 }
 refused_once
 ISOLATED='fixture toolchain|' MAC_RUNNER=fixture-mac queue
-grep -q '^queue: #1 train hosted: land.sh refused them for good on the isolated runner at these heads$' "$FIXTURE/train-output" \
+grep -q '^queue: #1 train hosted: land.sh refused them for good on a self-hosted runner at these heads$' "$FIXTURE/train-output" \
     && grep -q '^train: land.sh refused a PR of it for good on the isolated runner at its head, so its Mac jobs are hosted$' "$FIXTURE/train-output" \
     || queue_fail 'the tick after a refusal on the isolated runner did not train it hosted'
 hosted_tick 'a tick with the isolated runner back on the expected toolchain'
@@ -1038,6 +1100,22 @@ refused_once
 NOTCHCAST_TRAIN_MAC=hosted TESTED=1 queue
 hosted_tick 'a tick with NOTCHCAST_TRAIN_MAC=hosted'
 echo 'PASS: a batch refused for good on the isolated runner is told once, and the next tick trains it hosted and lands it'
+# A pool train's record is self-hosted too: refused for good, the next tick trains the batch hosted.
+fixture
+open_pr 1 pr-b 'Add B' src/b.txt
+head1=$(head_of 1)
+key=$(git hash-object notchcast/config.env)
+ISOLATED='other toolchain|' POOL=mac-pool queue
+[ "$status" -eq 1 ] && grep -q '^workflow run pr.yml .*-f pool=true' "$FIXTURE/dispatched" && [ "$(cat .git/notchcast-refused)" = "pool $key 1@$head1" ] \
+    || queue_fail "a green pool train refused for good was recorded as '$(cat .git/notchcast-refused 2>/dev/null)'"
+ISOLATED='fixture toolchain|' POOL=mac-pool queue
+grep -q '^queue: #1 train hosted: land.sh refused them for good on a self-hosted runner at these heads$' "$FIXTURE/train-output" \
+    && grep -q '^train: land.sh refused a PR of it for good on the pool runner at its head, so its Mac jobs are hosted$' "$FIXTURE/train-output" \
+    || queue_fail 'the tick after a refusal on the pool runner did not train it hosted'
+[ "$status" -eq 0 ] && grep -q '^LANDED #1$' "$FIXTURE/train-output" && [ "$(wc -l < "$FIXTURE/dispatched")" -eq 8 ] \
+    && [ "$(grep -c 'hosted=true' "$FIXTURE/dispatched")" -eq 3 ] && [ "$(landed)" = 'Notchcast: Add B (#1)' ] \
+    || queue_fail 'the tick after a refusal on the pool runner did not dispatch the batch hosted and land it'
+echo 'PASS: a batch refused for good on the pool runner is trained hosted next tick and lands'
 # A hosted train of it refused for good again is left out at the same heads and config.
 refused_once
 for tick in 2 3; do
