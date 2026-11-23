@@ -3,12 +3,29 @@ import Foundation
 extension DayAddon: NotchcastSettingsEndpoint {
     static var settingsID: String { switches[0].id }
 
-    static func settingsStatus(_ context: NotchcastContext) -> String? {
-        context.defaults.string(forKey: DayModule.symbolsKey) ?? ""
+    struct Status: Codable, Equatable, Sendable {
+        var symbols: String
+        var needsCalendarAccess: Bool
     }
 
-    static func perform(_ text: String, context: NotchcastContext) {
-        context.settingsModule(DayModule.self, for: settingsID)?.setSymbols(text)
+    enum Action: Codable, Sendable {
+        case setSymbols(String)
+        case requestCalendarAccess
+    }
+
+    static func settingsStatus(_ context: NotchcastContext) -> Status? {
+        Status(symbols: context.defaults.string(forKey: DayModule.symbolsKey) ?? "",
+               needsCalendarAccess: context.calendar.needsAccess())
+    }
+
+    static func perform(_ action: Action, context: NotchcastContext) {
+        switch action {
+        case .setSymbols(let text):
+            context.settingsModule(DayModule.self, for: settingsID)?.setSymbols(text)
+        case .requestCalendarAccess:
+            guard context.isEnabled(settingsID) else { return }
+            Task { await context.calendar.requestAccess(true) }
+        }
     }
 
     static func answer(_ city: String, context: NotchcastContext) async throws -> String? {
