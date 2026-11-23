@@ -223,7 +223,7 @@
 	<key>NSMicrophoneUsageDescription</key>
 	<string>Tinycast records audio only while you use Dictation, to transcribe it on your Mac.</string>
 	<key>NSCalendarsFullAccessUsageDescription</key>
-	<string>Tinycast accesses your events to show your schedule and let you join meetings.</string>
+	<string>Tinycast reads your calendar to show today’s events in Day in the Island.</string>
 	<key>NSRemindersFullAccessUsageDescription</key>
 	<string>Tinycast lets extensions you run read and edit your reminders.</string>
 	<key>NSBluetoothAlwaysUsageDescription</key>

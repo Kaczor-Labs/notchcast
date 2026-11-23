@@ -34,6 +34,7 @@ final class SettingsCoordinator {
     }
 
     func show(_ request: SettingsRequest) {
+        if let tab = request.tab, NotchcastHidden.tabs.contains(tab) { return }
         switch surface {
         case .window(let window): window.show(request)
         case .process(let process): process.show(request)
