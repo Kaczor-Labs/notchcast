@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 // Adapted from Vorssaint 89d2626's capture engine: excluded windows left out, windows front to back.
+// Window stills adapted from Vorssaint 1dca3339's capture engine: composited through the display.
 
 import AppKit
 import ScreenCaptureKit
@@ -94,11 +95,36 @@ extension ScreenshotSystem {
         var images: [UInt32: CGImage] = [:]
         for window in content.windows where wanted.contains(window.windowID) {
             try Task.checkCancellation()
-            let output = try? await SCScreenshotManager.captureScreenshot(
-                contentFilter: SCContentFilter(desktopIndependentWindow: window), configuration: configuration)
-            images[window.windowID] = output?.sdrImage
+            images[window.windowID] = await ScreenshotWindowCapture.still(
+                of: window.frame, displays: content.displays, frame: \.frame,
+                composited: { display, sourceRect in
+                    await shot(of: window.frame, SCContentFilter(display: display, including: [window])) {
+                        $0.sourceRect = sourceRect
+                        $0.ignoreShadowsDisplay = true
+                    }
+                },
+                isolated: {
+                    await shot(of: window.frame, SCContentFilter(desktopIndependentWindow: window)) {
+                        $0.captureResolution = .best
+                        $0.ignoreShadowsSingleWindow = true
+                        $0.ignoreGlobalClipSingleWindow = true
+                    }
+                })
         }
         return images
+    }
+
+    /// A stream configuration: the screenshot one cannot lift the clip off a window past a display edge.
+    private static func shot(
+        of frame: CGRect, _ filter: SCContentFilter, configure: (SCStreamConfiguration) -> Void
+    ) async -> ScreenshotWindowCapture.Shot? {
+        let scale = CGFloat(filter.pointPixelScale)
+        let configuration = SCStreamConfiguration()
+        (configuration.width, configuration.height) = ScreenshotWindowCapture.pixelSize(of: frame, scale: scale)
+        configuration.showsCursor = false
+        configure(configuration)
+        let image = try? await SCScreenshotManager.captureImage(contentFilter: filter, configuration: configuration)
+        return image.map { ($0, scale) }
     }
 
     @MainActor private static func captureUIWindowIDs() -> Set<UInt32> {
