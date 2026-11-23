@@ -108,6 +108,11 @@ final class DownloadsModule: NotchcastModule {
     func perform(_ action: Action) {
         guard running, context.isEnabled(action.switchID) else { return }
         if action == .runDistill { return runDistill() }
+        if action == .transcript, let queue = downloads.queue,
+           queue.jobs.contains(where: { $0.kind == TranscriptDownloadRunner.kind && $0.state == .held }) {
+            queue.release(TranscriptDownloadRunner.kind)
+            return
+        }
         let links = DownloadsLinks.urls(in: environment.clipboard())
         if links.isEmpty {
             return context.presenter.post(IslandNotice(
@@ -191,7 +196,7 @@ final class DownloadsModule: NotchcastModule {
             workDirectory: environment.work,
             transcribe: { [context] in try await context.transcribe($0) },
             timestamps: { preferences.isEnabled("distillTimestamps") },
-            onBusy: { [weak queue] in queue?.hold(DistillRunner.kind) },
+            holdRemaining: { [weak queue] in queue?.hold(DistillRunner.kind) },
             notes: { [context] in
                 DistillNotes.folder(in: context.defaults).map { DistillNotes(folder: $0, saved: context.now()) }
             },
@@ -210,7 +215,22 @@ final class DownloadsModule: NotchcastModule {
                 begin: { bonding.startDownload($0, enabled: wanted()) },
                 end: { bonding.endDownload($0) })))
         }
-        queue.register(TranscriptDownloadRunner())
+        let speech = DistillRunner(
+            workDirectory: environment.work,
+            transcribe: { [context] in try await context.transcribe($0) },
+            timestamps: { false }, holdRemaining: {})
+        queue.register(TranscriptDownloadRunner(transcribeAudio: { [weak queue] source, context in
+            do {
+                return try await speech.transcript(of: source, times: false, notes: nil, context: context)
+            } catch DistillFailure.unavailable {
+                await queue?.hold(TranscriptDownloadRunner.kind)
+                throw DownloadRunPause(detail: DistillFailure.unavailable.localizedDescription)
+            } catch DistillFailure.busy {
+                throw MediaFailure(detail: String(
+                    localized: "Dictation is in use. Choose Download Transcript when it is free.",
+                    table: "NotchcastDownloads"))
+            }
+        }))
         queue.register(WebpageRunner())
     }
 }

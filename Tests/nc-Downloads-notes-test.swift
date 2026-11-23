@@ -1,3 +1,7 @@
+// notchcast-sources: Tinycast/Features/Notchcast/Downloads/Model/CaptionText.swift
+// notchcast-sources: Tinycast/Features/Notchcast/Downloads/Model/MediaArguments.swift
+// notchcast-sources: Tinycast/Features/Notchcast/Downloads/Model/MediaFailure.swift
+// notchcast-sources: Tinycast/Features/Notchcast/Downloads/Service/TranscriptDownloadRunner.swift
 // notchcast-sources: Tinycast/Features/Notchcast/Core/Service/NotchcastTranscription.swift
 // notchcast-sources: Tinycast/Features/Notchcast/Downloads/Model/DistillDrop.swift
 // notchcast-sources: Tinycast/Features/Notchcast/Downloads/Model/DistillNote.swift
@@ -289,7 +293,12 @@ struct DownloadsNotesTest {
         try Data("audio".utf8).write(to: quiet)
         let refused = Self.runner(root, notes: notes, busy: busy, watched: watched,
                                   transcribe: { _ in throw NotchcastTranscribeError.busy })
-        await expectFailure(.busy, "busy fails the file") { _ = try await refused.run(dropped(quiet), context: context) }
+        do {
+            _ = try await refused.run(dropped(quiet), context: context)
+            preconditionFailure("busy must put the file on hold")
+        } catch let pause as DownloadRunPause {
+            expect(pause.detail == DistillFailure.busy.localizedDescription, "busy says when to resume")
+        }
         expect(busy.count == 1 && FileManager.default.fileExists(atPath: quiet.path),
                "busy ends the run and keeps the file for Run Distill")
     }
@@ -343,7 +352,7 @@ struct DownloadsNotesTest {
         transcribe: @escaping DistillRunner.Transcribe = { _ in "hello" }
     ) -> DistillRunner {
         DistillRunner(workDirectory: root.appending(path: "work", directoryHint: .isDirectory), transcribe: transcribe,
-                      timestamps: { false }, onBusy: { busy.count += 1 }, notes: { notes },
+                      timestamps: { false }, holdRemaining: { busy.count += 1 }, notes: { notes },
                       dropFolder: { if let watched { watched.folder } else { notes?.folder } })
     }
 

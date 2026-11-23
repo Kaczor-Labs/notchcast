@@ -100,7 +100,7 @@ extension NotchcastCoreTest {
                       == "presenter: core.islandPresenter" }
               })
         check("NotchcastCore hands the controller stock Dictation",
-              calls.allSatisfy { $0.contains("dictation: NotchcastDictationBridge(core: core)") })
+              calls.allSatisfy { $0.contains("dictation: NotchcastDictationBridge(core: core, modelDownload: modelDownload)") })
         check("NotchcastCore wires the live doors for the main app", calls.allSatisfy {
             let wiring = arguments($0)
             return wiring.contains("services: NotchcastServices(core: core)")
