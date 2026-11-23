@@ -331,11 +331,12 @@ struct DownloadsModuleTest {
         context.detach()
     }
 
-    /// #924: the default, every switch off, still answers a magnet opened with the app, through the controller.
+    /// #924: every switch off still answers a magnet opened with the app, through the controller.
     private static func openWithEverySwitchOff() {
         let suite = "nc-downloads-open-off-test.\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suite)!
         defer { defaults.removePersistentDomain(forName: suite) }
+        for id in DownloadsAddon.switches.map(\.id) { defaults.set(false, forKey: id) }
         let hub = NotchcastTapHub(syntheticTag: 0, isTrusted: { false }) { _ in
             preconditionFailure("the harness never installs a tap")
         }
