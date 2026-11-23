@@ -30,15 +30,29 @@ enum AddOnPaletteTests {
         palette.query = "example"
         let screen = palette.customScreen?.makeScreen(palette.query) as? Screen
         precondition(screen?.query == "example", "the screen receives the live search text")
+        screen?.selectRow(1)
+        precondition(palette.selection == 1, "a row click updates the host's selection")
+        palette.query = ""
+        screen?.selectRow(2)
+        precondition(palette.selection == 1, "a row from an earlier query cannot move selection")
         precondition(palette.pop(preservingSelection: true), "back returns to the launcher")
+        screen?.selectRow(0)
         precondition(palette.query == "sample" && palette.selection == 2)
         precondition(closed == 1 && palette.customScreen == nil)
 
         open()
+        let original = palette.customScreen?.makeScreen(palette.query) as? Screen
         open()
         precondition(closed == 2 && palette.customScreen != nil, "replacing a screen closes the previous one")
+        original?.selectRow(1)
+        precondition(palette.selection == 0, "a replaced screen cannot move the current selection")
+        let replacement = palette.customScreen?.makeScreen(palette.query) as? Screen
+        replacement?.selectRow(2)
+        precondition(palette.selection == 2, "the replacement can still move selection")
         coordinator.hidePalette()
         coordinator.hidePalette()
+        replacement?.selectRow(2)
+        precondition(palette.selection == 0, "a closed screen cannot move selection")
         precondition(closed == 3 && palette.customScreen == nil, "close releases the screen exactly once")
         precondition(!palette.isVisible && palette.mode == .launcher && !palette.canGoBack)
         coordinator.togglePalette()
@@ -48,7 +62,7 @@ enum AddOnPaletteTests {
         coordinator.showPalette(mode: .fileSearch)
         precondition(closed == 4 && palette.customScreen == nil, "leaving the screen cancels its work")
         precondition(palette.backStack.allSatisfy { $0.mode != .customScreen }, "back cannot resurrect it")
-        print("PASS add-on palette lifecycle")
+        print("PASS add-on palette lifecycle and selection")
     }
 }
 
@@ -57,6 +71,7 @@ protocol PaletteScreen {}
 
 private struct Screen: PaletteScreen {
     let query: String
+    let selectRow: (Int) -> Void
 }
 
 @MainActor
