@@ -115,8 +115,8 @@ jobs:
           NOTCHCAST_XCODE_FROM_RUNNER: '1'
         run: bash tools/notchcast/ci-xcode.sh
       # hosted is GitHub's VM and isolated a Mac user of its own (README, Runners): both run everything. working is a
-      # maintainer's own session: its run skips what could touch that Mac and proves no tree. pool is a working Mac of
-      # the pool runner: it skips the same, but records its tree with every hosted-only harness as excused. A harness-only
+      # maintainer's own session: its run skips what could touch that Mac and proves no tree. pool is a screenless agent
+      # runner: it runs the macOS script tests, skips the hosted-only harnesses and records them as excused. A harness-only
       # run is working on any runner: it never builds, so it never records a tree.
       - name: Runner kind
         id: runner
@@ -131,7 +131,7 @@ jobs:
           if [ "$HARNESS_ONLY" = true ]; then kind=working; echo "::notice::SKIPPED on a harness-only run: the build lane, every Linux job, the build check"; fi
           echo "kind=$kind" >> "$GITHUB_OUTPUT"
           [ "$kind" != working ] || echo "::notice::SKIPPED on a working Mac: the macOS script tests, HOSTED_ONLY_TESTS harnesses, the tested-tree record"
-          [ "$kind" != pool ] || echo "::notice::SKIPPED on the Mac pool: the macOS script tests, HOSTED_ONLY_TESTS harnesses (excused in its tree record)"
+          [ "$kind" != pool ] || echo "::notice::SKIPPED on the Mac pool: HOSTED_ONLY_TESTS harnesses (excused in its tree record)"
       # Runners of one Mac share its temp folder: each job keeps its harness logs in its own. The figures only print.
       - name: Runner load at start
         if: steps.runner.outputs.kind != 'hosted'
@@ -140,7 +140,7 @@ jobs:
           sysctl -n hw.ncpu hw.memsize; uptime; vm_stat | head -8; sysctl vm.swapusage
       # Each test gets its own TMPDIR so it can run beside the Debug build.
       - name: Script tests that need macOS
-        if: steps.runner.outputs.kind == 'hosted' || steps.runner.outputs.kind == 'isolated'
+        if: steps.runner.outputs.kind != 'working'
         working-directory: src
         run: |
           out="$RUNNER_TEMP/macos-script-tests"
@@ -172,7 +172,7 @@ jobs:
         run: bash ../tools/notchcast/ci-build.sh
       # Also after a failed or skipped build lane; a run cancelled meanwhile never reaches it, so never passes.
       - name: Result of the script tests that need macOS
-        if: ${{ !cancelled() && (steps.runner.outputs.kind == 'hosted' || steps.runner.outputs.kind == 'isolated') }}
+        if: ${{ !cancelled() && steps.runner.outputs.kind != 'working' }}
         timeout-minutes: 10
         run: |
           out="$RUNNER_TEMP/macos-script-tests"

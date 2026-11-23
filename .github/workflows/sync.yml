@@ -92,17 +92,19 @@ jobs:
   # upstream, so main only gains a commit; build and test. Nothing to replay but main not
   # tested yet (a push): build and test main as it is, once. The tree's code runs here, so no secret and no write token.
   # Issues: kind sync for a replay onto new upstream (cause stable across upstream commits), main for main as it is.
+  # NOTCHCAST_POOL_RUNNER set: on that screenless pool runner, which skips the hosted-only harnesses (README, Sync).
   main:
     name: ${{ needs.plan.outputs.rebase == 'true' && 'replay' || 'main' }}
     needs: plan
     if: needs.plan.outputs.rebase == 'true' || needs.plan.outputs.test_main == 'true'
-    runs-on: xcode-27
+    runs-on: ${{ vars.NOTCHCAST_POOL_RUNNER || 'xcode-27' }}
     timeout-minutes: 120
     permissions:
       contents: read
       statuses: read
     outputs:
       head: ${{ steps.replay.outputs.head }}
+      hosted: ${{ runner.environment == 'github-hosted' }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
@@ -241,10 +243,11 @@ jobs:
         if: steps.review.outputs.lost != 'true' && steps.update.outputs.lost != 'true'
         env:
           GH_TOKEN: ${{ github.token }}
+          WHERE: ${{ needs.main.outputs.hosted == 'true' && 'green' || 'green on the pool, hosted-only harnesses skipped' }}
         run: |
           source tools/notchcast/config.env
           gh api -X POST "repos/$GITHUB_REPOSITORY/statuses/$HEAD_SHA" -f state=success -f context="$TESTED_CONTEXT" \
-            -f description="Debug build and upstream tests green" -f target_url="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID" >/dev/null
+            -f description="Debug build and upstream tests $WHERE" -f target_url="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID" >/dev/null
       - name: Close resolved issues
         if: steps.review.outputs.lost != 'true' && steps.update.outputs.lost != 'true'
         continue-on-error: true

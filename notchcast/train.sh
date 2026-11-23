@@ -216,29 +216,6 @@ preflight() {
         echo "train: it selects hosted-only harnesses ($hosted_only), which land.sh trusts only from a hosted run, so its Mac jobs are hosted"
         return 0
     fi
-    [ "$mac" = pool ] || return 0
-    local covered tooling
-    covered=$(macos_script_inputs | paste -sd' ' -)
-    if [ -n "$covered" ]; then
-        runner=hosted
-        echo "train: it changes $covered, which the macOS script tests read and a pool runner never runs, so its Mac jobs are hosted"
-        return 0
-    fi
-    # A pool run skips the macOS script tests and runs on a maintainer's Mac: the fork's own tooling stays hosted.
-    tooling=$(grep '^notchcast/' "$scratch/changed" | grep -v '\.md$' | paste -sd' ' - || true)
-    [ -n "$tooling" ] || return 0
-    runner=hosted
-    echo "train: it changes notchcast/ tooling ($tooling), which a pool run never proves, so its Mac jobs are hosted"
-}
-# Files of $base..$tip that a macOS script test (# script-tests: macos) is or names; a pool run skips those tests.
-macos_script_inputs() {
-    local test file
-    git diff --name-only "$base" "$tip" > "$scratch/changed"
-    for test in $(git grep -lE '^(#|//) script-tests: macos' "$tip" -- notchcast | sed "s/^$tip://"); do
-        while read -r file; do
-            if [ "$file" = "$test" ] || git grep -qF "$(basename "$file")" "$tip" -- "$test"; then echo "$file"; fi
-        done < "$scratch/changed"
-    done | sort -u
 }
 # Pushes $sha as new branch $branch and dispatches its workflows against base $1.
 start_train() {

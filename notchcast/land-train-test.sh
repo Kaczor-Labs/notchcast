@@ -601,7 +601,7 @@ ISOLATED='fixture toolchain|' land --train-run "$train_sha" 1
 echo 'PASS: a train goes to the named Mac runner unless told hosted, and lands on its isolated run only with the expected toolchain'
 
 # With no isolated runner online, a train's PR Mac job goes to the pool runner NOTCHCAST_POOL_RUNNER names (mac-pool
-# unset), Proof stays hosted, and only a train a pool run can prove goes there.
+# unset), Proof stays hosted, and only a train that selects a hosted-only harness stays off it.
 pool_train() {
     origin update-ref -d refs/heads/train/1 2>/dev/null || true
     rm -f "$FIXTURE/dispatched"
@@ -636,12 +636,8 @@ echo 'PASS: a train that selects a hosted-only harness stays off the pool'
 fixture
 open_pr 1 pr-t 'Add tool' notchcast/tool.sh
 POOL=mac-pool pool_train
-off_pool 'a train that changes notchcast/ tooling went to the pool' '^train: it changes notchcast/ tooling (notchcast/tool.sh), which a pool run never proves'
-fixture
-open_pr 1 pr-d 'Add notes' notchcast/notes.md src/b.txt
-POOL=mac-pool pool_train
-on_pool 'a train that changes only a notchcast/ doc beside app code stayed off the pool'
-echo 'PASS: a train that changes notchcast/ tooling stays off the pool; a notchcast/ doc does not'
+on_pool 'a train that changes notchcast/ tooling stayed off the pool'
+echo 'PASS: a train that changes notchcast/ tooling goes to the pool'
 fixture
 git switch --quiet -c pr-s "$base"
 echo 'echo pkg' > Scripts/pkg.sh
@@ -652,8 +648,8 @@ git push --quiet origin pr-s pr-s:refs/pull/1/head
 jq -n --arg head "$(git rev-parse HEAD)" '{number: 1, createdAt: "2026-01-01T00:00:00Z", comments: [], state: "OPEN", isDraft: false, headRefOid: $head, headRefName: "pr-s", baseRefName: "main", isCrossRepository: false, title: "Add S", body: "", labels: []}' > "$FIXTURE/pr-1.json"
 git switch --quiet main
 POOL=mac-pool pool_train
-off_pool 'a train that changes a macOS script test input went to the pool' '^train: it changes Scripts/pkg.sh notchcast/pkg-test.sh, which the macOS script tests read and a pool runner never runs'
-echo 'PASS: a train that changes a macOS script test or a file one names stays off the pool'
+on_pool 'a train that changes a macOS script test input stayed off the pool, which runs those tests'
+echo 'PASS: a train that changes a macOS script test or a file one names goes to the pool, which runs them'
 
 fixture
 open_pr 1 pr-b 'Add B' src/b.txt

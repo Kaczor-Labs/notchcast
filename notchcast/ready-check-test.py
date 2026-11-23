@@ -185,6 +185,8 @@ HARNESS_MAC = ("${{ github.event_name == 'workflow_dispatch' && (inputs.harness_
                "&& (vars.NOTCHCAST_POOL_RUNNER || 'mac-pool') || !inputs.hosted && vars.NOTCHCAST_MAC_RUNNER) || 'xcode-27' }}")
 POOL_MAC = ("${{ needs.mac-route.result == 'success' && needs.mac-route.outputs.mac-runner == 'notchcast-mbp' "
             "&& 'notchcast-mbp' || 'xcode-27' }}")
+# Sync's main job, the one Sync job that holds no secret and writes nothing, takes the pool while the variable is set.
+SYNC_MAC = "${{ vars.NOTCHCAST_POOL_RUNNER || 'xcode-27' }}"
 HARNESS_ONLY, FULL_RUN = "inputs.harness_runner != ''", "inputs.harness_runner == ''"
 # Labels a dispatch may name for a harness-only run (README Runners); free text names any runner.
 HARNESS_RUNNERS = ["", "notchcast-mba", "notchcast-mbp"]
@@ -207,6 +209,9 @@ class RunnerTest(unittest.TestCase):
             if not match:
                 continue
             value = match[1].strip()
+            if name == "sync.yml" and job == "main" and value == SYNC_MAC:
+                mac += 1
+                continue
             if value in (gate, "xcode-27"):
                 mac += 1
             if value == gate:
@@ -222,6 +227,13 @@ class RunnerTest(unittest.TestCase):
         for workflow in sorted((ROOT / ".github/workflows").glob("*.y*ml")):
             with self.subTest(workflow.name):
                 self.check_runners(workflow.name, workflow.read_text())
+
+    def test_syncs_pool_job_holds_no_secret_and_writes_nothing(self):
+        text = (ROOT / ".github/workflows/sync.yml").read_text()
+        main = re.search(r"^  main:\n((?:    .*\n|\n)+)", text, re.M)[1]
+        self.assertIn(f"    runs-on: {SYNC_MAC}\n", main)
+        self.assertIn("    permissions:\n      contents: read\n      statuses: read\n", main)
+        self.assertNotRegex(main, r"secrets\.|: write\b|environment:")
 
     def test_workflows_do_not_reference_the_linux_pool(self):
         for workflow in sorted((ROOT / ".github/workflows").glob("*.y*ml")):
@@ -304,8 +316,7 @@ class RunnerTest(unittest.TestCase):
         self.assertIn('if [ "$HOSTED" = true ]; then kind=hosted; elif [ "${NOTCHCAST_ISOLATED_RUNNER:-}" = 1 ]; then kind=isolated; fi',
                       found["mac", "Runner kind"])
         self.assertIn('if [ "$kind" = working ] && [ "$POOL" = true ]; then kind=pool; fi', found["mac", "Runner kind"])
-        self.assertEqual(field(found["mac", "Script tests that need macOS"], "if"),
-                         "steps.runner.outputs.kind == 'hosted' || steps.runner.outputs.kind == 'isolated'")
+        self.assertEqual(field(found["mac", "Script tests that need macOS"], "if"), "steps.runner.outputs.kind != 'working'")
         self.assertEqual(field(found["build", "A train's Mac job proves its tree"], "if"),
                          "startsWith(github.ref, 'refs/heads/train/') && needs.mac.outputs.kind == 'working'")
         # Only Sync's hosted job sets the tested status; a job that may run self-hosted has no way to.
