@@ -1,73 +1,6 @@
 {
   "sourceLanguage" : "en",
   "strings" : {
-    "Held until Run Distill" : {},
-    "Waiting" : {},
-    "Running" : {},
-    "Saved" : {},
-    "Failed: %@" : {},
-    "Failed" : {},
-    "Interrupted" : {},
-    "Distill queue" : {},
-    "No links in the queue." : {},
-    "Try again: %@" : {},
-    "Remove" : {},
-    "Remove %@" : {},
-    "%@, %@" : {},
-    "%lld links queued" : {
-      "localizations" : {
-        "en" : {
-          "variations" : {
-            "plural" : {
-              "one" : {
-                "stringUnit" : {
-                  "state" : "translated",
-                  "value" : "%lld link queued"
-                }
-              },
-              "other" : {
-                "stringUnit" : {
-                  "state" : "translated",
-                  "value" : "%lld links queued"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "%lld links queued · %lld failed" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%1$#@queued@ · %2$lld failed"
-          },
-          "substitutions" : {
-            "queued" : {
-              "argNum" : 1,
-              "formatSpecifier" : "lld",
-              "variations" : {
-                "plural" : {
-                  "one" : {
-                    "stringUnit" : {
-                      "state" : "translated",
-                      "value" : "%lld link queued"
-                    }
-                  },
-                  "other" : {
-                    "stringUnit" : {
-                      "state" : "translated",
-                      "value" : "%lld links queued"
-                    }
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
-    },
     "Cancel All Torrents" : {
 
     },
@@ -376,6 +309,73 @@
     },
     "PDF, HTML, audio and video files added to the Markdown folder while this is on become notes. Originals go to the Trash." : {
 
+    },
+    "Held until Run Distill" : {},
+    "Waiting" : {},
+    "Running" : {},
+    "Saved" : {},
+    "Failed: %@" : {},
+    "Failed" : {},
+    "Interrupted" : {},
+    "Distill queue" : {},
+    "No links in the queue." : {},
+    "Try again: %@" : {},
+    "Remove" : {},
+    "Remove %@" : {},
+    "%@, %@" : {},
+    "%lld links queued" : {
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld link queued"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld links queued"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "%lld links queued · %lld failed" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$#@queued@ · %2$lld failed"
+          },
+          "substitutions" : {
+            "queued" : {
+              "argNum" : 1,
+              "formatSpecifier" : "lld",
+              "variations" : {
+                "plural" : {
+                  "one" : {
+                    "stringUnit" : {
+                      "state" : "translated",
+                      "value" : "%lld link queued"
+                    }
+                  },
+                  "other" : {
+                    "stringUnit" : {
+                      "state" : "translated",
+                      "value" : "%lld links queued"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "version" : "1.0"
