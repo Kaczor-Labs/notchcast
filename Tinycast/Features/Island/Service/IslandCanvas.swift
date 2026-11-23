@@ -340,9 +340,9 @@ enum IslandOptics {
         guard let bitmap = NSBitmapImageRep(bitmapDataPlanes: nil, pixelsWide: Int(ceil(size.width * scale)),
                 pixelsHigh: Int(ceil(size.height * scale)), bitsPerSample: 8, samplesPerPixel: 4, hasAlpha: true,
                 isPlanar: false, colorSpaceName: .deviceRGB, bytesPerRow: 0, bitsPerPixel: 0),
-              let context = NSGraphicsContext(bitmapImageRep: bitmap), let pixels = bitmap.bitmapData
-        else { return image }
+              let pixels = bitmap.bitmapData else { return image }
         bitmap.size = size
+        guard let context = NSGraphicsContext(bitmapImageRep: bitmap) else { return image }
         NSGraphicsContext.saveGraphicsState()
         NSGraphicsContext.current = context
         image.draw(in: CGRect(origin: .zero, size: size))
