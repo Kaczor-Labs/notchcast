@@ -9,6 +9,7 @@
 // notchcast-sources: Tinycast/DesignSystem/Theme.swift Tinycast/DesignSystem/InterfaceMetrics.swift
 // notchcast-sources: Tinycast/Platform/Appearance.swift Tinycast/Features/Notchcast/NotchTheme.swift
 // notchcast-sources: notchcast/vendor/Obsidian/ObsidianTokens.swift Tinycast/Features/Notchcast/IslandButtonFill.swift
+// notchcast-sources: Tests/ImageRendererBitmap.swift
 import AppKit
 import Carbon.HIToolbox
 import SwiftUI
@@ -48,7 +49,7 @@ struct ShortcutRecorderRenderTest {
         renderer.proposedSize = ProposedViewSize(width: Theme.Size.shortcutRecorder,
                                                  height: Theme.Size.settingsRowButton)
         renderer.scale = 2
-        guard let image = renderer.cgImage else { fatalError("Recorder did not render") }
+        guard let image = renderer.bitmap else { fatalError("Recorder did not render") }
         precondition(image.width <= Int(Theme.Size.shortcutRecorder * renderer.scale),
                      "The binding needs more space than the recorder provides")
         return image
