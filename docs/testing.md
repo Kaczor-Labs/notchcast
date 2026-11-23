@@ -19,7 +19,7 @@ A green [PR workflow](../.github/workflows/pr.yml) run for the pushed head cover
 
 Run lint and the Model import grep locally. The hosted Debug build lane also runs lint, and the import grep is a separate local check. Fix any docs your change makes inaccurate in the same commit.
 
-Build locally or in a guest for guest tries and screen checks, and when verification needs signed or Release packaging, TCC grants, a real display or a harness the hosted VM skips. Choose manual checks from the sweep below based on what you changed.
+Run agent screen checks and manual app verification inside a tester guest. Choose manual checks from the sweep below based on what you changed. Release app proofs run in the [Proof workflow](../.github/workflows/proof.yml) or inside a tester guest, including for before-and-after checks. The proof launches the Release app even when it opens no window.
 
 ## The harnesses
 
