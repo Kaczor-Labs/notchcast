@@ -51,9 +51,11 @@ struct MacTweak: Identifiable, Sendable {
     var restarts: Set<MacTweakRestart> = []
     var presets: Set<MacTweakPreset> = []
     var since = OperatingSystemVersion(majorVersion: 26, minorVersion: 0, patchVersion: 0)
+    // A retired tweak stays in the catalogue only so Undo Everything can restore what it wrote.
+    var isRetired = false
 
     func isSupported(on version: OperatingSystemVersion) -> Bool {
-        (version.majorVersion, version.minorVersion, version.patchVersion) >=
+        !isRetired && (version.majorVersion, version.minorVersion, version.patchVersion) >=
             (since.majorVersion, since.minorVersion, since.patchVersion)
     }
 }

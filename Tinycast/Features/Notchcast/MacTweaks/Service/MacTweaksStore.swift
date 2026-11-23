@@ -8,12 +8,14 @@ final class MacTweaksStore {
         case unknownTweak
         case corruptJournal
         case unverifiedJournal
+        case superseded
     }
 
     enum Issue: Sendable {
         case blocked(MacTweak.ID, MacTweakState)
         case change(MacTweak.ID, MacTweakTarget, any Error)
         case restart(MacTweakRestart, any Error)
+        case skipped(MacTweak.ID, MacTweakTarget)
     }
 
     private enum Request: Sendable {
@@ -22,11 +24,14 @@ final class MacTweaksStore {
         case undoEverything
     }
 
-    private enum WriteFailure: Error { case valueDidNotChange, valueChangedExternally }
+    private enum WriteFailure: Error { case valueDidNotChange, valueChangedExternally, heldByEarlierEntry }
 
     private let system: MacTweaksSystem
     private let catalogue: [MacTweak]
     private(set) var isBusy = false
+    private var revision = 0
+    private var issued = 0
+    private var issuedRevision: Int?
 
     init(catalogue: [MacTweak], system: MacTweaksSystem) {
         self.catalogue = catalogue
@@ -35,7 +40,17 @@ final class MacTweaksStore {
 
     // Reads without waiting for an operation, as Peel's refresh; the pane reads again after each one.
     func snapshot() async throws -> MacTweakSnapshot {
-        try await Self.readSnapshot(catalogue: catalogue, system: system)
+        issued += 1
+        let sequence = issued
+        issuedRevision = isBusy ? nil : revision
+        var snapshot = try await Self.readSnapshot(catalogue: catalogue, system: system)
+        snapshot.sequence = sequence
+        return snapshot
+    }
+
+    // Current while no newer snapshot was asked for and no operation ran since this one began.
+    func isCurrent(_ snapshot: MacTweakSnapshot) -> Bool {
+        snapshot.sequence == issued && issuedRevision == revision
     }
 
     func set(_ id: MacTweak.ID, on: Bool) async throws -> [Issue] {
@@ -53,14 +68,27 @@ final class MacTweaksStore {
     private func perform(_ request: Request) async throws -> [Issue] {
         guard !isBusy else { throw Failure.busy }
         isBusy = true
-        defer { isBusy = false }
+        revision += 1
+        defer {
+            isBusy = false
+            revision += 1
+        }
         return try await Self.run(request, catalogue: catalogue, system: system)
     }
 
     @concurrent
     private static func readSnapshot(catalogue: [MacTweak], system: MacTweaksSystem) async throws -> MacTweakSnapshot {
-        try Task.checkCancellation()
-        return snapshot(catalogue, journal: try loadJournal(file(in: system)), system: system)
+        let url = file(in: system)
+        var journal = try loadJournal(url)
+        // A journal unchanged across the system read pairs each value with its undo data.
+        for _ in 0..<3 {
+            try Task.checkCancellation()
+            let snapshot = snapshot(catalogue, journal: journal, system: system)
+            let after = try loadJournal(url)
+            if after == journal { return snapshot }
+            journal = after
+        }
+        throw Failure.superseded
     }
 
     @concurrent
@@ -163,6 +191,9 @@ final class MacTweaksStore {
                 let selected = catalogue.filter { wanted.contains($0.id) }
                 try execute(MacTweakPlan.make(wanted: wanted, catalogue: selected, snapshot: snapshot))
             case .undoEverything:
+                for entry in journal.entries.reversed() where !entry.isKnown(by: catalogue) {
+                    issues.append(.skipped(entry.tweakID, entry.target))
+                }
                 for entry in journal.restoreAll(known: catalogue) { try restore(entry) }
             }
         }
@@ -175,6 +206,7 @@ final class MacTweaksStore {
             for tweak in plan.clear {
                 for change in tweak.changes {
                     guard let (target, value) = change.localWrite, case .preference = target,
+                          !isHeldByEarlierEntry(target, tweakID: tweak.id),
                           !recorded.contains(target.canonical) else { continue }
                     try Task.checkCancellation()
                     guard let reading = writableReading(target, tweakID: tweak.id),
@@ -194,7 +226,8 @@ final class MacTweaksStore {
         mutating func apply(_ tweak: MacTweak, target: MacTweakTarget, value: MacTweakValue) throws {
             try Task.checkCancellation()
             guard let reading = writableReading(target, tweakID: tweak.id),
-                  !value.matches(reading.effective) else { return }
+                  !value.matches(reading.effective),
+                  !isHeldByEarlierEntry(target, tweakID: tweak.id) else { return }
             try recordAndWrite(tweak, target: target, value: value, previous: reading.stored)
         }
 
@@ -236,6 +269,14 @@ final class MacTweaksStore {
             var next = journal
             next.forget(entry.target)
             try save(next)
+        }
+
+        // An entry only a retired or unknown tweak explains waits for Undo Everything; writing would bury it.
+        mutating func isHeldByEarlierEntry(_ target: MacTweakTarget, tweakID: MacTweak.ID) -> Bool {
+            guard let entry = journal.entries.first(where: { $0.target == target.canonical }),
+                  !entry.isKnown(by: catalogue.filter { !$0.isRetired }) else { return false }
+            issues.append(.change(tweakID, target, WriteFailure.heldByEarlierEntry))
+            return true
         }
 
         mutating func writableReading(_ target: MacTweakTarget, tweakID: MacTweak.ID) -> MacTweaksSystem.Reading? {

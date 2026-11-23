@@ -13,3 +13,5 @@ MacTweaks: Service/MacTweaksSystem+Live.swift ← omlahore/RemoveMacAI@12cef18/S
 MacTweaks: Service/MacTweaksSystem+Live.swift ← omlahore/RemoveMacAI@12cef18/Sources/removemacai/Engine.swift (MIT)
 MacTweaks: Service/MacTweaksSystem+Live.swift ← omlahore/RemoveMacAI@12cef18/Sources/removemacai/Shell.swift (MIT)
 MacTweaks: Service/MacTweaksSystem+Live.swift ← TuguiDragos/Peel@2023079/Packages/PeelCore/Sources/PeelCore/Tweaks/TweakStore.swift (GPL-3.0)
+MacTweaks: RemoveMacAI-MIT.txt ← omlahore/RemoveMacAI@12cef18/LICENSE (MIT)
+MacTweaks: RemoveMacAI-MIT.txt ← omlahore/RemoveMacAI@12cef18/THIRD-PARTY-NOTICES.md (MIT)

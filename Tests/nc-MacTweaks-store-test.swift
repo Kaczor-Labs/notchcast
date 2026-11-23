@@ -1,6 +1,6 @@
 // notchcast-sources: Tinycast/Features/Notchcast/MacTweaks/Model/*.swift
 // notchcast-sources: Tinycast/Features/Notchcast/MacTweaks/Service/*.swift
-// notchcast-sources: Tinycast/Platform/AppPaths.swift Tinycast/Platform/ProcessExit.swift
+// notchcast-sources: Tinycast/Platform/AppPaths.swift
 import Foundation
 import Synchronization
 
@@ -50,7 +50,10 @@ struct MacTweaksStoreTest {
             }
         }
 
-        func make(beforeRestart: @escaping @Sendable () -> Void = {}) -> MacTweaksSystem {
+        func make(
+            beforeRestart: @escaping @Sendable () -> Void = {},
+            duringReadAll: @escaping @Sendable () -> Void = {}
+        ) -> MacTweaksSystem {
             MacTweaksSystem(
                 version: OperatingSystemVersion(majorVersion: 26, minorVersion: 0, patchVersion: 0),
                 journalFolder: folder,
@@ -60,6 +63,7 @@ struct MacTweaksStoreTest {
                 },
                 readAll: { targets in
                     self.state.withLock { $0.readAlls += 1 }
+                    duringReadAll()
                     return Dictionary(targets.map { ($0, .success(self.reading($0))) }, uniquingKeysWith: { a, _ in a })
                 },
                 write: { target, value in
@@ -139,17 +143,14 @@ struct MacTweaksStoreTest {
             _ = try await store.undoEverything()
             preconditionFailure("Concurrent mutations must be refused")
         } catch MacTweaksStore.Failure.busy {}
-        let readsBefore = fake.state.withLock { ($0.reads, $0.readAlls) }
-        let during = try await store.snapshot()
-        precondition(during.states["media-keys"] == .applied, "A snapshot reads while a batch restarts")
-        precondition(fake.state.withLock { ($0.reads, $0.readAlls) } == (readsBefore.0, readsBefore.1 + 1),
-                     "A snapshot reads every target in one pass")
-        precondition(store.isBusy)
         release.signal()
         let applied = try await running.value
         precondition(applied.isEmpty)
         precondition(!store.isBusy)
+        let readsBefore = fake.state.withLock { ($0.reads, $0.readAlls) }
         let after = try await store.snapshot()
+        precondition(fake.state.withLock { ($0.reads, $0.readAlls) } == (readsBefore.0, readsBefore.1 + 1),
+                     "A snapshot reads every target in one pass")
         precondition(Set(after.states.filter { $0.value == .applied }.keys) == ["path", "status", "media-keys"])
         precondition(after.states["locked"] == .managed)
         precondition(after.states["inherited"] == .heldElsewhere(.thisMac))
@@ -176,7 +177,8 @@ struct MacTweaksStoreTest {
         fake.state.withLock { $0.restarts.removeAll() }
 
         let undone = try await restoreStore.undoEverything()
-        precondition(undone.isEmpty)
+        guard undone.count == 1, case .skipped("media-keys", service)? = undone.first
+        else { preconditionFailure("Undo must report an entry it left in place") }
         fake.state.withLock {
             precondition($0.values[service] == .bool(true), "An entry the catalogue does not know is left alone")
             $0.values[service] = start[service]
@@ -187,8 +189,57 @@ struct MacTweaksStoreTest {
         }
         let kept = try MacTweakJournal.decode(Data(contentsOf: fake.journalFile))
         precondition(kept.entries.map(\.target) == [service], "An unknown entry stays in the journal")
-        let fullUndo = try await MacTweaksStore(catalogue: catalogue, system: fake.make()).undoEverything()
-        precondition(fullUndo.isEmpty)
+        var retired = catalogue
+        retired[4].isRetired = true
+        let retiredStore = MacTweaksStore(catalogue: retired, system: fake.make())
+        let retiredStates = try await retiredStore.snapshot()
+        precondition(retiredStates.states["media-keys"] == .unsupported && retiredStates.journaled == ["media-keys"])
+        precondition(!MacTweakPreset.maximumPrivacy.wanted(in: retired).contains("media-keys"))
+        let fullUndo = try await retiredStore.undoEverything()
+        precondition(fullUndo.isEmpty, "A retired tweak's entry is restored")
+        precondition(fake.state.withLock { $0.values } == start)
+
+        let oldID = MacTweak(id: "old-path", group: .finder, changes: [.preference(pathBar, .bool(true))])
+        let replacement = MacTweak(id: "new-path", group: .finder, changes: [.preference(pathBar, .bool(true))])
+        let otherValue = MacTweak(id: "new-path", group: .finder, changes: [.preference(pathBar, .integer(2))])
+        let oldOn = try await MacTweaksStore(catalogue: [oldID], system: fake.make()).set("old-path", on: true)
+        precondition(oldOn.isEmpty)
+        let oldJournal = try Data(contentsOf: fake.journalFile)
+        for (tweak, on) in [(replacement, false), (otherValue, true)] {
+            let result = try await MacTweaksStore(catalogue: [tweak], system: fake.make()).set("new-path", on: on)
+            guard result.count == 1, case .change("new-path", pathBar, _)? = result.first
+            else { preconditionFailure("A write over an entry no active tweak explains must report it") }
+            let journalNow = try Data(contentsOf: fake.journalFile)
+            precondition(journalNow == oldJournal, "The earlier entry must stay")
+            precondition(fake.state.withLock { $0.values[pathBar] } == .bool(true))
+        }
+        var oldRetired = oldID
+        oldRetired.isRetired = true
+        let oldUndo = try await MacTweaksStore(catalogue: [oldRetired, replacement], system: fake.make()).undoEverything()
+        precondition(oldUndo.isEmpty)
+        precondition(fake.state.withLock { $0.values } == start)
+
+        let racing = Mutex(true)
+        let windowStore = MacTweaksStore(catalogue: catalogue, system: fake.make(duringReadAll: {
+            guard racing.withLock({ first in defer { first = false }; return first }) else { return }
+            let entry = MacTweakJournal().apply(
+                catalogue[1], target: statusBar, value: .bool(true), current: nil, now: Date(timeIntervalSince1970: 100)
+            )!
+            do {
+                try JSONEncoder().encode(entry).write(to: fake.journalFile, options: .atomic)
+            } catch {
+                preconditionFailure("The racing journal write failed: \(error)")
+            }
+            fake.state.withLock { $0.values[statusBar] = .bool(true) }
+        }))
+        let window = try await windowStore.snapshot()
+        precondition(window.states["status"] == .applied && window.journaled.contains("status"),
+                     "A write during the read must come with its undo entry")
+        precondition(windowStore.isCurrent(window))
+        let newer = try await windowStore.snapshot()
+        precondition(!windowStore.isCurrent(window) && windowStore.isCurrent(newer), "An older snapshot is superseded")
+        let windowUndo = try await windowStore.undoEverything()
+        precondition(windowUndo.isEmpty && !windowStore.isCurrent(newer), "An operation supersedes a snapshot")
         precondition(fake.state.withLock { $0.values } == start)
 
         let beforeFailure = try await restoreStore.runPreset(.recommended)
@@ -262,7 +313,9 @@ struct MacTweaksStoreTest {
             $0.restarts.removeAll()
         }
         let untrusted = try await restoreStore.undoEverything()
-        precondition(untrusted.isEmpty)
+        guard untrusted.count == 2, case .skipped("path", pathBar)? = untrusted.first,
+              case .skipped("path", foreign)? = untrusted.last
+        else { preconditionFailure("Undo must report each untrusted entry it skipped") }
         let untrustedSnapshot = try await restoreStore.snapshot()
         precondition(untrustedSnapshot.journaled.isEmpty)
         fake.state.withLock {
@@ -299,17 +352,8 @@ struct MacTweaksStoreTest {
             $0.fallback = [:]
         }
 
-        // Real child processes, never a system command: these check only the live interface's process rules.
-        _ = try MacTweaksSystem.run("/bin/sh", ["-c", "exit 1"]).checked(accepting: MacTweaksSystem.killallDone)
-        do {
-            _ = try MacTweaksSystem.run("/bin/sh", ["-c", "exit 2"]).checked(accepting: MacTweaksSystem.killallDone)
-            preconditionFailure("A restart that failed must still throw")
-        } catch {}
-        do {
-            // An OS timer contract: the sleep's own 5 s caps the wait if the limit never fires.
-            _ = try MacTweaksSystem.run("/bin/sleep", ["5"], timeout: 0.2)
-            preconditionFailure("A hung child process must be stopped")
-        } catch {}
+        try processRules()
+        try domainSyncRules()
 
         let corrupt = Data("keep these bytes".utf8)
         try corrupt.write(to: fake.journalFile)
@@ -322,5 +366,58 @@ struct MacTweaksStoreTest {
         precondition(afterCorruption == corrupt)
         precondition(fake.state.withLock { $0.writes.count } == writesBeforeCorruption)
         print("Mac Tweaks store passed")
+    }
+
+    // Real child processes, never a system command: these check only the live interface's process rules.
+    static func processRules() throws {
+        typealias Live = MacTweaksSystem
+        let noMatch = Live.CommandResult(name: "killall", status: 1, output: "No matching processes were found\n")
+        try Live.checkedRestart(noMatch)
+        let refused = Live.CommandResult(name: "killall", status: 1, output: "kill: Operation not permitted\n")
+        do {
+            try Live.checkedRestart(refused)
+            preconditionFailure("A refused restart must throw")
+        } catch Live.LiveFailure.processFailed("killall", 1) {}
+
+        let plain = try Live.run("/bin/sh", ["-c", "echo out; echo err >&2; exit 3"])
+        precondition(plain.status == 3 && plain.output == "out\nerr\n")
+
+        func expectStopped(_ script: String, within limit: Duration, _ message: String) throws {
+            let clock = ContinuousClock()
+            let began = clock.now
+            do {
+                _ = try Live.run("/bin/sh", ["-c", script], timeout: 0.2, grace: 0.3)
+                preconditionFailure(message)
+            } catch Live.LiveFailure.stopped("/bin/sh") {}
+            precondition(clock.now - began < limit, message)
+        }
+        // A shell runs a trap only between commands, so each loop step is a short sleep.
+        try expectStopped("trap 'exit 0' TERM; while :; do sleep 0.05; done", within: .seconds(3),
+                          "A child that exits zero after TERM still timed out")
+        try expectStopped("trap '' TERM; while :; do sleep 0.05; done", within: .seconds(3),
+                          "A child that ignores TERM must be killed")
+
+        let clock = ContinuousClock()
+        let began = clock.now
+        let held = try Live.run("/bin/sh", ["-c", "sleep 5 & echo done"], drain: 0.2)
+        precondition(held.status == 0 && held.output == "done\n")
+        precondition(clock.now - began < .seconds(3), "A descendant holding the pipe must not hold the result")
+    }
+
+    static func domainSyncRules() throws {
+        let calls = Mutex(0)
+        let sync = MacTweaksSystem.DomainSync { _ in
+            calls.withLock { $0 += 1 }
+            throw FakeFailure.write
+        }
+        for _ in 0..<2 {
+            do {
+                try sync("com.example.finder")
+                preconditionFailure("A failed sync must fail every key of its domain")
+            } catch FakeFailure.write {}
+        }
+        try? sync(".GlobalPreferences")
+        try? sync("NSGlobalDomain")
+        precondition(calls.withLock { $0 } == 2, "Each domain synchronizes once per pass")
     }
 }

@@ -2,7 +2,7 @@
 import Foundation
 
 extension MacTweaksSystem {
-    private enum LiveFailure: Error {
+    enum LiveFailure: Error, Equatable {
         case unsupportedPreference
         case invalidTarget
         case invalidValue
@@ -10,10 +10,8 @@ extension MacTweaksSystem {
         case refused
         case processFailed(String, Int32)
         case stopped(String)
+        case couldNotStart(String)
     }
-
-    // killall exits 1 when no process matched, so there is nothing to restart.
-    static let killallDone: Set<Int32> = [0, 1]
 
     static func live() -> Self {
         let session = "gui/\(getuid())"
@@ -21,10 +19,10 @@ extension MacTweaksSystem {
             version: ProcessInfo.processInfo.operatingSystemVersion,
             journalFolder: AppPaths.applicationSupport().appending(path: "Notchcast/MacTweaks", directoryHint: .isDirectory),
             read: { target in
-                try read(target, synchronize: true) { try disabledServices(session: session) }
+                try read(target, synchronize: synchronize) { try disabledServices(session: session) }
             },
             readAll: { targets in
-                var synchronized: Set<String> = []
+                let synchronizeOnce = DomainSync(synchronize)
                 var services: Result<Set<String>, any Error>?
                 func disabled() throws -> Set<String> {
                     let result = services ?? Result { try disabledServices(session: session) }
@@ -32,11 +30,7 @@ extension MacTweaksSystem {
                     return try result.get()
                 }
                 return Dictionary(targets.map { target in
-                    var synchronize = true
-                    if case .preference(let domain, _, _) = target.canonical {
-                        synchronize = synchronized.insert(domain).inserted
-                    }
-                    return (target, Result { try read(target, synchronize: synchronize, disabled: disabled) })
+                    (target, Result { try read(target, synchronize: synchronizeOnce.callAsFunction, disabled: disabled) })
                 }, uniquingKeysWith: { first, _ in first })
             },
             write: { target, value in
@@ -56,14 +50,42 @@ extension MacTweaksSystem {
                 }
             },
             restart: { process in
-                _ = try run("/usr/bin/killall", [process.rawValue]).checked(accepting: killallDone)
+                try checkedRestart(run("/usr/bin/killall", [process.rawValue]))
             },
             now: { Date() }
         )
     }
 
+    // One synchronize per domain in a pass, and its failure answers every key of that domain.
+    final class DomainSync {
+        private var results: [String: Result<Void, any Error>] = [:]
+        private let body: (String) throws -> Void
+
+        init(_ body: @escaping (String) throws -> Void) {
+            self.body = body
+        }
+
+        func callAsFunction(_ domain: String) throws {
+            let name = isGlobal(domain) ? "NSGlobalDomain" : domain
+            let result = results[name] ?? Result { try body(name) }
+            results[name] = result
+            try result.get()
+        }
+    }
+
+    private static func isGlobal(_ domain: String) -> Bool {
+        domain == "NSGlobalDomain" || domain == ".GlobalPreferences"
+    }
+
+    private static func synchronize(_ domain: String) throws {
+        let synchronized = isGlobal(domain)
+            ? CFPreferencesSynchronize(kCFPreferencesAnyApplication, kCFPreferencesCurrentUser, kCFPreferencesAnyHost)
+            : CFPreferencesAppSynchronize(domain as CFString)
+        guard synchronized else { throw LiveFailure.refused }
+    }
+
     private static func read(
-        _ target: MacTweakTarget, synchronize: Bool, disabled: () throws -> Set<String>
+        _ target: MacTweakTarget, synchronize: (String) throws -> Void, disabled: () throws -> Set<String>
     ) throws -> Reading {
         switch target {
         case .preference(let domain, let key, let appOnly):
@@ -88,16 +110,12 @@ extension MacTweaksSystem {
     }
 
     private static func readPreference(
-        _ domain: String, key: String, appOnly: Bool, synchronize: Bool = true
+        _ domain: String, key: String, appOnly: Bool, synchronize: (String) throws -> Void
     ) throws -> Reading {
-        let global = domain == "NSGlobalDomain" || domain == ".GlobalPreferences"
+        let global = isGlobal(domain)
         let application = global ? kCFPreferencesAnyApplication : domain as CFString
         let name = key as CFString
-        if synchronize, !(global
-            ? CFPreferencesSynchronize(application, kCFPreferencesCurrentUser, kCFPreferencesAnyHost)
-            : CFPreferencesAppSynchronize(application)) {
-            throw LiveFailure.refused
-        }
+        try synchronize(domain)
         func copy(_ user: CFString, _ host: CFString, from scope: CFString) -> CFPropertyList? {
             CFPreferencesCopyValue(name, scope, user, host)
         }
@@ -113,6 +131,7 @@ extension MacTweaksSystem {
             return Reading(stored: stored, effective: try value(currentHost), heldElsewhere: .thisMac)
         }
         if own != nil || appOnly { return Reading(stored: stored, effective: stored) }
+        if !global { try synchronize("NSGlobalDomain") }
         let layer = kCFPreferencesAnyApplication
         if !global, let userGlobal = copy(kCFPreferencesCurrentUser, kCFPreferencesCurrentHost, from: layer)
             ?? copy(kCFPreferencesCurrentUser, kCFPreferencesAnyHost, from: layer) {
@@ -132,8 +151,9 @@ extension MacTweaksSystem {
     private static func writePreference(
         _ domain: String, key: String, appOnly: Bool, value: MacTweakValue?
     ) throws {
-        guard try readPreference(domain, key: key, appOnly: appOnly).block == nil else { throw LiveFailure.refused }
-        let global = domain == "NSGlobalDomain" || domain == ".GlobalPreferences"
+        guard try readPreference(domain, key: key, appOnly: appOnly, synchronize: synchronize).block == nil
+        else { throw LiveFailure.refused }
+        let global = isGlobal(domain)
         let application = global ? kCFPreferencesAnyApplication : domain as CFString
         CFPreferencesSetValue(
             key as CFString, value.map(property), application, kCFPreferencesCurrentUser, kCFPreferencesAnyHost
@@ -227,35 +247,95 @@ extension MacTweaksSystem {
         let status: Int32
         let output: String
 
-        func checked(accepting success: Set<Int32> = [0]) throws -> String {
-            guard success.contains(status) else { throw LiveFailure.processFailed(name, status) }
+        func checked() throws -> String {
+            guard status == 0 else { throw LiveFailure.processFailed(name, status) }
             return output
         }
     }
 
-    // Peel's limit for launchctl and killall: asked to stop after `timeout`, killed after 2 s more.
-    static func run(_ path: String, _ arguments: [String], timeout: TimeInterval = 10) throws -> CommandResult {
-        let process = Process()
-        let output = Pipe()
-        process.executableURL = URL(fileURLWithPath: path)
-        process.arguments = arguments
-        process.standardInput = FileHandle.nullDevice
-        process.standardOutput = output
-        process.standardError = output
-        let exit = try process.runObservingExit()
-        let stop = DispatchWorkItem {
-            guard process.isRunning else { return }
-            process.terminate()
-            DispatchQueue.global(qos: .userInitiated).asyncAfter(deadline: .now() + 2) {
-                if process.isRunning { kill(process.processIdentifier, SIGKILL) }
+    // killall exits 1 for no match and for a refused signal alike; only no match leaves nothing to restart.
+    static func checkedRestart(_ result: CommandResult) throws {
+        if result.status == 1, result.output.contains("No matching processes") { return }
+        _ = try result.checked()
+    }
+
+    // Peel's Subprocess limits; this thread alone signals and reaps, so a signal never meets a reused PID.
+    static func run(
+        _ path: String,
+        _ arguments: [String],
+        timeout: TimeInterval = 10,
+        grace: TimeInterval = 2,
+        drain: TimeInterval = 0.5
+    ) throws -> CommandResult {
+        var ends: [Int32] = [0, 0]
+        guard pipe(&ends) == 0 else { throw LiveFailure.couldNotStart(path) }
+        let (reader, writer) = (ends[0], ends[1])
+        defer { close(reader) }
+        var actions: posix_spawn_file_actions_t?
+        posix_spawn_file_actions_init(&actions)
+        defer { posix_spawn_file_actions_destroy(&actions) }
+        posix_spawn_file_actions_addopen(&actions, 0, "/dev/null", O_RDONLY, 0)
+        posix_spawn_file_actions_adddup2(&actions, writer, 1)
+        posix_spawn_file_actions_adddup2(&actions, writer, 2)
+        var attributes: posix_spawnattr_t?
+        posix_spawnattr_init(&attributes)
+        defer { posix_spawnattr_destroy(&attributes) }
+        posix_spawnattr_setflags(&attributes, Int16(POSIX_SPAWN_CLOEXEC_DEFAULT))
+        let argv = ([path] + arguments).map { strdup($0) } + [nil]
+        let environment = ProcessInfo.processInfo.environment.map { strdup("\($0)=\($1)") } + [nil]
+        defer { (argv + environment).forEach { free($0) } }
+        var pid: pid_t = 0
+        let spawned = posix_spawn(&pid, path, &actions, &attributes, argv, environment)
+        close(writer)
+        guard spawned == 0 else { throw LiveFailure.couldNotStart(path) }
+        let child = pid
+
+        let clock = ContinuousClock()
+        let stopAt = clock.now + .seconds(timeout)
+        let killAt = stopAt + .seconds(grace)
+        let abandonAt = killAt + .seconds(grace)
+        var output = Data()
+        var buffer = [UInt8](repeating: 0, count: 65_536)
+        var status: Int32 = 0
+        var exitedAt: ContinuousClock.Instant?
+        var isOpen = true
+        var timedOut = false
+        var killed = false
+        while true {
+            let now = clock.now
+            if exitedAt == nil {
+                let reaped = waitpid(child, &status, WNOHANG)
+                if reaped == child { exitedAt = now }
+                if reaped < 0, errno != EINTR { (status, exitedAt) = (-1, now) }
+            }
+            if let exitedAt {
+                if !isOpen || now >= exitedAt + .seconds(drain) { break }
+            } else if now >= abandonAt {
+                // A child stuck in the kernel survives SIGKILL; reap it later and signal it never again.
+                DispatchQueue.global(qos: .utility).async { while waitpid(child, nil, 0) < 0, errno == EINTR {} }
+                break
+            } else if now >= killAt, !killed {
+                kill(child, SIGKILL)
+                killed = true
+            } else if now >= stopAt, !timedOut {
+                kill(child, SIGTERM)
+                timedOut = true
+            }
+            guard isOpen else {
+                _ = poll(nil, 0, 20)
+                continue
+            }
+            var waiting = pollfd(fd: reader, events: Int16(POLLIN), revents: 0)
+            guard poll(&waiting, 1, 20) > 0 else { continue }
+            let count = Darwin.read(reader, &buffer, buffer.count)
+            if count > 0 {
+                output.append(contentsOf: buffer[0..<count])
+            } else if count == 0 || errno != EINTR {
+                isOpen = false
             }
         }
-        DispatchQueue.global(qos: .userInitiated).asyncAfter(deadline: .now() + timeout, execute: stop)
-        let data = output.fileHandleForReading.readDataToEndOfFile()
-        exit.wait()
-        stop.cancel()
-        guard process.terminationReason == .exit else { throw LiveFailure.stopped(path) }
-        guard let text = String(data: data, encoding: .utf8) else { throw LiveFailure.invalidProcessOutput }
-        return CommandResult(name: path, status: process.terminationStatus, output: text)
+        guard !timedOut, exitedAt != nil, status & 0x7f == 0 else { throw LiveFailure.stopped(path) }
+        guard let text = String(data: output, encoding: .utf8) else { throw LiveFailure.invalidProcessOutput }
+        return CommandResult(name: path, status: (status >> 8) & 0xff, output: text)
     }
 }

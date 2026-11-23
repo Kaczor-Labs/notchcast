@@ -4,7 +4,7 @@ enum MacTweakPreset: String, CaseIterable, Sendable {
 
     func wanted(in catalogue: [MacTweak]) -> Set<MacTweak.ID> {
         let presets: Set<Self> = self == .maximumPrivacy ? [.recommended, .maximumPrivacy] : [.recommended]
-        let selected = catalogue.filter { !$0.presets.isDisjoint(with: presets) }
+        let selected = catalogue.filter { !$0.isRetired && !$0.presets.isDisjoint(with: presets) }
         return Set(selected.map(\.id))
     }
 }
@@ -12,6 +12,7 @@ enum MacTweakPreset: String, CaseIterable, Sendable {
 struct MacTweakSnapshot: Sendable {
     let states: [MacTweak.ID: MacTweakState]
     let journaled: Set<MacTweak.ID>
+    var sequence = 0
 }
 
 struct MacTweakPlan: Sendable {
