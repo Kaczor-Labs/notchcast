@@ -6,8 +6,9 @@ final class CleanerTestFileSystem: CleanerFileSystem {
         var files: [String: CleanerFile] = [:]
         var links: [String: String] = [:]
         var trashCalls: [URL] = []
-        var openFiles: Set<CleanerFile.Identity> = []
+        var openFiles = CleanerOpenFiles()
         var refused: Set<String> = []
+        var swapped: Set<String> = []
         var reads = 0
         var nextInode: UInt64 = 0
     }
@@ -70,8 +71,19 @@ final class CleanerTestFileSystem: CleanerFileSystem {
 
     func holdOpen(_ url: URL) throws {
         let identity = try inspect(url).identity
-        _ = state.withLock { $0.openFiles.insert(identity) }
+        _ = state.withLock { $0.openFiles.held.insert(identity) }
     }
+
+    func run(_ url: URL) throws {
+        let identity = try inspect(url).identity
+        _ = state.withLock { $0.openFiles.running.insert(identity) }
+    }
+
+    func swapDuringTrash(of url: URL) {
+        _ = state.withLock { $0.swapped.insert(url.path) }
+    }
+
+    static let trash = area.home.appending(path: ".Trash")
 
     func inspect(_ url: URL) throws -> CleanerFile {
         beforeInspect(url)
@@ -94,15 +106,21 @@ final class CleanerTestFileSystem: CleanerFileSystem {
         }
     }
 
-    func openFiles() throws -> Set<CleanerFile.Identity> {
+    func openFiles() throws -> CleanerOpenFiles {
         state.withLock { $0.openFiles }
     }
 
-    func trash(_ url: URL) throws {
-        try state.withLock {
+    func trash(_ url: URL) throws -> URL? {
+        let destination = Self.trash.appending(component: url.lastPathComponent)
+        if state.withLock({ $0.swapped.contains(url.path) }) { put(url) }
+        return try state.withLock {
             $0.trashCalls.append(url)
             if $0.refused.contains(url.path) { throw CocoaError(.fileWriteNoPermission) }
-            $0.files = $0.files.filter { $0.key != url.path && !$0.key.hasPrefix(url.path + "/") }
+            for (path, file) in $0.files where path == url.path || path.hasPrefix(url.path + "/") {
+                $0.files[path] = nil
+                $0.files[destination.path + path.dropFirst(url.path.count)] = file
+            }
+            return destination
         }
     }
 }

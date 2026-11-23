@@ -1,11 +1,23 @@
+// The running-program hold is adapted from Dragos Tugui's Peel, OpenFiles.swift @ 20230794 (GPL-3.0).
 import Foundation
 
 protocol CleanerFileSystem: Sendable {
     func inspect(_ url: URL) throws -> CleanerFile
     func children(of folder: URL, limit: Int) throws -> [String]
     func linkDestination(of url: URL) throws -> String
-    func openFiles() throws -> Set<CleanerFile.Identity>
-    func trash(_ url: URL) throws
+    func openFiles() throws -> CleanerOpenFiles
+    func trash(_ url: URL) throws -> URL?
+}
+
+struct CleanerOpenFiles: Equatable, Sendable {
+    var held: Set<CleanerFile.Identity> = []
+    var running: Set<CleanerFile.Identity> = []
+
+    func hold(on snapshot: CleanerSnapshot, checkingHeld: Bool = true) -> CleanerHoldBack? {
+        let identities = snapshot.entries.values.map(\.identity)
+        if identities.contains(where: running.contains) { return .runningProgram }
+        return checkingHeld && identities.contains(where: held.contains) ? .openFile : nil
+    }
 }
 
 enum CleanerFileError: Error {

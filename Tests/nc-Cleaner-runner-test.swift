@@ -14,6 +14,7 @@ struct CleanerRunnerTest {
     static func main() async throws {
         try await checksEachItem()
         try await rejectsChangedRoot()
+        try await checksWhatWentToTheTrash()
     }
 
     private static func checksEachItem() async throws {
@@ -39,7 +40,7 @@ struct CleanerRunnerTest {
         let runner = CleanerRunner(scanner: fs.scanner, runningApps: { .init(running: ["drunning"]) })
         let report = await runner.run(plan, selection: plan.defaultSelection)
         precondition(report.entries.map(\.outcome) == [
-            .failed, .skipped(.changed), .skipped(.missing), .skipped(.heldBack(.runningApp)),
+            .failed(.fileWriteNoPermission), .skipped(.changed), .skipped(.missing), .skipped(.heldBack(.runningApp)),
             .skipped(.heldBack(.openFile)), .trashed(MeasuredSize(bytes: 64))
         ])
         precondition(report.movedCount == 1 && report.knownMovedBytes == 64)
@@ -59,5 +60,28 @@ struct CleanerRunnerTest {
         let report = await runner.run(plan, selection: plan.defaultSelection)
         precondition(report.entries == [.init(id: item, outcome: .skipped(.heldBack(.unsafePath)))])
         precondition(fs.trashCalls.isEmpty)
+    }
+
+    private static func checksWhatWentToTheTrash() async throws {
+        let fs = CleanerTestFileSystem()
+        let swapped = CleanerTestFileSystem.item("a-swapped")
+        let tool = CleanerTestFileSystem.item("b-tool")
+        let program = tool.appending(component: "bin")
+        let good = CleanerTestFileSystem.item("c-good")
+        fs.put(tool, directory: true)
+        for file in [swapped, program, good] { fs.put(file, size: 32) }
+        let plan = try await fs.scanner.scan(home: CleanerTestFileSystem.area.home, apps: .init())
+        precondition(plan.defaultSelection.checked == [swapped, tool, good])
+
+        fs.swapDuringTrash(of: swapped)
+        try fs.run(program)
+        let runner = CleanerRunner(scanner: fs.scanner, runningApps: { .init() })
+        let report = await runner.run(plan, selection: plan.defaultSelection)
+        precondition(report.entries.map(\.outcome) == [
+            .trashedUnverified, .skipped(.heldBack(.runningProgram)), .trashed(MeasuredSize(bytes: 32))
+        ])
+        precondition(report.movedCount == 1 && report.knownMovedBytes == 32)
+        precondition(fs.trashCalls == [swapped, good])
+        _ = try fs.inspect(CleanerTestFileSystem.trash.appending(component: "c-good"))
     }
 }

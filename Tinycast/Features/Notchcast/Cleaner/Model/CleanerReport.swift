@@ -9,8 +9,9 @@ struct CleanerReport: Sendable {
 
     enum Outcome: Equatable, Sendable {
         case trashed(MeasuredSize?)
+        case trashedUnverified
         case skipped(Skip)
-        case failed
+        case failed(CocoaError.Code?)
     }
 
     struct Entry: Equatable, Sendable {

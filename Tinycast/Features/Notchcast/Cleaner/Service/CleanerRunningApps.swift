@@ -54,6 +54,7 @@ struct CleanerRunningApps: Sendable {
                 app.bundleIdentifier,
                 app.bundleIdentifier.map { $0 + ".ShipIt" },
                 app.bundleIdentifier?.split(separator: ".").last.map(String.init),
+                app.bundleIdentifier.flatMap(CleanerPolicy.vendor(of:)),
                 app.bundleURL?.deletingPathExtension().lastPathComponent,
                 app.bundleURL?.pathComponents.first { $0.hasSuffix(".app") }.map {
                     String($0.dropLast(".app".count))
