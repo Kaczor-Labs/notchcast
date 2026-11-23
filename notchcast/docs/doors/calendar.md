@@ -1,5 +1,7 @@
 # Door: Calendar
 
-`context.calendar` exposes stock Calendar's EventKit service to the Day add-on. `events()` returns the current snapshot as `NotchcastEvent` values, excluding declined events. `showSchedule()` opens My Schedule from Day's event rows. `NotchcastCalendar+Live.swift` connects these operations to `AppCore`. The default door returns an empty snapshot and does nothing for actions.
+`context.calendar` exposes the shared Calendar service to add-ons. `events()` returns the current event snapshot as `NotchcastEvent` values, excluding declined events. `showSchedule()` opens My Schedule.
 
-Day’s settings endpoint reports missing calendar access to the Settings process. Clicking **Grant Access…** under **Day in the Island** sends the request to the main app, which asks macOS when access is undetermined. The bridge reuses an existing grant and enables the event store only after access is granted. Day's Grant Access button also opens Calendars privacy settings if macOS has denied access. Settings restores and launch use previous consent without presenting a prompt. See [hidden.md](../hidden.md) for the Calendar surfaces.
+`needsAccess()` reads whether macOS full calendar access is missing. `requestAccess(openSettingsIfDenied:)` brings the main app forward before asking macOS for an undetermined grant, and can open Privacy & Security › Calendars when access has already been denied. A newly granted permission starts the event store. The upstream Calendar feature switch keeps its own consent flow.
+
+`NotchcastCalendar+Live.swift` wires the door to `AppCore`. The default door returns an empty snapshot, reports no access requirement and does nothing for actions.

@@ -7,6 +7,9 @@
 // notchcast-sources: Tinycast/Features/Launcher/Model/CommandID.swift
 // notchcast-sources: Tinycast/Features/QuickActions/Model/BuiltInQuickAction.swift
 // notchcast-sources: Tinycast/Features/Notchcast/Hidden/NotchcastHiddenCommands.swift
+// notchcast-sources: Tinycast/Features/Calendar/Model/*.swift
+// notchcast-sources: Tinycast/Features/Calendar/Service/CalendarStore.swift
+// notchcast-sources: Tinycast/Platform/CalendarAccess.swift Tinycast/Platform/NotificationToken.swift
 import AppKit
 import Foundation
 
@@ -14,10 +17,27 @@ enum AppEntry { enum Kind { case systemSettings } }
 enum HotKeyAction { case command(CommandID) }
 enum Quicklink { static let sfSymbol = "link" }
 
+@MainActor
+enum Permissions {
+    static var access: CalendarAccess = .granted
+    private(set) static var reads = 0
+
+    static func calendarAccess() -> CalendarAccess {
+        reads += 1
+        return access
+    }
+
+    static func requestCalendarAccess() async -> Bool {
+        preconditionFailure("Starting the shared store must never prompt")
+    }
+}
+
 @main
 @MainActor
 struct HiddenFeaturesTest {
     static func main() {
+        checkCalendarStoreStartsWithCalendarOff()
+
         let visible = SettingsSection.allCases.flatMap(\.tabs)
         let calendarChecks = [
             ("Calendar is absent from the sidebar", !visible.contains(.calendar)),
@@ -86,6 +106,17 @@ struct HiddenFeaturesTest {
         precondition(
             SettingsSearchCatalog.entries.contains { $0.tab == .about && $0.keywords.contains("Links") },
             "About keeps its Links")
-        print("Hidden features: hidden tabs, rows and Calendar commands stay hidden")
+        print("Hidden features: tabs, rows and Calendar commands stay hidden. The granted Calendar store still starts.")
+    }
+
+    private static func checkCalendarStoreStartsWithCalendarOff() {
+        let store = CalendarStore()
+        let readsBeforeStart = Permissions.reads
+        NotchcastHidden.applyDisabledCalendarStore(start: store.start, stop: {
+            preconditionFailure("Disabling hidden Calendar must keep the shared event store running")
+        })
+        Permissions.access = .denied
+        precondition(store.access == .granted && Permissions.reads == readsBeforeStart + 1,
+                     "A store starting with Calendar off must refresh and accept an existing grant")
     }
 }

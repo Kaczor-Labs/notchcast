@@ -26,6 +26,15 @@ enum NotchcastHidden {
         .permissions: ["Calendars"],
     ]
 
+    @MainActor
+    static func applyDisabledCalendarStore(start: () -> Void, stop: () -> Void) {
+        if tabs.contains(.calendar) {
+            start()
+        } else {
+            stop()
+        }
+    }
+
     static func hides(tab: SettingsTab, keywords: [String]) -> Bool {
         tabs.contains(tab) || rows[tab]?.isDisjoint(with: keywords) == false
     }
