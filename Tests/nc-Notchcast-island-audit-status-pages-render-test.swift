@@ -1,6 +1,6 @@
 // notchcast-hosted-only
 // notchcast-kit: notchcast-island-audit
-// notchcast-sources: Tests/Kit/IslandAuditMenus.swift
+// notchcast-sources: Tests/Kit/IslandAuditMenus.swift Tests/ImageRendererBitmap.swift
 // notchcast-sources: Tinycast/DesignSystem/KeyCapChip.swift Tinycast/DesignSystem/BarButton.swift
 // notchcast-sources: Tinycast/DesignSystem/ModalActionButtonStyle.swift Tinycast/DesignSystem/SymbolImage.swift
 // notchcast-sources: Tinycast/DesignSystem/Tooltip.swift Tinycast/DesignSystem/PopoverMenu.swift
@@ -224,7 +224,7 @@ extension IslandAuditRendering {
             .environment(PaletteState())
         let renderer = ImageRenderer(content: view)
         renderer.scale = 2
-        write(name, renderer.cgImage)
+        write(name, renderer.bitmap)
     }
 
     /// The level band in the report slot: on Frosted it must leave the glass under it unpainted.
