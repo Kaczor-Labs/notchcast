@@ -30,6 +30,7 @@ final class DictationCoordinator {
     @ObservationIgnored private var pendingStartCue: UUID?
     @ObservationIgnored private var finishWhenStarted = false
     @ObservationIgnored private(set) var target: InjectionTarget?
+    @ObservationIgnored var prepareModel: (@MainActor (DictationModel) async throws -> Void)?
     @ObservationIgnored var willStart: @MainActor () async -> Void = {}
     /// Rewrites a finished transcript before it is pasted; nil pastes it as heard.
     @ObservationIgnored var cleanUp: @MainActor (String, Bool, Bool, Bool) async -> String? = { _, _, _, _ in nil }
@@ -139,7 +140,7 @@ final class DictationCoordinator {
 
     var isEnabled: Bool { settings.dictationEnabled }
     var isActive: Bool { phase != .idle }
-    var hasModel: Bool { models.isInstalled(settings.dictationModel) }
+    var hasModel: Bool { models.isInstalled(settings.dictationModel) || prepareModel != nil }
 
     /// A field's own mic: click to start and click to finish, whatever the shortcut's mode or focus.
     func toggle(into editor: any InjectableTextView) {
@@ -161,7 +162,7 @@ final class DictationCoordinator {
     }
 
     private func begin(target: InjectionTarget?) {
-        guard models.isInstalled(settings.dictationModel) else {
+        guard hasModel else {
             field = nil
             showMessage(String(localized: "Download the dictation model in Settings first"), .danger)
             return
@@ -254,6 +255,8 @@ final class DictationCoordinator {
                 return
             }
             do {
+                if !models.isInstalled(model) { try await prepareModel?(model) }
+                guard token == current else { return }
                 let transcript = try await models.transcribe(
                     tail, model: model,
                     language: language)

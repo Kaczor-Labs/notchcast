@@ -33,6 +33,7 @@ struct NotchcastSettingsView: View {
 
 /// A switch, then its commands' alias, hotkey and launcher fields and its extra rows while it is on.
 private struct NotchcastSwitchRows: View {
+    @Environment(SettingsNavigationState.self) private var navigation
     let controller: NotchcastController
     let item: NotchcastSwitch
     let anchor: SettingsAnchor
@@ -90,6 +91,7 @@ private struct NotchcastSwitchRows: View {
             if let context = controller.context(forSwitch: item.id) {
                 ForEach(controller.slots.flatMap(\.settings).filter { $0.row.switchID == item.id }) { entry in
                     entry.row.view(context)
+                        .environment(\.openNotchcastSettingsSubpage, .init(navigation: navigation, context: context))
                 }
             }
         }

@@ -21,6 +21,7 @@ struct DownloadsQueueTest {
         let tools = DownloadToolLookup(directories: [], home: root, environment: [:])
         try await concurrencyAndFIFO(root, tools)
         try await actions(root, tools)
+        try await removal(root, tools)
         try await relaunch(root, tools)
         try await persistence(root, tools)
         try await readOnlyJobs(root, tools)
@@ -101,6 +102,27 @@ struct DownloadsQueueTest {
     }
 
     /// #648: what was queued at quit is still queued at the next launch; only a cut-off run is lost.
+    @MainActor
+    private static func removal(_ root: URL, _ tools: DownloadToolLookup) async throws {
+        let file = root.appending(path: "removal/downloads.json")
+        let queue = try await DownloadQueue(file: file, destination: root, maxConcurrent: 1, tools: tools)
+        let probe = Probe()
+        queue.register(GateRunner(probe: probe))
+        let jobs = queue.enqueue(kind: "fake", sources: ["running", "waiting", "next"])
+        try await eventually { probe.started == ["running"] }
+        queue.remove(jobs[1].id)
+        queue.remove(jobs[0].id)
+        expect(queue.jobs.map(\.source) == ["next"] && queue.jobs[0].state == .waiting,
+               "removal holds the slot while cancellation drains")
+        let stored = try JSONDecoder().decode([DownloadJob].self, from: Data(contentsOf: file))
+        expect(stored.map(\.source) == ["next"], "removal is persisted before the next run")
+        try await eventually { probe.started == ["running", "next"] }
+        expect(probe.maximum == 1, "cancellation and the next runner do not overlap")
+        probe.released.insert("next")
+        try await eventually { queue.jobs.map(\.state) == [.done] }
+        await queue.stop()
+    }
+
     @MainActor
     private static func relaunch(_ root: URL, _ tools: DownloadToolLookup) async throws {
         let file = root.appending(path: "relaunch/queues/downloads.json")

@@ -22,9 +22,14 @@ struct NotchcastSettingsBackupBridge: NotchcastSettingsBackup {
 
     func write(_ settings: Data, to file: URL) async throws {
         guard let core else { throw NotchcastNoSettingsBackup.Unavailable() }
+        let backup = try SettingsBackup(json: settings)
         var plan = BackupComposer.plan([], from: core)
-        plan.categories = [.configuration]
-        plan.settings = settings
+        plan.categories = Set(SettingsBackup.sliceCategories)
+        for category in SettingsBackup.sliceCategories {
+            guard let slice = backup.slice(for: category) else { continue }
+            let count = category == .configuration ? 1 : slice.contentCount
+            plan.files[category] = .init(data: try slice.encoded(), count: count)
+        }
         try await Task.detached(priority: .utility) { [plan] in
             let staging = try BackupStaging()
             defer { staging.discard() }

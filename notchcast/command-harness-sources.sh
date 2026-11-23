@@ -29,6 +29,10 @@ fi
 if [[ " $* " == *" Tinycast/DesignSystem/Theme.swift "* || " $* " == *" Tinycast/Features/Settings/SettingsTab.swift "* ]]; then
     [[ " $* " == *" Tinycast/DesignSystem/IconTint.swift "* ]] || set -- "$@" Tinycast/DesignSystem/IconTint.swift
 fi
+# Upstream's Theme and IconCache read SystemIconTheme; the file test keeps older upstream bases building.
+if [[ " $* " == *" Tinycast/DesignSystem/Theme.swift "* || " $* " == *" Tinycast/Platform/Images/IconCache.swift "* ]] && [ -f Tinycast/Platform/Images/SystemIconTheme.swift ]; then
+    [[ " $* " == *" Tinycast/Platform/Images/SystemIconTheme.swift "* ]] || set -- "$@" Tinycast/Platform/Images/SystemIconTheme.swift
+fi
 # ci-tests.sh's object that makes the app Dark before main: its ink checks read Dark text.
 if [ "${name:-}" = FormInputTests ] && [ -n "${NOTCHCAST_DARK_OBJECT:-}" ]; then
     [[ " $* " == *" $NOTCHCAST_DARK_OBJECT "* ]] || set -- "$@" "$NOTCHCAST_DARK_OBJECT"

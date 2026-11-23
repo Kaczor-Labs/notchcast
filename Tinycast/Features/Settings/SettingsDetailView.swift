@@ -31,7 +31,12 @@ struct SettingsDetailView: View {
             case .permissions: PermissionsSettingsView()
             case .backup: BackupSettingsView()
             case .about: AboutView()
-            case .notchcast(let pane): NotchcastSettingsPane(pane: pane)
+            case .notchcast(let pane):
+                if let subpage = navigation.subpage {
+                    subpage.content
+                } else {
+                    NotchcastSettingsPane(pane: pane)
+                }
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)

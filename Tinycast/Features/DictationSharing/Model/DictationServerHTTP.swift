@@ -155,8 +155,8 @@ struct DictationServerResponse: Error, Equatable, Sendable {
     static let busy = error(
         503, "Notchcast's own dictation is using the model; retry shortly.",
         retryAfter: DictationServerHTTP.retryAfterSeconds)
-    static let modelMissing = error(
-        503, "No dictation model is installed. Download one in Notchcast's Dictation settings.")
+    static let modelUnavailable = error(
+        503, "Parakeet Ultra could not be prepared. Retry the request.")
 
     private struct Failure: Encodable {
         struct Detail: Encodable {
