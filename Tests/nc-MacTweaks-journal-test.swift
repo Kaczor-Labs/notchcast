@@ -53,6 +53,11 @@ struct MacTweaksJournalTest {
         precondition(journal.restoreAll().first?.tweakID == unknown.id)
         for entry in journal.restoreAll() { restore(entry) }
         precondition(journal.entries.isEmpty && values == start)
+
+        let removal = journal.apply(tweak, target: pathBar, value: nil, current: previous, now: now)!
+        let reapply = removal.apply(tweak, target: pathBar, value: .bool(true), current: nil, now: now)!
+        let pending = try MacTweakJournal.decode(JSONEncoder().encode(reapply))
+        precondition(pending.restore(pending.entries[0], current: nil) == .write(previous))
         do {
             _ = try MacTweakJournal.decode(Data("invalid".utf8))
             preconditionFailure("Corrupt journals must be rejected")

@@ -8,6 +8,7 @@ MacTweaks: Model/MacTweakPlan.swift ← omlahore/RemoveMacAI@12cef18/Sources/rem
 MacTweaks: Model/MacTweakPlan.swift ← omlahore/RemoveMacAI@12cef18/Sources/removemacai/Tweaks.swift (MIT)
 MacTweaks: Service/MacTweaksStore.swift ← omlahore/RemoveMacAI@12cef18/Sources/removemacai/Engine.swift (MIT)
 MacTweaks: Service/MacTweaksStore.swift ← TuguiDragos/Peel@2023079/Peel/Model/TweakLibrary.swift (GPL-3.0)
+MacTweaks: Service/MacTweaksStore.swift ← TuguiDragos/Peel@2023079/Packages/PeelCore/Sources/PeelCore/Tweaks/TweakLedger.swift (GPL-3.0)
 MacTweaks: Service/MacTweaksSystem+Live.swift ← omlahore/RemoveMacAI@12cef18/Sources/removemacai/Prefs.swift (MIT)
 MacTweaks: Service/MacTweaksSystem+Live.swift ← omlahore/RemoveMacAI@12cef18/Sources/removemacai/Engine.swift (MIT)
 MacTweaks: Service/MacTweaksSystem+Live.swift ← omlahore/RemoveMacAI@12cef18/Sources/removemacai/Shell.swift (MIT)

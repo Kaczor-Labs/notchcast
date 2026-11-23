@@ -164,8 +164,19 @@ final class MacTweaksStore {
         }
 
         mutating func execute(_ plan: MacTweakPlan) throws {
+            let recorded = Set(journal.entries.map(\.target))
             for entry in journal.restoreAll() where plan.restore.contains(entry.tweakID) {
-                try restore(entry)
+                try restore(entry, includingRemovals: false)
+            }
+            for tweak in plan.clear {
+                for change in tweak.changes {
+                    guard let (target, value) = change.localWrite, case .preference = target,
+                          !recorded.contains(target) else { continue }
+                    try Task.checkCancellation()
+                    guard let reading = writableReading(target, tweakID: tweak.id),
+                          value.matches(reading.stored) else { continue }
+                    try recordAndWrite(tweak, target: target, value: nil, previous: reading.stored)
+                }
             }
             for tweak in plan.apply {
                 for change in tweak.changes {
@@ -179,28 +190,40 @@ final class MacTweaksStore {
         mutating func apply(_ tweak: MacTweak, target: MacTweakTarget, value: MacTweakValue) throws {
             try Task.checkCancellation()
             guard let reading = writableReading(target, tweakID: tweak.id),
-                  !value.matches(reading.effective),
-                  let next = journal.apply(tweak, target: target, value: value, current: reading.stored, now: system.now())
+                  !value.matches(reading.effective) else { return }
+            try recordAndWrite(tweak, target: target, value: value, previous: reading.stored)
+        }
+
+        mutating func recordAndWrite(
+            _ tweak: MacTweak, target: MacTweakTarget, value: MacTweakValue?, previous: MacTweakValue?
+        ) throws {
+            guard let next = journal.apply(tweak, target: target, value: value, current: previous, now: system.now())
             else { return }
             let before = journal
             try save(next)
-            guard stillWritable(target, replacing: reading.stored, tweakID: tweak.id) else {
+            guard stillWritable(target, replacing: previous, tweakID: tweak.id) else {
                 try save(before)
                 return
             }
-            guard write(target, value: value, tweakID: tweak.id) else { return }
+            guard write(target, value: value, tweakID: tweak.id) else {
+                if let actual = try? system.read(target), actual.block == nil, actual.stored != value {
+                    try save(before)
+                }
+                return
+            }
             restarts.formUnion(tweak.restarts)
-            if next.entries.last?.supersededWrite != nil {
+            if next.entries.last?.hasSupersededWrite == true {
                 var completed = next
                 completed.finishWrite(target)
                 try save(completed)
             }
         }
 
-        mutating func restore(_ entry: MacTweakJournal.Entry) throws {
+        mutating func restore(_ entry: MacTweakJournal.Entry, includingRemovals: Bool = true) throws {
             try Task.checkCancellation()
             guard let reading = writableReading(entry.target, tweakID: entry.tweakID) else { return }
             if case .write(let previous) = journal.restore(entry, current: reading.stored) {
+                guard includingRemovals || entry.written != nil else { return }
                 guard stillWritable(entry.target, replacing: reading.stored, tweakID: entry.tweakID),
                       write(entry.target, value: previous, tweakID: entry.tweakID)
                 else { return }

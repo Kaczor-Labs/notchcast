@@ -21,6 +21,7 @@ struct MacTweakSnapshot: Sendable {
 struct MacTweakPlan: Sendable {
     var apply: [MacTweak] = []
     var restore: Set<MacTweak.ID> = []
+    var clear: [MacTweak] = []
 
     static func make(
         wanted: Set<MacTweak.ID>,
@@ -36,6 +37,9 @@ struct MacTweakPlan: Sendable {
             } else if !wanted.contains(tweak.id), snapshot.journaled.contains(tweak.id),
                       state != .partial || undo.contains(tweak.id) {
                 plan.restore.insert(tweak.id)
+            }
+            if !wanted.contains(tweak.id), undo.contains(tweak.id), state == .applied || state == .partial {
+                plan.clear.append(tweak)
             }
         }
         return plan

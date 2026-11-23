@@ -186,6 +186,41 @@ struct MacTweaksStoreTest {
             precondition($0.values[statusBar] == nil)
         }
 
+        _ = fake.state.withLock { $0.refuseWrites.insert(statusBar) }
+        let refusedApply = try await restoreStore.set("status", on: true)
+        guard case .change("status", statusBar, _)? = refusedApply.first else {
+            preconditionFailure("A failed apply must be reported")
+        }
+        let afterRefusal = try MacTweakJournal.decode(Data(contentsOf: fake.journalFile))
+        precondition(afterRefusal.entries.isEmpty, "A refused write must not claim a journal entry")
+        fake.state.withLock {
+            $0.refuseWrites.removeAll()
+            $0.values[statusBar] = .bool(true)
+        }
+        let undoRefused = try await restoreStore.undoEverything()
+        precondition(undoRefused.isEmpty)
+        precondition(fake.state.withLock { $0.values[statusBar] } == .bool(true))
+
+        fake.state.withLock { $0.values[statusBar] = nil }
+        let paired = MacTweak(id: "paired", group: .finder, changes: [
+            .preference(pathBar, .bool(true)), .preference(statusBar, .bool(true)),
+        ])
+        let pairedStore = MacTweaksStore(catalogue: [paired], system: fake.make())
+        let pairedOn = try await pairedStore.set("paired", on: true)
+        precondition(pairedOn.isEmpty)
+        let pairedOff = try await pairedStore.set("paired", on: false)
+        precondition(pairedOff.isEmpty)
+        let repeatedOff = try await pairedStore.set("paired", on: false)
+        precondition(repeatedOff.isEmpty)
+        fake.state.withLock {
+            precondition($0.values[pathBar] == nil && $0.values[statusBar] == nil)
+        }
+        let undoRemoval = try await pairedStore.undoEverything()
+        precondition(undoRemoval.isEmpty)
+        fake.state.withLock {
+            precondition($0.values[pathBar] == .integer(1) && $0.values[statusBar] == nil)
+        }
+
         let corrupt = Data("keep these bytes".utf8)
         try corrupt.write(to: fake.journalFile)
         let writesBeforeCorruption = fake.state.withLock { $0.writes.count }

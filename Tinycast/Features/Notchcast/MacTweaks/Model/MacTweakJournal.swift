@@ -6,13 +6,16 @@ struct MacTweakJournal: Codable, Equatable, Sendable {
         let tweakID: MacTweak.ID
         let target: MacTweakTarget
         let previous: MacTweakValue?
-        let written: MacTweakValue
+        let written: MacTweakValue?
         let restarts: Set<MacTweakRestart>
         let date: Date
         var supersededWrite: MacTweakValue?
+        var supersededRemoval: Bool?
+
+        var hasSupersededWrite: Bool { supersededWrite != nil || supersededRemoval == true }
 
         func owns(_ current: MacTweakValue?) -> Bool {
-            current == written || (supersededWrite != nil && current == supersededWrite)
+            current == written || (hasSupersededWrite && current == supersededWrite)
         }
     }
 
@@ -30,11 +33,11 @@ struct MacTweakJournal: Codable, Equatable, Sendable {
     func apply(
         _ tweak: MacTweak,
         target: MacTweakTarget,
-        value: MacTweakValue,
+        value: MacTweakValue?,
         current: MacTweakValue?,
         now: Date
     ) -> Self? {
-        guard !value.matches(current) else { return nil }
+        guard !(value?.matches(current) ?? (current == nil)) else { return nil }
         let owned = entries.first { $0.target == target && $0.owns(current) }
         var next = self
         next.forget(target)
@@ -45,13 +48,14 @@ struct MacTweakJournal: Codable, Equatable, Sendable {
             written: value,
             restarts: tweak.restarts.union(owned?.restarts ?? []),
             date: owned?.date ?? now,
-            supersededWrite: owned == nil ? nil : current
+            supersededWrite: owned == nil ? nil : current,
+            supersededRemoval: owned != nil && current == nil ? true : nil
         ))
         return next
     }
 
     func restore(_ entry: Entry, current: MacTweakValue?) -> Restore {
-        entry.owns(current) ? .write(entry.previous) : .forget
+        entry.owns(current) && current != entry.previous ? .write(entry.previous) : .forget
     }
 
     func restoreAll() -> [Entry] {
@@ -65,6 +69,7 @@ struct MacTweakJournal: Codable, Equatable, Sendable {
     mutating func finishWrite(_ target: MacTweakTarget) {
         if let index = entries.firstIndex(where: { $0.target == target }) {
             entries[index].supersededWrite = nil
+            entries[index].supersededRemoval = nil
         }
     }
 

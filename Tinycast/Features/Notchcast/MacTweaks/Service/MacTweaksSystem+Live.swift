@@ -12,7 +12,6 @@ extension MacTweaksSystem {
     }
 
     static func live() -> Self {
-        let library = FileManager.default.homeDirectoryForCurrentUser.appending(path: "Library", directoryHint: .isDirectory)
         let session = "gui/\(getuid())"
         return Self(
             version: ProcessInfo.processInfo.operatingSystemVersion,
@@ -27,6 +26,8 @@ extension MacTweaksSystem {
                     let value = MacTweakValue.bool(disabledServices(output).contains(label))
                     return Reading(stored: value, effective: value)
                 case .libraryHidden:
+                    let library = FileManager.default.homeDirectoryForCurrentUser
+                        .appending(path: "Library", directoryHint: .isDirectory)
                     guard let hidden = try library.resourceValues(forKeys: [.isHiddenKey]).isHidden else {
                         throw LiveFailure.refused
                     }
@@ -45,8 +46,9 @@ extension MacTweaksSystem {
                     guard case .bool(let hidden)? = value else { throw LiveFailure.invalidValue }
                     var values = URLResourceValues()
                     values.isHidden = hidden
-                    var folder = library
-                    try folder.setResourceValues(values)
+                    var library = FileManager.default.homeDirectoryForCurrentUser
+                        .appending(path: "Library", directoryHint: .isDirectory)
+                    try library.setResourceValues(values)
                 }
             },
             restart: { process in
