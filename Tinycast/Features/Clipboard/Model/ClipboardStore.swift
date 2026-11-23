@@ -560,7 +560,14 @@ final class ClipboardStore {
         defer { if wasClosed { closeDatabase() } }
         guard !wasClosed || openDatabase() else { return false }
 
-        // The writer has no busy handler, so a reader lock defers this attempt without waiting.
+        // A busy handler would hold the main actor behind a reader lock; this attempt defers instead.
+        var restoredTimeout: Int32 = 0
+        if let stmt = prepare("PRAGMA busy_timeout") {
+            if sqlite3_step(stmt) == SQLITE_ROW { restoredTimeout = sqlite3_column_int(stmt, 0) }
+            sqlite3_finalize(stmt)
+        }
+        sqlite3_busy_timeout(db, 0)
+        defer { sqlite3_busy_timeout(db, restoredTimeout) }
         var logFrames: Int32 = -1
         var checkpointedFrames: Int32 = -1
         let status = sqlite3_wal_checkpoint_v2(
