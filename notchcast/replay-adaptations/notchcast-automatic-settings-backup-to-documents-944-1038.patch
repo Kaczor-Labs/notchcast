@@ -14,10 +14,27 @@ index 95e0079d9..50c964f94 100644
              let (staging, preview) = try await openBackup(at: file)
              defer { staging.discard() }
 diff --git a/Tinycast/Features/Notchcast/NotchcastSettingsBackupBridge.swift b/Tinycast/Features/Notchcast/NotchcastSettingsBackupBridge.swift
-index 31204bbce..051bef255 100644
+index 31204bb..de292db 100644
 --- a/Tinycast/Features/Notchcast/NotchcastSettingsBackupBridge.swift
 +++ b/Tinycast/Features/Notchcast/NotchcastSettingsBackupBridge.swift
-@@ -44,19 +44,6 @@ struct NotchcastSettingsBackupBridge: NotchcastSettingsBackup {
+@@ -22,9 +22,14 @@ struct NotchcastSettingsBackupBridge: NotchcastSettingsBackup {
+ 
+     func write(_ settings: Data, to file: URL) async throws {
+         guard let core else { throw NotchcastNoSettingsBackup.Unavailable() }
++        let backup = try SettingsBackup(json: settings)
+         var plan = BackupComposer.plan([], from: core)
+-        plan.categories = [.configuration]
+-        plan.settings = settings
++        plan.categories = Set(SettingsBackup.sliceCategories)
++        for category in SettingsBackup.sliceCategories {
++            guard let slice = backup.slice(for: category) else { continue }
++            let count = category == .configuration ? 1 : slice.contentCount
++            plan.files[category] = .init(data: try slice.encoded(), count: count)
++        }
+         try await Task.detached(priority: .utility) { [plan] in
+             let staging = try BackupStaging()
+             defer { staging.discard() }
+@@ -44,19 +49,6 @@ struct NotchcastSettingsBackupBridge: NotchcastSettingsBackup {
      /// Backup › Import for a known file, so the stock confirmation and report come with it.
      func restore(_ file: URL) async {
          guard let core else { return }

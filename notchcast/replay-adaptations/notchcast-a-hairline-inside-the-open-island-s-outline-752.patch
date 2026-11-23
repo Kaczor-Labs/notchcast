@@ -1,0 +1,23 @@
+diff --git a/Tinycast/Features/Backup/Service/SettingsBackup+Stores.swift b/Tinycast/Features/Backup/Service/SettingsBackup+Stores.swift
+index acf49a348..69daff548 100644
+--- a/Tinycast/Features/Backup/Service/SettingsBackup+Stores.swift
++++ b/Tinycast/Features/Backup/Service/SettingsBackup+Stores.swift
+@@ -20,6 +20,7 @@ extension SettingsBackup {
+             showInMenuBar: s.showInMenuBar,
+             automaticallyCheckForUpdates: s.automaticallyCheckForUpdates,
+             islandShowsInCaptures: s.islandShowsInCaptures,
++            islandOutlineWhenOpen: s.islandOutlineWhenOpen,
+             popToRootSeconds: s.popToRootTimeout.rawValue,
+             escapeKeyBehavior: s.escapeKeyBehavior.rawValue,
+             appearance: s.appearance.rawValue,
+@@ -239,6 +240,10 @@ extension SettingsBackup {
+             settings.islandShowsInCaptures = shows
+             count += 1
+         }
++        if let outline = s.islandOutlineWhenOpen {
++            settings.islandOutlineWhenOpen = outline
++            count += 1
++        }
+         if let secs = s.popToRootSeconds, let timeout = PopToRootTimeout(rawValue: secs) {
+             settings.popToRootTimeout = timeout
+             count += 1
