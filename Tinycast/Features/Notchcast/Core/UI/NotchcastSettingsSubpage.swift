@@ -5,17 +5,15 @@ struct NotchcastSettingsSubpage: Sendable {
     let view: @MainActor @Sendable (NotchcastContext) -> AnyView
 }
 
-struct NotchcastSettingsSubpageLink<Label: View>: View {
-    @Environment(SettingsNavigationState.self) private var navigation
-    let subpage: NotchcastSettingsSubpage
+struct NotchcastSettingsSubpageAction: Sendable {
+    let navigation: SettingsNavigationState
     let context: NotchcastContext
-    @ViewBuilder let label: () -> Label
 
-    var body: some View {
-        Button {
-            navigation.openSubpage(.init(title: subpage.title, content: subpage.view(context)))
-        } label: {
-            label()
-        }
+    @MainActor func callAsFunction(_ page: NotchcastSettingsSubpage) {
+        navigation.openSubpage(.init(title: page.title, content: page.view(context)))
     }
+}
+
+extension EnvironmentValues {
+    @Entry var openNotchcastSettingsSubpage: NotchcastSettingsSubpageAction?
 }
