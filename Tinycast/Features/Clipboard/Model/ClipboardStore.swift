@@ -561,11 +561,10 @@ final class ClipboardStore {
         guard !wasClosed || openDatabase() else { return false }
 
         // A busy handler would hold the main actor behind a reader lock; this attempt defers instead.
-        var restoredTimeout: Int32 = 0
-        if let stmt = prepare("PRAGMA busy_timeout") {
-            if sqlite3_step(stmt) == SQLITE_ROW { restoredTimeout = sqlite3_column_int(stmt, 0) }
-            sqlite3_finalize(stmt)
-        }
+        guard let stmt = prepare("PRAGMA busy_timeout") else { return false }
+        let restoredTimeout = sqlite3_step(stmt) == SQLITE_ROW ? sqlite3_column_int(stmt, 0) : nil
+        sqlite3_finalize(stmt)
+        guard let restoredTimeout else { return false }
         sqlite3_busy_timeout(db, 0)
         defer { sqlite3_busy_timeout(db, restoredTimeout) }
         var logFrames: Int32 = -1
