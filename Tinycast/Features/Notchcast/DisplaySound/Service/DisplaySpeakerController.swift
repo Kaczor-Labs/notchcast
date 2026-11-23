@@ -109,14 +109,20 @@ final class DisplaySpeakerController {
         Set((displays.online() ?? []).filter { !displays.isBuiltIn($0) }.compactMap { displays.uuid($0)?.uppercased() })
     }
 
-    /// Volume must answer; mute is asked once for a step, since many monitors without it stay silent.
+    /// Volume must answer; mute is asked once for a step above zero: many without it stay silent.
     private nonisolated static func apply(_ command: VolumeCommand, on link: BrightnessDDCLink,
                                           remembered: DisplaySpeakerLevel?) -> Outcome {
         guard let volume = link.read(.volume, attempts: 3) else { return .silent }
-        let mute = link.read(.mute, attempts: command == .toggleMute ? 3 : 1)
-        guard let plan = DisplaySpeaker.plan(command, volume: volume, mute: mute?.current, remembered: remembered),
-              plan.packets.allSatisfy(link.send) else { return .refused }
-        return .applied(plan.level)
+        let mute = link.read(.mute, attempts: command == .toggleMute || volume.current == 0 ? 3 : 1)
+        guard let plan = DisplaySpeaker.plan(command, volume: volume, mute: mute, remembered: remembered)
+        else { return .refused }
+        let sent = plan.packets.allSatisfy(link.send)
+        guard let landing = plan.landing else { return sent ? .applied(plan.level) : .refused }
+        if sent, DisplaySpeaker.landed(landing, volume: link.read(.volume, attempts: 3),
+                                       mute: link.read(.mute, attempts: 3)) { return .applied(plan.level) }
+        // A level that did not land stays silent; the mute left behind makes the next volume up unmute.
+        if !link.send(DisplayDDC.write(.mute, DisplayDDC.muteValue(true))) { _ = link.send(DisplayDDC.write(.volume, 0)) }
+        return .refused
     }
 
     private nonisolated static func restore(_ level: DisplaySpeakerLevel, on link: BrightnessDDCLink) -> Bool {
