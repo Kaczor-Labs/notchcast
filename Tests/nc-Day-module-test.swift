@@ -174,9 +174,10 @@ struct DayModuleTests {
         defer { defaults.removePersistentDomain(forName: suite) }
         defaults.set(true, forKey: DayAddon.settingsID)
         let core = AppCore()
+        defer { Permissions.reset() }
         let attempts = AsyncStream<Void>.makeStream()
         var actions = 0
-        var calendar = NotchcastCalendar(core: core)
+        var calendar = NotchcastCalendar(core: core, activate: {})
         let request = calendar.requestAccess
         calendar.requestAccess = { openSettingsIfDenied in
             actions += 1
@@ -200,16 +201,17 @@ struct DayModuleTests {
         check(live.module(DayModule.self) != nil, "the stored switch starts Day in the main app")
         check(link.notchcastStatus(for: DayAddon.self)?.needsCalendarAccess == true,
               "Settings receives the missing grant from Day’s endpoint")
-        check(actions == 0 && core.calendarStore.requests == 0, "launch and status reads ask for no access")
+        check(actions == 0 && Permissions.requests == 0, "launch and status reads ask for no access")
         live.preferences.set(DayAddon.settingsID, on: false)
         live.preferences.set(DayAddon.settingsID, on: true)
-        check(actions == 0 && core.calendarStore.requests == 0, "turning the switch on asks for no access")
+        check(actions == 0 && Permissions.requests == 0, "turning the switch on asks for no access")
 
         link.sendNotchcast(.requestCalendarAccess, to: DayAddon.self)
         var completion = attempts.stream.makeAsyncIterator()
         _ = await completion.next()
 
-        check(actions == 1 && core.calendarStore.requests == 1, "Day’s Grant Access action asks macOS once")
+        check(actions == 1 && Permissions.requests == 1, "Day’s Grant Access action asks macOS once")
+        check(!core.settings.calendarEnabled, "Day’s request leaves the stock Calendar switch off")
         check(link.notchcastStatus(for: DayAddon.self)?.needsCalendarAccess == false,
               "the granted status hides the row in Settings")
     }
@@ -218,12 +220,14 @@ struct DayModuleTests {
         let world = FakeWorld()
         let presenter = PageRecorder()
         let core = AppCore()
-        let calendarDoor = NotchcastCalendar(core: core)
+        defer { Permissions.reset() }
+        let calendarDoor = NotchcastCalendar(core: core, activate: {})
         check(calendarDoor.needsAccess(), "a fresh install needs calendar access")
         await calendarDoor.requestAccess(false)
         await calendarDoor.requestAccess(false)
-        check(core.settings.calendarEnabled && !calendarDoor.needsAccess(), "the grant enables the stock service")
-        check(core.calendarStore.requests == 1, "an existing grant is reused")
+        check(!core.settings.calendarEnabled && !calendarDoor.needsAccess(),
+              "full access satisfies Day while the stock Calendar switch stays off")
+        check(Permissions.requests == 1, "an existing grant is reused")
         let (module, _) = make(world, presenter, place: false, symbols: "", calendarDoor: calendarDoor)
         module.stop()
         check(presenter.pages.isEmpty, "stopping a module that never ran posts nothing")
@@ -441,17 +445,10 @@ final class CalendarStore {
     enum Access { case granted, notDetermined, denied }
 
     var events: [Event] = []
-    var access: Access = .notDetermined
-    private(set) var requests = 0
+    private(set) var access: Access = .notDetermined
 
-    func refreshAccess() {}
+    func refreshAccess() { access = Permissions.access }
     func start() {}
-
-    func requestAccess() async -> Bool {
-        requests += 1
-        access = .granted
-        return true
-    }
 }
 
 @MainActor
@@ -460,7 +457,22 @@ final class CalendarCoordinator {
     func showSchedule() { scheduleOpens += 1 }
 }
 
+@MainActor
 enum Permissions {
+    private(set) static var access: CalendarStore.Access = .notDetermined
+    private(set) static var requests = 0
+
+    static func requestCalendarAccess() async -> Bool {
+        requests += 1
+        access = .granted
+        return true
+    }
+
+    static func reset() {
+        access = .notDetermined
+        requests = 0
+    }
+
     static func openCalendarSettings() { preconditionFailure("the harness never opens System Settings") }
 }
 
