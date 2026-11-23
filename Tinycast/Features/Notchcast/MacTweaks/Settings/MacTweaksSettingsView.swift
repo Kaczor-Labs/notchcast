@@ -1,21 +1,12 @@
 import SwiftUI
 
 struct MacTweaksSettingsView: View {
-    @State private var snapshot: MacTweakSnapshot?
-
-    var body: some View {
-        MacTweaksPage(page: .catalogue, snapshot: $snapshot)
-    }
-}
-
-private struct MacTweaksPage: View {
     enum Page { case catalogue, finder }
 
     let page: Page
-    @Binding var snapshot: MacTweakSnapshot?
     @Environment(MainAppLink.self) private var mainApp
-    @Environment(SettingsNavigationState.self) private var navigation
-    @Environment(\.dismiss) private var dismiss
+    @Environment(\.openNotchcastSettingsSubpage) private var openSubpage
+    @State private var snapshot: MacTweakSnapshot?
     @State private var request: MacTweaksAddon.Request? = .snapshot
     @State private var notice: String?
     @State private var confirmsUndo = false
@@ -25,20 +16,21 @@ private struct MacTweaksPage: View {
     var body: some View {
         switch page {
         case .catalogue:
-            NavigationLink {
-                MacTweaksPage(page: .finder, snapshot: $snapshot)
-            } label: {
+            Button { openSubpage?(MacTweaksAddon.finderPage) } label: {
                 LabeledContent {
                     if let snapshot {
                         let applied = snapshot.applied
                         let count = MacTweakCatalog.finder.count { applied.contains($0.id) }
                         Text("\(count) of \(MacTweakCatalog.finder.count) on", tableName: "NotchcastMacTweaks")
                     }
+                    Image(systemName: "chevron.right").foregroundStyle(.secondary).accessibilityHidden(true)
                 } label: {
                     SettingsRowTitle(Self.anchor, LocalizedStringResource("Finder", table: "NotchcastMacTweaks"))
                 }
+                .contentShape(.rect)
             }
-            .disabled(request != nil)
+            .buttonStyle(.plain)
+            .disabled(request != nil || openSubpage == nil)
             Button(role: .destructive) { confirmsUndo = true } label: {
                 Text("Undo Everything…", tableName: "NotchcastMacTweaks")
             }
@@ -52,7 +44,6 @@ private struct MacTweaksPage: View {
             } message: {
                 Text("Restore the settings Notchcast changed. Finder may restart.", tableName: "NotchcastMacTweaks")
             }
-            .onAppear { if request == nil { request = .snapshot } }
             .task(id: request) { await runRequest() }
             feedback()
         case .finder:
@@ -66,10 +57,6 @@ private struct MacTweaksPage: View {
                 }
             }
             .formStyle(.grouped)
-            .navigationTitle(String(localized: "Mac Tweaks – Finder", table: "NotchcastMacTweaks"))
-            .onChange(of: navigation.tab) { _, tab in
-                if tab != .notchcast(.macTweaks) { dismiss() }
-            }
             .task(id: request) { await runRequest() }
         }
     }
