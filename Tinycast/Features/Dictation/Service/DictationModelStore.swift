@@ -83,7 +83,11 @@ final class DictationModelStore {
     func download(_ model: DictationModel) async throws {
         guard !isInstalled(model) else { return }
         if downloading == model, let downloadTask, let id = downloadID {
-            try await downloadTask.value
+            try await withTaskCancellationHandler {
+                try await downloadTask.value
+            } onCancel: {
+                downloadTask.cancel()
+            }
             try Task.checkCancellation()
             if downloadID == id { installedModels.insert(model) }
             guard isInstalled(model), removing != model else { throw Failure.busy }

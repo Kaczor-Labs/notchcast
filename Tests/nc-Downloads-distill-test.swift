@@ -279,6 +279,18 @@ struct DownloadsDistillTest {
         preferences.set("downloads", on: true)
         try await eventually { module.downloads.queue != nil }
         clipboard = "https://www.youtube.com/watch?v=download-one\nhttps://www.youtube.com/watch?v=download-two"
+        dictation.result = .failure(NotchcastTranscribeError.unavailable)
+        let transcriptCalls = dictation.calls.count
+        let beforeTranscriptPause = presenter.notices.count
+        command("download-youtube-transcript")
+        try await eventually { presenter.notices.dropFirst(beforeTranscriptPause).contains { $0.isFailure } }
+        let paused = module.downloads.queue!.jobs
+        expect(paused.count == 2 && paused.allSatisfy { $0.state == .held }, "Transcript holds the whole batch")
+        expect(dictation.calls.count == transcriptCalls + 1, "Later links do not try the unavailable model")
+        expect(presenter.notices.dropFirst(beforeTranscriptPause).filter { $0.isFailure }.count == 1,
+               "A Transcript batch reports its blocker once")
+        clipboard = ""
+        dictation.result = .success("hello")
         command("download-youtube-transcript")
         try await eventually {
             let transcripts = module.downloads.queue?.jobs ?? []
