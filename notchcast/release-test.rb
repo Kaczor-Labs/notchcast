@@ -151,10 +151,11 @@ Dir.mktmpdir('test-build-plan-') do |directory|
   FileUtils.mkdir_p(File.join(directory, 'bin'))
   File.write(File.join(directory, 'bin/gh'), <<~'SH')
     #!/bin/bash
+    refuse() { echo "gh stub: unexpected call: $*" >&2; exit 1; }
     case "$1 $2" in
-      'pr view') json="$PR_JSON" ;;
-      'release list') json='[{"tagName":"v0.12.9","isDraft":false},{"tagName":"v0.12.8.snapshot.20261107210745","isDraft":false},
-        {"tagName":"v0.12.7.snapshot.20261108000000","isDraft":false},{"tagName":"v0.12.9.snapshot.20261109000000","isDraft":true}]' ;;
+      'pr view') [ "$3 $4 $5" = "$PR -R owner/repo" ] || refuse "$@"; json="$PR_JSON" ;;
+      'release list') [ "$3 $4" = '-R owner/repo' ] || refuse "$@"; json="$RELEASES" ;;
+      *) refuse "$@" ;;
     esac
     printf '%s' "$json" | jq -r "${*: -1}"
   SH
@@ -167,53 +168,77 @@ Dir.mktmpdir('test-build-plan-') do |directory|
   SH
   File.write(File.join(directory, 'bin/python3'), "#!/bin/bash\nprintf 'build=%s\\nscripts=true\\n' \"$LANE\"\n")
   FileUtils.chmod(0755, Dir.glob(File.join(directory, 'bin/*')))
-  script = File.join(directory, 'plan.sh')
-  File.write(script, plan_step.fetch('run'))
+  script = File.join(directory, 'step.sh')
+  output_file = File.join(directory, 'output')
   head = 'abcdef0123456789abcdef0123456789abcdef01'
-  pr = ->(state: 'OPEN', cross: false, branch: 'fix') {
-    {state: state, isCrossRepository: cross, headRefOid: head, headRefName: branch}.to_json
+  beta_head = '05f7006571f7610675a50b34a2d3e89310b36521'
+  pr = ->(state: 'OPEN', cross: false, branch: 'fix', oid: head) {
+    {state: state, isCrossRepository: cross, headRefOid: oid, headRefName: branch}.to_json
   }
-  [['open PR that builds the app', '7', pr.(), head, 'true', true, "build=true\nhead=#{head}\nversion=0.12.7.pr7.abcdef01\n"],
-   ['add-on branch, whatever lanes.py says', '7', pr.(branch: 'v2/addons-x'), head, 'false', true, 'build=true'],
-   ['docs-only PR', '7', pr.(), head, 'false', true, "build=false\n"],
-   ['closed PR', '7', pr.(state: 'MERGED'), head, 'true', false, 'is MERGED'],
-   ["a fork's PR", '7', pr.(cross: true), head, 'true', false, 'another repository'],
-   ['head moved while planning', '7', pr.(), '0' * 40, 'true', false, 'moved while planning'],
-   ['not a number', '7; true', pr.(), head, 'true', false, 'must be a PR number']].each do |name, number, json, fetched, lane, ok, want|
-    output_file = File.join(directory, 'output')
+  stable = [['v0.12.9', false], ['v0.12.8.snapshot.20261107210745', false], ['v0.12.7.snapshot.20261108000000', false],
+            ['v0.12.9.snapshot.20261109000000', true]]
+  beta = stable + [['v0.13.0-beta.145.snapshot.20261123171110', false]]
+  unmakeable = [['v0.13.0-rc.1.2.snapshot.20261124000000', false]]
+  step = ->(job_step, variables) {
+    File.write(script, job_step.fetch('run'))
     File.write(output_file, '')
-    env = {'PATH' => "#{directory}/bin:#{ENV.fetch('PATH')}", 'PR' => number, 'PR_JSON' => json, 'FETCHED' => fetched,
-           'LANE' => lane, 'GITHUB_OUTPUT' => output_file, 'GITHUB_REPOSITORY' => 'owner/repo', 'RUN_NUMBER' => '5'}
-    output, status = Open3.capture2e(env, 'bash', '-eo', 'pipefail', script, chdir: directory)
-    written = File.read(output_file)
-    assert(status.success? == ok && (written + output).include?(want), "test-build plan, #{name}: #{output}#{written}")
-    assert(ok || written.empty?, "test-build plan, #{name}: a refusal must plan nothing")
+    variables = {'PATH' => "#{directory}/bin:#{ENV.fetch('PATH')}", 'GITHUB_OUTPUT' => output_file,
+                 'GITHUB_REPOSITORY' => 'owner/repo', 'RUN_NUMBER' => '5'}.merge(variables)
+    output, status = Open3.capture2e(variables, 'bash', '-eo', 'pipefail', script, chdir: directory)
+    [output, status.success?, File.read(output_file)]
+  }
+  one_error = ->(output, want) { output.lines.grep(/^::/).size == 1 && output.match?(/^::error::.*#{Regexp.escape(want)}/) }
+  planned = {}
+  [['open PR that builds the app', '7', pr.(), head, 'true', stable, "build=true\nhead=#{head}\nversion=0.12.7.pr7.abcdef01\n"],
+   ['beta snapshot base', '1436', pr.(oid: beta_head), beta_head, 'true', beta, "version=0.13.0-beta.145.pr1436.05f70065\n"],
+   ['newer snapshot tag the producer cannot make', '1436', pr.(oid: beta_head), beta_head, 'true', beta + unmakeable,
+    "version=0.13.0-beta.145.pr1436.05f70065\n"],
+   ['add-on branch, whatever lanes.py says', '7', pr.(branch: 'v2/addons-x'), head, 'false', stable, 'build=true'],
+   ['docs-only PR', '7', pr.(), head, 'false', stable, "build=false\n"],
+   ['closed PR', '7', pr.(state: 'MERGED'), head, 'true', stable, nil, 'is MERGED'],
+   ["a fork's PR", '7', pr.(cross: true), head, 'true', stable, nil, 'another repository'],
+   ['head moved while planning', '7', pr.(), '0' * 40, 'true', stable, nil, 'moved while planning'],
+   ['no snapshot tag the producer can make', '7', pr.(), head, 'true', unmakeable, nil, 'no snapshot release'],
+   ['not a number', '7; true', pr.(), head, 'true', stable, nil, 'must be a PR number'],
+   ['a line break in the PR number', "7\n::warning::x", pr.(), head, 'true', stable, nil, 'must be a PR number']
+  ].each do |name, number, json, fetched, lane, tags, want, error|
+    output, ok, written = step.(plan_step, 'PR' => number, 'PR_JSON' => json, 'FETCHED' => fetched, 'LANE' => lane,
+                                'RELEASES' => tags.map { |tag, draft| {tagName: tag, isDraft: draft} }.to_json)
+    if want
+      assert(ok && written.include?(want), "test-build plan, #{name}: #{output}#{written}")
+    else
+      assert(!ok && one_error.(output, error), "test-build plan, #{name}: #{output}#{written}")
+      assert(written.empty?, "test-build plan, #{name}: a refusal must plan nothing")
+    end
     assert(!written.match?(/version=.*[.]snapshot[.]/), 'a test build version must never look like a snapshot')
     puts "PASS test-build plan: #{name}"
+    next unless written.include?('build=true')
+    outputs = written.lines.to_h { |line| line.chomp.split('=', 2) }
+    planned[name] = outputs.fetch('version')
+    output, ok, = step.(verify_step, 'PR' => number, 'PR_JSON' => json, 'HEAD' => outputs.fetch('head'),
+                        'VERSION' => outputs.fetch('version'))
+    assert(ok, "test-build verification refuses what the plan made, #{name}: #{output}")
+    puts "PASS test-build verification: accepts the plan of #{name}"
   end
-  File.write(script, verify_step.fetch('run'))
-  version = '0.12.7.pr7.abcdef01'
-  beta_head = '05f7006571f7610675a50b34a2d3e89310b36521'
-  beta = '0.13.0-beta.145.pr1436.05f70065'
-  [['still open at the planned commit', '7', pr.(), head, version, nil],
-   ['beta snapshot base', '1436', pr.().sub(head, beta_head), beta_head, beta, nil],
-   ['closed after planning', '7', pr.(state: 'CLOSED'), head, version, 'is CLOSED'],
+  version = planned.fetch('open PR that builds the app')
+  beta_version = planned.fetch('beta snapshot base')
+  [['closed after planning', '7', pr.(state: 'CLOSED'), head, version, 'is CLOSED'],
    ['fork reported by GitHub', '7', pr.(cross: true), head, version, 'another repository'],
    ['different commit from GitHub', '7', pr.(), '0' * 40, '0.12.7.pr7.00000000', 'moved from the planned head'],
    ['no answer from GitHub', '7', '', head, version, 'could not read PR #7'],
    ['not a number', '7; true', pr.(), head, version, 'must be a PR number'],
+   ['a line break in the PR number', "7\n::warning::x", pr.(), head, version, 'must be a PR number'],
    ['head is not a commit id', '7', pr.(), 'abcdef01', version, 'is not a commit id'],
-   ['unexpected version', '7', pr.(), head, '0.12.7.pr9.abcdef01', 'planned version'],
-   ['beta version of another PR', '1437', pr.().sub(head, beta_head), beta_head, beta, 'planned version'],
-   ['beta version of another head', '1436', pr.(), head, beta, 'planned version'],
+   ['a line break in the head', '7', pr.(), "#{head}\n::warning::x", version, 'is not a commit id'],
+   ['a line break in the version', '7', pr.(), head, "#{version}\n::warning::x", 'planned version'],
+   ['version of another PR', '7', pr.(), head, '0.12.7.pr9.abcdef01', 'planned version'],
+   ['beta version of another PR', '1437', pr.(oid: beta_head), beta_head, beta_version, 'planned version'],
+   ['beta version of another head', '1436', pr.(), head, beta_version, 'planned version'],
+   ['base the producer cannot make', '7', pr.(), head, '0.13.0-rc.1.2.pr7.abcdef01', 'planned version'],
    ['snapshot version', '7', pr.(), head, '0.12.7.snapshot.20261108000000.pr7.abcdef01', 'planned version']
-  ].each do |name, number, json, sha, planned, error|
-    env = {'PATH' => "#{directory}/bin:#{ENV.fetch('PATH')}", 'PR' => number, 'PR_JSON' => json,
-           'HEAD' => sha, 'VERSION' => planned, 'GITHUB_REPOSITORY' => 'owner/repo'}
-    output, status = Open3.capture2e(env, 'bash', '-eo', 'pipefail', script, chdir: directory)
-    assert(status.success? == error.nil?, "test-build verification, #{name}: #{output}")
-    assert(error.nil? || output.match?(/^::error::.*#{Regexp.escape(error)}/),
-           "test-build verification, #{name}: no ::error:: naming '#{error}': #{output}")
+  ].each do |name, number, json, sha, planned_version, error|
+    output, ok, = step.(verify_step, 'PR' => number, 'PR_JSON' => json, 'HEAD' => sha, 'VERSION' => planned_version)
+    assert(!ok && one_error.(output, error), "test-build verification, #{name}: #{output}")
     puts "PASS test-build verification: #{name}"
   end
 end

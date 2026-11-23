@@ -45,7 +45,7 @@ jobs:
           PR: ${{ inputs.pr }}
           RUN_NUMBER: ${{ github.run_number }}
         run: |
-          [[ "$PR" =~ ^[1-9][0-9]*$ ]] || { echo "::error::pr must be a PR number, got '$PR'"; exit 1; }
+          [[ "$PR" =~ ^[1-9][0-9]*$ ]] || { echo "::error::pr must be a PR number"; exit 1; }
           IFS=$'\t' read -r state cross head branch < <(gh pr view "$PR" -R "$GITHUB_REPOSITORY" \
             --json state,isCrossRepository,headRefOid,headRefName \
             --jq '[.state, (.isCrossRepository | tostring), .headRefOid, .headRefName] | @tsv')
@@ -63,8 +63,10 @@ jobs:
             echo "build=false" >> "$GITHUB_OUTPUT"
             exit 0
           fi
-          base=$(gh release list -R "$GITHUB_REPOSITORY" -L 1000 --json tagName,isDraft --jq '[.[] | select(.isDraft | not)
-            | .tagName | capture("^v(?<base>.+)[.]snapshot[.](?<stamp>[0-9]{14})$")] | sort_by(.stamp) | last | .base // empty')
+          # The base is a tag ci.py's TAG_RE takes; the build job's guard takes the same and no other.
+          base=$(gh release list -R "$GITHUB_REPOSITORY" -L 1000 --json tagName,isDraft --jq '[.[] | select(.isDraft | not) | .tagName
+            | capture("^v(?<base>[0-9]+[.][0-9]+[.][0-9]+(-[a-z]+[.][0-9]+)?)[.]snapshot[.](?<stamp>[0-9]{14})$")]
+            | sort_by(.stamp) | last | .base // empty')
           [ -n "$base" ] || { echo "::error::no snapshot release to take the version base from"; exit 1; }
           # Never a snapshot version (update.sh's pattern), so a plain update always knows it for a test build.
           version="$base.pr$PR.${head:0:8}"
@@ -88,10 +90,10 @@ jobs:
           VERSION: ${{ needs.plan.outputs.version }}
         run: |
           fail() { echo "::error::$1"; exit 1; }
-          [[ "$PR" =~ ^[1-9][0-9]*$ ]] || fail "pr must be a PR number, got '$PR'"
-          [[ "$HEAD" =~ ^[a-f0-9]{40}$ ]] || fail "the planned head '$HEAD' is not a commit id"
-          [[ "$VERSION" =~ ^[0-9]+([.][0-9]+)*(-[a-z]+[.][0-9]+)?[.]pr${PR}[.]${HEAD:0:8}$ ]] \
-            || fail "the planned version '$VERSION' is not <snapshot base>.pr$PR.${HEAD:0:8}"
+          [[ "$PR" =~ ^[1-9][0-9]*$ ]] || fail "pr must be a PR number"
+          [[ "$HEAD" =~ ^[a-f0-9]{40}$ ]] || fail "the planned head is not a commit id"
+          [[ "$VERSION" =~ ^[0-9]+[.][0-9]+[.][0-9]+(-[a-z]+[.][0-9]+)?[.]pr${PR}[.]${HEAD:0:8}$ ]] \
+            || fail "the planned version is not <snapshot base>.pr$PR.${HEAD:0:8}"
           IFS=$'	' read -r state cross current < <(gh pr view "$PR" -R "$GITHUB_REPOSITORY" \
             --json state,isCrossRepository,headRefOid --jq '[.state, (.isCrossRepository | tostring), .headRefOid] | @tsv') \
             || fail "could not read PR #$PR from GitHub"
