@@ -40,6 +40,7 @@ The in-app updater stays off in Notchcast. To keep a Mac current, clone this rep
   <!-- addon-tabs:start -->
   - **Island**: look, outline when open, open on hover, position on displays without a notch, show in screenshots and videos.
   - **Island Content**:
+  - **Agents**:
   - **Keyboard & Mouse**:
   - **Display & Sound**:
   - **Capture**:

@@ -541,7 +541,7 @@ struct NotchcastCoreTest {
     static func settingsTabs() {
         check("each tab holds its categories",
               NotchcastPane.allCases.map(\.categories)
-                == [[], [.islandPages, .notices], [.keyboardMouse], [.display, .sound], [.capture],
+                == [[], [.islandPages, .notices], [.agents], [.keyboardMouse], [.display, .sound], [.capture],
                    [.clipboard, .finder, .files], [.downloads], [.launcher], [.macTweaks]])
         check("no category sits in two tabs", NotchcastCategory.allCases.allSatisfy { category in
             NotchcastPane.allCases.filter { $0.categories.contains(category) }.count <= 1
@@ -568,7 +568,7 @@ struct NotchcastCoreTest {
               SettingsTab(slug: "notchcast-island-content") == .notchcast(.islandContent)
                 && SettingsTab(slug: "notchcast-clipboard-files") == .notchcast(.clipboardFiles))
         check("removed tab links open nothing",
-              ["notchcast", "notchcast-agents", "notchcast-power", "notchcast-notices"].allSatisfy {
+              ["notchcast", "notchcast-power", "notchcast-notices"].allSatisfy {
                   SettingsTab(slug: $0) == nil
               })
         NotchcastPane.install([])

@@ -3,7 +3,8 @@ import Synchronization
 
 /// The Notchcast sidebar section's tabs, in order; a later add-on adds its tab here.
 enum NotchcastPane: CaseIterable, Sendable {
-    case island, islandContent, keyboardMouse, displaySound, capture, clipboardFiles, downloads, launcher, macTweaks
+    case island, islandContent, agents, keyboardMouse, displaySound, capture, clipboardFiles, downloads, launcher,
+         macTweaks
 
     /// Installed by NotchcastCore from the registered switches before Settings can open.
     private static let registered = Mutex<Set<NotchcastCategory>>([])
@@ -28,6 +29,7 @@ enum NotchcastPane: CaseIterable, Sendable {
         switch self {
         case .island: []
         case .islandContent: [.islandPages, .notices]
+        case .agents: [.agents]
         case .keyboardMouse: [.keyboardMouse]
         case .displaySound: [.display, .sound]
         case .capture: [.capture]
@@ -43,6 +45,7 @@ enum NotchcastPane: CaseIterable, Sendable {
         switch self {
         case .island: "notchcast-island"
         case .islandContent: "notchcast-island-content"
+        case .agents: "notchcast-agents"
         case .keyboardMouse: "notchcast-keyboard-mouse"
         case .displaySound: "notchcast-display-sound"
         case .capture: "notchcast-capture"
@@ -57,6 +60,7 @@ enum NotchcastPane: CaseIterable, Sendable {
         switch self {
         case .island: String(localized: "Island", table: "Notchcast")
         case .islandContent: String(localized: "Island Content", table: "Notchcast")
+        case .agents: String(localized: "Agents", table: "Notchcast")
         case .keyboardMouse: String(localized: "Keyboard & Mouse", table: "Notchcast")
         case .displaySound: String(localized: "Display & Sound", table: "Notchcast")
         case .capture: String(localized: "Capture", table: "Notchcast")
@@ -71,6 +75,7 @@ enum NotchcastPane: CaseIterable, Sendable {
         switch self {
         case .island: "capsule.fill"
         case .islandContent: "rectangle.stack.fill"
+        case .agents: "gauge.with.needle"
         case .keyboardMouse: "keyboard"
         case .displaySound: "speaker.wave.2"
         case .capture: "camera.viewfinder"

@@ -78,6 +78,7 @@ Settings search indexes each pane and the main switches. Dependent switches, com
 | - | - | - |
 | Island | `notchcast-island` | Island shell and Look |
 | Island Content | `notchcast-island-content` | Pages, Notices |
+| Agents | `notchcast-agents` | Agents |
 | Keyboard & Mouse | `notchcast-keyboard-mouse` | Keyboard & Mouse |
 | Display & Sound | `notchcast-display-sound` | Display, Sound |
 | Capture | `notchcast-capture` | Capture |
