@@ -8,32 +8,42 @@ struct CleanerRunningApps: Sendable {
     var own: Set<String> = []
     var runningBundles: Set<URL> = []
     var ownBundle: URL?
+    private(set) var groupMembershipUnknown = false
 
     func holds(_ owner: String) -> Bool {
         running.contains(CleanerPolicy.appKey(owner)) || running.contains(CleanerPolicy.appKey(
             CleanerPolicy.groupOwner(owner)))
     }
 
-    func includingGroups(read: (URL) -> [String]) -> Self {
+    func includingGroups(read: (URL) -> [String]?) -> Self {
         var names = self
         for bundle in runningBundles {
-            names.running.formUnion(read(bundle).map { CleanerPolicy.appKey(CleanerPolicy.groupOwner($0)) })
+            guard let groups = read(bundle) else {
+                names.groupMembershipUnknown = true
+                continue
+            }
+            names.running.formUnion(groups.map { CleanerPolicy.appKey(CleanerPolicy.groupOwner($0)) })
         }
-        if let ownBundle {
-            names.own.formUnion(read(ownBundle).map { CleanerPolicy.appKey(CleanerPolicy.groupOwner($0)) })
+        if let ownBundle, let groups = read(ownBundle) {
+            names.own.formUnion(groups.map { CleanerPolicy.appKey(CleanerPolicy.groupOwner($0)) })
+        } else if ownBundle != nil {
+            names.groupMembershipUnknown = true
         }
         return names
     }
 
-    static func applicationGroups(at url: URL) -> [String] {
+    static func applicationGroups(at url: URL) -> [String]? {
         var code: SecStaticCode?
         var information: CFDictionary?
         let flags = SecCSFlags(rawValue: kSecCSSigningInformation)
         guard SecStaticCodeCreateWithPath(url as CFURL, [], &code) == errSecSuccess, let code,
-            SecCodeCopySigningInformation(code, flags, &information) == errSecSuccess
-        else { return [] }
-        let entitlements = (information as? [String: Any])?[kSecCodeInfoEntitlementsDict as String] as? [String: Any]
-        return entitlements?["com.apple.security.application-groups"] as? [String] ?? []
+            SecCodeCopySigningInformation(code, flags, &information) == errSecSuccess,
+            let signingInfo = information as? [String: Any]
+        else { return nil }
+        guard let value = signingInfo[kSecCodeInfoEntitlementsDict as String] else { return [] }
+        guard let entitlements = value as? [String: Any] else { return nil }
+        guard let groups = entitlements["com.apple.security.application-groups"] else { return [] }
+        return groups as? [String]
     }
 
     @MainActor

@@ -66,6 +66,9 @@ struct CleanerRunner: Sendable {
             if scanner.isExcluded(url, in: area, ownNames: currentApps.own) {
                 return .skipped(.heldBack(.protectedData))
             }
+            if refreshAfterWalk, try scanner.snapshot(of: url, in: area) != scanned {
+                return .skipped(.changed)
+            }
             if let reason = scanner.hold(for: url, in: area, snapshot: current, apps: currentApps) {
                 return .skipped(.heldBack(reason))
             }

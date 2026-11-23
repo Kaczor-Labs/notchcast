@@ -21,6 +21,8 @@ struct CleanerUserAreasTest {
         try await checksSizesAndSelection()
         try await rechecksBeforeMoving()
         try await detectsBrowserLaunchDuringWalk()
+        try await holdsSharedGroupWhenSignatureIsUnreadable()
+        try await rejectsBrowserFileChangedDuringFinalProcessRead()
     }
 
     private static func checksSizesAndSelection() async throws {
@@ -138,6 +140,44 @@ struct CleanerUserAreasTest {
         })
         let report = await runner.run(plan, selection: selection)
         precondition(report.entries == [.init(id: versions.old, outcome: .skipped(.heldBack(.runningApp)))])
+        precondition(fs.trashCalls.isEmpty)
+    }
+
+    private static func holdsSharedGroupWhenSignatureIsUnreadable() async throws {
+        let fs = CleanerTestFileSystem()
+        let shared = seed("Library/Group Containers/ABCDE12345." + sharedGroup + "/Library/Caches/entry", in: fs)
+        var scanner = fs.scanner
+        scanner.readGroups = { _ in nil }
+
+        let held = try await scanner.scan(home: home, apps: editorApps)
+        precondition(held.items.first { $0.id == shared }?.standing == .heldBack(.unreadable))
+        precondition(!held.defaultSelection.checked.contains(shared))
+
+        let plan = try await scanner.scan(home: home, apps: .init())
+        precondition(plan.defaultSelection.checked == [shared])
+        let runner = CleanerRunner(scanner: scanner, runningApps: { editorApps })
+        let report = await runner.run(plan, selection: plan.defaultSelection)
+        precondition(report.entries == [.init(id: shared, outcome: .skipped(.heldBack(.unreadable)))])
+        precondition(fs.trashCalls.isEmpty)
+    }
+
+    private static func rejectsBrowserFileChangedDuringFinalProcessRead() async throws {
+        let fs = CleanerTestFileSystem()
+        let versions = browserVersions(in: fs)
+        let plan = try await fs.scanner.scan(home: home, apps: .init())
+        let selection = CleanerSelection(plan: plan, checked: [versions.old])
+        precondition(selection.checked == [versions.old])
+
+        let processReads = Mutex(0)
+        let runner = CleanerRunner(scanner: fs.scanner, runningApps: {
+            processReads.withLock {
+                $0 += 1
+                if $0 == 2 { fs.put(versions.old.appending(component: "binary"), size: 128) }
+            }
+            return .init()
+        })
+        let report = await runner.run(plan, selection: selection)
+        precondition(report.entries == [.init(id: versions.old, outcome: .skipped(.changed))])
         precondition(fs.trashCalls.isEmpty)
     }
 

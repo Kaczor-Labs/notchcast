@@ -3,7 +3,7 @@ import Foundation
 
 struct CleanerScanner: Sendable {
     let fileSystem: any CleanerFileSystem
-    var readGroups: @Sendable (URL) -> [String] = CleanerRunningApps.applicationGroups
+    var readGroups: @Sendable (URL) -> [String]? = CleanerRunningApps.applicationGroups
     var clock: @Sendable () -> Date = { .now }
     var monotonic: @Sendable () -> ContinuousClock.Instant = { .now }
 
@@ -174,6 +174,7 @@ struct CleanerScanner: Sendable {
     ) -> CleanerHoldBack? {
         if area.kind == .mailDownloads { return .mailDownloadMayContainEdits }
         if apps.holds(area.ownerName(of: url)) { return .runningApp }
+        if area.isSharedContainer, apps.groupMembershipUnknown { return .unreadable }
         let now = clock()
         if snapshot.entries.values.contains(where: { now.timeIntervalSince($0.modified) < area.minimumAge }) {
             return area.kind == .savedState ? .recentSavedState : .recentWrite
