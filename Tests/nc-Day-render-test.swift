@@ -36,15 +36,19 @@ struct DayRenderTest {
         ?? NSTemporaryDirectory() + "nc-island-audit-renders")
     static let notchSize = CGSize(width: 185, height: 32)
     static let margin: CGFloat = 32
+    static let shortDisplayHeight: CGFloat = 768
 
     static func main() throws {
         try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        let decks = decks()
         var sizes: [String: CGSize] = [:]
         for frosted in [false, true] {
             for notch in [false, true] {
                 let suffix = "\(notch ? "notch" : "island")-\(frosted ? "frosted" : "black")"
-                for (name, deck) in decks() {
-                    sizes[name] = render("978-\(name)-\(suffix)", deck: deck, notch: notch, frosted: frosted)
+                for (name, deck) in decks {
+                    let shortDisplay = name == "day-max-data" ? shortDisplayHeight : nil
+                    sizes[name] = render("978-\(name)-\(suffix)", deck: deck, notch: notch, frosted: frosted,
+                                         displayHeight: shortDisplay)
                 }
             }
         }
@@ -93,10 +97,26 @@ struct DayRenderTest {
             for page in pages { deck.set(page, id: page.id) }
             return deck
         }
+        var full = online
+        let symbols = ["AAPL", "BTC-USD", "EURUSD=X", "MSFT", "NVDA", "SPY", "TSLA", "VTI"]
+        full.configure(place: Fix.place, symbols: symbols)
+        full.apply(quotes: Dictionary(uniqueKeysWithValues: symbols.enumerated().map { index, symbol in
+            (symbol, Fix.chart(symbol, price: 100 + Double(index), change: 0.25))
+        }), at: Fix.now)
+        full.events = ["Design review", "Lunch with Juno", "Roadmap planning", "Project handoff",
+                       "Weekly wrap-up", "Dinner"].enumerated().map { index, title in
+            Fix.event("event-\(index)", title, from: 1800 * Double(index + 1))
+        }
+        let fullPage = page(full)
+        let expectedRows = 3 + DayWeatherFeed.hourCount + DayQuoteFeed.symbolLimit + DayAgenda.limit + 1
+        precondition(fullPage.blocks.count == expectedRows, "the audit needs every data row and the Today overflow")
+        var fullDeck = deck([player, fullPage])
+        fullDeck.select(.page(fullPage.id))
         return [
             ("day-online", deck([page(online)])),
             ("day-offline", deck([page(offline, at: later)])),
             ("day-offline-empty", deck([page(empty)])),
+            ("day-max-data", fullDeck),
             ("home-online", deck([player, page(online)])),
             ("home-offline", deck([player, page(offline, at: later)])),
             ("home-no-events", deck([player, page(quiet)])),
@@ -104,17 +124,18 @@ struct DayRenderTest {
     }
 
     /// The island hanging from the screen's top edge, sized as `IslandPageHost` sizes it, below a notch or not.
-    static func render(_ name: String, deck: IslandPageDeck, notch: Bool, frosted: Bool) -> CGSize {
+    static func render(_ name: String, deck: IslandPageDeck, notch: Bool, frosted: Bool,
+                       displayHeight: CGFloat?) -> CGSize {
         let pages = IslandPagesView(deck: deck, select: { _ in }, act: { _, _ in })
             .environment(\.metrics, InterfaceMetrics.standard)
             .environment(\.islandFrosted, frosted)
             .environment(\.paletteOnIsland, true)
             .environment(\.colorScheme, .dark)
         let fit = NSHostingView(rootView: pages).fittingSize
+        let top = notch ? notchSize.height : 0
         let size = IslandPageDeck.outline(content: fit, rest: NotchTheme.Size.islandRest,
                                           notch: notch ? notchSize.width : nil, radius: Theme.Radius.panel,
-                                          maxHeight: 2000)
-        let top = notch ? notchSize.height : 0
+                                          maxHeight: NotchTheme.Size.islandHost.height - top)
         let shape = UnevenRoundedRectangle(bottomLeadingRadius: Theme.Radius.panel,
                                            bottomTrailingRadius: Theme.Radius.panel, style: .continuous)
         let island = ZStack(alignment: .top) {
@@ -124,9 +145,12 @@ struct DayRenderTest {
             pages.frame(width: size.width, height: size.height).offset(y: top)
         }
         .frame(width: size.width, height: top + size.height)
-        let canvas = CGSize(width: size.width + 2 * margin, height: top + size.height + margin)
+        .clipShape(shape)
+        let canvasHeight = min(top + size.height + margin, displayHeight ?? .infinity)
+        let canvas = CGSize(width: size.width + 2 * margin, height: canvasHeight)
         let view = island
             .frame(width: canvas.width, height: canvas.height, alignment: .top)
+            .clipped()
             .background(frosted ? Color.white : Color(white: 0.18))
             .environment(\.colorScheme, .dark)
         let host = NSHostingView(rootView: view)
@@ -145,6 +169,10 @@ struct DayRenderTest {
             try png.write(to: folder.appendingPathComponent("\(name).png"))
         } catch {
             preconditionFailure("\(name): \(error)")
+        }
+        if let displayHeight {
+            let visibleHeight = min(size.height, displayHeight - top)
+            print("\(name): content \(fit.height) pt, outline \(size.height) pt, visible \(visibleHeight) pt")
         }
         return size
     }

@@ -1,0 +1,12 @@
+diff --git a/Tinycast/Features/Backup/Model/SettingsBackup.swift b/Tinycast/Features/Backup/Model/SettingsBackup.swift
+index 78fcf29c3..5822d5db3 100644
+--- a/Tinycast/Features/Backup/Model/SettingsBackup.swift
++++ b/Tinycast/Features/Backup/Model/SettingsBackup.swift
+@@ -34,6 +34,7 @@ struct SettingsBackup: Codable {
+         var showInMenuBar: Bool?
+         var automaticallyCheckForUpdates: Bool?
+         var islandShowsInCaptures: Bool?
++        var islandOutlineWhenOpen: Bool?
+         var popToRootSeconds: Int?
+         var escapeKeyBehavior: String?
+         var appearance: String?

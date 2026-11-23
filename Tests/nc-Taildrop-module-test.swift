@@ -27,6 +27,7 @@ let listingFixture = """
 final class FakeWorld: Sendable {
     struct State {
         var cli: String? = cliPath
+        var trusted = true
         var listing = TaildropOutput(output: listingFixture)
         var status = #"{"Version": "1.0", "BackendState": "Running"}"#
         var selection: [String] = []
@@ -71,6 +72,7 @@ final class FakeWorld: Sendable {
     var system: TaildropSystem {
         TaildropSystem(
             cli: { self.state.withLock { $0.cli } },
+            trusted: { _ in self.state.withLock { $0.trusted } },
             run: { try await self.run($0, $1) },
             finderSelection: {
                 try self.state.withLock { state in
@@ -201,6 +203,7 @@ enum TaildropModuleTests {
         model()
         await engine()
         await commands()
+        await untrustedCLI()
         await sending()
         print("PASSED")
     }
@@ -208,6 +211,17 @@ enum TaildropModuleTests {
     static func state(_ name: String) -> String { #"{"BackendState": "\#(name)"}"# }
 
     static func model() {
+        let appCLI = "/Applications/Tailscale.app/Contents/MacOS/Tailscale"
+        let homebrewCLIs = ["/opt/homebrew/bin/tailscale", "/usr/local/bin/tailscale"]
+        precondition(TaildropSend.cliPaths == [appCLI] + homebrewCLIs, "the app's CLI is tried before Homebrew's")
+        let requirement = """
+            anchor apple generic and (identifier "io.tailscale.ipn.macsys" or identifier "io.tailscale.ipn.macos") \
+            and (certificate leaf[field.1.2.840.113635.100.6.1.9] or certificate 1[field.1.2.840.113635.100.6.2.6] \
+            and certificate leaf[field.1.2.840.113635.100.6.1.13] and certificate leaf[subject.OU] = "W5364U7YZB")
+            """
+        precondition(TaildropSend.requirement(for: appCLI) == requirement, "the app uses the pinned requirement")
+        precondition(homebrewCLIs.allSatisfy { TaildropSend.requirement(for: $0) == nil }, "Homebrew has no publisher")
+
         let targets = TaildropTarget.parse(
             listingFixture + "# a warning line\n\tnameless\n--flag\tsneaky\n100.64.0.9\tstudio mac\n")
         precondition(targets.map(\.name) == ["studio-mac", "Pocket Phone", "attic-server"], "three devices, in order")
@@ -244,8 +258,6 @@ enum TaildropModuleTests {
 
     @MainActor
     static func engine() async {
-        precondition(TaildropSend.cliPaths.first?.hasPrefix("/Applications/Tailscale.app/") == true,
-                     "the app's CLI, which matches its daemon, is tried before Homebrew's")
         world.reset()
         world.set { $0.cli = nil }
         var failed = await failure { _ = try await TaildropSend.targets(world.system) }
@@ -390,6 +402,22 @@ enum TaildropModuleTests {
         rig.finish()
         await until("the listing ran") { !world.calls.isEmpty }
         precondition(rig.names.isEmpty, "a stopped module publishes nothing")
+    }
+
+    @MainActor
+    static func untrustedCLI() async {
+        world.reset()
+        world.set { $0.trusted = false }
+        let failed = await failure { _ = try await TaildropSend.targets(world.system) }
+        precondition(failed == .untrusted && world.calls.isEmpty, "untrusted CLI must fail before any run")
+
+        let rig = Rig()
+        await until("untrusted CLI leaves one command") { rig.module?.listing == nil }
+        precondition(rig.names == ["Taildrop"], "only the Taildrop command stays")
+        await rig.run("taildrop")
+        rig.expect("Blocked: Tailscale failed its signature check.", failure: true)
+        precondition(rig.names == ["Taildrop"] && world.calls.isEmpty, "refusal keeps one command and runs no CLI")
+        rig.finish()
     }
 
     @MainActor

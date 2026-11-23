@@ -12,14 +12,19 @@ struct ArchivesSettingsView: View {
     }
 
     var body: some View {
-        Toggle(isOn: $defaultApp) {
+        notchcastSettingsToggle(
             SettingsRowTitle(
-                Self.anchor, LocalizedStringResource("Make Notchcast the default app for archives", table: "NotchcastArchives"))
+                Self.anchor, LocalizedStringResource("Make Notchcast the default app for archives", table: "NotchcastArchives")
+            ),
+            isOn: $defaultApp
+        ) {
             Text("Off gives the archive types back to Archive Utility.", tableName: "NotchcastArchives")
         }
         .onChange(of: defaultApp) { _, on in mainApp.sendNotchcast(on, to: ArchivesAddon.self) }
-        Toggle(isOn: $inPlace) {
-            SettingsRowTitle(Self.anchor, LocalizedStringResource("Extract in place", table: "NotchcastArchives"))
+        notchcastSettingsToggle(
+            SettingsRowTitle(Self.anchor, LocalizedStringResource("Extract in place", table: "NotchcastArchives")),
+            isOn: $inPlace
+        ) {
             Text("Remove the archive as its files come out, so it needs space for the files only.",
                  tableName: "NotchcastArchives")
         }

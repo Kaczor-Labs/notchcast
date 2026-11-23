@@ -3,6 +3,7 @@
   "strings" : {
     "%@ is offline." : {},
     "Allow Automation access to read the Finder selection." : {},
+    "Blocked: Tailscale failed its signature check." : {},
     "Cancelled" : {},
     "Could not zip %@." : {},
     "No device can receive files." : {},
@@ -11,6 +12,8 @@
     "Sending %lld items to %@" : {},
     "Sending to %@" : {},
     "Sent" : {},
+    "Show %@ in the launcher" : {},
+    "Show in launcher" : {},
     "Taildrop" : {},
     "Taildrop failed." : {},
     "Taildrop failed: %@" : {},
