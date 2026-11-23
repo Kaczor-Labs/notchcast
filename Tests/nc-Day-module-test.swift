@@ -1,4 +1,7 @@
 // notchcast-sources: Tinycast/Features/Notchcast/Day/DayAddon.swift
+// notchcast-sources: Tinycast/Features/Notchcast/Day/DaySettingsEndpoint.swift
+// notchcast-sources: Tinycast/Features/Notchcast/NotchcastSettingsEndpoint.swift
+// notchcast-sources: Tinycast/Features/Notchcast/NotchcastSettingsStatus.swift
 // notchcast-sources: Tinycast/Features/Notchcast/Day/Model/*.swift
 // notchcast-sources: Tinycast/Features/Notchcast/Day/Service/*.swift
 // notchcast-sources: Tinycast/Features/Notchcast/Core/Model/*.swift
@@ -9,6 +12,7 @@
 // notchcast-sources: Tests/NotchcastTapFixtures.swift
 // notchcast-sources: Tests/NotchcastDictationFixture.swift
 // notchcast-sources: Tests/nc-Day-fixtures.swift
+// notchcast-sources: Tinycast/Features/Notchcast/NotchcastCalendar+Live.swift
 import SwiftUI
 
 // The shipped row is a Settings view; this stands in, so the descriptor compiles as shipped.
@@ -21,7 +25,7 @@ func check(_ condition: Bool, _ message: String) {
     guard condition else { fatalError("nc-Day-module-test: \(message)") }
 }
 
-/// Stands in for the network, the clock and stock Calendar: answers by host, and a sleep that takes no time.
+/// Answers by host, with a clock and a sleep that takes no time.
 @MainActor
 final class FakeWorld {
     var now = DayFixtures.now
@@ -30,7 +34,6 @@ final class FakeWorld {
     var requests: [String] = []
     var seen: [[String]] = []
     var steps: [@MainActor () -> Void] = []
-    var events: [NotchcastEvent] = []
     var scheduleOpens = 0
     var holds = false
     var gates: [CheckedContinuation<Void, Never>] = []
@@ -121,6 +124,7 @@ final class PageRecorder: IslandPresenting {
 struct DayModuleTests {
     static func main() async {
         switchShape()
+        await settingsCalendarAccess()
         await nothingChosen()
         await cadence()
         await visibility()
@@ -133,7 +137,8 @@ struct DayModuleTests {
     }
 
     static func make(_ world: FakeWorld, _ presenter: PageRecorder, place: Bool = true,
-                     symbols: String = "AAPL, BTC-USD") -> (DayModule, NotchcastContext) {
+                     symbols: String = "AAPL, BTC-USD",
+                     calendarDoor: NotchcastCalendar? = nil) -> (DayModule, NotchcastContext) {
         let suite = "nc-day-module-test.\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suite)!
         defaults.removePersistentDomain(forName: suite)
@@ -147,7 +152,7 @@ struct DayModuleTests {
             presenter: presenter, hub: hub, transcription: NotchcastTranscriptionRunner(dictation: FakeDictation()),
             now: { world.now }, onTapsChanged: {},
             services: NotchcastServices(
-                calendar: NotchcastCalendar(events: { world.events }, showSchedule: { world.scheduleOpens += 1 })))
+                calendar: calendarDoor ?? NotchcastCalendar(showSchedule: { world.scheduleOpens += 1 })))
         let module = DayModule(context: context, fetch: { await world.get($0) }, sleep: { try await world.sleep($0) },
                                calendar: DayFixtures.calendar, locale: DayFixtures.locale)
         return (module, context)
@@ -163,15 +168,76 @@ struct DayModuleTests {
         check(DayAddon.settings.map(\.switchID) == ["dayPage"], "its city and symbols sit under the switch")
     }
 
+    static func settingsCalendarAccess() async {
+        let suite = "nc-day-settings-calendar.\(UUID())"
+        let defaults = UserDefaults(suiteName: suite)!
+        defer { defaults.removePersistentDomain(forName: suite) }
+        defaults.set(true, forKey: DayAddon.settingsID)
+        let core = AppCore()
+        defer { Permissions.reset() }
+        let attempts = AsyncStream<Void>.makeStream()
+        var actions = 0
+        var calendar = NotchcastCalendar(core: core, activate: {})
+        let request = calendar.requestAccess
+        calendar.requestAccess = { openSettingsIfDenied in
+            actions += 1
+            await request(openSettingsIfDenied)
+            attempts.continuation.yield(())
+        }
+        let hub = NotchcastTapHub(syntheticTag: 0, isTrusted: { false }) { _ in
+            preconditionFailure("the harness never installs a tap")
+        }
+        let runtime = NotchcastController(
+            addons: [DayAddon.self], defaults: defaults, hub: hub, dictation: FakeDictation(),
+            services: NotchcastServices(calendar: calendar), presenter: PageRecorder())
+        let settings = NotchcastController(
+            addons: [DayAddon.self], defaults: defaults, hub: hub, dictation: FakeDictation(), presenter: PageRecorder())
+        runtime.start()
+        defer { runtime.stop() }
+        let live = runtime.context(forSwitch: DayAddon.settingsID)!
+        let pane = settings.context(forSwitch: DayAddon.settingsID)!
+        let link = MainAppLink(context: live)
+        check(pane.module(DayModule.self) == nil && !pane.calendar.needsAccess(), "Settings uses an inert calendar door")
+        check(live.module(DayModule.self) != nil, "the stored switch starts Day in the main app")
+        check(link.notchcastStatus(for: DayAddon.self)?.needsCalendarAccess == true,
+              "Settings receives the missing grant from Day’s endpoint")
+        check(actions == 0 && Permissions.requests == 0, "launch and status reads ask for no access")
+        live.preferences.set(DayAddon.settingsID, on: false)
+        live.preferences.set(DayAddon.settingsID, on: true)
+        check(actions == 0 && Permissions.requests == 0, "turning the switch on asks for no access")
+
+        link.sendNotchcast(.requestCalendarAccess, to: DayAddon.self)
+        var completion = attempts.stream.makeAsyncIterator()
+        _ = await completion.next()
+
+        check(actions == 1 && Permissions.requests == 1, "Day’s Grant Access action asks macOS once")
+        check(!core.settings.calendarEnabled, "Day’s request leaves the stock Calendar switch off")
+        check(link.notchcastStatus(for: DayAddon.self)?.needsCalendarAccess == false,
+              "the granted status hides the row in Settings")
+    }
+
     static func nothingChosen() async {
         let world = FakeWorld()
         let presenter = PageRecorder()
-        let (module, _) = make(world, presenter, place: false, symbols: "")
+        let core = AppCore()
+        defer { Permissions.reset() }
+        let calendarDoor = NotchcastCalendar(core: core, activate: {})
+        check(calendarDoor.needsAccess(), "a fresh install needs calendar access")
+        await calendarDoor.requestAccess(false)
+        await calendarDoor.requestAccess(false)
+        check(!core.settings.calendarEnabled && !calendarDoor.needsAccess(),
+              "full access satisfies Day while the stock Calendar switch stays off")
+        check(Permissions.requests == 1, "an existing grant is reused")
+        let (module, _) = make(world, presenter, place: false, symbols: "", calendarDoor: calendarDoor)
         module.stop()
         check(presenter.pages.isEmpty, "stopping a module that never ran posts nothing")
         world.steps = [{
-            world.events = [NotchcastEvent(id: "a", title: "Design review", start: world.now.addingTimeInterval(1560),
-                                           end: world.now.addingTimeInterval(3600), isAllDay: false)]
+            let start = world.now.addingTimeInterval(1560)
+            let end = world.now.addingTimeInterval(3600)
+            core.calendarStore.events = [
+                .init(id: "a", title: "Design review", start: start, end: end),
+                .init(id: "b", title: "Declined", start: start, end: end, isDeclined: true),
+            ]
         }]
         module.start()
         module.start()
@@ -182,7 +248,7 @@ struct DayModuleTests {
               "no tab while there is nothing, then today's events alone: \(presenter.pages.count)")
         check(presenter.pages[0]?.line.text == "in 26 min · Design review", "\(presenter.pages[0]?.line.text ?? "")")
         presenter.action?(DayPage.scheduleAction)
-        check(world.scheduleOpens == 1, "the calendar line opens My Schedule")
+        check(core.calendarCoordinator.scheduleOpens == 1, "the calendar line opens My Schedule")
         module.stop()
         check(presenter.pages.count == 2 && presenter.pages[1] == nil, "switching off removes the page")
     }
@@ -351,5 +417,102 @@ struct DayModuleTests {
         await module.loop?.value
         check(world.requests.isEmpty, "its answer is recorded, so showing again asks nothing")
         module.stop()
+    }
+}
+
+@MainActor
+final class AppCore {
+    let settings = Settings()
+    let calendarStore = CalendarStore()
+    let calendarCoordinator = CalendarCoordinator()
+
+    final class Settings {
+        var calendarEnabled = false
+    }
+}
+
+@MainActor
+final class CalendarStore {
+    struct Event {
+        var id: String
+        var title: String
+        var start: Date
+        var end: Date
+        var isAllDay = false
+        var isDeclined = false
+    }
+
+    enum Access { case granted, notDetermined, denied }
+
+    var events: [Event] = []
+    private(set) var access: Access = .notDetermined
+
+    func refreshAccess() { access = Permissions.access }
+    func start() {}
+}
+
+@MainActor
+final class CalendarCoordinator {
+    private(set) var scheduleOpens = 0
+    func showSchedule() { scheduleOpens += 1 }
+}
+
+@MainActor
+enum Permissions {
+    private(set) static var access: CalendarStore.Access = .notDetermined
+    private(set) static var requests = 0
+
+    static func requestCalendarAccess() async -> Bool {
+        requests += 1
+        access = .granted
+        return true
+    }
+
+    static func reset() {
+        access = .notDetermined
+        requests = 0
+    }
+
+    static func openCalendarSettings() { preconditionFailure("the harness never opens System Settings") }
+}
+
+@MainActor
+final class MainAppLink {
+    struct Status {
+        var notchcast: NotchcastSettingsStatus
+    }
+
+    enum Action { case notchcast(NotchcastSettingsAction) }
+
+    let context: NotchcastContext
+
+    init(context: NotchcastContext) {
+        self.context = context
+    }
+
+    var status: Status {
+        var notchcast = NotchcastSettingsStatus()
+        notchcast.addons[DayAddon.settingsID] = DayAddon.encodedStatus(context)
+        return Status(notchcast: notchcast)
+    }
+
+    func send(_ action: Action) {
+        guard case .notchcast(.addon(let message)) = action, message.id == DayAddon.settingsID else {
+            preconditionFailure("expected Day’s settings endpoint")
+        }
+        DayAddon.performSettingsAction(message.payload, context: context)
+    }
+
+    func callNotchcast(_ call: NotchcastSettingsMessage) async throws -> Data {
+        try await DayAddon.answerSettingsRequest(call.payload, context: context)
+    }
+}
+
+enum AIModelSelection: String, Codable, Sendable { case fixture }
+
+extension NotchcastContext {
+    func settingsModule<Module: NotchcastModule>(_ type: Module.Type, for id: String) -> Module? {
+        guard isEnabled(id) else { return nil }
+        return module(type)
     }
 }

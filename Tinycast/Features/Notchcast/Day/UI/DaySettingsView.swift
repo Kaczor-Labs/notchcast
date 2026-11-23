@@ -23,20 +23,28 @@ struct DaySettingsView: View {
                       prompt: Text(verbatim: "AAPL, BTC-USD, EURUSD=X"))
                 .onSubmit {
                     symbols = DayQuoteFeed.symbols(from: symbols).joined(separator: ", ")
-                    mainApp.sendNotchcast(symbols, to: DayAddon.self)
+                    mainApp.sendNotchcast(.setSymbols(symbols), to: DayAddon.self)
                 }
             Text("Press Return to apply. Weather comes from Open-Meteo. Quotes use Yahoo Finance symbols, up to 8.",
                  tableName: "NotchcastDay")
                 .foregroundStyle(Theme.Colors.textSecondary)
-            Text("Events come from the Calendar feature and appear once it has calendar access.",
-                 tableName: "NotchcastDay")
-                .foregroundStyle(Theme.Colors.textSecondary)
+            if mainApp.notchcastStatus(for: DayAddon.self)?.needsCalendarAccess == true {
+                LabeledContent {
+                    Button {
+                        mainApp.sendNotchcast(.requestCalendarAccess, to: DayAddon.self)
+                    } label: {
+                        Text("Grant Access…", tableName: "NotchcastDay")
+                    }
+                } label: {
+                    Text("Calendar access is needed", tableName: "NotchcastDay")
+                }
+            }
         }
         .onAppear {
             city = context.defaults.data(forKey: DayModule.placeKey)
                 .flatMap { try? JSONDecoder().decode(DayPlace.self, from: $0) }?.name ?? ""
         }
-        .onChange(of: mainApp.notchcastStatus(for: DayAddon.self), initial: true) { _, latest in
+        .onChange(of: mainApp.notchcastStatus(for: DayAddon.self)?.symbols, initial: true) { _, latest in
             if let latest { symbols = latest }
         }
         .task(id: isLooking) {
