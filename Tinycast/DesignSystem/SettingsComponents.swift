@@ -366,7 +366,7 @@ struct FeatureSwitchSection: View {
             Toggle("Show in launcher", isOn: $showsInLauncher)
                 // The switch above stays live so the feature can always be turned back on.
                 .settingsEnabled(isEnabled)
-                .notchcastHidden(hidesLauncherToggle)
+                .notchcastHidden(hidesLauncherToggle || !isEnabled)
         } header: {
             if showsHeader { SettingsSectionHeader(anchor) }
         }
