@@ -18,10 +18,13 @@ import time
 
 ROOT = Path(__file__).resolve().parent
 LABEL = "upstream-watch"
-ISSUE_LIMIT = 1000
 IDLE_WARN_DAYS = 50
 LINE_MARKER = re.compile(r"<!-- upstream: (\S+) ([0-9a-f]{40}) -->")
 BODY_LIMIT = 60000
+
+
+LOG_FORMAT = "--format=%x1e%H%x1f%s"
+LOG_HEADER = re.compile(r"\x1e([0-9a-f]{40})\x1f(.*)", re.S)
 
 
 def run(*cmd, cwd=None):
@@ -62,12 +65,16 @@ def build_map(paths, borrowed):
 
 
 def parse_log(text):
-    """[(sha, subject, [files])], oldest first, from `git log --format=%x00%H%x1f%s --name-only`."""
+    """[(sha, subject, [files])], oldest first, from `git log -z --name-only` with LOG_FORMAT."""
     commits = []
-    for record in text.split("\0")[1:]:
-        head, _, files = record.partition("\n")
-        sha, _, subject = head.partition("\x1f")
-        commits.append((sha.strip(), subject, [f for f in files.splitlines() if f.strip()]))
+    for token in text.split("\0"):
+        header = LOG_HEADER.fullmatch(token)
+        if header:
+            commits.append((header[1], header[2], []))
+        elif token and commits:
+            # -z still puts one newline before a commit's first file name; names come unquoted.
+            files = commits[-1][2]
+            files.append(token[1:] if not files and token.startswith("\n") else token)
     return commits[::-1]
 
 
@@ -111,7 +118,10 @@ def issue_title(name, feature, count):
 
 
 def plan_actions(source, commits, fmap, issues):
-    """The issue writes for one source: {"op": "create"|"edit", "number"?, "title", "body"}, one per feature."""
+    """The issue writes for one source: {"op": "create"|"edit", "number"?, "title", "body"}.
+
+    A feature's new lines fill its newest open issue up to BODY_LIMIT, then as many new issues as they need.
+    """
     repo, name = source["repo"], source["name"]
     seen = {m[2] for issue in issues for m in LINE_MARKER.finditer(issue["body"] or "") if m[1] == repo}
     grouped = {}
@@ -126,17 +136,23 @@ def plan_actions(source, commits, fmap, issues):
         marker = feature_marker(repo, feature)
         open_ = [i for i in issues if i["state"].upper() == "OPEN" and marker in (i["body"] or "")]
         found = max(open_, key=lambda i: i["number"], default=None)
-        body = found and found["body"].rstrip("\n") + "\n" + "\n".join(lines) + "\n"
-        if found and len(body) <= BODY_LIMIT:
-            count = len([m for m in LINE_MARKER.finditer(body) if m[1] == repo])
-            actions.append({"op": "edit", "number": found["number"], "title": issue_title(name, feature, count),
-                            "body": body})
-        else:
-            body = (f"Commits in [{name}](https://github.com/{repo}) that touch files mapped to our **{feature}** "
-                    f"in `notchcast/upstreams.json` or the borrowing register. Each link is the diff. Tick a line "
-                    f"once looked at and close the issue when done; later commits then open a new one. "
-                    f"Nothing is merged automatically.\n{marker}\n\n" + "\n".join(lines) + "\n")
-            actions.append({"op": "create", "title": issue_title(name, feature, len(lines)), "body": body})
+        header = (f"Commits in [{name}](https://github.com/{repo}) that touch files mapped to our **{feature}** "
+                  f"in `notchcast/upstreams.json` or the borrowing register. Each link is the diff. Tick a line "
+                  f"once looked at and close the issue when done; later commits then open a new one. "
+                  f"Nothing is merged automatically.\n{marker}\n\n")
+        body = found["body"].rstrip("\n") + "\n" if found else header
+        while lines:
+            taken = 0
+            while taken < len(lines) and len(body) + len(lines[taken]) + 1 <= BODY_LIMIT:
+                body += lines[taken] + "\n"
+                taken += 1
+            if taken:
+                count = len([m for m in LINE_MARKER.finditer(body) if m[1] == repo])
+                write = {"op": "edit", "number": found["number"]} if found else {"op": "create"}
+                actions.append({**write, "title": issue_title(name, feature, count), "body": body})
+            elif not found:
+                sys.exit(f"a {feature} line does not fit in an issue body")
+            lines, found, body = lines[taken:], None, header
     return actions
 
 
@@ -154,24 +170,51 @@ def fetch_commits(source, tmp):
     if subprocess.run(["git", "-C", tmp, "merge-base", "--is-ancestor", since, "FETCH_HEAD"],
                       capture_output=True).returncode:
         sys.exit(f"{source['repo']}: `since` {since} is not on {source['branch']}; move it in notchcast/upstreams.json")
-    return parse_log(run("git", "-C", tmp, "log", "--no-merges", "--no-renames", "--format=%x00%H%x1f%s",
-                         "--name-only", f"{since}..FETCH_HEAD"))
+    return parse_log(run("git", "-C", tmp, "log", "-z", "--no-merges", "--no-renames", LOG_FORMAT, "--name-only",
+                         f"{since}..FETCH_HEAD"))
+
+
+def list_issues(repo):
+    """Every issue with LABEL, open and closed, read whole from the REST issues endpoint, not search."""
+    lines = run("gh", "api", "--paginate", f"repos/{repo}/issues?labels={LABEL}&state=all&per_page=100",
+                "--jq", ".[] | select(.pull_request | not) | {number, state, title, body}")
+    return [json.loads(line) for line in lines.splitlines() if line.strip()]
+
+
+def apply(actions, repo, dry_run, runner=subprocess.run):
+    """Make each write; a rejected one is reported and the rest still go, then the run fails."""
+    failed = 0
+    for action in actions:
+        if dry_run:
+            where = f"edit #{action['number']}" if action["op"] == "edit" else "create"
+            print(f"\n=== {where}: {action['title']}\n{action['body']}")
+            continue
+        with tempfile.NamedTemporaryFile("w", suffix=".md") as body:
+            body.write(action["body"])
+            body.flush()
+            if action["op"] == "edit":
+                cmd = ["gh", "issue", "edit", str(action["number"]), "-R", repo]
+            else:
+                cmd = ["gh", "issue", "create", "-R", repo, "--label", LABEL]
+            result = runner([*cmd, "--title", action["title"], "--body-file", body.name],
+                            text=True, capture_output=True)
+        print(result.stdout.strip() or f"{action['title']}: {result.stderr.strip()}")
+        failed += bool(result.returncode)
+    if failed:
+        sys.exit(f"{failed} of {len(actions)} issue writes failed; the next run retries them")
 
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--dry-run", action="store_true", help="print the issue writes instead of making them")
     args = parser.parse_args()
-    repo = os.environ.get("GITHUB_REPOSITORY") or "Kaczor-Labs/notchcast"
+    repo = os.environ.get("GITHUB_REPOSITORY") or sys.exit("set GITHUB_REPOSITORY to the owner/name issues go to")
     sources = json.loads((ROOT / "upstreams.json").read_text())["sources"]
     register = [line for f in sorted((ROOT / "licenses" / "borrowed").glob("*.txt"))
                 for line in f.read_text().splitlines()]
     if not args.dry_run:
         run("gh", "label", "create", LABEL, "-R", repo, "--color", "5319e7", "--force")
-    issues = json.loads(run("gh", "issue", "list", "-R", repo, "--label", LABEL, "--state", "all",
-                            "--limit", str(ISSUE_LIMIT), "--json", "number,state,title,body"))
-    if len(issues) >= ISSUE_LIMIT:
-        sys.exit(f"{len(issues)} {LABEL} issues reach the list limit; raise ISSUE_LIMIT before filing duplicates")
+    issues = list_issues(repo)
     actions = []
     for source in sources:
         with tempfile.TemporaryDirectory() as tmp:
@@ -187,21 +230,7 @@ def main():
                         "body": "GitHub disables a public repository's scheduled workflows after 60 days without "
                                 "activity. Push a commit to `main`, or re-enable each workflow under Actions once "
                                 f"it is off.\n{idle}\n"})
-    for action in actions:
-        if args.dry_run:
-            where = f"edit #{action['number']}" if action["op"] == "edit" else "create"
-            print(f"\n=== {where}: {action['title']}\n{action['body']}")
-            continue
-        with tempfile.NamedTemporaryFile("w", suffix=".md") as body:
-            body.write(action["body"])
-            body.flush()
-            if action["op"] == "edit":
-                run("gh", "issue", "edit", str(action["number"]), "-R", repo, "--title", action["title"],
-                    "--body-file", body.name)
-            else:
-                print(run("gh", "issue", "create", "-R", repo, "--label", LABEL, "--title", action["title"],
-                          "--body-file", body.name).strip())
-
+    apply(actions, repo, args.dry_run)
 
 if __name__ == "__main__":
     main()

@@ -1,8 +1,11 @@
 #!/usr/bin/env python3
 """Tests for upstream-watch.py's pure parts: no git, gh, network or clock."""
+from contextlib import redirect_stdout
 import importlib.util
+import io
 from importlib.machinery import SourceFileLoader
 from pathlib import Path
+from types import SimpleNamespace
 import unittest
 
 source = str(Path(__file__).with_name("upstream-watch.py"))
@@ -17,14 +20,53 @@ A, B, C = "a" * 40, "b" * 40, "c" * 40
 
 
 def log(*commits):
-    return "".join(f"\0{sha}\x1f{subject}\n" + "".join(f + "\n" for f in files) + "\n"
+    """`git log -z --name-only` with LOG_FORMAT, as checked against git 2.5x output."""
+    return "".join(f"\x1e{sha}\x1f{subject}\0" + "".join(("\n" if n == 0 else "") + f + "\0" for n, f in enumerate(files))
                    for sha, subject, files in commits)
+
+
+# Real bytes from `git log -z --no-merges --no-renames --format=%x1e%H%x1f%s --name-only` on a scratch repo.
+QUOTED_LOG = ("\x1e81dcd84ba82c44ff1e27eb66a51c82adbc684da8\x1fempty\x00"
+              "\x1ef49afa80775ea6622ab9fde0c5b87c5e196c55e6\x1fsecond\x00\nb.txt\x00"
+              "\x1ea2ef5a113da59f324d4d400882e2363df3664838\x1ffirst one\x00\nSrc/Clip/Caf\u00e9.swift\x00"
+              "Src/Clip/new\nline.swift\x00")
 
 
 class UpstreamWatchTests(unittest.TestCase):
     def test_parse_log_is_oldest_first(self):
         commits = watch.parse_log(log((B, "second", ["x"]), (A, "first: a | b", ["y", "z"])))
         self.assertEqual(commits, [(A, "first: a | b", ["y", "z"]), (B, "second", ["x"])])
+
+    def test_parse_log_keeps_names_git_would_quote(self):
+        commits = watch.parse_log(QUOTED_LOG)
+        self.assertEqual([(c[1], c[2]) for c in commits],
+                         [("first one", ["Src/Clip/Caf\u00e9.swift", "Src/Clip/new\nline.swift"]),
+                          ("second", ["b.txt"]), ("empty", [])])
+        self.assertEqual(watch.features_of(commits[0][2], FMAP), ("Clipboard", []))
+
+    def test_big_batch_splits_into_bodies_that_fit(self):
+        commits = [(f"{n:040x}", "s" * 100, [f"Src/Clip/{n}.swift"]) for n in range(250)]
+        actions = watch.plan_actions(SOURCE, commits, FMAP, [])
+        self.assertGreater(len(actions), 1)
+        self.assertTrue(all(a["op"] == "create" and len(a["body"]) <= watch.BODY_LIMIT for a in actions))
+        shas = [m[2] for a in actions for m in watch.LINE_MARKER.finditer(a["body"])]
+        self.assertEqual(shas, [c[0] for c in commits])
+        saved = [{"number": 1, "state": "OPEN", "title": actions[0]["title"], "body": actions[0]["body"]}]
+        rerun = watch.plan_actions(SOURCE, commits, FMAP, saved)
+        self.assertTrue(all(len(a["body"]) <= watch.BODY_LIMIT for a in rerun))
+        self.assertEqual([m[2] for a in rerun for m in watch.LINE_MARKER.finditer(a["body"]) if a["op"] == "create"],
+                         shas[len(list(watch.LINE_MARKER.finditer(actions[0]["body"]))):])
+
+    def test_rejected_write_does_not_stop_the_rest(self):
+        calls = []
+
+        def runner(cmd, **_):
+            calls.append(cmd)
+            return SimpleNamespace(returncode=int(len(calls) == 1), stdout="", stderr="too big")
+        actions = [{"op": "create", "title": "one", "body": "x"}, {"op": "edit", "number": 3, "title": "two", "body": "y"}]
+        with redirect_stdout(io.StringIO()), self.assertRaises(SystemExit):
+            watch.apply(actions, REPO, False, runner)
+        self.assertEqual([c[2] for c in calls], ["create", "edit"])
 
     def test_unmapped_commit_does_nothing(self):
         self.assertEqual(watch.plan_actions(SOURCE, [(A, "docs", ["README.md", "Tests/X.swift"])], FMAP, []), [])

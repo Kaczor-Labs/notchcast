@@ -223,4 +223,4 @@ Enable independent 30-minute installs on an installed Mac from its checkout with
 - When `main` has had no commit for 50 days it also opens one issue: GitHub turns off a public repo's scheduled workflows after 60 days without activity.
 - Move `since` forward in a normal PR after a new sweep. A `since` no longer on the source's branch (rewritten history) turns the run red until it is moved.
 - Add a source: one more entry in `notchcast/upstreams.json` (`name`, `repo`, `branch`, full-length `since`, `paths`); no code change.
-- Test: `python3 notchcast/upstream-watch-test.py`; `--dry-run` prints what a run would file without writing.
+- Test: `python3 notchcast/upstream-watch-test.py`; `GITHUB_REPOSITORY=<owner>/<name> python3 notchcast/upstream-watch.py --dry-run` prints what a run would file without writing.
