@@ -24,15 +24,19 @@ nonisolated enum DistillQueueList {
     /// Unfinished links in queue order, then failed, cancelled and interrupted, then saved, newest first.
     static func rows(_ jobs: [DownloadJob]) -> [Row] {
         let links = jobs.filter { !$0.source.hasPrefix("/") }
-        let saved = Set(links.filter { $0.state == .done }.map(\.source))
+        let savedAt = links.filter { $0.state == .done }
+            .reduce(into: [String: Date]()) { $0[$1.source] = max($0[$1.source] ?? .distantPast, finished($1)) }
         let shown = links.enumerated()
-            .filter { !($0.element.state == .failed && saved.contains($0.element.source)) }
+            .filter { entry in
+                // Folded only when the link saved after this failure; an older save hides nothing.
+                guard entry.element.state == .failed, let saved = savedAt[entry.element.source] else { return true }
+                return saved <= finished(entry.element)
+            }
             .sorted { lhs, rhs in
                 let left = rank(lhs.element), right = rank(rhs.element)
                 if left != right { return left < right }
                 if left == 0 { return lhs.offset < rhs.offset }
-                let leftTime = lhs.element.finished ?? lhs.element.created
-                let rightTime = rhs.element.finished ?? rhs.element.created
+                let leftTime = finished(lhs.element), rightTime = finished(rhs.element)
                 return leftTime != rightTime ? leftTime > rightTime : lhs.offset < rhs.offset
             }
             .map { Row(id: $0.element.id, name: name($0.element.source), state: $0.element.state,
@@ -72,6 +76,8 @@ nonisolated enum DistillQueueList {
         ["Parakeet Ultra could not be prepared.", "Download the selected dictation model first."]
             .contains { reason.hasPrefix($0) }
     }
+
+    private static func finished(_ job: DownloadJob) -> Date { job.finished ?? job.created }
 
     private static func rank(_ job: DownloadJob) -> Int {
         job.state == .done ? 2 : job.state.isFinished ? 1 : 0

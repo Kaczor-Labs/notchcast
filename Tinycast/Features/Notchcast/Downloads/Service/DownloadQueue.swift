@@ -8,6 +8,8 @@ final class DownloadQueue {
         subsystem: Bundle.main.bundleIdentifier ?? "Notchcast", category: "Downloads")
     private(set) var jobs: [DownloadJob] = []
     private(set) var persistenceError: String?
+    /// Counted so a harness can pin one file write per bulk action.
+    @ObservationIgnored private(set) var writeCount = 0
     let maxConcurrent: Int
     var destination: URL
 
@@ -103,17 +105,16 @@ final class DownloadQueue {
         pump()
     }
 
-    /// One save and one pump per call, so clearing many rows is one file write.
+    /// One file write per call, so clearing many rows is one write.
     func remove(_ ids: [String]) {
-        let ids = Set(ids)
-        for id in ids { tasks[id]?.cancel() }
-        jobs.removeAll { ids.contains($0.id) }
+        drop(Set(ids))
+        pump(saving: false)
         save()
-        pump()
     }
 
-    /// Requeues finished jobs at the tail in the order given, with one save and one pump.
-    func retry(_ ids: [String]) {
+    /// Drops `removing`, then requeues finished jobs at the tail in the order given, in one file write.
+    func retry(_ ids: [String], removing: [String] = []) {
+        drop(Set(removing))
         for id in ids {
             guard let index = jobs.firstIndex(where: { $0.id == id }), jobs[index].state.isFinished else { continue }
             var job = jobs.remove(at: index)
@@ -124,8 +125,13 @@ final class DownloadQueue {
             job.finished = nil
             jobs.append(job)
         }
+        pump(saving: false)
         save()
-        pump()
+    }
+
+    private func drop(_ ids: Set<String>) {
+        for id in ids { tasks[id]?.cancel() }
+        jobs.removeAll { ids.contains($0.id) }
     }
 
     /// Ends every run's process group and writes the queue before it returns, so quit loses neither.
@@ -145,13 +151,17 @@ final class DownloadQueue {
         for task in halt() { await task.value }
     }
 
-    private func pump() {
+    /// Saves once after starting jobs, unless the caller saves right after.
+    private func pump(saving: Bool = true) {
         guard !stopped else { return }
+        var started = false
         while tasks.count < maxConcurrent,
               let job = jobs.first(where: canStart),
               let runner = runners[job.kind] {
             begin(job, runner: runner)
+            started = true
         }
+        if started, saving { save() }
     }
 
     private func canStart(_ job: DownloadJob) -> Bool {
@@ -191,7 +201,6 @@ final class DownloadQueue {
             }
             self?.complete(job.id, operation: operation, result: result)
         }
-        save()
     }
 
     private func complete(_ id: String, operation: UUID, result: Result<URL?, Error>) {
@@ -249,6 +258,7 @@ final class DownloadQueue {
         guard let file else { return }
         do {
             try Self.write(jobs, file: file)
+            writeCount += 1
             persistenceError = nil
         } catch {
             Self.logger.error("Could not save downloads: \(error.localizedDescription)")

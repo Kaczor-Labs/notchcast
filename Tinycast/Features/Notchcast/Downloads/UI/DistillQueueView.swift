@@ -44,7 +44,7 @@ private struct DistillFailedRow: View {
                 if shared?.needsDictationModel == true {
                     DictationSettingsButton()
                 }
-                Button { perform(.retry(failed)) } label: {
+                Button { perform(.retryFailed(failed)) } label: {
                     Text("Try All Again", tableName: "NotchcastDownloads")
                 }
                 .accessibilityLabel(Text("Try all failed links again", tableName: "NotchcastDownloads"))
@@ -63,7 +63,7 @@ private struct DistillFailedRow: View {
             presenting: removing
         ) { ids in
             Button(String(localized: "Cancel"), role: .cancel) { removing = nil }
-            Button(role: .destructive) { perform(.remove(ids)) } label: {
+            Button(role: .destructive) { perform(.removeFailed(ids)) } label: {
                 Text("Remove", tableName: "NotchcastDownloads")
             }
         } message: { _ in
@@ -107,12 +107,12 @@ private struct DistillQueueRow: View {
             DictationSettingsButton()
         }
         if row.canRetry {
-            Button { perform(.retry([row.id])) } label: {
+            Button { perform(.retry(row.id)) } label: {
                 Text("Try Again", tableName: "NotchcastDownloads")
             }
             .accessibilityLabel(Text("Try again: \(row.name)", tableName: "NotchcastDownloads"))
         }
-        Button { perform(.remove([row.id])) } label: {
+        Button { perform(.remove(row.id)) } label: {
             Text("Remove", tableName: "NotchcastDownloads")
         }
         .accessibilityLabel(Text("Remove \(row.name)", tableName: "NotchcastDownloads"))
