@@ -320,6 +320,7 @@
 		341B31B38EAE70EDFD1BA691 /* MeetingDetailsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EDBAD3F666C10A869A4EAADB /* MeetingDetailsView.swift */; };
 		3434E1145AB3F7EA0219C502 /* FavoriteActions.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8C5FA7F5281B81B20C33DC89 /* FavoriteActions.swift */; };
 		345D1FCC2085BD0D699DD236 /* FileSearchCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = CF64F5FCB3872996AE57FDBB /* FileSearchCoordinator.swift */; };
+		34C4FB55DD6EE46487AD6334 /* NotchcastSettingsLayout.swift in Sources */ = {isa = PBXBuildFile; fileRef = 188950FEAEE262F6D0338AD1 /* NotchcastSettingsLayout.swift */; };
 		359FBB7F7BE95911B07AE9E2 /* DictationModelDownloader.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4B324E12A254BAD39A13EDD9 /* DictationModelDownloader.swift */; };
 		35D8AA4E6FE6FD020A56BD8A /* HIDEventSystem.swift in Sources */ = {isa = PBXBuildFile; fileRef = EBBE9EB084808581126AAB6B /* HIDEventSystem.swift */; };
 		361F74DC8AEF8AAC4963F748 /* RecordingSystem+Live.swift in Sources */ = {isa = PBXBuildFile; fileRef = C256907D2287B3BCA7596BF1 /* RecordingSystem+Live.swift */; };
@@ -1749,6 +1750,7 @@
 		1868F87E31E20A4775C84E6A /* HyperKeyTap.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HyperKeyTap.swift; sourceTree = "<group>"; };
 		18771DAA9CB0E2551741AE3C /* CompactBar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CompactBar.swift; sourceTree = "<group>"; };
 		187A079872084019C3494C57 /* TorrentJobPolicy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TorrentJobPolicy.swift; sourceTree = "<group>"; };
+		188950FEAEE262F6D0338AD1 /* NotchcastSettingsLayout.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotchcastSettingsLayout.swift; sourceTree = "<group>"; };
 		188A6D3C5B6BC67716F15F83 /* PaletteState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PaletteState.swift; sourceTree = "<group>"; };
 		18A864436CAD5C5F62946603 /* CustomWindowSize.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CustomWindowSize.swift; sourceTree = "<group>"; };
 		18E4DA438963E0B88A4CDD7B /* SettingsFileSchema.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsFileSchema.swift; sourceTree = "<group>"; };
@@ -3962,6 +3964,7 @@
 				4010630FFE2010DAB1AE9274 /* NotchcastLinkCleaner.swift */,
 				41948E64976E28C4249E2923 /* NotchcastMediaKey.swift */,
 				583CE747E6B71A369A176240 /* NotchcastPane.swift */,
+				188950FEAEE262F6D0338AD1 /* NotchcastSettingsLayout.swift */,
 				9017F216A7D856A052A2495C /* NotchcastSwitch.swift */,
 				8DA305C58C2291E5C23DF730 /* NotchcastTapPolicy.swift */,
 				20D6580C73DF824A5B2CA1C7 /* TypingDisplay.swift */,
@@ -8343,6 +8346,7 @@
 				822772319D721F33EDE08C98 /* NotchcastSettingsBackupBridge.swift in Sources */,
 				814AA6E5F7141F771949B80B /* NotchcastSettingsBridge.swift in Sources */,
 				05BA89D8D7D28F34725C0DC4 /* NotchcastSettingsEndpoint.swift in Sources */,
+				34C4FB55DD6EE46487AD6334 /* NotchcastSettingsLayout.swift in Sources */,
 				BA1947A80061F19458151D17 /* NotchcastSettingsPane.swift in Sources */,
 				CDD489D3CEE806B071933E86 /* NotchcastSettingsSearch.swift in Sources */,
 				03AEF80967039A6FE72DE25B /* NotchcastSettingsStatus.swift in Sources */,
