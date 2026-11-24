@@ -70,6 +70,16 @@ final class CleanerSession {
         }
     }
 
+    func items(matching query: String) -> [CleanerItem] {
+        let query = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !query.isEmpty else { return items }
+        return items.filter { $0.id.lastPathComponent.localizedStandardContains(query) }
+    }
+
+    func hiddenSelectionCount(among visibleItems: [CleanerItem]) -> Int {
+        selection?.checked.subtracting(visibleItems.map(\.id)).count ?? 0
+    }
+
     func setChecked(_ id: CleanerItem.ID, checked: Bool) {
         guard phase == .review, let plan else { return }
         selection?.set(id, checked: checked, in: plan)

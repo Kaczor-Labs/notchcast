@@ -18,9 +18,9 @@ extension CleanerModule {
             emptyTrash: { _ = try await SystemActionRunner.run(.emptyTrash, previousApp: nil) })
     }
 
-    func openScreen() {
+    func openScreen(rescan: Bool = true) {
         let id = beginReview()
-        scan(for: id)
+        if rescan { scan(for: id) }
         context.surfaces.openPalette(
             title: String(localized: "Clean Up Mac", table: "NotchcastCleaner"),
             prompt: String(localized: "Filter items…", table: "NotchcastCleaner"),

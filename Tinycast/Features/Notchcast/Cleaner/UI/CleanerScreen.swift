@@ -10,11 +10,7 @@ struct CleanerScreen: PaletteScreen {
 
     var rows: [CleanerItem] {
         guard session.phase == .review || session.phase == .confirming else { return [] }
-        let query = query.trimmingCharacters(in: .whitespacesAndNewlines)
-        let matches = session.items.filter {
-            query.isEmpty || $0.id.lastPathComponent.localizedStandardContains(query)
-        }
-        let groups = Dictionary(grouping: matches, by: \.area.kind)
+        let groups = Dictionary(grouping: session.items(matching: query), by: \.area.kind)
         return CleanerArea.Kind.allCases.flatMap { groups[$0] ?? [] }
     }
 
@@ -25,6 +21,8 @@ struct CleanerScreen: PaletteScreen {
         switch session.phase {
         case .needsAccess: String(localized: "Open System Settings…", table: "NotchcastCleaner")
         case .scanFailed, .done: String(localized: "Scan Again", table: "NotchcastCleaner")
+        case .review where session.hiddenSelectionCount(among: rows) > 0:
+            String(localized: "Show Selected Items", table: "NotchcastCleaner")
         default: String(localized: "Move to Trash", table: "NotchcastCleaner")
         }
     }
@@ -46,7 +44,7 @@ struct CleanerScreen: PaletteScreen {
         switch session.phase {
         case .needsAccess: Permissions.openFullDiskAccessSettings()
         case .scanFailed, .done: module.scan(for: reviewID)
-        case .review: module.clean()
+        case .review: module.activateReview(visibleItems: rows) { module.openScreen(rescan: false) }
         default: break
         }
     }
@@ -99,16 +97,11 @@ struct CleanerScreen: PaletteScreen {
     @ViewBuilder
     private func review(selection: Int, scroll: ScrollIntent) -> some View {
         let rows = rows
-        if rows.isEmpty {
-            EmptyResults(text: session.items.isEmpty
-                ? String(localized: "No items found", table: "NotchcastCleaner")
-                : String(localized: "No matching items", table: "NotchcastCleaner"))
-        } else {
-            CleanerReviewLayout(
-                rows: rows, selected: rows.indices.contains(selection) ? rows[selection] : nil,
-                checked: session.selection?.checked ?? [], bytes: session.selectedBytes, scroll: scroll,
-                onCheck: toggle, onSelect: selectRow)
-        }
+        CleanerReviewLayout(
+            rows: rows, selected: rows.indices.contains(selection) ? rows[selection] : nil,
+            checked: session.selection?.checked ?? [], hiddenCount: session.hiddenSelectionCount(among: rows),
+            bytes: session.selectedBytes, hasItems: !session.items.isEmpty, scroll: scroll,
+            onCheck: toggle, onSelect: selectRow)
     }
 
     private func toggle(_ id: CleanerItem.ID) {
@@ -122,23 +115,42 @@ private struct CleanerReviewLayout: View {
     let rows: [CleanerItem]
     let selected: CleanerItem?
     let checked: Set<CleanerItem.ID>
+    let hiddenCount: Int
     let bytes: Int64
+    let hasItems: Bool
     let scroll: ScrollIntent
     let onCheck: (CleanerItem.ID) -> Void
     let onSelect: (Int) -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            CleanerReviewView(
-                rows: rows, selected: selected, checked: checked, scroll: scroll, onCheck: onCheck,
-                onSelect: onSelect)
-            Text("\(checked.count) selected · \(MeasuredSize(bytes: bytes).formatted)", tableName: "NotchcastCleaner")
-                .font(metrics.typography.bar)
-                .foregroundStyle(Theme.Colors.textSecondary)
-                .monospacedDigit()
-                .padding(.horizontal, metrics.spacing.xl)
-                .padding(.vertical, metrics.spacing.md)
+            if rows.isEmpty {
+                EmptyResults(text: hasItems
+                    ? String(localized: "No matching items", table: "NotchcastCleaner")
+                    : String(localized: "No items found", table: "NotchcastCleaner"))
+            } else {
+                CleanerReviewView(
+                    rows: rows, selected: selected, checked: checked, scroll: scroll, onCheck: onCheck,
+                    onSelect: onSelect)
+            }
+            if hasItems {
+                Text(selectionSummary)
+                    .font(metrics.typography.bar)
+                    .foregroundStyle(Theme.Colors.textSecondary)
+                    .monospacedDigit()
+                    .padding(.horizontal, metrics.spacing.xl)
+                    .padding(.vertical, metrics.spacing.md)
+            }
         }
+    }
+
+    private var selectionSummary: String {
+        let size = MeasuredSize(bytes: bytes).formatted
+        if hiddenCount > 0 {
+            return String(localized: "\(checked.count) selected · \(size) · \(hiddenCount) hidden",
+                          table: "NotchcastCleaner")
+        }
+        return String(localized: "\(checked.count) selected · \(size)", table: "NotchcastCleaner")
     }
 }
 

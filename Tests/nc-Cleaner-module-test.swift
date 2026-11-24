@@ -43,7 +43,11 @@ struct CleanerModuleTest {
             defaults: defaults, preferences: NotchcastPreferences(defaults: defaults, switches: []),
             presenter: presenter, hub: hub, transcription: NotchcastTranscriptionRunner(dictation: FakeDictation()),
             now: { .now }, onTapsChanged: {})
-        context.confirm = { _, _, _ in presenter.moveAccepted }
+        var moveQuestions = 0
+        context.confirm = { _, _, _ in
+            moveQuestions += 1
+            return presenter.moveAccepted
+        }
         let askToEmpty: @MainActor (String, String, String, String) async -> Bool = { _, _, _, cancelTitle in
             precondition(presenter.posts.last?.progress?.fraction == 1)
             precondition(cancelTitle == "Not Now")
@@ -64,15 +68,24 @@ struct CleanerModuleTest {
 
         await module.scan(for: review)?.value
         precondition(session.phase == .needsAccess && session.items.isEmpty)
-        precondition(module.clean() == nil && fs.trashCalls.isEmpty)
+        precondition(module.activateReview(visibleItems: session.items) { preconditionFailure("all items are visible") } == nil && fs.trashCalls.isEmpty)
         hasAccess = true
 
         await module.scan(for: review)?.value
-        await module.clean()?.value
+        let noMatches = session.items(matching: "no matching cache")
+        precondition(noMatches.isEmpty && session.selection?.checked.count == 1
+                     && session.hiddenSelectionCount(among: noMatches) == 1,
+                     "zero search matches still count the hidden checked cache")
+        var revealed = false
+        let hiddenMove = module.activateReview(visibleItems: noMatches) { revealed = true }
+        await hiddenMove?.value
+        precondition(revealed && hiddenMove == nil && moveQuestions == 0 && session.selection?.checked == [item],
+                     "the first activation reveals the selection without opening the move question")
+        await module.activateReview(visibleItems: session.items) { preconditionFailure("all items are visible") }?.value
         precondition(fs.trashCalls.isEmpty && presenter.posts.isEmpty && presenter.offers == 0)
 
         presenter.moveAccepted = true
-        await module.clean()?.value
+        await module.activateReview(visibleItems: session.items) { preconditionFailure("all items are visible") }?.value
         precondition(fs.trashCalls == [item])
         precondition(presenter.posts.compactMap { $0.progress?.fraction } == [0, 1])
         precondition(presenter.offers == 1 && presenter.empties == 0)
@@ -81,7 +94,7 @@ struct CleanerModuleTest {
         fs.put(item, size: 64)
         fs.failTrash(of: item)
         await module.scan(for: review)?.value
-        await module.clean()?.value
+        await module.activateReview(visibleItems: session.items) { preconditionFailure("all items are visible") }?.value
         precondition(presenter.offers == 1 && presenter.posts.last?.isFailure == true)
 
         let another = CleanerTestFileSystem.item("org.example.another")
@@ -89,13 +102,13 @@ struct CleanerModuleTest {
         fs.put(another, size: 64)
         presenter.emptyAccepted = true
         await module.scan(for: review)?.value
-        await module.clean()?.value
+        await module.activateReview(visibleItems: session.items) { preconditionFailure("all items are visible") }?.value
         precondition(presenter.offers == 2 && presenter.empties == 1)
 
         fs.put(another, size: 64)
         defaults.set(false, forKey: CleanerModule.offersEmptyTrash)
         await module.scan(for: review)?.value
-        await module.clean()?.value
+        await module.activateReview(visibleItems: session.items) { preconditionFailure("all items are visible") }?.value
         precondition(presenter.offers == 2 && presenter.empties == 1)
 
         await module.scan(for: review)?.value

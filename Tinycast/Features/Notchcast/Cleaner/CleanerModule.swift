@@ -61,9 +61,13 @@ final class CleanerModule: NotchcastModule {
     }
 
     @discardableResult
-    func clean() -> Task<Void, Never>? {
+    func activateReview(visibleItems: [CleanerItem], reveal: () -> Void) -> Task<Void, Never>? {
         guard cleanTask == nil, session.phase == .review, session.selection?.checked.isEmpty == false
         else { return nil }
+        guard session.hiddenSelectionCount(among: visibleItems) == 0 else {
+            reveal()
+            return nil
+        }
         let task = Task { [weak self] in
             guard let self else { return }
             defer { self.cleanTask = nil }
