@@ -109,6 +109,10 @@ struct MacTweaksStoreTest {
             _ = try await store.snapshot()
             preconditionFailure("A snapshot must not interrupt a running batch")
         } catch MacTweaksStore.Failure.busy {}
+        do {
+            _ = try await MacTweaksModule(catalogue: catalogue, system: fake.make()).store.set("status", on: true)
+            preconditionFailure("A module rebuilt mid-batch must not write the journal at once")
+        } catch MacTweaksStore.Failure.busy {}
         let applied = try await running.value
         precondition(applied.isEmpty)
         precondition(!store.isBusy)

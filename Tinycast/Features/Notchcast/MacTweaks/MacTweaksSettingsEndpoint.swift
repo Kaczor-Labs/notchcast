@@ -15,7 +15,7 @@ extension MacTweaksAddon: NotchcastSettingsEndpoint {
     }
 
     static func answer(_ request: Request, context: NotchcastContext) async throws -> Reply {
-        guard context.isEnabled(settingsID), let module = context.recovery(MacTweaksModule.self) else {
+        guard let module = context.settingsModule(MacTweaksModule.self, for: settingsID) else {
             throw CancellationError()
         }
         let store = module.store
