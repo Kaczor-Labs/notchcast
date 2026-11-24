@@ -9,7 +9,7 @@ import Foundation
 
 // Stands in for AppIndex's entry; VisibilityStore reads only these members.
 struct AppEntry {
-    enum Kind: String { case application, systemSettings, command, systemAction }
+    enum Kind: String { case application, systemSettings, command, systemAction, windowLayout, windowRoom }
     let kind: Kind
     let settingsOwner: SettingsTab?
     let preferenceKey: String

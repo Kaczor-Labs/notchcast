@@ -9,7 +9,7 @@ import Foundation
 
 // Stands in for AppIndex's entry; CommandCatalog and VisibilityStore read only these members.
 struct AppEntry {
-    enum Kind: String { case application, systemSettings, systemAction, command, quickAction }
+    enum Kind: String { case application, systemSettings, systemAction, command, quickAction, windowLayout, windowRoom }
     let id: String
     let name: String
     let url: URL
