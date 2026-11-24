@@ -279,6 +279,26 @@ struct MacTweaksStoreTest {
         }
         let afterRefusal = try MacTweakJournal.decode(Data(contentsOf: fake.journalFile))
         precondition(afterRefusal.entries.isEmpty, "A refused write must not claim a journal entry")
+        let blind = Mutex(false)
+        let seeing = fake.make()
+        let blindAfterWrite = MacTweaksSystem(
+            version: seeing.version, journalFolder: seeing.journalFolder,
+            read: { target in
+                guard !blind.withLock({ $0 }) else { throw FakeFailure.write }
+                return try seeing.read(target)
+            },
+            readAll: seeing.readAll,
+            write: { target, value in
+                blind.withLock { $0 = true }
+                try seeing.write(target, value)
+            },
+            restart: seeing.restart, now: seeing.now)
+        let unread = try await MacTweaksStore(catalogue: catalogue, system: blindAfterWrite).set("status", on: true)
+        precondition(unread.count == 2, "A refused write and the failed read after it must both be reported")
+        let unconfirmed = try MacTweakJournal.decode(Data(contentsOf: fake.journalFile))
+        precondition(unconfirmed.entries.map(\.target) == [statusBar], "An unconfirmed write keeps its entry")
+        let forgotten = try await restoreStore.undoEverything()
+        precondition(forgotten.isEmpty && fake.state.withLock { $0.values[statusBar] } == nil)
         fake.state.withLock {
             $0.refuseWrites.removeAll()
             $0.values[statusBar] = .bool(true)

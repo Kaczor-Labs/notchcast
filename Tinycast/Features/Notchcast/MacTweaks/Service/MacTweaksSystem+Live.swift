@@ -1,7 +1,11 @@
 // Adapted from RemoveMacAI (omlahore, 12cef18, MIT) and Peel (Dragos Tugui, 2023079, GPL-3.0).
 import Foundation
+import OSLog
 
 extension MacTweaksSystem {
+    private static let logger = Logger(
+        subsystem: Bundle.main.bundleIdentifier ?? "Notchcast", category: "MacTweaks")
+
     enum LiveFailure: Error, Equatable {
         case unsupportedPreference
         case invalidTarget
@@ -166,12 +170,13 @@ extension MacTweaksSystem {
     private static func forcedGlobalValue(_ key: String) -> Any? {
         let folder = "/Library/Managed Preferences"
         for path in ["\(folder)/\(NSUserName())/.GlobalPreferences.plist", "\(folder)/.GlobalPreferences.plist"] {
-            guard let data = FileManager.default.contents(atPath: path),
-                  let dictionary = try? PropertyListSerialization.propertyList(
-                    from: data, format: nil
-                  ) as? [String: Any],
-                  let value = dictionary[key] else { continue }
-            return value
+            guard let data = FileManager.default.contents(atPath: path) else { continue }
+            do {
+                let managed = try PropertyListSerialization.propertyList(from: data, format: nil)
+                if let value = (managed as? [String: Any])?[key] { return value }
+            } catch {
+                logger.error("Could not read managed preferences: \(error.localizedDescription, privacy: .public)")
+            }
         }
         return nil
     }

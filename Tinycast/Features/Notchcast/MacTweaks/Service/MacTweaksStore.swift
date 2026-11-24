@@ -129,7 +129,7 @@ final class MacTweaksStore {
         var blocked: MacTweakState?
         for change in tweak.changes {
             guard let (target, value) = change.localWrite else { return .unsupported }
-            guard let reading = try? readings[target]?.get() else { return .unavailable }
+            guard case .success(let reading)? = readings[target] else { return .unavailable }
             if reading.managed { return .managed }
             blocked = blocked ?? reading.block(wanting: value)
             if value.matches(reading.effective) { applied += 1 }
@@ -243,7 +243,7 @@ final class MacTweaksStore {
                 return
             }
             guard write(target, value: value, tweakID: tweak.id) else {
-                if let actual = try? system.read(target), actual.block == nil, actual.stored != value {
+                if let actual = readOrReport(target, tweakID: tweak.id), actual.block == nil, actual.stored != value {
                     try save(before)
                 }
                 return
@@ -280,13 +280,17 @@ final class MacTweaksStore {
         }
 
         mutating func writableReading(_ target: MacTweakTarget, tweakID: MacTweak.ID) -> MacTweaksSystem.Reading? {
+            guard let reading = readOrReport(target, tweakID: tweakID) else { return nil }
+            if let block = reading.block {
+                issues.append(.blocked(tweakID, block))
+                return nil
+            }
+            return reading
+        }
+
+        mutating func readOrReport(_ target: MacTweakTarget, tweakID: MacTweak.ID) -> MacTweaksSystem.Reading? {
             do {
-                let reading = try system.read(target)
-                if let block = reading.block {
-                    issues.append(.blocked(tweakID, block))
-                    return nil
-                }
-                return reading
+                return try system.read(target)
             } catch {
                 issues.append(.change(tweakID, target, error))
                 return nil
