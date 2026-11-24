@@ -3,7 +3,9 @@ import AVFoundation
 import SwiftUI
 
 /// Notchcast › Dictation: the stock tab's rows dictation needs, on the same settings keys. hidden.md.
-struct NotchcastDictationPane: View {
+struct NotchcastDictationPane<Sharing: View>: View {
+    /// Composed by the Notchcast pane, so this feature never names DictationSharing.
+    @ViewBuilder let sharing: Sharing
     @Environment(DictationCoordinator.self) private var coordinator
     @Environment(MainAppLink.self) private var mainApp
     @Environment(AppSettings.self) private var settings
@@ -84,7 +86,7 @@ struct NotchcastDictationPane: View {
 
                 DictationExtrasSettingsSections()
 
-                DictationSharingSection()
+                sharing
                     .settingsAnchor(.dictationSharing)
             }
         }
