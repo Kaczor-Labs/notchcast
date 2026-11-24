@@ -151,7 +151,7 @@ enum SystemNoticesModuleTests {
         precondition(only.map(\.id) == ["systemNotices"], "v1 switch id")
         precondition(only[0].defaultEnabled == false, "off by default")
         precondition(only[0].category == .notices, "Notices category")
-        precondition(NotchcastPane.holding(.notices) == .notices, "in its own Notices tab")
+        precondition(NotchcastPane.holding(.notices) == .islandContent, "in Island Content")
         precondition(SystemNoticesAddon.settings.map(\.switchID) == ["systemNotices"], "the checkboxes sit under it")
         precondition(LinkWatch.settle == 5 && LinkWatch.wakeQuiet == 30, "5 s debounce, 30 s quiet after wake")
         precondition(BatteryWatch.threshold == 20 && BatteryWatch.recovery == 25, "Vorssaint's 20%, re-armed at 25%")

@@ -16,7 +16,10 @@ enum AutoBackupAddon: NotchcastAddon {
     ]
 
     static let settings = [
-        NotchcastSettingsRow(switchID: AutoBackupPreferences.switchID) {
+        NotchcastSettingsRow(switchID: AutoBackupPreferences.switchID, searchTerms: [
+            "backup folder",
+            "backups to keep",
+        ]) {
             AnyView(AutoBackupSettingsView(context: $0))
         },
     ]

@@ -13,7 +13,7 @@ enum NoiseControlAddon: NotchcastAddon {
             subtitle: String(
                 localized: "Switch AirPods and Beats listening modes through the Sound menu in the menu bar.",
                 table: "NotchcastNoiseControl"),
-            category: .displaySound,
+            category: .sound,
             defaultEnabled: false,
             requiredGrants: [.accessibility]
         ),

@@ -11,6 +11,7 @@ final class NotchcastCore {
     private var globeTrigger: NotchcastGlobeTrigger?
     private let dictationIsland = DictationIslandCoordinator()
     private let modelDownload: NotchcastModelDownload
+    private(set) var dictationModelSizes: NotchcastDictationModelSizes?
 
     init(
         core: AppCore, addons: [any NotchcastAddon.Type] = NotchcastRegistry.addons, startsRuntime: Bool = true
@@ -56,10 +57,13 @@ final class NotchcastCore {
             core?.settingsCoordinator.showSettings(tab: target.tab, revealing: target)
         }
         let commands = addons.flatMap { $0.commands }
+        let settingRows = addons.flatMap { $0.settings }
         NotchcastSettingsSearch.install(
             controller.switches,
             commandWords: Dictionary(grouping: commands, by: \.switchID)
-                .mapValues { $0.flatMap { [$0.name] + $0.keywords } })
+                .mapValues { $0.flatMap { [$0.name] + $0.keywords } },
+            optionWords: Dictionary(grouping: settingRows, by: \.switchID)
+                .mapValues { $0.flatMap(\.searchTerms) })
         guard startsRuntime else { return }
         let launcher = core.launcherCoordinator
         let tabs = Dictionary(
@@ -113,12 +117,15 @@ final class NotchcastCore {
         }, typingDisplay: typingDisplay.display)
         core.settings.dictationModel = .ultra
         core.dictationCoordinator.prepareModel = modelDownload.install
+        dictationModelSizes = NotchcastDictationModelSizes(store: models)
+        dictationModelSizes?.start()
         controller.start()
         dictationServer.start()
     }
 
     func stop() {
         modelDownload.stop()
+        dictationModelSizes?.stop()
         dictationServer.stop()
         trustMonitor = nil
         globeTrigger?.stop()

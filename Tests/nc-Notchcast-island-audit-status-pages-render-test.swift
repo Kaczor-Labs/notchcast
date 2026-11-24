@@ -266,6 +266,7 @@ extension IslandAuditRendering {
                    notch: notch, radius: Theme.Radius.panel) { expansion.draw(in: $0) }
             compact("884-06-status-\(form)-\(look)", IslandStatusArt([ready], notch: notch, frosted: frosted),
                     notch: notch)
+            renderPairs(form: form, look: look, notch: notch)
             func songGlance(_ step: String, _ base: IslandNowPlaying,
                             _ change: (inout IslandNowPlaying) -> Void = { _ in }) {
                 var shown = base
@@ -415,3 +416,23 @@ struct ClipboardEditField: View {
     var body: some View { EmptyView() }
 }
 class SecretFieldState {}; struct DialogSecretField: View { let state: SecretFieldState; var body: some View { EmptyView() } }
+
+extension IslandAuditRendering {
+    /// Every glyph and text pair the compact island draws, for its optical centring (#1495).
+    static func renderPairs(form: String, look: String, notch: Bool) {
+        let hot = IslandStatus(id: "cpu", symbol: "cpu", text: "Hot", label: "CPU running hot")
+        compact("1495-status-text-\(form)-\(look)", IslandStatusArt([hot], notch: notch, frosted: frosted),
+                notch: notch)
+        let recording = IslandNotice(id: "rec", symbol: "record.circle", text: "Recording",
+                                     progress: IslandProgress(fraction: nil, headline: false, readout: "0:42"))
+        compact("1495-notice-readout-\(form)-\(look)",
+                IslandNoticeArt(recording, notch: notch, frosted: frosted, still: true), notch: notch)
+        var metered = recording
+        metered.meter = [0.3, 0.9, 0.6, 0.8]
+        compact("1495-notice-meter-\(form)-\(look)", IslandNoticeArt(metered, notch: notch, frosted: frosted),
+                notch: notch)
+        compact("1495-level-\(form)-\(look)", IslandLevelArt(
+            IslandLevel(source: "volume", symbol: "speaker.wave.2.fill", label: "Volume", value: 0.6),
+            notch: notch, frosted: frosted), notch: notch)
+    }
+}

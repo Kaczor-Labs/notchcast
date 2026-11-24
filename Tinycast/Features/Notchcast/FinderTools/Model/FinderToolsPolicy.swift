@@ -76,15 +76,10 @@ struct FinderToolsPolicy: Sendable {
         swallowed.remove(code) != nil ? .swallow : .pass
     }
 
-    /// A launcher command or hotkey: the same request a key would make, with Finder frontmost.
-    mutating func command(_ action: Action) -> Bool {
+    /// The rename command or its hotkey, with Finder frontmost; it has no key to replay.
+    mutating func rename() -> Bool {
         guard let pid = finderPID else { return false }
-        let keyCode: UInt16? = switch action {
-        case .cut: keyCode(for: "x")
-        case .paste: keyCode(for: "v")
-        case .rename: nil
-        }
-        enqueue(action, pid: pid, keyCode: keyCode, modifiers: .command)
+        enqueue(.rename, pid: pid, keyCode: nil, modifiers: [])
         return true
     }
 

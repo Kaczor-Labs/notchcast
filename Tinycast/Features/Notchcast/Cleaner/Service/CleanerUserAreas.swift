@@ -44,8 +44,7 @@ extension CleanerScanner {
             for name in try discoveryNames(in: profiles, blocked: &blocked) where !name.hasPrefix(".") {
                 try Task.checkCancellation()
                 let profile = try child(name, of: root)
-                guard let facts = try? fileSystem.inspect(profile).facts, facts.isDirectory, !facts.isSymbolicLink
-                else { continue }
+                guard directory(at: profile) != nil else { continue }
                 for leaf in profileCaches {
                     areas.append(.init(home: home, kind: .browserCaches, root: profile.appending(path: leaf),
                                        owner: owner))

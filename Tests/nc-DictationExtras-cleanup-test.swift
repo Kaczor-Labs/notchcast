@@ -97,6 +97,12 @@ enum DictationExtrasCleanupTests {
         check(!sends(true, false, false, true), "Return sends nothing")
         check(!sends(true, true, true, true), "a composer mic sends nothing")
         check(!sends(true, true, false, false), "live insertion sends nothing")
+        check(DictationCleanupPolicy.blockedByLiveInsertion(cleansUp: true, liveInsertion: true),
+              "a stored Insert while recording shows the conflict under Clean up text")
+        check(!DictationCleanupPolicy.blockedByLiveInsertion(cleansUp: true, liveInsertion: false),
+              "with live insertion off there is no conflict")
+        check(!DictationCleanupPolicy.blockedByLiveInsertion(cleansUp: false, liveInsertion: true),
+              "with cleanup off live insertion blocks nothing")
 
         // A settings.json key would let a file send transcripts, delete history or rewrite the prompt.
         for path in ["dictation.cleansUp", "dictation.keepsHistory", "dictation.cleanupPrompt"] {

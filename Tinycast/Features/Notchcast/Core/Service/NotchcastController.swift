@@ -159,6 +159,10 @@ final class NotchcastController {
         for slot in slots { slot.context.launcherShown?() }
     }
 
+    var settingsRowOwners: Set<String> {
+        Set(slots.flatMap { slot in slot.settings.map(\.row).filter { !$0.isEmpty(slot.context) }.map(\.switchID) })
+    }
+
     func context(forSwitch id: String) -> NotchcastContext? {
         slots.first { $0.addon.switches.contains { $0.id == id } }?.context
     }

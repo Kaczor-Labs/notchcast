@@ -1,3 +1,7 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (C) 2026 Vorssaint
+// Adapted from Vorssaint bf4836d's brightness support: the built-in HDMI converter's DDC address.
+
 import Foundation
 
 /// The MCCS VCP packets a monitor speaks over DDC/CI: luminance, speaker volume and mute.
@@ -6,11 +10,15 @@ enum DisplayDDC {
         case luminance = 0x10, volume = 0x62, mute = 0x8D
     }
 
-    static let chip: UInt32 = 0x37
     static let host: UInt32 = 0x51
     static let replyLength = 11
     /// The MCCS scale most monitors use; a monitor that never replies never says otherwise.
     static let assumedMaximum: UInt16 = 100
+
+    /// A Mac's built-in HDMI port sits behind a converter that drops 0x37 writes and passes 0xB7.
+    static func chip(providerClass: String?) -> UInt32 {
+        providerClass == "AppleDCPMCDP29XX" ? 0xB7 : 0x37
+    }
 
     static func request(_ code: Code) -> [UInt8] { seal([0x82, 0x01, code.rawValue]) }
 

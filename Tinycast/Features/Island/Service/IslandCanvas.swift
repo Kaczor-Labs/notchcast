@@ -13,6 +13,8 @@ final class IslandCanvas: NSView {
     /// The palette or a report owns the grown shape, so no notice line draws inside it.
     var covered = false
     var hasQuestion = false
+    /// The launcher is up on this display, so no compact art draws under its search field or rows.
+    var launcherOpen = false
     var progressReport: (art: IslandHeadlineArt, frame: CGRect)?
     var drawnLine: IslandHeadlineArt? { covered ? nil : headline ?? leaving }
     var restWidth: CGFloat = 0
@@ -92,7 +94,7 @@ final class IslandCanvas: NSView {
         let bounds = outline.boundingBoxOfPath
         if covered { leaving = nil }
         let line = drawnLine
-        let compact = hasQuestion && glance is IslandNoticeArt ? nil : glance
+        let compact = launcherOpen || hasQuestion && glance is IslandNoticeArt ? nil : glance
         guard compact != nil || expansion != nil || line != nil || progressReport != nil else { return }
         let travel = glanceWidth - restWidth
         context.saveGState()
@@ -283,6 +285,7 @@ struct GlanceArt: PillArt {
         let symbol = NSImage.SymbolConfiguration(pointSize: NotchTheme.Typography.islandGlanceNSFont.pointSize, weight: .medium)
             .applying(.init(paletteColors: [tone]))
         return NSImage(systemSymbolName: name, accessibilityDescription: nil)?.withSymbolConfiguration(symbol)
+            .map(IslandOptics.inked)
     }
 
     /// `pill` is the visible part of the outline; content hugs its ends, as the slots were sized.
@@ -290,12 +293,11 @@ struct GlanceArt: PillArt {
         let edge = Theme.Spacing.lg
         var x = pill.minX + edge
         func place(_ text: NSAttributedString) {
-            text.draw(at: CGPoint(x: x, y: pill.midY - text.size().height / 2))
+            text.draw(at: CGPoint(x: x, y: IslandOptics.lineBottom(midY: pill.midY)))
             x += text.size().width
         }
         if let glyph {
-            glyph.draw(in: CGRect(x: x, y: pill.midY - glyph.size.height / 2, width: glyph.size.width,
-                                  height: glyph.size.height))
+            glyph.draw(in: IslandOptics.glyphRect(glyph, x: x, midY: pill.midY))
             x += glyph.size.width + gap
         }
         if layout.showsTitle, !notch { place(title) }
@@ -306,5 +308,52 @@ struct GlanceArt: PillArt {
             if layout.showsTitle { place(separator) }
             place(countdown)
         }
+    }
+}
+
+/// A glyph and its text meet where they ink: the shape, and the cap height.
+@MainActor
+enum IslandOptics {
+    private static let font = NotchTheme.Typography.islandGlanceNSFont
+    /// How far above its line box's bottom string drawing sets the baseline.
+    private static let baselineRise: CGFloat = {
+        let storage = NSTextStorage(string: "0", attributes: [.font: font])
+        let layout = NSLayoutManager()
+        layout.addTextContainer(NSTextContainer(size: CGSize(width: 1_000, height: 1_000)))
+        storage.addLayoutManager(layout)
+        return layout.lineFragmentRect(forGlyphAt: 0, effectiveRange: nil).height - layout.location(forGlyphAt: 0).y
+    }()
+
+    /// The bottom of a glance-font line box whose cap height centres on `midY`.
+    static func lineBottom(midY: CGFloat) -> CGFloat {
+        midY - font.capHeight / 2 - baselineRise
+    }
+
+    /// Where a `GlanceArt.glyph` draws so its inked middle sits on `midY`.
+    static func glyphRect(_ glyph: NSImage, x: CGFloat, midY: CGFloat) -> CGRect {
+        CGRect(x: x, y: midY - glyph.alignmentRect.midY, width: glyph.size.width, height: glyph.size.height)
+    }
+
+    /// The alignment rect becomes the inked rows, as a symbol pads its shape unevenly (#1495).
+    static func inked(_ image: NSImage) -> NSImage {
+        let scale = 4.0
+        let size = image.size
+        guard let bitmap = NSBitmapImageRep(bitmapDataPlanes: nil, pixelsWide: Int(ceil(size.width * scale)),
+                pixelsHigh: Int(ceil(size.height * scale)), bitsPerSample: 8, samplesPerPixel: 4, hasAlpha: true,
+                isPlanar: false, colorSpaceName: .deviceRGB, bytesPerRow: 0, bitsPerPixel: 0),
+              let pixels = bitmap.bitmapData else { return image }
+        bitmap.size = size
+        guard let context = NSGraphicsContext(bitmapImageRep: bitmap) else { return image }
+        NSGraphicsContext.saveGraphicsState()
+        NSGraphicsContext.current = context
+        image.draw(in: CGRect(origin: .zero, size: size))
+        NSGraphicsContext.restoreGraphicsState()
+        let inked = (0..<bitmap.pixelsHigh).filter { row in
+            (0..<bitmap.pixelsWide).contains { pixels[row * bitmap.bytesPerRow + $0 * 4 + 3] > 127 }
+        }
+        guard let top = inked.first, let bottom = inked.last else { return image }
+        let low = size.height - Double(bottom + 1) / scale
+        image.alignmentRect = CGRect(x: 0, y: low, width: size.width, height: Double(bottom + 1 - top) / scale)
+        return image
     }
 }

@@ -34,6 +34,10 @@ struct Monitor {
     var values: [UInt8: (current: UInt16, maximum: UInt16)] = [0x10: (50, 100), 0x62: (50, 100), 0x8D: (2, 2)]
     var gamma = BrightnessGamma(red: [0, 1], green: [0, 1], blue: [0, 1])
     var takesGamma = true
+    /// What 0x8D reads back after an unmute: 2 by the standard, 0 on monitors that latch mute at zero.
+    var unmutedReads: UInt16 = 2
+    var volumeOnUnmute: UInt16?
+    var refusesUnmute = false
 }
 
 struct Rack {
@@ -57,8 +61,12 @@ func link(_ raw: UInt32) -> BrightnessDDCLink {
                 if packet[0] == 0x82 {
                     rack.requested.append(packet[2])
                     rack.asked = packet[2]
-                } else if let maximum = rack.monitors[raw]?.values[packet[2]]?.maximum {
-                    rack.monitors[raw]?.values[packet[2]] = (UInt16(packet[3]) << 8 | UInt16(packet[4]), maximum)
+                } else if let monitor = rack.monitors[raw], let maximum = monitor.values[packet[2]]?.maximum {
+                    let written = UInt16(packet[3]) << 8 | UInt16(packet[4])
+                    let unmutes = packet[2] == 0x8D && written == 2
+                    if unmutes, monitor.refusesUnmute { return false }
+                    rack.monitors[raw]?.values[packet[2]] = (unmutes ? monitor.unmutedReads : written, maximum)
+                    if unmutes, let loud = monitor.volumeOnUnmute { rack.monitors[raw]?.values[0x62]?.current = loud }
                 }
                 return true
             }
@@ -146,6 +154,7 @@ enum DisplaySoundSpeakerTests {
         await staleCurves()
         await quitDuringSpeakerCommand()
         await speakers()
+        await latchedMute()
         await silentMonitors()
         await reconnection()
         print("nc-DisplaySound-speaker-test: PASS")
@@ -170,6 +179,42 @@ enum DisplaySoundSpeakerTests {
         let on = await service.perform(.step(up: false, fine: false, id(1)))!
         check(on.displays[0].level.value == -0.0625 && on.displays[0].level.range == -0.25...1, "on: dimming is back")
         check(await service.restoreAll(), "restored")
+        await softwareOnlyOff()
+        await refusedRestore()
+    }
+
+    static func softwareOnlyOff() async {
+        install([2: Monitor(uuid: "uuid-2", name: "Plain", ddc: false)])
+        let service = BrightnessDisplayService(displays: system.displays)
+        _ = await service.perform(.refresh(names: [:]))
+        _ = await service.perform(.set(0.4, id(2)))
+        check(hw { $0.monitors[2]?.gamma } != baseline, "software: dimmed")
+        let off = await service.perform(.extraDimming(false))!
+        check(off.displays[0].level.value == 1, "off: a software-only monitor goes back to full")
+        check(hw { $0.monitors[2]?.gamma } == baseline, "off: its curve comes back bit for bit")
+        let down = await service.perform(.step(up: false, fine: false, id(2)))!
+        check(down.displays[0].level.value == 1 && hw { $0.monitors[2]?.gamma } == baseline, "off: keys do not dim it")
+        _ = await service.perform(.extraDimming(true))
+        let on = await service.perform(.step(up: false, fine: false, id(2)))!
+        check(on.displays[0].level.value == 0.9375 && hw { $0.monitors[2]?.gamma } != baseline, "on: keys dim it")
+        check(await service.restoreAll(), "software restored")
+    }
+
+    static func refusedRestore() async {
+        install([1: Monitor(uuid: "uuid-1", name: "Built-in", builtIn: true, system: 0.5)])
+        let service = BrightnessDisplayService(displays: system.displays)
+        _ = await service.perform(.refresh(names: [:]))
+        _ = await service.perform(.set(-0.2, id(1)))
+        hw { $0.monitors[1]?.takesGamma = false }
+        let off = await service.perform(.extraDimming(false))!
+        check(off.displays[0].level == BrightnessLevel(0, extraDimming: false), "off: taken though the curve refused")
+        check(off.retrying == [id(1).uuid], "off: the refused curve is retried")
+        hw { $0.monitors[1]?.takesGamma = true }
+        _ = await service.perform(.retry(uuid: id(1).uuid, since: off.serial))
+        check(hw { $0.monitors[1]?.gamma } == baseline, "a retry gives the curve back")
+        let down = await service.perform(.step(up: false, fine: false, id(1)))!
+        check(down.displays[0].level.value == 0 && hw { $0.monitors[1]?.gamma } == baseline, "off: keys stop at 0")
+        check(await service.restoreAll(), "refused restored")
     }
 
     @MainActor
@@ -289,6 +334,52 @@ enum DisplaySoundSpeakerTests {
         check(await speakers.apply(.step(increasing: false, fine: false)) != nil, "its volume still works")
         speakers.stop()
         check(await speakers.apply(.step(increasing: true, fine: false)) == nil, "stopped again: macOS")
+    }
+
+    /// A monitor whose 0x8D reads 0 unmuted and 1 muted and stays silent after zero until unmuted.
+    @MainActor
+    static func latchedMute() async {
+        var latching = Monitor(uuid: "uuid-8", name: "Latch")
+        latching.values[0x62] = (0, 100)
+        latching.values[0x8D] = (0, 2)
+        latching.unmutedReads = 0
+        install([8: latching])
+        hw { $0.outputName = "Latch" }
+        let suite = "nc-DisplaySound-speaker-test.\(UUID())"
+        let defaults = UserDefaults(suiteName: suite)!
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let speakers = DisplaySpeakerController(system: system, service: BrightnessDisplayService(displays: system.displays),
+                                                defaults: defaults)
+        speakers.start()
+        func writes() -> [[UInt8]] { hw { $0.sent.filter { $0[0] == 0x84 } } }
+        let unmute = DisplayDDC.write(.mute, 2)
+
+        let up = await speakers.apply(.step(increasing: true, fine: false))
+        check(up == DisplaySpeakerLevel(volume: 0.06, muted: false), "volume up from zero lands: \(String(describing: up))")
+        check(writes() == [DisplayDDC.write(.volume, 6), unmute], "leaving zero unmutes a monitor that reads 0 unmuted")
+        hw { $0.sent = [] }
+        _ = await speakers.apply(.step(increasing: true, fine: false))
+        check(writes() == [DisplayDDC.write(.volume, 13)], "above zero it needs no unmute")
+
+        hw { $0.monitors[8]?.values[0x62] = (0, 100); $0.monitors[8]?.volumeOnUnmute = 80 }
+        check(await speakers.apply(.step(increasing: true, fine: false)) == nil && value(8, 0x8D) == 1,
+              "an unmute that jumps to the old, loud level is muted again and reported to nobody")
+        let stored = DisplaySpeakerStore(data: defaults.data(forKey: DisplaySpeakerController.storeKey))
+        check(stored.levels["UUID-8"]?.volume == 0.13, "the level that did not land is not remembered")
+
+        hw { $0.monitors[8]?.values = [0x62: (0, 100), 0x8D: (0, 2)]; $0.monitors[8]?.volumeOnUnmute = nil }
+        hw { $0.monitors[8]?.refusesUnmute = true }
+        check(await speakers.apply(.step(increasing: true, fine: false)) == nil && value(8, 0x8D) == 1,
+              "a refused unmute confirms no volume and leaves the monitor asking for one")
+        hw { $0.monitors[8]?.refusesUnmute = false }
+        let retried = await speakers.apply(.step(increasing: true, fine: false))
+        check(retried?.muted == false && value(8, 0x8D) == 0, "the next volume up finishes the unmute")
+
+        hw { $0.monitors[8]?.values = [0x62: (0, 100), 0x8D: (1, 2)]; $0.monitors[8]?.unmutedReads = 2; $0.sent = [] }
+        let standard = await speakers.apply(.step(increasing: true, fine: false))
+        check(standard?.muted == false && writes() == [DisplayDDC.write(.volume, 6), unmute] && value(8, 0x8D) == 2,
+              "a standard monitor muted at zero still unmutes on volume up")
+        speakers.stop()
     }
 
     @MainActor

@@ -51,7 +51,7 @@ final class ScreenshotFake {
     var closedWindows: Set<UInt32> = []
     var clipboardWorks = true
     var clipboard: [Data] = []
-    var surfaces: [(displays: [UInt32], windows: [UInt32])] = []
+    var surfaces: [(displays: [UInt32], windows: [UInt32], stills: Set<UInt32>)] = []
     var answer: (@MainActor (ScreenshotRequest?) -> Void)?
     var closes = 0
     var lines: [ScreenTextLine] = []
@@ -114,7 +114,8 @@ extension ScreenshotSystem {
             return fake.displays.filter { display in point.map(display.frame.contains) ?? true }
         },
         windows: { fake.windows },
-        freezeWindows: { ids in
+        freezeWindows: { windows in
+            let ids = windows.map(\.id)
             fake.frozenWindows.append(ids)
             return Dictionary(uniqueKeysWithValues: ids.filter { !fake.closedWindows.contains($0) }
                 .map { ($0, image(width: fake.windowWidth, height: 20)) })
@@ -140,8 +141,8 @@ extension ScreenshotSystem {
         openScreenRecordingSettings: { fake.settingsOpened += 1 },
         downloads: { downloadsFolder },
         chooseSaveFile: { _ in nil },
-        select: { frozen, windows, completion in
-            fake.surfaces.append((frozen.map(\.id), windows.map(\.id)))
+        select: { frozen, windows, stills, completion in
+            fake.surfaces.append((frozen.map(\.id), windows.map(\.id), stills))
             fake.answer = completion
             return {
                 fake.closes += 1
@@ -274,8 +275,9 @@ enum ScreenshotsModuleTests {
         fake.release()
         await drain()
         precondition(fake.surfaces.count == 1, "one surface after the freeze")
-        precondition(fake.surfaces[0].displays == [1, 2] && fake.surfaces[0].windows == [51],
-                     "the surface gets every frozen display and only pickable windows")
+        precondition(fake.surfaces[0].displays == [1, 2] && fake.surfaces[0].windows == [51]
+                     && fake.surfaces[0].stills == [51],
+                     "the surface gets every frozen display and only pickable windows, with their stills")
         precondition(rig.controller.run(entryID: display))
         await drain()
         precondition(fake.freezes.count == 1, "still one session while the surface is up")
@@ -301,7 +303,8 @@ enum ScreenshotsModuleTests {
 
         rig.fire(area)
         await drain()
-        precondition(fake.surfaces.last?.windows == [], "a window that would not freeze is not offered")
+        precondition(fake.surfaces.last?.windows == [51] && fake.surfaces.last?.stills == [],
+                     "a window that would not freeze stays under the pointer, without a still")
         fake.pick(nil)
         await drain()
         fake.closedWindows = []

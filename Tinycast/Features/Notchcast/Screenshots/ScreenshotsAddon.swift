@@ -38,7 +38,11 @@ enum ScreenshotsAddon: NotchcastAddon {
     ]
 
     static let settings = [
-        NotchcastSettingsRow(switchID: ScreenshotsModule.switchID) {
+        NotchcastSettingsRow(switchID: ScreenshotsModule.switchID, searchTerms: [
+            "edit after capture",
+            "screenshot destination",
+            "screenshot folder",
+        ]) {
             AnyView(ScreenshotsSettingsView(defaults: $0.defaults))
         },
     ]

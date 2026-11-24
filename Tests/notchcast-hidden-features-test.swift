@@ -10,6 +10,15 @@
 // notchcast-sources: Tinycast/Features/Calendar/Model/*.swift
 // notchcast-sources: Tinycast/Features/Calendar/Service/CalendarStore.swift
 // notchcast-sources: Tinycast/Platform/CalendarAccess.swift Tinycast/Platform/NotificationToken.swift
+// notchcast-reads: Tinycast/DesignSystem/SettingsComponents.swift
+// notchcast-reads: Tinycast/Features/Clipboard/Settings/ClipboardSettingsView.swift
+// notchcast-reads: Tinycast/Features/Snippets/Settings/SnippetsSettingsView.swift
+// notchcast-reads: Tinycast/Features/FileSearch/Settings/FileSearchSettingsView.swift
+// notchcast-reads: Tinycast/Features/WindowManagement/Settings/WindowManagementSettingsView.swift
+// notchcast-reads: Tinycast/Features/Quicklinks/Settings/QuicklinksSettingsView.swift
+// notchcast-reads: Tinycast/Features/Launcher/Settings/LauncherItemsSection.swift
+// notchcast-reads: Tinycast/Features/Launcher/Settings/ApplicationsSettingsView.swift
+// notchcast-reads: Tinycast/Features/HotKeys/Settings/HyperKeySettingsSection.swift
 import AppKit
 import Foundation
 
@@ -37,6 +46,7 @@ enum Permissions {
 struct HiddenFeaturesTest {
     static func main() {
         checkCalendarStoreStartsWithCalendarOff()
+        checkOffFeatureChildrenHide()
 
         let visible = SettingsSection.allCases.flatMap(\.tabs)
         let calendarChecks = [
@@ -46,7 +56,24 @@ struct HiddenFeaturesTest {
             ("Calendars permission is absent from Settings search",
              !SettingsSearchCatalog.entries.contains { $0.anchor == .permissionsCalendars }),
         ]
-        let failures = calendarChecks.filter { !$0.1 }
+        let dictationChecks = [
+            ("Dictation is absent from Features", !visible.contains(.dictation)),
+            ("settings/dictation is rejected", SettingsTab(slug: "dictation") == nil),
+            ("the stock Dictation tab is absent from Settings search",
+             !SettingsSearchCatalog.entries.contains { $0.tab == .dictation }),
+            ("direct navigation to the stock Dictation tab is refused", NotchcastHidden.tabs.contains(.dictation)),
+            ("Notchcast › Dictation shows with no add-on", visible.contains(.notchcast(.dictation))),
+            ("Notchcast › Dictation sits after Keyboard & Mouse",
+             NotchcastPane.allCases.firstIndex(of: .dictation)
+                == NotchcastPane.allCases.firstIndex(of: .keyboardMouse).map { $0 + 1 }),
+            ("settings/notchcast-dictation opens the new tab",
+             SettingsTab(slug: "notchcast-dictation") == .notchcast(.dictation)),
+            ("the Dictation History chord stays live with its owner tab hidden",
+             NotchcastHidden.liveCommandTabs == [.dictation]),
+            ("a tab whose commands live on is still a hidden tab",
+             NotchcastHidden.liveCommandTabs.isSubset(of: NotchcastHidden.tabs)),
+        ]
+        let failures = (calendarChecks + dictationChecks).filter { !$0.1 }
         for (message, _) in failures { print("FAIL: \(message)") }
         if !failures.isEmpty { exit(1) }
         let calendarCommands: [CommandID] = [
@@ -90,11 +117,10 @@ struct HiddenFeaturesTest {
                 && !NotchcastHidden.hides(tab: .general, keywords: ["Show in Menu Bar"]),
             "A row is hidden only in the tab that lists it")
         precondition(
-            SettingsSearchCatalog.entries.contains { $0.tab == .dictation && $0.keywords.contains("Language") },
-            "Dictation's own Language row is a separate setting and stays searchable")
-        precondition(
-            SettingsSearchCatalog.entries.contains { $0.tab == .dictation && $0.keywords.contains("AI providers") },
-            "With the AI tab hidden, Dictation's Cleanup holds the AI providers row")
+            SettingsSearchCatalog.entries.contains {
+                $0.tab == .notchcast(.dictation) && $0.keywords.contains("AI providers")
+            },
+            "With the AI tab hidden, Notchcast › Dictation's Cleanup holds the AI providers row")
         for title in ["Show animations", "Interface size", "Window mode"] {
             precondition(
                 SettingsSearchCatalog.entries.contains { $0.keywords.contains(title) },
@@ -107,6 +133,37 @@ struct HiddenFeaturesTest {
             SettingsSearchCatalog.entries.contains { $0.tab == .about && $0.keywords.contains("Links") },
             "About keeps its Links")
         print("Hidden features: tabs, rows and Calendar commands stay hidden. The granted Calendar store still starts.")
+    }
+
+    /// #1226: an upstream sync must not drop a line that hides an off feature's child rows.
+    private static func checkOffFeatureChildrenHide() {
+        let expected: [(String, String, Int)] = [
+            ("DesignSystem/SettingsComponents.swift", ".notchcastHidden(hidesLauncherToggle || !isEnabled)", 1),
+            ("Features/Clipboard/Settings/ClipboardSettingsView.swift",
+             ".notchcastHidden(!settings.clipboardEnabled)", 4),
+            ("Features/Snippets/Settings/SnippetsSettingsView.swift", ".notchcastHidden(!settings.snippetsEnabled)", 1),
+            ("Features/FileSearch/Settings/FileSearchSettingsView.swift",
+             ".notchcastHidden(!settings.fileSearchEnabled)", 5),
+            ("Features/WindowManagement/Settings/WindowManagementSettingsView.swift",
+             ".notchcastHidden(!settings.windowManagementEnabled)", 1),
+            ("Features/Quicklinks/Settings/QuicklinksSettingsView.swift",
+             ".notchcastHidden(!settings.quicklinksEnabled)", 1),
+            ("Features/Launcher/Settings/LauncherItemsSection.swift",
+             ".notchcastHidden(!visibility.isKindEnabled(kind))", 1),
+            ("Features/Launcher/Settings/ApplicationsSettingsView.swift",
+             ".notchcastHidden(!visibility.isKindEnabled(.application))", 1),
+            ("Features/HotKeys/Settings/HyperKeySettingsSection.swift",
+             ".notchcastHidden(settings.hyperKey == .none)", 1),
+        ]
+        for (file, line, count) in expected {
+            guard let source = try? String(contentsOfFile: "Tinycast/" + file, encoding: .utf8) else {
+                preconditionFailure("Reads Tinycast/\(file)")
+            }
+            let found = source.split(separator: "\n").filter {
+                $0.trimmingCharacters(in: .whitespaces) == line
+            }.count
+            precondition(found == count, "Tinycast/\(file) holds \(count)× \(line), found \(found)")
+        }
     }
 
     private static func checkCalendarStoreStartsWithCalendarOff() {
