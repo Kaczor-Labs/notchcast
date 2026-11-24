@@ -1,6 +1,7 @@
 import SwiftUI
 
 struct NotchcastSettingsView: View {
+    @Environment(SettingsNavigationState.self) private var navigation
     let controller: NotchcastController
     let pane: NotchcastPane
 
@@ -49,6 +50,7 @@ struct NotchcastSettingsView: View {
             if detail.hasRows, let context = controller.context(forSwitch: detail.id) {
                 ForEach(rows) { entry in
                     entry.row.view(context)
+                        .environment(\.openNotchcastSettingsSubpage, .init(navigation: navigation, context: context))
                 }
             }
         } header: {
