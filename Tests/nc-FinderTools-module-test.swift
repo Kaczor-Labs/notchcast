@@ -188,6 +188,7 @@ enum FinderToolsModuleTests {
 
         let rename = Rig(enabled: ["finderRename"])
         fake.posted = []
+        fake.frontmost = finderPID
         precondition(rename.session == nil, "rename alone installs no tap, so ⌃⌥⇧⌘R and ⌘X pass")
         precondition(rename.controller.run(entryID: "command:nc-finder-rename"), "the rename command runs")
         await rename.settle()
