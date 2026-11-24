@@ -1,6 +1,6 @@
 #!/bin/bash
 # githooks/pre-commit on a fixture fork: a merge of main that brings newer upstream text is not charged for it,
-# while a finding of our own is refused, mid-merge and in a normal commit.
+# while a finding of our own is refused, mid-merge and in a normal commit, whichever base git could pick.
 set -euo pipefail
 root=$(git rev-parse --show-toplevel)
 scratch=$(mktemp -d)
@@ -71,3 +71,34 @@ if git commit --quiet -m 'Ours' > "$scratch/output" 2>&1; then
 fi
 grep -qx 'error Tinycast/Upstream.swift: Title Case' "$scratch/output" || fail 'the refusal did not name the file'
 echo 'PASS: a normal commit is still measured against the upstream its branch has'
+
+# Two equally good bases: a normal commit keeps git's pick for HEAD first, the base without the finding.
+git init --quiet -b root "$scratch/bases"
+cd "$scratch/bases"
+mkdir Tinycast
+echo 'title: "Settings"' > Tinycast/Upstream.swift
+git add Tinycast
+git commit --quiet -m 'Root'
+git switch --quiet -c clean
+echo 'title: "Fork"' > Tinycast/Fork.swift
+git add Tinycast
+git commit --quiet -m 'Clean'
+git switch --quiet -c dirty root
+echo 'title: "Title Case"' >> Tinycast/Upstream.swift
+git commit --quiet -am 'Dirty'
+git switch --quiet -c upstream
+git merge --quiet --no-edit clean
+git update-ref refs/remotes/upstream/main upstream
+git switch --quiet -c pr clean
+git merge --quiet --no-commit dirty > "$scratch/output" 2>&1 || fail 'the fixture merge of dirty did not stage'
+git restore --quiet --source=clean --staged --worktree Tinycast/Upstream.swift
+git commit --quiet --no-edit
+[ "$(git merge-base --all HEAD upstream | wc -l)" -eq 2 ] || fail 'the fixture does not have two bases'
+git config core.hooksPath "$scratch/tools/githooks"
+echo 'title: "Title Case"' >> Tinycast/Upstream.swift
+git add Tinycast
+if git commit --quiet -m 'Ours' > "$scratch/output" 2>&1; then
+    fail 'a normal commit was measured against the base that already has the finding'
+fi
+grep -qx 'error Tinycast/Upstream.swift: Title Case' "$scratch/output" || fail 'the refusal did not name the file'
+echo 'PASS: a normal commit with two bases is measured against the one git picks for HEAD first'
