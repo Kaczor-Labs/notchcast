@@ -2,6 +2,7 @@ import SwiftUI
 
 struct CleanerScreen: PaletteScreen {
     let module: CleanerModule
+    let reviewID: UUID
     let query: String
     let selectRow: (Int) -> Void
 
@@ -44,7 +45,7 @@ struct CleanerScreen: PaletteScreen {
     func activate(at selection: Int) {
         switch session.phase {
         case .needsAccess: Permissions.openFullDiskAccessSettings()
-        case .scanFailed, .done: module.scan()
+        case .scanFailed, .done: module.scan(for: reviewID)
         case .review: module.clean()
         default: break
         }
@@ -59,7 +60,7 @@ struct CleanerScreen: PaletteScreen {
 
     func perform(_ shortcut: PaletteShortcut, at selection: Int) -> Bool {
         guard shortcut == .restart else { return false }
-        module.scan()
+        module.scan(for: reviewID)
         return true
     }
 

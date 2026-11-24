@@ -11,6 +11,7 @@ final class CleanerModule: NotchcastModule {
     let context: NotchcastContext
     private let askToEmptyTrash: @MainActor (String, String, String, String) async -> Bool
     private let emptyTrash: @MainActor () async throws -> Void
+    @ObservationIgnored private var reviewID: UUID?
     @ObservationIgnored private var scanTask: Task<Void, Never>?
     @ObservationIgnored private var cleanTask: Task<Void, Never>?
 
@@ -30,14 +31,20 @@ final class CleanerModule: NotchcastModule {
     func start() {}
 
     func stop() {
-        cancelScan()
+        if let reviewID { closeReview(reviewID) }
         cleanTask?.cancel()
         context.presenter.end(notice: Self.noticeID)
     }
 
+    func beginReview() -> UUID {
+        let id = UUID()
+        reviewID = id
+        return id
+    }
+
     @discardableResult
-    func scan() -> Task<Void, Never>? {
-        guard cleanTask == nil else { return nil }
+    func scan(for id: UUID) -> Task<Void, Never>? {
+        guard reviewID == id, cleanTask == nil else { return nil }
         scanTask?.cancel()
         result = nil
         let session = session
@@ -46,13 +53,11 @@ final class CleanerModule: NotchcastModule {
         return task
     }
 
-    func cancelScan() {
+    func closeReview(_ id: UUID) {
+        guard reviewID == id else { return }
+        reviewID = nil
         scanTask?.cancel()
         scanTask = nil
-    }
-
-    func cancelScan(_ task: Task<Void, Never>?) {
-        if scanTask == task { cancelScan() }
     }
 
     @discardableResult

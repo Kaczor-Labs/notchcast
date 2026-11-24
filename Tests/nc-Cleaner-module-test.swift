@@ -60,13 +60,14 @@ struct CleanerModuleTest {
         let module = CleanerModule(
             context: context, session: session, askToEmptyTrash: askToEmpty, emptyTrash: { presenter.empties += 1 })
         defer { module.stop() }
+        let review = module.beginReview()
 
-        await module.scan()?.value
+        await module.scan(for: review)?.value
         precondition(session.phase == .needsAccess && session.items.isEmpty)
         precondition(module.clean() == nil && fs.trashCalls.isEmpty)
         hasAccess = true
 
-        await module.scan()?.value
+        await module.scan(for: review)?.value
         await module.clean()?.value
         precondition(fs.trashCalls.isEmpty && presenter.posts.isEmpty && presenter.offers == 0)
 
@@ -79,7 +80,7 @@ struct CleanerModuleTest {
 
         fs.put(item, size: 64)
         fs.failTrash(of: item)
-        await module.scan()?.value
+        await module.scan(for: review)?.value
         await module.clean()?.value
         precondition(presenter.offers == 1 && presenter.posts.last?.isFailure == true)
 
@@ -87,24 +88,43 @@ struct CleanerModuleTest {
         fs.remove(item)
         fs.put(another, size: 64)
         presenter.emptyAccepted = true
-        await module.scan()?.value
+        await module.scan(for: review)?.value
         await module.clean()?.value
         precondition(presenter.offers == 2 && presenter.empties == 1)
 
         fs.put(another, size: 64)
         defaults.set(false, forKey: CleanerModule.offersEmptyTrash)
-        await module.scan()?.value
+        await module.scan(for: review)?.value
         await module.clean()?.value
         precondition(presenter.offers == 2 && presenter.empties == 1)
 
-        let replaced = module.scan()
-        let current = module.scan()
-        module.cancelScan(replaced)
-        await current?.value
-        precondition(session.phase == .review, "closing a replaced screen keeps the new scan")
-        let refused = module.scan()
-        module.cancelScan(refused)
-        await refused?.value
-        precondition(session.phase == .idle && session.items.isEmpty, "a refused screen cancels its scan")
+        await module.scan(for: review)?.value
+        let refreshed = module.scan(for: review)
+        module.closeReview(review)
+        await refreshed?.value
+        precondition(refreshed?.isCancelled == true && session.phase == .idle,
+                     "closing the review cancels its refresh")
+        precondition(module.scan(for: review) == nil, "a closed screen cannot restart its scan")
+
+        let replaced = module.beginReview()
+        let oldScan = module.scan(for: replaced)
+        let current = module.beginReview()
+        let currentScan = module.scan(for: current)
+        module.closeReview(replaced)
+        await currentScan?.value
+        precondition(oldScan?.isCancelled == true && currentScan?.isCancelled == false && session.phase == .review,
+                     "closing a replaced screen keeps the new scan")
+        let replacementRefresh = module.scan(for: current)
+        module.closeReview(current)
+        await replacementRefresh?.value
+        precondition(replacementRefresh?.isCancelled == true && session.phase == .idle,
+                     "closing the replacement cancels its refresh")
+
+        let refused = module.beginReview()
+        let refusedScan = module.scan(for: refused)
+        module.closeReview(refused)
+        await refusedScan?.value
+        precondition(refusedScan?.isCancelled == true && session.phase == .idle && session.items.isEmpty,
+                     "a refused screen cancels its scan")
     }
 }
