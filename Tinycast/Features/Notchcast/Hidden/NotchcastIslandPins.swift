@@ -7,6 +7,10 @@ enum NotchcastIslandPins {
     static let paletteDraggable = false
     static let openOnCursorScreen = true
     static let remembersPalettePosition = false
+    static let autoSwitchInputSourceID: String? = nil
+    static let compactMode = true
+    static let compactBarCommands: [CommandID] = []
+    static let launcherShowsSuggestions = false
 }
 
 extension View {
