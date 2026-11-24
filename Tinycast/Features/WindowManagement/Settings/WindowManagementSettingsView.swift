@@ -35,6 +35,7 @@ struct WindowManagementSettingsView: View {
                 commands
             }
             .settingsEnabled(settings.windowManagementEnabled)
+            .notchcastHidden(!settings.windowManagementEnabled)
         }
         .formStyle(.grouped)
         .settingsScrollTarget(.windowManagement)
