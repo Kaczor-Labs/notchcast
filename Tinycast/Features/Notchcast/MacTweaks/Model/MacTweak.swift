@@ -5,6 +5,7 @@ enum MacTweakGroup: String, CaseIterable, Sendable {
     case finder, dockAndWindows, typing, screenshots, annoyances, appleApps, privacy
 }
 
+// notchcast-foreign-strings: the raw values are process names for killall, never shown.
 enum MacTweakRestart: String, Codable, CaseIterable, Sendable {
     case finder = "Finder"
     case dock = "Dock"
@@ -17,6 +18,12 @@ enum MacTweakTarget: Codable, Hashable, Sendable {
     case preference(domain: String, key: String, appOnly: Bool = false)
     case service(label: String)
     case libraryHidden
+
+    // Both global-domain names and either appOnly write the same key of the same layer.
+    var canonical: Self {
+        guard case .preference(let domain, let key, _) = self else { return self }
+        return .preference(domain: domain == ".GlobalPreferences" ? "NSGlobalDomain" : domain, key: key)
+    }
 }
 
 enum MacTweakChange: Equatable, Sendable {
@@ -44,9 +51,11 @@ struct MacTweak: Identifiable, Sendable {
     let changes: [MacTweakChange]
     var restarts: Set<MacTweakRestart> = []
     var since = OperatingSystemVersion(majorVersion: 26, minorVersion: 0, patchVersion: 0)
+    // A retired tweak stays in the catalogue only so Undo Everything can restore what it wrote.
+    var isRetired = false
 
     func isSupported(on version: OperatingSystemVersion) -> Bool {
-        (version.majorVersion, version.minorVersion, version.patchVersion) >=
+        !isRetired && (version.majorVersion, version.minorVersion, version.patchVersion) >=
             (since.majorVersion, since.minorVersion, since.patchVersion)
     }
 }

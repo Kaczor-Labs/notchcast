@@ -2,6 +2,7 @@
 struct MacTweakSnapshot: Codable, Sendable {
     let states: [MacTweak.ID: MacTweakState]
     let journaled: Set<MacTweak.ID>
+    var sequence = 0
 
     var applied: Set<MacTweak.ID> {
         Set(states.compactMap { $0.value == .applied ? $0.key : nil })
