@@ -21,3 +21,4 @@ Screenshots: Model/AnnotationDocument+Dirty.swift ← vorssaint/vorssaint-utils@
 Screenshots: Model/ScreenshotWindowCapture.swift ← vorssaint/vorssaint-utils@1dca3339/Sources/Vorssaint/Services/QuickTools/ScreenshotCapturePolicy.swift (GPL-3.0-or-later)
 Screenshots: Model/ScreenshotWindowCapture.swift ← vorssaint/vorssaint-utils@1dca3339/Sources/Vorssaint/Services/QuickTools/ScreenshotCaptureEngine.swift (GPL-3.0-or-later)
 Screenshots: Service/ScreenshotSystem+Live.swift ← vorssaint/vorssaint-utils@1dca3339/Sources/Vorssaint/Services/QuickTools/ScreenshotCaptureEngine.swift (GPL-3.0-or-later)
+Screenshots: Model/ScreenshotWindowCapture.swift ← vorssaint/vorssaint-utils@1dca3339/Sources/Vorssaint/Services/QuickTools/ScreenshotSupport.swift (GPL-3.0-or-later)

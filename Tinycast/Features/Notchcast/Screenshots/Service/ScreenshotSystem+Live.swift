@@ -14,7 +14,7 @@ extension ScreenshotSystem {
             try await freezeDisplays(under: point, excluding: exclusion, captureUI: captureUIWindowIDs())
         },
         windows: windowsFrontToBack,
-        freezeWindows: { ids in try await freezeWindows(ids) },
+        freezeWindows: { chosen in try await freezeWindows(chosen) },
         cursor: { CGEvent(source: nil)?.location ?? .zero },
         writeClipboard: { data in
             let item = NSPasteboardItem()
@@ -50,8 +50,9 @@ extension ScreenshotSystem {
             NSApp.activate()
             return panel.runModal() == .OK ? panel.url : nil
         },
-        select: { frozen, windows, completion in
-            let surface = ScreenshotSelectionSurface(frozen: frozen, windows: windows, completion: completion)
+        select: { frozen, windows, stills, completion in
+            let surface = ScreenshotSelectionSurface(
+                frozen: frozen, windows: windows, stills: stills, completion: completion)
             return { surface.finish(nil) }
         },
         edit: { image, scale, finish in CaptureEditorPanel.open(image, scale: scale, finish: finish) }
@@ -89,29 +90,34 @@ extension ScreenshotSystem {
     }
 
     @concurrent
-    private static func freezeWindows(_ ids: [UInt32]) async throws -> [UInt32: CGImage] {
-        let wanted = Set(ids)
+    private static func freezeWindows(_ chosen: [ScreenshotWindow]) async throws -> [UInt32: CGImage] {
+        let frames = frameByID(chosen)
         let content = try await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: true)
-        var images: [UInt32: CGImage] = [:]
-        for window in content.windows where wanted.contains(window.windowID) {
-            try Task.checkCancellation()
-            images[window.windowID] = await ScreenshotWindowCapture.still(
-                of: window.frame, displays: content.displays, frame: \.frame,
-                composited: { display, sourceRect in
-                    await shot(of: window.frame, SCContentFilter(display: display, including: [window])) {
-                        $0.sourceRect = sourceRect
-                        $0.ignoreShadowsDisplay = true
-                    }
-                },
-                isolated: {
-                    await shot(of: window.frame, SCContentFilter(desktopIndependentWindow: window)) {
-                        $0.captureResolution = .best
-                        $0.ignoreShadowsSingleWindow = true
-                        $0.ignoreGlobalClipSingleWindow = true
-                    }
-                })
-        }
+        let windows = content.windows.filter { frames[$0.windowID] != nil }
+        let byID = Dictionary(windows.map { ($0.windowID, $0) }) { first, _ in first }
+        let images = await ScreenshotWindowCapture.stills(
+            of: windows.map { ($0.windowID, $0.frame) }, chosen: frames, displays: content.displays, frame: \.frame,
+            composited: { id, display in
+                guard let window = byID[id] else { return nil }
+                return await shot(of: display.frame, SCContentFilter(display: display, including: [window])) {
+                    $0.ignoreShadowsDisplay = true
+                }
+            },
+            isolated: { id in
+                guard let window = byID[id] else { return nil }
+                return await shot(of: window.frame, SCContentFilter(desktopIndependentWindow: window)) {
+                    $0.captureResolution = .best
+                    $0.ignoreShadowsSingleWindow = true
+                    $0.ignoreGlobalClipSingleWindow = true
+                }
+            },
+            framesAfter: { frameByID(await windowsFrontToBack()) })
+        try Task.checkCancellation()
         return images
+    }
+
+    private static func frameByID(_ windows: [ScreenshotWindow]) -> [UInt32: CGRect] {
+        Dictionary(windows.map { ($0.id, $0.frame) }) { first, _ in first }
     }
 
     /// A stream configuration: the screenshot one cannot lift the clip off a window past a display edge.

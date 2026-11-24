@@ -13,7 +13,7 @@ final class ScreenshotSelectionSurface {
     private var panels: [ScreenshotSelectionPanel] = []
     private var completion: (@MainActor (ScreenshotRequest?) -> Void)?
 
-    init(frozen: [ScreenshotFrozenDisplay], windows: [ScreenshotWindow],
+    init(frozen: [ScreenshotFrozenDisplay], windows: [ScreenshotWindow], stills: Set<UInt32>,
          completion: @escaping @MainActor (ScreenshotRequest?) -> Void) {
         self.frozen = frozen
         self.completion = completion
@@ -26,7 +26,7 @@ final class ScreenshotSelectionSurface {
                 finish(key == .cancel ? nil : wholeDisplayUnderCursor())
             }
             panel.contentView = ScreenshotSelectionHostingView(rootView: ScreenshotSelectionView(
-                display: display, windows: windows, finish: { [weak self] in self?.finish($0) }
+                display: display, windows: windows, stills: stills, finish: { [weak self] in self?.finish($0) }
             ).motionScope())
             return panel
         }
@@ -95,6 +95,7 @@ final class ScreenshotSelectionHostingView<Content: View>: NSHostingView<Content
 struct ScreenshotSelectionView: View {
     let display: ScreenshotFrozenDisplay
     let windows: [ScreenshotWindow]
+    let stills: Set<UInt32>
     let finish: @MainActor (ScreenshotRequest?) -> Void
     @State private var dragStart: CGPoint?
     @State private var pointer: CGPoint?
@@ -121,7 +122,7 @@ struct ScreenshotSelectionView: View {
             }
             .onEnded { value in
                 dragStart = nil
-                finish(request(from: value.startLocation, to: value.location))
+                if let request = request(from: value.startLocation, to: value.location) { finish(request) }
             })
         .onContinuousHover { phase in
             if case .active(let location) = phase { pointer = location } else { pointer = nil }
@@ -142,19 +143,24 @@ struct ScreenshotSelectionView: View {
             return ScreenshotGeometry.selection(from: dragStart, to: pointer, in: bounds)
         }
         guard let pointer, let window = window(at: pointer) else { return bounds }
+        guard stills.contains(window.id) else { return .null }
         return window.frame.offsetBy(dx: -display.frame.minX, dy: -display.frame.minY).intersection(bounds)
     }
 
-    private func request(from start: CGPoint, to end: CGPoint) -> ScreenshotRequest {
+    /// Nil for a click on a window without a still: the surface stays up for a drag or Return.
+    private func request(from start: CGPoint, to end: CGPoint) -> ScreenshotRequest? {
         guard ScreenshotGeometry.isClick(from: start, to: end) else {
             return .rect(ScreenshotGeometry.selection(from: start, to: end, in: bounds)
                 .offsetBy(dx: display.frame.minX, dy: display.frame.minY))
         }
-        return window(at: end).map { .window($0.id) } ?? .display(display.id)
+        return ScreenshotRequest.click(at: global(end), windows: windows, stills: stills, display: display.id)
     }
 
     private func window(at local: CGPoint) -> ScreenshotWindow? {
-        ScreenshotExclusion.window(
-            at: CGPoint(x: local.x + display.frame.minX, y: local.y + display.frame.minY), in: windows)
+        ScreenshotExclusion.window(at: global(local), in: windows)
+    }
+
+    private func global(_ local: CGPoint) -> CGPoint {
+        CGPoint(x: local.x + display.frame.minX, y: local.y + display.frame.minY)
     }
 }

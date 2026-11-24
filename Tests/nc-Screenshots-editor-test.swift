@@ -106,7 +106,7 @@ extension ScreenshotSystem {
             fake.saveAsNames.append(name)
             return fake.saveAsURL
         },
-        select: { _, _, completion in
+        select: { _, _, _, completion in
             fake.answer = completion
             fake.signals.fire("select")
             return { fake.answer = nil }
