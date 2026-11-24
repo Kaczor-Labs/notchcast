@@ -48,7 +48,10 @@ final class CleanerModule: NotchcastModule {
         scanTask?.cancel()
         result = nil
         let session = session
-        let task = Task { await session.open() }
+        let task = Task {
+            guard !Task.isCancelled else { return }
+            await session.open()
+        }
         scanTask = task
         return task
     }

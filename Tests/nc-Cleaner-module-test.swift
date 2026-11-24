@@ -59,8 +59,13 @@ struct CleanerModuleTest {
         let item = CleanerTestFileSystem.item("org.example.cache")
         fs.put(item, size: 64)
         var hasAccess = false
+        var onScanStart: (@MainActor () -> Void)?
+        let runner = CleanerRunner(scanner: fs.scanner, runningApps: {
+            onScanStart?()
+            return .init()
+        })
         let session = CleanerSession(
-            home: CleanerTestFileSystem.area.home, runner: CleanerRunner(scanner: fs.scanner, runningApps: { .init() }),
+            home: CleanerTestFileSystem.area.home, runner: runner,
             hasAccess: { hasAccess })
         let module = CleanerModule(
             context: context, session: session, askToEmptyTrash: askToEmpty,
@@ -146,9 +151,13 @@ struct CleanerModuleTest {
         precondition(presenter.offers == 3 && presenter.empties == 2)
 
         await module.scan(for: review)?.value
+        onScanStart = {
+            precondition(session.phase == .scanning)
+            module.closeReview(review)
+        }
         let refreshed = module.scan(for: review)
-        module.closeReview(review)
         await refreshed?.value
+        onScanStart = nil
         precondition(refreshed?.isCancelled == true && session.phase == .idle,
                      "closing the review cancels its refresh")
         precondition(module.scan(for: review) == nil, "a closed screen cannot restart its scan")
@@ -161,9 +170,10 @@ struct CleanerModuleTest {
         await currentScan?.value
         precondition(oldScan?.isCancelled == true && currentScan?.isCancelled == false && session.phase == .review,
                      "closing a replaced screen keeps the new scan")
+        onScanStart = { module.closeReview(current) }
         let replacementRefresh = module.scan(for: current)
-        module.closeReview(current)
         await replacementRefresh?.value
+        onScanStart = nil
         precondition(replacementRefresh?.isCancelled == true && session.phase == .idle,
                      "closing the replacement cancels its refresh")
 
