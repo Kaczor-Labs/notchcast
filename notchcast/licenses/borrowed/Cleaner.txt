@@ -20,3 +20,8 @@ Cleaner: Service/CleanerBrowserVersions.swift ← tw93/Mole@f3804188/lib/clean/u
 Cleaner: Service/CleanerUserAreas.swift ← TuguiDragos/Peel@20230794/Packages/PeelCore/Sources/PeelCore/Space/SpaceReport.swift (GPL-3.0)
 Cleaner: Service/CleanerUserAreas.swift ← tw93/Mole@f3804188/lib/clean/user.sh (GPL-3.0)
 Cleaner: Service/CleanerRunningApps.swift ← TuguiDragos/Peel@20230794/Packages/PeelCore/Sources/PeelCore/Apps/AppInspector.swift (GPL-3.0)
+Cleaner: Model/CleanerFileSystem.swift ← TuguiDragos/Peel@20230794/Packages/PeelCore/Sources/PeelCore/Removal/OpenFiles.swift (GPL-3.0)
+Cleaner: Model/CleanerPolicy.swift ← TuguiDragos/Peel@20230794/Packages/PeelCore/Sources/PeelCore/Support/FileSize.swift (GPL-3.0)
+Cleaner: Model/CleanerPolicy.swift ← TuguiDragos/Peel@20230794/Packages/PeelCore/Sources/PeelCore/Leftovers/Naming.swift (GPL-3.0)
+Cleaner: Service/CleanerFileSystem+Live.swift ← TuguiDragos/Peel@20230794/Packages/PeelCore/Sources/PeelPrivileged/RunningProgram.swift (GPL-3.0)
+Cleaner: Model/CleanerPolicy.swift ← TuguiDragos/Peel@20230794/Packages/PeelCore/Sources/PeelCore/Apps/InstalledApp.swift (GPL-3.0)

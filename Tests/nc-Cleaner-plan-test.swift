@@ -15,6 +15,8 @@ struct CleanerPlanTest {
     static func main() async throws {
         try await checksSelection()
         try await givesEachRowItsOwnBudget()
+        try await holdsWhatRunsOrMayBeWork()
+        checksVendorNames()
     }
 
     private static func checksSelection() async throws {
@@ -82,5 +84,52 @@ struct CleanerPlanTest {
         precondition(plan.items.map(\.standing) == [.recommended, .locked(.scanLimit), .recommended])
         precondition(plan.items.last?.size?.bytes == 64)
         precondition(plan.defaultSelection.checked == [large, small])
+    }
+
+    private static func holdsWhatRunsOrMayBeWork() async throws {
+        let fs = CleanerTestFileSystem()
+        let vendor = CleanerTestFileSystem.item("jetbrains.com")
+        let tool = CleanerTestFileSystem.item("com.example.tool")
+        let program = tool.appending(path: "bin")
+        let linked = CleanerTestFileSystem.item("com.example.downloads")
+        let repository = CleanerTestFileSystem.item("com.example.checkout")
+        let worktree = CleanerTestFileSystem.item("com.example.worktree")
+        let shouting = CleanerTestFileSystem.item("com.example.shouting")
+        let scripted = CleanerTestFileSystem.item("com.example.scripted")
+        let folders = [vendor, tool, linked, repository, worktree, shouting, scripted, repository.appending(component: ".git")]
+        for folder in folders {
+            fs.put(folder, directory: true)
+        }
+        fs.put(vendor.appending(component: "entry"), size: 8)
+        fs.put(program, size: 8)
+        fs.put(linked.appending(component: "archive"), size: 8)
+        fs.putLink(linked.appending(component: "latest"), destination: "archive")
+        fs.put(repository.appending(path: ".git/HEAD"), size: 8)
+        fs.put(worktree.appending(component: ".git"), size: 8)
+        fs.put(shouting.appending(component: ".GIT"), size: 8)
+        fs.putLink(scripted.appending(component: "worker.py"), destination: CleanerTestFileSystem.area.home.path + "/tools/worker.py")
+        try fs.run(program)
+        fs.runScript(named: CleanerTestFileSystem.area.root.path.lowercased() + "/com.example.scripted/./worker.py")
+
+        let apps = CleanerRunningApps(running: Set(CleanerPolicy.makerNames(of: "com.jetbrains.intellij").map(CleanerPolicy.appKey)))
+        let plan = try await fs.scanner.scan(home: CleanerTestFileSystem.area.home, apps: apps)
+        let rows = Dictionary(uniqueKeysWithValues: plan.items.map { ($0.id, $0.standing) })
+        precondition(rows[vendor] == .heldBack(.runningApp))
+        precondition(rows[tool] == .heldBack(.runningProgram))
+        precondition(rows[linked] == .recommended && plan.items.first { $0.id == linked }?.size?.bytes == 8)
+        precondition(plan.snapshots[linked]?.entries[linked.appending(component: "latest")]?.facts.isSymbolicLink == true)
+        precondition(rows[repository] == .heldBack(.holdsRepository))
+        precondition(rows[worktree] == .heldBack(.holdsRepository))
+        precondition(rows[shouting] == .heldBack(.holdsRepository))
+        precondition(rows[scripted] == .heldBack(.runningProgram))
+        precondition(plan.defaultSelection.checked == [linked])
+    }
+
+    private static func checksVendorNames() {
+        precondition(CleanerPolicy.makerNames(of: "com.jetbrains.intellij") == ["jetbrains", "com.jetbrains", "jetbrains.com"])
+        precondition(CleanerPolicy.makerNames(of: "maccatalyst.com.example.Reader").first == "example")
+        precondition(CleanerPolicy.makerNames(of: "com.github.someone.Tool").last == "someone.github.com")
+        precondition(CleanerPolicy.makerNames(of: "com.github.Tool").isEmpty)
+        precondition(CleanerPolicy.makerNames(of: "org.example").isEmpty)
     }
 }

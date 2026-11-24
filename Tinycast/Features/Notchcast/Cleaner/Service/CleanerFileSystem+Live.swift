@@ -65,15 +65,18 @@ struct LiveCleanerFileSystem: CleanerFileSystem {
         }
     }
 
-    func openFiles() throws -> Set<CleanerFile.Identity> {
+    func openFiles() throws -> CleanerOpenFiles {
         let capacity = proc_listallpids(nil, 0) + 64
         var pids = [pid_t](repeating: 0, count: Int(capacity))
         let count = proc_listallpids(&pids, capacity * Int32(MemoryLayout<pid_t>.stride))
         guard count > 0, count < capacity else { throw CleanerFileError.unreadable }
 
-        var files: Set<CleanerFile.Identity> = []
+        var files = CleanerOpenFiles()
         for pid in pids.prefix(Int(count)) where pid > 0 && pid != getpid() {
             try Task.checkCancellation()
+            let run = Self.programs(runBy: pid)
+            files.running.formUnion(run.files.compactMap(Self.identity(at:)))
+            files.runningPaths.formUnion(run.scripts.flatMap(Self.spellings(of:)))
             let size = proc_pidinfo(pid, PROC_PIDLISTFDS, 0, nil, 0)
             guard size > 0 else { continue }
             let stride = MemoryLayout<proc_fdinfo>.stride
@@ -89,7 +92,7 @@ struct LiveCleanerFileSystem: CleanerFileSystem {
                     info.pvi.vi_stat.vst_mode & S_IFMT == S_IFREG
                 else { continue }
                 let stat = info.pvi.vi_stat
-                files.insert(.init(
+                files.held.insert(.init(
                     device: Int32(bitPattern: stat.vst_dev), inode: stat.vst_ino,
                     birthSeconds: stat.vst_birthtime, birthNanoseconds: Int(stat.vst_birthtimensec)))
             }
@@ -97,8 +100,80 @@ struct LiveCleanerFileSystem: CleanerFileSystem {
         return files
     }
 
-    func trash(_ url: URL) throws {
-        try FileManager.default.trashItem(at: url, resultingItemURL: nil)
+    func trash(_ url: URL) throws -> URL? {
+        var trashed: NSURL?
+        try FileManager.default.trashItem(at: url, resultingItemURL: &trashed)
+        return trashed as URL?
+    }
+
+    // A script runner also runs from its working folder and each script it names, relative ones included.
+    private static func programs(runBy pid: pid_t) -> (files: [String], scripts: [String]) {
+        var buffer = [CChar](repeating: 0, count: 4 * Int(MAXPATHLEN))
+        guard proc_pidpath(pid, &buffer, UInt32(buffer.count)) > 0,
+            let program = String(bytes: buffer.prefix { $0 != 0 }.map { UInt8(bitPattern: $0) }, encoding: .utf8)
+        else { return ([], []) }
+        let name = URL(filePath: program).lastPathComponent
+        guard ["node", "deno", "bun", "ruby", "perl", "python"].contains(where: name.hasPrefix) else {
+            return ([program], [])
+        }
+        let folder = workingFolder(of: pid)
+        let scripts = (arguments(of: pid) ?? []).dropFirst().compactMap { argument -> String? in
+            if argument.hasPrefix("/") { return argument }
+            guard let folder, !argument.isEmpty, !argument.hasPrefix("-") else { return nil }
+            return folder + "/" + argument
+        }
+        return ([program] + scripts + (folder.map { [$0] } ?? []), scripts)
+    }
+
+    private static func workingFolder(of pid: pid_t) -> String? {
+        var info = proc_vnodepathinfo()
+        let expected = Int32(MemoryLayout<proc_vnodepathinfo>.size)
+        guard proc_pidinfo(pid, PROC_PIDVNODEPATHINFO, 0, &info, expected) == expected else { return nil }
+        let path = withUnsafeBytes(of: &info.pvi_cdir.vip_path) {
+            String(bytes: $0.prefix { $0 != 0 }, encoding: .utf8)
+        }
+        return path.flatMap { $0.hasPrefix("/") ? $0 : nil }
+    }
+
+    // The named path keeps a final link; its folder may be reached through links, such as /var.
+    private static func spellings(of path: String) -> [String] {
+        let named = URL(filePath: path).standardized
+        let folder = named.deletingLastPathComponent().resolvingSymlinksInPath()
+        return [named.path, folder.appending(component: named.lastPathComponent).path]
+    }
+
+    // KERN_PROCARGS2 holds the argument count, the program path and its padding, then each argument.
+    private static func arguments(of pid: pid_t) -> [String]? {
+        var maximum: Int32 = 0
+        var size = MemoryLayout<Int32>.size
+        var name = [CTL_KERN, KERN_ARGMAX]
+        guard sysctl(&name, u_int(name.count), &maximum, &size, nil, 0) == 0, maximum > 0 else { return nil }
+        var buffer = [UInt8](repeating: 0, count: Int(maximum))
+        size = buffer.count
+        name = [CTL_KERN, KERN_PROCARGS2, pid]
+        guard sysctl(&name, u_int(name.count), &buffer, &size, nil, 0) == 0, size > MemoryLayout<Int32>.size
+        else { return nil }
+        let count = buffer.withUnsafeBytes { $0.loadUnaligned(as: Int32.self) }
+        var index = MemoryLayout<Int32>.size
+        while index < size, buffer[index] != 0 { index += 1 }
+        while index < size, buffer[index] == 0 { index += 1 }
+        var arguments: [String] = []
+        var read: Int32 = 0
+        while read < count, index < size {
+            let end = buffer[index..<size].firstIndex(of: 0) ?? size
+            if let argument = String(bytes: buffer[index..<end], encoding: .utf8) { arguments.append(argument) }
+            read += 1
+            index = end + 1
+        }
+        return arguments
+    }
+
+    private static func identity(at path: String) -> CleanerFile.Identity? {
+        var info = stat()
+        guard stat(path, &info) == 0 else { return nil }
+        return .init(
+            device: info.st_dev, inode: info.st_ino, birthSeconds: Int64(info.st_birthtimespec.tv_sec),
+            birthNanoseconds: info.st_birthtimespec.tv_nsec)
     }
 
     private static func fileError(_ code: Int32) -> CleanerFileError {

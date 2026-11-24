@@ -21,7 +21,7 @@ struct CleanerRunner: Sendable {
                 report.cancelled = true
                 break
             } catch {
-                report.entries.append(.init(id: item.id, outcome: .failed))
+                report.entries.append(.init(id: item.id, outcome: .failed((error as? CocoaError)?.code)))
             }
             await onProgress(report.entries.count)
         }
@@ -29,7 +29,7 @@ struct CleanerRunner: Sendable {
     }
 
     private struct OpenFiles {
-        var identities: Set<CleanerFile.Identity> = []
+        var identities = CleanerOpenFiles()
         var expires: ContinuousClock.Instant?
     }
 
@@ -63,9 +63,7 @@ struct CleanerRunner: Sendable {
             let appsBeforeWalk = area.isSharedContainer ? latestApps.includingGroups(read: scanner.readGroups) : latestApps
             let current = try scanner.snapshot(of: url, in: area)
             guard current == scanned else { return .skipped(.changed) }
-            if current.entries.values.contains(where: { openFiles.identities.contains($0.identity) }) {
-                return .skipped(.heldBack(.openFile))
-            }
+            if let reason = openFiles.identities.hold(on: current, row: url) { return .skipped(.heldBack(reason)) }
             let currentApps = refreshAfterWalk ? await runningApps() : appsBeforeWalk
             if scanner.isExcluded(url, in: area, ownNames: currentApps.own) {
                 return .skipped(.heldBack(.protectedData))
@@ -81,7 +79,14 @@ struct CleanerRunner: Sendable {
             guard try scanner.parentIdentities(of: url, in: area) == scanned.parents,
                 try scanner.fileSystem.inspect(url) == scanned.entries[url]
             else { return .skipped(.changed) }
-            try scanner.fileSystem.trash(url)
+            guard let trashed = try scanner.fileSystem.trash(url) else { return .trashedUnverified }
+            do {
+                // A move within one volume keeps the identity, so a different one means the path was swapped.
+                guard try scanner.fileSystem.inspect(trashed).identity == scanned.entries[url]?.identity
+                else { return .trashedUnverified }
+            } catch {
+                return .trashedUnverified
+            }
             return .trashed(item.size)
         } catch CleanerFileError.missing {
             return .skipped(.missing)
