@@ -4,11 +4,9 @@
 import SwiftUI
 
 enum CleanerAddon: NotchcastAddon {
-    static let switchID = "cleaner"
-
     static let switches = [
         NotchcastSwitch(
-            id: switchID,
+            id: "cleaner",
             title: String(localized: "Cleaner", table: "NotchcastCleaner"),
             subtitle: String(
                 localized: "Review app caches, logs and other leftovers, then move the ones you tick to the Trash.",
@@ -19,13 +17,13 @@ enum CleanerAddon: NotchcastAddon {
     static let commands = [
         NotchcastCommand(
             slug: "clean-up-mac", name: String(localized: "Clean Up Mac", table: "NotchcastCleaner"),
-            symbol: "trash", switchID: switchID, keywords: ["cache", "logs", "storage", "space", "trash"],
+            symbol: "trash", switchID: "cleaner", keywords: ["cache", "logs", "storage", "space", "trash"],
             run: { $0.module(CleanerModule.self)?.openScreen() },
             diskCleanUpTitle: String(localized: "Clean Up", table: "NotchcastCleaner")),
     ]
 
     static let settings = [
-        NotchcastSettingsRow(switchID: switchID) { AnyView(CleanerSettings(context: $0)) },
+        NotchcastSettingsRow(switchID: "cleaner") { AnyView(CleanerSettings(context: $0)) },
     ]
 
     static func makeModule(_ context: NotchcastContext) -> (any NotchcastModule)? { CleanerModule.live(context) }
