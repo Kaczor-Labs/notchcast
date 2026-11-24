@@ -15,8 +15,8 @@ final class FinderToolsModule: NotchcastModule {
     private var observers: [NotificationToken] = []
     private var generation = UUID()
     private var queue: [FinderToolsPolicy.Request] = []
-    /// A launcher command run while Notchcast itself was frontmost, sent if Finder is activated next.
-    private var awaitingFinder: FinderToolsPolicy.Action?
+    /// A rename run while Notchcast itself was frontmost, sent if Finder is activated next.
+    private var awaitingFinder = false
     private(set) var worker: Task<Void, Never>?
 
     init(context: NotchcastContext, system: FinderToolsSystem) {
@@ -62,19 +62,19 @@ final class FinderToolsModule: NotchcastModule {
         worker?.cancel()
         worker = nil
         queue = []
-        awaitingFinder = nil
+        awaitingFinder = false
         subscriptions.forEach(context.unsubscribe)
         subscriptions = []
         observers = []
         policy.value.withLock { $0 = FinderToolsPolicy() }
     }
 
-    func run(_ action: FinderToolsPolicy.Action) {
+    func rename() {
         refreshFrontmost()
-        if policy.value.withLock({ $0.command(action) }) {
+        if policy.value.withLock({ $0.rename() }) {
             pump()
         } else if system.frontmostPID() == ProcessInfo.processInfo.processIdentifier {
-            awaitingFinder = action
+            awaitingFinder = true
         }
     }
 
@@ -149,9 +149,9 @@ final class FinderToolsModule: NotchcastModule {
     private func applicationActivated() {
         refreshFrontmost()
         if !context.isAccessibilityTrusted { policy.value.withLock { $0.forget() } }
-        guard let action = awaitingFinder else { return }
-        awaitingFinder = nil
-        if policy.value.withLock({ $0.finderPID != nil }) { run(action) }
+        guard awaitingFinder else { return }
+        awaitingFinder = false
+        if policy.value.withLock({ $0.finderPID != nil }) { rename() }
     }
 
     private func switchesChanged() {
