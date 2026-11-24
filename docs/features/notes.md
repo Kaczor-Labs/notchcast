@@ -321,8 +321,8 @@ gives the literal editor: one font and colour, native Return, Tab and shortcuts,
 Flipping it restyles the open note without touching its undo history or marking it dirty.
 
 Settings > Notes > **Show Formatting Bar** is `AppSettings.notesShowsFormattingBar`, on when absent and
-carried by settings backups. It only takes effect while Render Markdown is on, and its row is disabled
-otherwise.
+carried by settings backups. It only takes effect while Render Markdown is on, and its row shows only
+then.
 
 An empty note shows a `Start writing…` placeholder aligned to the 16-point text container inset. The
 character count comes straight off `NSTextStorage.length`. The word count is `NoteWordCount`: ICU word

@@ -769,7 +769,7 @@ prefs, caches, TCC grants and login item, so this cannot disturb an installed co
   its inset in both states, the heading menu still opens in full above the capsule, and widening the
   window brings the counts back
 - ⌥⌘C and ⇧⌘B toggle a code block and a quote; with Render Markdown off they do nothing special
-- Settings > Notes > Show Formatting Bar is disabled while Render Markdown is off, Settings search for
+- Settings > Notes > Show Formatting Bar shows only while Render Markdown is on, Settings search for
   "formatting" lands on it, and a backup round trip restores it
 - With Show in Menu Bar on, the Notes icon appears at once; a click shows Notes and a second click
   hides it, and right-, Control- and Option-click open Create Note and Search Notes. Turning the
