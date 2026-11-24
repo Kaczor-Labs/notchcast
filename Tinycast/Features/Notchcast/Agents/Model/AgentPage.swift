@@ -16,7 +16,8 @@ enum AgentPage {
         if board.isEmpty {
             blocks.append(.row(firstRead ? IslandPageRow(symbol: "magnifyingglass", title: reading) : IslandPageRow(
                 symbol: "magnifyingglass", title: none,
-                detail: String(localized: "Add a Claude account in Settings › Notchcast › Agents.", table: "NotchcastAgents"))))
+                detail: String(
+                    localized: "Add a Claude account in Settings › Notchcast › Island Content.", table: "NotchcastAgents"))))
         }
         let columns = board.columns.count == 1 ? flow(board.columns[0])
             : board.columns.map { IslandCardGroup(title: $0.title, cards: $0.cards.map(card)) }

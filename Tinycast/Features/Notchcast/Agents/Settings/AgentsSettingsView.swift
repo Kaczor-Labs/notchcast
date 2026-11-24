@@ -11,7 +11,7 @@ struct AgentsSettingsView: View {
     /// Why Add… left the chosen folder out, naming it.
     @State private var refusal: String?
     @FocusState private var focus: Field?
-    private static let anchor = NotchcastSettingsSearch.anchor(.agents)
+    private static let anchor = NotchcastSettingsSearch.anchor(.islandPages)
 
     private enum Field: Hashable {
         case machine

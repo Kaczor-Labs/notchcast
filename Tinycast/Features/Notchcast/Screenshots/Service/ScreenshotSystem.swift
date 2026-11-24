@@ -9,8 +9,8 @@ struct ScreenshotSystem: Sendable {
     let freeze: @MainActor @Sendable (_ under: CGPoint?, _ exclusion: ScreenshotExclusion) async throws
         -> [ScreenshotFrozenDisplay]
     let windows: @MainActor @Sendable () -> [ScreenshotWindow]
-    /// Each window's own picture, taken before selection; a window that fails to capture is left out.
-    let freezeWindows: @MainActor @Sendable ([UInt32]) async throws -> [UInt32: CGImage]
+    /// Each window's own picture at its chooser frame, taken before selection; a failed one is left out.
+    let freezeWindows: @MainActor @Sendable ([ScreenshotWindow]) async throws -> [UInt32: CGImage]
     let cursor: @MainActor @Sendable () -> CGPoint
     let writeClipboard: @MainActor @Sendable (Data) -> Bool
     let writeText: @MainActor @Sendable (String) -> Bool
@@ -21,9 +21,9 @@ struct ScreenshotSystem: Sendable {
     let downloads: @Sendable () throws -> URL
     /// The system save panel for Save As; nil when it is cancelled.
     let chooseSaveFile: @MainActor @Sendable (_ suggestedName: String) -> URL?
-    /// Shows the selection surface; the returned closure closes it, which answers nil.
+    /// Shows the selection surface over the windows and the ids with a still; closing it answers nil.
     let select: @MainActor @Sendable (
-        [ScreenshotFrozenDisplay], [ScreenshotWindow], @escaping @MainActor (ScreenshotRequest?) -> Void
+        [ScreenshotFrozenDisplay], [ScreenshotWindow], Set<UInt32>, @escaping @MainActor (ScreenshotRequest?) -> Void
     ) -> @MainActor () -> Void
     /// Opens the editor on a capture and its pixels per point; it answers per way out.
     let edit: @MainActor @Sendable (CGImage, CGFloat, @escaping @MainActor (CaptureEditorOutcome) -> Void)

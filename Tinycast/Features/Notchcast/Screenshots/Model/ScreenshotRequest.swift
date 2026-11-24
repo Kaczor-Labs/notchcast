@@ -12,6 +12,14 @@ enum ScreenshotRequest: Equatable, Sendable {
             recognitionFailed
     }
 
+    /// A click: the window under it, nothing on a window without a still, else its display.
+    static func click(
+        at point: CGPoint, windows frontToBack: [ScreenshotWindow], stills: Set<UInt32>, display: UInt32
+    ) -> ScreenshotRequest? {
+        guard let window = ScreenshotExclusion.window(at: point, in: frontToBack) else { return .display(display) }
+        return stills.contains(window.id) ? .window(window.id) : nil
+    }
+
     static func isValid(rect: CGRect) -> Bool {
         [rect.origin.x, rect.origin.y, rect.width, rect.height].allSatisfy(\.isFinite)
             && rect.width > 0 && rect.height > 0

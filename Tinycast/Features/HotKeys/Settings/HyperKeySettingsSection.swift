@@ -71,6 +71,7 @@ struct HyperKeySettingsSection: View {
             }
             // Flipping it re-points recorded chords, so it needs a chord to mean.
             .settingsEnabled(settings.hyperKey != .none)
+            .notchcastHidden(settings.hyperKey == .none)
 
             if settings.hyperKey.supportsSecureInputCompatibility {
                 Toggle(isOn: $settings.hyperKeySecureInputCompatibility) {

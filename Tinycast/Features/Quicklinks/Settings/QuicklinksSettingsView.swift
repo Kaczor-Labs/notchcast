@@ -27,6 +27,7 @@ struct QuicklinksSettingsView: View {
                 transfer
             }
             .settingsEnabled(settings.quicklinksEnabled)
+            .notchcastHidden(!settings.quicklinksEnabled)
         }
         .formStyle(.grouped)
         .settingsScrollTarget(.quicklinks)

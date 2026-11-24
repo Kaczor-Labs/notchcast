@@ -1,6 +1,6 @@
 # Taildrop
 
-A Notchcast add-on (`Tinycast/Features/Notchcast/Taildrop/`, switch `taildrop`, off by default, Settings › Downloads). While it is on, the launcher lists one command per device Tailscale can send files to, `Taildrop to <device>`; running one sends the files and folders selected in Finder to that device through the local `tailscale` CLI. Receiving and auto-accept on the other device are out of scope.
+A Notchcast add-on (`Tinycast/Features/Notchcast/Taildrop/`, switch `taildrop`, off by default, Settings › Notchcast › Clipboard & Files › Files). While it is on, the launcher lists one command per device Tailscale can send files to, `Taildrop to <device>`; running one sends the files and folders selected in Finder to that device through the local `tailscale` CLI. Receiving and auto-accept on the other device are out of scope.
 
 ## Invariants
 

@@ -398,7 +398,7 @@ private final class Counter {
     var count = 0
 }
 
-/// The folder Convert dropped files watches as the runner reads it; nil is Convert off.
+/// The folder the notes switch watches as the runner reads it; nil is the switch off.
 @MainActor
 private final class Watched {
     var folder: URL?

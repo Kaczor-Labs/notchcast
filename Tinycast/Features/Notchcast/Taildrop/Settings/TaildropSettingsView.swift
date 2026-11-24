@@ -2,8 +2,14 @@ import SwiftUI
 
 extension TaildropAddon {
     static let settings = [
-        NotchcastSettingsRow(switchID: switchID) { AnyView(TaildropSettingsView(context: $0)) },
+        NotchcastSettingsRow(switchID: switchID, isEmpty: { devices($0).isEmpty }) {
+            AnyView(TaildropSettingsView(context: $0))
+        },
     ]
+
+    static func devices(_ context: NotchcastContext) -> [NotchcastCommand] {
+        context.commands.filter { $0.slug.hasPrefix("taildrop-to") }
+    }
 }
 
 struct TaildropSettingsView: View {
@@ -11,7 +17,7 @@ struct TaildropSettingsView: View {
 
     var body: some View {
         let preferences = context.preferences
-        ForEach(context.commands.filter { $0.slug.hasPrefix("taildrop-to") }) { command in
+        ForEach(TaildropAddon.devices(context)) { command in
             let shown = preferences.showsInLauncher(command.id)
             NotchcastCommandRow {
                 Text(command.name)

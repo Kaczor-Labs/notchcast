@@ -58,6 +58,7 @@ struct SnippetsSettingsView: View {
                 libraryNotices
             }
             .settingsEnabled(settings.snippetsEnabled)
+            .notchcastHidden(!settings.snippetsEnabled)
         }
         .formStyle(.grouped)
         .settingsScrollTarget(.snippets)

@@ -54,6 +54,7 @@ struct LauncherItemsSection: View {
             SettingsSectionHeader(anchor)
         }
         .settingsEnabled(visibility.isKindEnabled(kind))
+        .notchcastHidden(!visibility.isKindEnabled(kind))
     }
 }
 

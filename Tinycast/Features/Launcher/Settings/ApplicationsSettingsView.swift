@@ -1,6 +1,7 @@
 import SwiftUI
 
 struct ApplicationsSettingsView: View {
+    @Environment(VisibilityStore.self) private var visibility
     var body: some View {
         Form {
             LauncherCategorySwitchSection(
@@ -8,6 +9,7 @@ struct ApplicationsSettingsView: View {
                 title: "Enable Applications")
 
             SearchScopesSection()
+                .notchcastHidden(!visibility.isKindEnabled(.application))
 
             LauncherItemsSection(
                 kind: .application,

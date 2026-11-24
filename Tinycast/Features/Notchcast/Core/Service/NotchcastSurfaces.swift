@@ -6,6 +6,9 @@ struct NotchcastSurfaces {
     var isFrosted: () -> Bool = { false }
     var outlinesMenus: () -> Bool = { true }
     var dismissLauncher: () -> Void = {}
+    var presentPalette: (
+        String, String, @escaping (String, @escaping (Int) -> Void) -> Any, @escaping () -> Void
+    ) -> Void = { _, _, _, _ in }
 }
 
 extension NotchcastContext {
