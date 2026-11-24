@@ -331,6 +331,15 @@
     "Turn Off and Delete" : {
 
     },
+    "Turn off Insert while recording" : {
+
+    },
+    "Insert while recording is on" : {
+
+    },
+    "Text pasted while you speak skips cleanup. Turn it off to clean up every dictation." : {
+
+    },
     "Up Next" : {
 
     },

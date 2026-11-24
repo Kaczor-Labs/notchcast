@@ -41,6 +41,11 @@ struct DictationExtrasSettingsSections: View {
                     "Fix punctuation, numbers and filler words before pasting. Return pastes it as spoken.",
                     tableName: "Notchcast")
             }
+            if DictationCleanupPolicy.blockedByLiveInsertion(
+                cleansUp: settings.dictationCleansUp, liveInsertion: settings.dictationLiveInsertion)
+            {
+                liveInsertionConflict
+            }
             if settings.dictationCleansUp {
                 AIModelSelectionRows(
                     selection: status.dictationCleanupModel,
@@ -71,6 +76,22 @@ struct DictationExtrasSettingsSections: View {
                     String(localized: "Notchcast keeps the text only in Dictation History.", table: "Notchcast")
                 ].joined(separator: " "))
             }
+        }
+    }
+
+    /// The stock tab that holds Insert while recording is hidden, so its conflict is undone here.
+    private var liveInsertionConflict: some View {
+        LabeledContent {
+            Button("Turn Off") { settings.dictationLiveInsertion = false }
+                .accessibilityLabel(String(localized: "Turn off Insert while recording", table: "Notchcast"))
+        } label: {
+            Label(
+                String(localized: "Insert while recording is on", table: "Notchcast"),
+                systemImage: "exclamationmark.triangle.fill")
+                .foregroundStyle(Theme.Colors.warning)
+            Text(String(
+                localized: "Text pasted while you speak skips cleanup. Turn it off to clean up every dictation.",
+                table: "Notchcast"))
         }
     }
 
