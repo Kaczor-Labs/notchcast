@@ -97,8 +97,8 @@ struct CleanerScanner: Sendable {
             try Task.checkCancellation()
             guard remaining > 0, monotonic() < deadline else { throw CleanerHoldBack.scanLimit }
             remaining -= 1
-            guard let file = try? fileSystem.inspect(url), file.facts.isDirectory, !file.facts.isSymbolicLink
-            else {
+            // An entry that cannot be read stays a candidate, so snapshot(of:) reports it as locked.
+            guard let file = directory(at: url) else {
                 files.append(url)
                 continue
             }
@@ -108,6 +108,15 @@ struct CleanerScanner: Sendable {
                 .filter { !isExcluded($0, in: area, ownNames: apps.own) }
         }
         return files
+    }
+
+    func directory(at url: URL) -> CleanerFile? {
+        do {
+            let file = try fileSystem.inspect(url)
+            return file.facts.isDirectory && !file.facts.isSymbolicLink ? file : nil
+        } catch {
+            return nil
+        }
     }
 
     func directoryIdentities(to root: URL) throws -> [CleanerFile.Identity] {
@@ -181,9 +190,13 @@ struct CleanerScanner: Sendable {
             return area.kind == .savedState ? .recentSavedState : .recentWrite
         }
         if area.kind == .browserVersions {
-            guard let file = snapshot.entries[url],
-                (try? CleanerBrowserVersions.canMove(url, file: file, in: area, fileSystem: fileSystem)) == true
-            else { return .activeBrowserVersion }
+            guard let file = snapshot.entries[url] else { return .activeBrowserVersion }
+            do {
+                guard try CleanerBrowserVersions.canMove(url, file: file, in: area, fileSystem: fileSystem)
+                else { return .activeBrowserVersion }
+            } catch {
+                return .activeBrowserVersion
+            }
         }
         return nil
     }
