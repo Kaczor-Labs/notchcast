@@ -612,6 +612,7 @@
 		5F35E62823D616C65D9DA71E /* WebpageExtraction.swift in Sources */ = {isa = PBXBuildFile; fileRef = 274222F97B407958FC01B161 /* WebpageExtraction.swift */; };
 		5FB708EC91426C41762AB96B /* CalculatorHistoryStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = D2D032AC22E53BB9997E492F /* CalculatorHistoryStore.swift */; };
 		5FB7FA913DA7BE4441A78510 /* TimerClock.swift in Sources */ = {isa = PBXBuildFile; fileRef = E043DA4768BF4AAEBFC74FC5 /* TimerClock.swift */; };
+		5FC35D218EC60658260FD24F /* NotchcastCleanUp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 44D2BC2A48B09520891D0E5C /* NotchcastCleanUp.swift */; };
 		5FC53F9968A5DFF24CD109DD /* VisibilityStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 17EA0B9FFCBAB10941EC7702 /* VisibilityStore.swift */; };
 		5FC6725934F8853FB547D76E /* NoiseControlMenuTree.swift in Sources */ = {isa = PBXBuildFile; fileRef = E85232A15B54D700EB697628 /* NoiseControlMenuTree.swift */; };
 		5FED92BC16B1463EBDE38D77 /* ShortcutRecorder.swift in Sources */ = {isa = PBXBuildFile; fileRef = E9D41B9E6F2C617D28C83AFF /* ShortcutRecorder.swift */; };
@@ -2027,6 +2028,7 @@
 		4479345B4ECF587F3BC08093 /* ExtensionListing.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExtensionListing.swift; sourceTree = "<group>"; };
 		448D5E32D84AF28942AF8085 /* DownloadsQueueController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DownloadsQueueController.swift; sourceTree = "<group>"; };
 		44AC492DF9574C9B1CFC5651 /* ThreadsBoard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ThreadsBoard.swift; sourceTree = "<group>"; };
+		44D2BC2A48B09520891D0E5C /* NotchcastCleanUp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotchcastCleanUp.swift; sourceTree = "<group>"; };
 		45289936A916F805FDEE3452 /* ChatFindState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatFindState.swift; sourceTree = "<group>"; };
 		4528DC746811E8BFADF093A3 /* QuitProtectionSystem+Live.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "QuitProtectionSystem+Live.swift"; sourceTree = "<group>"; };
 		453B39D9D59DB21412A858E6 /* AIResponsesDecoder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIResponsesDecoder.swift; sourceTree = "<group>"; };
@@ -3285,6 +3287,7 @@
 				CFB37D725934B5B2FA2EA611 /* NotchcastAddon.swift */,
 				00C316C63D69D59DD6355A7F /* NotchcastAppleEvents.swift */,
 				8DDC35AC3A2E5BC10A1B5E8D /* NotchcastCalendar.swift */,
+				44D2BC2A48B09520891D0E5C /* NotchcastCleanUp.swift */,
 				6FA453CE6DA1F00EFC31C264 /* NotchcastClipboard.swift */,
 				DB35A890DCF6F88F7F464252 /* NotchcastCodeCheck.swift */,
 				39CA477CA36624DA5EAB9E28 /* NotchcastContext.swift */,
@@ -8320,6 +8323,7 @@
 				4D1ECE7AD89751A3FE3F6A73 /* NotchcastCalendar+Live.swift in Sources */,
 				67C53B2E2F73A381FD89E5C5 /* NotchcastCalendar.swift in Sources */,
 				25E1B536DBE187CD0D5D9EFD /* NotchcastCategory.swift in Sources */,
+				5FC35D218EC60658260FD24F /* NotchcastCleanUp.swift in Sources */,
 				C945AD64FE62E3C2508249EB /* NotchcastClipboard+Live.swift in Sources */,
 				65317CEFFE246F8FCD64D194 /* NotchcastClipboard.swift in Sources */,
 				967FC6135D7D994F3483C21D /* NotchcastCodeCheck.swift in Sources */,
