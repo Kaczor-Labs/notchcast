@@ -12,6 +12,16 @@ private enum CleanerScanTask {
     @TaskLocal static var first = false
 }
 
+// The fake parks the first scan's thread, so it must not be the strict cooperative pool's only one.
+private final class CleanerParkedScanExecutor: TaskExecutor {
+    private let queue = DispatchQueue(label: "nc-Cleaner-session-test.first-scan")
+
+    func enqueue(_ job: consuming ExecutorJob) {
+        let job = UnownedJob(job)
+        queue.async { job.runSynchronously(on: self.asUnownedTaskExecutor()) }
+    }
+}
+
 @main
 @MainActor
 struct CleanerSessionTest {
@@ -74,7 +84,7 @@ struct CleanerSessionTest {
             return .init()
         })
         let session = CleanerSession(home: CleanerTestFileSystem.area.home, runner: runner, hasAccess: { true })
-        let first = Task {
+        let first = Task(executorPreference: CleanerParkedScanExecutor()) {
             await CleanerScanTask.$first.withValue(true) { await session.open() }
         }
 
