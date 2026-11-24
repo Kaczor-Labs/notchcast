@@ -208,6 +208,9 @@
     "Notchcast could not save a new token in the Keychain. The current token still works." : {
 
     },
+    "Notchcast is a fork of Tinycast by Abue Ammar." : {
+
+    },
     "Notchcast keeps the text only in Dictation History." : {
 
     },
