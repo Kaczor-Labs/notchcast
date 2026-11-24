@@ -26,9 +26,12 @@ struct WindowManagementSettingsView: View {
                 WindowLayoutsSection(
                     onEdit: { editor = WindowLayoutEditRequest(layout: $0) },
                     onDelete: { pendingDeletion = $0 })
+                    .notchcastHidden()
                 RoomsSection()
+                    .notchcastHidden()
                 FeatureCommandsSection(
                     owner: .windowManagement, anchor: .windowManagementLayoutCommands)
+                    .notchcastHidden()
                 CustomWindowSizesSection(onEdit: {
                     customSizeEdit = CustomWindowSizeEditRequest(size: $0)
                 })
@@ -72,6 +75,7 @@ struct WindowManagementSettingsView: View {
                 SettingsRowTitle(.windowManagementOptions, "Cycling")
                 Text(settings.windowCycle.detail)
             }
+            .notchcastHidden()
 
             LabeledContent {
                 HStack(spacing: Theme.Spacing.sm) {
@@ -122,6 +126,7 @@ struct WindowManagementSettingsView: View {
                 SettingsRowTitle(.windowManagementOptions, "Shortcut preset")
                 Text("Fills in another app's shortcuts. Others stay as they are.")
             }
+            .notchcastHidden()
         } header: {
             SettingsSectionHeader(.windowManagementOptions)
         }

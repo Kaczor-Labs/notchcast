@@ -17,9 +17,15 @@ enum NotchcastHiddenCommands {
         "command:open-in-calendar",
         "command:ai-chat",
         "command:ai-chat-window",
+        "command:create-window-layout",
+        "command:capture-window-layout",
+        "command:switch-room",
+        "command:create-room",
     ].compactMap(CommandID.init(rawValue:)))
     /// Read as off whatever `hiddenLauncherKinds` stores; a kind can only be forced off, never on.
     static var kinds: Set<AppEntry.Kind> = [
         .systemSettings,
+        .windowLayout,
+        .windowRoom,
     ]
 }

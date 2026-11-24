@@ -30,7 +30,7 @@ final class WindowCommandCoordinator {
         }
         windowMover.perform(
             id, target: handOffTarget(), gap: CGFloat(settings.windowGap),
-            cycle: settings.windowCycle, wrapsDisplays: settings.windowWrapsDisplays,
+            cycle: .off, wrapsDisplays: settings.windowWrapsDisplays,
             keepsProportions: settings.windowKeepsProportions)
     }
 
