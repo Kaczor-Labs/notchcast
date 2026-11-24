@@ -30,17 +30,9 @@ enum FinderToolsAddon: NotchcastAddon {
 
     static let commands = [
         NotchcastCommand(
-            slug: "finder-cut", name: String(localized: "Cut Files in Finder", table: "NotchcastFinderTools"),
-            symbol: "scissors", switchID: "finderCutPaste", keywords: ["move", "cut"],
-            run: { $0.module(FinderToolsModule.self)?.run(.cut) }),
-        NotchcastCommand(
-            slug: "finder-paste", name: String(localized: "Paste Files in Finder", table: "NotchcastFinderTools"),
-            symbol: "doc.on.clipboard", switchID: "finderCutPaste", keywords: ["move", "paste"],
-            run: { $0.module(FinderToolsModule.self)?.run(.paste) }),
-        NotchcastCommand(
             slug: "finder-rename", name: String(localized: "Rename in Finder", table: "NotchcastFinderTools"),
             symbol: "pencil", switchID: "finderRename", keywords: ["rename", "file"],
-            run: { $0.module(FinderToolsModule.self)?.run(.rename) }),
+            run: { $0.module(FinderToolsModule.self)?.rename() }),
     ]
 
     static func makeModule(_ context: NotchcastContext) -> (any NotchcastModule)? {

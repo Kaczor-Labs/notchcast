@@ -183,28 +183,6 @@ enum FinderToolsModuleTests {
         precondition(fake.posted == ["99:7:1"], "Finder left the front: the key goes to the app now in front: \(fake.posted)")
         rig.key(7, down: false)
 
-        fake.posted = []
-        precondition(rig.controller.run(entryID: "command:nc-finder-cut"), "the cut command runs by hotkey in another app")
-        await rig.activate(finderPID)
-        precondition(fake.posted.isEmpty, "and is dropped: a later switch to Finder sends nothing: \(fake.posted)")
-
-        fake.frontmost = nil
-        fake.other = ownPID
-        precondition(rig.controller.run(entryID: "command:nc-finder-cut"), "the cut command runs with Notchcast in front")
-        precondition(fake.posted.isEmpty, "and waits for Finder")
-        await rig.activate(finderPID)
-        precondition(fake.posted == ["77:8:1"], "Finder activated next: the command copies: \(fake.posted)")
-
-        fake.posted = []
-        fake.frontmost = nil
-        precondition(rig.controller.run(entryID: "command:nc-finder-cut"), "the cut command waits again")
-        fake.other = safariPID
-        await rig.activate(nil)
-        await rig.activate(finderPID)
-        precondition(fake.posted.isEmpty, "another app came first: the wait is over, nothing sent: \(fake.posted)")
-        rig.module?.run(.cut)
-        await rig.settle()
-        precondition(fake.posted == ["77:8:1"], "with Finder frontmost the command copies: \(fake.posted)")
         precondition(!rig.controller.run(entryID: "command:nc-finder-rename"), "rename command off with its switch")
         rig.finish()
 
@@ -214,6 +192,27 @@ enum FinderToolsModuleTests {
         precondition(rename.controller.run(entryID: "command:nc-finder-rename"), "the rename command runs")
         await rename.settle()
         precondition(fake.posted == ["77:36:0"], "rename presses Return in Finder: \(fake.posted)")
+
+        fake.posted = []
+        fake.frontmost = nil
+        precondition(rename.controller.run(entryID: "command:nc-finder-rename"), "rename runs by hotkey in another app")
+        await rename.activate(finderPID)
+        precondition(fake.posted.isEmpty, "and is dropped: a later switch to Finder sends nothing: \(fake.posted)")
+
+        fake.frontmost = nil
+        fake.other = ownPID
+        precondition(rename.controller.run(entryID: "command:nc-finder-rename"), "rename runs with Notchcast in front")
+        precondition(fake.posted.isEmpty, "and waits for Finder")
+        await rename.activate(finderPID)
+        precondition(fake.posted == ["77:36:0"], "Finder activated next: rename presses Return: \(fake.posted)")
+
+        fake.posted = []
+        fake.frontmost = nil
+        precondition(rename.controller.run(entryID: "command:nc-finder-rename"), "rename waits again")
+        fake.other = safariPID
+        await rename.activate(nil)
+        await rename.activate(finderPID)
+        precondition(fake.posted.isEmpty, "another app came first: the wait is over, nothing sent: \(fake.posted)")
         rename.finish()
         print("PASS: Finder tools module wires taps, Finder's keys, focus, frontmost checks and commands")
     }
