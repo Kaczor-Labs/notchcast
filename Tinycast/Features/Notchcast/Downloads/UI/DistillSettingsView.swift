@@ -3,7 +3,7 @@ import SwiftUI
 struct DistillSettingsView: View {
     @AppStorage private var folder: String?
     @AppStorage private var convertDrops: Bool
-    private static let anchor = NotchcastSettingsSearch.anchor(.filesDownloads)
+    private static let anchor = NotchcastSettingsSearch.anchor(.downloads)
     private static let convertHelp = LocalizedStringResource(
         "When you put a PDF, web page, audio or video file in your Markdown folder, Notchcast saves it as a Markdown note and moves the original to the Trash. Files already there stay as they are.",
         table: "NotchcastDownloads")
@@ -36,17 +36,15 @@ struct DistillSettingsView: View {
                      tableName: "NotchcastDownloads")
             }
         }
-        notchcastSettingsToggle(
-            SettingsRowTitle(Self.anchor, LocalizedStringResource(
-                "Turn files in the Markdown folder into notes", table: "NotchcastDownloads")),
-            isOn: $convertDrops
-        ) {
-            Text(Self.convertHelp)
-            if folder == nil {
-                Text("Choose a Markdown folder first.", tableName: "NotchcastDownloads")
+        if folder != nil {
+            notchcastSettingsToggle(
+                SettingsRowTitle(Self.anchor, LocalizedStringResource(
+                    "Turn files in the Markdown folder into notes", table: "NotchcastDownloads")),
+                isOn: $convertDrops
+            ) {
+                Text(Self.convertHelp)
             }
         }
-        .settingsEnabled(folder != nil)
         DistillQueueView()
     }
 

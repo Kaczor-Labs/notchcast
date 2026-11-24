@@ -4,7 +4,7 @@ struct URLCleanerSettingsView: View {
     @AppStorage private var extra: String
     @AppStorage private var kept: String
     @AppStorage private var sites: String
-    private static let anchor = NotchcastSettingsSearch.anchor(.launcher)
+    private static let anchor = NotchcastSettingsSearch.anchor(.clipboard)
 
     init(defaults: UserDefaults) {
         _extra = AppStorage(wrappedValue: "", URLCleanerPolicy.Key.extra, store: defaults)

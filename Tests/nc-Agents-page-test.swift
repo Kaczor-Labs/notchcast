@@ -169,5 +169,5 @@ enum AgentsPageTest {
 @MainActor
 enum AgentsAddonSwitches {
     static let all = [NotchcastSwitch(id: AgentsPreferences.switchID, title: "Agents page", subtitle: "",
-                                      category: .agents)]
+                                      category: .islandPages)]
 }

@@ -1,7 +1,7 @@
 // notchcast-new-switch-ids: agentsUsage
 // notchcast-addon-order: 230
-// notchcast-readme: Agents: Agents in the Island
-// notchcast-readme: Agents: a page with how much of each Claude and Codex plan is left
+// notchcast-readme: Island Content: Agents in the Island
+// notchcast-readme: Island Content: a page with how much of each Claude and Codex plan is left
 import SwiftUI
 
 /// Every AI plan's usage on one island page (#1128); off by default.
@@ -13,7 +13,7 @@ enum AgentsAddon: NotchcastAddon {
             subtitle: String(
                 localized: "Shows how much of each Claude and Codex plan is left, on a page in the island.",
                 table: "NotchcastAgents"),
-            category: .agents),
+            category: .islandPages),
     ]
 
     static let commands = [
@@ -25,7 +25,13 @@ enum AgentsAddon: NotchcastAddon {
     ]
 
     static let settings = [
-        NotchcastSettingsRow(switchID: "agentsUsage") { AnyView(AgentsSettingsView(context: $0)) },
+        NotchcastSettingsRow(switchID: "agentsUsage", searchTerms: [
+            "this mac’s name",
+            "claude accounts",
+            "feed folder",
+        ]) {
+            AnyView(AgentsSettingsView(context: $0))
+        },
     ]
 
     static func makeModule(_ context: NotchcastContext) -> (any NotchcastModule)? {

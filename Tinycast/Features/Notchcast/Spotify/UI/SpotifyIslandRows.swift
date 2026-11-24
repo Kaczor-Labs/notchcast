@@ -4,7 +4,7 @@ import SwiftUI
 struct SpotifyIslandRows: View {
     let context: NotchcastContext
     @AppStorage private var overflow: IslandSongOverflow
-    private static let anchor = NotchcastSettingsSearch.anchor(.music)
+    private static let anchor = NotchcastSettingsSearch.anchor(.islandPages)
 
     init(context: NotchcastContext) {
         self.context = context

@@ -325,9 +325,6 @@
     "When you put a PDF, web page, audio or video file in your Markdown folder, Notchcast saves it as a Markdown note and moves the original to the Trash. Files already there stay as they are." : {
 
     },
-    "Choose a Markdown folder first." : {
-
-    },
     "Held until Run Distill" : {},
     "Waiting" : {},
     "Running" : {},
