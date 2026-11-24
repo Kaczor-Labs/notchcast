@@ -1,10 +1,21 @@
-import Foundation
+import AppKit
+import Carbon.HIToolbox
 
 extension CleanerModule {
     static func live(_ context: NotchcastContext) -> CleanerModule {
-        CleanerModule(context: context, session: .live()) {
-            _ = try await SystemActionRunner.run(.emptyTrash, previousApp: nil)
-        }
+        CleanerModule(
+            context: context, session: .live(),
+            askToEmptyTrash: { title, message, confirmTitle, cancelTitle in
+                guard let monitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown, handler: { event in
+                    switch Int(event.keyCode) {
+                    case kVK_Return, kVK_ANSI_KeypadEnter: event.isARepeat ? nil : event
+                    default: event
+                    }
+                }) else { return false }
+                defer { NSEvent.removeMonitor(monitor) }
+                return await context.confirmDestructive(title, message, confirmTitle, cancelTitle: cancelTitle)
+            },
+            emptyTrash: { _ = try await SystemActionRunner.run(.emptyTrash, previousApp: nil) })
     }
 
     func openScreen() {

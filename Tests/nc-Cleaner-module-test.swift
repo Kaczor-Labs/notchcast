@@ -44,7 +44,7 @@ struct CleanerModuleTest {
             presenter: presenter, hub: hub, transcription: NotchcastTranscriptionRunner(dictation: FakeDictation()),
             now: { .now }, onTapsChanged: {})
         context.confirm = { _, _, _ in presenter.moveAccepted }
-        context.presentDestructiveQuestion = { _, _, _, cancelTitle in
+        let askToEmpty: @MainActor (String, String, String, String) async -> Bool = { _, _, _, cancelTitle in
             precondition(presenter.posts.last?.progress?.fraction == 1)
             precondition(cancelTitle == "Not Now")
             presenter.offers += 1
@@ -57,7 +57,8 @@ struct CleanerModuleTest {
         let session = CleanerSession(
             home: CleanerTestFileSystem.area.home, runner: CleanerRunner(scanner: fs.scanner, runningApps: { .init() }),
             hasAccess: { hasAccess })
-        let module = CleanerModule(context: context, session: session, emptyTrash: { presenter.empties += 1 })
+        let module = CleanerModule(
+            context: context, session: session, askToEmptyTrash: askToEmpty, emptyTrash: { presenter.empties += 1 })
         defer { module.stop() }
 
         await module.scan()?.value
