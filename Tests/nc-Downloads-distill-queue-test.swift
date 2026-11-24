@@ -116,7 +116,7 @@ struct DownloadsDistillQueueTest {
         precondition(decoded == held)
         let dropped = queue.enqueue(kind: DistillRunner.kind, sources: ["/tmp/dropped.pdf"], held: true)[0]
         precondition(module.distillRows == held, "dropped files stay outside the list")
-        queue.remove(dropped.id)
+        queue.remove([dropped.id])
 
         module.perform(.remove(held[0].id))
         module.perform(.run)
@@ -132,10 +132,11 @@ struct DownloadsDistillQueueTest {
         probe.released.formUnion(names.dropFirst(3))
         try await eventually { module.distillRows?.allSatisfy { $0.state.isFinished } == true }
         let finished = module.distillRows!
-        precondition(finished.map(\.name) == Array(names.dropFirst(3).reversed()))
-        let failed = finished.first { $0.state == .failed }!
-        precondition(failed.name == names[4] && failed.note == "Failed: Fixture failure" && failed.canRetry)
-        precondition(finished.first?.note == "Saved Page.md")
+        precondition(finished.map(\.name) == [names[4]] + names.dropFirst(3).reversed().filter { $0 != names[4] },
+                     "failed links sit above saved ones")
+        let failed = finished[0]
+        precondition(failed.state == .failed && failed.note == "Failed: Fixture failure" && failed.canRetry)
+        precondition(finished[1].note == "Saved Page.md" && DistillQueueList.sharedFailure(finished) == nil)
         precondition(DistillQueueList.countLine(finished) == "0 links queued · 1 failed")
 
         clipboard = "https://example.com/later"
@@ -163,8 +164,88 @@ struct DownloadsDistillQueueTest {
         let file = queue.enqueue(kind: DistillRunner.kind, sources: [dropped.source], held: true)[0]
         module.perform(.remove(file.id))
         precondition(queue.jobs.contains { $0.id == file.id }, "a Settings action cannot remove a file")
+        try await bulk(module: module, queue: queue, probe: probe, clipboard: { clipboard = $0 }) {
+            addLinks.run(context)
+        }
         await queue.stop()
-        print("Distill queue: 25 links, ordered live states, removal, failure and isolated retry")
+        print("Distill queue: 25 links, ordered live states, removal, failure, isolated and bulk retry")
+    }
+
+    /// #1514: 26 links where most fail for one cause; bulk retry and remove touch only failed rows.
+    private static func bulk(
+        module: DownloadsModule, queue: DownloadQueue, probe: Probe,
+        clipboard: (String) -> Void, addLinks: () -> Void
+    ) async throws {
+        queue.remove(queue.jobs.map(\.id))
+        let failing = (0..<22).map { "fail.example/\($0)" }
+        let saved = (0..<3).map { "ok.example/\($0)" }
+        let links = failing + ["odd.example/x", "fold.example/x", "late.example/x"] + saved
+        probe.released.formUnion(links + ["pause.example/x"])
+        clipboard(links.map { "https://\($0)" }.joined(separator: "\n"))
+        addLinks()
+        module.perform(.run)
+        try await eventually { queue.jobs.allSatisfy { $0.state.isFinished } }
+        clipboard("https://fail.example/0\nhttps://fold.example/x\nhttps://late.example/x")
+        addLinks()
+        module.perform(.run)
+        try await eventually { queue.jobs.allSatisfy { $0.state.isFinished } }
+        clipboard("https://pause.example/x")
+        addLinks()
+        module.perform(.run)
+        try await eventually { queue.jobs.contains { $0.detail == Runner.pauseReason } }
+        clipboard("https://held.example/0\nhttps://held.example/1")
+        addLinks()
+
+        let rows = module.distillRows!
+        let failedRows = rows.filter { $0.state == .failed }
+        precondition(rows.prefix(3).allSatisfy { $0.state == .held } && rows.dropFirst(3).first?.state == .failed)
+        precondition(rows.firstIndex { $0.state == .done }! > rows.lastIndex { $0.state == .failed }!)
+        precondition(rows[0].note == Runner.pauseReason && rows[0].needsDictationModel, "a held row shows its pause")
+        precondition(!rows.contains { $0.name == "fold.example/x" && $0.state == .failed },
+                     "a failed link that saved later folds into its saved row")
+        precondition(queue.jobs.contains { $0.source.hasSuffix("fold.example/x") && $0.state == .failed })
+        precondition(rows.contains { $0.name == "late.example/x" && $0.state == .failed }
+                     && rows.contains { $0.name == "late.example/x" && $0.state == .done },
+                     "a failure after an older save stays in the list")
+        precondition(failedRows.count == 25 && DistillQueueList.countLine(rows) == "3 links queued · 25 failed")
+        precondition(DistillQueueList.failedLine(rows) == "25 failed links")
+        let shared = DistillQueueList.sharedFailure(rows)!
+        precondition(shared == .init(reason: "Host not found", count: 23, failed: 25) && !shared.needsDictationModel)
+        precondition(DistillQueueList.sharedLine(shared) == "23 of 25: Host not found")
+        precondition(failedRows.filter { $0.note == "Failed" }.count == 23)
+        precondition(failedRows.contains { $0.note == "Failed: Fixture odd" })
+        let model = DistillQueueList.SharedFailure(reason: Runner.pauseReason, count: 126, failed: 134)
+        precondition(DistillQueueList.sharedLine(model) == "126 need a dictation model")
+
+        let keep = queue.jobs.filter { $0.state == .done || $0.state == .held }
+        let captured = failedRows.map(\.id)
+        let odd = failedRows.first { $0.name == "odd.example/x" }!.id
+        probe.healed.insert("odd.example/x")
+        probe.released.remove("fail.example/0")
+        let before = probe.started.count
+        let writes = queue.writeCount
+        module.perform(.retryFailed(captured))
+        precondition(queue.writeCount == writes + 1, "one Try All Again, with a duplicate dropped, is one write")
+        let retried = queue.jobs.filter { captured.contains($0.id) }
+        precondition(retried.count == captured.count - 1 && retried.allSatisfy { !$0.state.isFinished })
+        module.perform(.retryFailed(captured))
+        module.perform(.removeFailed(captured))
+        precondition(queue.jobs.filter { captured.contains($0.id) } == retried && queue.writeCount == writes + 1,
+                     "a stale bulk action leaves running and waiting links alone")
+
+        probe.released.insert("fail.example/0")
+        try await eventually { queue.jobs.allSatisfy { $0.state.isFinished || $0.state == .held } }
+        precondition(probe.started.dropFirst(before).sorted() == (failing + ["late.example/x", "odd.example/x"]).sorted(),
+                     "only failed links rerun, and two failed rows of one link rerun once")
+        precondition(queue.jobs.filter { $0.state == .done || $0.state == .held }.filter { $0.id != odd } == keep,
+                     "saved and held rows untouched")
+        precondition(queue.jobs.first { $0.id == odd }?.state == .done)
+        precondition(module.distillRows!.filter { $0.state == .failed }.count == 23)
+
+        module.perform(.removeFailed(captured))
+        let left = module.distillRows!
+        precondition(!left.contains { $0.state == .failed }, "remove takes the failed rows")
+        precondition(Set(left.map(\.id)) == Set(keep.map(\.id) + [odd]), "a link saved since the list was read stays")
     }
 
     private static func eventually(_ condition: () -> Bool) async throws {
@@ -180,9 +261,11 @@ struct DownloadsDistillQueueTest {
         var started: [String] = []
         var cancelled: [String] = []
         var released: Set<String> = []
+        var healed: Set<String> = []
     }
 
     private struct Runner: DownloadRunner {
+        static let pauseReason = "Parakeet Ultra could not be prepared. Choose Run Distill to retry."
         let kind = DistillRunner.kind
         let tools: [DownloadTool] = []
         let probe: Probe
@@ -201,6 +284,14 @@ struct DownloadsDistillQueueTest {
                 throw error
             }
             if name == "example.com/4", firstRun { throw DistillFailure.failed("Fixture failure") }
+            if probe.healed.contains(name) { return context.destination.appending(path: "Page.md") }
+            if name == "late.example/x", !firstRun { throw DistillFailure.failed("Fixture late") }
+            if name.hasPrefix("fail.example/") {
+                throw DistillFailure.failed("ERROR: [generic] \(name.dropFirst(13)): Host not found")
+            }
+            if name == "odd.example/x" { throw DistillFailure.failed("Fixture odd") }
+            if name == "fold.example/x", firstRun { throw DistillFailure.failed("Fixture fold") }
+            if name == "pause.example/x" { throw DownloadRunPause(detail: Self.pauseReason) }
             return context.destination.appending(path: "Page.md")
         }
     }

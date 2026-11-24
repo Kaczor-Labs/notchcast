@@ -359,6 +359,7 @@
 		3B0A75B76B65E651BCB97D71 /* CameraPreviewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4AEBAA9641BC6C279DB0123C /* CameraPreviewController.swift */; };
 		3B0E1DFB220BCBB7EADF65B7 /* AIRequestBody.swift in Sources */ = {isa = PBXBuildFile; fileRef = 65F1010FAC9C0EC4DBDE58A8 /* AIRequestBody.swift */; };
 		3B83650A547D6988EC041AA6 /* TimerInput.swift in Sources */ = {isa = PBXBuildFile; fileRef = D7AF64E1669F04935251FB74 /* TimerInput.swift */; };
+		3B9623C4E10F267578E5175B /* NotchcastSettingsSubpage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3630E218B64DA6A652C90ECB /* NotchcastSettingsSubpage.swift */; };
 		3BC6CC35889FFC77D640C7CA /* SnippetsSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EC2EF66267B0141279A43613 /* SnippetsSettingsView.swift */; };
 		3BD604B4F5A6024B3833995F /* IslandPresentation.swift in Sources */ = {isa = PBXBuildFile; fileRef = 998895A07A571AE5ABA5A6EF /* IslandPresentation.swift */; };
 		3BF31D4A2297E50D195D0CBA /* CustomCommandEditorSession.swift in Sources */ = {isa = PBXBuildFile; fileRef = E73397884822CD8D0D79B760 /* CustomCommandEditorSession.swift */; };
@@ -685,6 +686,7 @@
 		6BF59ECA26529C292F484548 /* MediaFailure.swift in Sources */ = {isa = PBXBuildFile; fileRef = E727A765219FD06A22F77811 /* MediaFailure.swift */; };
 		6C052B83FAE453D1011E3FB4 /* PopoverMenu.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4FAE24CC14F7DFECD1BD7FB1 /* PopoverMenu.swift */; };
 		6C38707B90B4D235C8935916 /* NoteTitle.swift in Sources */ = {isa = PBXBuildFile; fileRef = 264B68DBB21C3752E39ECC29 /* NoteTitle.swift */; };
+		6C4893847EED52B5755CAE1D /* ScreenshotWindowCapture.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19D84B83C71D2225AFF08B24 /* ScreenshotWindowCapture.swift */; };
 		6C83F2A2096107C488DE3D59 /* DictationDestination.swift in Sources */ = {isa = PBXBuildFile; fileRef = DE0EFB95551AD217589092E4 /* DictationDestination.swift */; };
 		6C915A60C3C2F2682645C32B /* UpdateInstaller.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9188FA8A06EAE3E55FFCBC70 /* UpdateInstaller.swift */; };
 		6CAE019AECDF1024E170FD0F /* RecordingSystem.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0CB1750530DD5074B6439A9D /* RecordingSystem.swift */; };
@@ -1759,6 +1761,7 @@
 		197035E213BEBA67DDA3377B /* ClipboardManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClipboardManager.swift; sourceTree = "<group>"; };
 		198E4EC8AECAAD0D90C4BA50 /* ReleaseChannel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReleaseChannel.swift; sourceTree = "<group>"; };
 		19B2CEDDD4C7F261AC81CB73 /* SpotifyModule+Commands.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "SpotifyModule+Commands.swift"; sourceTree = "<group>"; };
+		19D84B83C71D2225AFF08B24 /* ScreenshotWindowCapture.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScreenshotWindowCapture.swift; sourceTree = "<group>"; };
 		19E96BEA3A5436619297675B /* MCPOAuthRequest.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MCPOAuthRequest.swift; sourceTree = "<group>"; };
 		1A39D6A1B28175B4E394ED7A /* MenuSnapshotPolicy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuSnapshotPolicy.swift; sourceTree = "<group>"; };
 		1A6488151DFD3873640CCD8F /* MCPServerSyncSource.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MCPServerSyncSource.swift; sourceTree = "<group>"; };
@@ -1926,6 +1929,7 @@
 		35A2F6DF36B73FED0E89CD24 /* CaptureEditorCanvas.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CaptureEditorCanvas.swift; sourceTree = "<group>"; };
 		3600AE88A6A83F170B50942A /* IconTint.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IconTint.swift; sourceTree = "<group>"; };
 		3616D9326F69D8C76CDC567D /* MiddleClickModule.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MiddleClickModule.swift; sourceTree = "<group>"; };
+		3630E218B64DA6A652C90ECB /* NotchcastSettingsSubpage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotchcastSettingsSubpage.swift; sourceTree = "<group>"; };
 		3631ED6BFE4F997FF5B3D39F /* SudoTouchIDStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SudoTouchIDStore.swift; sourceTree = "<group>"; };
 		3641AA976B0FF3AE3F94F7D6 /* ScriptCommand.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScriptCommand.swift; sourceTree = "<group>"; };
 		364BEC0805A8F5C39444EAF5 /* SettingsNavigationState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsNavigationState.swift; sourceTree = "<group>"; };
@@ -4713,6 +4717,7 @@
 				01DDF667686C091024C18445 /* ScreenshotExclusion.swift */,
 				AFC0E9715F8E0B5F34034AFC /* ScreenshotGeometry.swift */,
 				F5EDAF003C7F4A85357B7075 /* ScreenshotRequest.swift */,
+				19D84B83C71D2225AFF08B24 /* ScreenshotWindowCapture.swift */,
 				019026FBB9FF1F8FB08515B7 /* ScreenText.swift */,
 			);
 			path = Model;
@@ -6301,6 +6306,7 @@
 				9871FFBC06D1B317F85C7B55 /* NotchcastIslandSettingsRows.swift */,
 				7346818DF99DC6A5775B6D53 /* NotchcastLookSection.swift */,
 				66858280D558AB26D991D8A0 /* NotchcastSettingsSearch.swift */,
+				3630E218B64DA6A652C90ECB /* NotchcastSettingsSubpage.swift */,
 				504A8A2B272B9CD18854063C /* NotchcastSettingsView.swift */,
 			);
 			path = UI;
@@ -8350,6 +8356,7 @@
 				BA1947A80061F19458151D17 /* NotchcastSettingsPane.swift in Sources */,
 				CDD489D3CEE806B071933E86 /* NotchcastSettingsSearch.swift in Sources */,
 				03AEF80967039A6FE72DE25B /* NotchcastSettingsStatus.swift in Sources */,
+				3B9623C4E10F267578E5175B /* NotchcastSettingsSubpage.swift in Sources */,
 				D9553D43E5E40F6F1BBFA802 /* NotchcastSettingsView.swift in Sources */,
 				2B7F05EB671F1477514782E9 /* NotchcastSurfaces+Live.swift in Sources */,
 				ABE8E3C0010157830AEFE1D9 /* NotchcastSurfaces.swift in Sources */,
@@ -8579,6 +8586,7 @@
 				836F7B54BDF84308B2BF74B6 /* ScreenshotSelectionSurface.swift in Sources */,
 				27CD74BD34D4F67F466AD6FA /* ScreenshotSystem+Live.swift in Sources */,
 				4FC5D2FD1ED7DF2B7B7DFC1F /* ScreenshotSystem.swift in Sources */,
+				6C4893847EED52B5755CAE1D /* ScreenshotWindowCapture.swift in Sources */,
 				A68FC337531D728CA3DF0BB1 /* ScreenshotsAddon.swift in Sources */,
 				DED17EFF73C55BEEB2F7176A /* ScreenshotsModule.swift in Sources */,
 				DA06C3586E449DDC00640588 /* ScreenshotsSettingsView.swift in Sources */,

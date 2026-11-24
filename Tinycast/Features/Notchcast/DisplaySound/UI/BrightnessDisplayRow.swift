@@ -18,6 +18,7 @@ struct BrightnessDisplayRow: View {
             HStack(spacing: Theme.Spacing.sm) {
                 Slider(value: $state.value, in: display.level.range)
                     .frame(width: Self.sliderWidth)
+                    .disabled(pinned)
                     .accessibilityLabel(Text("Brightness of \(display.name)", tableName: "NotchcastDisplaySound"))
                     .accessibilityValue(Text(readout))
                 Text(readout)
@@ -27,7 +28,7 @@ struct BrightnessDisplayRow: View {
         } label: {
             Label {
                 Text(display.name)
-                Text(state.failed ? String(localized: "Not responding", table: "NotchcastDisplaySound") : controlTitle)
+                Text(state.failed ? String(localized: "Not responding", table: "NotchcastDisplaySound") : caption)
                     .foregroundStyle(state.failed ? Theme.Colors.warning : Theme.Colors.textSecondary)
             } icon: {
                 SymbolImage(name: display.isBuiltIn ? "laptopcomputer" : "display", size: Theme.Size.menuIcon)
@@ -41,6 +42,12 @@ struct BrightnessDisplayRow: View {
     private var readout: String {
         BrightnessLevel(state.value, softwareOnly: display.level.softwareOnly,
                         extraDimming: display.level.extraDimming).readout
+    }
+
+    private var pinned: Bool { display.level.softwareOnly && !display.level.extraDimming }
+
+    private var caption: String {
+        pinned ? String(localized: "Needs Extra dimming", table: "NotchcastDisplaySound") : controlTitle
     }
 
     private var controlTitle: String {

@@ -218,6 +218,7 @@ final class IslandController: NSObject {
         glancing = size != .zero || page != nil || canvas.expansion != nil || level != nil || notice != nil
         let rests = showsRest && !onFullScreenSpace
         canvas.covered = size != .zero || page != nil
+        canvas.launcherOpen = palette != nil
         surface.batch {
             if size != .zero {
                 if !suspended { backdrop.orderFrontRegardless() }
