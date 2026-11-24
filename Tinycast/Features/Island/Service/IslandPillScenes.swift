@@ -317,7 +317,7 @@ enum IslandPillScenes {
                                    "Settings opens on the test display")
         let hidden = ["Show in menu bar", "Show in Menu Bar", "Calendar in Menu Bar", "Show Upcoming Events",
                       "Only show events with meetings", "Hide when there are no upcoming events", "Hide Current Event", "Calendars"]
-        let panes: [(SettingsTab, String)] = [(.general, "Launch at login"), (.permissions, "Accessibility")]
+        let panes: [(SettingsTab, String)] = [(.general, "Launch at login"), (.backup, "Export Backup")]
         IslandVerification.require(wakeAccessibilityTree(), "the app's own AX tree answers")
         await IslandVerification.pause(0.3)
         for (tab, shown) in panes {
