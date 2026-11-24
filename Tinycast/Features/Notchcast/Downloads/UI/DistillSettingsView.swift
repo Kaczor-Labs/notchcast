@@ -5,7 +5,7 @@ struct DistillSettingsView: View {
     @AppStorage private var convertDrops: Bool
     private static let anchor = NotchcastSettingsSearch.anchor(.filesDownloads)
     private static let convertHelp = LocalizedStringResource(
-        "PDF, HTML, audio and video files added to the Markdown folder while this is on become notes. Originals go to the Trash.",
+        "When you put a PDF, web page, audio or video file in your Markdown folder, Notchcast saves it as a Markdown note and moves the original to the Trash. Files already there stay as they are.",
         table: "NotchcastDownloads")
 
     init(defaults: UserDefaults) {
@@ -37,10 +37,14 @@ struct DistillSettingsView: View {
             }
         }
         notchcastSettingsToggle(
-            SettingsRowTitle(Self.anchor, LocalizedStringResource("Convert dropped files", table: "NotchcastDownloads")),
+            SettingsRowTitle(Self.anchor, LocalizedStringResource(
+                "Turn files in the Markdown folder into notes", table: "NotchcastDownloads")),
             isOn: $convertDrops
         ) {
             Text(Self.convertHelp)
+            if folder == nil {
+                Text("Choose a Markdown folder first.", tableName: "NotchcastDownloads")
+            }
         }
         .settingsEnabled(folder != nil)
         DistillQueueView()
