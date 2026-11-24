@@ -16,7 +16,7 @@ enum MacTweaksAddon: NotchcastAddon {
     ]
 
     static let settings = [
-        NotchcastSettingsRow(switchID: settingsID) { _ in AnyView(MacTweaksSettingsView(page: .catalogue)) },
+        NotchcastSettingsRow(switchID: "macTweaksCatalogue") { _ in AnyView(MacTweaksSettingsView(page: .catalogue)) },
     ]
 
     static let finderPage = NotchcastSettingsSubpage(
