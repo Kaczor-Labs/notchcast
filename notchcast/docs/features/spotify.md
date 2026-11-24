@@ -10,6 +10,6 @@ The Spotify add-on (`Tinycast/Features/Notchcast/Spotify/`) feeds the island's P
 
 ## Song glance
 
-"Long song names" (Widen, Scroll), a row under Spotify's switch in Settings › Notchcast, sets the song's `IslandSongOverflow`, which only the pill without a notch uses.
+"Long song names" (Widen, Scroll), a row in Spotify in the Island Options under Settings › Notchcast › Island Content, sets the song's `IslandSongOverflow`, which only the pill without a notch uses.
 
 `Tests/nc-Spotify-module-test.swift` drives the page with a fake transport. Not verified: any of it against a live Spotify.

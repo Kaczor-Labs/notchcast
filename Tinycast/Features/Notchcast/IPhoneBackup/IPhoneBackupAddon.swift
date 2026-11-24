@@ -12,12 +12,17 @@ enum IPhoneBackupAddon: NotchcastAddon {
             subtitle: String(
                 localized: "Asks first, and switching back restores your previous setting.",
                 table: "NotchcastIPhoneBackup"),
-            category: .macTweaks
+            category: .macTweaks,
+            settingsTitle: String(localized: "iPhone backups", table: "NotchcastIPhoneBackup")
         ),
     ]
 
     static let settings = [
-        NotchcastSettingsRow(switchID: switchID) { _ in AnyView(IPhoneBackupSettingsView()) },
+        NotchcastSettingsRow(switchID: switchID, searchTerms: [
+            "automatic backups",
+        ]) { _ in
+            AnyView(IPhoneBackupSettingsView())
+        },
     ]
 
     static func makeModule(_ context: NotchcastContext) -> (any NotchcastModule)? {
