@@ -10,6 +10,16 @@ protocol NotchcastModule: AnyObject {
     func stop()
 }
 
+// The fake parks the preset's restart, so it must not be the strict cooperative pool's only thread.
+private final class MacTweaksParkedRunExecutor: TaskExecutor {
+    private let queue = DispatchQueue(label: "nc-MacTweaks-store-test.parked-run")
+
+    func enqueue(_ job: consuming ExecutorJob) {
+        let job = UnownedJob(job)
+        queue.async { job.runSynchronously(on: self.asUnownedTaskExecutor()) }
+    }
+}
+
 @main
 struct MacTweaksStoreTest {
     private enum FakeFailure: Error { case write }
@@ -133,7 +143,7 @@ struct MacTweaksStoreTest {
         module.start()
         let store = module.store
         var reachedRestart = started.makeAsyncIterator()
-        let running = Task {
+        let running = Task(executorPreference: MacTweaksParkedRunExecutor()) {
             defer { signal.finish() }
             return try await store.runPreset(.maximumPrivacy)
         }
