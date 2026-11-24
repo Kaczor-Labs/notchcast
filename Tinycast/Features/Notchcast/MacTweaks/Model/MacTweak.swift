@@ -5,6 +5,7 @@ enum MacTweakGroup: String, CaseIterable, Sendable {
     case finder, dockAndWindows, typing, screenshots, annoyances, appleApps, privacy
 }
 
+// notchcast-foreign-strings: the raw values are process names for killall, never shown.
 enum MacTweakRestart: String, Codable, CaseIterable, Sendable {
     case finder = "Finder"
     case dock = "Dock"
