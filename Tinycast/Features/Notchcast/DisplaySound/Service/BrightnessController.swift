@@ -85,7 +85,10 @@ final class BrightnessController {
 
     private func relevel(_ operation: BrightnessDisplayService.Operation) {
         guard running else { return }
-        Task { [weak self] in _ = await self?.perform(operation) }
+        Task { [weak self] in
+            guard let snapshot = await self?.perform(operation) else { return }
+            self?.scheduleRetries(snapshot.retrying)
+        }
     }
 
     func refresh() async {

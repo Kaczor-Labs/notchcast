@@ -67,15 +67,39 @@ final class RecordingPresenter: IslandPresenting {
     var ends: [String] = []
     var statuses: [IslandStatus?] = []
     var statusTap: (@MainActor () -> Void)?
+    var noticeTap: (@MainActor () -> Void)?
+    var menuRows: [IslandMenuRow] = []
+    var menuSelect: (@MainActor (String) -> Void)?
+    var cleanUpCount = 0
     func showLevel(_ level: IslandLevel) {}
-    func post(_ notice: IslandNotice, onTap: (@MainActor () -> Void)?) { posts.append(notice) }
-    func end(notice id: String) { ends.append(id) }
+    func post(_ notice: IslandNotice, onTap: (@MainActor () -> Void)?) {
+        posts.append(notice)
+        noticeTap = onTap
+    }
+    func end(notice id: String) {
+        ends.append(id)
+        noticeTap = nil
+    }
     func setStatus(_ status: IslandStatus?, for id: String, onTap: (@MainActor () -> Void)?) {
         precondition(id == "lowDisk")
         statuses.append(status)
         statusTap = onTap
     }
-    func setMenuRows(_ rows: [IslandMenuRow], owner: String, onSelect: @escaping @MainActor (String) -> Void) {}
+    func setMenuRows(_ rows: [IslandMenuRow], owner: String, onSelect: @escaping @MainActor (String) -> Void) {
+        menuRows = rows
+        menuSelect = rows.isEmpty ? nil : onSelect
+    }
+}
+
+private enum ReviewAddon: NotchcastAddon {
+    static let switches = [
+        NotchcastSwitch(id: "review", title: "Review", subtitle: "", category: .notices, defaultEnabled: true)
+    ]
+    static let commands = [
+        NotchcastCommand(
+            slug: "review-disk", name: "Review Disk", symbol: "internaldrive", switchID: "review",
+            run: { ($0.presenter as? RecordingPresenter)?.cleanUpCount += 1 }, diskCleanUpTitle: "Clean Up")
+    ]
 }
 
 /// One app launch on a suite; a second Rig on the same suite is the next launch.
@@ -85,12 +109,13 @@ final class Rig {
     let presenter = RecordingPresenter()
     let controller: NotchcastController
 
-    init(suite: String, on: Bool?) {
+    init(suite: String, on: Bool?, offersCleanUp: Bool = false) {
         defaults = UserDefaults(suiteName: suite)!
         if let on { defaults.set(on, forKey: "lowDiskWarning") }
         let hub = NotchcastTapHub(syntheticTag: 0x54494E59, isTrusted: { true }, makeSession: { FakeSession($0) })
+        let addons: [any NotchcastAddon.Type] = offersCleanUp ? [LowDiskAddon.self, ReviewAddon.self] : [LowDiskAddon.self]
         controller = NotchcastController(
-            addons: [LowDiskAddon.self], defaults: defaults, hub: hub, dictation: FakeDictation(), presenter: presenter)
+            addons: addons, defaults: defaults, hub: hub, dictation: FakeDictation(), presenter: presenter)
         controller.start()
     }
 
@@ -117,6 +142,7 @@ enum LowDiskModuleTests {
         await waitsForTheDisplay()
         await command()
         await statusTap()
+        await cleanUpAction()
         print("PASS nc-LowDisk-module-test")
     }
 
@@ -202,6 +228,7 @@ enum LowDiskModuleTests {
         await rig.check()
         await rig.check()
         precondition(rig.warnings.count == 1, "one warning, never repeated: \(rig.presenter.posts.map(\.text))")
+        precondition(rig.presenter.noticeTap == nil && rig.presenter.menuRows.isEmpty, "no provider means no action")
         let warning = rig.warnings[0]
         precondition(warning.text == LowDiskPolicy.warning(free: gb(50)), "the warning names free space")
         precondition(warning.id == LowDiskModule.noticeID && warning.symbol == "internaldrive", "its id and glyph")
@@ -361,6 +388,55 @@ enum LowDiskModuleTests {
         precondition(rig.controller.run(entryID: "command:nc-check-disk-space"), "on: the launcher runs it")
         rig.controller.stop()
         precondition(module.showFreeSpace() == nil && module.check() == nil, "a stopped module reads nothing")
+    }
+
+    static func cleanUpAction() async {
+        let suite = "nc-LowDisk-module-test.\(UUID())"
+        defer { UserDefaults().removePersistentDomain(forName: suite) }
+        disk.free = gb(11)
+        let rig = Rig(suite: suite, on: true, offersCleanUp: true)
+        defer { rig.controller.stop() }
+        await rig.settle()
+        let presenter = rig.presenter
+        precondition(presenter.menuRows.isEmpty && presenter.noticeTap == nil, "healthy disk has no action")
+
+        disk.free = gb(9)
+        await rig.check()
+        precondition(presenter.menuRows.map(\.title) == ["Clean Up"])
+        precondition(presenter.posts.last?.text.hasSuffix("Clean Up") == true)
+        let warningTap = presenter.noticeTap
+        let row = presenter.menuRows[0]
+        let menuTap = presenter.menuSelect
+        warningTap?()
+        presenter.statusTap?()
+        menuTap?(row.id)
+        precondition(presenter.cleanUpCount == 3, "all three surfaces run the declared command")
+
+        disk.free = gb(10)
+        await rig.check()
+        precondition(presenter.statuses.last.flatMap { $0 } == lowDiskStatus, "hysteresis retains the disk glyph")
+        precondition(presenter.menuRows.isEmpty && presenter.noticeTap == nil, "the action ends at the threshold")
+        warningTap?()
+        menuTap?(row.id)
+        presenter.statusTap?()
+        await rig.module?.reporting?.value
+        precondition(presenter.cleanUpCount == 3, "stale actions cannot run once the disk is healthy")
+        precondition(presenter.posts.last?.text == LowDiskPolicy.available(free: gb(10)))
+
+        disk.free = gb(11)
+        await rig.check()
+        disk.free = gb(9)
+        await rig.check()
+        let newWarningTap = presenter.noticeTap
+        await withCheckedContinuation { continuation in
+            rig.controller.onCommandsChanged = { _ in continuation.resume() }
+            rig.controller.preferences.set("review", on: false)
+        }
+        rig.controller.onCommandsChanged = nil
+        precondition(presenter.menuRows.isEmpty && presenter.noticeTap == nil,
+                     "switching off the provider removes its action")
+        newWarningTap?()
+        precondition(presenter.cleanUpCount == 3, "a stale tap cannot run a disabled command")
     }
 
     static func statusTap() async {

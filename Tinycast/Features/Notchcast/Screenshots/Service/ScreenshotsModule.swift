@@ -119,19 +119,20 @@ final class ScreenshotsModule: NotchcastModule {
             let frozen = try await system.freeze(nil, exclusion)
             try Task.checkCancellation()
             let pickable = exclusion.pickable(system.windows())
-            let windows = try await system.freezeWindows(pickable.map(\.id))
+            let windows = try await system.freezeWindows(pickable)
             try Task.checkCancellation()
-            let offered = pickable.filter { windows[$0.id] != nil }
-            guard let request = await select(frozen, offered) else { return nil }
+            // A window without a still stays hit-testable, so a click on it never takes the display.
+            guard let request = await select(frozen, pickable, Set(windows.keys)) else { return nil }
             try Task.checkCancellation()
-            return try capture(request, in: frozen, windows: windows, frames: offered)
+            return try capture(request, in: frozen, windows: windows, frames: pickable)
         }
     }
 
-    private func select(_ frozen: [ScreenshotFrozenDisplay], _ windows: [ScreenshotWindow]) async
-        -> ScreenshotRequest? {
+    private func select(
+        _ frozen: [ScreenshotFrozenDisplay], _ windows: [ScreenshotWindow], _ stills: Set<UInt32>
+    ) async -> ScreenshotRequest? {
         await withCheckedContinuation { continuation in
-            closeSurface = system.select(frozen, windows) { [weak self] request in
+            closeSurface = system.select(frozen, windows, stills) { [weak self] request in
                 self?.closeSurface = nil
                 continuation.resume(returning: request)
             }
@@ -216,10 +217,10 @@ final class ScreenshotsModule: NotchcastModule {
     /// Our own dialog; with none to ask (no app running) the edits are kept.
     private func askToDiscard() {
         export = Task {
-            let discard = await context.confirmDestructive?(
+            let discard = await context.confirmDestructive(
                 String(localized: "Discard this screenshot's edits?", table: "NotchcastScreenshots"),
                 String(localized: "It was not copied or saved yet.", table: "NotchcastScreenshots"),
-                String(localized: "Discard", table: "NotchcastScreenshots")) ?? false
+                String(localized: "Discard", table: "NotchcastScreenshots"))
             guard !Task.isCancelled else { return }
             export = nil
             if discard { endEditing() }

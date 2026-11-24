@@ -13,6 +13,9 @@ final class LowDiskModule: NotchcastModule {
     private let isDisplayAsleep: @MainActor () -> Bool
     private var policy = LowDiskPolicy()
     private var postedStatus: IslandStatus?
+    private var isLow = false
+    private var warnedWithAction = false
+    private var menuTitle: String?
     private var wakeObserver: NotificationCenter.ObservationToken?
     private var timer: Task<Void, Never>?
     private(set) var checking: Task<Void, Never>?
@@ -37,6 +40,7 @@ final class LowDiskModule: NotchcastModule {
         wakeObserver = workspace.notificationCenter.addObserver(of: workspace, for: .screensDidWake) { [weak self] _ in
             await self?.check()
         }
+        context.cleanUp.onChange = { [weak self] in self?.updateCleanUp() }
         scheduleChecks()
         check()
     }
@@ -53,6 +57,10 @@ final class LowDiskModule: NotchcastModule {
         reporting?.cancel()
         reporting = nil
         operation = UUID()
+        context.cleanUp.onChange = nil
+        isLow = false
+        warnedWithAction = false
+        updateCleanUp()
         setStatus(nil)
         context.presenter.end(notice: Self.noticeID)
     }
@@ -96,6 +104,7 @@ final class LowDiskModule: NotchcastModule {
             } ?? IslandNotice(
                 id: Self.noticeID, symbol: Self.symbol,
                 text: String(localized: "Couldn’t read disk space", table: "NotchcastLowDisk"), isFailure: true)
+            self.warnedWithAction = false
             self.context.presenter.post(notice, onTap: nil)
         }
         reporting = task
@@ -105,19 +114,40 @@ final class LowDiskModule: NotchcastModule {
     private func apply(_ free: Int64) {
         guard free >= 0, !isDisplayAsleep() else { return }
         let stored = context.defaults.object(forKey: LowDiskPolicy.thresholdKey) as? Int
+        let threshold = LowDiskPolicy.thresholdGB(stored: stored)
+        isLow = free < LowDiskPolicy.bytes(gigabytes: threshold)
+        updateCleanUp()
         let hadWarned = policy.hasWarned
-        let warns = policy.shouldWarn(
-            free: free, thresholdGB: LowDiskPolicy.thresholdGB(stored: stored), displayAsleep: false)
+        let warns = policy.shouldWarn(free: free, thresholdGB: threshold, displayAsleep: false)
         if policy.hasWarned != hadWarned {
             context.defaults.set(policy.hasWarned, forKey: LowDiskPolicy.warnedKey)
         }
         if warns {
+            warnedWithAction = menuTitle != nil
+            let tap: @MainActor () -> Void = { [weak self] in self?.openCleanUp() }
             context.presenter.post(
-                IslandNotice(id: Self.noticeID, symbol: Self.symbol, text: LowDiskPolicy.warning(free: free),
-                             isFailure: true),
-                onTap: nil)
+                IslandNotice(id: Self.noticeID, symbol: Self.symbol,
+                             text: LowDiskPolicy.warning(free: free, actionTitle: menuTitle), isFailure: true),
+                onTap: warnedWithAction ? tap : nil)
         }
         setStatus(policy.status)
+    }
+
+    private func updateCleanUp() {
+        let title = isLow ? context.cleanUp.title : nil
+        guard title != menuTitle else { return }
+        menuTitle = title
+        if warnedWithAction {
+            warnedWithAction = false
+            context.presenter.end(notice: Self.noticeID)
+        }
+        let rows = title.map { [IslandMenuRow(id: Self.noticeID, title: $0)] } ?? []
+        context.presenter.setMenuRows(rows, owner: Self.noticeID) { [weak self] _ in self?.openCleanUp() }
+    }
+
+    private func openCleanUp() {
+        guard isLow else { return }
+        context.cleanUp.open()
     }
 
     private func scheduleChecks() {
@@ -136,7 +166,11 @@ final class LowDiskModule: NotchcastModule {
         guard status != postedStatus else { return }
         postedStatus = status
         scheduleChecks()
-        let tap: @MainActor () -> Void = { [weak self] in self?.showFreeSpace() }
+        let tap: @MainActor () -> Void = { [weak self] in
+            guard let self else { return }
+            if menuTitle != nil { openCleanUp() }
+            else { showFreeSpace() }
+        }
         context.presenter.setStatus(status, for: Self.noticeID, onTap: status == nil ? nil : tap)
     }
 }

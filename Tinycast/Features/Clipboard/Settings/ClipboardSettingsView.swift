@@ -21,6 +21,7 @@ struct ClipboardSettingsView: View {
 
             FeatureCommandsSection(owner: .clipboard, anchor: .clipboardCommands)
                 .settingsEnabled(settings.clipboardEnabled)
+                .notchcastHidden(!settings.clipboardEnabled)
 
             Section {
                 Picker(selection: $settings.clipboardRetention) {
@@ -46,6 +47,7 @@ struct ClipboardSettingsView: View {
                 SettingsSectionHeader(.clipboardHistory)
             }
             .settingsEnabled(settings.clipboardEnabled)
+            .notchcastHidden(!settings.clipboardEnabled)
 
             DisabledApplicationsSection(
                 bundleIDs: $settings.clipboardDisabledApps,
@@ -53,6 +55,7 @@ struct ClipboardSettingsView: View {
                 footer: String(localized: "Copies from these apps aren't recorded.")
             )
             .settingsEnabled(settings.clipboardEnabled)
+            .notchcastHidden(!settings.clipboardEnabled)
 
             Section {
                 LabeledContent {
@@ -62,6 +65,7 @@ struct ClipboardSettingsView: View {
                     Text("Removes every item in the history.")
                 }
             }
+            .notchcastHidden(!settings.clipboardEnabled)
         }
         .formStyle(.grouped)
         .settingsScrollTarget(.clipboard)

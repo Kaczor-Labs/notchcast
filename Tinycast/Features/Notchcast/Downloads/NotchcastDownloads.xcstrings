@@ -319,10 +319,10 @@
     "Choose a folder to also save everything Distill makes there as a Markdown note." : {
 
     },
-    "Convert dropped files" : {
+    "Turn files in the Markdown folder into notes" : {
 
     },
-    "PDF, HTML, audio and video files added to the Markdown folder while this is on become notes. Originals go to the Trash." : {
+    "When you put a PDF, web page, audio or video file in your Markdown folder, Notchcast saves it as a Markdown note and moves the original to the Trash. Files already there stay as they are." : {
 
     },
     "Held until Run Distill" : {},
@@ -391,6 +391,71 @@
           }
         }
       }
+    },
+    "%lld failed links" : {
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld failed link"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld failed links"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "Remove %lld failed links?" : {
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Remove %lld failed link?"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Remove %lld failed links?"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "%lld need a dictation model" : {
+
+    },
+    "Try All Again" : {
+
+    },
+    "Remove All" : {
+
+    },
+    "Try all failed links again" : {
+
+    },
+    "Remove all failed links" : {
+
+    },
+    "Saved and waiting links stay." : {
+
+    },
+    "Open Dictation Settings" : {
+
     }
   },
   "version" : "1.0"

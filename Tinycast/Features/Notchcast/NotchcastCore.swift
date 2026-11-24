@@ -42,8 +42,10 @@ final class NotchcastCore {
                 await core?.confirm(title: title, message: message, symbol: nil, confirmTitle: confirmTitle,
                                     tone: .neutral, confirmRole: .standard) ?? false
             }
-            context.confirmDestructive = { [weak core] title, message, confirmTitle in
-                await core?.confirm(title: title, message: message, symbol: nil, confirmTitle: confirmTitle) ?? false
+            context.presentDestructiveQuestion = { [weak core] title, message, confirmTitle, cancelTitle in
+                await core?.confirm(
+                    title: title, message: message, symbol: nil, confirmTitle: confirmTitle,
+                    dismissTitle: cancelTitle) ?? false
             }
         }
         controller.wireAskSecret { [weak core] requester, title, message, fieldTitle, confirmTitle in

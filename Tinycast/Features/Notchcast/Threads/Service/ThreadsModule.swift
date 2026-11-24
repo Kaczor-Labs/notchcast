@@ -6,6 +6,7 @@ final class ThreadsModule: NotchcastModule {
     let context: NotchcastContext
     private let openURL: @MainActor (URL) -> Void
     private let sleep: @MainActor (Duration) async throws -> Void
+    private let home: URL
     private var watcher: ThreadsWatcher?
     private var document: ThreadsDocument?
     private var configured = false
@@ -16,14 +17,16 @@ final class ThreadsModule: NotchcastModule {
     private var rows: [ThreadsDocument.Wait] = []
     private var commandSlugs: [String] = []
 
-    init(context: NotchcastContext, open: @escaping @MainActor (URL) -> Void,
+    init(context: NotchcastContext, home: URL = FileManager.default.homeDirectoryForCurrentUser,
+         open: @escaping @MainActor (URL) -> Void,
          sleep: @escaping @MainActor (Duration) async throws -> Void = { try await Task.sleep(for: $0) }) {
         self.context = context
+        self.home = home
         openURL = open
         self.sleep = sleep
     }
 
-    private var preferences: ThreadsPreferences { ThreadsPreferences(defaults: context.defaults) }
+    private var preferences: ThreadsPreferences { ThreadsPreferences(defaults: context.defaults, home: home) }
 
     func start() {
         context.presenter.watchPages(id: ThreadsPage.id) { [weak self] visible in
@@ -60,7 +63,7 @@ final class ThreadsModule: NotchcastModule {
     @discardableResult
     func reload() -> Task<Void, Never> {
         let url = preferences.waitsURL
-        if let url, watcher?.isWatching != true {
+        if watcher?.isWatching != true {
             watcher?.cancel()
             let watcher = ThreadsWatcher(fileURL: url) { [weak self] in self?.reload() }
             watcher.arm()
@@ -90,16 +93,11 @@ final class ThreadsModule: NotchcastModule {
 
     /// A missing or broken read keeps the last good list, shown at once as "not reporting".
     private func apply(_ read: ThreadsRead) {
+        configured = true
         switch read {
-        case .unset:
-            configured = false
-            readFailed = false
-            document = nil
         case .missing, .unreadable:
-            configured = true
             readFailed = true
         case .loaded(let loaded):
-            configured = true
             readFailed = false
             document = loaded
         }

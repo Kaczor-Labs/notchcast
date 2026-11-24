@@ -37,6 +37,11 @@ struct ThreadsDocument: Equatable, Sendable {
         var question: String?
     }
 
+    /// Where t3chad writes the document on every machine, next to `versions.json`.
+    static func defaultURL(home: URL) -> URL {
+        home.appending(path: ".local/state/t3chad/docs/v1/waits.json")
+    }
+
     enum DecodeError: Error {
         case notWaits
     }
@@ -115,8 +120,6 @@ struct ThreadsDocument: Equatable, Sendable {
 
 /// One read of the waits file.
 enum ThreadsRead: Equatable, Sendable {
-    /// No path is set in Settings.
-    case unset
     case missing
     case unreadable
     case loaded(ThreadsDocument)

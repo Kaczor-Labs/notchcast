@@ -22,6 +22,7 @@ struct DownloadsQueueTest {
         try await concurrencyAndFIFO(root, tools)
         try await actions(root, tools)
         try await removal(root, tools)
+        try await bulk(root, tools)
         try await relaunch(root, tools)
         try await persistence(root, tools)
         try await readOnlyJobs(root, tools)
@@ -77,7 +78,7 @@ struct DownloadsQueueTest {
         queue.cancel(added[1].id)
         expect(queue.jobs[1].state == .cancelled, "cancel waiting job")
         queue.cancel(added[0].id)
-        queue.retry(added[0].id)
+        queue.retry([added[0].id])
         expect(queue.jobs.last?.id == added[0].id, "retry moves same id to FIFO tail")
         expect(queue.jobs.last?.encodedOptions == added[0].encodedOptions && added[0].encodedOptions != nil
             && queue.jobs.last?.group == "batch", "retry retains input")
@@ -110,8 +111,8 @@ struct DownloadsQueueTest {
         queue.register(GateRunner(probe: probe))
         let jobs = queue.enqueue(kind: "fake", sources: ["running", "waiting", "next"])
         try await eventually { probe.started == ["running"] }
-        queue.remove(jobs[1].id)
-        queue.remove(jobs[0].id)
+        queue.remove([jobs[1].id])
+        queue.remove([jobs[0].id])
         expect(queue.jobs.map(\.source) == ["next"] && queue.jobs[0].state == .waiting,
                "removal holds the slot while cancellation drains")
         let stored = try JSONDecoder().decode([DownloadJob].self, from: Data(contentsOf: file))
@@ -120,6 +121,27 @@ struct DownloadsQueueTest {
         expect(probe.maximum == 1, "cancellation and the next runner do not overlap")
         probe.released.insert("next")
         try await eventually { queue.jobs.map(\.state) == [.done] }
+        await queue.stop()
+    }
+
+    @MainActor
+    private static func bulk(_ root: URL, _ tools: DownloadToolLookup) async throws {
+        let file = root.appending(path: "bulk/downloads.json")
+        let queue = try await DownloadQueue(file: file, destination: root, maxConcurrent: 1, tools: tools)
+        let probe = Probe()
+        queue.register(GateRunner(probe: probe))
+        let jobs = queue.enqueue(kind: "fake", sources: ["a", "b", "c", "d"])
+        for job in jobs { queue.cancel(job.id) }
+        queue.remove([jobs[0].id, jobs[2].id, "missing"])
+        var stored = try JSONDecoder().decode([DownloadJob].self, from: Data(contentsOf: file))
+        expect(stored.map(\.source) == ["b", "d"], "one call removes every id named and is saved")
+        queue.retry([jobs[3].id, jobs[1].id])
+        stored = try JSONDecoder().decode([DownloadJob].self, from: Data(contentsOf: file))
+        expect(stored.map(\.source) == ["d", "b"], "one call requeues every id in the order given and is saved")
+        expect(stored.allSatisfy { $0.state != .cancelled && $0.finished == nil }, "requeued rows are reset")
+        probe.released.formUnion(["b", "d"])
+        try await eventually { queue.jobs.allSatisfy { $0.state == .done } }
+        expect(probe.started.suffix(2) == ["d", "b"], "requeued rows run in the order given")
         await queue.stop()
     }
 

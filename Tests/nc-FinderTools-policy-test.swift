@@ -122,8 +122,6 @@ do {
     check("nothing is armed", !p.hasPendingCut)
     _ = p.keyUp(x)
     check("⌘V after a later copy is a plain paste", p.down(v) == .pass)
-    check("the cut command with nothing selected queues", p.command(.cut))
-    check("and sends ⌘X on unarmed", p.settle(.emptyFileList, changeCount: 11) == [.replay] && !p.hasPendingCut)
     _ = p.down(x)
     _ = p.settle(.fileList, changeCount: 20)
     _ = p.keyUp(x)
@@ -138,8 +136,7 @@ do {
     _ = p.down(x)
     check("a stale key press is forwarded", p.settle(nil, changeCount: 10) == [.forward])
     check("and leaves no cut", !p.hasPendingCut)
-    check("a stale command drops", p.command(.cut) && p.settle(nil, changeCount: 10) == [.drop])
-    check("and leaves no cut either", !p.hasPendingCut)
+    check("a stale command drops", p.rename() && p.settle(nil, changeCount: 10) == [.drop])
 }
 
 // Other apps, repeats and synthetic events pass untouched.
@@ -162,8 +159,8 @@ do {
     check("⌃⌥⇧⌘R in Finder passes", p.down(r, [.command, .shift, .option, .control]) == .pass)
     check("⌘R is not rename", p.down(r) == .pass)
     check("no key queued a rename", !p.hasRequests)
-    check("the rename command sends Return", p.command(.rename) && p.settle(.fileList, changeCount: 0) == [.pressReturn])
-    check("in a text field it sends nothing", p.command(.rename) && p.settle(.text, changeCount: 0) == [.drop])
+    check("the rename command sends Return", p.rename() && p.settle(.fileList, changeCount: 0) == [.pressReturn])
+    check("in a text field it sends nothing", p.rename() && p.settle(.text, changeCount: 0) == [.drop])
 }
 
 // A tap reset drops the cut and the swallowed key-ups.
@@ -176,15 +173,10 @@ do {
     check("reset forgets swallowed keys", p.keyUp(x) == .pass)
 }
 
-// Commands act like their keys; a command has no key to replay.
+// The rename command needs Finder frontmost.
 do {
     var p = Policy()
-    check("no command without Finder frontmost", !p.command(.cut))
-    p.finderPID = finder
-    check("cut command queues", p.command(.cut))
-    check("cut command copies", p.settle(.fileList, changeCount: 4) == [.copy])
-    check("paste command moves", p.command(.paste) && p.settle(.fileList, changeCount: 5) == [.move])
-    check("rename command in a text field drops", p.command(.rename) && p.settle(.text, changeCount: 5) == [.drop])
+    check("no command without Finder frontmost", !p.rename())
 }
 
 // The layout decides which key is X, C and V.
