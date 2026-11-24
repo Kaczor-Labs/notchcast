@@ -2,7 +2,7 @@ import Foundation
 
 extension DownloadsModule {
     nonisolated enum DistillAction: Codable, Sendable {
-        case remove(String), retry(String), run
+        case remove([String]), retry([String]), run
     }
 
     var distillRows: [DistillQueueList.Row]? {
@@ -15,17 +15,21 @@ extension DownloadsModule {
         switch action {
         case .run:
             perform(.runDistill)
-        case .remove(let id):
-            guard queue.jobs.contains(where: { $0.id == id && !$0.source.hasPrefix("/") }) else { return }
-            queue.remove(id)
-        case .retry(let id):
-            guard let job = queue.jobs.first(where: { $0.id == id && !$0.source.hasPrefix("/") }),
-                  job.state.isFinished, job.state != .done else { return }
-            if queue.jobs.contains(where: { $0.source == job.source && !$0.state.isFinished }) {
-                queue.remove(id)
-            } else {
-                queue.retry(id)
+        case .remove(let ids):
+            let ids = Set(ids)
+            queue.remove(queue.jobs.filter { ids.contains($0.id) && !$0.source.hasPrefix("/") }.map(\.id))
+        case .retry(let ids):
+            let ids = Set(ids)
+            // A link already queued again, or named twice, is removed rather than run twice.
+            var queued = Set(queue.jobs.filter { !$0.state.isFinished }.map(\.source))
+            var rerun: [String] = []
+            var drop: [String] = []
+            for job in queue.jobs where ids.contains(job.id) && !job.source.hasPrefix("/")
+                && job.state.isFinished && job.state != .done {
+                if queued.insert(job.source).inserted { rerun.append(job.id) } else { drop.append(job.id) }
             }
+            if !drop.isEmpty { queue.remove(drop) }
+            if !rerun.isEmpty { queue.retry(rerun) }
         }
     }
 }

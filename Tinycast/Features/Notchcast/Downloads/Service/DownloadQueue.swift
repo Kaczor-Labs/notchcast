@@ -103,23 +103,27 @@ final class DownloadQueue {
         pump()
     }
 
-    func remove(_ id: String) {
-        guard let index = jobs.firstIndex(where: { $0.id == id }) else { return }
-        tasks[id]?.cancel()
-        jobs.remove(at: index)
+    /// One save and one pump per call, so clearing many rows is one file write.
+    func remove(_ ids: [String]) {
+        let ids = Set(ids)
+        for id in ids { tasks[id]?.cancel() }
+        jobs.removeAll { ids.contains($0.id) }
         save()
         pump()
     }
 
-    func retry(_ id: String) {
-        guard let index = jobs.firstIndex(where: { $0.id == id }), jobs[index].state.isFinished else { return }
-        var job = jobs.remove(at: index)
-        job.state = .waiting
-        job.progress = nil
-        job.output = nil
-        job.detail = nil
-        job.finished = nil
-        jobs.append(job)
+    /// Requeues finished jobs at the tail in the order given, with one save and one pump.
+    func retry(_ ids: [String]) {
+        for id in ids {
+            guard let index = jobs.firstIndex(where: { $0.id == id }), jobs[index].state.isFinished else { continue }
+            var job = jobs.remove(at: index)
+            job.state = .waiting
+            job.progress = nil
+            job.output = nil
+            job.detail = nil
+            job.finished = nil
+            jobs.append(job)
+        }
         save()
         pump()
     }

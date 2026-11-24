@@ -391,6 +391,71 @@
           }
         }
       }
+    },
+    "%lld failed links" : {
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld failed link"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld failed links"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "Remove %lld failed links?" : {
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Remove %lld failed link?"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Remove %lld failed links?"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "%lld need a dictation model" : {
+
+    },
+    "Try All Again" : {
+
+    },
+    "Remove All" : {
+
+    },
+    "Try all failed links again" : {
+
+    },
+    "Remove all failed links" : {
+
+    },
+    "Saved and waiting links stay." : {
+
+    },
+    "Open Dictation Settings" : {
+
     }
   },
   "version" : "1.0"

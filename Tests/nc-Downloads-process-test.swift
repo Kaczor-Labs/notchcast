@@ -66,7 +66,7 @@ struct DownloadsProcessTest {
         expect(probe.started.isEmpty && queue.jobs.first?.detail?.contains(missing.installCommand) == true,
                "missing tool fails before runner with install hint")
         try executable(first.appending(path: missing.name), "#!/bin/sh\nexit 0\n")
-        queue.retry(queue.jobs[0].id)
+        queue.retry([queue.jobs[0].id])
         try await eventually { queue.jobs.first?.state == .done }
         expect(probe.started == ["never"], "retry checks newly installed tools on demand")
         await queue.stop()
