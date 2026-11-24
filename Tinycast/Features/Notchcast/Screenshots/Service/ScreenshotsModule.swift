@@ -10,6 +10,7 @@ final class ScreenshotsModule: NotchcastModule {
     static let editAfterCaptureKey = "notchcast.screenshot.editAfterCapture"
     static let textSymbol = "text.viewfinder"
     static let textNoticeID = "screenshot.text"
+    static let sensitiveTextSymbol = "eye.slash"
     private let context: NotchcastContext
     private let system: ScreenshotSystem
     private let exclusion: ScreenshotExclusion
@@ -163,7 +164,25 @@ final class ScreenshotsModule: NotchcastModule {
     }
 
     private func edit(_ image: CGImage, scale: CGFloat) {
-        closeEditor = system.edit(image, scale) { [weak self] outcome in self?.finishEditing(outcome) }
+        closeEditor = system.edit(image, scale, { [weak self] shown in
+            await self?.findSensitiveText(in: shown, scale: scale) ?? []
+        }, { [weak self] outcome in self?.finishEditing(outcome) })
+    }
+
+    /// Empty after a failure or when nothing matched, each said on the island; a cancelled search says nothing.
+    private func findSensitiveText(in image: CGImage, scale: CGFloat) async -> [CGRect] {
+        await warmUp?.value
+        guard let covers = try? await system.findSensitiveText(image, scale) else {
+            if !Task.isCancelled { report(ScreenshotRequest.Failure.recognitionFailed) }
+            return []
+        }
+        guard !Task.isCancelled else { return [] }
+        if covers.isEmpty {
+            context.presenter.post(IslandNotice(
+                id: "screenshot.sensitive", symbol: Self.sensitiveTextSymbol,
+                text: String(localized: "No sensitive text found.", table: "NotchcastScreenshots")), onTap: nil)
+        }
+        return covers
     }
 
     /// The editor stays open until its result is written, so a failed write loses no annotation.
