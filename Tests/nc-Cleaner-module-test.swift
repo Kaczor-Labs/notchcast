@@ -95,5 +95,15 @@ struct CleanerModuleTest {
         await module.scan()?.value
         await module.clean()?.value
         precondition(presenter.offers == 2 && presenter.empties == 1)
+
+        let replaced = module.scan()
+        let current = module.scan()
+        module.cancelScan(replaced)
+        await current?.value
+        precondition(session.phase == .review, "closing a replaced screen keeps the new scan")
+        let refused = module.scan()
+        module.cancelScan(refused)
+        await refused?.value
+        precondition(session.phase == .idle && session.items.isEmpty, "a refused screen cancels its scan")
     }
 }

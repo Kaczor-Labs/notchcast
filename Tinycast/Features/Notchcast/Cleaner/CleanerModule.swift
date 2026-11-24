@@ -48,6 +48,10 @@ final class CleanerModule: NotchcastModule {
         scanTask = nil
     }
 
+    func cancelScan(_ task: Task<Void, Never>?) {
+        if scanTask == task { cancelScan() }
+    }
+
     @discardableResult
     func clean() -> Task<Void, Never>? {
         guard cleanTask == nil, session.phase == .review, session.selection?.checked.isEmpty == false
