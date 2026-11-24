@@ -4,6 +4,8 @@ enum CleanerHoldBack: Error, Equatable, Sendable {
     case protectedData
     case unsafePath
     case runningApp
+    case runningProgram
+    case holdsRepository
     case openFile
     case recentWrite
     case recentSavedState

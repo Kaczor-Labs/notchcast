@@ -14,6 +14,8 @@ struct CleanerRunnerTest {
     static func main() async throws {
         try await checksEachItem()
         try await rejectsChangedRoot()
+        try await checksWhatWentToTheTrash()
+        try await rechecksMakersAndScripts()
     }
 
     private static func checksEachItem() async throws {
@@ -39,7 +41,7 @@ struct CleanerRunnerTest {
         let runner = CleanerRunner(scanner: fs.scanner, runningApps: { .init(running: ["drunning"]) })
         let report = await runner.run(plan, selection: plan.defaultSelection)
         precondition(report.entries.map(\.outcome) == [
-            .failed, .skipped(.changed), .skipped(.missing), .skipped(.heldBack(.runningApp)),
+            .failed(.fileWriteNoPermission), .skipped(.changed), .skipped(.missing), .skipped(.heldBack(.runningApp)),
             .skipped(.heldBack(.openFile)), .trashed(MeasuredSize(bytes: 64))
         ])
         precondition(report.movedCount == 1 && report.knownMovedBytes == 64)
@@ -58,6 +60,52 @@ struct CleanerRunnerTest {
         fs.put(area.root, link: true)
         let report = await runner.run(plan, selection: plan.defaultSelection)
         precondition(report.entries == [.init(id: item, outcome: .skipped(.heldBack(.unsafePath)))])
+        precondition(fs.trashCalls.isEmpty)
+    }
+
+    private static func checksWhatWentToTheTrash() async throws {
+        let fs = CleanerTestFileSystem()
+        let swapped = CleanerTestFileSystem.item("a-swapped")
+        let tool = CleanerTestFileSystem.item("b-tool")
+        let program = tool.appending(component: "bin")
+        let good = CleanerTestFileSystem.item("c-good")
+        let lost = CleanerTestFileSystem.item("d-lost")
+        fs.put(tool, directory: true)
+        for file in [swapped, program, good, lost] { fs.put(file, size: 32) }
+        let plan = try await fs.scanner.scan(home: CleanerTestFileSystem.area.home, apps: .init())
+        precondition(plan.defaultSelection.checked == [swapped, tool, good, lost])
+
+        fs.swapDuringTrash(of: swapped)
+        fs.loseInTrash(lost)
+        try fs.run(program)
+        let runner = CleanerRunner(scanner: fs.scanner, runningApps: { .init() })
+        let report = await runner.run(plan, selection: plan.defaultSelection)
+        precondition(report.entries.map(\.outcome) == [
+            .trashedUnverified, .skipped(.heldBack(.runningProgram)), .trashed(MeasuredSize(bytes: 32)),
+            .trashedUnverified
+        ])
+        precondition(report.movedCount == 1 && report.knownMovedBytes == 32)
+        precondition(fs.trashCalls == [swapped, good, lost])
+        _ = try fs.inspect(CleanerTestFileSystem.trash.appending(component: "c-good"))
+    }
+
+    private static func rechecksMakersAndScripts() async throws {
+        let fs = CleanerTestFileSystem()
+        let maker = CleanerTestFileSystem.item("jetbrains.com")
+        let scripted = CleanerTestFileSystem.item("tool")
+        for folder in [maker, scripted] { fs.put(folder, directory: true) }
+        fs.put(maker.appending(component: "idea.log"), size: 16)
+        fs.put(scripted.appending(component: "worker.js"), size: 16)
+        let plan = try await fs.scanner.scan(home: CleanerTestFileSystem.area.home, apps: .init())
+        precondition(plan.defaultSelection.checked == [maker, scripted])
+
+        fs.runScript(named: scripted.path + "/worker.js")
+        let names = Set(CleanerPolicy.makerNames(of: "com.jetbrains.intellij").map(CleanerPolicy.appKey))
+        let runner = CleanerRunner(scanner: fs.scanner, runningApps: { .init(running: names) })
+        let report = await runner.run(plan, selection: plan.defaultSelection)
+        precondition(report.entries.map(\.outcome) == [
+            .skipped(.heldBack(.runningApp)), .skipped(.heldBack(.runningProgram))
+        ])
         precondition(fs.trashCalls.isEmpty)
     }
 }

@@ -21,7 +21,7 @@ struct CleanerScanner: Sendable {
         var items = extra.blocked
         var snapshots: [URL: CleanerSnapshot] = [:]
         var seenRoots: Set<URL> = []
-        var openFiles: Result<Set<CleanerFile.Identity>, Error>?
+        var openFiles: Result<CleanerOpenFiles, Error>?
         for item in extra.blocked { await onItem(item) }
 
         for area in CleanerArea.userAreas(home: home) + extra.areas where seenRoots.insert(area.root).inserted {
@@ -41,7 +41,7 @@ struct CleanerScanner: Sendable {
                 continue
             }
 
-            if area.kind != .caches, !candidates.isEmpty, openFiles == nil {
+            if !candidates.isEmpty, openFiles == nil {
                 openFiles = Result { try fileSystem.openFiles() }
                 try Task.checkCancellation()
             }
@@ -54,9 +54,7 @@ struct CleanerScanner: Sendable {
                     let standing: CleanerItem.Standing
                     if let reason = hold(for: url, in: area, snapshot: snapshot, apps: areaApps) {
                         standing = .heldBack(reason)
-                    } else if area.kind != .caches,
-                        let reason = openFileHold(in: snapshot, openFiles: openFiles)
-                    {
+                    } else if let reason = openFileHold(in: snapshot, row: url, area: area, openFiles: openFiles) {
                         standing = .heldBack(reason)
                     } else {
                         standing = area.needsOptIn ? .optional : .recommended
@@ -77,10 +75,10 @@ struct CleanerScanner: Sendable {
     }
 
     private func openFileHold(
-        in snapshot: CleanerSnapshot, openFiles: Result<Set<CleanerFile.Identity>, Error>?
+        in snapshot: CleanerSnapshot, row: URL, area: CleanerArea, openFiles: Result<CleanerOpenFiles, Error>?
     ) -> CleanerHoldBack? {
-        guard case .success(let identities) = openFiles else { return .unreadable }
-        return snapshot.entries.values.contains { identities.contains($0.identity) } ? .openFile : nil
+        guard case .success(let openFiles) = openFiles else { return .unreadable }
+        return openFiles.hold(on: snapshot, row: row, checkingHeld: area.kind != .caches)
     }
 
     private func candidateURLs(in area: CleanerArea, apps: CleanerRunningApps) throws -> [URL] {
@@ -164,7 +162,7 @@ struct CleanerScanner: Sendable {
             guard !CleanerProtectedPaths.isProtected(path) else { throw CleanerHoldBack.protectedData }
             let file = try fileSystem.inspect(path)
             guard file.identity.device == parents.last?.device else { throw CleanerHoldBack.unsafePath }
-            if let reason = CleanerPolicy.protection(for: file, in: area) { throw reason }
+            if let reason = CleanerPolicy.protection(for: file, in: area, isRow: path == url) { throw reason }
             if path == url {
                 guard !area.filesOnly || file.isRegularFile else { throw CleanerHoldBack.unsafePath }
                 guard area.kind != .savedState || file.facts.isDirectory else { throw CleanerHoldBack.unsafePath }
@@ -183,6 +181,9 @@ struct CleanerScanner: Sendable {
     ) -> CleanerHoldBack? {
         if area.kind == .mailDownloads { return .mailDownloadMayContainEdits }
         if apps.holds(area.ownerName(of: url)) { return .runningApp }
+        if snapshot.entries.keys.contains(where: { CleanerPolicy.repositoryMarkers.contains($0.lastPathComponent.lowercased()) }) {
+            return .holdsRepository
+        }
         if area.isSharedContainer, apps.groupMembershipUnknown { return .unreadable }
         let now = clock()
         if snapshot.entries.values.contains(where: { now.timeIntervalSince($0.modified) < area.minimumAge }) {
