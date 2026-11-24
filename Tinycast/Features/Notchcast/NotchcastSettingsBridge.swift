@@ -10,6 +10,7 @@ extension AppCore {
         status.dictationCleanupModel = dictationExtras.cleanupModel
         status.dictationAutomaticModelTitle = dictationExtras.automaticModel?.title
         status.hasDictationHistory = !dictationExtras.history.entries.isEmpty
+        status.dictationModelSizes = notchcast?.dictationModelSizes?.sizes ?? [:]
         return status
     }
 

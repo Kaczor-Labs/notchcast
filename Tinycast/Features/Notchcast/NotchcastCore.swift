@@ -11,6 +11,7 @@ final class NotchcastCore {
     private var globeTrigger: NotchcastGlobeTrigger?
     private let dictationIsland = DictationIslandCoordinator()
     private let modelDownload: NotchcastModelDownload
+    private(set) var dictationModelSizes: NotchcastDictationModelSizes?
 
     init(
         core: AppCore, addons: [any NotchcastAddon.Type] = NotchcastRegistry.addons, startsRuntime: Bool = true
@@ -116,12 +117,15 @@ final class NotchcastCore {
         }, typingDisplay: typingDisplay.display)
         core.settings.dictationModel = .ultra
         core.dictationCoordinator.prepareModel = modelDownload.install
+        dictationModelSizes = NotchcastDictationModelSizes(store: models)
+        dictationModelSizes?.start()
         controller.start()
         dictationServer.start()
     }
 
     func stop() {
         modelDownload.stop()
+        dictationModelSizes?.stop()
         dictationServer.stop()
         trustMonitor = nil
         globeTrigger?.stop()

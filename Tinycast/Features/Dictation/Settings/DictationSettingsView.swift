@@ -63,7 +63,6 @@ struct DictationSettingsView: View {
                         Spacer()
                         ShortcutRecorder(action: .dictation)
                     }
-                    if settings.dictationMode == .globe { NotchcastGlobeHint() }
                     if settings.dictationMode == .pushToTalk {
                         let issue = coordinator.holdShortcutIssue
                         Text(
@@ -95,7 +94,6 @@ struct DictationSettingsView: View {
                         Text(
                             settings.dictationModel.family.summary + " · " + settings.dictationModel.coverage)
                     }
-                    .disabled(true)
                     Picker(selection: $settings.dictationModel) {
                         ForEach(
                             DictationModel.allCases.filter { $0.family == settings.dictationModel.family }
@@ -106,8 +104,6 @@ struct DictationSettingsView: View {
                         SettingsRowTitle(.dictationModel, "Model")
                         Text(settings.dictationModel.summary)
                     }
-
-                    .disabled(true)
 
                     let installed = models.isInstalled(settings.dictationModel)
                     let downloading = models.downloading == settings.dictationModel
@@ -197,9 +193,7 @@ struct DictationSettingsView: View {
                         "Press Return to finish dictating or Escape to cancel. Protected fields may refuse insertion."
                     )
                 }
-                DictationExtrasSettingsSections()
 
-                DictationSharingSection()
             }
         }
         .formStyle(.grouped)

@@ -509,6 +509,7 @@ final class MainAppLink {
 }
 
 enum AIModelSelection: String, Codable, Sendable { case fixture }
+enum DictationModel: String, Codable, Sendable { case fixture }
 
 extension NotchcastContext {
     func settingsModule<Module: NotchcastModule>(_ type: Module.Type, for id: String) -> Module? {

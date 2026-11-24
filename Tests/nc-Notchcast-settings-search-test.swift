@@ -41,13 +41,15 @@ struct NotchcastSettingsSearchTests {
         let titles = [
             "Island", "Show in screenshots and videos", "Outline when open", "Open on hover",
             "Position on displays without a notch", "Look", "Island Content", "Agents page", "Keyboard & Mouse",
-            "Number keys", "Display & Sound", "Music block", "Capture", "Screenshots",
+            "Number keys", "Dictation", "Enable dictation", "Clean up text", "Keep dictation history",
+            "Share the dictation model with other apps", "Display & Sound", "Music block", "Capture", "Screenshots",
             "Clipboard & Files", "Paste Plain Text", "Downloads", "Distill", "Torrents",
         ]
         check("one pane row per shown tab, then its visible main switch rows", rows.map(\.title) == titles)
         check("a tab with no switch has no row", !rows.contains { $0.tab == .notchcast(.launcher) })
         check("a pane row has no anchor", rows.filter { $0.anchor == nil }.map(\.tab) == [
-            .notchcast(.island), .notchcast(.islandContent), .notchcast(.keyboardMouse), .notchcast(.displaySound),
+            .notchcast(.island), .notchcast(.islandContent), .notchcast(.keyboardMouse), .notchcast(.dictation),
+            .notchcast(.displaySound),
             .notchcast(.capture), .notchcast(.clipboardFiles), .notchcast(.downloads),
         ])
         check("the island rows use the Island section", rows.dropFirst().prefix(4).allSatisfy {
@@ -88,6 +90,16 @@ struct NotchcastSettingsSearchTests {
             check("\(term) lands on the Clean up text row",
                   SettingsSearchCatalog.results(for: term).contains {
                       $0.target == .row(.dictationCleanup, "Clean up text")
+                  })
+        }
+        for query in ["dictation", "globe", "microphone", "cleanup model", "AI providers", "share", "play sounds"] {
+            check("\(query) opens Notchcast › Dictation",
+                  SettingsSearchCatalog.results(for: query).contains { $0.tab == .notchcast(.dictation) })
+        }
+        for query in ["engine", "release model", "when finished", "insert while recording", "adapt capitalization"] {
+            check("\(query) finds no row of the stock Dictation tab or the new one",
+                  !SettingsSearchCatalog.results(for: query).contains {
+                      $0.tab == .dictation || $0.tab == .notchcast(.dictation)
                   })
         }
         check("the notch keyword finds the Island tab",
