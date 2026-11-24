@@ -33,5 +33,6 @@ enum NotchcastRegistry {
         SystemNoticesAddon.self,
         AccessoriesAddon.self,
         SystemMonitorAddon.self,
+        ThreadsAddon.self,
     ]
 }

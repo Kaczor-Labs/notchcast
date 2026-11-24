@@ -20,7 +20,7 @@ struct IslandCanvasTest {
     @MainActor static func main() {
         let notch: CGFloat = 200
         let notice = IslandNotice(id: "n", symbol: "doc.on.clipboard", text: "Copied")
-        let meeting = MeetingEvent(id: "m", title: "Standup", start: Date(timeIntervalSince1970: 600), end:
+        let meeting = MeetingEvent(id: "m", title: "Demo", start: Date(timeIntervalSince1970: 600), end:
             Date(timeIntervalSince1970: 2400), isAllDay: false, isDeclined: false, calendarID: "c",
             calendarName: "Work", calendarColor: nil, calendarItemID: "i", link: nil)
         let glance = IslandGlance(meeting, now: Date(timeIntervalSince1970: 0), locale: Locale(identifier: "en_US"))
@@ -80,8 +80,9 @@ struct IslandCanvasTest {
         dictation()
         swatches()
         tones()
-        print("Island canvas: headline, fade-out, expansion, cover, notch switch, percent, headline cap, swatch, tone "
-            + "and clicks hold")
+        NSAppearance(named: .darkAqua)!.performAsCurrentDrawingAppearance { level(glance) }
+        print("Island canvas: headline, fade-out, expansion, cover, notch switch, percent, headline cap, swatch, tone, "
+            + "level pairs and clicks hold")
     }
 
     @MainActor static func coveredProgress() {
@@ -143,6 +144,43 @@ struct IslandCanvasTest {
                     let message = "Progress must paint only in the report slot: \(ink) in \(slot)\n"
                     FileHandle.standardError.write(Data(message.utf8))
                     exit(EXIT_FAILURE)
+                }
+            }
+        }
+    }
+
+    /// In both forms every glyph and its text share a visible middle, to half a pixel at 2x (#1495, #1496).
+    @MainActor static func level(_ glance: IslandGlance) {
+        let pill = CGRect(x: 0, y: 0, width: 400, height: 32)
+        let recording = IslandNotice(id: "rec", symbol: "record.circle", text: "Rec",
+                                     progress: IslandProgress(fraction: nil, headline: false, readout: "0:42"))
+        let volume = IslandLevel(source: "volume", symbol: "speaker.wave.2.fill", label: "Volume", value: 0.6)
+        let hot = IslandStatus(id: "cpu", symbol: "cpu", text: "Hot", label: "CPU running hot")
+        for frosted in [false, true] {
+            for notch in [true, false] {
+                let pairs: [(String, any PillArt)] = [
+                    ("meeting", GlanceArt(glance, notch: notch, frosted: frosted)),
+                    ("readout", IslandNoticeArt(recording, notch: notch, frosted: frosted, still: true)),
+                    ("level", IslandLevelArt(volume, notch: notch, frosted: frosted)),
+                    ("status", IslandStatusArt([hot], notch: notch, frosted: frosted)),
+                ]
+                for (name, art) in pairs {
+                    let rep = bitmap(in: pill, scale: 2) { art.draw(in: pill) }
+                    func inked(_ column: Int) -> Bool {
+                        (0..<rep.pixelsHigh).contains { rep.bitmapData![$0 * rep.bytesPerRow + column * 4 + 3] > 127 }
+                    }
+                    func middle(_ columns: Range<Int>) -> Double {
+                        let rows = (0..<rep.pixelsHigh).filter { row in
+                            columns.contains { rep.bitmapData![row * rep.bytesPerRow + $0 * 4 + 3] > 127 }
+                        }
+                        return Double(rows.first! + rows.last! + 1) / 2
+                    }
+                    // The glyph ends at the first blank run of 3 pt; its own gaps are narrower.
+                    let start = (0..<rep.pixelsWide).first(where: inked)!
+                    let split = (start..<rep.pixelsWide).first { column in (column..<column + 6).allSatisfy { !inked($0) } }!
+                    let glyph = middle(start..<split), text = middle(split..<rep.pixelsWide)
+                    print("level \(name) notch=\(notch) frosted=\(frosted): glyph \(glyph) px, text \(text) px")
+                    precondition(abs(glyph - text) <= 0.5, "The \(name) glyph sits level with its text, notch=\(notch)")
                 }
             }
         }

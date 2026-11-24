@@ -31,8 +31,7 @@ struct IslandLevelArt: PillArt {
     func draw(in pill: CGRect) {
         if let glyph {
             let x = pill.minX + edge + (cell - glyph.size.width) / 2
-            glyph.draw(in: CGRect(x: x, y: pill.midY - glyph.size.height / 2, width: glyph.size.width,
-                                  height: glyph.size.height))
+            glyph.draw(in: IslandOptics.glyphRect(glyph, x: x, midY: pill.midY))
         }
         let height = Theme.Size.volumeTrackHeight
         let origin = CGPoint(x: pill.maxX - edge - readoutWidth - gap - track, y: pill.midY - height / 2)
@@ -53,7 +52,8 @@ struct IslandLevelArt: PillArt {
         Theme.Colors.textPrimary.islandInk(frosted: frosted).setFill()
         if extents.fill.upperBound > extents.fill.lowerBound { bar(extents.fill).fill() }
         let text = readout.size()
-        readout.draw(at: CGPoint(x: pill.maxX - edge - text.width, y: pill.midY - text.height / 2))
+        readout.draw(at: CGPoint(x: pill.maxX - edge - text.width,
+                                 y: IslandOptics.lineBottom(midY: pill.midY)))
     }
 }
 

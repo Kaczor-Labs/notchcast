@@ -14,7 +14,11 @@ enum SystemNoticesAddon: NotchcastAddon {
     ]
 
     static let settings = [
-        NotchcastSettingsRow(switchID: "systemNotices") {
+        NotchcastSettingsRow(switchID: "systemNotices", searchTerms: [
+            "wi-fi",
+            "vpn",
+            "low battery",
+        ]) {
             AnyView(SystemNoticesSettingsView(defaults: $0.defaults))
         },
     ]

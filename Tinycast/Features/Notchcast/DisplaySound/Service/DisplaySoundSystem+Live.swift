@@ -1,3 +1,7 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (C) 2026 Vorssaint
+// Adapted from Vorssaint bf4836d's brightness service: the DDC address read from the provider class.
+
 import AppKit
 import AudioToolbox
 import CoreAudio
@@ -201,9 +205,13 @@ private final class IOAVLink: Sendable {
 
     private static let gap = Duration.milliseconds(50)
     private let service: Service
+    private let chip: UInt32
     private let lastCommand = Mutex<ContinuousClock.Instant?>(nil)
 
-    private init(_ service: CFTypeRef) { self.service = Service(reference: service) }
+    private init(_ service: CFTypeRef, chip: UInt32) {
+        self.service = Service(reference: service)
+        self.chip = chip
+    }
 
     private func send(_ packet: [UInt8]) -> Bool {
         guard let calls = Self.calls else { return false }
@@ -212,7 +220,7 @@ private final class IOAVLink: Sendable {
             defer { last = .now }
             var packet = packet
             return packet.withUnsafeMutableBytes { buffer in
-                calls.write(service.reference, DisplayDDC.chip, DisplayDDC.host, buffer.baseAddress!,
+                calls.write(service.reference, chip, DisplayDDC.host, buffer.baseAddress!,
                             UInt32(buffer.count)) == kIOReturnSuccess
             }
         }
@@ -225,7 +233,7 @@ private final class IOAVLink: Sendable {
             defer { last = .now }
             var reply = [UInt8](repeating: 0, count: length)
             let result = reply.withUnsafeMutableBytes { buffer in
-                calls.read(service.reference, DisplayDDC.chip, DisplayDDC.host, buffer.baseAddress!,
+                calls.read(service.reference, chip, DisplayDDC.host, buffer.baseAddress!,
                            UInt32(buffer.count))
             }
             return result == kIOReturnSuccess ? reply : nil
@@ -252,7 +260,7 @@ private final class IOAVLink: Sendable {
             } else if label == "DCPAVServiceProxy" {
                 if let uuid, property(entry, "Location") == "External",
                    let service = calls.create(kCFAllocatorDefault, entry)?.takeRetainedValue() {
-                    let link = IOAVLink(service)
+                    let link = IOAVLink(service, chip: DisplayDDC.chip(providerClass: providerClass(entry)))
                     links[uuid.uppercased()] = BrightnessDDCLink(send: link.send, receive: link.receive)
                 }
                 uuid = nil
@@ -261,6 +269,13 @@ private final class IOAVLink: Sendable {
             entry = IOIteratorNext(iterator)
         }
         return links
+    }
+
+    /// The EPIC endpoint a proxy hangs from names the hardware behind it, so the search walks up.
+    private static func providerClass(_ entry: io_registry_entry_t) -> String? {
+        IORegistryEntrySearchCFProperty(
+            entry, kIOServicePlane, "EPICProviderClass" as CFString, kCFAllocatorDefault,
+            IOOptionBits(kIORegistryIterateRecursively | kIORegistryIterateParents)) as? String
     }
 
     private static func property(_ entry: io_registry_entry_t, _ key: String) -> String? {

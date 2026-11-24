@@ -41,34 +41,36 @@ struct DictationExtrasSettingsSections: View {
                     "Fix punctuation, numbers and filler words before pasting. Return pastes it as spoken.",
                     tableName: "Notchcast")
             }
-            AIModelSelectionRows(
-                selection: status.dictationCleanupModel,
-                inheritedTitle: String(localized: "Automatic"),
-                select: { mainApp.send(.notchcast(.selectDictationCleanupModel($0))) },
-                modelLabel: {
-                    SettingsRowTitle(
-                        .dictationCleanup, LocalizedStringResource("Cleanup model", table: "Notchcast"))
-                    Text(modelCaption)
-                },
-                effortLabel: {
-                    SettingsRowTitle(.dictationCleanup, "Reasoning effort")
-                }
-            )
-            .settingsEnabled(settings.dictationCleansUp)
-            providersRow
-                .settingsEnabled(settings.dictationCleansUp)
-            promptEditor
-                .settingsEnabled(settings.dictationCleansUp)
+            if settings.dictationCleansUp {
+                AIModelSelectionRows(
+                    selection: status.dictationCleanupModel,
+                    inheritedTitle: String(localized: "Automatic"),
+                    select: { mainApp.send(.notchcast(.selectDictationCleanupModel($0))) },
+                    modelLabel: {
+                        SettingsRowTitle(
+                            .dictationCleanup, LocalizedStringResource("Cleanup model", table: "Notchcast"))
+                        Text(modelCaption)
+                    },
+                    effortLabel: {
+                        SettingsRowTitle(.dictationCleanup, "Reasoning effort")
+                    }
+                )
+                providersRow
+                promptEditor
+            }
         } header: {
             SettingsSectionHeader(.dictationCleanup)
         } footer: {
-            Text(verbatim: [
-                String(localized: "Only the text is sent, never the audio, and only to the model chosen above.",
-                       table: "Notchcast"),
-                String(localized: "Automatic uses the Claude or Codex command signed in on this Mac.",
-                       table: "Notchcast"),
-                String(localized: "Notchcast keeps the text only in Dictation History.", table: "Notchcast")
-            ].joined(separator: " "))
+            if settings.dictationCleansUp {
+                Text(verbatim: [
+                    String(
+                        localized: "Only the text is sent, never the audio, and only to the model chosen above.",
+                        table: "Notchcast"),
+                    String(localized: "Automatic uses the Claude or Codex command signed in on this Mac.",
+                           table: "Notchcast"),
+                    String(localized: "Notchcast keeps the text only in Dictation History.", table: "Notchcast")
+                ].joined(separator: " "))
+            }
         }
     }
 

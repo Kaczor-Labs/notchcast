@@ -34,6 +34,10 @@ struct Monitor {
     var values: [UInt8: (current: UInt16, maximum: UInt16)] = [0x10: (50, 100), 0x62: (50, 100), 0x8D: (2, 2)]
     var gamma = BrightnessGamma(red: [0, 1], green: [0, 1], blue: [0, 1])
     var takesGamma = true
+    /// What 0x8D reads back after an unmute: 2 by the standard, 0 on monitors that latch mute at zero.
+    var unmutedReads: UInt16 = 2
+    var volumeOnUnmute: UInt16?
+    var refusesUnmute = false
 }
 
 struct Rack {
@@ -57,8 +61,12 @@ func link(_ raw: UInt32) -> BrightnessDDCLink {
                 if packet[0] == 0x82 {
                     rack.requested.append(packet[2])
                     rack.asked = packet[2]
-                } else if let maximum = rack.monitors[raw]?.values[packet[2]]?.maximum {
-                    rack.monitors[raw]?.values[packet[2]] = (UInt16(packet[3]) << 8 | UInt16(packet[4]), maximum)
+                } else if let monitor = rack.monitors[raw], let maximum = monitor.values[packet[2]]?.maximum {
+                    let written = UInt16(packet[3]) << 8 | UInt16(packet[4])
+                    let unmutes = packet[2] == 0x8D && written == 2
+                    if unmutes, monitor.refusesUnmute { return false }
+                    rack.monitors[raw]?.values[packet[2]] = (unmutes ? monitor.unmutedReads : written, maximum)
+                    if unmutes, let loud = monitor.volumeOnUnmute { rack.monitors[raw]?.values[0x62]?.current = loud }
                 }
                 return true
             }
@@ -146,6 +154,7 @@ enum DisplaySoundSpeakerTests {
         await staleCurves()
         await quitDuringSpeakerCommand()
         await speakers()
+        await latchedMute()
         await silentMonitors()
         await reconnection()
         print("nc-DisplaySound-speaker-test: PASS")
@@ -289,6 +298,52 @@ enum DisplaySoundSpeakerTests {
         check(await speakers.apply(.step(increasing: false, fine: false)) != nil, "its volume still works")
         speakers.stop()
         check(await speakers.apply(.step(increasing: true, fine: false)) == nil, "stopped again: macOS")
+    }
+
+    /// A monitor whose 0x8D reads 0 unmuted and 1 muted and stays silent after zero until unmuted.
+    @MainActor
+    static func latchedMute() async {
+        var latching = Monitor(uuid: "uuid-8", name: "Latch")
+        latching.values[0x62] = (0, 100)
+        latching.values[0x8D] = (0, 2)
+        latching.unmutedReads = 0
+        install([8: latching])
+        hw { $0.outputName = "Latch" }
+        let suite = "nc-DisplaySound-speaker-test.\(UUID())"
+        let defaults = UserDefaults(suiteName: suite)!
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let speakers = DisplaySpeakerController(system: system, service: BrightnessDisplayService(displays: system.displays),
+                                                defaults: defaults)
+        speakers.start()
+        func writes() -> [[UInt8]] { hw { $0.sent.filter { $0[0] == 0x84 } } }
+        let unmute = DisplayDDC.write(.mute, 2)
+
+        let up = await speakers.apply(.step(increasing: true, fine: false))
+        check(up == DisplaySpeakerLevel(volume: 0.06, muted: false), "volume up from zero lands: \(String(describing: up))")
+        check(writes() == [DisplayDDC.write(.volume, 6), unmute], "leaving zero unmutes a monitor that reads 0 unmuted")
+        hw { $0.sent = [] }
+        _ = await speakers.apply(.step(increasing: true, fine: false))
+        check(writes() == [DisplayDDC.write(.volume, 13)], "above zero it needs no unmute")
+
+        hw { $0.monitors[8]?.values[0x62] = (0, 100); $0.monitors[8]?.volumeOnUnmute = 80 }
+        check(await speakers.apply(.step(increasing: true, fine: false)) == nil && value(8, 0x8D) == 1,
+              "an unmute that jumps to the old, loud level is muted again and reported to nobody")
+        let stored = DisplaySpeakerStore(data: defaults.data(forKey: DisplaySpeakerController.storeKey))
+        check(stored.levels["UUID-8"]?.volume == 0.13, "the level that did not land is not remembered")
+
+        hw { $0.monitors[8]?.values = [0x62: (0, 100), 0x8D: (0, 2)]; $0.monitors[8]?.volumeOnUnmute = nil }
+        hw { $0.monitors[8]?.refusesUnmute = true }
+        check(await speakers.apply(.step(increasing: true, fine: false)) == nil && value(8, 0x8D) == 1,
+              "a refused unmute confirms no volume and leaves the monitor asking for one")
+        hw { $0.monitors[8]?.refusesUnmute = false }
+        let retried = await speakers.apply(.step(increasing: true, fine: false))
+        check(retried?.muted == false && value(8, 0x8D) == 0, "the next volume up finishes the unmute")
+
+        hw { $0.monitors[8]?.values = [0x62: (0, 100), 0x8D: (1, 2)]; $0.monitors[8]?.unmutedReads = 2; $0.sent = [] }
+        let standard = await speakers.apply(.step(increasing: true, fine: false))
+        check(standard?.muted == false && writes() == [DisplayDDC.write(.volume, 6), unmute] && value(8, 0x8D) == 2,
+              "a standard monitor muted at zero still unmutes on volume up")
+        speakers.stop()
     }
 
     @MainActor

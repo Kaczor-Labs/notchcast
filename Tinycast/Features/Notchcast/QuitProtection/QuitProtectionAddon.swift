@@ -19,7 +19,11 @@ enum QuitProtectionAddon: NotchcastAddon {
     ]
 
     static let settings = [
-        NotchcastSettingsRow(switchID: switchID) { AnyView(QuitProtectionSettingsView(defaults: $0.defaults)) },
+        NotchcastSettingsRow(switchID: switchID, searchTerms: [
+            "confirm by",
+        ]) {
+            AnyView(QuitProtectionSettingsView(defaults: $0.defaults))
+        },
     ]
 
     static func makeModule(_ context: NotchcastContext) -> (any NotchcastModule)? {
