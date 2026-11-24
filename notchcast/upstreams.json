@@ -1,0 +1,364 @@
+{
+  "sources": [
+    {
+      "name": "Vorssaint",
+      "repo": "vorssaint/vorssaint-utils",
+      "branch": "main",
+      "since": "e15752b5e963307c7e4de33afe7f081b797d9ecc",
+      "paths": {
+        "Sources/Vorssaint/Services/Notch/NotchAccessoryConnectionMonitor.swift": [
+          "Accessories",
+          "NoiseControl"
+        ],
+        "Sources/Vorssaint/Services/Notch/NotchAccessoryService.swift": [
+          "Accessories",
+          "NoiseControl"
+        ],
+        "Sources/Vorssaint/Services/AgentUsage": [
+          "Agents",
+          "Threads",
+          "AI"
+        ],
+        "Resources/agent-prices.json": [
+          "Agents"
+        ],
+        "Sources/Vorssaint/Services/Media": [
+          "Archives"
+        ],
+        "Sources/Vorssaint/Services/SettingsBackup.swift": [
+          "AutoBackup",
+          "Backup",
+          "CloudSync",
+          "Settings"
+        ],
+        "Sources/Vorssaint/Services/Cleaner": [
+          "Cleaner"
+        ],
+        "Sources/Vorssaint/Services/QuickTools/ColorSamplerService.swift": [
+          "ColorPicker"
+        ],
+        "Sources/Vorssaint/Services/CommandBar/CommandBarColors.swift": [
+          "ColorPicker"
+        ],
+        "Sources/Vorssaint/Services/Notch/NotchFileToolsService.swift": [
+          "CopyPath"
+        ],
+        "Sources/Vorssaint/Services/Notch/NotchFileToolsSupport.swift": [
+          "CopyPath"
+        ],
+        "Sources/Vorssaint/Services/Finder": [
+          "CopyPath",
+          "FinderTools"
+        ],
+        "Sources/Vorssaint/App": [
+          "Core"
+        ],
+        "Sources/Vorssaint/Services/PointerTapRunLoop.swift": [
+          "Core"
+        ],
+        "Sources/Vorssaint/Services/Notch/NotchCalendarService.swift": [
+          "Day",
+          "Calendar"
+        ],
+        "Sources/Vorssaint/Services/Notch/NotchCalendarSupport.swift": [
+          "Day",
+          "Calendar"
+        ],
+        "Sources/Vorssaint/Services/Metrics/NetworkAddressService.swift": [
+          "Day",
+          "SystemTools"
+        ],
+        "Sources/Vorssaint/Services/Metrics/NetworkProcessSupport.swift": [
+          "Day",
+          "SystemTools"
+        ],
+        "Sources/Vorssaint/Services/Display": [
+          "DisplaySound"
+        ],
+        "Sources/Vorssaint/Services/Audio": [
+          "DisplaySound",
+          "NoiseControl",
+          "Island"
+        ],
+        "Sources/Vorssaint/Services/Notch/NotchDownloadProgressObserver.swift": [
+          "Downloads"
+        ],
+        "Sources/Vorssaint/Services/Notch/NotchDownloadService.swift": [
+          "Downloads"
+        ],
+        "Sources/Vorssaint/Services/ManagedDownloads": [
+          "Downloads"
+        ],
+        "Sources/Vorssaint/UI/Settings/FeatureVisibilitySupport.swift": [
+          "Hidden"
+        ],
+        "Sources/Vorssaint/UI/Settings/NotchLayoutEditor.swift": [
+          "Hidden",
+          "Island"
+        ],
+        "Sources/Vorssaint/Services/DockClick": [
+          "HideCommandM"
+        ],
+        "Sources/Vorssaint/Services/SystemMonitor/MonitorAlertService.swift": [
+          "LowDisk"
+        ],
+        "Sources/Vorssaint/Services/Notifier.swift": [
+          "LowDisk",
+          "SystemNotices"
+        ],
+        "Sources/Vorssaint/Services/SpacesOrder": [
+          "MacTweaks"
+        ],
+        "Sources/Vorssaint/Services/WindowMaximizer.swift": [
+          "MacTweaks"
+        ],
+        "Sources/Vorssaint/Services/QuickTools/QuickTogglesService.swift": [
+          "MacTweaks",
+          "ShowDesktop",
+          "SmallCommands",
+          "QuickActions",
+          "SystemActions"
+        ],
+        "Sources/Vorssaint/Services/MiddleClick": [
+          "MiddleClick"
+        ],
+        "Sources/Vorssaint/Services/Audio/MusicLaunchBlocker.swift": [
+          "MusicBlock"
+        ],
+        "Sources/Vorssaint/Services/Audio/MusicLaunchSupport.swift": [
+          "MusicBlock"
+        ],
+        "Sources/Vorssaint/Services/Finder/FinderPasteImageSupport.swift": [
+          "PasteImage"
+        ],
+        "Sources/Vorssaint/Services/QuickTools/PastePlainService.swift": [
+          "PastePlainText"
+        ],
+        "Sources/Vorssaint/Services/TransientPaste.swift": [
+          "PastePlainText",
+          "TextInjection"
+        ],
+        "Sources/Vorssaint/Services/QuitProtection": [
+          "QuitProtection"
+        ],
+        "Sources/Vorssaint/Services/Recorder": [
+          "ScreenRecording"
+        ],
+        "Sources/RecorderGIFCodec": [
+          "ScreenRecording"
+        ],
+        "Sources/Vorssaint/Services/CommandBar/CommandBarScriptRunner.swift": [
+          "ScriptCommands",
+          "CustomCommands"
+        ],
+        "Sources/Vorssaint/Services/WindowLayout": [
+          "ShowDesktop",
+          "WindowManagement"
+        ],
+        "Sources/Vorssaint/Services/QuickTools/ScreenshotSharingSupport.swift": [
+          "SmallCommands",
+          "Taildrop"
+        ],
+        "Sources/Vorssaint/Services/Notch/NotchMusicAutomation.swift": [
+          "Spotify",
+          "Island"
+        ],
+        "Sources/Vorssaint/Services/Notch/NotchMusicAutomationSupport.swift": [
+          "Spotify",
+          "Island"
+        ],
+        "Sources/Vorssaint/Services/Notch/NotchLyricsService.swift": [
+          "Spotify"
+        ],
+        "Sources/Vorssaint/Services/Notch/NotchLyricsSupport.swift": [
+          "Spotify"
+        ],
+        "Sources/Vorssaint/Services/Notch/NotchNotificationReader.swift": [
+          "SystemNotices",
+          "Island"
+        ],
+        "Sources/Vorssaint/Services/Notch/NotchNotificationReaderCore.swift": [
+          "SystemNotices",
+          "Island"
+        ],
+        "Sources/Vorssaint/Services/KillProcess": [
+          "SystemTools"
+        ],
+        "Sources/Vorssaint/Services/PortManager": [
+          "SystemTools"
+        ],
+        "Sources/Vorssaint/Services/SudoersSupport.swift": [
+          "SystemTools"
+        ],
+        "Sources/Vorssaint/Services/Shelf": [
+          "Taildrop"
+        ],
+        "Sources/Vorssaint/Services/Notch/NotchAgentSupport.swift": [
+          "Threads"
+        ],
+        "Sources/Vorssaint/Services/Notch/NotchTimerAlert.swift": [
+          "Timers"
+        ],
+        "Sources/Vorssaint/Services/Notch/NotchTimerService.swift": [
+          "Timers"
+        ],
+        "Sources/Vorssaint/Services/URLCleanerLinkMetadata.swift": [
+          "URLCleaner"
+        ],
+        "Sources/Vorssaint/Services/URLCleanerService.swift": [
+          "URLCleaner"
+        ],
+        "Sources/Vorssaint/Services/Notch/NotchMenuBarSpace.swift": [
+          "Island"
+        ],
+        "Sources/Vorssaint/App/MenuBarAllowanceSupport.swift": [
+          "Island"
+        ],
+        "Sources/Vorssaint/UI/Notch": [
+          "Island"
+        ],
+        "Sources/Vorssaint/Services/Notch/NotchAudioLevelService.swift": [
+          "Island"
+        ],
+        "Sources/Vorssaint/Services/Notch/NotchAudioLevelSupport.swift": [
+          "Island"
+        ],
+        "Sources/Vorssaint/Services/Notch/NotchQueueSupport.swift": [
+          "Island"
+        ],
+        "Sources/Vorssaint/Services/Notch/NotchGestureSupport.swift": [
+          "Island"
+        ],
+        "Sources/Vorssaint/Services/Notch/NotchLockScreenService.swift": [
+          "Island"
+        ],
+        "Sources/Vorssaint/Services/Notch/NotchLockScreenSupport.swift": [
+          "Island"
+        ],
+        "Sources/Vorssaint/Services/SessionActivity.swift": [
+          "Island"
+        ],
+        "Sources/Vorssaint/Services/SessionActivitySupport.swift": [
+          "Island"
+        ],
+        "Sources/Vorssaint/Services/RadialMenu": [
+          "AppleShortcuts",
+          "CustomCommands",
+          "Quicklinks"
+        ],
+        "Sources/Vorssaint/Services/QuickTools/QuickLauncherService.swift": [
+          "AppleShortcuts",
+          "Launcher",
+          "QuickActions",
+          "Quicklinks"
+        ],
+        "Sources/Vorssaint/Core/SettingsBackupSupport.swift": [
+          "Backup"
+        ],
+        "Sources/Vorssaint/Services/CommandBar/CommandBarExpressions.swift": [
+          "Calculator"
+        ],
+        "Sources/Vorssaint/UI/Notch/NotchCalendarMonthView.swift": [
+          "Calendar"
+        ],
+        "Sources/Vorssaint/UI/Notch/NotchCalendarStrip.swift": [
+          "Calendar"
+        ],
+        "Sources/Vorssaint/Services/QuickTools/CameraPreviewService.swift": [
+          "Camera"
+        ],
+        "Sources/Vorssaint/Services/QuickTools/CameraPreviewSupport.swift": [
+          "Camera"
+        ],
+        "Sources/Vorssaint/UI/Notch/NotchCameraView.swift": [
+          "Camera"
+        ],
+        "Sources/Vorssaint/Services/Clipboard": [
+          "Clipboard"
+        ],
+        "Sources/Vorssaint/UI/Notch/NotchClipboardView.swift": [
+          "Clipboard"
+        ],
+        "Sources/Vorssaint/Services/QuickTools/ScreenTextService.swift": [
+          "Dictation"
+        ],
+        "Sources/Vorssaint/Services/CommandBar/CommandBarEmoji.swift": [
+          "Emoji"
+        ],
+        "Sources/Vorssaint/Services/CommandBar/CommandBarFileSearch.swift": [
+          "FileSearch"
+        ],
+        "Sources/Vorssaint/Services/CommandBar/CommandBarFileSearchSupport.swift": [
+          "FileSearch"
+        ],
+        "Sources/Vorssaint/Services/HotkeyManager.swift": [
+          "HotKeys"
+        ],
+        "Sources/Vorssaint/Services/SystemShortcutTakeover.swift": [
+          "HotKeys"
+        ],
+        "Sources/Vorssaint/Services/SystemShortcutTakeoverSupport.swift": [
+          "HotKeys"
+        ],
+        "Sources/Vorssaint/Services/SuperKey": [
+          "HotKeys"
+        ],
+        "Sources/Vorssaint/Services/CommandBar": [
+          "Launcher",
+          "MenuSearch"
+        ],
+        "Sources/Vorssaint/Services/QuickTools/ScratchpadService.swift": [
+          "Notes"
+        ],
+        "Sources/Vorssaint/Services/QuickTools/ScratchpadStore.swift": [
+          "Notes"
+        ],
+        "Sources/Vorssaint/UI/Scratchpad": [
+          "Notes"
+        ],
+        "Sources/Vorssaint/UI/Onboarding": [
+          "Onboarding"
+        ],
+        "Sources/Vorssaint/UI/PermissionGuideOverlay.swift": [
+          "Onboarding"
+        ],
+        "Sources/Vorssaint/Services/QuickTools/QuickTogglesSupport.swift": [
+          "QuickActions"
+        ],
+        "Sources/Vorssaint/UI/Settings": [
+          "Settings"
+        ],
+        "Sources/Vorssaint/Services/Snippets": [
+          "Snippets"
+        ],
+        "Sources/Vorssaint/Services/Feedback": [
+          "Support"
+        ],
+        "Sources/Vorssaint/UI/Feedback": [
+          "Support"
+        ],
+        "Sources/Vorssaint/Services/QuickTools/MicMuteService.swift": [
+          "SystemActions"
+        ],
+        "Sources/Vorssaint/Services/QuickTools/MicMuteSupport.swift": [
+          "SystemActions"
+        ],
+        "Sources/Vorssaint/Services/SelectedTextReader.swift": [
+          "TextInjection"
+        ],
+        "Sources/Vorssaint/Services/Uninstall": [
+          "Uninstall"
+        ],
+        "Sources/Vorssaint/Services/Update": [
+          "Updates"
+        ],
+        "Sources/Vorssaint/Services/AppUpdates": [
+          "Updates"
+        ],
+        "Sources/Vorssaint/Services/Switcher": [
+          "WindowSwitcher"
+        ]
+      }
+    }
+  ]
+}

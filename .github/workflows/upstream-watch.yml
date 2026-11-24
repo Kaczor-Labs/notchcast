@@ -1,0 +1,29 @@
+# File new commits of the projects we borrow from as upstream-watch issues. See notchcast/README.md.
+name: Upstream watch
+
+on:
+  schedule:
+    - cron: "23 5 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+# Two runs at once would both file the same commits; a queued run waits instead.
+concurrency:
+  group: upstream-watch
+  cancel-in-progress: false
+
+jobs:
+  watch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - run: python3 notchcast/upstream-watch-test.py
+      - env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 notchcast/upstream-watch.py
