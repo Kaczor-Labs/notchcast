@@ -138,7 +138,7 @@ final class CalendarCoordinator {
             [.joinNextMeeting, .copyMeetingLink, .mySchedule, .openInCalendar, .createEvent], enabled)
         guard enabled else {
             cancelEventEditing()
-            store.stop()
+            NotchcastHidden.applyDisabledCalendarStore(start: store.start, stop: store.stop)
             clock.stop()
             publishEntries()
             refreshMenuBarEvent()

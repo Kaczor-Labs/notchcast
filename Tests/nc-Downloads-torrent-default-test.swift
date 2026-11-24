@@ -195,7 +195,7 @@ private final class Harness {
         defaults = UserDefaults(suiteName: suite)!
         defaults.removePersistentDomain(forName: suite)
         preferences = NotchcastPreferences(defaults: defaults, switches: [
-            NotchcastSwitch(id: "torrents", title: "Torrents", subtitle: "", category: .filesDownloads),
+            NotchcastSwitch(id: "torrents", title: "Torrents", subtitle: "", category: .downloads),
         ])
         preferences.set("torrents", on: on)
         let hub = NotchcastTapHub(syntheticTag: 0, isTrusted: { false }) { _ in

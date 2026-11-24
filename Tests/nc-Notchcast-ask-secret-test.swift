@@ -413,15 +413,15 @@ struct NotchcastAskSecretTest {
 }
 
 enum ArchivesProbe: NotchcastAddon {
-    static let switches = [NotchcastSwitch(id: "archives", title: "Archives", subtitle: "", category: .filesDownloads)]
+    static let switches = [NotchcastSwitch(id: "archives", title: "Archives", subtitle: "", category: .files)]
 }
 
 enum DownloadsProbe: NotchcastAddon {
-    static let switches = [NotchcastSwitch(id: "downloads", title: "Downloads", subtitle: "", category: .filesDownloads)]
+    static let switches = [NotchcastSwitch(id: "downloads", title: "Downloads", subtitle: "", category: .downloads)]
 }
 
 enum BlankProbe: NotchcastAddon {
-    static let switches = [NotchcastSwitch(id: "blank", title: "", subtitle: "", category: .filesDownloads)]
+    static let switches = [NotchcastSwitch(id: "blank", title: "", subtitle: "", category: .downloads)]
 }
 
 final class SilentPresenter: IslandPresenting {

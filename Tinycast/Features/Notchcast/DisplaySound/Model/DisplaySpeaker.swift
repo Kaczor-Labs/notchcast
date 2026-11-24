@@ -1,3 +1,7 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (C) 2026 Vorssaint
+// Adapted from Vorssaint 7ef0b3c's brightness support: the unmute a monitor latched at zero needs.
+
 import Foundation
 
 /// A volume or mute key, whichever path applies it.
@@ -16,6 +20,8 @@ struct DisplaySpeakerLevel: Codable, Equatable, Sendable {
 struct DisplaySpeakerPlan: Equatable, Sendable {
     let level: DisplaySpeakerLevel
     let packets: [[UInt8]]
+    /// The raw volume an unmute at zero must leave in place: some firmware jumps to its old level.
+    var landing: UInt16?
 }
 
 enum DisplaySpeaker {
@@ -35,11 +41,22 @@ enum DisplaySpeaker {
         return named.isEmpty && displays.count == 1 ? displays[0].uuid : nil
     }
 
+    /// Reading 0x8D as 0 unmuted and 1 muted, a monitor stays silent after zero until told to unmute.
+    static func unmutesLeavingZero(_ mute: (current: UInt16, maximum: UInt16)) -> Bool {
+        mute.current == 0 && mute.maximum >= DisplayDDC.muteValue(false)
+    }
+
+    static func landed(_ landing: UInt16, volume: (current: UInt16, maximum: UInt16)?,
+                       mute: (current: UInt16, maximum: UInt16)?) -> Bool {
+        guard let mute, volume?.current == landing else { return false }
+        return DisplayDDC.muted(mute.current) == false || unmutesLeavingZero(mute)
+    }
+
     /// Volume up unmutes, as macOS does; a step the monitor's scale rounds away moves one unit.
-    static func plan(_ command: VolumeCommand, volume: (current: UInt16, maximum: UInt16), mute: UInt16?,
-                     remembered: DisplaySpeakerLevel?) -> DisplaySpeakerPlan? {
+    static func plan(_ command: VolumeCommand, volume: (current: UInt16, maximum: UInt16),
+                     mute: (current: UInt16, maximum: UInt16)?, remembered: DisplaySpeakerLevel?) -> DisplaySpeakerPlan? {
         let share = DisplayDDC.share(volume.current, maximum: volume.maximum)
-        let reported = mute.flatMap(DisplayDDC.muted)
+        let reported = (mute?.current).flatMap(DisplayDDC.muted)
         let muted = reported ?? remembered?.muted ?? false
         switch command {
         case .toggleMute:
@@ -53,10 +70,12 @@ enum DisplaySpeaker {
                 target = increasing ? min(target + 1, volume.maximum) : target == 0 ? 0 : target - 1
             }
             var packets = target == volume.current ? [] : [DisplayDDC.write(.volume, target)]
-            if increasing, muted { packets.append(DisplayDDC.write(.mute, DisplayDDC.muteValue(false))) }
+            let leavesZero = volume.current == 0 && target > 0
+            let unmutes = increasing && (muted || leavesZero && mute.map(unmutesLeavingZero) == true)
+            if unmutes { packets.append(DisplayDDC.write(.mute, DisplayDDC.muteValue(false))) }
             let level = DisplaySpeakerLevel(volume: DisplayDDC.share(target, maximum: volume.maximum),
                                             muted: muted && !increasing)
-            return DisplaySpeakerPlan(level: level, packets: packets)
+            return DisplaySpeakerPlan(level: level, packets: packets, landing: leavesZero && unmutes ? target : nil)
         }
     }
 

@@ -12,7 +12,8 @@ struct BrightnessLevel: Equatable, Codable, Sendable {
     let extraDimming: Bool
 
     init(_ value: Double, softwareOnly: Bool = false, extraDimming: Bool = true) {
-        let minimum = softwareOnly || !extraDimming ? 0 : -Self.extraDimmingRange
+        // Off, a display dimmed only in software has no backlight below it, so it stays at full.
+        let minimum = softwareOnly ? (extraDimming ? 0 : 1) : (extraDimming ? -Self.extraDimmingRange : 0)
         self.value = value.isNaN ? 0 : min(max(value, minimum), 1)
         self.softwareOnly = softwareOnly
         self.extraDimming = extraDimming
