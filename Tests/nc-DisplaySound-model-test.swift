@@ -200,7 +200,8 @@ enum DisplaySoundModelTests {
         check(BrightnessLevel(-0.1).withoutExtraDimming() == BrightnessLevel(0), "sleep drops extra dimming")
         let software = BrightnessLevel(0.3, softwareOnly: true)
         check(software.withoutExtraDimming() == software, "software dimming is no extra")
-        check(software.allowing(extraDimming: false).value == 0.3, "software dimming ignores the setting")
+        check(software.allowing(extraDimming: false).value == 1 && !software.allowing(extraDimming: false).isDimmed,
+              "off: software dimming is pinned at full")
         var level = BrightnessLevel(1, extraDimming: false)
         for _ in 0..<40 { level = level.stepped(up: false, fine: false) }
         check(level.value == 0 && level.picture == 1, "off: twenty presses down never dim the picture")
