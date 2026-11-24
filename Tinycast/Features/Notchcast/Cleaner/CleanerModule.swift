@@ -107,7 +107,7 @@ final class CleanerModule: NotchcastModule {
         presenter.end(notice: Self.noticeID)
         var notice = Self.notice(for: report)
         result = notice
-        if report.movedCount > 0,
+        if report.movedCount > 0, report.unverifiedCount == 0,
             context.defaults.object(forKey: Self.offersEmptyTrash) as? Bool != false,
             await confirmEmptyTrash(), !Task.isCancelled {
             do {
