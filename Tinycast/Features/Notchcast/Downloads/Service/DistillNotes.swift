@@ -19,7 +19,7 @@ nonisolated struct DistillNotes: Sendable {
         return URL(filePath: path, directoryHint: .isDirectory)
     }
 
-    /// The folder whose dropped files Distill converts: nil while Convert dropped files is off.
+    /// The folder whose dropped files Distill converts: nil while its notes switch is off.
     static func dropFolder(in defaults: UserDefaults) -> URL? {
         defaults.bool(forKey: convertKey) ? folder(in: defaults) : nil
     }

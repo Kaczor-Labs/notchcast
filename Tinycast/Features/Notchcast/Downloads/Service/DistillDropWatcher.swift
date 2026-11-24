@@ -1,7 +1,7 @@
 import CoreServices
 import Foundation
 
-/// Queues files that appear in the Markdown folder while Convert dropped files is on, never one already there.
+/// Queues files that appear in the Markdown folder while its notes switch is on, never one already there.
 @MainActor
 final class DistillDropWatcher {
     typealias Sleep = @Sendable (TimeInterval) async throws -> Void
