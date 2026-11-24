@@ -15,7 +15,7 @@ extension CleanerModule {
                 defer { NSEvent.removeMonitor(monitor) }
                 return await context.confirmDestructive(title, message, confirmTitle, cancelTitle: cancelTitle)
             },
-            emptyTrash: { _ = try await SystemActionRunner.run(.emptyTrash, previousApp: nil) })
+            emptyTrash: { try await SystemActionRunner.run(.emptyTrash, previousApp: nil)?.title })
     }
 
     func openScreen(rescan: Bool = true) {

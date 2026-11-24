@@ -10,7 +10,7 @@ final class CleanerModule: NotchcastModule {
     let session: CleanerSession
     let context: NotchcastContext
     private let askToEmptyTrash: @MainActor (String, String, String, String) async -> Bool
-    private let emptyTrash: @MainActor () async throws -> Void
+    private let emptyTrash: @MainActor () async throws -> String?
     @ObservationIgnored private var reviewID: UUID?
     @ObservationIgnored private var scanTask: Task<Void, Never>?
     @ObservationIgnored private var cleanTask: Task<Void, Never>?
@@ -20,7 +20,7 @@ final class CleanerModule: NotchcastModule {
     init(
         context: NotchcastContext, session: CleanerSession,
         askToEmptyTrash: @escaping @MainActor (String, String, String, String) async -> Bool,
-        emptyTrash: @escaping @MainActor () async throws -> Void
+        emptyTrash: @escaping @MainActor () async throws -> String?
     ) {
         self.context = context
         self.session = session
@@ -108,14 +108,12 @@ final class CleanerModule: NotchcastModule {
             context.defaults.object(forKey: Self.offersEmptyTrash) as? Bool != false,
             await confirmEmptyTrash(), !Task.isCancelled {
             do {
-                try await emptyTrash()
-                if !notice.isFailure {
-                    notice.text = String(localized: "Trash Emptied", table: "NotchcastCleaner")
+                if let feedback = try await emptyTrash() {
+                    notice.text += "\n" + feedback
                 }
             } catch {
-                notice = IslandNotice(
-                    id: Self.noticeID, symbol: "trash",
-                    text: String(localized: "Couldn’t Empty the Trash", table: "NotchcastCleaner"), isFailure: true)
+                notice.text += "\n" + String(localized: "Couldn’t Empty the Trash", table: "NotchcastCleaner")
+                notice.isFailure = true
             }
         }
         guard !Task.isCancelled else { return }
@@ -133,11 +131,27 @@ final class CleanerModule: NotchcastModule {
 
     private static func notice(for report: CleanerReport) -> IslandNotice {
         let moved = report.movedCount
-        let left = report.entries.count - moved
-        if left > 0 || moved == 0 {
+        let missing = report.entries.count { $0.outcome == .skipped(.missing) }
+        let skipped = report.entries.count {
+            switch $0.outcome {
+            case .skipped(.changed), .skipped(.heldBack): true
+            default: false
+            }
+        }
+        let failed = report.entries.count { $0.outcome == .failed }
+        if missing > 0 || skipped > 0 || failed > 0 {
+            var outcomes = [String(localized: "\(moved) Moved to Trash", table: "NotchcastCleaner")]
+            if missing > 0 {
+                outcomes.append(String(localized: "\(missing) Missing", table: "NotchcastCleaner"))
+            }
+            if skipped > 0 {
+                outcomes.append(String(localized: "\(skipped) Skipped", table: "NotchcastCleaner"))
+            }
+            if failed > 0 {
+                outcomes.append(String(localized: "\(failed) Failed", table: "NotchcastCleaner"))
+            }
             return IslandNotice(
-                id: noticeID, symbol: "exclamationmark.triangle",
-                text: String(localized: "\(moved) Moved to Trash · \(left) Left in Place", table: "NotchcastCleaner"),
+                id: noticeID, symbol: "exclamationmark.triangle", text: outcomes.joined(separator: " · "),
                 isFailure: true)
         }
         let size = MeasuredSize(bytes: report.knownMovedBytes).formatted

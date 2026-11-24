@@ -20,6 +20,7 @@ private final class CleanerPresenter: IslandPresenting {
     var emptyAccepted = false
     var offers = 0
     var empties = 0
+    var emptyFails = false
 
     func showLevel(_ level: IslandLevel) {}
     func post(_ notice: IslandNotice, onTap: (@MainActor () -> Void)?) { posts.append(notice) }
@@ -62,13 +63,22 @@ struct CleanerModuleTest {
             home: CleanerTestFileSystem.area.home, runner: CleanerRunner(scanner: fs.scanner, runningApps: { .init() }),
             hasAccess: { hasAccess })
         let module = CleanerModule(
-            context: context, session: session, askToEmptyTrash: askToEmpty, emptyTrash: { presenter.empties += 1 })
+            context: context, session: session, askToEmptyTrash: askToEmpty,
+            emptyTrash: {
+                presenter.empties += 1
+                if presenter.emptyFails { throw CocoaError(.fileWriteNoPermission) }
+                return "Trash Is Already Empty"
+            })
         defer { module.stop() }
         let review = module.beginReview()
 
+        func activateVisibleItems() -> Task<Void, Never>? {
+            module.activateReview(visibleItems: session.items) { preconditionFailure("all items are visible") }
+        }
+
         await module.scan(for: review)?.value
         precondition(session.phase == .needsAccess && session.items.isEmpty)
-        precondition(module.activateReview(visibleItems: session.items) { preconditionFailure("all items are visible") } == nil && fs.trashCalls.isEmpty)
+        precondition(activateVisibleItems() == nil && fs.trashCalls.isEmpty)
         hasAccess = true
 
         await module.scan(for: review)?.value
@@ -81,11 +91,11 @@ struct CleanerModuleTest {
         await hiddenMove?.value
         precondition(revealed && hiddenMove == nil && moveQuestions == 0 && session.selection?.checked == [item],
                      "the first activation reveals the selection without opening the move question")
-        await module.activateReview(visibleItems: session.items) { preconditionFailure("all items are visible") }?.value
+        await activateVisibleItems()?.value
         precondition(fs.trashCalls.isEmpty && presenter.posts.isEmpty && presenter.offers == 0)
 
         presenter.moveAccepted = true
-        await module.activateReview(visibleItems: session.items) { preconditionFailure("all items are visible") }?.value
+        await activateVisibleItems()?.value
         precondition(fs.trashCalls == [item])
         precondition(presenter.posts.compactMap { $0.progress?.fraction } == [0, 1])
         precondition(presenter.offers == 1 && presenter.empties == 0)
@@ -94,22 +104,46 @@ struct CleanerModuleTest {
         fs.put(item, size: 64)
         fs.failTrash(of: item)
         await module.scan(for: review)?.value
-        await module.activateReview(visibleItems: session.items) { preconditionFailure("all items are visible") }?.value
+        await activateVisibleItems()?.value
         precondition(presenter.offers == 1 && presenter.posts.last?.isFailure == true)
 
         let another = CleanerTestFileSystem.item("org.example.another")
-        fs.remove(item)
-        fs.put(another, size: 64)
+        let missing = CleanerTestFileSystem.item("org.example.missing")
+        let open = CleanerTestFileSystem.item("org.example.open")
+        for url in [another, missing, open] { fs.put(url, size: 64) }
         presenter.emptyAccepted = true
         await module.scan(for: review)?.value
-        await module.activateReview(visibleItems: session.items) { preconditionFailure("all items are visible") }?.value
+        fs.remove(missing)
+        do {
+            try fs.holdOpen(open)
+        } catch {
+            preconditionFailure("could not set up the open file: \(error)")
+        }
+        await activateVisibleItems()?.value
         precondition(presenter.offers == 2 && presenter.empties == 1)
+        precondition(session.report?.entries.count == 4)
+        precondition(presenter.posts.last?.isFailure == true
+                     && presenter.posts.last?.text ==
+                        "1 Moved to Trash · 1 Missing · 1 Skipped · 1 Failed\nTrash Is Already Empty",
+                     "a mixed move reports each outcome alongside Finder’s no-op feedback")
+
+        fs.remove(item)
+        fs.remove(open)
+        fs.put(another, size: 64)
+        presenter.emptyFails = true
+        await module.scan(for: review)?.value
+        await activateVisibleItems()?.value
+        precondition(presenter.offers == 3 && presenter.empties == 2)
+        let moveSummary = "Moved \(MeasuredSize(bytes: 64).formatted) to the Trash"
+        precondition(presenter.posts.last?.isFailure == true
+                     && presenter.posts.last?.text == moveSummary + "\nCouldn’t Empty the Trash",
+                     "an emptying failure keeps the successful move result")
 
         fs.put(another, size: 64)
         defaults.set(false, forKey: CleanerModule.offersEmptyTrash)
         await module.scan(for: review)?.value
-        await module.activateReview(visibleItems: session.items) { preconditionFailure("all items are visible") }?.value
-        precondition(presenter.offers == 2 && presenter.empties == 1)
+        await activateVisibleItems()?.value
+        precondition(presenter.offers == 3 && presenter.empties == 2)
 
         await module.scan(for: review)?.value
         let refreshed = module.scan(for: review)

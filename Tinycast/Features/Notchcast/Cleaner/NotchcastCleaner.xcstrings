@@ -1,7 +1,10 @@
 {
   "sourceLanguage" : "en",
   "strings" : {
-    "%lld Moved to Trash · %lld Left in Place" : {},
+    "%lld Failed" : {},
+    "%lld Missing" : {},
+    "%lld Moved to Trash" : {},
+    "%lld Skipped" : {},
     "%lld found" : {},
     "%lld of %lld items processed" : {},
     "%lld selected · %@" : {},
@@ -57,7 +60,6 @@
     "This location can contain protected app data." : {},
     "This permanently deletes everything in the Trash." : {},
     "This was modified in the last 15 minutes." : {},
-    "Trash Emptied" : {},
     "You can put them back from the Trash." : {}
   },
   "version" : "1.0"
