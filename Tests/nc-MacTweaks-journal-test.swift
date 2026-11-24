@@ -9,6 +9,7 @@ struct MacTweaksJournalTest {
         let library = MacTweakTarget.libraryHidden
         let now = Date(timeIntervalSince1970: 100)
         let tweak = MacTweak(id: "path-bar", group: .finder, changes: [.preference(pathBar, .bool(true))])
+        let status = MacTweak(id: "status-bar", group: .finder, changes: [.preference(statusBar, .bool(true))])
         let unknown = MacTweak(id: "old-library-tweak", group: .finder, changes: [.showLibrary])
 
         let previous = MacTweakValue.dictionary(["setting": .array([.string("0"), .integer(0), .bool(false)])])
@@ -47,12 +48,27 @@ struct MacTweaksJournalTest {
         values = start
 
         apply(tweak, pathBar, .bool(true))
-        apply(tweak, statusBar, .bool(true))
+        apply(status, statusBar, .bool(true))
         apply(unknown, library, .bool(false))
         journal = try MacTweakJournal.decode(JSONEncoder().encode(journal))
-        precondition(journal.restoreAll().first?.tweakID == unknown.id)
-        for entry in journal.restoreAll() { restore(entry) }
+        precondition(journal.restoreAll(known: [tweak, status]).map(\.tweakID) == [status.id, tweak.id])
+        precondition(journal.restoreAll(known: [unknown]).map(\.tweakID) == [unknown.id])
+        precondition(journal.restoreAll(known: [status, unknown]).count == 2, "Path bar's entry needs its tweak")
+        for entry in journal.restoreAll(known: [tweak, status, unknown]) { restore(entry) }
         precondition(journal.entries.isEmpty && values == start)
+
+        let global = MacTweakTarget.preference(domain: ".GlobalPreferences", key: "ShowExtensions")
+        let sameKey = MacTweakTarget.preference(domain: "NSGlobalDomain", key: "ShowExtensions", appOnly: true)
+        let extensions = MacTweak(id: "extensions", group: .finder, changes: [.preference(global, .bool(true))])
+        let alsoExtensions = MacTweak(id: "also-extensions", group: .finder, changes: [.preference(sameKey, .integer(2))])
+        var spellings = MacTweakJournal().apply(extensions, target: global, value: .bool(true), current: .bool(false), now: now)!
+        spellings.finishWrite(global)
+        spellings = spellings.apply(alsoExtensions, target: sameKey, value: .integer(2), current: .bool(true), now: now)!
+        precondition(spellings.entries.count == 1, "Two spellings of one key must share one entry")
+        precondition(spellings.entries[0].previous == .bool(false))
+        precondition(spellings.restoreAll(known: [extensions, alsoExtensions]).count == 1)
+        let decoded = try MacTweakJournal.decode(JSONEncoder().encode(spellings))
+        precondition(decoded == spellings)
 
         let removal = journal.apply(tweak, target: pathBar, value: nil, current: previous, now: now)!
         let reapply = removal.apply(tweak, target: pathBar, value: .bool(true), current: nil, now: now)!
