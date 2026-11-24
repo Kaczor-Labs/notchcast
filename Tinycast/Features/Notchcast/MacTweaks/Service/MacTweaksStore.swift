@@ -27,10 +27,13 @@ final class MacTweaksStore {
 
     private let system: MacTweaksSystem
     private let catalogue: [MacTweak]
-    private(set) var isBusy = false
+    // Shared by every store: a module rebuilt mid-batch must not write the same journal at once.
+    private static var isRunning = false
     private var revision = 0
     private var issued = 0
     private var issuedRevision: Int?
+
+    var isBusy: Bool { Self.isRunning }
 
     init(catalogue: [MacTweak], system: MacTweaksSystem) {
         self.catalogue = catalogue
@@ -61,11 +64,11 @@ final class MacTweaksStore {
     }
 
     private func perform(_ request: Request) async throws -> [Issue] {
-        guard !isBusy else { throw Failure.busy }
-        isBusy = true
+        guard !Self.isRunning else { throw Failure.busy }
+        Self.isRunning = true
         revision += 1
         defer {
-            isBusy = false
+            Self.isRunning = false
             revision += 1
         }
         return try await Self.run(request, catalogue: catalogue, system: system)

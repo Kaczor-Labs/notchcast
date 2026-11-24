@@ -23,7 +23,7 @@ enum MacTweaksAddon: NotchcastAddon {
         title: String(localized: "Mac Tweaks – Finder", table: "NotchcastMacTweaks")
     ) { _ in AnyView(MacTweaksSettingsView(page: .finder)) }
 
-    static func makeRecovery(_ context: NotchcastContext) -> (any NotchcastModule)? {
+    static func makeModule(_ context: NotchcastContext) -> (any NotchcastModule)? {
         MacTweaksModule(catalogue: MacTweakCatalog.finder, system: .live())
     }
 }
