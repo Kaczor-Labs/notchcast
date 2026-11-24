@@ -75,10 +75,14 @@ struct CleanerRunner: Sendable {
             guard try scanner.parentIdentities(of: url, in: area) == scanned.parents,
                 try scanner.fileSystem.inspect(url) == scanned.entries[url]
             else { return .skipped(.changed) }
-            let trashed = try scanner.fileSystem.trash(url)
-            // A move within one volume keeps the identity, so a different one means the path was swapped.
-            guard let trashed, (try? scanner.fileSystem.inspect(trashed).identity) == scanned.entries[url]?.identity
-            else { return .trashedUnverified }
+            guard let trashed = try scanner.fileSystem.trash(url) else { return .trashedUnverified }
+            do {
+                // A move within one volume keeps the identity, so a different one means the path was swapped.
+                guard try scanner.fileSystem.inspect(trashed).identity == scanned.entries[url]?.identity
+                else { return .trashedUnverified }
+            } catch {
+                return .trashedUnverified
+            }
             return .trashed(item.size)
         } catch CleanerFileError.missing {
             return .skipped(.missing)

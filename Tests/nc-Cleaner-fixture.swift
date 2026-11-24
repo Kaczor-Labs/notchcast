@@ -9,6 +9,7 @@ final class CleanerTestFileSystem: CleanerFileSystem {
         var openFiles = CleanerOpenFiles()
         var refused: Set<String> = []
         var swapped: Set<String> = []
+        var lost: Set<String> = []
         var reads = 0
         var nextInode: UInt64 = 0
     }
@@ -87,6 +88,10 @@ final class CleanerTestFileSystem: CleanerFileSystem {
         _ = state.withLock { $0.swapped.insert(url.path) }
     }
 
+    func loseInTrash(_ url: URL) {
+        _ = state.withLock { $0.lost.insert(url.path) }
+    }
+
     static let trash = area.home.appending(path: ".Trash")
 
     func inspect(_ url: URL) throws -> CleanerFile {
@@ -122,7 +127,7 @@ final class CleanerTestFileSystem: CleanerFileSystem {
             if $0.refused.contains(url.path) { throw CocoaError(.fileWriteNoPermission) }
             for (path, file) in $0.files where path == url.path || path.hasPrefix(url.path + "/") {
                 $0.files[path] = nil
-                $0.files[destination.path + path.dropFirst(url.path.count)] = file
+                if !$0.lost.contains(url.path) { $0.files[destination.path + path.dropFirst(url.path.count)] = file }
             }
             return destination
         }

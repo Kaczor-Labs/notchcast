@@ -69,20 +69,23 @@ struct CleanerRunnerTest {
         let tool = CleanerTestFileSystem.item("b-tool")
         let program = tool.appending(component: "bin")
         let good = CleanerTestFileSystem.item("c-good")
+        let lost = CleanerTestFileSystem.item("d-lost")
         fs.put(tool, directory: true)
-        for file in [swapped, program, good] { fs.put(file, size: 32) }
+        for file in [swapped, program, good, lost] { fs.put(file, size: 32) }
         let plan = try await fs.scanner.scan(home: CleanerTestFileSystem.area.home, apps: .init())
-        precondition(plan.defaultSelection.checked == [swapped, tool, good])
+        precondition(plan.defaultSelection.checked == [swapped, tool, good, lost])
 
         fs.swapDuringTrash(of: swapped)
+        fs.loseInTrash(lost)
         try fs.run(program)
         let runner = CleanerRunner(scanner: fs.scanner, runningApps: { .init() })
         let report = await runner.run(plan, selection: plan.defaultSelection)
         precondition(report.entries.map(\.outcome) == [
-            .trashedUnverified, .skipped(.heldBack(.runningProgram)), .trashed(MeasuredSize(bytes: 32))
+            .trashedUnverified, .skipped(.heldBack(.runningProgram)), .trashed(MeasuredSize(bytes: 32)),
+            .trashedUnverified
         ])
         precondition(report.movedCount == 1 && report.knownMovedBytes == 32)
-        precondition(fs.trashCalls == [swapped, good])
+        precondition(fs.trashCalls == [swapped, good, lost])
         _ = try fs.inspect(CleanerTestFileSystem.trash.appending(component: "c-good"))
     }
 
