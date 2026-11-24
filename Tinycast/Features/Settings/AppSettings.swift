@@ -117,9 +117,8 @@ final class AppSettings {
     }
 
     var launcherShowsSuggestions: Bool {
-        didSet {
-            defaults.set(launcherShowsSuggestions, forKey: Key.launcherShowsSuggestions.rawValue)
-        }
+        get { NotchcastIslandPins.launcherShowsSuggestions }
+        set { _ = newValue }
     }
 
     /// How loose a fuzzy root-search hit may be and still show.
@@ -266,11 +265,13 @@ final class AppSettings {
 
     /// Summon the launcher as a slim search bar that expands into the full list on typing.
     var compactMode: Bool {
-        didSet { defaults.set(compactMode, forKey: Key.compactMode.rawValue) }
+        get { NotchcastIslandPins.compactMode }
+        set { _ = newValue }
     }
 
     var compactBarCommands: [CommandID] {
-        didSet { defaults.set(compactBarCommands.map(\.rawValue), forKey: Key.compactBarCommands.rawValue) }
+        get { NotchcastIslandPins.compactBarCommands }
+        set { _ = newValue }
     }
 
     /// Summon the palette on the display under the pointer instead of the one holding the menu bar.
@@ -280,13 +281,8 @@ final class AppSettings {
     }
 
     var autoSwitchInputSourceID: String? {
-        didSet {
-            guard let autoSwitchInputSourceID else {
-                defaults.removeObject(forKey: Key.autoSwitchInputSource.rawValue)
-                return
-            }
-            defaults.set(autoSwitchInputSourceID, forKey: Key.autoSwitchInputSource.rawValue)
-        }
+        get { NotchcastIslandPins.autoSwitchInputSourceID }
+        set { _ = newValue }
     }
 
     /// Lets the panel be dragged by its top edge; off by default, so most launches never grab it.
@@ -964,22 +960,12 @@ final class AppSettings {
         interfaceSize =
             defaults.string(forKey: Key.interfaceSize.rawValue).flatMap(InterfaceSize.init)
             ?? .standard
-        compactMode =
-            defaults.object(forKey: Key.compactMode.rawValue) == nil
-            || defaults.bool(forKey: Key.compactMode.rawValue)
-        compactBarCommands =
-            defaults.stringArray(forKey: Key.compactBarCommands.rawValue)
-            .flatMap(CommandID.compactBarCommands(from:)) ?? CommandID.defaultCompactBarCommands
         // Unset seeds the defaults; a stored empty array is a deliberately cleared list.
         searchScopes =
             defaults.stringArray(forKey: Key.searchScopes.rawValue) ?? SearchScopes.defaults
-        launcherShowsSuggestions =
-            defaults.object(forKey: Key.launcherShowsSuggestions.rawValue) == nil
-            || defaults.bool(forKey: Key.launcherShowsSuggestions.rawValue)
         rootSearchSensitivity =
             defaults.string(forKey: Key.rootSearchSensitivity.rawValue)
             .flatMap(SearchSensitivity.init) ?? .default
-        autoSwitchInputSourceID = defaults.string(forKey: Key.autoSwitchInputSource.rawValue)
         animationsEnabled =
             defaults.object(forKey: Key.animationsEnabled.rawValue) == nil
             || defaults.bool(forKey: Key.animationsEnabled.rawValue)

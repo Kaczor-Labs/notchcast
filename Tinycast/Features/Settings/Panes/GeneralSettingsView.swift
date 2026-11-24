@@ -66,6 +66,7 @@ struct GeneralSettingsView: View {
                         SettingsRowTitle(.generalGeneral, "Auto-switch input source")
                         Text("While the launcher is open.")
                     }
+                    .notchcastHidden()
                 }
             } header: {
                 SettingsSectionHeader(.generalGeneral)
@@ -97,6 +98,7 @@ struct GeneralSettingsView: View {
                             Color.clear.settingsAnchor(.generalCompactShortcuts)
                         }
                     }
+                    .notchcastHidden()
                 Toggle(isOn: $settings.openOnCursorScreen) {
                     SettingsRowTitle(.generalAppearance, "Follow the cursor across displays")
                 }
@@ -110,7 +112,7 @@ struct GeneralSettingsView: View {
                 SettingsSectionHeader(.generalAppearance)
             }
 
-            if settings.compactMode { CompactShortcutsSection() }
+            if settings.compactMode { CompactShortcutsSection().notchcastHidden() }
 
             HyperKeySettingsSection()
 
@@ -133,6 +135,7 @@ struct GeneralSettingsView: View {
                     SettingsRowTitle(.generalSearch, "Show suggestions")
                     Text("Shows your most-used items when the search field is empty.")
                 }
+                .notchcastHidden()
                 Picker(selection: $settings.rootSearchSensitivity) {
                     ForEach(SearchSensitivity.allCases) { sensitivity in
                         Text(sensitivity.title).tag(sensitivity)
