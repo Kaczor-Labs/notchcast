@@ -62,6 +62,10 @@ enum AddOnPaletteTests {
         coordinator.showPalette(mode: .fileSearch)
         precondition(closed == 4 && palette.customScreen == nil, "leaving the screen cancels its work")
         precondition(palette.backStack.allSatisfy { $0.mode != .customScreen }, "back cannot resurrect it")
+
+        coordinator.dialogPresentationChanged(true)
+        open()
+        precondition(closed == 5 && palette.customScreen == nil && !palette.isVisible, "a refused open closes at once")
         print("PASS add-on palette lifecycle and selection")
     }
 }
@@ -107,7 +111,7 @@ final class PaletteWindowController {
 
 @MainActor struct NotchcastServices { let surfaces = NotchcastSurfaces() }
 @MainActor struct NotchcastContext { let services = NotchcastServices() }
-enum NotchcastQuestion { static let takesLauncherPriority = false }
+enum NotchcastQuestion { static let takesLauncherPriority = true }
 enum ClipboardFilter { case all }
 enum FileSearchFilter { case all }
 enum EmojiCategoryFilter { case all }

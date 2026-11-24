@@ -11,7 +11,9 @@ extension NotchcastSurfaces {
             presentPalette: { [weak core] title, prompt, makeScreen, onClose in
                 guard let core else { return }
                 let palette = core.palette
+                var shown = false
                 core.paletteCoordinator.showPalette(mode: .customScreen, seeding: "") {
+                    shown = true
                     palette.installCustomScreen(.init(title: title, prompt: prompt, makeScreen: { [weak palette] query in
                         let reset = palette?.resetToken
                         return makeScreen(query) { [weak palette] index in
@@ -22,6 +24,7 @@ extension NotchcastSurfaces {
                         }
                     }, onClose: onClose))
                 }
+                if !shown { onClose() }
             })
     }
 
