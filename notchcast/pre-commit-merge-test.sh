@@ -8,6 +8,8 @@ trap 'rm -rf "$scratch"' EXIT
 fail() { echo "FAIL: $1"; cat "$scratch/output"; exit 1; }
 export GIT_AUTHOR_NAME=Fixture GIT_COMMITTER_NAME=Fixture GIT_AUTHOR_EMAIL=fixture@example.invalid
 export GIT_COMMITTER_EMAIL=$GIT_AUTHOR_EMAIL
+# One fixed date: git orders equal bases by date; only a tie leaves the pick to argument order.
+export GIT_AUTHOR_DATE='2000-01-01T00:00:00Z' GIT_COMMITTER_DATE='2000-01-01T00:00:00Z'
 mkdir -p "$scratch/bin" "$scratch/tools/githooks"
 cp "$root/notchcast/githooks/pre-commit" "$scratch/tools/githooks/"
 printf '#!/bin/sh\nexit 0\n' > "$scratch/tools/check-identity.sh"
@@ -93,7 +95,10 @@ git switch --quiet -c pr clean
 git merge --quiet --no-commit dirty > "$scratch/output" 2>&1 || fail 'the fixture merge of dirty did not stage'
 git restore --quiet --source=clean --staged --worktree Tinycast/Upstream.swift
 git commit --quiet --no-edit
-[ "$(git merge-base --all HEAD upstream | wc -l)" -eq 2 ] || fail 'the fixture does not have two bases'
+[ "$(git merge-base HEAD refs/remotes/upstream/main)" = "$(git rev-parse clean)" ] ||
+    fail 'the fixture does not pick the base without the finding for HEAD first'
+[ "$(git merge-base refs/remotes/upstream/main HEAD)" = "$(git rev-parse dirty)" ] ||
+    fail 'the fixture does not pick the base with the finding for upstream first'
 git config core.hooksPath "$scratch/tools/githooks"
 echo 'title: "Title Case"' >> Tinycast/Upstream.swift
 git add Tinycast
