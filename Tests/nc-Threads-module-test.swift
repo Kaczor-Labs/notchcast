@@ -63,7 +63,7 @@ struct ThreadsModuleTests {
         pages()
         notices()
         links()
-        await unset()
+        await defaultPath()
         await announcesOnceAcrossRestart()
         await oldAndMissing()
         await opens()
@@ -114,7 +114,7 @@ struct ThreadsModuleTests {
                 presenter: presenter, hub: hub, transcription: NotchcastTranscriptionRunner(dictation: FakeDictation()),
                 now: { [unowned self] in now }, onTapsChanged: {})
             let alarm = alarm
-            let module = ThreadsModule(context: context, open: { [unowned self] in opened.append($0) },
+            let module = ThreadsModule(context: context, home: folder, open: { [unowned self] in opened.append($0) },
                                        sleep: { await alarm.sleep($0) })
             context.attach(module)
             module.start()
@@ -157,6 +157,34 @@ struct ThreadsModuleTests {
         let board = ThreadsFixtures.board(rows: [old])
         check(board.waiting.count == 1 && board.announceable.isEmpty,
               "a document older than ids lists its waits and announces none")
+        schemaExample()
+    }
+
+    /// t3chad's published example decodes field by field as the schema states it.
+    static func schemaExample() {
+        let example: ThreadsDocument
+        do {
+            example = try ThreadsDocument.decode(Data(ThreadsFixtures.schemaExample.utf8))
+        } catch {
+            check(false, "t3chad's example does not decode: \(error)")
+            return
+        }
+        check(example.generatedAt == ThreadsDocument.date("2030-01-01T12:50:00+01:00"), "generatedAt")
+        check(example.sources.map(\.machine) == ["boxa", "boxb", "boxc"]
+              && example.sources.map(\.stale) == [false, true, false]
+              && example.sources.map(\.ageSeconds) == [120, 14400, 60], "\(example.sources)")
+        check(example.waits.map(\.kind) == [.question, .approval, .doorAsk], "\(example.waits.map(\.kind))")
+        check(example.waits.map(\.id) == ["request:boxc:thread-demo-question:request-demo-question",
+                                         "request:boxa:thread-demo-approval:request-demo-approval",
+                                         "door:summary-title"], "ids")
+        check(example.waits[0].question == "Which output format?" && example.waits[0].waitingSeconds == 9600,
+              "a question row reads its first question")
+        check(example.waits[1].question == "Allow the export?" && example.waits[1].title == "Approve the export",
+              "an approval with no questions reads its prompt")
+        check(example.waits[2].threadID == "thread-demo-door" && example.waits[2].environmentID == "env-demo-a"
+              && example.waits[2].title == nil && !example.waits[2].later, "a door ask opens the door's thread")
+        check(ThreadsLink.url(example.waits[2])?.absoluteString == "t3code://threads/env-demo-a/thread-demo-door",
+              "and links to it")
     }
 
     static func pages() {
@@ -181,7 +209,7 @@ struct ThreadsModuleTests {
         check(titles("machine-silent").first == "BOX last heard 9 min ago", "\(titles("machine-silent"))")
         check(ThreadsPage.page(boards["one"]!)?.line.text == "Billing page redesign asks you", "one waits")
         check(ThreadsPage.page(ThreadsBoard(configured: false, document: nil, now: ThreadsFixtures.now)) == nil,
-              "no file set: no page")
+              "before the first read: no page")
         let status = ThreadsPage.status(boards["list"]!)
         check(status?.text == "4" && status?.tone == .critical && status?.label == "4 threads wait on you, 1 failed",
               "the count is red while a run failed: \(String(describing: status))")
@@ -228,13 +256,25 @@ struct ThreadsModuleTests {
         check(shown.ids == ["wait-door-report"], "an id leaves once its wait leaves the file: \(shown.ids)")
     }
 
-    static func unset() async {
+    /// With no file chosen, t3chad's own path under the injected home is read.
+    static func defaultPath() async {
         let rig = Rig()
+        let file = ThreadsDocument.defaultURL(home: rig.folder)
+        check(file.path == rig.folder.path + "/.local/state/t3chad/docs/v1/waits.json", file.path)
         let presenter = ThreadsRecorder()
         let (module, _) = rig.start(presenter, path: false)
         await module.reload().value
-        check(presenter.page == nil && presenter.status == nil && presenter.notices.isEmpty,
-              "with no file set the island shows nothing")
+        check(presenter.rows.map(\.title) == ["t3chad is not reporting"] && presenter.notices.isEmpty,
+              "no file at the default path yet is silence: \(presenter.rows.map(\.title))")
+        do {
+            try FileManager.default.createDirectory(at: file.deletingLastPathComponent(), withIntermediateDirectories: true)
+            try ThreadsFixtures.json(rows: [ThreadsFixtures.question]).write(to: file, options: .atomic)
+        } catch {
+            preconditionFailure("write: \(error)")
+        }
+        await module.reload().value
+        check(presenter.rows.first?.title == "Billing page redesign" && presenter.notices.count == 1,
+              "the default file is read and announced: \(presenter.rows.map(\.title))")
         module.stop()
     }
 
@@ -347,7 +387,13 @@ struct ThreadsModuleTests {
         check(presenter.rows.first?.title == "Billing page redesign", "fresh at first")
         check(rig.alarm.asked.last == .seconds(ThreadsBoard.silentAfter - 30 + 1),
               "one expiry at the deadline: \(rig.alarm.asked)")
-        rig.defaults.removeObject(forKey: ThreadsPreferences.fileKey)
+        let elsewhere = rig.folder.appending(path: "other.json")
+        do {
+            try ThreadsFixtures.json(age: -ThreadsBoard.silentAfter, rows: [ThreadsFixtures.approval]).write(to: elsewhere)
+        } catch {
+            preconditionFailure("write: \(error)")
+        }
+        rig.defaults.set(elsewhere.path, forKey: ThreadsPreferences.fileKey)
         rig.now = ThreadsFixtures.now.addingTimeInterval(ThreadsBoard.silentAfter)
         rig.alarm.ring()
         for _ in 0..<100 where presenter.rows.first?.title != "t3chad is not reporting" { await Task.yield() }

@@ -1,7 +1,7 @@
 import Foundation
 import OSLog
 
-/// The add-on's keys in the `<bundle id>.notchcast` suite; the repo holds no path, so the file starts unset.
+/// The add-on's keys in the `<bundle id>.notchcast` suite; with no file chosen, t3chad's own path is read.
 @MainActor
 struct ThreadsPreferences {
     static let switchID = "threads"
@@ -9,13 +9,17 @@ struct ThreadsPreferences {
     static let shownKey = "threads.shownWaits"
 
     let defaults: UserDefaults
+    var home: URL = FileManager.default.homeDirectoryForCurrentUser
 
+    /// The file the user chose in Settings, if any.
     var waitsFile: String? {
         get { defaults.string(forKey: Self.fileKey).flatMap { $0.isEmpty ? nil : $0 } }
         nonmutating set { defaults.set(newValue, forKey: Self.fileKey) }
     }
 
-    var waitsURL: URL? { waitsFile.map { URL(fileURLWithPath: ($0 as NSString).expandingTildeInPath) } }
+    var waitsURL: URL {
+        waitsFile.map { URL(fileURLWithPath: ($0 as NSString).expandingTildeInPath) } ?? ThreadsDocument.defaultURL(home: home)
+    }
 
     var shown: ThreadsShown {
         get { ThreadsShown(ids: defaults.stringArray(forKey: Self.shownKey) ?? []) }
@@ -32,8 +36,7 @@ enum ThreadsFile {
         subsystem: Bundle.main.bundleIdentifier ?? "Notchcast", category: "Threads")
 
     @concurrent
-    static func read(_ url: URL?) async -> ThreadsRead {
-        guard let url else { return .unset }
+    static func read(_ url: URL) async -> ThreadsRead {
         let size: Int?
         do {
             size = try url.resourceValues(forKeys: [.fileSizeKey]).fileSize

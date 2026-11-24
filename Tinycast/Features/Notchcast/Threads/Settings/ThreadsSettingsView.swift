@@ -2,7 +2,7 @@ import AppKit
 import SwiftUI
 import UniformTypeIdentifiers
 
-/// Where t3chad's waits file is, under the Threads page switch; unset until the user picks it.
+/// Where t3chad's waits file is, under the Threads page switch; t3chad's own path until the user picks one.
 struct ThreadsSettingsView: View {
     @Environment(MainAppLink.self) private var mainApp
     let context: NotchcastContext
@@ -11,18 +11,21 @@ struct ThreadsSettingsView: View {
 
     private var preferences: ThreadsPreferences { ThreadsPreferences(defaults: context.defaults) }
 
+    private var shownPath: String {
+        waitsFile ?? ThreadsDocument.defaultURL(home: preferences.home).path(percentEncoded: false)
+    }
+
     var body: some View {
         LabeledContent {
             HStack(spacing: Theme.Spacing.sm) {
                 Button { chooseFile() } label: { Text("Choose…", tableName: "NotchcastThreads") }
-                Button { save(nil) } label: { Text("Clear", tableName: "NotchcastThreads") }
+                Button { save(nil) } label: { Text("Use Default", tableName: "NotchcastThreads") }
                     .disabled(waitsFile == nil)
             }
         } label: {
             SettingsRowTitle(Self.anchor, LocalizedStringResource("Waits file", table: "NotchcastThreads"))
             Text("The waits.json file t3chad writes. It is read whenever it changes.", tableName: "NotchcastThreads")
-            Text(verbatim: waitsFile.map { ($0 as NSString).abbreviatingWithTildeInPath }
-                 ?? String(localized: "Not set", table: "NotchcastThreads"))
+            Text(verbatim: (shownPath as NSString).abbreviatingWithTildeInPath)
         }
         .onAppear { waitsFile = preferences.waitsFile }
         .onChange(of: mainApp.notchcastStatus(for: ThreadsAddon.self), initial: true) { _, latest in
@@ -44,9 +47,7 @@ struct ThreadsSettingsView: View {
         panel.canChooseDirectories = false
         panel.showsHiddenFiles = true
         panel.allowedContentTypes = [.json]
-        panel.directoryURL = waitsFile.map {
-            URL(fileURLWithPath: ($0 as NSString).expandingTildeInPath).deletingLastPathComponent()
-        }
+        panel.directoryURL = URL(fileURLWithPath: (shownPath as NSString).expandingTildeInPath).deletingLastPathComponent()
         guard panel.runModal() == .OK, let url = panel.url else { return }
         save(url.path(percentEncoded: false))
     }
