@@ -93,16 +93,38 @@ struct IslandCanvasTest {
                                 cornerHeight: Theme.Radius.panel, transform: nil)
         canvas.covered = true
         let progress = IslandNotice(id: "compress", symbol: "doc.zipper", text: "Compressing Folder.7z",
-                                    progress: IslandProgress(fraction: nil))
+                                    progress: IslandProgress(fraction: 0.4, headline: false))
+        let status = IslandStatus(id: "cpu", symbol: "cpu", text: "Hot", label: "CPU running hot")
+        let meeting = MeetingEvent(id: "m", title: "Standup", start: Date(timeIntervalSince1970: 600), end:
+            Date(timeIntervalSince1970: 2400), isAllDay: false, isDeclined: false, calendarID: "c",
+            calendarName: "Work", calendarColor: nil, calendarItemID: "i", link: nil)
+        let glance = IslandGlance(meeting, now: Date(timeIntervalSince1970: 0), locale: Locale(identifier: "en_US"))
         for look in IslandLook.allCases {
             canvas.look = look
-            canvas.show(glance: nil, level: nil, notice: nil, statuses: [], expanded: false, notch: nil)
-            let background = bitmap(in: frame, scale: 2) { canvas.draw(frame) }
-            canvas.show(glance: nil, level: nil, notice: progress, statuses: [], expanded: false, notch: nil)
-            precondition(canvas.glance is IslandNoticeArt, "The archive progress fits in the compact pill")
-            let covered = bitmap(in: frame, scale: 2) { canvas.draw(frame) }
-            precondition(!inkBounds(from: background, to: covered).isNull,
-                         "Progress still paints while the launcher covers the island")
+            for notch in [nil, CGFloat(200)] {
+                canvas.show(glance: nil, level: nil, notice: nil, statuses: [], expanded: false, notch: notch)
+                let background = bitmap(in: frame, scale: 2) { canvas.draw(frame) }
+                let arts: [(String, (IslandCanvas) -> Void)] = [
+                    ("progress", { $0.show(glance: nil, level: nil, notice: progress, statuses: [], expanded: false,
+                                           notch: notch) }),
+                    ("status", { $0.show(glance: nil, level: nil, notice: nil, statuses: [status], expanded: false,
+                                         notch: notch) }),
+                    ("meeting glance", { $0.show(glance: glance, level: nil, notice: nil, statuses: [],
+                                                 expanded: false, notch: notch) }),
+                ]
+                for (name, show) in arts {
+                    show(canvas)
+                    precondition(canvas.glance != nil && canvas.headline == nil, "The \(name) is compact art")
+                    canvas.launcherOpen = true
+                    let under = bitmap(in: frame, scale: 2) { canvas.draw(frame) }
+                    precondition(inkBounds(from: background, to: under).isNull,
+                                 "No \(name) paints inside the open launcher (\(look), notch \(notch ?? 0))")
+                    canvas.launcherOpen = false
+                    let back = bitmap(in: frame, scale: 2) { canvas.draw(frame) }
+                    precondition(!inkBounds(from: background, to: back).isNull,
+                                 "The \(name) paints again once the launcher closes, also under a report alone")
+                }
+            }
         }
     }
 
