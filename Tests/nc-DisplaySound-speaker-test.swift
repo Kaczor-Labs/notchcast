@@ -179,6 +179,42 @@ enum DisplaySoundSpeakerTests {
         let on = await service.perform(.step(up: false, fine: false, id(1)))!
         check(on.displays[0].level.value == -0.0625 && on.displays[0].level.range == -0.25...1, "on: dimming is back")
         check(await service.restoreAll(), "restored")
+        await softwareOnlyOff()
+        await refusedRestore()
+    }
+
+    static func softwareOnlyOff() async {
+        install([2: Monitor(uuid: "uuid-2", name: "Plain", ddc: false)])
+        let service = BrightnessDisplayService(displays: system.displays)
+        _ = await service.perform(.refresh(names: [:]))
+        _ = await service.perform(.set(0.4, id(2)))
+        check(hw { $0.monitors[2]?.gamma } != baseline, "software: dimmed")
+        let off = await service.perform(.extraDimming(false))!
+        check(off.displays[0].level.value == 1, "off: a software-only monitor goes back to full")
+        check(hw { $0.monitors[2]?.gamma } == baseline, "off: its curve comes back bit for bit")
+        let down = await service.perform(.step(up: false, fine: false, id(2)))!
+        check(down.displays[0].level.value == 1 && hw { $0.monitors[2]?.gamma } == baseline, "off: keys do not dim it")
+        _ = await service.perform(.extraDimming(true))
+        let on = await service.perform(.step(up: false, fine: false, id(2)))!
+        check(on.displays[0].level.value == 0.9375 && hw { $0.monitors[2]?.gamma } != baseline, "on: keys dim it")
+        check(await service.restoreAll(), "software restored")
+    }
+
+    static func refusedRestore() async {
+        install([1: Monitor(uuid: "uuid-1", name: "Built-in", builtIn: true, system: 0.5)])
+        let service = BrightnessDisplayService(displays: system.displays)
+        _ = await service.perform(.refresh(names: [:]))
+        _ = await service.perform(.set(-0.2, id(1)))
+        hw { $0.monitors[1]?.takesGamma = false }
+        let off = await service.perform(.extraDimming(false))!
+        check(off.displays[0].level == BrightnessLevel(0, extraDimming: false), "off: taken though the curve refused")
+        check(off.retrying == [id(1).uuid], "off: the refused curve is retried")
+        hw { $0.monitors[1]?.takesGamma = true }
+        _ = await service.perform(.retry(uuid: id(1).uuid, since: off.serial))
+        check(hw { $0.monitors[1]?.gamma } == baseline, "a retry gives the curve back")
+        let down = await service.perform(.step(up: false, fine: false, id(1)))!
+        check(down.displays[0].level.value == 0 && hw { $0.monitors[1]?.gamma } == baseline, "off: keys stop at 0")
+        check(await service.restoreAll(), "refused restored")
     }
 
     @MainActor
