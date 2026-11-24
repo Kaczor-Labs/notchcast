@@ -118,6 +118,9 @@ def rewrite(source, keys):
             continue
         if re.search(r'\bcase\s*$', before):
             continue
+        # An enum's raw value is data, even when it spells a visible title.
+        if re.search(r'\bcase\s+\w+\s*=\s*$', before):
+            continue
         if re.search(r'(?:restart:[^\n]*|subtitle\()\s*$', before) and literal == '"Finder"':
             continue
         if re.search(r'arguments:\s*\[[^\n\]]*$', before):
