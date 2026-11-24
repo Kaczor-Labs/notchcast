@@ -201,9 +201,8 @@ final class MacTweaksStore {
                 try restore(entry, includingRemovals: false)
             }
             guard state == .applied || state == .partial else { return }
-            let recordedTargets = Set(recorded.map(\.target))
             for change in tweak.changes {
-                guard let (target, value) = change.localWrite, !recordedTargets.contains(target.canonical) else { continue }
+                guard let (target, value) = change.localWrite else { continue }
                 let offValue: MacTweakValue?
                 switch target {
                 case .preference: offValue = nil
@@ -213,7 +212,9 @@ final class MacTweaksStore {
                 try Task.checkCancellation()
                 guard !isHeldByEarlierEntry(target, tweakID: tweak.id),
                       let reading = writableReading(target, tweakID: tweak.id),
-                      value.matches(reading.stored) else { continue }
+                      value.matches(reading.stored),
+                      !journal.entries.contains(where: { $0.target == target.canonical && $0.owns(reading.stored) })
+                else { continue }
                 try recordAndWrite(tweak, target: target, value: offValue, previous: reading.stored)
             }
         }

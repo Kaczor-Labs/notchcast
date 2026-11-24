@@ -356,6 +356,15 @@ struct MacTweaksStoreTest {
             $0.fallback = [:]
         }
 
+        let beforeRewrite = try await restoreStore.set("status", on: true)
+        fake.state.withLock { $0.values[statusBar] = .string("YES") }
+        let rewrittenOff = try await restoreStore.set("status", on: false)
+        precondition(beforeRewrite.isEmpty && rewrittenOff.isEmpty)
+        precondition(fake.state.withLock { $0.values[statusBar] } == nil, "A value rewritten elsewhere must still turn off")
+        let rewrittenUndo = try await restoreStore.undoEverything()
+        precondition(rewrittenUndo.isEmpty && fake.state.withLock { $0.values[statusBar] } == .string("YES"))
+        fake.state.withLock { $0.values[statusBar] = nil }
+
         try processRules()
         try domainSyncRules()
 
@@ -443,6 +452,12 @@ struct MacTweaksStoreTest {
         let undoHide = try await reopened.store.undoEverything()
         precondition(undoHide.isEmpty)
         precondition(fake.state.withLock { $0.values[.libraryHidden] } == .bool(false))
+        let hidden = try await reopened.store.set("show-library", on: false)
+        fake.state.withLock { $0.values[.libraryHidden] = .bool(false) }
+        let hiddenAgain = try await reopened.store.set("show-library", on: false)
+        precondition(hidden.isEmpty && hiddenAgain.isEmpty)
+        precondition(fake.state.withLock { $0.values[.libraryHidden] } == .bool(true),
+                     "Library shown again from Finder must still hide")
     }
 
     // Real child processes, never a system command: these check only the live interface's process rules.
