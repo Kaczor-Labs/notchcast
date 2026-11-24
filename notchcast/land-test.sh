@@ -76,7 +76,9 @@ STUB
     chmod +x "$scratch/bin/gh"
     export PATH="$scratch/bin:$PATH"
     git init --quiet --bare "$scratch/guard.git"
-    git clone --quiet --no-hardlinks "$scratch/repo" "$scratch/guard"
+    # Borrowed objects: the first push to an empty origin would otherwise send the whole history.
+    echo "$scratch/repo/.git/objects" > "$scratch/guard.git/objects/info/alternates"
+    git clone --quiet --shared "$scratch/repo" "$scratch/guard"
     cd "$scratch/guard"
     git remote set-url origin "$scratch/guard.git"
     git config user.name Fixture
@@ -278,14 +280,18 @@ if [ "${1:-}" = --statuses ]; then
     echo 'PASS: local build status fixtures'
     exit 0
 fi
-git clone --quiet --no-hardlinks "$root" "$scratch/repo"
+# Shared objects, never a copy of the history: the fixtures only add commits of their own.
+git clone --quiet --shared "$root" "$scratch/repo"
 cd "$scratch/repo"
 git config user.name Damian
 git config user.email 336236323+kaczordodgers@users.noreply.github.com
 printf '#!/usr/bin/env python3\n' > notchcast/check-drift.py
 printf '#!/usr/bin/env python3\n' > notchcast/check-drift-test.py
-git add notchcast/check-drift.py notchcast/check-drift-test.py
-git commit --quiet -m 'Fixture: isolate drift gates covered by land-drift-test.py'
+# A Linux landing reads no 'unmapped:' reason, the closure's only use (changed-harnesses.sh); lanes-test.py covers it.
+grep -q '^def build_closure(head, changed):$' notchcast/lanes.py || { echo 'FAIL: the build_closure stub no longer applies'; exit 1; }
+printf '\n\ndef build_closure(head, changed):\n    return BUILD_SEEDS\n' >> notchcast/lanes.py
+git add notchcast/check-drift.py notchcast/check-drift-test.py notchcast/lanes.py
+git commit --quiet -m 'Fixture: isolate drift gates covered by land-drift-test.py, and the build closure'
 base=$(git rev-parse HEAD)
 # land.sh refreshes upstream main: the fixture serves this checkout's upstream/main to itself, so CI's checkout,
 # which has no main branch, runs it too.
@@ -405,12 +411,11 @@ PY
 git add Tinycast/Features/Notchcast/Hidden/LandingFixture.swift Tests/notchcast-hidden-features-test.swift
 git commit --quiet -m 'Fixture: add a consumer of the old name'
 b=$(git rev-parse HEAD)
-"$land" --check "$base" "$b" > "$scratch/b.log" 2>&1 || { cat "$scratch/b.log"; exit 1; }
-echo 'PASS: B alone'
 git merge --quiet --no-commit --no-ff "$a"
 git merge --abort
 echo 'PASS: A and B merge without text conflicts'
 status=0
+# No landing of B alone: before it refuses, this one runs the red harness on $b itself, or says 'main is red'.
 "$land" --check "$b" "$a" > "$scratch/combined.log" 2>&1 || status=$?
 [ "$status" -eq 1 ]
 grep 'REFUSED: notchcast-hidden-features-test failed' "$scratch/combined.log"
