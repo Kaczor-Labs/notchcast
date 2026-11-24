@@ -141,9 +141,13 @@ final class CleanerModule: NotchcastModule {
             default: false
             }
         }
-        let failed = report.entries.count { $0.outcome == .failed }
-        if missing > 0 || skipped > 0 || failed > 0 {
+        let failed = report.entries.count { if case .failed = $0.outcome { true } else { false } }
+        let unverified = report.unverifiedCount
+        if missing > 0 || skipped > 0 || failed > 0 || unverified > 0 {
             var outcomes = [String(localized: "\(moved) Moved to Trash", table: "NotchcastCleaner")]
+            if unverified > 0 {
+                outcomes.append(String(localized: "\(unverified) Unverified", table: "NotchcastCleaner"))
+            }
             if missing > 0 {
                 outcomes.append(String(localized: "\(missing) Missing", table: "NotchcastCleaner"))
             }
@@ -153,9 +157,11 @@ final class CleanerModule: NotchcastModule {
             if failed > 0 {
                 outcomes.append(String(localized: "\(failed) Failed", table: "NotchcastCleaner"))
             }
-            return IslandNotice(
-                id: noticeID, symbol: "exclamationmark.triangle", text: outcomes.joined(separator: " · "),
-                isFailure: true)
+            var text = outcomes.joined(separator: " · ")
+            if unverified > 0 {
+                text += "\n" + String(localized: "Check the Trash Before Emptying It", table: "NotchcastCleaner")
+            }
+            return IslandNotice(id: noticeID, symbol: "exclamationmark.triangle", text: text, isFailure: true)
         }
         let size = MeasuredSize(bytes: report.knownMovedBytes).formatted
         return IslandNotice(

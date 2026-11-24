@@ -26,6 +26,10 @@ struct CleanerReport: Sendable {
         entries.count { if case .trashed = $0.outcome { true } else { false } }
     }
 
+    var unverifiedCount: Int {
+        entries.count { $0.outcome == .trashedUnverified }
+    }
+
     var knownMovedBytes: Int64 {
         entries.reduce(0) { total, entry in
             guard case .trashed(let size) = entry.outcome else { return total }

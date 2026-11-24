@@ -144,6 +144,19 @@ struct CleanerModuleTest {
                      && presenter.posts.last?.text == moveSummary + "\nCouldn’t Empty the Trash",
                      "an emptying failure keeps the successful move result")
 
+        let unverified = CleanerTestFileSystem.item("org.example.unverified")
+        for url in [another, unverified] { fs.put(url, size: 64) }
+        fs.loseInTrash(unverified)
+        await module.scan(for: review)?.value
+        await activateVisibleItems()?.value
+        precondition(session.report?.movedCount == 1 && session.report?.unverifiedCount == 1)
+        precondition(presenter.offers == 3 && presenter.empties == 2,
+                     "a batch with an unverified move gets no Empty Trash offer")
+        precondition(presenter.posts.last?.isFailure == true
+                     && presenter.posts.last?.text ==
+                        "1 Moved to Trash · 1 Unverified\nCheck the Trash Before Emptying It",
+                     "an unverified move tells the user to check the Trash")
+
         fs.put(another, size: 64)
         defaults.set(false, forKey: CleanerModule.offersEmptyTrash)
         await module.scan(for: review)?.value

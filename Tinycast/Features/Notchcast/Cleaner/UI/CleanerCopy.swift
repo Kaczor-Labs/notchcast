@@ -46,6 +46,12 @@ private extension CleanerHoldBack {
             String(localized: "The path could not be checked safely.", table: "NotchcastCleaner")
         case .runningApp:
             String(localized: "Quit the app and scan again to include this item.", table: "NotchcastCleaner")
+        case .runningProgram:
+            String(localized: "A program is running from this item. Quit it and scan again.",
+                   table: "NotchcastCleaner")
+        case .holdsRepository:
+            String(localized: "A code repository inside can contain work you want to keep.",
+                   table: "NotchcastCleaner")
         case .openFile:
             String(localized: "An open file is in use. Close it and scan again.", table: "NotchcastCleaner")
         case .recentWrite:
