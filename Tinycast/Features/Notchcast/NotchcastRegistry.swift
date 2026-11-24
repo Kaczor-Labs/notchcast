@@ -34,6 +34,7 @@ enum NotchcastRegistry {
         AccessoriesAddon.self,
         SystemMonitorAddon.self,
         CleanerAddon.self,
+        MacTweaksAddon.self,
         ThreadsAddon.self,
     ]
 }
