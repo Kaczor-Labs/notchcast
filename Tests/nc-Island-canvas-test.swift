@@ -20,7 +20,7 @@ struct IslandCanvasTest {
     @MainActor static func main() {
         let notch: CGFloat = 200
         let notice = IslandNotice(id: "n", symbol: "doc.on.clipboard", text: "Copied")
-        let meeting = MeetingEvent(id: "m", title: "Standup", start: Date(timeIntervalSince1970: 600), end:
+        let meeting = MeetingEvent(id: "m", title: "Demo", start: Date(timeIntervalSince1970: 600), end:
             Date(timeIntervalSince1970: 2400), isAllDay: false, isDeclined: false, calendarID: "c",
             calendarName: "Work", calendarColor: nil, calendarItemID: "i", link: nil)
         let glance = IslandGlance(meeting, now: Date(timeIntervalSince1970: 0), locale: Locale(identifier: "en_US"))
@@ -149,34 +149,39 @@ struct IslandCanvasTest {
         }
     }
 
-    /// Beside a notch every glyph and its text share a visible middle, to half a pixel at 2x (#1495).
+    /// In both forms every glyph and its text share a visible middle, to half a pixel at 2x (#1495, #1496).
     @MainActor static func level(_ glance: IslandGlance) {
         let pill = CGRect(x: 0, y: 0, width: 400, height: 32)
-        let recording = IslandNotice(id: "rec", symbol: "record.circle", text: "Recording",
+        let recording = IslandNotice(id: "rec", symbol: "record.circle", text: "Rec",
                                      progress: IslandProgress(fraction: nil, headline: false, readout: "0:42"))
         let volume = IslandLevel(source: "volume", symbol: "speaker.wave.2.fill", label: "Volume", value: 0.6)
         let hot = IslandStatus(id: "cpu", symbol: "cpu", text: "Hot", label: "CPU running hot")
-        let cpu = GlanceArt.glyph("cpu", tone: .white)!.size.width
-        let statusSplit = Int(pill.maxX - Theme.Spacing.lg - IslandStatusArt([hot], notch: true, frosted: false)
-            .layout.trailing + cpu + Theme.Spacing.xs / 2) * 2
         for frosted in [false, true] {
-            let pairs: [(String, any PillArt, Int)] = [
-                ("meeting", GlanceArt(glance, notch: true, frosted: frosted), 400),
-                ("readout", IslandNoticeArt(recording, notch: true, frosted: frosted, still: true), 400),
-                ("level", IslandLevelArt(volume, notch: true, frosted: frosted), 400),
-                ("status", IslandStatusArt([hot], notch: true, frosted: frosted), statusSplit),
-            ]
-            for (name, art, split) in pairs {
-                let rep = bitmap(in: pill, scale: 2) { art.draw(in: pill) }
-                func middle(_ columns: Range<Int>) -> Double {
-                    let rows = (0..<rep.pixelsHigh).filter { row in
-                        columns.contains { rep.bitmapData![row * rep.bytesPerRow + $0 * 4 + 3] > 127 }
+            for notch in [true, false] {
+                let pairs: [(String, any PillArt)] = [
+                    ("meeting", GlanceArt(glance, notch: notch, frosted: frosted)),
+                    ("readout", IslandNoticeArt(recording, notch: notch, frosted: frosted, still: true)),
+                    ("level", IslandLevelArt(volume, notch: notch, frosted: frosted)),
+                    ("status", IslandStatusArt([hot], notch: notch, frosted: frosted)),
+                ]
+                for (name, art) in pairs {
+                    let rep = bitmap(in: pill, scale: 2) { art.draw(in: pill) }
+                    func inked(_ column: Int) -> Bool {
+                        (0..<rep.pixelsHigh).contains { rep.bitmapData![$0 * rep.bytesPerRow + column * 4 + 3] > 127 }
                     }
-                    return Double(rows.first! + rows.last! + 1) / 2
+                    func middle(_ columns: Range<Int>) -> Double {
+                        let rows = (0..<rep.pixelsHigh).filter { row in
+                            columns.contains { rep.bitmapData![row * rep.bytesPerRow + $0 * 4 + 3] > 127 }
+                        }
+                        return Double(rows.first! + rows.last! + 1) / 2
+                    }
+                    // The glyph ends at the first blank run of 3 pt; its own gaps are narrower.
+                    let start = (0..<rep.pixelsWide).first(where: inked)!
+                    let split = (start..<rep.pixelsWide).first { column in (column..<column + 6).allSatisfy { !inked($0) } }!
+                    let glyph = middle(start..<split), text = middle(split..<rep.pixelsWide)
+                    print("level \(name) notch=\(notch) frosted=\(frosted): glyph \(glyph) px, text \(text) px")
+                    precondition(abs(glyph - text) <= 0.5, "The \(name) glyph sits level with its text, notch=\(notch)")
                 }
-                let glyph = middle(0..<split), text = middle(split..<rep.pixelsWide)
-                print("level \(name) frosted=\(frosted): glyph \(glyph) px, text \(text) px")
-                precondition(abs(glyph - text) <= 0.5, "Beside a notch the \(name) glyph sits level with its text")
             }
         }
     }
