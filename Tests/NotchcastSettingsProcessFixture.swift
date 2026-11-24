@@ -20,7 +20,8 @@ extension NotchcastCoreTest {
         defer { NotchcastPane.install([]) }
         check("Settings startup lists registered add-on tabs in sidebar order",
               SettingsSection.notchcast.tabs == [.notchcast(.island), .notchcast(.keyboardMouse),
-                                                 .notchcast(.displaySound), .notchcast(.launcher)])
+                                                 .notchcast(.dictation), .notchcast(.displaySound),
+                                                 .notchcast(.launcher)])
 
         check("Settings receives inert add-on services",
               core.contains("services: startsRuntime ? NotchcastServices(core: core) : NotchcastServices()"))

@@ -8,8 +8,10 @@ import AppKit
 import Carbon.HIToolbox
 
 enum NotchcastHidden {
-    enum Tab { case appleShortcuts, extensions, quickActions, commands }
-    static let tabs: Set<Tab> = []
+    enum Tab { case appleShortcuts, extensions, quickActions, commands, calendar, dictation }
+    static let tabs: Set<Tab> = [.calendar, .dictation]
+    static let liveCommandTabs: Set<Tab> = [.dictation]
+    @MainActor static var sampleOwner: Tab?
 }
 enum NotchcastHiddenCommands {
     enum Kind { case systemSettings }
@@ -17,7 +19,7 @@ enum NotchcastHiddenCommands {
     static let commands: Set<CommandID> = []
 }
 extension CommandID {
-    var owner: NotchcastHidden.Tab? { nil }
+    @MainActor var owner: NotchcastHidden.Tab? { NotchcastHidden.sampleOwner }
 }
 
 @main
@@ -37,6 +39,7 @@ struct NotchcastHotKeysTests {
         hiddenFeatureBindingsStayUnregistered()
         hiddenChordsOwnNothing()
         returningChordYieldsToLateAddOn()
+        hiddenTabCommandsKeepLiveChords()
         print("\(checks) add-on hotkey checks; \(failures) failures")
         if failures > 0 { exit(1) }
         print("PASSED")
@@ -204,6 +207,16 @@ struct NotchcastHotKeysTests {
         check("the colliding shortcut is removed when its new owner loads",
               HotKeyCenter.current!.entries[hidden.defaultsKey] == nil
                   && defaults.string(forKey: hidden.defaultsKey) == nil)
+    }
+
+    /// Dictation's stock tab is hidden, but Dictation History lives on in Notchcast › Dictation.
+    static func hiddenTabCommandsKeepLiveChords() {
+        defer { NotchcastHidden.sampleOwner = nil }
+        NotchcastHidden.sampleOwner = .calendar
+        check("a hidden tab's command loses its chord", NotchcastHiddenHotKeys.hides(.command(.sample)))
+        NotchcastHidden.sampleOwner = .dictation
+        check("Dictation History keeps its chord with the stock Dictation tab hidden",
+              !NotchcastHiddenHotKeys.hides(.command(.sample)))
     }
 
     static func launch(_ defaults: UserDefaults, hidePanes: Bool, quicklinkIDs: Set<UUID> = []) -> HotKeyManager {

@@ -5,6 +5,7 @@ struct NotchcastSettingsStatus: Codable, Equatable, Sendable {
     var dictationCleanupModel: AIModelSelection?
     var dictationAutomaticModelTitle: String?
     var hasDictationHistory = false
+    var dictationModelSizes: [DictationModel: Int64] = [:]
 }
 
 enum NotchcastSettingsAction: Codable, Sendable {

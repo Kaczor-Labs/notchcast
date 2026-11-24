@@ -80,6 +80,7 @@ Settings search indexes each pane and the main switches. Dependent switches, com
 | Island Content | `notchcast-island-content` | Pages, Notices |
 | Agents | `notchcast-agents` | Agents |
 | Keyboard & Mouse | `notchcast-keyboard-mouse` | Keyboard & Mouse |
+| Dictation | `notchcast-dictation` | none: the stock Dictation tab's rows, always shown (`hidden.md`) |
 | Display & Sound | `notchcast-display-sound` | Display, Sound |
 | Capture | `notchcast-capture` | Capture |
 | Clipboard & Files | `notchcast-clipboard-files` | Clipboard, Finder, Files |

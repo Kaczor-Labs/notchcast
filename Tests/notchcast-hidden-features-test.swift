@@ -46,7 +46,24 @@ struct HiddenFeaturesTest {
             ("Calendars permission is absent from Settings search",
              !SettingsSearchCatalog.entries.contains { $0.anchor == .permissionsCalendars }),
         ]
-        let failures = calendarChecks.filter { !$0.1 }
+        let dictationChecks = [
+            ("Dictation is absent from Features", !visible.contains(.dictation)),
+            ("settings/dictation is rejected", SettingsTab(slug: "dictation") == nil),
+            ("the stock Dictation tab is absent from Settings search",
+             !SettingsSearchCatalog.entries.contains { $0.tab == .dictation }),
+            ("direct navigation to the stock Dictation tab is refused", NotchcastHidden.tabs.contains(.dictation)),
+            ("Notchcast › Dictation shows with no add-on", visible.contains(.notchcast(.dictation))),
+            ("Notchcast › Dictation sits after Keyboard & Mouse",
+             NotchcastPane.allCases.firstIndex(of: .dictation)
+                == NotchcastPane.allCases.firstIndex(of: .keyboardMouse).map { $0 + 1 }),
+            ("settings/notchcast-dictation opens the new tab",
+             SettingsTab(slug: "notchcast-dictation") == .notchcast(.dictation)),
+            ("the Dictation History chord stays live with its owner tab hidden",
+             NotchcastHidden.liveCommandTabs == [.dictation]),
+            ("a tab whose commands live on is still a hidden tab",
+             NotchcastHidden.liveCommandTabs.isSubset(of: NotchcastHidden.tabs)),
+        ]
+        let failures = (calendarChecks + dictationChecks).filter { !$0.1 }
         for (message, _) in failures { print("FAIL: \(message)") }
         if !failures.isEmpty { exit(1) }
         let calendarCommands: [CommandID] = [
@@ -90,11 +107,10 @@ struct HiddenFeaturesTest {
                 && !NotchcastHidden.hides(tab: .general, keywords: ["Show in Menu Bar"]),
             "A row is hidden only in the tab that lists it")
         precondition(
-            SettingsSearchCatalog.entries.contains { $0.tab == .dictation && $0.keywords.contains("Language") },
-            "Dictation's own Language row is a separate setting and stays searchable")
-        precondition(
-            SettingsSearchCatalog.entries.contains { $0.tab == .dictation && $0.keywords.contains("AI providers") },
-            "With the AI tab hidden, Dictation's Cleanup holds the AI providers row")
+            SettingsSearchCatalog.entries.contains {
+                $0.tab == .notchcast(.dictation) && $0.keywords.contains("AI providers")
+            },
+            "With the AI tab hidden, Notchcast › Dictation's Cleanup holds the AI providers row")
         for title in ["Show animations", "Interface size", "Window mode"] {
             precondition(
                 SettingsSearchCatalog.entries.contains { $0.keywords.contains(title) },

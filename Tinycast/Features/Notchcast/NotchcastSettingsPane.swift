@@ -5,7 +5,9 @@ struct NotchcastSettingsPane: View {
     let pane: NotchcastPane
 
     var body: some View {
-        if let controller = AppCore.shared.notchcast?.controller {
+        if pane == .dictation {
+            NotchcastDictationPane()
+        } else if let controller = AppCore.shared.notchcast?.controller {
             NotchcastSettingsView(controller: controller, pane: pane)
         }
     }

@@ -541,7 +541,7 @@ struct NotchcastCoreTest {
     static func settingsTabs() {
         check("each tab holds its categories",
               NotchcastPane.allCases.map(\.categories)
-                == [[], [.islandPages, .notices], [.agents], [.keyboardMouse], [.display, .sound], [.capture],
+                == [[], [.islandPages, .notices], [.agents], [.keyboardMouse], [], [.display, .sound], [.capture],
                    [.clipboard, .finder, .files], [.downloads], [.launcher], [.macTweaks]])
         check("no category sits in two tabs", NotchcastCategory.allCases.allSatisfy { category in
             NotchcastPane.allCases.filter { $0.categories.contains(category) }.count <= 1
@@ -550,13 +550,15 @@ struct NotchcastCoreTest {
         check("a placed category resolves to the tab that holds it",
               placed.allSatisfy { NotchcastPane.holding($0).categories.contains($0) })
         check("a category with no tab yet shows nowhere",
-              NotchcastPane.shown(registered: [.betweenMacs]) == [.island])
+              NotchcastPane.shown(registered: [.betweenMacs]) == [.island, .dictation])
         for pane in [NotchcastPane.islandContent, .clipboardFiles, .displaySound] {
             check("each of \(pane.slug)'s categories makes it appear", pane.categories.allSatisfy {
-                NotchcastPane.shown(registered: [$0]) == [.island, pane]
+                NotchcastPane.shown(registered: [$0])
+                    == NotchcastPane.allCases.filter { [.island, .dictation, pane].contains($0) }
             })
         }
-        check("with no add-on only Island shows", NotchcastPane.shown(registered: []) == [.island])
+        check("with no add-on only Island and Dictation show",
+              NotchcastPane.shown(registered: []) == [.island, .dictation])
         NotchcastPane.install(Set(NotchcastCategory.allCases))
         check("the section lists every tab once all are filled",
               SettingsSection.notchcast.tabs == NotchcastPane.allCases.map(SettingsTab.notchcast))
@@ -575,5 +577,7 @@ struct NotchcastCoreTest {
         check("a hidden tab's deep link opens nothing", SettingsTab(slug: "notchcast-downloads") == nil)
         check("the Capture tab opens from its own link", NotchcastPane.capture.slug == "notchcast-capture")
         check("Island's deep link always opens", SettingsTab(slug: "notchcast-island") == .notchcast(.island))
+        check("Dictation's deep link always opens",
+              SettingsTab(slug: "notchcast-dictation") == .notchcast(.dictation))
     }
 }

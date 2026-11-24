@@ -10,9 +10,12 @@ enum NotchcastHidden {
         .commands,
         .notes,
         .calendar,
+        .dictation,
         .ai,
         .fallbacks,
     ]
+    /// Hidden tabs whose commands keep their chords: Dictation History lives on in Notchcast › Dictation.
+    static let liveCommandTabs: Set<SettingsTab> = [.dictation]
     /// The app speaks English only; `AppSettings.pinLanguage()` writes this at every launch.
     static let language = "en"
     /// English keys of the rows hidden in each tab; search drops them there and nowhere else.
