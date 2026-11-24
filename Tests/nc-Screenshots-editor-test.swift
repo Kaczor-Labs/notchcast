@@ -256,7 +256,7 @@ enum ScreenshotsEditorTests {
         await signals.wait("notice")
         precondition(presenter.posts.last?.text == "Saved to Downloads", "the island names the folder")
 
-        controller.context(forSwitch: "screenshot")?.confirmDestructive = { title, _, _ in
+        controller.context(forSwitch: "screenshot")?.presentDestructiveQuestion = { title, _, _, _ in
             fake.questions.append(title)
             fake.signals.fire("question")
             return fake.confirms

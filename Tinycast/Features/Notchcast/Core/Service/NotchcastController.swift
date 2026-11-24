@@ -31,6 +31,7 @@ final class NotchcastController {
     var onCommandsChanged: (([NotchcastCommand]) -> Void)?
     var openSwitch: ((NotchcastSwitch) -> Void)?
     private let presenter: any IslandPresenting
+    private let cleanUp: NotchcastCleanUp
     private var enabled: Set<String> = []
     private var launcherIDs: [String] = []
     private var isRunning = false
@@ -44,6 +45,7 @@ final class NotchcastController {
         preferences = NotchcastPreferences(defaults: defaults, switches: addons.flatMap { $0.switches })
         self.hub = hub
         self.presenter = presenter
+        cleanUp = services.cleanUp
         let transcription = NotchcastTranscriptionRunner(dictation: dictation)
         self.transcription = transcription
         func makeContext(recovery: NotchcastContext? = nil) -> NotchcastContext {
@@ -196,6 +198,10 @@ final class NotchcastController {
     private func publishCommands() {
         let commands = slots.flatMap(\.commands).filter { enabled.contains($0.switchID) }
         let shown = launcherCommands(commands).map(\.id)
+        let cleanUpCommand = commands.first { $0.diskCleanUpTitle != nil }
+        cleanUp.setAction(id: cleanUpCommand?.id, title: cleanUpCommand?.diskCleanUpTitle) { [weak self] id in
+            _ = self?.run(entryID: id)
+        }
         // A renamed run-time command keeps its id, so its name is compared too.
         let changed = commands.map { [$0.id, $0.name] } != enabledCommands.map { [$0.id, $0.name] }
         guard !hasPublishedCommands || !isRunning || changed || shown != launcherIDs else { return }
