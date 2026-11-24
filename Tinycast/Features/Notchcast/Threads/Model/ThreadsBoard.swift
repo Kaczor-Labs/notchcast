@@ -5,7 +5,7 @@ struct ThreadsBoard: Sendable {
     /// Older than this, the document or a machine counts as silent (design sheet r1, choice 3).
     static let silentAfter: TimeInterval = 5 * 60
 
-    /// False while Settings names no waits file: the add-on then shows nothing at all.
+    /// False until the first read ends: the add-on then shows nothing at all.
     var configured: Bool
     var document: ThreadsDocument?
     var now: Date
