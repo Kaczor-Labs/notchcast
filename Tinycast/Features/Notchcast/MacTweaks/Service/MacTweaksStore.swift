@@ -110,7 +110,7 @@ final class MacTweaksStore {
         let states = catalogue.map { ($0.id, state(of: $0, version: system.version, readings: readings)) }
         return MacTweakSnapshot(
             states: Dictionary(uniqueKeysWithValues: states),
-            journaled: Set(journal.restoreAll(known: catalogue).map(\.tweakID))
+            journaled: Set(journal.restoreAll(known: catalogue).filter { !$0.isSettled }.map(\.tweakID))
         )
     }
 
@@ -182,7 +182,7 @@ final class MacTweaksStore {
                         }
                     }
                 } else if !on {
-                    try setOff(tweak, state: state)
+                    try setOff(tweak)
                 }
             case .undoEverything:
                 for entry in journal.entries.reversed() where !entry.isKnown(by: catalogue) {
@@ -192,26 +192,24 @@ final class MacTweaksStore {
             }
         }
 
-        mutating func setOff(_ tweak: MacTweak, state: MacTweakState) throws {
-            let recorded = journal.restoreAll(known: catalogue).filter { $0.tweakID == tweak.id }
-            for entry in recorded where entry.target != .libraryHidden || entry.written != .bool(true) {
-                try restore(entry, includingRemovals: false)
-            }
-            guard state == .applied || state == .partial else { return }
+        mutating func setOff(_ tweak: MacTweak) throws {
             for change in tweak.changes {
                 guard let (target, value) = change.localWrite else { continue }
-                let offValue: MacTweakValue?
-                switch target {
-                case .preference: offValue = nil
-                case .libraryHidden: offValue = .bool(true)
-                case .service: continue
-                }
                 try Task.checkCancellation()
-                guard !isHeldByEarlierEntry(target, tweakID: tweak.id),
-                      let reading = writableReading(target, tweakID: tweak.id),
+                guard let reading = writableReading(target, tweakID: tweak.id),
                       value.matches(reading.stored),
-                      !journal.entries.contains(where: { $0.target == target.canonical && $0.owns(reading.stored) })
-                else { continue }
+                      !isHeldByEarlierEntry(target, tweakID: tweak.id) else { continue }
+                let entry = journal.entries.first { $0.target == target.canonical }
+                let offValue: MacTweakValue?
+                if let entry, !value.matches(entry.previous) {
+                    offValue = entry.previous
+                } else {
+                    switch target {
+                    case .preference: offValue = nil
+                    case .libraryHidden: offValue = .bool(true)
+                    case .service: continue
+                    }
+                }
                 try recordAndWrite(tweak, target: target, value: offValue, previous: reading.stored)
             }
         }
@@ -221,12 +219,10 @@ final class MacTweaksStore {
             guard let reading = writableReading(target, tweakID: tweak.id),
                   !value.matches(reading.effective),
                   !isHeldByEarlierEntry(target, tweakID: tweak.id) else { return }
-            if let entry = journal.entries.first(where: { $0.target == target.canonical && $0.tweakID == tweak.id }),
-               entry.owns(reading.stored), value.matches(entry.previous) {
-                try restore(entry)
-            } else {
-                try recordAndWrite(tweak, target: target, value: value, previous: reading.stored)
-            }
+            // A first value that already held the tweak on goes back exactly as it was.
+            let first = journal.entries.first { $0.target == target.canonical }?.previous
+            let onValue = first.flatMap { value.matches($0) ? $0 : nil } ?? value
+            try recordAndWrite(tweak, target: target, value: onValue, previous: reading.stored)
         }
 
         mutating func recordAndWrite(
@@ -254,11 +250,10 @@ final class MacTweaksStore {
             }
         }
 
-        mutating func restore(_ entry: MacTweakJournal.Entry, includingRemovals: Bool = true) throws {
+        mutating func restore(_ entry: MacTweakJournal.Entry) throws {
             try Task.checkCancellation()
             guard let reading = writableReading(entry.target, tweakID: entry.tweakID) else { return }
             if case .write(let previous) = journal.restore(entry, current: reading.stored) {
-                guard includingRemovals || entry.written != nil else { return }
                 guard stillWritable(entry.target, replacing: reading.stored, tweakID: entry.tweakID),
                       write(entry.target, value: previous, tweakID: entry.tweakID)
                 else { return }

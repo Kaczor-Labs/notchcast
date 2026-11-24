@@ -12,6 +12,7 @@ extension MacTweaksSystem {
         case invalidValue
         case invalidProcessOutput
         case refused
+        case notSaved
         case processFailed(String, Int32)
         case stopped(String)
         case couldNotStart(String)
@@ -155,16 +156,31 @@ extension MacTweaksSystem {
     private static func writePreference(
         _ domain: String, key: String, appOnly: Bool, value: MacTweakValue?
     ) throws {
-        guard try readPreference(domain, key: key, appOnly: appOnly, synchronize: synchronize).block == nil
-        else { throw LiveFailure.refused }
-        let global = isGlobal(domain)
-        let application = global ? kCFPreferencesAnyApplication : domain as CFString
-        CFPreferencesSetValue(
-            key as CFString, value.map(property), application, kCFPreferencesCurrentUser, kCFPreferencesAnyHost
-        )
-        guard CFPreferencesSynchronize(application, kCFPreferencesCurrentUser, kCFPreferencesAnyHost) else {
-            throw LiveFailure.refused
+        let before = try readPreference(domain, key: key, appOnly: appOnly, synchronize: synchronize)
+        guard before.block == nil else { throw LiveFailure.refused }
+        let application = isGlobal(domain) ? kCFPreferencesAnyApplication : domain as CFString
+        func set(_ value: MacTweakValue?) -> Bool {
+            CFPreferencesSetValue(
+                key as CFString, value.map(property), application, kCFPreferencesCurrentUser, kCFPreferencesAnyHost
+            )
+            return CFPreferencesSynchronize(application, kCFPreferencesCurrentUser, kCFPreferencesAnyHost)
         }
+        do {
+            guard set(value), try savedPreference(domain, key: key) == value else { throw LiveFailure.notSaved }
+        } catch {
+            // This process would go on answering with the value that was never saved.
+            _ = set(before.stored)
+            throw error
+        }
+    }
+
+    // Only another process sees what was saved: this one reads back its own copy of a refused save.
+    private static func savedPreference(_ domain: String, key: String) throws -> MacTweakValue? {
+        let name = isGlobal(domain) ? "NSGlobalDomain" : domain
+        let exported = Data(try run("/usr/bin/defaults", ["export", name, "-"]).checked().utf8)
+        guard let saved = try PropertyListSerialization.propertyList(from: exported, format: nil) as? [String: Any]
+        else { throw LiveFailure.invalidProcessOutput }
+        return try value(saved[key])
     }
 
     private static func forcedGlobalValue(_ key: String) -> Any? {

@@ -14,6 +14,9 @@ struct MacTweakJournal: Codable, Equatable, Sendable {
 
         var hasSupersededWrite: Bool { supersededWrite != nil || supersededRemoval == true }
 
+        // A settled entry undoes nothing; it stays so a later change still knows the first value.
+        var isSettled: Bool { written == previous && !hasSupersededWrite }
+
         func owns(_ current: MacTweakValue?) -> Bool {
             current == written || (hasSupersededWrite && current == supersededWrite)
         }
@@ -23,7 +26,7 @@ struct MacTweakJournal: Codable, Equatable, Sendable {
                 tweak.id == tweakID && tweak.changes.contains { change in
                     guard let (known, value) = change.localWrite, known.canonical == target else { return false }
                     if target == .libraryHidden, written == .bool(true) { return true }
-                    return written == nil || written == value
+                    return written == nil || written == value || written == previous
                 }
             }
         }
@@ -49,16 +52,17 @@ struct MacTweakJournal: Codable, Equatable, Sendable {
     ) -> Self? {
         guard !(value?.matches(current) ?? (current == nil)) else { return nil }
         let target = target.canonical
-        let owned = entries.first { $0.target == target && $0.owns(current) }
+        let first = entries.first { $0.target == target }
+        let owned = first.flatMap { $0.owns(current) ? $0 : nil }
         var next = self
         next.forget(target)
         next.entries.append(Entry(
             tweakID: tweak.id,
             target: target,
-            previous: owned == nil ? current : owned?.previous,
+            previous: first.map(\.previous) ?? current,
             written: value,
-            restarts: tweak.restarts.union(owned?.restarts ?? []),
-            date: owned?.date ?? now,
+            restarts: tweak.restarts.union(first?.restarts ?? []),
+            date: first?.date ?? now,
             supersededWrite: owned == nil ? nil : current,
             supersededRemoval: owned != nil && current == nil ? true : nil
         ))

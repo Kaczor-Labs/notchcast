@@ -351,6 +351,9 @@ struct MacTweaksStoreTest {
             precondition($0.values[fallbackOff] == nil && $0.values[heldOn] == nil)
             $0.fallback = [:]
         }
+        let fallbackUndo = try await fallbackStore.undoEverything()
+        let fallbackJournal = try MacTweakJournal.decode(Data(contentsOf: fake.journalFile))
+        precondition(fallbackUndo.isEmpty && fallbackJournal.entries.isEmpty, "Undo Everything forgets a settled entry")
 
         let beforeRewrite = try await restoreStore.set("status", on: true)
         fake.state.withLock { $0.values[statusBar] = .string("YES") }
@@ -358,11 +361,13 @@ struct MacTweaksStoreTest {
         precondition(beforeRewrite.isEmpty && rewrittenOff.isEmpty)
         precondition(fake.state.withLock { $0.values[statusBar] } == nil, "A value rewritten elsewhere must still turn off")
         let rewrittenUndo = try await restoreStore.undoEverything()
-        precondition(rewrittenUndo.isEmpty && fake.state.withLock { $0.values[statusBar] } == .string("YES"))
-        fake.state.withLock { $0.values[statusBar] = nil }
+        precondition(rewrittenUndo.isEmpty && fake.state.withLock { $0.values[statusBar] } == nil,
+                     "Undo Everything must not bring back a value set elsewhere between two changes")
 
         try processRules()
         try domainSyncRules()
+        try await refusedSaveRules(in: folder.appending(path: "refused"))
+        try await firstValueRules(in: folder.appending(path: "first"))
 
         let corrupt = Data("keep these bytes".utf8)
         try corrupt.write(to: fake.journalFile)
@@ -454,6 +459,85 @@ struct MacTweaksStoreTest {
         precondition(hidden.isEmpty && hiddenAgain.isEmpty)
         precondition(fake.state.withLock { $0.values[.libraryHidden] } == .bool(true),
                      "Library shown again from Finder must still hide")
+    }
+
+    // The live interface on a preference domain named by a path in the temporary folder, never a system one.
+    @MainActor
+    static func refusedSaveRules(in folder: URL) async throws {
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        let domain = folder.appending(path: "refused").path
+        let file = domain + ".plist"
+        try PropertyListSerialization.data(fromPropertyList: ["Other": 0], format: .binary, options: 0)
+            .write(to: URL(filePath: file))
+        let target = MacTweakTarget.preference(domain: domain, key: "Tweak")
+        let live = MacTweaksSystem.live()
+        let system = MacTweaksSystem(
+            version: live.version, journalFolder: folder, read: live.read, readAll: live.readAll, write: live.write,
+            restart: { _ in preconditionFailure("This tweak restarts nothing") }, now: live.now)
+        let store = MacTweaksStore(catalogue: [
+            MacTweak(id: "tweak", group: .finder, changes: [.preference(target, .bool(true))]),
+        ], system: system)
+
+        precondition(chflags(file, UInt32(UF_IMMUTABLE)) == 0)
+        let refused = try await store.set("tweak", on: true)
+        precondition(chflags(file, 0) == 0)
+        guard refused.count == 1, case .change("tweak", target, _)? = refused.first
+        else { preconditionFailure("A save the system refused must be reported") }
+        let off = try await store.snapshot()
+        precondition(off.states["tweak"] == .notApplied && off.journaled.isEmpty,
+                     "A refused save must read as off with nothing to undo")
+        let journal = try MacTweakJournal.decode(Data(contentsOf: folder.appending(path: "journal.json")))
+        precondition(journal.entries.isEmpty, "A refused save must not keep its journal entry")
+
+        let saved = try await store.set("tweak", on: true)
+        let on = try await store.snapshot()
+        precondition(saved.isEmpty && on.states["tweak"] == .applied && on.journaled == ["tweak"])
+        let undone = try await store.undoEverything()
+        let restored = try await store.snapshot()
+        precondition(undone.isEmpty && restored.states["tweak"] == .notApplied && restored.journaled.isEmpty)
+    }
+
+    // Undo Everything returns each target to its value before the first change, whatever happened between.
+    @MainActor
+    static func firstValueRules(in folder: URL) async throws {
+        let title = MacTweakTarget.preference(domain: "com.apple.finder", key: "_FXShowPosixPathInTitle")
+        let status = MacTweakTarget.preference(domain: "com.apple.finder", key: "ShowStatusBar")
+        let initial: [MacTweakTarget: MacTweakValue] = [status: .integer(0), .libraryHidden: .bool(true)]
+        let fake = FakeSystem(folder: folder)
+        fake.state.withLock { $0.values = initial }
+        let store = MacTweaksStore(catalogue: MacTweakCatalog.finder, system: fake.make())
+        func set(_ id: MacTweak.ID, _ on: Bool) async throws {
+            let issues = try await store.set(id, on: on)
+            precondition(issues.isEmpty)
+        }
+
+        try await set("path-in-title", true)
+        fake.state.withLock { $0.values[title] = .string("YES") }
+        try await set("path-in-title", false)
+        precondition(fake.state.withLock { $0.values[title] } == nil)
+
+        try await set("show-library", true)
+        try await set("show-library", false)
+        fake.state.withLock { $0.values[.libraryHidden] = .bool(false) }
+        try await set("show-library", false)
+        precondition(fake.state.withLock { $0.values[.libraryHidden] } == .bool(true))
+
+        try await set("status-bar", true)
+        try await set("status-bar", false)
+        fake.state.withLock { $0.values[status] = .bool(true) }
+        try await set("status-bar", false)
+
+        let issues = try await store.undoEverything()
+        precondition(issues.isEmpty)
+        precondition(fake.state.withLock { $0.values } == initial,
+                     "Undo Everything must return every target to its value before the first change")
+        let journal = try MacTweakJournal.decode(Data(contentsOf: fake.journalFile))
+        precondition(journal.entries.isEmpty)
+
+        try await set("status-bar", true)
+        try await set("status-bar", false)
+        let idle = try await store.snapshot()
+        precondition(idle.journaled.isEmpty, "Nothing is left to undo once every target holds its first value")
     }
 
     // Real child processes, never a system command: these check only the live interface's process rules.
