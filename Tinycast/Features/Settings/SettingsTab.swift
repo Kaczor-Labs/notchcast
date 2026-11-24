@@ -145,7 +145,7 @@ enum SettingsSection: CaseIterable, Identifiable {
 
     fileprivate var unfilteredTabs: [SettingsTab] {
         switch self {
-        case .general: return [.general, .iCloudSync, .permissions]
+        case .general: return [.general, .iCloudSync, .permissions, .backup, .about]
         case .launcher:
             return [
                 .applications, .systemSettings, .systemActions, .commands, .quicklinks,
@@ -158,7 +158,7 @@ enum SettingsSection: CaseIterable, Identifiable {
                 .calendar, .emoji, .dictation, .ai, .quickActions, .extensions
             ]
         case .notchcast: return NotchcastPane.shown.map(SettingsTab.notchcast)
-        case .advanced: return [.backup, .about]
+        case .advanced: return []
         }
     }
 }

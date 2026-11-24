@@ -22,7 +22,7 @@
 import AppKit
 import Foundation
 
-enum AppEntry { enum Kind { case systemSettings } }
+enum AppEntry { enum Kind { case systemSettings, windowLayout, windowRoom } }
 enum HotKeyAction { case command(CommandID) }
 enum Quicklink { static let sfSymbol = "link" }
 
@@ -85,7 +85,7 @@ struct HiddenFeaturesTest {
 
         for tab in [
             SettingsTab.extensions, .appleShortcuts, .iCloudSync, .systemSettings, .navigation, .quickActions,
-            .commands, .notes, .ai, .fallbacks,
+            .commands, .notes, .ai, .fallbacks, .permissions,
         ] {
             precondition(!visible.contains(tab), "Hidden tab stays out of the sidebar: \(tab.slug)")
             precondition(SettingsTab(slug: tab.slug) == nil, "settings/\(tab.slug) opens nothing")
@@ -96,14 +96,23 @@ struct HiddenFeaturesTest {
             precondition(SettingsTab(slug: tab.slug) == tab, "settings/\(tab.slug) still opens")
             precondition(SettingsSearchCatalog.entries.contains { $0.tab == tab })
         }
+        precondition(SettingsSection.general.tabs == [.general, .backup, .about], "General lists General, Backup, About")
+        precondition(SettingsSection.advanced.tabs.isEmpty, "Advanced has no tabs, so the sidebar draws no header")
+        precondition(SettingsSearchCatalog.results(for: "permissions").isEmpty, "Search \"permissions\" finds nothing")
+        precondition(SettingsSearchCatalog.results(for: "backup").contains { $0.tab == .backup }, "Search finds Backup")
 
         let hiddenRows: [(SettingsTab, [String])] = [
             (.general, [
                 "Appearance", "Follow the cursor across displays", "Drag to move the launcher", "Language",
-                "Show in menu bar",
+                "Show in menu bar", "Auto-switch input source", "Window mode", "Compact Shortcuts", "Show suggestions",
+            ]),
+            (.windowManagement, [
+                "Cycling", "Shortcut preset", "Window Layouts", "Show layouts in launcher", "New Layout",
+                "Create Layout from Current Windows", "Rooms", "Show rooms in launcher", "New Room",
+                "Layout and room commands",
             ]),
             (.notes, ["Show in Menu Bar"]),
-            (.about, ["Support"]),
+            (.about, ["Support", "Check for Updates"]),
         ]
         for (tab, titles) in hiddenRows {
             for title in titles {
@@ -121,7 +130,10 @@ struct HiddenFeaturesTest {
                 $0.tab == .notchcast(.dictation) && $0.keywords.contains("AI providers")
             },
             "With the AI tab hidden, Notchcast › Dictation's Cleanup holds the AI providers row")
-        for title in ["Show animations", "Interface size", "Window mode"] {
+        for title in [
+            "Show animations", "Interface size", "Gap between windows", "Wrap around displays", "Keep aspect ratio",
+            "Window commands", "Custom Sizes",
+        ] {
             precondition(
                 SettingsSearchCatalog.entries.contains { $0.keywords.contains(title) },
                 "Search keeps the stock row: \(title)")

@@ -13,6 +13,7 @@ enum NotchcastHidden {
         .dictation,
         .ai,
         .fallbacks,
+        .permissions,
     ]
     /// Hidden tabs whose commands keep their chords: Dictation History lives on in Notchcast › Dictation.
     static let liveCommandTabs: Set<SettingsTab> = [.dictation]
@@ -22,10 +23,15 @@ enum NotchcastHidden {
     static let rows: [SettingsTab: Set<String>] = [
         .general: [
             "Appearance", "Follow the cursor across displays", "Drag to move the launcher", "Language",
-            "Show in menu bar",
+            "Show in menu bar", "Auto-switch input source", "Window mode", "Compact Shortcuts", "Show suggestions",
+        ],
+        .windowManagement: [
+            "Cycling", "Shortcut preset", "Window Layouts", "Show layouts in launcher", "New Layout",
+            "Create Layout from Current Windows", "Rooms", "Show rooms in launcher", "New Room",
+            "Layout and room commands",
         ],
         .notes: ["Show in Menu Bar"],
-        .about: ["Support"],
+        .about: ["Support", "Check for Updates"],
         .permissions: ["Calendars"],
     ]
 

@@ -30,10 +30,14 @@ enum NotchcastAppProof {
         for key in [AppSettingsKey.extensionsEnabled, .showInMenuBar, .notesShowsInMenuBar,
                     .paletteDraggable, .supportReminders, .navigationEnabled, .quickActionsEnabled,
                     .customCommandsEnabled, .calendarShowInLauncher, .autoJoinMeetings, .cameraPreview,
-                    .notesEnabled, .aiEnabled, .mcpEnabled] {
+                    .notesEnabled, .aiEnabled, .mcpEnabled, .launcherShowsSuggestions] {
             defaults.set(true, forKey: key.rawValue)
         }
         defaults.set(false, forKey: AppSettingsKey.openOnCursorScreen.rawValue)
+        defaults.set(false, forKey: AppSettingsKey.compactMode.rawValue)
+        defaults.set(CommandID.defaultCompactBarCommands.map(\.rawValue),
+                     forKey: AppSettingsKey.compactBarCommands.rawValue)
+        defaults.set("proof.input", forKey: AppSettingsKey.autoSwitchInputSource.rawValue)
         defaults.set(AppAppearance.light.rawValue, forKey: AppSettingsKey.appearance.rawValue)
         defaults.set(CalendarMenuBarDisplay.meetingTitle.rawValue,
                      forKey: AppSettingsKey.calendarMenuBarDisplay.rawValue)
@@ -59,6 +63,10 @@ enum NotchcastAppProof {
         settings.notesEnabled = true
         settings.aiEnabled = true
         settings.mcpEnabled = true
+        settings.compactMode = false
+        settings.compactBarCommands = CommandID.defaultCompactBarCommands
+        settings.launcherShowsSuggestions = true
+        settings.autoSwitchInputSourceID = "proof.input"
         let visibility = VisibilityStore(defaults: defaults)
         visibility.setKindEnabled(true, for: .systemSettings)
         check(!settings.extensionsEnabled, "extensionsEnabled reads off")
@@ -77,6 +85,10 @@ enum NotchcastAppProof {
         check(!settings.navigationEnabled, "navigationEnabled reads off")
         check(!settings.customCommandsEnabled, "customCommandsEnabled reads off")
         check(!settings.notesEnabled, "notesEnabled reads off")
+        check(settings.compactMode, "compactMode reads on")
+        check(settings.compactBarCommands.isEmpty, "compactBarCommands reads empty")
+        check(!settings.launcherShowsSuggestions, "launcherShowsSuggestions reads off")
+        check(settings.autoSwitchInputSourceID == nil, "autoSwitchInputSourceID reads nil")
         check(!visibility.isKindEnabled(.systemSettings), "System Settings in the launcher reads off")
         check(!AppCore.shared.appIndex.isCommandEnabled(.support), "Support command reads disabled")
         check(!AppCore.shared.appIndex.isCommandEnabled(.showNotes), "Show Notes command reads disabled")
@@ -160,12 +172,14 @@ enum NotchcastAppProof {
         for action in forcedOff {
             check(!core.allowsHotKeyAction(action), "\(action.defaultsKey) is refused by the hotkey gate")
         }
-        let hidden = forcedOff + [.command(.switchWindows), .command(.fixGrammar)]
+        let hidden = forcedOff + [
+            .command(.switchWindows), .command(.fixGrammar), .windowLayout(id: UUID()), .windowRoom(id: UUID()),
+        ]
         let visible = HotKeyAction.systemAction(id: SystemAction.ID.allCases[0])
         // A proof registers nothing with Carbon.
         core.hotKeys.allowsAction = { _ in false }
         let keys = [kVK_ANSI_1, kVK_ANSI_2, kVK_ANSI_3, kVK_ANSI_4, kVK_ANSI_5, kVK_ANSI_6, kVK_ANSI_7, kVK_ANSI_8,
-                    kVK_ANSI_9, kVK_ANSI_0]
+                    kVK_ANSI_9, kVK_ANSI_0, kVK_ANSI_Q, kVK_ANSI_W]
         for (action, key) in zip(hidden + [visible], keys) {
             let binding = HotKeyBinding.combo(KeyShortcut(carbonKeyCode: key, carbonModifiers: controlKey | optionKey))
             core.hotKeys.setBinding(binding, for: action)
@@ -173,6 +187,12 @@ enum NotchcastAppProof {
             let owner = core.hotKeys.conflictOwner(of: binding, excluding: .togglePalette)
             check((owner == nil) == (action != visible), "\(action.defaultsKey) owns its chord only when visible")
         }
+        // A saved layout or room resolves by name, so only the hide can make its link read unknown.
+        core.hotKeys.displayName = { _ in "Proof" }
+        for action in [HotKeyAction.windowLayout(id: UUID()), .windowRoom(id: UUID())] {
+            check(!core.deepLinkCoordinator.exists(action), "\(action.defaultsKey) link opens nothing")
+        }
+        check(core.deepLinkCoordinator.exists(.quicklink(id: UUID())), "a quicklink link still opens")
     }
 
     /// #868: the shipped wiring lists an add-on command by name and alias over an earlier hide.

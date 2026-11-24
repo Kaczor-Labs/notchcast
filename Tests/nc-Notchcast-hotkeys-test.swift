@@ -14,7 +14,7 @@ enum NotchcastHidden {
     @MainActor static var sampleOwner: Tab?
 }
 enum NotchcastHiddenCommands {
-    enum Kind { case systemSettings }
+    enum Kind { case systemSettings, windowLayout, windowRoom }
     static let kinds: Set<Kind> = [.systemSettings]
     static let commands: Set<CommandID> = []
 }

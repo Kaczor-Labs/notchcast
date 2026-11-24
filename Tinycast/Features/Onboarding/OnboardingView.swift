@@ -176,6 +176,7 @@ struct OnboardingView: View {
                 }
             }
             caption(String(localized: "Optional — you can enable this later in Settings › Permissions."))
+                .notchcastHidden()
         }
     }
 

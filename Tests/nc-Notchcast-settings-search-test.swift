@@ -5,6 +5,8 @@
 // notchcast-sources: Tinycast/Features/Notchcast/Hidden/NotchcastIslandPins.swift
 import Foundation
 
+enum CommandID {}
+
 @main
 @MainActor
 struct NotchcastSettingsSearchTests {
