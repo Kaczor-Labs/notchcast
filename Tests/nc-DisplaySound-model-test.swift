@@ -89,6 +89,10 @@ enum DisplaySoundModelTests {
         check(DisplayDDC.parse(corrupt, .luminance) == nil, "bad checksum dropped")
         check(DisplayDDC.deviceValue(-0.2, maximum: 100) == 0, "extra dimming writes 0")
         check(DisplayDDC.deviceValue(0.5, maximum: 80) == 40, "scaled to the monitor's maximum")
+        check(DisplayDDC.chip(providerClass: "AppleDCPMCDP29XX") == 0xB7,
+              "a monitor on the built-in HDMI port is addressed through its converter")
+        check(DisplayDDC.chip(providerClass: "DCPDP13Service") == 0x37 && DisplayDDC.chip(providerClass: nil) == 0x37,
+              "every other monitor keeps the standard DDC address")
         check(BrightnessRecoveryPolicy.channelOutcome(writeAccepted: true, reply: nil) == .writeOnly, "write-only")
         check(BrightnessRecoveryPolicy.channelOutcome(writeAccepted: false, reply: nil) == .dead, "dead")
         check(BrightnessRecoveryPolicy.channelOutcome(writeAccepted: false, reply: (1, 2)) == .live(current: 1, maximum: 2),
@@ -227,25 +231,45 @@ enum DisplaySoundModelTests {
         check(DisplaySpeaker.target(outputName: "DELL U2720Q", displays: []) == nil, "no display: system")
 
         // Steps on the monitor's scale, mute and unmute.
-        let up = DisplaySpeaker.plan(.step(increasing: true, fine: false), volume: (50, 100), mute: 2, remembered: nil)!
+        let up = DisplaySpeaker.plan(.step(increasing: true, fine: false), volume: (50, 100), mute: (2, 2), remembered: nil)!
         check(up.level == DisplaySpeakerLevel(volume: 0.56, muted: false), "1/16 up on a 0…100 scale: \(up.level)")
         check(up.packets == [DisplayDDC.write(.volume, 56)], "one volume write")
         let fine = DisplaySpeaker.plan(.step(increasing: false, fine: true), volume: (50, 100), mute: nil,
                                        remembered: DisplaySpeakerLevel(volume: 0.5, muted: true))!
         check(fine.packets == [DisplayDDC.write(.volume, 48)] && fine.level.muted, "1/64 down keeps the remembered mute")
-        let unmute = DisplaySpeaker.plan(.step(increasing: true, fine: false), volume: (10, 10), mute: 1, remembered: nil)!
+        let unmute = DisplaySpeaker.plan(.step(increasing: true, fine: false), volume: (10, 10), mute: (1, 2), remembered: nil)!
         check(unmute.packets == [DisplayDDC.write(.mute, 2)] && unmute.level == DisplaySpeakerLevel(volume: 1, muted: false),
               "volume up at the top unmutes, writing no volume")
-        let coarse = DisplaySpeaker.plan(.step(increasing: true, fine: true), volume: (5, 10), mute: 2, remembered: nil)!
+        let coarse = DisplaySpeaker.plan(.step(increasing: true, fine: true), volume: (5, 10), mute: (2, 2), remembered: nil)!
         check(coarse.packets == [DisplayDDC.write(.volume, 6)], "a step the scale rounds away moves one unit")
-        let floor = DisplaySpeaker.plan(.step(increasing: false, fine: false), volume: (0, 100), mute: 2, remembered: nil)!
+        let floor = DisplaySpeaker.plan(.step(increasing: false, fine: false), volume: (0, 100), mute: (2, 2), remembered: nil)!
         check(floor.packets.isEmpty && floor.level.volume == 0, "at 0 nothing is written")
-        let toggled = DisplaySpeaker.plan(.toggleMute, volume: (40, 100), mute: 2, remembered: nil)!
+        let toggled = DisplaySpeaker.plan(.toggleMute, volume: (40, 100), mute: (2, 2), remembered: nil)!
         check(toggled.packets == [DisplayDDC.write(.mute, 1)] && toggled.level == DisplaySpeakerLevel(volume: 0.4, muted: true),
               "mute toggles from what the monitor reports")
         check(DisplaySpeaker.plan(.toggleMute, volume: (40, 100), mute: nil,
                                   remembered: DisplaySpeakerLevel(volume: 0.4, muted: false)) == nil,
               "a monitor without mute leaves the key to macOS")
+
+        // A monitor that reads 0x8D as 0 unmuted and 1 muted, and latches mute at volume zero.
+        check(DisplaySpeaker.unmutesLeavingZero((0, 2)) && !DisplaySpeaker.unmutesLeavingZero((0, 1))
+            && !DisplaySpeaker.unmutesLeavingZero((2, 2)), "a 0 reply with room for an unmute is the 0/1 encoding")
+        let leaving = DisplaySpeaker.plan(.step(increasing: true, fine: false), volume: (0, 100), mute: (0, 2), remembered: nil)!
+        check(leaving.packets == [DisplayDDC.write(.volume, 6), DisplayDDC.write(.mute, 2)] && leaving.landing == 6,
+              "leaving zero unmutes it and asks for the level to be confirmed")
+        let above = DisplaySpeaker.plan(.step(increasing: true, fine: false), volume: (6, 100), mute: (0, 2), remembered: nil)!
+        check(above.packets == [DisplayDDC.write(.volume, 13)] && above.landing == nil, "above zero it gets no unmute")
+        let plain = DisplaySpeaker.plan(.step(increasing: true, fine: false), volume: (0, 100), mute: (2, 2), remembered: nil)!
+        check(plain.packets == [DisplayDDC.write(.volume, 6)] && plain.landing == nil, "a standard unmuted monitor gets none")
+        check(DisplaySpeaker.plan(.toggleMute, volume: (0, 100), mute: (0, 2), remembered: nil) == nil,
+              "its mute key stays with macOS")
+        func landed(_ volume: (current: UInt16, maximum: UInt16)?, _ mute: (current: UInt16, maximum: UInt16)?) -> Bool {
+            DisplaySpeaker.landed(6, volume: volume, mute: mute)
+        }
+        check(landed((6, 100), (0, 2)) && landed((6, 100), (2, 2)), "either unmuted reply confirms the level")
+        check(!landed((80, 100), (0, 2)) && !landed((6, 100), (1, 2)) && !landed(nil, (0, 2)) && !landed((6, 100), nil),
+              "a jump to another level, a mute still on or a missing reply does not")
+
         let quarter = DisplaySpeakerLevel(volume: 0.25, muted: true)
         check(DisplaySpeaker.restore(quarter, maximum: 80, hasMute: true)
               == [DisplayDDC.write(.volume, 20), DisplayDDC.write(.mute, 1)], "restore on the monitor's own scale")

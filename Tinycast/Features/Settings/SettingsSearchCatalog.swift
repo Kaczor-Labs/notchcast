@@ -366,14 +366,11 @@ enum SettingsSearchCatalog {
         .init(.dictationOutput, "Insert while recording", keywords: ["live", "streaming", "chunk", "pause"]),
         .init(
             .dictationCleanup, LocalizedStringResource("Clean up text", table: "Notchcast"),
-            keywords: ["ai", "punctuation", "filler"]),
-        .init(
-            .dictationCleanup, LocalizedStringResource("Cleanup model", table: "Notchcast"),
-            keywords: ["claude", "codex"]),
-        .init(.dictationCleanup, LocalizedStringResource("Cleanup prompt", table: "Notchcast")),
-        .init(
-            .dictationCleanup, LocalizedStringResource("AI providers", table: "Notchcast"),
-            keywords: ["api key", "openai", "anthropic", "openrouter", "apple intelligence"]),
+            keywords: ["ai", "punctuation", "filler", "claude", "codex",
+                       String(localized: "Cleanup model", table: "Notchcast"),
+                       String(localized: "Cleanup prompt", table: "Notchcast"),
+                       "reasoning effort", String(localized: "AI providers", table: "Notchcast"),
+                       "api key", "openai", "anthropic", "openrouter", "apple intelligence"]),
         .init(
             .dictationHistory, LocalizedStringResource("Keep dictation history", table: "Notchcast"),
             keywords: ["recover", "lost"])

@@ -25,6 +25,7 @@ final class IslandCalendarGlance {
         #if DEBUG
         if let previewMeeting { return previewMeeting }
         #endif
+        guard !NotchcastHidden.tabs.contains(.calendar) else { return nil }
         return core.calendarCoordinator.cardedMeeting
     }
 

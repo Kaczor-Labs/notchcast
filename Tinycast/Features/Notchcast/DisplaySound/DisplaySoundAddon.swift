@@ -14,7 +14,7 @@ enum DisplaySoundAddon: NotchcastAddon {
             title: String(localized: "Display Brightness", table: "NotchcastDisplaySound"),
             subtitle: String(
                 localized: "Brightness keys control every display, external ones too.", table: "NotchcastDisplaySound"),
-            category: .displaySound,
+            category: .display,
             defaultEnabled: true,
             requiredGrants: [.accessibility]
         ),
@@ -24,7 +24,7 @@ enum DisplaySoundAddon: NotchcastAddon {
             subtitle: String(
                 localized: "Brightness keys dim past the lowest backlight level until sleep, reconnect or quit.",
                 table: "NotchcastDisplaySound"),
-            category: .displaySound,
+            category: .display,
             defaultEnabled: true,
             dependencies: ["displayBrightness"]
         ),
@@ -34,7 +34,7 @@ enum DisplaySoundAddon: NotchcastAddon {
             subtitle: String(
                 localized: "Replaces the macOS volume overlay. Volume keys also reach a monitor's own speakers.",
                 table: "NotchcastDisplaySound"),
-            category: .displaySound,
+            category: .sound,
             defaultEnabled: true,
             requiredGrants: [.accessibility]
         ),
