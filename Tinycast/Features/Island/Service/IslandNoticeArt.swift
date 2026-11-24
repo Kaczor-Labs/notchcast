@@ -47,7 +47,8 @@ struct IslandNoticeArt: PillArt {
         mark.draw(in: box)
         let height = text.size().height
         let x = notch ? pill.maxX - edge - textWidth : box.maxX + gap
-        text.draw(with: CGRect(x: x, y: pill.midY - height / 2, width: textWidth, height: height),
+        let y = IslandOptics.lineBottom(midY: pill.midY)
+        text.draw(with: CGRect(x: x, y: y, width: textWidth, height: height),
                   options: [.usesLineFragmentOrigin, .truncatesLastVisibleLine])
     }
 }
@@ -158,8 +159,7 @@ private struct IslandNoticeMark {
             NSBezierPath(roundedRect: box, xRadius: radius, yRadius: radius).fill()
             IslandCover.edge(in: box, frosted: frosted)
         } else if let glyph {
-            glyph.draw(in: CGRect(x: box.midX - glyph.size.width / 2, y: box.midY - glyph.size.height / 2,
-                                  width: glyph.size.width, height: glyph.size.height))
+            glyph.draw(in: IslandOptics.glyphRect(glyph, x: box.midX - glyph.size.width / 2, midY: box.midY))
         }
     }
 
@@ -234,13 +234,12 @@ struct IslandStatusArt: PillArt {
         var x = notch ? pill.maxX - edge - width : pill.midX - width / 2
         for item in items {
             if let glyph = item.glyph {
-                glyph.draw(in: CGRect(x: x, y: pill.midY - glyph.size.height / 2, width: glyph.size.width,
-                                      height: glyph.size.height))
+                glyph.draw(in: IslandOptics.glyphRect(glyph, x: x, midY: pill.midY))
                 x += glyph.size.width
             }
             if let text = item.text {
                 x += Theme.Spacing.xs
-                text.draw(at: CGPoint(x: x, y: pill.midY - text.size().height / 2))
+                text.draw(at: CGPoint(x: x, y: IslandOptics.lineBottom(midY: pill.midY)))
                 x += text.size().width
             }
             x += gap

@@ -66,9 +66,6 @@ extension SettingsAnchor {
     static let dictationModel = Self(tab: .dictation, title: "Model")
     static let dictationMemory = Self(tab: .dictation, title: "Memory")
     static let dictationOutput = Self(tab: .dictation, title: "Output")
-    static let dictationCleanup = Self(
-        tab: .dictation, title: LocalizedStringResource("Cleanup", table: "Notchcast"))
-    static let dictationHistory = Self(tab: .dictation, title: "History")
 
     static let fileSearchFileSearch = Self(tab: .fileSearch, title: "File Search")
     static let fileSearchFullDiskAccess = Self(tab: .fileSearch, title: "Full Disk Access")
@@ -136,6 +133,7 @@ extension SettingsAnchor {
     static let iCloudSyncMacs = Self(tab: .iCloudSync, title: "Macs")
     static let iCloudSyncData = Self(tab: .iCloudSync, title: "iCloud Data")
     static let backupExport = Self(tab: .backup, title: "Export")
+    static let backupNotIncluded = Self(tab: .backup, title: "Not Included")
     static let backupImport = Self(tab: .backup, title: "Import")
     static let backupImportFromRaycast = Self(tab: .backup, title: "Import from Raycast")
     static let backupSettingsFile = Self(tab: .backup, title: "Settings File")

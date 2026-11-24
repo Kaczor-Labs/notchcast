@@ -49,6 +49,7 @@ struct NotchcastCommand: Identifiable, Sendable {
     let run: @MainActor @Sendable (NotchcastContext) -> Void
     /// An inline launcher field; a hotkey or an empty field still runs `run`.
     var argument: NotchcastArgument?
+    var diskCleanUpTitle: String?
 
     var id: String { Self.idPrefix + slug }
 }
@@ -62,5 +63,8 @@ struct NotchcastArgument: Sendable {
 /// An extra settings row shown under its switch, built with the add-on's own context.
 struct NotchcastSettingsRow: Sendable {
     let switchID: String
+    var searchTerms: [String] = []
+    /// True while the row draws nothing, so its feature shows no empty titled section.
+    var isEmpty: @MainActor @Sendable (NotchcastContext) -> Bool = { _ in false }
     let view: @MainActor @Sendable (NotchcastContext) -> AnyView
 }

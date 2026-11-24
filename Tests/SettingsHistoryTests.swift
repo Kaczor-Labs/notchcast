@@ -155,7 +155,7 @@ struct SettingsHistoryTests {
             ("paste history", .clipboard),
             ("window manage", .windowManagement),
             ("skin tone", .emoji),
-            ("ai providers", .dictation)
+            ("ai providers", .notchcast(.dictation))
         ]
         for (query, tab) in cases {
             let found = SettingsSearchCatalog.results(for: query).first

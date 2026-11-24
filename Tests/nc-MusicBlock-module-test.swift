@@ -30,9 +30,9 @@ struct MusicBlockModuleTests {
         precondition(MusicBlockAddon.switches.map(\.id) == ["musicBlockAppleMusic", "musicBlockResumeLastPlayer"],
                      "the v1 raw value stays")
         let entry = MusicBlockAddon.switches[0]
-        precondition(entry.defaultEnabled && entry.category == .music && entry.requiredGrants == [.accessibility])
+        precondition(entry.defaultEnabled && entry.category == .sound && entry.requiredGrants == [.accessibility])
         let resume = MusicBlockAddon.switches[1]
-        precondition(resume.defaultEnabled && resume.dependencies == [entry.id] && resume.category == .music,
+        precondition(resume.defaultEnabled && resume.dependencies == [entry.id] && resume.category == .sound,
                      "on by default, and only while the block is on")
     }
 

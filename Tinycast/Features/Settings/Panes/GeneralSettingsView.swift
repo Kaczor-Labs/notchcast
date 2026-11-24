@@ -80,6 +80,13 @@ struct GeneralSettingsView: View {
                     SettingsRowTitle(.generalAppearance, "Appearance")
                 }
                 .notchcastHidden()
+                Picker(selection: $settings.iconStyle) {
+                    ForEach(IconStyle.allCases) { style in
+                        Text(style.title).tag(style)
+                    }
+                } label: {
+                    SettingsRowTitle(.generalAppearance, "Icon style")
+                }
                 Toggle(isOn: $settings.animationsEnabled) {
                     SettingsRowTitle(.generalAppearance, "Show animations")
                 }

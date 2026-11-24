@@ -19,8 +19,11 @@ struct CloudSyncSettingsView: View {
         Form {
             Section {
                 Toggle(isOn: switchBinding) {
-                    SettingsRowTitle(.iCloudSyncSwitch, "Sync with iCloud")
-                    Text("Keep settings and content the same on every Mac signed in to your iCloud account.")
+                    SettingsFeatureToggleLabel(
+                        anchor: .iCloudSyncSwitch, title: "Sync with iCloud",
+                        subtitle:
+                            "Keep settings and content the same on every Mac signed in to your iCloud account."
+                    )
                 }
                 .disabled(cloud.status == .unavailable(.unsignedBuild))
                 CloudSyncStatusLine(
@@ -53,8 +56,9 @@ struct CloudSyncSettingsView: View {
 
             Section {
                 ForEach(SyncExclusion.allCases, id: \.self) { exclusion in
-                    CloudSyncInfoRow(
-                        title: exclusion.title, symbol: exclusion.symbol, detail: exclusion.detail)
+                    SettingsInfoRow(
+                        title: exclusion.title, symbol: exclusion.symbol, tint: exclusion.tint,
+                        detail: exclusion.detail)
                 }
             } header: {
                 SettingsSectionHeader(.iCloudSyncNotSynced)
@@ -74,8 +78,8 @@ struct CloudSyncSettingsView: View {
                 } footer: {
                     Text(
                         """
-                        Synced content is end-to-end encrypted with iCloud. Clipboard history, \
-                        passwords and API keys never leave this Mac.
+                        Synced content is encrypted in iCloud, end to end with Advanced Data \
+                        Protection. Passwords and API keys never leave this Mac.
                         """
                     )
                     .font(.caption)

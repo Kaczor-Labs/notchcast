@@ -1075,7 +1075,7 @@ struct SnippetsTests {
             backupItemName: nil,
             options: [])
         let installedReplacementURL = repository.snippetsDirectory.appendingPathComponent("replacement.md")
-        await settle(within: .milliseconds(700)) {
+        await settle {
             store.snippets.count == 1 && store.snippets.first?.id == installedReplacementURL.path
         }
         check(
@@ -1090,7 +1090,7 @@ struct SnippetsTests {
         let recreatedURL = repository.snippetsDirectory.appendingPathComponent("recreated.md")
         try SnippetMarkdownSerializer.serialize(Snippet(name: "Recreated", text: "Newest"))
             .write(to: recreatedURL, atomically: true, encoding: .utf8)
-        await settle(within: .milliseconds(700)) {
+        await settle {
             store.snippets.count == 1 && store.record(id: recreatedURL.path)?.snippet.text == "Newest"
         }
         check(
@@ -1100,7 +1100,7 @@ struct SnippetsTests {
         try fm.removeItem(at: renamedDirectory)
 
         try fm.removeItem(at: repository.snippetsDirectory)
-        await settle(within: .milliseconds(700)) {
+        await settle {
             store.state == .ready && store.snippets.isEmpty
                 && fm.fileExists(atPath: repository.snippetsDirectory.path)
         }
@@ -1111,12 +1111,15 @@ struct SnippetsTests {
         let afterDeleteURL = repository.snippetsDirectory.appendingPathComponent("after-delete.md")
         try SnippetMarkdownSerializer.serialize(Snippet(name: "After Delete", text: "Rearmed"))
             .write(to: afterDeleteURL, atomically: true, encoding: .utf8)
-        // Not a settle: the burst below counts snapshots, so this reload must be fully quiet first.
-        try await Task.sleep(for: .milliseconds(500))
+        await settle { store.record(id: afterDeleteURL.path)?.snippet.text == "Rearmed" }
         check(
             "watcher continues after deleted-directory recovery",
             store.record(id: afterDeleteURL.path)?.snippet.text == "Rearmed")
 
+        // The burst counts snapshots: a forced reload publishes once and leaves no reload in flight.
+        let beforeQuiet = snapshotCount
+        store.retry()
+        await settle { snapshotCount > beforeQuiet }
         let beforeBurst = snapshotCount
         for index in 0..<3 {
             let fileURL = repository.snippetsDirectory.appendingPathComponent("burst-\(index).md")
@@ -1125,6 +1128,7 @@ struct SnippetsTests {
             )
             .write(to: fileURL, atomically: true, encoding: .utf8)
         }
+        await settle { store.snippets.filter { $0.snippet.name.hasPrefix("Burst ") }.count == 3 }
         // A poll would stop at the first snapshot and miss a second one arriving.
         try await Task.sleep(for: .milliseconds(500))
         check(
@@ -1514,7 +1518,7 @@ struct SnippetsTests {
             "a template that reads only the clipboard declares no arguments",
             SnippetTemplateEngine.declaredArguments(in: "https://x.dev/?q={clipboard}").isEmpty)
 
-        // Raycast's snippet spelling resolves like Tinycast's.
+        // The `name=` spelling resolves like `{snippet:Name}`.
         let child = record("/tmp/ph-child.md", Snippet(name: "Child", text: "nested"))
         let byName = record("/tmp/ph-name.md", Snippet(name: "ByName", text: "{snippet name=\"Child\"}"))
         let byColon = record("/tmp/ph-colon.md", Snippet(name: "ByColon", text: "{snippet:Child}"))
@@ -1567,7 +1571,7 @@ struct SnippetsTests {
             ).text == "[]")
     }
 
-    /// Shared with Quicklinks: bare strings, encoding, and Raycast's `{selectedText}`.
+    /// Shared with Quicklinks: bare strings, encoding, and the `{selectedText}` alias.
     private static func testArgumentsPrompt() {
         let emails = SnippetTemplateEngine.MissingArgument(
             name: SnippetTemplateEngine.defaultArgumentName,
@@ -1716,7 +1720,7 @@ struct SnippetsTests {
             SnippetTemplateEngine.expand(quoted, snippets: [quoting, quoted], context: context)
                 .readsSelection)
 
-        // {query} is Raycast's spelling of {argument}.
+        // {query} is an alias of {argument}.
         check(
             "query resolves as an argument named Argument",
             expand("{query}", arguments: ["Argument": "hi"]).text == "hi")
@@ -2093,9 +2097,9 @@ struct SnippetsTests {
         }
     }
 
-    // The same budget a fixed sleep spent, but a prompt watcher costs milliseconds of it.
+    // The OS delivers file events when it likes: the state ends the wait, the cap only bounds a hang.
     private static func settle(
-        within timeout: Duration = .milliseconds(500),
+        within timeout: Duration = .seconds(30),
         until condition: () -> Bool
     ) async {
         let deadline = ContinuousClock.now + timeout

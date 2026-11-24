@@ -93,11 +93,15 @@ struct DownloadsModuleTest {
             "downloads", "downloadsAria2", "distill", "distillTimestamps", "torrents", "torrentsKeepSharing",
             "downloadsUseIPhone",
         ], "v1 raw ids stay; #1183: one iPhone switch, last")
-        expect(switches.allSatisfy { !$0.defaultEnabled && $0.category == .filesDownloads && $0.requiredGrants.isEmpty },
-               "every switch starts off in Downloads")
+        expect(switches.allSatisfy {
+            $0.defaultEnabled == ($0.id == "distill") && $0.category == .downloads && $0.requiredGrants.isEmpty
+        },
+               "Distill is available by default without permission grants")
         expect(switches.map(\.dependencies) == [
             [], ["downloads"], [], ["distill"], [], ["torrents"], [],
         ], "aria2 needs Downloads, Timestamps needs Distill, keep-sharing needs Torrents, bonding serves either")
+        expect(switches.last?.listedWhenAnyEnabled == ["torrents", "downloadsAria2"],
+               "the iPhone switch is listed while either aria2c path can use it")
         expect(DownloadsAddon.commands.map(\.slug) == [
             "download-video", "download-audio", "download-youtube-transcript", "save-webpage-as-markdown",
             "add-links-to-distill", "run-distill", "download-torrent-from-clipboard", "open-torrent-file",
@@ -329,11 +333,12 @@ struct DownloadsModuleTest {
         context.detach()
     }
 
-    /// #924: the default, every switch off, still answers a magnet opened with the app, through the controller.
+    /// #924: every switch off still answers a magnet opened with the app, through the controller.
     private static func openWithEverySwitchOff() {
         let suite = "nc-downloads-open-off-test.\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suite)!
         defer { defaults.removePersistentDomain(forName: suite) }
+        for id in DownloadsAddon.switches.map(\.id) { defaults.set(false, forKey: id) }
         let hub = NotchcastTapHub(syntheticTag: 0, isTrusted: { false }) { _ in
             preconditionFailure("the harness never installs a tap")
         }

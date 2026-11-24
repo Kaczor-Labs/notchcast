@@ -5,7 +5,7 @@ struct TorrentsSettingsView: View {
     @Environment(MainAppLink.self) private var mainApp
     @State private var aria2c: URL?
     @State private var looked = false
-    private static let anchor = NotchcastSettingsSearch.anchor(.filesDownloads)
+    private static let anchor = NotchcastSettingsSearch.anchor(.downloads)
 
     var body: some View {
         if let torrents = mainApp.notchcastStatus(for: DownloadsAddon.self) {
@@ -81,7 +81,7 @@ private struct TorrentJobRow: View {
     }
 
     private func perform(_ action: DownloadsAddon.TorrentAction) {
-        mainApp.sendNotchcast(.init(id: job.id, operation: action), to: DownloadsAddon.self)
+        mainApp.sendNotchcast(.torrent(job.id, action), to: DownloadsAddon.self)
     }
 
     private var detail: String {

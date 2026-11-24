@@ -61,7 +61,8 @@ enum NotchcastHiddenHotKeys {
         case .customCommand: NotchcastHidden.tabs.contains(.commands)
         case .settingsPane: NotchcastHiddenCommands.kinds.contains(.systemSettings)
         case .command(let id):
-            NotchcastHiddenCommands.commands.contains(id) || id.owner.map(NotchcastHidden.tabs.contains) == true
+            NotchcastHiddenCommands.commands.contains(id)
+                || id.owner.map { NotchcastHidden.tabs.contains($0) && !NotchcastHidden.liveCommandTabs.contains($0) } == true
         default: false
         }
     }

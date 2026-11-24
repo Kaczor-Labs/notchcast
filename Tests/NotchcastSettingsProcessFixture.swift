@@ -20,7 +20,8 @@ extension NotchcastCoreTest {
         defer { NotchcastPane.install([]) }
         check("Settings startup lists registered add-on tabs in sidebar order",
               SettingsSection.notchcast.tabs == [.notchcast(.island), .notchcast(.keyboardMouse),
-                                                 .notchcast(.displaySound), .notchcast(.launcher)])
+                                                 .notchcast(.dictation), .notchcast(.displaySound),
+                                                 .notchcast(.launcher)])
 
         check("Settings receives inert add-on services",
               core.contains("services: startsRuntime ? NotchcastServices(core: core) : NotchcastServices()"))
@@ -100,7 +101,7 @@ extension NotchcastCoreTest {
                       == "presenter: core.islandPresenter" }
               })
         check("NotchcastCore hands the controller stock Dictation",
-              calls.allSatisfy { $0.contains("dictation: NotchcastDictationBridge(core: core)") })
+              calls.allSatisfy { $0.contains("dictation: NotchcastDictationBridge(core: core, modelDownload: modelDownload)") })
         check("NotchcastCore wires the live doors for the main app", calls.allSatisfy {
             let wiring = arguments($0)
             return wiring.contains("services: NotchcastServices(core: core)")
@@ -125,7 +126,7 @@ extension NotchcastCoreTest {
               view.contains("AliasField(key: command.id, name: command.name)")
                 && view.contains("ShortcutRecorder(action: .notchcastCommand(entryID: command.id))"))
         check("each add-on command draws its own Show in launcher checkbox",
-              view.contains("preferences.setShowsInLauncher(command.id, $0)"))
+              view.contains("preferences.setShowsInLauncher(command.id, $0)") && view.contains(".toggleStyle(.checkbox)"))
         check("that checkbox says what it does on screen, not only to VoiceOver",
               view.contains("} checkbox: {\n                    Toggle(\"Show in launcher\", isOn:")
                 && !layout.contains("EmptyView")

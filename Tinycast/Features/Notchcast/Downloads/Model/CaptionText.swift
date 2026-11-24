@@ -1,10 +1,11 @@
 import Foundation
 
 nonisolated enum CaptionText {
-    static func plainText(_ source: String, automatic: Bool) -> String {
+    static func plainText(_ source: String, automatic: Bool, timestamps: Bool = false) -> String {
         let normalized = source.replacingOccurrences(of: "\r\n", with: "\n")
             .replacingOccurrences(of: "\r", with: "\n")
         var lines: [String] = []
+        var timedLines: [String] = []
         for block in normalized.components(separatedBy: "\n\n") {
             let cue = block.components(separatedBy: "\n")
             guard let timing = cue.firstIndex(where: { $0.contains(" --> ") }) else { continue }
@@ -12,9 +13,16 @@ nonisolated enum CaptionText {
             // Rolling cues repeat earlier lines; a manual cue repeated whole was said twice.
             var overlap = min(lines.count, automatic ? next.count : max(next.count - 1, 0))
             while overlap > 0, Array(lines.suffix(overlap)) != Array(next.prefix(overlap)) { overlap -= 1 }
-            lines.append(contentsOf: next.dropFirst(overlap))
+            let fresh = next.dropFirst(overlap)
+            lines.append(contentsOf: fresh)
+            if timestamps, !fresh.isEmpty {
+                let start = cue[timing].split(whereSeparator: \.isWhitespace).first ?? ""
+                let clock = start.prefix { $0 != "." && $0 != "," }
+                let timestamp = clock.count == 5 ? "00:" + clock : String(clock)
+                timedLines.append("[\(timestamp)] " + fresh.joined(separator: " "))
+            }
         }
-        return lines.joined(separator: " ")
+        return timestamps ? timedLines.joined(separator: "\n") : lines.joined(separator: " ")
     }
 
     private static func clean(_ line: String) -> String {

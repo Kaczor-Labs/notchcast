@@ -24,6 +24,7 @@ final class PaletteState {
     func notePointerMoved(to: CGPoint) {}
     func disarmHoverHighlight(pointerAt: CGPoint) { hoverDisarms += 1 }
     func noteCommandHeld(_ held: Bool) { commandHeld.append(held) }
+    func noteCommandChord() {}
 }
 
 enum PaletteMode {

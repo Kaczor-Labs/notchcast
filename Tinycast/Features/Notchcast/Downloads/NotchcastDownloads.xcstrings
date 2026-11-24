@@ -1,6 +1,24 @@
 {
   "sourceLanguage" : "en",
   "strings" : {
+    "Dictation is in use. Choose Download Transcript when it is free." : {
+
+    },
+    "Parakeet Ultra could not be prepared. Choose Run Distill to retry." : {
+
+    },
+    "Parakeet Ultra could not be prepared. Choose Download Transcript to retry." : {
+
+    },
+    "Install %@ with %@, then choose Run Distill." : {
+
+    },
+    "Distill could not write its output. Choose Run Distill when the folder is writable." : {
+
+    },
+    "YouTube throttled the caption download. Try again later." : {
+
+    },
     "Cancel All Torrents" : {
 
     },
@@ -153,9 +171,6 @@
     "Dictation is in use. Run Distill again when it is free." : {
 
     },
-    "Dictation is not available. Set up a dictation model first." : {
-
-    },
     "Distill" : {
 
     },
@@ -304,10 +319,142 @@
     "Choose a folder to also save everything Distill makes there as a Markdown note." : {
 
     },
-    "Convert dropped files" : {
+    "Turn files in the Markdown folder into notes" : {
 
     },
-    "PDF, HTML, audio and video files added to the Markdown folder while this is on become notes. Originals go to the Trash." : {
+    "When you put a PDF, web page, audio or video file in your Markdown folder, Notchcast saves it as a Markdown note and moves the original to the Trash. Files already there stay as they are." : {
+
+    },
+    "Held until Run Distill" : {},
+    "Waiting" : {},
+    "Running" : {},
+    "Saved" : {},
+    "Failed: %@" : {},
+    "Failed" : {},
+    "Interrupted" : {},
+    "Distill queue" : {},
+    "No links in the queue." : {},
+    "Try again: %@" : {},
+    "Remove" : {},
+    "Remove %@" : {},
+    "%@, %@" : {},
+    "%lld links queued" : {
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld link queued"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld links queued"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "%lld links queued · %lld failed" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$#@queued@ · %2$lld failed"
+          },
+          "substitutions" : {
+            "queued" : {
+              "argNum" : 1,
+              "formatSpecifier" : "lld",
+              "variations" : {
+                "plural" : {
+                  "one" : {
+                    "stringUnit" : {
+                      "state" : "translated",
+                      "value" : "%lld link queued"
+                    }
+                  },
+                  "other" : {
+                    "stringUnit" : {
+                      "state" : "translated",
+                      "value" : "%lld links queued"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "%lld failed links" : {
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld failed link"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld failed links"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "Remove %lld failed links?" : {
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Remove %lld failed link?"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Remove %lld failed links?"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "%lld need a dictation model" : {
+
+    },
+    "Try All Again" : {
+
+    },
+    "Remove All" : {
+
+    },
+    "Try all failed links again" : {
+
+    },
+    "Remove all failed links" : {
+
+    },
+    "Saved and waiting links stay." : {
+
+    },
+    "Open Dictation Settings" : {
 
     }
   },

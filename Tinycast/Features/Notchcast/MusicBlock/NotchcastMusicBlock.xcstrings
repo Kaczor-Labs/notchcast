@@ -4,6 +4,7 @@
     "Allow Automation access for %@." : {},
     "Couldn't resume %@." : {},
     "Couldn't Stop Apple Music Opening" : {},
+    "Media keys" : {},
     "Play key resumes the last player" : {},
     "Stop Apple Music opening on media keys" : {},
     "When nothing is playing, the play key resumes Spotify if you played it last." : {}

@@ -10,7 +10,20 @@ struct PaletteFrame: Equatable {
 @MainActor
 @Observable
 final class PaletteState {
-    var mode: PaletteMode = .launcher { didSet { restoredSelection = nil } }
+    struct CustomScreen {
+        let title: String
+        let prompt: String
+        let makeScreen: (String) -> Any
+        let onClose: () -> Void
+    }
+
+    private(set) var customScreen: CustomScreen?
+    var mode: PaletteMode = .launcher {
+        didSet {
+            restoredSelection = nil
+            if oldValue == .customScreen, mode != .customScreen { clearCustomScreen() }
+        }
+    }
     /// The screens below `mode`, innermost last: a summon starts a new one, navigating pushes on.
     private(set) var backStack: [PaletteFrame] = []
     var query: String = "" { didSet { restoredSelection = nil } }
@@ -56,6 +69,8 @@ final class PaletteState {
     private(set) var commandHeld = false
     /// A chord is a tap, so the numbering waits out the tap before it claims the trailing labels.
     @ObservationIgnored private var commandHoldTask: Task<Void, Never>?
+    /// Set by a chord: the numbering stays hidden until ⌘ is let go.
+    @ObservationIgnored private var commandChorded = false
     /// True while a form field owns the keyboard, so the palette's own text keys stay out of it.
     private(set) var isEditingField = false
     /// True while a control inside a screen has a list open, which owns the arrows and ↵ whole.
@@ -80,6 +95,18 @@ final class PaletteState {
 
     func noteVisible(_ visible: Bool) {
         isVisible = visible
+        if !visible, mode == .customScreen { prepare(mode: .launcher) }
+    }
+
+    func installCustomScreen(_ screen: CustomScreen) {
+        clearCustomScreen()
+        customScreen = screen
+    }
+
+    private func clearCustomScreen() {
+        let close = customScreen?.onClose
+        customScreen = nil
+        close?()
     }
 
     var canGoBack: Bool { !backStack.isEmpty }
@@ -96,7 +123,7 @@ final class PaletteState {
     }
 
     func push(mode: PaletteMode) {
-        if !self.mode.isNativeEditor {
+        if !self.mode.isNativeEditor, self.mode != .customScreen {
             backStack.append(PaletteFrame(mode: self.mode, query: query, selection: selection))
         }
         replace(mode: mode)
@@ -115,7 +142,9 @@ final class PaletteState {
 
     /// Tab's step deeper into the ring: the screen crossed from is the step back, query and all.
     func pushCarryingQuery(mode: PaletteMode) {
-        backStack.append(PaletteFrame(mode: self.mode, query: query, selection: selection))
+        if self.mode != .customScreen {
+            backStack.append(PaletteFrame(mode: self.mode, query: query, selection: selection))
+        }
         self.mode = mode
     }
 
@@ -192,14 +221,23 @@ final class PaletteState {
         commandHoldTask = nil
         guard held else {
             commandHeld = false
+            commandChorded = false
             return
         }
-        guard !commandHeld else { return }
+        guard !commandHeld, !commandChorded else { return }
         commandHoldTask = Task { [weak self] in
             try? await Task.sleep(for: Self.commandHoldDelay)
             guard !Task.isCancelled else { return }
             self?.commandHeld = true
         }
+    }
+
+    /// A chord's own work, such as Settings starting up, can outlast the hold delay.
+    func noteCommandChord() {
+        commandHoldTask?.cancel()
+        commandHoldTask = nil
+        commandChorded = true
+        commandHeld = false
     }
 
     func noteEditingField(_ editing: Bool) {

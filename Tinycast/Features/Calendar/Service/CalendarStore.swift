@@ -27,7 +27,7 @@ final class CalendarStore {
     /// Exclusions, not inclusions, so a calendar added after this was written defaults to on.
     private var hiddenCalendarIDs: Set<String>
 
-    /// Built on first use, so a Mac with the feature off never loads EventKit at launch.
+    /// Built on first use, after macOS has granted full calendar access.
     @ObservationIgnored private var eventStore: EKEventStore?
     @ObservationIgnored private var changeObserver: NotificationToken?
     @ObservationIgnored private var wakeObserver: NotificationToken?

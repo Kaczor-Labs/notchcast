@@ -41,34 +41,57 @@ struct DictationExtrasSettingsSections: View {
                     "Fix punctuation, numbers and filler words before pasting. Return pastes it as spoken.",
                     tableName: "Notchcast")
             }
-            AIModelSelectionRows(
-                selection: status.dictationCleanupModel,
-                inheritedTitle: String(localized: "Automatic"),
-                select: { mainApp.send(.notchcast(.selectDictationCleanupModel($0))) },
-                modelLabel: {
-                    SettingsRowTitle(
-                        .dictationCleanup, LocalizedStringResource("Cleanup model", table: "Notchcast"))
-                    Text(modelCaption)
-                },
-                effortLabel: {
-                    SettingsRowTitle(.dictationCleanup, "Reasoning effort")
-                }
-            )
-            .settingsEnabled(settings.dictationCleansUp)
-            providersRow
-                .settingsEnabled(settings.dictationCleansUp)
-            promptEditor
-                .settingsEnabled(settings.dictationCleansUp)
+            if DictationCleanupPolicy.blockedByLiveInsertion(
+                cleansUp: settings.dictationCleansUp, liveInsertion: settings.dictationLiveInsertion)
+            {
+                liveInsertionConflict
+            }
+            if settings.dictationCleansUp {
+                AIModelSelectionRows(
+                    selection: status.dictationCleanupModel,
+                    inheritedTitle: String(localized: "Automatic"),
+                    select: { mainApp.send(.notchcast(.selectDictationCleanupModel($0))) },
+                    modelLabel: {
+                        SettingsRowTitle(
+                            .dictationCleanup, LocalizedStringResource("Cleanup model", table: "Notchcast"))
+                        Text(modelCaption)
+                    },
+                    effortLabel: {
+                        SettingsRowTitle(.dictationCleanup, "Reasoning effort")
+                    }
+                )
+                providersRow
+                promptEditor
+            }
         } header: {
             SettingsSectionHeader(.dictationCleanup)
         } footer: {
-            Text(verbatim: [
-                String(localized: "Only the text is sent, never the audio, and only to the model chosen above.",
-                       table: "Notchcast"),
-                String(localized: "Automatic uses the Claude or Codex command signed in on this Mac.",
-                       table: "Notchcast"),
-                String(localized: "Notchcast keeps the text only in Dictation History.", table: "Notchcast")
-            ].joined(separator: " "))
+            if settings.dictationCleansUp {
+                Text(verbatim: [
+                    String(
+                        localized: "Only the text is sent, never the audio, and only to the model chosen above.",
+                        table: "Notchcast"),
+                    String(localized: "Automatic uses the Claude or Codex command signed in on this Mac.",
+                           table: "Notchcast"),
+                    String(localized: "Notchcast keeps the text only in Dictation History.", table: "Notchcast")
+                ].joined(separator: " "))
+            }
+        }
+    }
+
+    /// The stock tab that holds Insert while recording is hidden, so its conflict is undone here.
+    private var liveInsertionConflict: some View {
+        LabeledContent {
+            Button("Turn Off") { settings.dictationLiveInsertion = false }
+                .accessibilityLabel(String(localized: "Turn off Insert while recording", table: "Notchcast"))
+        } label: {
+            Label(
+                String(localized: "Insert while recording is on", table: "Notchcast"),
+                systemImage: "exclamationmark.triangle.fill")
+                .foregroundStyle(Theme.Colors.warning)
+            Text(String(
+                localized: "Text pasted while you speak skips cleanup. Turn it off to clean up every dictation.",
+                table: "Notchcast"))
         }
     }
 

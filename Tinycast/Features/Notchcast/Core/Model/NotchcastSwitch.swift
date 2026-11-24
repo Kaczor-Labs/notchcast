@@ -17,4 +17,7 @@ struct NotchcastSwitch: Sendable, Identifiable {
     /// Switch ids, possibly another add-on's; an id no add-on declares counts as off.
     var dependencies: [String] = []
     var requiredGrants: Set<NotchcastGrant> = []
+    var listedWhenAnyEnabled: [String] = []
+    var searchTerms: [String] = []
+    var settingsTitle: String? = nil
 }

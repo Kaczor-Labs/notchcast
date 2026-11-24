@@ -1,13 +1,13 @@
 {
   "sourceLanguage" : "en",
   "strings" : {
+    "Downloading Parakeet Ultra" : {
+
+    },
     "%@ is off" : {
 
     },
     "A faint line around the open island and its menus." : {
-
-    },
-    "A notch always decides where the island sits." : {
 
     },
     "Add Claude or Codex in AI providers, or choose a model." : {
@@ -82,6 +82,9 @@
     "Clear shortcut" : {
 
     },
+    "Clipboard & Files" : {
+      "shouldTranslate" : false
+    },
     "Connect the models cleanup can use." : {
 
     },
@@ -109,6 +112,9 @@
     "Dictation History" : {
 
     },
+    "Enable dictation" : {
+
+    },
     "Dictation needs Accessibility access to see the Globe key." : {
 
     },
@@ -127,7 +133,7 @@
     "Every saved dictation goes. This can't be undone." : {
 
     },
-    "Files & Downloads" : {
+    "Finder" : {
       "shouldTranslate" : false
     },
     "Fix punctuation, numbers and filler words before pasting. Return pastes it as spoken." : {
@@ -140,6 +146,9 @@
 
     },
     "Island" : {
+      "shouldTranslate" : false
+    },
+    "Island Content" : {
       "shouldTranslate" : false
     },
     "Keep dictation history" : {
@@ -171,9 +180,6 @@
     },
     "Menu bar center" : {
 
-    },
-    "Music" : {
-      "shouldTranslate" : false
     },
     "Needs Accessibility access" : {
       "shouldTranslate" : false
@@ -219,6 +225,9 @@
     },
     "Outline when open" : {
 
+    },
+    "Pages" : {
+      "shouldTranslate" : false
     },
     "Paste Again" : {
 
@@ -295,6 +304,9 @@
     "Some Text Wasn't Pasted" : {
 
     },
+    "Sound" : {
+      "shouldTranslate" : false
+    },
     "Tap or hold the Globe key" : {
 
     },
@@ -317,6 +329,15 @@
 
     },
     "Turn Off and Delete" : {
+
+    },
+    "Turn off Insert while recording" : {
+
+    },
+    "Insert while recording is on" : {
+
+    },
+    "Text pasted while you speak skips cleanup. Turn it off to clean up every dictation." : {
 
     },
     "Up Next" : {

@@ -47,8 +47,11 @@ struct LowDiskPolicy: Equatable, Sendable {
 
     static func size(_ bytes: Int64) -> String { ByteCountFormatter.string(fromByteCount: bytes, countStyle: .file) }
 
-    static func warning(free: Int64) -> String {
-        String(localized: "Low disk space: \(size(free))", table: "NotchcastLowDisk")
+    static func warning(free: Int64, actionTitle: String? = nil) -> String {
+        if let actionTitle {
+            return String(localized: "Low disk space: \(size(free)). \(actionTitle)", table: "NotchcastLowDisk")
+        }
+        return String(localized: "Low disk space: \(size(free))", table: "NotchcastLowDisk")
     }
 
     static func available(free: Int64) -> String {

@@ -14,6 +14,7 @@ fi
 # Notchcast's search rows sit beside the catalog, with the two descriptor types they read.
 if [[ " $* " == *" Tinycast/Features/Settings/SettingsSearchCatalog.swift "* && " $* " != *" Tinycast/Features/Notchcast/Core/UI/NotchcastSettingsSearch.swift "* ]]; then
     set -- "$@" Tinycast/Features/Notchcast/Core/UI/NotchcastSettingsSearch.swift
+    set -- "$@" Tinycast/Features/Notchcast/Core/Model/NotchcastSettingsLayout.swift
     [[ " $* " == *" Tinycast/Features/Notchcast/Core/Model/NotchcastSwitch.swift "* ]] || set -- "$@" Tinycast/Features/Notchcast/Core/Model/NotchcastSwitch.swift
     [[ " $* " == *" Tinycast/Features/Notchcast/Core/Model/NotchcastCategory.swift "* ]] || set -- "$@" Tinycast/Features/Notchcast/Core/Model/NotchcastCategory.swift
 fi
@@ -28,6 +29,10 @@ fi
 # Upstream's icon pack tints Theme and SettingsTab with IconTint, so either brings it along.
 if [[ " $* " == *" Tinycast/DesignSystem/Theme.swift "* || " $* " == *" Tinycast/Features/Settings/SettingsTab.swift "* ]]; then
     [[ " $* " == *" Tinycast/DesignSystem/IconTint.swift "* ]] || set -- "$@" Tinycast/DesignSystem/IconTint.swift
+fi
+# Upstream's Theme and IconCache read SystemIconTheme; the file test keeps older upstream bases building.
+if [[ " $* " == *" Tinycast/DesignSystem/Theme.swift "* || " $* " == *" Tinycast/Platform/Images/IconCache.swift "* ]] && [ -f Tinycast/Platform/Images/SystemIconTheme.swift ]; then
+    [[ " $* " == *" Tinycast/Platform/Images/SystemIconTheme.swift "* ]] || set -- "$@" Tinycast/Platform/Images/SystemIconTheme.swift
 fi
 # ci-tests.sh's object that makes the app Dark before main: its ink checks read Dark text.
 if [ "${name:-}" = FormInputTests ] && [ -n "${NOTCHCAST_DARK_OBJECT:-}" ]; then

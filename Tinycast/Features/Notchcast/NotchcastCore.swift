@@ -10,16 +10,27 @@ final class NotchcastCore {
     private var launcherHides: NotchcastLauncherHides?
     private var globeTrigger: NotchcastGlobeTrigger?
     private let dictationIsland = DictationIslandCoordinator()
+    private let modelDownload: NotchcastModelDownload
+    private(set) var dictationModelSizes: NotchcastDictationModelSizes?
 
     init(
         core: AppCore, addons: [any NotchcastAddon.Type] = NotchcastRegistry.addons, startsRuntime: Bool = true
     ) {
+        let models = core.dictationModels
+        let modelDownload = NotchcastModelDownload(
+            isInstalled: models.isInstalled, fetch: models.download,
+            fraction: {
+                guard let bytes = models.downloadProgress, bytes.total > 0 else { return nil }
+                return Double(bytes.received) / Double(bytes.total)
+            }, presenter: core.islandPresenter)
+        self.modelDownload = modelDownload
         let defaults = core.notchcastDefaults
         let hub = NotchcastTapHub(
             syntheticTag: Paster.tinycastEventTag, isTrusted: { AXIsProcessTrusted() },
             makeSession: NotchcastTapThread.start)
         controller = NotchcastController(
-            addons: addons, defaults: defaults, hub: hub, dictation: NotchcastDictationBridge(core: core),
+            addons: addons, defaults: defaults, hub: hub,
+            dictation: NotchcastDictationBridge(core: core, modelDownload: modelDownload),
             services: startsRuntime ? NotchcastServices(core: core) : NotchcastServices(),
             presenter: core.islandPresenter)
         dictationServer = DictationServer(
@@ -31,8 +42,10 @@ final class NotchcastCore {
                 await core?.confirm(title: title, message: message, symbol: nil, confirmTitle: confirmTitle,
                                     tone: .neutral, confirmRole: .standard) ?? false
             }
-            context.confirmDestructive = { [weak core] title, message, confirmTitle in
-                await core?.confirm(title: title, message: message, symbol: nil, confirmTitle: confirmTitle) ?? false
+            context.presentDestructiveQuestion = { [weak core] title, message, confirmTitle, cancelTitle in
+                await core?.confirm(
+                    title: title, message: message, symbol: nil, confirmTitle: confirmTitle,
+                    dismissTitle: cancelTitle) ?? false
             }
         }
         controller.wireAskSecret { [weak core] requester, title, message, fieldTitle, confirmTitle in
@@ -44,10 +57,13 @@ final class NotchcastCore {
             core?.settingsCoordinator.showSettings(tab: target.tab, revealing: target)
         }
         let commands = addons.flatMap { $0.commands }
+        let settingRows = addons.flatMap { $0.settings }
         NotchcastSettingsSearch.install(
             controller.switches,
             commandWords: Dictionary(grouping: commands, by: \.switchID)
-                .mapValues { $0.flatMap { [$0.name] + $0.keywords } })
+                .mapValues { $0.flatMap { [$0.name] + $0.keywords } },
+            optionWords: Dictionary(grouping: settingRows, by: \.switchID)
+                .mapValues { $0.flatMap(\.searchTerms) })
         guard startsRuntime else { return }
         let launcher = core.launcherCoordinator
         let tabs = Dictionary(
@@ -99,14 +115,17 @@ final class NotchcastCore {
         dictationIsland.start(core: core, captureDisplay: { [weak dictation = core.dictationCoordinator] in
             typingDisplay.capture(dictation?.target)
         }, typingDisplay: typingDisplay.display)
-        if let seed = DictationFirstModel.seed(
-            stored: UserDefaults.standard.string(forKey: AppSettingsKey.dictationModel.rawValue)),
-            let model = DictationModel(rawValue: seed) { core.settings.dictationModel = model }
+        core.settings.dictationModel = .ultra
+        core.dictationCoordinator.prepareModel = modelDownload.install
+        dictationModelSizes = NotchcastDictationModelSizes(store: models)
+        dictationModelSizes?.start()
         controller.start()
         dictationServer.start()
     }
 
     func stop() {
+        modelDownload.stop()
+        dictationModelSizes?.stop()
         dictationServer.stop()
         trustMonitor = nil
         globeTrigger?.stop()

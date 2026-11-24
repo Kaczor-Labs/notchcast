@@ -141,6 +141,9 @@ enum SettingsSearchCatalog {
             .generalAppearance, "Appearance",
             keywords: ["dark", "light", "mode", "theme"]),
         .init(
+            .generalAppearance, "Icon style",
+            keywords: ["icons", "colorful", "clear", "tinted", "dark", "widget", "theme"]),
+        .init(
             .generalAppearance, "Show animations",
             keywords: ["motion", "transitions", "reduce motion", "effects", "instant"]),
         .init(
@@ -360,20 +363,7 @@ enum SettingsSearchCatalog {
         .init(.dictationOutput, "Microphone"),
         .init(.dictationOutput, "When finished"),
         .init(.dictationOutput, "Adapt capitalization", keywords: ["uppercase", "lowercase", "sentence"]),
-        .init(.dictationOutput, "Insert while recording", keywords: ["live", "streaming", "chunk", "pause"]),
-        .init(
-            .dictationCleanup, LocalizedStringResource("Clean up text", table: "Notchcast"),
-            keywords: ["ai", "punctuation", "filler"]),
-        .init(
-            .dictationCleanup, LocalizedStringResource("Cleanup model", table: "Notchcast"),
-            keywords: ["claude", "codex"]),
-        .init(.dictationCleanup, LocalizedStringResource("Cleanup prompt", table: "Notchcast")),
-        .init(
-            .dictationCleanup, LocalizedStringResource("AI providers", table: "Notchcast"),
-            keywords: ["api key", "openai", "anthropic", "openrouter", "apple intelligence"]),
-        .init(
-            .dictationHistory, LocalizedStringResource("Keep dictation history", table: "Notchcast"),
-            keywords: ["recover", "lost"])
+        .init(.dictationOutput, "Insert while recording", keywords: ["live", "streaming", "chunk", "pause"])
     ]
 
     private static let fileSearch: [SettingsSearchEntry] = [
@@ -680,9 +670,11 @@ enum SettingsSearchCatalog {
         .init(.iCloudSyncSwitch, "Sync with iCloud", keywords: ["turn on", "enable", "sync"]),
         .init(
             group: .iCloudSyncContent, "Synced Content",
-            keywords: ["notes", "snippets", "quicklinks", "chats", "extensions", "presets"]),
+            keywords: [
+                "notes", "snippets", "quicklinks", "chats", "extensions", "presets", "clipboard", "images"
+            ]),
         .init(group: .iCloudSyncGeneral, "Synced Settings", keywords: ["appearance", "login", "menu bar"]),
-        .init(group: .iCloudSyncNotSynced, "Not Synced", keywords: ["clipboard", "passwords", "excluded"]),
+        .init(group: .iCloudSyncNotSynced, "Not Synced", keywords: ["copied files", "passwords", "excluded"]),
         .init(group: .iCloudSyncMacs, "Synced Macs", keywords: ["devices", "remove", "rename", "computers"]),
         .init(.iCloudSyncData, "Delete iCloud Data", keywords: ["reset", "erase", "remove", "cloud data"])
     ]
@@ -694,6 +686,9 @@ enum SettingsSearchCatalog {
         .init(
             .backupExport, "Export Backup",
             keywords: ["save", "tinycast file", "archive"]),
+        .init(
+            group: .backupNotIncluded, "Not Included",
+            keywords: ["excluded", "extensions", "chats", "passwords", "api keys"]),
         .init(
             .backupImport, "Backup File",
             keywords: ["restore", "choose", "tinycast file"]),

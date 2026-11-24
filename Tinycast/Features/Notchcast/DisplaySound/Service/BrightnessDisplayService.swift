@@ -188,7 +188,8 @@ final class BrightnessDisplayService: Sendable {
             let entry = state.entries[index]
             if !dim(entry.level.picture, on: entry.id, &state), entry.level.isDimmed {
                 state.entries[index].level = BrightnessLevel(entry.level.softwareOnly ? 1 : 0,
-                                                             softwareOnly: entry.level.softwareOnly)
+                                                             softwareOnly: entry.level.softwareOnly,
+                                                             extraDimming: state.extraDimming)
             }
             state.remembered[entry.id.uuid] = state.entries[index].level
         }
@@ -239,9 +240,16 @@ final class BrightnessDisplayService: Sendable {
     private func retry(_ uuid: String, since: Int, _ state: inout State) -> Snapshot? {
         guard state.lastWrite[uuid, default: 0] <= since,
               let index = state.entries.firstIndex(where: { $0.id.uuid == uuid }),
-              isAvailable(state.entries[index].id), var channel = state.channels[uuid],
-              case let .live(current, maximum) = channel.probe() else { return nil }
+              isAvailable(state.entries[index].id) else { return nil }
         let entry = state.entries[index]
+        if !entry.level.isDimmed, state.baselines[uuid] != nil {
+            guard dim(1, on: entry.id, &state) else { return nil }
+            guard state.channels[uuid] != nil else {
+                return Snapshot(displays: state.entries, serial: state.serial, retrying: [])
+            }
+        }
+        guard var channel = state.channels[uuid],
+              case let .live(current, maximum) = channel.probe() else { return nil }
         let level = Self.level(reading: Double(current) / Double(maximum), previous: entry.level)
             .allowing(extraDimming: state.extraDimming)
         state.channels[uuid] = channel
@@ -255,17 +263,22 @@ final class BrightnessDisplayService: Sendable {
         return Snapshot(displays: state.entries, serial: state.serial, retrying: [])
     }
 
-    /// Every display at once; `restoring` gives each curve back and takes the level even if one refuses.
+    /// Every display at once; an undimmed level is kept even when its curve refuses, and retried.
     private func relevel(_ state: inout State, restoring: Bool = false,
                          _ transform: (BrightnessLevel) -> BrightnessLevel) -> Snapshot {
+        var retrying: Set<String> = []
         for index in state.entries.indices {
             let entry = state.entries[index]
             let level = transform(entry.level)
-            guard dim(restoring ? 1 : level.picture, on: entry.id, &state) || restoring else { continue }
+            let undimmed = restoring || !level.isDimmed
+            if !dim(undimmed ? 1 : level.picture, on: entry.id, &state) {
+                guard undimmed else { continue }
+                retrying.insert(entry.id.uuid)
+            }
             state.entries[index].level = level
             state.remembered[entry.id.uuid] = level
         }
-        return Snapshot(displays: state.entries, serial: state.serial, retrying: [])
+        return Snapshot(displays: state.entries, serial: state.serial, retrying: retrying)
     }
 
     /// A speaker command between brightness transactions, so two never interleave on one monitor.

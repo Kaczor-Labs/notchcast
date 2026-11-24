@@ -58,6 +58,7 @@ struct SnippetsSettingsView: View {
                 libraryNotices
             }
             .settingsEnabled(settings.snippetsEnabled)
+            .notchcastHidden(!settings.snippetsEnabled)
         }
         .formStyle(.grouped)
         .settingsScrollTarget(.snippets)
@@ -168,9 +169,7 @@ private struct SnippetSettingsRow: View {
 
     var body: some View {
         SettingsRow(title: record.snippet.name, subtitle: metadata) {
-            Image(systemName: "doc.text")
-                .font(.system(size: Theme.Size.settingsRowIcon - Theme.Spacing.xs))
-                .frame(width: SettingsListMetrics.iconSize, height: SettingsListMetrics.iconSize)
+            SettingsSymbolTile(symbol: "text.quote", tint: SettingsTab.snippets.tint)
         } trailing: {
             // A disabled snippet's shortcut fires into the funnel's refusal, so it dims too.
             ShortcutRecorder(action: .snippet(id: record.id))

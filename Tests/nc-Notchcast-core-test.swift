@@ -60,7 +60,7 @@ final class ProbeModule: NotchcastModule {
 }
 
 enum NoticeAddon: NotchcastAddon {
-    static let switches = [NotchcastSwitch(id: "noticeMain", title: "Notice", subtitle: "", category: .music)]
+    static let switches = [NotchcastSwitch(id: "noticeMain", title: "Notice", subtitle: "", category: .sound)]
     static let commands = [
         NotchcastCommand(slug: "notice-run", name: "Notice", symbol: "circle", switchID: "noticeMain") { context in
             context.presenter.post(
@@ -74,10 +74,10 @@ enum ProbeAddon: NotchcastAddon {
         NotchcastSwitch(id: "probeMain", title: "Probe", subtitle: "", category: .keyboardMouse),
         NotchcastSwitch(id: "probeChild", title: "Child", subtitle: "", category: .launcher,
                         dependencies: ["probeMain"]),
-        NotchcastSwitch(id: "probeOrphan", title: "Orphan", subtitle: "", category: .music,
+        NotchcastSwitch(id: "probeOrphan", title: "Orphan", subtitle: "", category: .sound,
                         defaultEnabled: true, dependencies: ["absentSwitch"]),
-        NotchcastSwitch(id: "probeLoopA", title: "A", subtitle: "", category: .music, dependencies: ["probeLoopB"]),
-        NotchcastSwitch(id: "probeLoopB", title: "B", subtitle: "", category: .music, dependencies: ["probeLoopA"]),
+        NotchcastSwitch(id: "probeLoopA", title: "A", subtitle: "", category: .sound, dependencies: ["probeLoopB"]),
+        NotchcastSwitch(id: "probeLoopB", title: "B", subtitle: "", category: .sound, dependencies: ["probeLoopA"]),
     ]
     static let commands = [
         NotchcastCommand(slug: "probe-run", name: "Probe", symbol: "circle", switchID: "probeMain") { context in
@@ -176,7 +176,7 @@ final class LoggingModule: NotchcastModule {
 }
 
 enum RecoveryAddon: NotchcastAddon {
-    static let switches = [NotchcastSwitch(id: "recover", title: "Recover", subtitle: "", category: .music)]
+    static let switches = [NotchcastSwitch(id: "recover", title: "Recover", subtitle: "", category: .sound)]
     static func makeModule(_ context: NotchcastContext) -> (any NotchcastModule)? { LoggingModule("module") }
     static func makeRecovery(_ context: NotchcastContext) -> (any NotchcastModule)? {
         LoggingModule("recovery", subscribingIn: context)
@@ -206,13 +206,13 @@ final class HandoffModule: NotchcastModule {
 }
 
 enum HandoffAddonA: NotchcastAddon {
-    static let switches = [NotchcastSwitch(id: "handA", title: "A", subtitle: "", category: .power)]
+    static let switches = [NotchcastSwitch(id: "handA", title: "A", subtitle: "", category: .notices)]
     static func makeModule(_ context: NotchcastContext) -> (any NotchcastModule)? { HandoffModule("A", context) }
     static func makeRecovery(_ context: NotchcastContext) -> (any NotchcastModule)? { HandoffRecovery("A") }
 }
 
 enum HandoffAddonB: NotchcastAddon {
-    static let switches = [NotchcastSwitch(id: "handB", title: "B", subtitle: "", category: .power)]
+    static let switches = [NotchcastSwitch(id: "handB", title: "B", subtitle: "", category: .notices)]
     static func makeModule(_ context: NotchcastContext) -> (any NotchcastModule)? { HandoffModule("B", context) }
     static func makeRecovery(_ context: NotchcastContext) -> (any NotchcastModule)? { HandoffRecovery("B") }
 }
@@ -541,8 +541,8 @@ struct NotchcastCoreTest {
     static func settingsTabs() {
         check("each tab holds its categories",
               NotchcastPane.allCases.map(\.categories)
-                == [[], [.agents], [.keyboardMouse], [.displaySound, .music], [.capture], [.launcher], [.filesDownloads],
-                   [.power], [.notices], [.macTweaks]])
+                == [[], [.islandPages, .notices], [.agents], [.keyboardMouse], [], [.display, .sound], [.capture],
+                   [.clipboard, .finder, .files], [.downloads], [.launcher], [.macTweaks]])
         check("no category sits in two tabs", NotchcastCategory.allCases.allSatisfy { category in
             NotchcastPane.allCases.filter { $0.categories.contains(category) }.count <= 1
         })
@@ -550,19 +550,15 @@ struct NotchcastCoreTest {
         check("a placed category resolves to the tab that holds it",
               placed.allSatisfy { NotchcastPane.holding($0).categories.contains($0) })
         check("a category with no tab yet shows nowhere",
-              NotchcastPane.shown(registered: [.betweenMacs]) == [.island])
-        check("System notices lands in its own tab, between Power and Mac Tweaks",
-              NotchcastPane.shown(registered: [.macTweaks, .notices, .power]) == [.island, .power, .notices, .macTweaks])
-        check("Low disk warning and iPhone backup land in their own tabs",
-              NotchcastPane.shown(registered: [.macTweaks, .power]) == [.island, .power, .macTweaks])
-        check("with no add-on only Island shows", NotchcastPane.shown(registered: []) == [.island])
-        check("an add-on tab shows once one of its categories has a switch",
-              NotchcastPane.shown(registered: [.music]) == [.island, .displaySound]
-                && NotchcastPane.shown(registered: [.displaySound]) == [.island, .displaySound])
-        check("Screenshots lands in Capture, after Display & Sound",
-              NotchcastPane.holding(.capture) == .capture
-                && NotchcastPane.shown(registered: [.launcher, .capture, .music])
-                == [.island, .displaySound, .capture, .launcher])
+              NotchcastPane.shown(registered: [.betweenMacs]) == [.island, .dictation])
+        for pane in [NotchcastPane.islandContent, .clipboardFiles, .displaySound] {
+            check("each of \(pane.slug)'s categories makes it appear", pane.categories.allSatisfy {
+                NotchcastPane.shown(registered: [$0])
+                    == NotchcastPane.allCases.filter { [.island, .dictation, pane].contains($0) }
+            })
+        }
+        check("with no add-on only Island and Dictation show",
+              NotchcastPane.shown(registered: []) == [.island, .dictation])
         NotchcastPane.install(Set(NotchcastCategory.allCases))
         check("the section lists every tab once all are filled",
               SettingsSection.notchcast.tabs == NotchcastPane.allCases.map(SettingsTab.notchcast))
@@ -570,10 +566,18 @@ struct NotchcastCoreTest {
         check("settings slugs are unique", Set(slugs).count == slugs.count)
         check("each tab opens from its deep link",
               NotchcastPane.allCases.allSatisfy { SettingsTab(slug: $0.slug) == .notchcast($0) })
-        check("the old notchcast slug opens nothing", SettingsTab(slug: "notchcast") == nil)
+        check("the new tabs open from their deep links",
+              SettingsTab(slug: "notchcast-island-content") == .notchcast(.islandContent)
+                && SettingsTab(slug: "notchcast-clipboard-files") == .notchcast(.clipboardFiles))
+        check("removed tab links open nothing",
+              ["notchcast", "notchcast-power", "notchcast-notices"].allSatisfy {
+                  SettingsTab(slug: $0) == nil
+              })
         NotchcastPane.install([])
         check("a hidden tab's deep link opens nothing", SettingsTab(slug: "notchcast-downloads") == nil)
         check("the Capture tab opens from its own link", NotchcastPane.capture.slug == "notchcast-capture")
         check("Island's deep link always opens", SettingsTab(slug: "notchcast-island") == .notchcast(.island))
+        check("Dictation's deep link always opens",
+              SettingsTab(slug: "notchcast-dictation") == .notchcast(.dictation))
     }
 }

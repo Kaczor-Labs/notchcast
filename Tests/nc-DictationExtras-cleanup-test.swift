@@ -97,16 +97,16 @@ enum DictationExtrasCleanupTests {
         check(!sends(true, false, false, true), "Return sends nothing")
         check(!sends(true, true, true, true), "a composer mic sends nothing")
         check(!sends(true, true, false, false), "live insertion sends nothing")
+        check(DictationCleanupPolicy.blockedByLiveInsertion(cleansUp: true, liveInsertion: true),
+              "a stored Insert while recording shows the conflict under Clean up text")
+        check(!DictationCleanupPolicy.blockedByLiveInsertion(cleansUp: true, liveInsertion: false),
+              "with live insertion off there is no conflict")
+        check(!DictationCleanupPolicy.blockedByLiveInsertion(cleansUp: false, liveInsertion: true),
+              "with cleanup off live insertion blocks nothing")
 
         // A settings.json key would let a file send transcripts, delete history or rewrite the prompt.
         for path in ["dictation.cleansUp", "dictation.keepsHistory", "dictation.cleanupPrompt"] {
             check(SettingsFileKey(rawValue: path) == nil, "\(path) has no settings.json key")
-        }
-
-        // First model: an empty profile starts on Ultra; a stored choice is never overwritten.
-        check(DictationFirstModel.seed(stored: nil) == "ultra", "nothing stored seeds Ultra")
-        for stored in ["redux", "ultra", "qwen-0.6b", "qwen-1.7b"] {
-            check(DictationFirstModel.seed(stored: stored) == nil, "a stored \(stored) stays")
         }
 
         print("nc-DictationExtras-cleanup-test: all passed")

@@ -34,6 +34,7 @@ nonisolated enum YtDlpAudio {
 
     static func isMedia(_ url: URL) -> Bool {
         guard let host = url.host?.lowercased() else { return false }
+        if DistillDrop.kind(of: url.lastPathComponent) == .media { return true }
         let hosts = ["vimeo.com", "twitch.tv", "tiktok.com", "dailymotion.com", "soundcloud.com",
                      "podcasts.apple.com", "facebook.com", "rumble.com", "bitchute.com", "loom.com",
                      "wistia.com", "instagram.com"]

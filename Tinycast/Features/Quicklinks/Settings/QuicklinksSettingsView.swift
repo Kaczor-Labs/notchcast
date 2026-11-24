@@ -27,6 +27,7 @@ struct QuicklinksSettingsView: View {
                 transfer
             }
             .settingsEnabled(settings.quicklinksEnabled)
+            .notchcastHidden(!settings.quicklinksEnabled)
         }
         .formStyle(.grouped)
         .settingsScrollTarget(.quicklinks)
@@ -138,12 +139,8 @@ private struct QuicklinkSettingsRow: View {
     let onDelete: () -> Void
 
     var body: some View {
-        SettingsRow(title: quicklink.name, subtitle: quicklink.link) {
-            SymbolImage(
-                name: quicklink.symbol,
-                size: Theme.Size.settingsRowIcon - Theme.Spacing.xs
-            )
-            .frame(width: SettingsListMetrics.iconSize, height: SettingsListMetrics.iconSize)
+        SettingsRow(title: quicklink.name) {
+            SettingsSymbolTile(symbol: quicklink.symbol, tint: SettingsTab.quicklinks.tint)
         } trailing: {
             if quicklink.isPinned {
                 Image(systemName: "pin.fill")

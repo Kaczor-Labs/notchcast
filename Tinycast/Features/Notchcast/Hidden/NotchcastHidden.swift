@@ -9,9 +9,13 @@ enum NotchcastHidden {
         .quickActions,
         .commands,
         .notes,
+        .calendar,
+        .dictation,
         .ai,
         .fallbacks,
     ]
+    /// Hidden tabs whose commands keep their chords: Dictation History lives on in Notchcast › Dictation.
+    static let liveCommandTabs: Set<SettingsTab> = [.dictation]
     /// The app speaks English only; `AppSettings.pinLanguage()` writes this at every launch.
     static let language = "en"
     /// English keys of the rows hidden in each tab; search drops them there and nowhere else.
@@ -22,17 +26,17 @@ enum NotchcastHidden {
         ],
         .notes: ["Show in Menu Bar"],
         .about: ["Support"],
-        .calendar: [
-            "Calendar in Menu Bar", "Show Upcoming Events", "Only show events with meetings",
-            "Hide when there are no upcoming events", "Hide Current Event",
-            "Upcoming meetings in launcher",
-            "Auto Join Meetings",
-            "Only join known meeting services",
-            "Confirm before joining",
-            "Camera Preview",
-            "Calendar commands",
-        ],
+        .permissions: ["Calendars"],
     ]
+
+    @MainActor
+    static func applyDisabledCalendarStore(start: () -> Void, stop: () -> Void) {
+        if tabs.contains(.calendar) {
+            start()
+        } else {
+            stop()
+        }
+    }
 
     static func hides(tab: SettingsTab, keywords: [String]) -> Bool {
         tabs.contains(tab) || rows[tab]?.isDisjoint(with: keywords) == false
