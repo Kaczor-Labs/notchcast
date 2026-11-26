@@ -156,3 +156,24 @@ Each item is explained in [testing.md](docs/testing.md#definition-of-done).
 - Run `./Scripts/lint.sh` locally.
 - Run `grep -rln 'import AppKit\|import SwiftUI\|import Cocoa' Tinycast/Features/*/Model/` locally. It must return nothing.
 - Any doc your change made wrong is fixed in the same commit.
+
+## Land, release, prove
+
+### How a change lands
+
+- A PR into `main` opens as a draft and stays one: its builder never runs `gh pr ready` and never merges. A Claude Code session here is refused `gh pr create` without `--draft`.
+- The lead (Keeper) lands it: after review and a passed hand test, it labels the PR `land`, and `notchcast/land.sh <pr>` or a train (`notchcast/train.sh <prs>`, or the landing queue) squash-merges the PR head onto `main`. Never `gh pr merge` or the web button.
+- `land.sh` closes a landed PR with the comment `Landed on main as <commit> by notchcast/land.sh`.
+- At most 25 PRs stay open at once; new work starts again once 20 or fewer are open.
+
+### How it is released or deployed, and who says yes
+
+- No one releases by hand. A green `main` becomes a signed pre-release snapshot (`<upstream-version>.snapshot.<revision>`) after the 50-minute gate in `snapshot.yml`; each upstream release is rebuilt with our commits and published under its own tag.
+- Nothing in this repo asks for a yes after landing: the `land` label is the last sign-off before a snapshot ships.
+- A Mac with `notchcast.update` loaded installs the newest snapshot within 30 minutes unless automatic updates are off; `notchcast/update.sh --install` installs it at once.
+
+### How it is proven live
+
+- Before landing: `gh workflow run test-build.yml --ref main -f pr=<n>` builds the PR head, and a tester in a throwaway macOS guest uses it like a user (every toggle, shortcut and error path), with a recording or screenshots on the PR and one line on how the owner tests it. A feature not tested this way is not offered.
+- After landing: the installed snapshot on the Mac is checked before the next feedback round.
+- What a guest cannot show (the notch form, Touch ID, real devices) goes on the PR as one line: "Owner: do X, expect Y".
