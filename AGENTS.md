@@ -156,3 +156,18 @@ Each item is explained in [testing.md](docs/testing.md#definition-of-done).
 - Run `./Scripts/lint.sh` locally.
 - Run `grep -rln 'import AppKit\|import SwiftUI\|import Cocoa' Tinycast/Features/*/Model/` locally. It must return nothing.
 - Any doc your change made wrong is fixed in the same commit.
+
+## Land, release, prove
+
+### How a change lands
+
+- `notchcast/README.md`, "Conflict-free PRs" and "Secrets and checks".
+
+### How it is released or deployed, and who says yes
+
+- `notchcast/README.md`, "Snapshot releases" and "Sync".
+- No one says yes before a public snapshot: a green `main` ships by itself (the owner's decision).
+
+### How it is proven live
+
+- `notchcast/README.md`, "Installing on a Mac" (test builds of a PR head) and "Hosted tester".
