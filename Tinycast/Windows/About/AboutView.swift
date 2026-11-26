@@ -33,8 +33,9 @@ struct AboutView: View {
                         .padding(.vertical, Theme.Spacing.lg)
                 }
                 .settingsAnchor(.aboutAbout)
-                updates
+                updates.notchcastHidden()
                 links
+                NotchcastAboutSection()
                 support
             }
             .formStyle(.grouped)
@@ -122,7 +123,7 @@ struct AboutView: View {
 
     private var links: some View {
         Section {
-            ForEach(AboutLink.all) { link in
+            ForEach(NotchcastAbout.links(AboutLink.all)) { link in
                 AboutLinkRow(link: link)
             }
         } header: {
@@ -171,7 +172,7 @@ struct AboutView: View {
     }
 }
 
-private struct AboutLink: Identifiable {
+struct AboutLink: Identifiable {
     enum Glyph {
         case symbol(String)
         /// A brand mark from the asset catalog; SF Symbols ships no such logo.
