@@ -169,7 +169,7 @@ Each item is explained in [testing.md](docs/testing.md#definition-of-done).
 ### How it is released or deployed, and who says yes
 
 - No one releases by hand. A green `main` becomes a signed pre-release snapshot (`<upstream-version>.snapshot.<revision>`) after the 50-minute gate in `snapshot.yml`; a dispatch with `skip_gate=true` skips only that gate. An upstream release from the baseline tag on, whose tagged commit passed the upstream review, is rebuilt with our commits and published under its own tag.
-- Nothing in this repo asks for a yes after landing: the `land` label is the last sign-off before a snapshot ships.
+- No one says yes before a public snapshot: a green `main` ships by itself. This is the owner's decision.
 - A Mac with `notchcast.update` loaded installs the newest snapshot within 30 minutes unless automatic updates are off; `notchcast/update.sh --install` installs it at once.
 
 ### How it is proven live
