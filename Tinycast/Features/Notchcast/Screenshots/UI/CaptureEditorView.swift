@@ -44,6 +44,15 @@ private struct CaptureEditorActions: View {
                 shortcut: "⇧⌘Z", isSelected: false, tooltipEdge: .bottom
             ) { session.perform(.redo) }
             .disabled(!document.canRedo)
+            CaptureEditorBarButton(
+                symbol: ScreenshotsModule.sensitiveTextSymbol,
+                title: String(localized: "Cover Sensitive Text", table: "NotchcastScreenshots"),
+                shortcut: nil, isSelected: false, tooltipEdge: .bottom
+            ) { session.coverSensitiveText() }
+            .disabled(session.search != nil)
+            .accessibilityHint(Text(
+                "Blurs emails, card numbers, IP addresses, keys and tokens it finds. Check the result.",
+                tableName: "NotchcastScreenshots"))
             Spacer(minLength: Theme.Spacing.md)
             CaptureEditorDragChip(session: session)
             Button { session.perform(.discard) } label: { Text("Discard", tableName: "NotchcastScreenshots") }

@@ -22,3 +22,6 @@ Screenshots: Model/ScreenshotWindowCapture.swift ← vorssaint/vorssaint-utils@1
 Screenshots: Model/ScreenshotWindowCapture.swift ← vorssaint/vorssaint-utils@1dca3339/Sources/Vorssaint/Services/QuickTools/ScreenshotCaptureEngine.swift (GPL-3.0-or-later)
 Screenshots: Service/ScreenshotSystem+Live.swift ← vorssaint/vorssaint-utils@1dca3339/Sources/Vorssaint/Services/QuickTools/ScreenshotCaptureEngine.swift (GPL-3.0-or-later)
 Screenshots: Model/ScreenshotWindowCapture.swift ← vorssaint/vorssaint-utils@1dca3339/Sources/Vorssaint/Services/QuickTools/ScreenshotSupport.swift (GPL-3.0-or-later)
+Screenshots: Model/SensitiveText.swift ← sw33tLie/macshot@4d48901/macshot/Services/AutoRedactor.swift (GPL-3.0-only)
+Screenshots: Model/SensitiveText.swift ← sw33tLie/macshot@4d48901/macshot/Services/PIIRedactionPlanner.swift (GPL-3.0-only)
+Screenshots: Service/ScreenTextRecognizer.swift ← sw33tLie/macshot@4d48901/macshot/Services/VisionOCR.swift (GPL-3.0-only)

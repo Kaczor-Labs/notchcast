@@ -432,6 +432,38 @@ func rendering() throws {
     check(density.map { abs($0 - 144) < 1 } == true, "a Retina PNG says 144 dpi, got \(String(describing: density))")
 }
 
+/// #1560: found text gets blur areas in one undo step, each still movable and deletable on its own.
+func covering() throws {
+    var document = AnnotationDocument(image: base(width: 128, height: 64, checker: 1), seed: 3)
+    document.pick(.arrow)
+    document.cover([])
+    check(document.marks.isEmpty && !document.canUndo && document.tool == .arrow, "nothing found changes nothing")
+    document.pick(blur: .blur)
+    document.cover([CGRect(x: 0, y: 0, width: 40, height: 40), CGRect(x: 70, y: 10, width: 80, height: 80),
+                    CGRect(x: 300, y: 0, width: 10, height: 10)])
+    check(document.marks.map(\.rect) == [CGRect(x: 0, y: 0, width: 40, height: 40), CGRect(x: 70, y: 10, width: 58, height: 54)],
+          "one blur area per rect inside the image, got \(document.marks.map(\.rect))")
+    check(document.marks.allSatisfy { $0.tool == .pixelate && $0.blurStyle == .blur }, "in the blur style in use")
+    check(document.tool == .select && document.selected == nil && document.isDirty, "Select is picked and it is unsaved work")
+    document.undo()
+    check(document.marks.isEmpty, "one undo removes every cover at once")
+    document.redo()
+    check(document.marks.count == 2, "and one redo brings them all back")
+
+    /// Side-by-side pixel pairs in the area that differ by less than a soft blur's edge.
+    func calm(_ pixels: Pixels, in rect: CGRect) -> Int {
+        pixels.count(in: rect) { abs(pixels[$0, $1].r - pixels[$0 + 1, $1].r) < 40 }
+    }
+    let first = CGRect(x: 4, y: 4, width: 30, height: 30), second = CGRect(x: 76, y: 16, width: 30, height: 30)
+    let both = Pixels(try AnnotationRenderer.image(document))
+    check(calm(both, in: first) > 900 * 9 / 10 && calm(both, in: second) > 900 * 9 / 10, "both areas render blurred")
+    tap(&document, at: p(20, 20))
+    document.deleteSelected()
+    let one = Pixels(try AnnotationRenderer.image(document))
+    check(document.marks.count == 1 && calm(one, in: first) == 0, "a deleted cover shows the text under it again")
+    check(calm(one, in: second) > 900 * 9 / 10, "and the other stays blurred")
+}
+
 @main
 enum ScreenshotsAnnotationTests {
     static func main() throws {
@@ -442,6 +474,7 @@ enum ScreenshotsAnnotationTests {
         keys()
         dirtiness()
         try rendering()
+        try covering()
         print("nc-Screenshots-annotation-test: ok")
     }
 }

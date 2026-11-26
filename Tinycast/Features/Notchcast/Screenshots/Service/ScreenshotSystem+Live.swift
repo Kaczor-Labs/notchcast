@@ -55,7 +55,11 @@ extension ScreenshotSystem {
                 frozen: frozen, windows: windows, stills: stills, completion: completion)
             return { surface.finish(nil) }
         },
-        edit: { image, scale, finish in CaptureEditorPanel.open(image, scale: scale, finish: finish) }
+        edit: { image, scale, find, finish in CaptureEditorPanel.open(image, scale: scale, find: find, finish: finish) },
+        findSensitiveText: { image, scale in
+            try await ScreenTextRecognizer.sensitiveTextCovers(
+                in: image, scale: scale, preferredLanguages: Locale.preferredLanguages)
+        }
     )
 
     private static var configuration: SCScreenshotConfiguration {

@@ -6,6 +6,7 @@
 // notchcast-sources: Tinycast/Features/Notchcast/Screenshots/Model/*.swift
 // notchcast-sources: Tinycast/Features/Notchcast/Screenshots/Service/ScreenshotSystem.swift
 // notchcast-sources: Tinycast/Features/Notchcast/Screenshots/Service/ScreenshotsModule.swift
+// notchcast-sources: Tinycast/Features/Notchcast/Screenshots/UI/CaptureEditorSession.swift
 // notchcast-sources: Tests/NotchcastDictationFixture.swift
 
 import CoreGraphics
@@ -70,6 +71,26 @@ final class EditorFake {
     var saveAsURL: URL?
     var questions: [String] = []
     var confirms = false
+    var session: CaptureEditorSession?
+    var sensitive: Result<[CGRect], any Error> = .success([])
+    var holdSearch = false
+    var searchGate: CheckedContinuation<Void, Never>?
+    var searchScales: [CGFloat] = []
+    var searchCancelled: [Bool] = []
+
+    func findSensitive(_ scale: CGFloat) async throws -> [CGRect] {
+        searchScales.append(scale)
+        signals.fire("search")
+        if holdSearch { await withCheckedContinuation { searchGate = $0 } }
+        searchCancelled.append(Task.isCancelled)
+        return try sensitive.get()
+    }
+
+    func releaseSearch() {
+        holdSearch = false
+        searchGate?.resume()
+        searchGate = nil
+    }
 
     func pick(_ request: ScreenshotRequest) {
         let answer = answer
@@ -111,17 +132,22 @@ extension ScreenshotSystem {
             fake.signals.fire("select")
             return { fake.answer = nil }
         },
-        edit: { image, scale, finish in
+        edit: { image, scale, find, finish in
             fake.edited.append(image)
             fake.scales.append(scale)
             fake.finish = finish
+            let session = CaptureEditorSession(image: image, scale: scale, find: find, finish: finish)
+            fake.session = session
             fake.signals.fire("edit")
             return {
+                session.end()
+                fake.session = nil
                 fake.closes += 1
                 fake.finish = nil
                 fake.signals.fire("close")
             }
-        }
+        },
+        findSensitiveText: { _, scale in try await fake.findSensitive(scale) }
     )
 }
 
@@ -175,6 +201,93 @@ func annotated(_ image: CGImage) -> AnnotationDocument {
     document.endDrag(at: CGPoint(x: 5, y: 2), isTap: true)
     document.editText("Hi")
     return document
+}
+
+struct ReaderFailed: Error {}
+
+/// #1560: the Cover Sensitive Text button, run through the session as the editor runs it.
+@MainActor
+func coverSensitiveText(_ controller: NotchcastController, _ presenter: FakePresenter) async {
+    let signals = fake.signals
+    for name in ["notice", "close", "clipboard"] { while signals.count(name) > 0 { await signals.wait(name) } }
+    precondition(controller.run(entryID: area))
+    await signals.wait("select")
+    fake.pick(.rect(CGRect(x: 10, y: 10, width: 60, height: 30)))
+    await signals.wait("edit")
+    var session = fake.session!
+    fake.sensitive = .success([CGRect(x: 10, y: 10, width: 40, height: 12), CGRect(x: 10, y: 30, width: 50, height: 12)])
+    session.coverSensitiveText()
+    let pressed = session.search
+    precondition(pressed != nil, "the button is busy while the search runs")
+    session.coverSensitiveText()
+    precondition(session.search == pressed, "a second press while busy starts nothing")
+    await pressed?.value
+    await signals.wait("search")
+    let covers = session.document.marks
+    precondition(covers.count == 2 && covers.allSatisfy { $0.tool == .pixelate } && session.search == nil,
+                 "a press covers each find with a blur area, got \(covers)")
+    precondition(fake.searchScales == [2] && session.document.tool == .select, "it searches at the capture's scale")
+    session.perform(.undo)
+    precondition(session.document.marks.isEmpty, "one undo takes every cover away")
+    session.perform(.redo)
+    session.document.beginDrag(at: CGPoint(x: 30, y: 16))
+    session.document.endDrag(at: CGPoint(x: 30, y: 16), isTap: true)
+    session.document.deleteSelected()
+    precondition(session.document.marks.map(\.rect) == [covers[1].rect], "one cover can be deleted on its own")
+    let posts = presenter.posts.count
+    session.perform(.copy)
+    await signals.wait("clipboard")
+    await signals.wait("close")
+    await signals.wait("notice")
+    precondition(presenter.posts.count == posts + 1 && presenter.posts.last?.text == "Copied",
+                 "exporting after a delete works as before")
+
+    precondition(controller.run(entryID: editLast))
+    await signals.wait("edit")
+    session = fake.session!
+    fake.sensitive = .success([])
+    session.coverSensitiveText()
+    await session.search?.value
+    await signals.wait("search")
+    await signals.wait("notice")
+    precondition(presenter.posts.last?.text == "No sensitive text found." && session.document.marks.isEmpty
+                 && !session.document.canUndo, "nothing found says so and adds nothing")
+    fake.sensitive = .failure(ReaderFailed())
+    session.coverSensitiveText()
+    await session.search?.value
+    await signals.wait("search")
+    await signals.wait("notice")
+    precondition(presenter.posts.last?.text == "Could not read text from the selection."
+                 && presenter.posts.last?.isFailure == true && fake.session === session && fake.finish != nil,
+                 "a failed read says so and the editor stays open")
+
+    fake.sensitive = .success([CGRect(x: 10, y: 10, width: 40, height: 12)])
+    fake.holdSearch = true
+    session.coverSensitiveText()
+    let stale = session.search
+    await signals.wait("search")
+    session.document.pick(.crop)
+    session.document.beginDrag(at: CGPoint(x: 0, y: 0))
+    session.document.continueDrag(to: CGPoint(x: 60, y: 30))
+    session.document.endDrag(at: CGPoint(x: 60, y: 30), isTap: false)
+    session.document.applyCrop()
+    precondition(session.document.imageSize.width < 120, "the image was cropped while it searched")
+    fake.releaseSearch()
+    await stale?.value
+    precondition(session.document.marks.isEmpty && session.search == nil, "a result for the uncropped image is dropped")
+
+    fake.holdSearch = true
+    session.coverSensitiveText()
+    let closed = session.search
+    await signals.wait("search")
+    let before = presenter.posts.count
+    fake.finish?(.discard)
+    await signals.wait("close")
+    precondition(session.search == nil, "closing the editor ends the search")
+    fake.releaseSearch()
+    await closed?.value
+    precondition(fake.searchCancelled.last == true && session.document.marks.isEmpty && presenter.posts.count == before,
+                 "the search was cancelled, and lands nothing and says nothing")
 }
 
 @main
@@ -315,6 +428,7 @@ enum ScreenshotsEditorTests {
         precondition(controller.run(entryID: editLast) && presenter.posts.last?.text == "No screenshot to edit yet.",
                      "and forgets the capture")
 
+        await coverSensitiveText(controller, presenter)
         controller.stop()
         print("nc-Screenshots-editor-test: ok")
     }

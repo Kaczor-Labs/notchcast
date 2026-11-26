@@ -25,7 +25,11 @@ struct ScreenshotSystem: Sendable {
     let select: @MainActor @Sendable (
         [ScreenshotFrozenDisplay], [ScreenshotWindow], Set<UInt32>, @escaping @MainActor (ScreenshotRequest?) -> Void
     ) -> @MainActor () -> Void
-    /// Opens the editor on a capture and its pixels per point; it answers per way out.
-    let edit: @MainActor @Sendable (CGImage, CGFloat, @escaping @MainActor (CaptureEditorOutcome) -> Void)
-        -> @MainActor () -> Void
+    /// Opens the editor on a capture, its pixels per point and its sensitive-text finder; it answers per way out.
+    let edit: @MainActor @Sendable (
+        CGImage, CGFloat, @escaping @MainActor (CGImage) async -> [CGRect],
+        @escaping @MainActor (CaptureEditorOutcome) -> Void
+    ) -> @MainActor () -> Void
+    /// Pixel rects over emails, card numbers, IP addresses, keys and tokens, origin top left; takes the scale.
+    let findSensitiveText: @Sendable (CGImage, CGFloat) async throws -> [CGRect]
 }

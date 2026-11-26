@@ -1,3 +1,7 @@
+// SPDX-License-Identifier: GPL-3.0-only
+// Copyright (C) 2026 sw33tLie
+// Substring boxes for sensitive text adapted from macshot 4d48901's VisionOCR.
+
 import CoreGraphics
 import CoreText
 import Foundation
@@ -44,13 +48,31 @@ enum ScreenTextRecognizer {
 
     @concurrent
     static func lines(in image: CGImage, preferredLanguages: [String]) async throws -> [ScreenTextLine] {
+        try await candidates(in: image, preferredLanguages: preferredLanguages).map(\.line)
+    }
+
+    /// Pixel rects over sensitive text, origin top left, each padded by `SensitiveText.padding` points.
+    @concurrent
+    static func sensitiveTextCovers(
+        in image: CGImage, scale: CGFloat, preferredLanguages: [String]
+    ) async throws -> [CGRect] {
+        let found = try await candidates(in: image, preferredLanguages: preferredLanguages)
+        return SensitiveText.covers(
+            of: found.map(\.line), imageSize: CGSize(width: image.width, height: image.height),
+            padding: SensitiveText.padding * scale
+        ) { line, range in found[line].text.boundingBox(for: range)?.boundingBox.cgRect }
+    }
+
+    private static func candidates(
+        in image: CGImage, preferredLanguages: [String]
+    ) async throws -> [(line: ScreenTextLine, text: RecognizedText)] {
         var request = RecognizeTextRequest()
         configure(&request, preferredLanguages: preferredLanguages, supported: request.supportedRecognitionLanguages)
         let observations = try await request.perform(on: image)
         try Task.checkCancellation()
         return observations.compactMap { observation in
             observation.topCandidates(1).first.map {
-                ScreenTextLine(text: $0.string, box: observation.boundingBox.cgRect)
+                (ScreenTextLine(text: $0.string, box: observation.boundingBox.cgRect), $0)
             }
         }
     }

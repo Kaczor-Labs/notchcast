@@ -387,3 +387,19 @@ struct AnnotationDocument: Sendable {
         return nextID
     }
 }
+
+extension AnnotationDocument {
+    /// One blur area per rect in the blur style in use, as one undo step; Select is picked to adjust them.
+    mutating func cover(_ rects: [CGRect]) {
+        let covers = rects.map { $0.intersection(bounds) }.filter { !$0.isNull && !$0.isEmpty }
+        guard !covers.isEmpty else { return }
+        pick(.select)
+        guard ensureBlurSample(blurStyle) else { return }
+        registerUndo()
+        for rect in covers {
+            marks.append(AnnotationMark(
+                id: takeID(), tool: .pixelate, rect: rect, color: color, stroke: stroke, blurStyle: blurStyle))
+        }
+        selectedID = nil
+    }
+}
