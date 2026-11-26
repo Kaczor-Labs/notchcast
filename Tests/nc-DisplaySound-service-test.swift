@@ -368,7 +368,7 @@ enum DisplaySoundServiceTests {
               "DDC retries at 2/5/15 s")
 
         let result = await controller.step(up: true, fine: false, for: id(5))
-        check(result == .applied(BrightnessLevel(0.625)), "1/16 step: \(result)")
+        check(result == .applied(BrightnessLevel(0.6875)), "1/16 step: \(result)")
         _ = await controller.set(-0.25, for: id(5))
         check(hw { $0.displays[5]?.gamma != baseline }, "dimmed")
         controller.stop()
@@ -417,7 +417,7 @@ enum DisplaySoundServiceTests {
         _ = await service.perform(.refresh(names: [:]))
         hw { $0.displays[13]?.ddcValue = 80 }
         let stepped = await service.perform(.step(up: true, fine: false, id(13)))
-        check(stepped?.displays.first?.level.value == 0.8125 && hw { $0.ddcWrites.last == 81 },
+        check(stepped?.displays.first?.level.value == 0.875 && hw { $0.ddcWrites.last == 88 },
               "finding 5: a step reads the monitor's physical-button change")
         hw { $0.displays[13]?.replies = false; $0.ddcWrites = [] }
         check(await service.perform(.step(up: true, fine: false, id(13))) == nil,
