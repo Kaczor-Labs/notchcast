@@ -24,6 +24,9 @@ CHANNELS = {"app.notchcast", "app.notchcast.dev"}
 SUFFIX_PREFIXES = ("app.notchcast.dev.", "app.notchcast.")
 # The executable is linked under PRODUCT_NAME; renaming its key would point Launch Services at nothing.
 KEPT_INFO_KEYS = {"CFBundleExecutable", "CFBundleIdentifier"}
+INFO_OVERRIDES = {
+    "NSBluetoothAlwaysUsageDescription": "Notchcast uses Bluetooth to show when accessories connect and display their battery levels.",
+}
 # Strings that keep the upstream name on purpose; anything else saying it fails the build.
 ALLOWLIST = {
     "Support Tinycast": "credit: the menu row opens upstream's sponsor page",
@@ -104,11 +107,12 @@ def patch_table(path, language, table_name, name):
     for key in list(table):
         if key not in ALLOWLIST and stale(table[key], name):
             table[key] = rename(table[key], name)
-    owned = sum(name in json.dumps(value) for key, value in table.items() if name not in key)
     if table_name == "InfoPlist":
         # Info.plist values are renamed below, and Launch Services looks a value up by its text.
         for key in [key for key in table if stale(key, name) and key not in ALLOWLIST]:
             table[rename(key, name)] = table[key]
+        table.update(INFO_OVERRIDES)
+    owned = sum(name in json.dumps(value) for key, value in table.items() if name not in key)
     save(path, table)
     return owned
 
@@ -119,11 +123,16 @@ def patch_info(path, name):
         if key not in ALLOWLIST and key not in KEPT_INFO_KEYS and stale(value, name):
             info[key] = rename(value, name)
     info["CFBundleDisplayName"] = name
+    info.update(INFO_OVERRIDES)
     save(path, info)
 
 
 def tables(app):
     return sorted((app / "Contents/Resources").glob("*.lproj/*.strings*"))
+
+
+def info_tables(app):
+    return [locale / "InfoPlist.strings" for locale in sorted((app / "Contents/Resources").glob("*.lproj"))]
 
 
 def built_name(app):
@@ -135,14 +144,17 @@ def leftovers(app, name):
     for path in [app / "Contents/Info.plist", *tables(app)]:
         if path.stem == FORK_TABLE:
             continue
+        kept = KEPT_INFO_KEYS | INFO_OVERRIDES.keys() if path.stem in {"Info", "InfoPlist"} else KEPT_INFO_KEYS
         for key, value in load(path).items():
-            if key not in ALLOWLIST and key not in KEPT_INFO_KEYS and stale(value, name):
+            if key not in ALLOWLIST and key not in kept and stale(value, name):
                 found.append(f"{path.relative_to(app)}: {key!r} does not say {name}")
     # A key-only string never reaches the table, so the app would show the key itself.
     for catalog in sorted(catalog_paths()):
         path = app / "Contents/Resources/en.lproj" / f"{catalog}.strings"
         shipped = load(path) if path.exists() else {}
         for key, value in source_values(catalog).items():
+            if catalog == "InfoPlist" and key in INFO_OVERRIDES:
+                continue
             if key not in ALLOWLIST and stale(value, name) and stale(shipped.get(key, value), name):
                 found.append(f"{path.relative_to(app)}: {key!r} does not say {name}")
     return found
@@ -178,6 +190,11 @@ def check(app):
         f"{line}. Its embed phase signs it before this one runs, so rename it in project.yml"
         for line in helper_leftovers(app)
     ]
+    for path in [app / "Contents/Info.plist", *info_tables(app)]:
+        info = load(path) if path.exists() else {}
+        for key, value in INFO_OVERRIDES.items():
+            if info.get(key) != value:
+                problems.append(f"{path.relative_to(app)} lacks the Notchcast override for {key}")
     witness = app / "Contents/Resources/en.lproj" / f"{WITNESS[0]}.strings"
     if not witness.exists() or load(witness).get(WITNESS[1]) != rename(WITNESS[2], name):
         problems.append(f"{witness.relative_to(app)} lacks {WITNESS[1]!r}: the rename phase did not run")
@@ -194,6 +211,9 @@ def build_phase():
         path = app / "Contents/Resources/en.lproj" / f"{catalog}.strings"
         if not path.exists() and any(stale(value, name) for value in source_values(catalog).values()):
             path.parent.mkdir(parents=True, exist_ok=True)
+            save(path, {})
+    for path in info_tables(app):
+        if not path.exists():
             save(path, {})
     for path in tables(app):
         language = path.parent.stem

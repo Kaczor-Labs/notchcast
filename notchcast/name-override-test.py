@@ -12,6 +12,9 @@ from pathlib import Path
 SOURCE = Path(__file__).with_name("name-override.py")
 DIALOG = "An app or web page asked Tinycast to run this. Allow only links you trust."
 RETRY = "Notchcast will try again."
+BLUETOOTH_KEY = "NSBluetoothAlwaysUsageDescription"
+BLUETOOTH_PURPOSE = "Notchcast uses Bluetooth to show when accessories connect and display their battery levels."
+OLD_BLUETOOTH_PURPOSE = "Tinycast uses Bluetooth access only when you run the Toggle Bluetooth action."
 CHANNELS = [
     ("Notchcast", "app.notchcast", "Notchcast"),
     ("Notchcast Dev", "app.notchcast.dev", "Notchcast Dev"),
@@ -66,12 +69,18 @@ with tempfile.TemporaryDirectory() as temp:
     resources = app / "Contents/Resources"
     write(app / "Contents/Info.plist", {
         "NSCameraUsageDescription": "Tinycast shows a camera preview.",
+        BLUETOOTH_KEY: OLD_BLUETOOTH_PURPOSE,
         "NSHumanReadableCopyright": "Tinycast",
         "TinycastURLScheme": "notchcast",
     })
     write(resources / "en.lproj/Localizable.strings", {"Support Tinycast": "Support Tinycast"})
     write(resources / "de.lproj/Localizable.strings", {"About Tinycast": "Über Tinycast"})
-    write(resources / "en.lproj/InfoPlist.strings", {"NSCameraUsageDescription": "Tinycast shows a camera preview."})
+    write(resources / "en.lproj/InfoPlist.strings", {
+        "NSCameraUsageDescription": "Tinycast shows a camera preview.",
+        BLUETOOTH_KEY: OLD_BLUETOOTH_PURPOSE,
+    })
+    write(resources / "de.lproj/InfoPlist.strings", {BLUETOOTH_KEY: "Tinycast nutzt Bluetooth nur zum Umschalten."})
+    write(resources / "fr.lproj/Localizable.strings", {"About Tinycast": "À propos de Tinycast"})
 
     unpatched = run("--verify", str(app))
     assert unpatched.returncode == 1 and "did not run" in unpatched.stderr, unpatched.stderr
@@ -83,6 +92,9 @@ with tempfile.TemporaryDirectory() as temp:
 
     info = read(app / "Contents/Info.plist")
     assert info["NSCameraUsageDescription"] == "Notchcast shows a camera preview.", info
+    assert info[BLUETOOTH_KEY] == BLUETOOTH_PURPOSE, info
+    for language in ("en", "de", "fr"):
+        assert read(resources / f"{language}.lproj/InfoPlist.strings")[BLUETOOTH_KEY] == BLUETOOTH_PURPOSE, language
     assert info["NSHumanReadableCopyright"] == "Notchcast", info
     assert info["TinycastURLScheme"] == "notchcast", "keys must keep their upstream spelling"
     english = read(resources / "en.lproj/Localizable.strings")
@@ -93,6 +105,12 @@ with tempfile.TemporaryDirectory() as temp:
 
     rerun = run(env=env)
     assert rerun.stdout == phase.stdout, "a rerun must count the same entries"
+
+    translated = resources / "de.lproj/InfoPlist.strings"
+    write(translated, {BLUETOOTH_KEY: OLD_BLUETOOTH_PURPOSE.replace("Tinycast", "Notchcast")})
+    stale_purpose = run("--verify", str(app))
+    assert stale_purpose.returncode == 1 and BLUETOOTH_KEY in stale_purpose.stderr, stale_purpose.stderr
+    assert run(env=env).returncode == 0
 
     def embed(name):
         helper = app / f"Contents/Helpers/{name}.app"
@@ -140,6 +158,7 @@ with tempfile.TemporaryDirectory() as temp:
 
         info = read(app / "Contents/Info.plist")
         assert info["CFBundleDisplayName"] == expected, f"{bundle_id}: {info}"
+        assert info[BLUETOOTH_KEY] == BLUETOOTH_PURPOSE, f"{bundle_id}: {info}"
         assert info["CFBundleExecutable"] == product, f"{bundle_id}: the executable must not follow the name"
         table = read(english / "Localizable.strings")
         assert table[DIALOG] == DIALOG.replace("Tinycast", expected), f"{bundle_id}: {table.get(DIALOG)}"
