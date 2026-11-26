@@ -161,19 +161,12 @@ Each item is explained in [testing.md](docs/testing.md#definition-of-done).
 
 ### How a change lands
 
-- A PR into `main` opens as a draft and stays one: its builder never runs `gh pr ready` and never merges. A Claude Code session here is refused `gh pr create` without `--draft`.
-- The lead (Keeper) lands it: after review and the hand test it labels the PR `land`, then a train (`notchcast/train.sh <prs>`, then the `land.sh --train-run` line it prints) or the landing queue (`train.sh --queue`) squash-merges it onto `main`. `notchcast/land.sh <pr>` alone refuses a draft. Never `gh pr merge` or the web button.
-- `land.sh` closes a landed PR with the comment `Landed on main as <commit> by notchcast/land.sh`.
-- At most 25 PRs stay open at once, #1082 not counted; new work starts again once 20 or fewer are open.
+- `notchcast/README.md`, "Conflict-free PRs" (landing with `land.sh`, trains and the landing queue) and "Secrets and checks" (PRs open as drafts).
 
 ### How it is released or deployed, and who says yes
 
-- No one releases by hand. A green `main` becomes a signed pre-release snapshot (`<upstream-version>.snapshot.<revision>`) after the 50-minute gate in `snapshot.yml`; a dispatch with `skip_gate=true` skips only that gate. An upstream release from the baseline tag on, whose tagged commit passed the upstream review, is rebuilt with our commits and published under its own tag.
-- No one says yes before a public snapshot: a green `main` ships by itself. This is the owner's decision.
-- A Mac with `notchcast.update` loaded installs the newest snapshot within 30 minutes unless automatic updates are off; `notchcast/update.sh --install` installs it at once.
+- `notchcast/README.md`, "Snapshot releases" and "Sync". No one says yes before a public snapshot: a green `main` ships by itself (the owner's decision).
 
 ### How it is proven live
 
-- Before landing: `gh workflow run test-build.yml --ref main -f pr=<n>` builds the PR head, and a tester in a throwaway macOS guest uses it like a user (every toggle, shortcut and error path), with a recording or screenshots on the PR and one line on how the owner tests it. A feature not tested this way is not offered.
-- After landing, the main snapshot gets a hand test only for what a PR build cannot show (auto-update, launchd install).
-- What a guest cannot show (the notch form, Touch ID, real devices) goes on the PR as one line: "Owner: do X, expect Y".
+- `notchcast/README.md`, "Installing on a Mac" (test builds of a PR head) and "Hosted tester". Anything more: not set, the owner decides.
