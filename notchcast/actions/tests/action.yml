@@ -11,13 +11,13 @@ inputs:
     description: '"<index> <count>": run only this share of the harnesses. Default, all of them.'
     default: ''
   cache:
-    description: Names this job's cache of compiled harnesses; every job also falls back to main's "all". Empty, no cache.
+    description: Names this job's cache of compiled harnesses; every job also falls back to main's "all". Empty, or on a self-hosted runner, no cache: hosted jobs run what a cache holds.
     default: all
 runs:
   using: composite
   steps:
     - uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
-      if: inputs.cache != ''
+      if: inputs.cache != '' && runner.environment == 'github-hosted'
       with:
         path: ${{ runner.temp }}/swiftc-cache
         key: harness-bin-${{ inputs.cache }}-${{ github.run_id }}-${{ github.run_attempt }}
@@ -30,7 +30,7 @@ runs:
         UPSTREAM: ${{ inputs.upstream }}
         NOTCHCAST_ONLY_TESTS: ${{ inputs.only }}
         NOTCHCAST_SHARD: ${{ inputs.shard }}
-        NOTCHCAST_SWIFTC_CACHE: ${{ inputs.cache != '' && format('{0}/swiftc-cache', runner.temp) || '' }}
+        NOTCHCAST_SWIFTC_CACHE: ${{ inputs.cache != '' && runner.environment == 'github-hosted' && format('{0}/swiftc-cache', runner.temp) || '' }}
         LIBDISPATCH_COOPERATIVE_POOL_STRICT: '1'
         NOTCHCAST_TEST_HELPER_EXECUTABLE: '1'
       run: bash "$GITHUB_ACTION_PATH/../../ci-tests.sh"
@@ -44,7 +44,7 @@ runs:
         done
     - name: Compiled harness cache
       id: compiled
-      if: ${{ !cancelled() && inputs.cache != '' }}
+      if: ${{ !cancelled() && inputs.cache != '' && runner.environment == 'github-hosted' }}
       shell: bash
       env:
         NOTCHCAST_SWIFTC_CACHE: ${{ runner.temp }}/swiftc-cache

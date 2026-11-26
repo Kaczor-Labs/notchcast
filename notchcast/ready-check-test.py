@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 """Verify ready-check.sh covers every pr.yml step and reports PASS or the first failing gate."""
 import hashlib
+import itertools
+import json
 import os
 from pathlib import Path
 import re
@@ -179,9 +181,9 @@ class SelectionTest(unittest.TestCase):
 # The one way to a self-hosted Mac (README Runners): a dispatch, which no fork can start; unset, it is xcode-27.
 GATED_MAC = ("${{ github.event_name == 'workflow_dispatch' && !inputs.hosted && vars.NOTCHCAST_MAC_RUNNER "
              "|| 'xcode-27' }}")
-# pr.yml's mac job also takes the runner label a dispatch names for a harness-only run (README Runners).
-HARNESS_MAC = ("${{ github.event_name == 'workflow_dispatch' && (inputs.harness_runner || !inputs.hosted "
-               "&& vars.NOTCHCAST_MAC_RUNNER) || 'xcode-27' }}")
+# pr.yml's mac job also takes the runner label a dispatch names for a harness-only run, or the pool runner (README Runners).
+HARNESS_MAC = ("${{ github.event_name == 'workflow_dispatch' && (inputs.harness_runner || inputs.pool "
+               "&& (vars.NOTCHCAST_POOL_RUNNER || 'mac-pool') || !inputs.hosted && vars.NOTCHCAST_MAC_RUNNER) || 'xcode-27' }}")
 POOL_MAC = ("${{ needs.mac-route.result == 'success' && needs.mac-route.outputs.mac-runner == 'notchcast-mbp' "
             "&& 'notchcast-mbp' || 'xcode-27' }}")
 HARNESS_ONLY, FULL_RUN = "inputs.harness_runner != ''", "inputs.harness_runner == ''"
@@ -287,19 +289,48 @@ class RunnerTest(unittest.TestCase):
                       '[ "$(sysctl -n kern.hv_vmm_present 2>/dev/null)" = 1 ] && exit 0\n'
                       '  echo "::error::App proof runs only in a guest or GitHub-hosted CI."\n  exit 1', first)
 
+    def test_snapshot_skips_its_harnesses_only_after_a_hosted_proof_of_the_whole_suite(self):
+        found = {signature(text): text for job, text in steps(ROOT / ".github/workflows/snapshot.yml", 6) if job == "build"}
+        self.assertEqual(field(found["./tools/notchcast/actions/tests"], "if"), "steps.tested.outputs.green != 'true'")
+        script = dedent(found["Find a green tested status"].split("\nrun: |\n", 1)[1])
+        sync, reused = "Debug build and upstream tests green", "Tree built and tested green by a PR build"
+        pool = f"{sync} on the pool, hosted-only harnesses skipped"
+        for state, description, green in (("success", sync, True), ("success", reused, True), ("success", pool, False),
+                                          ("success", "", False), ("failure", sync, False), (None, "", False)):
+            with self.subTest(state=state, description=description), tempfile.TemporaryDirectory() as tmp:
+                root = Path(tmp)
+                (root / "tools/notchcast").mkdir(parents=True)
+                shutil.copyfile(ROOT / "notchcast/config.env", root / "tools/notchcast/config.env")
+                status = {"context": config()["TESTED_CONTEXT"], "state": state, "description": description}
+                (root / "status.json").write_text(json.dumps({"statuses": [status] if state else []}))
+                (root / "gh").write_text('#!/bin/bash\njq -r "${*: -1}" status.json\n')
+                (root / "gh").chmod(0o755)
+                subprocess.run(["bash", "-e", "-c", script], cwd=root, check=True, timeout=10, env=fixture_env({
+                    "PATH": f"{root}{os.pathsep}{os.environ['PATH']}", "GITHUB_OUTPUT": str(root / "output"),
+                    "GITHUB_REPOSITORY": "fixture/repo", "MAIN": "0" * 40}))
+                self.assertEqual((root / "output").read_text(), f"green={str(green).lower()}\n")
+        self.assertIn(f'-f description="{sync}"', (ROOT / ".github/workflows/sync.yml").read_text())
+        self.assertIn(f'"description={reused}"', (ROOT / "notchcast/ci.py").read_text())
+
     def test_a_working_mac_proves_no_tree_and_an_isolated_one_records_under_its_own_name(self):
         found = {(job, signature(text)): text for job, text in steps(WORKFLOW, 6)}
         proves = ("needs.route.outputs.build == 'true' && needs.mac.outputs.kind != 'working'"
                   " && needs.route.outputs.harness-only == ''")
         for step in ("Record the tested tree", "actions/upload-artifact"):
             self.assertEqual(field(found["build", step], "if"), proves, step)
+        # land.sh asks a train's run for that step by name: a run that recorded a tree lands only on its record.
+        self.assertIn('select(.name == "build") | .steps[] | select(.name == "Record the tested tree")',
+                      (ROOT / "notchcast/land.sh").read_text())
         text = WORKFLOW.read_text()
         self.assertIn("      kind: ${{ steps.runner.outputs.kind }}\n", text)
-        self.assertIn("name: tested-tree-${{ needs.mac.outputs.kind == 'isolated' && 'isolated-' || '' }}${{ steps.tree.outputs.key }}\n", text)
+        self.assertIn("name: tested-tree-${{ (needs.mac.outputs.kind == 'isolated' || needs.mac.outputs.kind == 'pool') "
+                      "&& 'isolated-' || '' }}${{ steps.tree.outputs.key }}\n", text)
         self.assertEqual(env(found["mac", "Runner kind"]), {"HOSTED": "${{ runner.environment == 'github-hosted' }}",
-                                                            "HARNESS_ONLY": "${{ inputs.harness_runner != '' }}"})
+                                                            "HARNESS_ONLY": "${{ inputs.harness_runner != '' }}",
+                                                            "POOL": "${{ inputs.pool == true }}"})
         self.assertIn('if [ "$HOSTED" = true ]; then kind=hosted; elif [ "${NOTCHCAST_ISOLATED_RUNNER:-}" = 1 ]; then kind=isolated; fi',
                       found["mac", "Runner kind"])
+        self.assertIn('if [ "$kind" = working ] && [ "$POOL" = true ]; then kind=pool; fi', found["mac", "Runner kind"])
         self.assertEqual(field(found["mac", "Script tests that need macOS"], "if"), "steps.runner.outputs.kind != 'working'")
         self.assertEqual(field(found["build", "A train's Mac job proves its tree"], "if"),
                          "startsWith(github.ref, 'refs/heads/train/') && needs.mac.outputs.kind == 'working'")
@@ -314,17 +345,20 @@ class RunnerTest(unittest.TestCase):
             return eval(re.sub(r"\b(?:github|inputs|vars)\.(\w+)", r"v['\1']", code), {"v": values})
         for event in ("pull_request", "pull_request_target", "push", "workflow_dispatch"):
             for label in HARNESS_RUNNERS:
-                for hosted in (False, True):
-                    for variable in ("", "notchcast-mbp"):
-                        values = {"event_name": event, "harness_runner": label, "hosted": hosted, "NOTCHCAST_MAC_RUNNER": variable}
-                        runner = runs_on(HARNESS_MAC, **values)
-                        with self.subTest(values):
-                            if event != "workflow_dispatch":
-                                self.assertEqual(runner, "xcode-27")
-                            elif label:
-                                self.assertEqual(runner, label)
-                            else:
-                                self.assertEqual(runner, runs_on(GATED_MAC, **values), "an empty input changes nothing")
+                for hosted, pool, variable, pool_variable in itertools.product(
+                        (False, True), (False, True), ("", "notchcast-mbp"), ("", "notchcast-mbp")):
+                    values = {"event_name": event, "harness_runner": label, "hosted": hosted, "pool": pool,
+                              "NOTCHCAST_MAC_RUNNER": variable, "NOTCHCAST_POOL_RUNNER": pool_variable}
+                    runner = runs_on(HARNESS_MAC, **values)
+                    with self.subTest(values):
+                        if event != "workflow_dispatch":
+                            self.assertEqual(runner, "xcode-27")
+                        elif label:
+                            self.assertEqual(runner, label)
+                        elif pool:
+                            self.assertEqual(runner, pool_variable or "mac-pool")
+                        else:
+                            self.assertEqual(runner, runs_on(GATED_MAC, **values), "an empty input changes nothing")
 
     def test_draft_prs_build_and_ready_status_does_not_restart_ci(self):
         text = WORKFLOW.read_text()
@@ -351,12 +385,18 @@ class RunnerTest(unittest.TestCase):
         self.assertIn('if [ "$HARNESS_ONLY" = true ]; then kind=working;', kind)
         self.assertLess(kind.index("then kind=working;"), kind.index('echo "kind=$kind"'))
         self.assertEqual(field(found["mac", "What the isolated runner proved"], "if"),
-                         "steps.runner.outputs.kind == 'isolated' && needs.route.outputs.build == 'true'")
+                         "(steps.runner.outputs.kind == 'isolated' || steps.runner.outputs.kind == 'pool')"
+                         " && needs.route.outputs.build == 'true'")
         tests = found["mac", "./tools/notchcast/actions/tests"]
         self.assertEqual(field(tests, "if"), f"needs.route.outputs.build == 'true' || {HARNESS_ONLY}")
         self.assertIn("cache: ${{ inputs.harness_runner == '' && (needs.route.outputs.harness-only == '' && 'pr-0of1' || 'pr-select') || '' }}", tests)
-        self.assertEqual((ROOT / "notchcast/actions/tests/action.yml").read_text().count("inputs.cache != ''"), 3,
-                         "no cache: the restore, the cache folder and the finish step")
+        # Hosted jobs run what a cache holds, so a self-hosted job, the pool's too, never restores or saves one.
+        action = {signature(step): step for _, step in steps(ROOT / "notchcast/actions/tests/action.yml", 4)}
+        cached = "inputs.cache != '' && runner.environment == 'github-hosted'"
+        self.assertEqual("\n".join(action.values()).count(cached), 3, "no cache: the restore, the cache folder and the finish step")
+        self.assertEqual(field(action["actions/cache/save"], "if"),
+                         "${{ !cancelled() && steps.compiled.outputs.stored != '0' && steps.compiled.outputs.stored != '' }}")
+        self.assertEqual(field(action["Compiled harness cache"], "if"), f"${{{{ !cancelled() && {cached} }}}}")
         # No other job runs, the build check least of all: land.sh reads it, and train.sh a train run's conclusion.
         for job, lane in (("linux-checks", "build"), ("script-tests", "scripts"), ("linux-harnesses", "build")):
             self.assertIn(f"  {job}:\n    needs: route\n    if: needs.route.outputs.{lane} == 'true' && {FULL_RUN}\n", text)

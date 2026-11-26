@@ -155,13 +155,26 @@ notify() {
 workflows='pr.yml proof.yml design.yml leaks.yml'
 # The ones with a Mac job, which take the train's lane as their hosted input (ready-check-test.py: GATED_JOBS).
 mac_workflows='pr.yml proof.yml'
-# A train's Mac jobs run on the isolated runner while NOTCHCAST_MAC_RUNNER names one (README, Runners), else hosted.
+# Labels of every online runner the repository's jobs can reach, its own and the organization's.
+online_labels() {
+    gh api "repos/$FORK_REPO/actions/runners" --jq '.runners[] | select(.status == "online") | .labels[].name' 2>/dev/null || true
+    gh api "orgs/${FORK_REPO%%/*}/actions/runners" --jq '.runners[] | select(.status == "online") | .labels[].name' 2>/dev/null || true
+}
+# A train's Mac jobs run on the isolated runner while NOTCHCAST_MAC_RUNNER names one, else PR's on the pool runner
+# NOTCHCAST_POOL_RUNNER names (mac-pool unset) while one is online, else hosted (README, Runners).
 mac=hosted
-label=$(gh variable get NOTCHCAST_MAC_RUNNER -R "$FORK_REPO" 2>/dev/null || true)
-if [ "${NOTCHCAST_TRAIN_MAC:-}" != hosted ] && [ -n "$label" ]; then
-    # A job for a label with no runner online stays queued for good, so such a train goes hosted.
-    online=$(gh api "repos/$FORK_REPO/actions/runners" --jq '.runners[] | select(.status == "online") | .labels[].name' 2>/dev/null || true)
-    if grep -qxF "$label" <<< "$online"; then mac=isolated; else echo "train: no runner labelled $label is online, so the Mac jobs are hosted"; fi
+if [ "${NOTCHCAST_TRAIN_MAC:-}" != hosted ]; then
+    online=$(online_labels)
+    label=$(gh variable get NOTCHCAST_MAC_RUNNER -R "$FORK_REPO" 2>/dev/null || true)
+    pool_label=$(gh variable get NOTCHCAST_POOL_RUNNER -R "$FORK_REPO" 2>/dev/null || true)
+    pool_label=${pool_label:-mac-pool}
+    # A job for a label with no runner online stays queued for good, so such a train goes elsewhere.
+    if [ -n "$label" ]; then
+        if grep -qxF "$label" <<< "$online"; then mac=isolated; else echo "train: no runner labelled $label is online"; fi
+    fi
+    if [ "$mac" = hosted ]; then
+        if grep -qxF "$pool_label" <<< "$online"; then mac=pool; else echo "train: no runner labelled $pool_label is online, so the Mac jobs are hosted"; fi
+    fi
 fi
 # HOSTED_ONLY_TESTS of the tree in the current directory, every line that sets it.
 hosted_only_list() { sed -n 's/^HOSTED_ONLY_TESTS="\(.*\)"$/\1/p' notchcast/config.env | paste -sd' ' -; }
@@ -184,23 +197,25 @@ preflight() {
     runner=$mac
     if ! (while read -r pr commit; do bash notchcast/changed-harnesses.sh "$commit^1" "$commit" > "$scratch/selected-$pr" || exit 1; done) < "$scratch/merges"; then
         cd "$top"
-        [ "$mac" = isolated ] || return 0
+        [ "$mac" != hosted ] || return 0
         runner=hosted
-        echo "train: changed-harnesses.sh failed, so no selection says the isolated runner may prove it, and its Mac jobs are hosted"
+        echo "train: changed-harnesses.sh failed, so no selection says the $mac runner may prove it, and its Mac jobs are hosted"
         return 0
     fi
     while read -r pr commit; do cat "$scratch/selected-$pr"; done < "$scratch/merges" > "$scratch/selected"
     cd "$top"
-    [ "$mac" = isolated ] || return 0
+    [ "$mac" != hosted ] || return 0
     if [ -s "$scratch/hosted-prs" ] && cut -d' ' -f1 "$scratch/merges" | grep -qxF -f "$scratch/hosted-prs"; then
         runner=hosted
-        echo "train: land.sh refused a PR of it for good on the isolated runner at its head, so its Mac jobs are hosted"
+        echo "train: land.sh refused a PR of it for good on the $mac runner at its head, so its Mac jobs are hosted"
         return 0
     fi
     hosted_only=$(listed_in "$hosted_list" "$scratch/selected")
-    [ -n "$hosted_only" ] || return 0
-    runner=hosted
-    echo "train: it selects hosted-only harnesses ($hosted_only), which land.sh trusts only from a hosted run, so its Mac jobs are hosted"
+    if [ -n "$hosted_only" ]; then
+        runner=hosted
+        echo "train: it selects hosted-only harnesses ($hosted_only), which land.sh trusts only from a hosted run, so its Mac jobs are hosted"
+        return 0
+    fi
 }
 # Pushes $sha as new branch $branch and dispatches its workflows against base $1.
 start_train() {
@@ -211,7 +226,9 @@ start_train() {
     for file in $workflows; do
         if [ "$file" = design.yml ]; then
             gh workflow run "$file" -R "$FORK_REPO" --ref "$branch" >&2
-        elif [ "$runner" = hosted ] && [[ " $mac_workflows " == *" $file "* ]]; then
+        elif [ "$runner" = pool ] && [ "$file" = pr.yml ]; then
+            gh workflow run "$file" -R "$FORK_REPO" --ref "$branch" -f "base=$base" -f pool=true >&2
+        elif [ "$runner" != isolated ] && [[ " $mac_workflows " == *" $file "* ]]; then
             gh workflow run "$file" -R "$FORK_REPO" --ref "$branch" -f "base=$base" -f hosted=true >&2
         else
             gh workflow run "$file" -R "$FORK_REPO" --ref "$branch" -f "base=$base" >&2
@@ -305,7 +322,7 @@ pick_batch() {
         done | sort > "$scratch/signed" || return 1
     still_refused
     [ ! -s "$scratch/hosted-prs" ] \
-        || echo "queue: #$(paste -sd' ' "$scratch/hosted-prs" | sed 's/ / #/g') train hosted: land.sh refused them for good on the isolated runner at these heads" >&2
+        || echo "queue: #$(paste -sd' ' "$scratch/hosted-prs" | sed 's/ / #/g') train hosted: land.sh refused them for good on a self-hosted runner at these heads" >&2
     if [ -s "$scratch/refused-prs" ]; then
         echo "queue: #$(paste -sd' ' "$scratch/refused-prs" | sed 's/ / #/g') left out: land.sh refused them for good at these heads" >&2
         awk 'NR == FNR { out[$1]; next } !($2 in out)' "$scratch/refused-prs" "$scratch/signed" > "$scratch/kept"
@@ -322,14 +339,15 @@ pick_batch() {
     awk -v cutoff="$(jq -rn --argjson at "$((now - LAND_SETTLE_SECONDS))" '$at | todate')" '$1 <= cutoff' "$scratch/signed" \
         | cut -d' ' -f2 | paste -sd' ' -
 }
-# Lines "<runner> <config> <pr>@<head>...": batches land.sh refused for good (exit 3) at those heads on a train whose
-# Mac jobs ran on <runner>, under config.env blob <config>. Both such refusals judge an isolated runner's record, so a
-# hosted train is the run that can change the verdict: the queue trains a batch refused on the isolated runner hosted,
-# and leaves one refused on a hosted train out. Kept beside the detached train logs, so every tick's tree sees it.
+# Lines "<runner> <config> <pr>@<head>...": batches land.sh refused for good (exit 3), or whose train's record it could
+# not read (exit 5), at those heads on a train whose Mac jobs ran on <runner>, under config.env blob <config>. Each
+# judges, or misses, a self-hosted runner's record, so a hosted train is the run that can change the verdict: the queue
+# trains a batch refused on a self-hosted runner hosted, and leaves one refused on a hosted train out, so no batch is
+# trained over and over. Kept beside the detached train logs, so every tick's tree sees it.
 refused_file="$(cd "$(git rev-parse --git-common-dir)" && pwd)/notchcast-refused"
 config_key=$(git hash-object notchcast/config.env)
 # Forgets each refusal under another config or with a head that moved (open PRs in $scratch/heads), and writes the
-# PRs of the rest to $scratch/hosted-prs (refused on the isolated runner) or $scratch/refused-prs (refused hosted).
+# PRs of the rest to $scratch/hosted-prs (refused on a self-hosted runner) or $scratch/refused-prs (refused hosted).
 still_refused() {
     local runner key heads
     : > "$scratch/refusals"
@@ -348,22 +366,24 @@ still_refused() {
     done < "$refused_file"
     cat "$scratch/refusals" > "$refused_file"
 }
-# Batch $1 of train branch $2, its Mac jobs on runner $3, refused for good by the land.sh output in $scratch/landing:
-# recorded at its heads, and told once, on each PR and to notchcast_notify.
+# Batch $1 of train branch $2, its Mac jobs on runner $3, refused by the land.sh output in $scratch/landing with exit
+# $4: recorded at its heads and told once to notchcast_notify; one refused for good (3), on each PR too. An unread
+# record (5) says nothing about a PR, so it gets no comment.
 refused_for_good() {
-    local pr record='' reason next
+    local pr record='' reason next good=' for good' label='REFUSED FOR GOOD'
+    [ "$4" -eq 3 ] || { good=; label='RECORD UNREAD'; }
     reason=$(sed -n 's/^REFUSED: //p' "$scratch/landing" | tail -1)
     for pr in $1; do record="$record${record:+ }$pr@$(< "$scratch/head-$pr")"; done
     echo "$3 $config_key $record" >> "$refused_file"
     next='the queue leaves these PRs out until one has a new head or config.env changes'
     [ "$3" = hosted ] || next='the queue trains these PRs hosted next, the run that can change that verdict'
-    echo "REFUSED FOR GOOD #$1: its train branch $2 stays; $next"
-    for pr in $1; do
+    echo "$label #$1: its train branch $2 stays; $next"
+    [ -z "$good" ] || for pr in $1; do
         gh pr comment "$pr" -R "$FORK_REPO" >/dev/null \
             --body "Refused for good at its head $(< "$scratch/head-$pr"): land.sh refused the green train $2 (#${1// / #}) on the $3 runner: $reason. Next, $next." \
             || echo "WARN: could not comment on #$pr" >&2
     done
-    notify "land.sh refused the green train $2 (#${1// / #}) for good on the $3 runner: $reason; $next"
+    notify "land.sh refused the green train $2 (#${1// / #})$good on the $3 runner: $reason; $next"
 }
 # The one place a batch lands. A batch whose union needs no Mac (#1033's linux-ok) plugs its Linux landing in here.
 land_batch() { bash notchcast/land.sh --train-run "$@"; }
@@ -488,9 +508,9 @@ while [ ${#queue[@]} -gt 0 ]; do
                 echo "LANDED #$landed"
                 rest=$(tr ' ' '\n' <<< "$train" | grep -vxF "$landed" | paste -sd' ' - || true)
                 [ -z "$held" ] || echo "HELD #${rest// / #}: landing is held for #$held, so land.sh landed only it; the queue takes the rest again"
-            elif [ "$landing" -eq 3 ]; then
+            elif [ "$landing" -eq 3 ] || [ "$landing" -eq 5 ]; then
                 status=1
-                refused_for_good "$train" "$branch" "$runner"
+                refused_for_good "$train" "$branch" "$runner" "$landing"
             else
                 status=1
                 echo "NOT LANDED #$train: land.sh refused above; its train branch $branch stays"

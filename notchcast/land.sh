@@ -428,23 +428,35 @@ run_harnesses() {
     done
     [ "$status" -eq 0 ] || [ -n "$failed" ] || refuse 'the harness run failed without naming a harness'
 }
-# Exit 3: no isolated run of these heads can change the verdict, so train.sh --queue trains them hosted next.
+# Exit 3: no self-hosted run of these heads can change the verdict, so train.sh --queue trains them hosted next.
 refuse_for_good() { echo "REFUSED: $*" >&2; exit 3; }
-# Sets proof, and left to the selected harnesses it excused, from the isolated runner's build of this tree if there
-# is one. Refuses a toolchain other than ISOLATED_TOOLCHAIN, and an excused harness that only a hosted run proves.
+# Sets proof, and left to the selected harnesses it excused, from a self-hosted (isolated or pool) build of this tree
+# if there is one. Refuses a toolchain other than ISOLATED_TOOLCHAIN, and an excused harness only a hosted run proves.
 isolated_proof() {
     local found url stamp excused need
-    found=$(python3 "$(dirname "$selector")/ci.py" isolated-proof HEAD) || found=
+    found=$(python3 "$(dirname "$selector")/ci.py" isolated-proof HEAD $train_run) || found=
     [ -n "$found" ] || return 0
     { read -r url; read -r stamp; read -r excused || true; } <<< "$found"
     [ "$stamp" = "$ISOLATED_TOOLCHAIN" ] \
-        || refuse_for_good "the isolated run $url tested this tree with '$stamp', and landing expects '$ISOLATED_TOOLCHAIN' (ISOLATED_TOOLCHAIN, notchcast/config.env): land on a hosted train (NOTCHCAST_TRAIN_MAC=hosted notchcast/train.sh ${train[*]})"
+        || refuse_for_good "the self-hosted run $url tested this tree with '$stamp', and landing expects '$ISOLATED_TOOLCHAIN' (ISOLATED_TOOLCHAIN, notchcast/config.env): land on a hosted train (NOTCHCAST_TRAIN_MAC=hosted notchcast/train.sh ${train[*]})"
     left=$(grep -xF -f <(tr ' ' '\n' <<< "$excused") "$scratch/selected" || true)
     need=$(grep -xF -f <(tr ' ' '\n' <<< "$HOSTED_ONLY_TESTS") <<< "$left" | grep -vxF -f <(tr ' ' '\n' <<< "$CI_SKIP_TESTS") | paste -sd' ' - || true)
     [ -z "$need" ] \
-        || refuse_for_good "the isolated run $url did not prove $need (red there and on upstream), and only a hosted run can: NOTCHCAST_TRAIN_MAC=hosted notchcast/train.sh ${train[*]}"
+        || refuse_for_good "the self-hosted run $url did not prove $need (red there and on upstream), and only a hosted run can: NOTCHCAST_TRAIN_MAC=hosted notchcast/train.sh ${train[*]}"
     proof=$url
     isolated=1
+}
+# Prints skipped when no green PR run of the train recorded a tested tree (pr.yml, build: its build lane was off).
+train_record() {
+    local id ids steps=
+    ids=$(gh api "repos/$FORK_REPO/actions/runs?head_sha=$train_run&per_page=100" \
+        --jq '.workflow_runs[] | select(.path == ".github/workflows/pr.yml" and .conclusion == "success") | .id') || return 0
+    [ -n "$ids" ] || return 0
+    for id in $ids; do
+        steps+=$(gh api "repos/$FORK_REPO/actions/runs/$id/jobs?per_page=100" \
+            --jq '[.jobs[] | select(.name == "build") | .steps[] | select(.name == "Record the tested tree") | .conclusion] | if . == ["skipped"] then "" else "recorded" end') || return 0
+    done
+    [ -n "$steps" ] || echo skipped
 }
 refuse_unprovable() {
     local blocked=$1 base_lists=$2 merged_lists=$3 pr selected detail= index commit added
@@ -472,7 +484,7 @@ refuse_unprovable() {
 # Not covered without an Xcode build of this tree: code no selected harness compiles (UI, AppCore wiring,
 # resources); the PR build covered each head alone, and Sync and Snapshot follow on main.
 harnesses() {
-    local pr commit proof= names why tested= unproven= skipped isolated= left= unprovable merged_lists
+    local pr commit proof= names why tested= unproven= skipped isolated= left= unprovable merged_lists try tries=5
     : > "$scratch/linux"
     for pr in "${train[@]}"; do
         commit=$(< "$scratch/commit-$pr")
@@ -495,8 +507,19 @@ harnesses() {
     # a Linux landing never proves one itself, whatever runner it is on.
     { [ "$platform" = mac ] && { [ "${RUNNER_ENVIRONMENT:-}" = github-hosted ] || [ "${NOTCHCAST_ISOLATED_RUNNER:-}" = 1 ]; }; } \
         || unproven=$(grep -xF -f <(tr ' ' '\n' <<< "$HOSTED_ONLY_TESTS") "$scratch/selected" | paste -sd' ' - || true)
-    [ "$check" -eq 1 ] || proof=$(python3 "$(dirname "$selector")/ci.py" tested-run HEAD) || proof=
-    [ "$check" -eq 1 ] || [ -n "$proof" ] || isolated_proof
+    # A train is judged by its own run's record, never an older run's of the same tree: only that record says what a
+    # self-hosted Mac job skipped. GitHub can list it late, so it is read $tries times, then exit 5 (train.sh --queue).
+    for ((try = 1; check == 0; try++)); do
+        proof=$(python3 "$(dirname "$selector")/ci.py" tested-run HEAD $train_run) || proof=
+        [ -n "$proof" ] || isolated_proof
+        [ -n "$covered" ] && [ -z "$proof" ] && [ "$(train_record)" != skipped ] || break
+        if [ "$try" -eq "$tries" ]; then
+            echo "REFUSED: train ${train_run:0:8} recorded the tree it tested, and that record cannot be read after $tries tries (expired, or the lookup or the download failed), so nothing says which harnesses its Mac job skipped: land it once the record reads (notchcast/land.sh --train-run $train_run ${train[*]}), or delete its branch and run notchcast/train.sh ${train[*]} again" >&2
+            exit 5
+        fi
+        echo "train ${train_run:0:8}: its record is not readable yet (try $try of $tries)" >&2
+        sleep "${NOTCHCAST_TRAIN_POLL:-60}"
+    done
     [ -z "$unproven" ] || [ "$check" -eq 1 ] || [ -n "$proof" ] \
         || refuse "hosted-only harnesses are selected and no hosted run tested this tree: $unproven; this machine never runs them (HOSTED_ONLY_TESTS, notchcast/config.env): land on a train run that ran hosted (notchcast/train.sh ${train[*]})"
     # A covered train run tested this exact tree on GitHub; only the harnesses its hosted runner skips are left.
@@ -509,9 +532,9 @@ harnesses() {
         names=$(grep -xF -f <(tr ' ' '\n' <<< "$CI_SKIP_TESTS") "$scratch/selected" || true)
         tested=1
     fi
-    # The isolated runner skips nothing: only what it excused is left, to run here or stay unproven as below.
+    # A self-hosted record lists what its run excused or skipped: only that is left, to run here or stay unproven.
     if [ -n "$isolated" ]; then
-        echo "harnesses: the isolated run $proof proved all of them but ${left:-none}"
+        echo "harnesses: the self-hosted run $proof proved all of them but ${left:-none}"
         names=$left
     fi
     if [ "$platform" = linux ] && [ -n "$tested" ]; then
