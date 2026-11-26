@@ -9,6 +9,7 @@ final class CleanerSession {
         case needsAccess
         case scanning
         case review
+        case confirming
         case cleaning
         case done
         case scanFailed
@@ -18,6 +19,13 @@ final class CleanerSession {
     private(set) var items: [CleanerItem] = []
     private(set) var selection: CleanerSelection?
     private(set) var report: CleanerReport?
+
+    var selectedBytes: Int64 {
+        guard let selection else { return 0 }
+        return items.reduce(0) { sum, item in
+            sum + (selection.checked.contains(item.id) ? item.size?.bytes ?? 0 : 0)
+        }
+    }
 
     private let home: URL
     private let runner: CleanerRunner
@@ -32,7 +40,7 @@ final class CleanerSession {
     }
 
     func open() async {
-        guard phase != .cleaning else { return }
+        guard phase != .confirming, phase != .cleaning else { return }
         scanOperation += 1
         let operation = scanOperation
         items = []
@@ -62,14 +70,27 @@ final class CleanerSession {
         }
     }
 
+    func items(matching query: String) -> [CleanerItem] {
+        let query = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !query.isEmpty else { return items }
+        return items.filter { $0.id.lastPathComponent.localizedStandardContains(query) }
+    }
+
+    func hiddenSelectionCount(among visibleItems: [CleanerItem]) -> Int {
+        selection?.checked.subtracting(visibleItems.map(\.id)).count ?? 0
+    }
+
     func setChecked(_ id: CleanerItem.ID, checked: Bool) {
         guard phase == .review, let plan else { return }
         selection?.set(id, checked: checked, in: plan)
     }
 
-    func clean(confirm: @MainActor (CleanerSelection) async -> Bool) async {
+    func clean(
+        onProgress: @escaping @MainActor @Sendable (Int, Int) -> Void = { _, _ in },
+        confirm: @MainActor (CleanerSelection) async -> Bool
+    ) async {
         guard phase == .review, let plan, let selection, !selection.checked.isEmpty else { return }
-        phase = .cleaning
+        phase = .confirming
         guard await confirm(selection), !Task.isCancelled else {
             phase = .review
             return
@@ -78,7 +99,12 @@ final class CleanerSession {
             phase = .needsAccess
             return
         }
-        report = await runner.run(plan, selection: selection)
+        phase = .cleaning
+        let count = selection.checked.count
+        onProgress(0, count)
+        report = await runner.run(plan, selection: selection) { completed in
+            onProgress(completed, count)
+        }
         phase = .done
     }
 

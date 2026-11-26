@@ -6,7 +6,10 @@ struct CleanerRunner: Sendable {
     let runningApps: @MainActor @Sendable () -> CleanerRunningApps
 
     @concurrent
-    func run(_ plan: CleanerPlan, selection: CleanerSelection) async -> CleanerReport {
+    func run(
+        _ plan: CleanerPlan, selection: CleanerSelection,
+        onProgress: @MainActor @Sendable (Int) -> Void = { _ in }
+    ) async -> CleanerReport {
         var report = CleanerReport()
         var openFiles = OpenFiles()
         for item in plan.items where selection.checked.contains(item.id) {
@@ -20,6 +23,7 @@ struct CleanerRunner: Sendable {
             } catch {
                 report.entries.append(.init(id: item.id, outcome: .failed((error as? CocoaError)?.code)))
             }
+            await onProgress(report.entries.count)
         }
         return report
     }

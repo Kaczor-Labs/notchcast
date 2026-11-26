@@ -3,7 +3,7 @@
 import Foundation
 
 struct CleanerArea: Sendable, Equatable {
-    enum Kind: Sendable {
+    enum Kind: CaseIterable, Sendable {
         case caches, logs, containerCaches, browserCaches, browserVersions, mailDownloads, homebrewLogs, savedState
     }
 
