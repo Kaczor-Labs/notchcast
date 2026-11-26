@@ -161,12 +161,13 @@ Each item is explained in [testing.md](docs/testing.md#definition-of-done).
 
 ### How a change lands
 
-- `notchcast/README.md`, "Conflict-free PRs" (landing with `land.sh`, trains and the landing queue) and "Secrets and checks" (PRs open as drafts).
+- `notchcast/README.md`, "Conflict-free PRs" and "Secrets and checks".
 
 ### How it is released or deployed, and who says yes
 
-- `notchcast/README.md`, "Snapshot releases" and "Sync". No one says yes before a public snapshot: a green `main` ships by itself (the owner's decision).
+- `notchcast/README.md`, "Snapshot releases" and "Sync".
+- No one says yes before a public snapshot: a green `main` ships by itself (the owner's decision).
 
 ### How it is proven live
 
-- `notchcast/README.md`, "Installing on a Mac" (test builds of a PR head) and "Hosted tester". Anything more: not set, the owner decides.
+- `notchcast/README.md`, "Installing on a Mac" (test builds of a PR head) and "Hosted tester".
