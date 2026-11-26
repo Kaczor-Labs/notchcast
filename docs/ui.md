@@ -585,8 +585,7 @@ alike.
   actions that hide the launcher first do no dimming work. Its fade follows `dialogEnter` / `dialogExit`.
   Matte button fills come from `controlSurface` / `selection`, while a destructive action uses the
   destructive tint. The **volume HUD** and **message pill** keep the non-glass panel recipe.
-- **Layout.** Subject glyph in a low-opacity rounded tile, then title (`panelTitle`) + wrapped
-  secondary message, optional accessory and full-width actions. Content uses a 22-point inset while
+- **Layout.** Subject glyph in a low-opacity rounded tile, then a wrapped title (`panelTitle`) and wrapped secondary message, optional accessory and full-width actions. Content uses a 22-point inset while
   the actions keep the tighter `dialogInset 18`. One action spans the row; two sit side by side with
   **Cancel rendered leading** only while both labels fit on one line, then `ViewThatFits` stacks them.
   Three or more always stack in the caller's semantic order. `DialogView.visualOrder` reorders only
