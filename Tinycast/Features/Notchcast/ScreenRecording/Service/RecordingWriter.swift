@@ -11,6 +11,8 @@ import os
 final class RecordingWriter: @unchecked Sendable {
     enum Kind: Sendable { case video, systemAudio, microphone }
 
+    private static let logger = Logger(subsystem: Bundle.main.bundleIdentifier ?? "Notchcast", category: "ScreenRecording")
+
     private let writer: AVAssetWriter
     private let videoInput: AVAssetWriterInput
     private let systemAudioInput: AVAssetWriterInput?
@@ -24,8 +26,8 @@ final class RecordingWriter: @unchecked Sendable {
     private let onFailure: @Sendable () -> Void
     private(set) var videoFrameCount = 0
 
-    init(url: URL, width: Int, height: Int, codec: RecordingOptions.Codec, systemAudio: Bool, microphone: Bool,
-         onFailure: @escaping @Sendable () -> Void = {}) throws {
+    convenience init(url: URL, width: Int, height: Int, codec: RecordingOptions.Codec, systemAudio: Bool,
+                     microphone: Bool, onFailure: @escaping @Sendable () -> Void = {}) throws {
         let writer = try AVAssetWriter(outputURL: url, fileType: .mov)
         // Fragments keep a recording that outlives a crash readable.
         writer.movieFragmentInterval = CMTime(seconds: 10, preferredTimescale: 600)
@@ -43,11 +45,20 @@ final class RecordingWriter: @unchecked Sendable {
         videoInput.expectsMediaDataInRealTime = true
         guard writer.canAdd(videoInput) else { throw RecordingTarget.Failure.captureFailed }
         writer.add(videoInput)
+        self.init(
+            writer: writer, videoInput: videoInput,
+            systemAudioInput: systemAudio ? Self.addAudioInput(to: writer) : nil,
+            microphoneInput: microphone ? Self.addAudioInput(to: writer) : nil,
+            onFailure: onFailure)
+    }
+
+    init(writer: AVAssetWriter, videoInput: AVAssetWriterInput, systemAudioInput: AVAssetWriterInput? = nil,
+         microphoneInput: AVAssetWriterInput? = nil, onFailure: @escaping @Sendable () -> Void) {
         self.writer = writer
         self.videoInput = videoInput
+        self.systemAudioInput = systemAudioInput
+        self.microphoneInput = microphoneInput
         self.onFailure = onFailure
-        systemAudioInput = systemAudio ? Self.addAudioInput(to: writer) : nil
-        microphoneInput = microphone ? Self.addAudioInput(to: writer) : nil
     }
 
     private static func addAudioInput(to writer: AVAssetWriter) -> AVAssetWriterInput? {
@@ -124,10 +135,12 @@ final class RecordingWriter: @unchecked Sendable {
         writer.startSession(atSourceTime: .zero)
     }
 
-    func append(_ sampleBuffer: CMSampleBuffer, kind: Kind) {
+    func append(_ sampleBuffer: CMSampleBuffer?, kind: Kind) {
+        guard !checkForFailure(), let sampleBuffer else { return }
         let presentation = CMSampleBufferGetPresentationTimeStamp(sampleBuffer)
-        guard !failed, origin.isNumeric, presentation.isNumeric, presentation >= origin else { return }
+        guard origin.isNumeric, presentation.isNumeric, presentation >= origin else { return }
         let shifted = presentation - origin
+        defer { _ = checkForFailure() }
         switch kind {
         case .video:
             // The first image is held over startup latency; later stamps keep sound aligned.
@@ -155,16 +168,25 @@ final class RecordingWriter: @unchecked Sendable {
         if !input.append(retimed) { fail() }
     }
 
-    /// Reported when it happens, so the recording ends then instead of failing only at the stop.
+    private func checkForFailure() -> Bool {
+        guard !failed else { return true }
+        guard writer.status == .failed else { return false }
+        fail()
+        return true
+    }
+
     private func fail() {
         guard !failed else { return }
         failed = true
+        if let error = writer.error {
+            Self.logger.error("Asset writer failed: \(error.localizedDescription, privacy: .private)")
+        }
         onFailure()
     }
 
     /// The last frame is written once more at the stop, so a still screen keeps its length.
     func finish(at end: CMTime) async -> Bool {
-        guard origin.isNumeric, !failed, videoFrameCount > 0 else {
+        guard !checkForFailure(), origin.isNumeric, videoFrameCount > 0 else {
             cancel()
             return false
         }
@@ -174,6 +196,10 @@ final class RecordingWriter: @unchecked Sendable {
                 let tail = RecordingSampleTiming.retimed(lastVideoSample, to: length) {
                 videoInput.append(tail)
             }
+            guard !checkForFailure() else {
+                cancel()
+                return false
+            }
             writer.endSession(atSourceTime: length)
         }
         lastVideoSample = nil
@@ -181,7 +207,7 @@ final class RecordingWriter: @unchecked Sendable {
         systemAudioInput?.markAsFinished()
         microphoneInput?.markAsFinished()
         await writer.finishWriting()
-        return writer.status == .completed
+        return !checkForFailure() && writer.status == .completed
     }
 
     func cancel() {

@@ -152,6 +152,7 @@ final class ScreenRecordingModule: NotchcastModule {
                 let duration = (try? await system.duration(clip)) ?? 0
                 guard duration > 0 else { throw stopFailure ?? RecordingTarget.Failure.emptyRecording }
                 guard operation == id, state.finished() else { return }
+                if let stopFailure { fail(stopFailure, resetting: false) }
                 closeTrimmer = system.trim(clip, duration, onAnswer)
             } catch {
                 guard operation == id else { return }
