@@ -61,8 +61,8 @@ These are the things that quietly break the look if changed. Preserve them unles
   Native launcher forms save with **⌘↵**; a textarea keeps Return for line breaks.
 - **In the palette, a hover label is Tinycast's `tooltip`, never `.help()`**: an AppKit tooltip never appears while the app sits inactive behind the non-activating panel. A Settings window activates the app, so `.help()` shows there and stays the label to use. The tooltip hangs above its control by default; a control in the palette header passes `edge: .bottom`, since above it is off the window, and a label may run to several lines: the chat's attachment pill lists every staged name.
   Native form controls opt into `dismissOnPress` to hide the label until the next hover.
-- **A transient readout is a HUD, not a dialog.** `VolumeHUDController`'s box is volume and mute only, since that one needs an actual level and number; every other success or info confirmation goes through `MessageHUDController`'s pill, whose leading glyph _is_ its `DialogTone`. A pill has no subject to name, so the icon rule above does not apply to it, and that mapping stays file-scoped so nothing can reach for it when building a `DialogRequest`. A new HUD means a new presenter, not a second shape bolted onto an existing controller.
-- **Glass is for floating controls, with dialogs as the deliberate modal exception.** The action capsule, menu circle and `PopoverMenu` use it inside the palette; dialogs apply one system `.glassEffect(.regular)` to their root surface. Dialog buttons stay matte so their roles remain legible. Both HUDs keep the lighter `panelScrim` → `GlassEffectView()` → `clipShape` recipe.
+- **A transient readout is a HUD, not a dialog.** `VolumeHUDController`'s box is volume and mute only, since that one needs an actual level and number; the room just entered is `RoomHUDController`'s pill, which names its subject; every other success or info confirmation goes through `MessageHUDController`'s pill, whose leading glyph _is_ its `DialogTone`. The message pill has no subject to name, so the icon rule above does not apply to it, and that mapping stays file-scoped so nothing can reach for it when building a `DialogRequest`. A new HUD means a new controller, not a second shape bolted onto an existing one.
+- **Glass is for floating controls, with dialogs as the deliberate modal exception.** The action capsule, menu circle and `PopoverMenu` use it inside the palette; dialogs apply one system `.glassEffect(.regular)` to their root surface. Dialog buttons stay matte so their roles remain legible. Every HUD keeps the lighter `panelScrim` → `GlassEffectView()` → `clipShape` recipe.
 
 ---
 
@@ -76,8 +76,9 @@ Add a token rather than a magic number when introducing a new value.
 ### Interface Size (`InterfaceMetrics`)
 
 `AppSettings.interfaceSize` scales the palette and the surfaces that float with it: the ⌘K menu, the
-extension list panel, Quick Actions, dialogs and HUDs. Settings, Onboarding,
-Support, About and Notes never scale.
+extension list panel, Quick Actions, dialogs and HUDs. The onboarding window uses the expanded
+palette dimensions for the chosen size, limited to the available screen space. Its content uses
+standard metrics, as do Settings, Support, About and Notes.
 
 `DesignSystem/InterfaceMetrics.swift` stores **only a scale** and derives every value from the `Theme`
 literal, so `Theme` stays the one place a number is written down. **In any view a scaled surface can
@@ -236,7 +237,6 @@ shipped. Light is the same stop with the ink inverted, and is the only column op
 | `textTertiary`    | white 0.40     | black 0.42     | placeholders, trailing kind labels                |
 | `menuSymbol`      | white 0.70     | black 0.70     | native popover-menu symbols                       |
 | `iconPlaceholder` | white 0.06     | black 0.06     | the empty tile a row paints while an icon decodes |
-| `sheen`           | white 0.04     | black 0.04     | the wash behind the Onboarding header             |
 | `cardFill`        | white 0.05     | black 0.04     | settings/calc card fill                           |
 | `cardStroke`      | white 0.10     | black 0.10     | settings/calc card border + inset dividers        |
 | `noteText`        | white 0.90     | black 0.85     | Notes body text                                   |
@@ -645,8 +645,8 @@ alike.
   `info` secondary for `.neutral`. The glyph's tone also lights the glass: a faint radial glow from
   behind it and a hairline rim that fades across the message, the same treatment an extension toast
   restates in its own feature. **Here the glyph is the tone**: the
-  one place that's true, because a pill has no subject to name the way a dialog does; the message
-  already says what happened ("Trash Emptied"), so the icon only has to say how it went. The mapping is
+  one place that's true, because the message pill has no subject to name the way a dialog does; the
+  message already says what happened ("Trash Emptied"), so the icon only has to say how it went. The mapping is
   `fileprivate` in `MessageHUDView.swift` precisely so nobody can reach for it when building a
   `DialogRequest`, where the icon rule is the opposite. It leads, as an extension toast's does, so the
   outcome lands at a glance before the sentence is read. Auto-dismisses after
@@ -664,15 +664,20 @@ alike.
   dwell, so it is shown with `dwells: false` and stays up until something replaces it or
   `HUDPresenter.dismiss()` runs; the caller owns that, and `QuickActionCoordinator.produce` pairs the
   two with a `defer` so a throw or a cancellation cannot strand it.
-- **`HUDPresenter`** is what keeps those two controllers from duplicating each other: one panel at a
+- **`RoomHUDController`'s pill** shows through the message pill's presenter, so it takes the same
+  capsule, anchor and dwell, and either pill replaces the other. It leads with the room's door glyph
+  in `Color.primary`, then its name and up to six app icons at `menuIcon` size. It names a subject
+  rather than a tone, so it has no glow or rim. It lives in `Features/WindowManagement/UI/`; see [window-rooms.md](features/window-rooms.md#the-current-room).
+- **`HUDPresenter`** is what keeps those controllers from duplicating each other: one panel at a
   time, replace rather than stack, fade in, sit out its dwell, fade away, centred horizontally on
-  a screen. The two HUDs differ only in their content, their anchor (`edgeInset(hudEdgeOffset 48)` for
+  a screen. The HUDs differ only in their content, their anchor (`edgeInset(hudEdgeOffset 48)` for
   the pill, `heightFraction(0.12)` for the box) and how long they dwell, so those are the presenter's
   three arguments. **It sizes its window from a local, never from `host.frame` after attaching the
   content view**: assigning a content view resizes it to the window's current content rect, which is
   zero on a fresh panel, and a zero-width window "centers" with its leading edge on the screen's
-  midline, visible only on the session's first HUD, which is what makes it easy to miss. Add a
-  third HUD by constructing another presenter, not by teaching an existing controller a second shape.
+  midline, visible only on the session's first HUD, which is what makes it easy to miss. A HUD at a
+  new anchor constructs its own presenter; a pill takes `AppCore`'s pill presenter, since two panels
+  at one anchor stack. Never teach an existing controller a second shape.
 
 ## Scrollbars
 
@@ -746,6 +751,13 @@ another app that happens only after `show` returns, so focus a SwiftUI view asks
 The panel can also turn key inside `makeKeyAndOrderFront`, before SwiftUI has built the field, so
 `DialogPanel.focusFirstTextField` lays the content out first.
 
+A dialog without an accessory corrects that pick instead of racing it: the first time any button
+takes focus, `DialogView.redirectFirstFocus` moves it to the default action, so with Keyboard
+navigation on the ring sits on the button ↵ fires, never on the leading Cancel or a stacked dialog's
+first choice. `defaultFocus` cannot do this, since the pick is AppKit's walk to the first
+`KeyViewProxy`, not SwiftUI's. With Keyboard navigation off buttons never take focus, so nothing
+changes, and a dialog with an accessory keeps the focus described above.
+
 ## Settings
 
 Source: `DesignSystem/SettingsComponents.swift`.
@@ -818,8 +830,7 @@ system-drawn and a pane reads exactly as macOS System Settings does.
   **`FeatureSwitchSection`** (a feature's master switch plus its launcher-visibility companion),
   **`SettingsFilterField`** (the filter row above a long list), **`launcherVisibilityHelp()`**, and the
   Settings editor header, fields and surface. `ModalActionButtonStyle.swift` keeps every borderless surface's actions on one
-  implementation: dialogs, Settings editors, the camera footers and the Quick Action panel. `Onboarding/OnboardingCard.swift` keeps the older hand-drawn card,
-  which that window still uses.
+  implementation: dialogs, Settings editors, the camera footers and the Quick Action panel.
 - **A Settings editor borrows the dialog language, not its job.** `SettingsEditorPresenter` hosts the
   existing form in an activating, transparent child `NSPanel`, with the same `panel 26` Liquid Glass
   surface, native `.documentWindow` entrance and matte action buttons. AppKit gives this activating
@@ -947,7 +958,7 @@ shortcut"), live held keys with their reported side, a pending second modifier t
 
 - **An ancestor draws it.** The open recorder publishes its bounds via `ShortcutRecorderAnchorKey`;
   `.shortcutRecorderPopoverHost()` sits on `SettingsDetailView`: one host above every pane's
-  `Form`, and on `OnboardingView`. An overlay on the row would be clipped by the scroll view. A
+  `Form`. An overlay on the row would be clipped by the scroll view. A
   recorder in a `LauncherItemsTable` cell sits in its own hosting view, where the preference stops,
   so the cell reports the recorder's frame and `LauncherItemsSection` republishes it as the anchor.
 - **`shortcutPopover.width` is load-bearing.** The callout centres on the recorder only while it

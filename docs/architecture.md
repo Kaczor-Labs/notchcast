@@ -139,8 +139,11 @@ store starts the helper on demand and reaps it after the selected idle delay or 
 `TinycastLaunch` (`@main`) pins the interface language, then runs `TinycastApp`, which declares
 only two `MenuBarExtra` scenes: Tinycast's own item and the
 calendar's, each inserted by one preference and independent of the other; everything else visible is
-driven imperatively from AppKit. Extension menu extras are dynamic `NSStatusItem`s owned entirely by
-`Features/Extensions/`, through `ExtensionManager`, with no scene or lifecycle wiring in the core.
+driven imperatively from AppKit. Notes' item and the AI usage gauge are `NSStatusItem`s their
+coordinators add and remove (`NotesCoordinator`, `PlanUsageCoordinator`), since a gauge drawn per
+read and a menu of hosted rows are AppKit's to own. Extension menu extras are dynamic
+`NSStatusItem`s owned entirely by `Features/Extensions/`, through `ExtensionManager`, with no scene
+or lifecycle wiring in the core.
 
 - **Command palette**: a borderless floating `NSPanel` (`Palette/PalettePanel.swift`) hosting SwiftUI
   via `NSHostingView`, managed by `PaletteWindowController`. It toggles between a compact bar and the
@@ -155,8 +158,10 @@ driven imperatively from AppKit. Extension menu extras are dynamic `NSStatusItem
 - **Onboarding**: a titled `NSWindow` in `Windows/AppWindowController.swift`, owned by
   `OnboardingCoordinator`. SwiftUI `Window` scenes are unreliable for accessory apps, so this is
   deliberate. Its lifecycle is independent of the palette's in both directions, and it stays accessory
-  rather than registering Dock ownership, so completing it can open the palette without an
-  activation-policy change stealing focus.
+  rather than registering Dock ownership, so closing it can open the palette without an
+  activation-policy change stealing focus. Closing is Skip: Get Started and the close button both
+  land in the launcher and mark onboarding done, so a quit partway shows it again from the start.
+  Settings › General › Welcome guide replays it.
 - **Notes**: a persistent, titled, non-activating `NotesPanel` managed by `NotesWindowController`.
   Its height fits the note up to 860pt and AppKit autosaves the frame; its TextKit 2 editor renders
   Markdown over the literal source, switches among local Markdown files and stays visible on focus

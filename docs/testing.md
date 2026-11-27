@@ -162,7 +162,7 @@ If a change touches anything in the right column, the harness on the left is man
 | `VolumeTests`               | `SystemActions/Model/VolumeLevel.swift`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
 | `WindowCommandTests`        | `WindowManagement/WindowCommand.swift`, `WindowPlacementEngine.swift`, `WindowActionMemory.swift`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `WindowLayoutTests`         | `WindowManagement/Model/WindowLayout*.swift` and `CustomWindowSize*.swift`: the layout record, its geometry and its inverse, the plan and the store, reloads included; custom sizes' units, frames and store                                                                                                                                                                                                                                                                                                                                                                                 |
-| `WindowRoomTests`           | `WindowManagement/Model/Room*.swift`: every room layout and its minimum sizes, the grid, arrangement reading, window matching, parking, the plan, Tab's choices and the three stores                                                                                                                                                                                                                                                                                                                                                                                                         |
+| `WindowRoomTests`           | `WindowManagement/Model/Room*.swift`: every room layout and its minimum sizes, the grid, arrangement reading, window matching, parking, the plan, Tab's choices, going back and the three stores                                                                                                                                                                                                                                                                                                                                                                                             |
 | `CustomCommandTests`        | Command storage and execution, a reload of another writer's library, editor drafts, argument identities and dynamic keyboard focus                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
 | `CustomCommandListTests`    | Browser result snapshots, observation, row actions and empty-library messages                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
 | `UninstallTests`            | all five pure files in `Uninstall/Model/`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
@@ -193,7 +193,7 @@ If a change touches anything in the right column, the harness on the left is man
 | `BackupArchiveTests`        | all of `Backup/Model/`, plus `Backup/Service/BackupStaging.swift`: the bundle, the archive, and every `SettingsBackup` field in exactly one slice that a crafted file cannot widen                                                                                                                                                                                                                                                                                                                                                                                                           |
 | `UpdatesTests`              | `Updates/Model/`: version precedence, channel filtering, install route, readiness                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `UpdateCheckTests`          | `UpdateCheckStore`: stopping, in-flight cancellation, cached offer suppression, restart and independent manual checking                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
-| `SupportTests`              | `Support/Model/`: when the support reminder comes due, and a clock moved backwards                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| `SupportTests`              | `Support/Model/`: when the support reminder comes due, a clock moved backwards, giving week                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
 | `AIProviderTests`           | `AI/Model/` and `AISettingsStore`: instruction composition, provider requests and streams, route settings, protocol framing, CLI launch encodings and queued Codex writes across cancellation, timeout and Stop                                                                                                                                                                                                                                                                                                                                                                              |
 | `OpenCodeMCPTests`          | OpenCode's per-turn MCP bridge and installed CLI launch, authentication, scoped catalog, consent dispatch, serial calls, result budgets and cancellation                                                                                                                                                                                                                                                                                                                                                                                                                                     |
 | `AppleIntelligenceTests`    | On-device status, snapshot deltas, transcript assembly and error mapping; real generation is opt-in                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
@@ -912,6 +912,10 @@ prefs, caches, TCC grants and login item, so this cannot disturb an installed co
   with the gap, hides other apps and parks their extra windows; quitting, `kill -9` then relaunching, and
   turning Window Management off each bring every window back.
   Repeat on two displays and with Reduce Motion on
+- Rooms by shortcut: entering one shows the room HUD (never with the preview); Switch to Previous
+  Room toggles between the last two, including two presses during the first transition. With a
+  different room previewed, the shortcut fades that preview and shows the destination HUD. Tidy
+  Current Room puts moved windows back
 
 ### Deeplinks
 
@@ -923,7 +927,7 @@ Debug answers `tinycast-dev://`; use that scheme for every link below.
 - Type into a quicklink's and a custom command's argument fields, then ⇧⌘C: the link carries the
   values, and opening it fills the same fields
 - Right-click a shortcut field in Settings (a command, a quicklink, an extension command): Copy
-  Deeplink copies its link. Onboarding's and General's App Launcher field offer no menu
+  Deeplink copies its link. The onboarding shortcut keys and General's App Launcher field offer no menu
 - The note switcher's link button, and Copy Deeplink in the AI Chat sidebar and window menu, copy a
   link that reopens that note or chat; a renamed note's old link reports the missing file
 - `open -g` each copied link with the palette closed: it runs what the row's shortcut runs
@@ -1007,6 +1011,8 @@ Debug answers `tinycast-dev://`; use that scheme for every link below.
   the recorder reports the conflict); `kill -9` the Settings process mid-recording and they work again
 - A palette editor opened from Settings (custom command, quicklink, snippet, room) saves, and the
   pane lists the change; a delete in the pane leaves the launcher at once
+- Saving a new quicklink, snippet or custom command shows a "… created" HUD, and saving an edit shows
+  "… saved", whether the editor closes or returns to its browser; a failed save shows none
 - Favorite a launcher item while a Settings deletion confirmation is open for a different favorite.
   Confirm the deletion and verify the new favorite survives.
 - Mirrored status updates live: File Search indexing, iCloud Sync, a dictation model download,
@@ -1060,7 +1066,40 @@ tccutil reset Accessibility com.abueammar.tinycast.dev 2>/dev/null || true
 - Launches with every store directory absent: no crash, no hang; onboarding runs
 - With no saved app language, onboarding uses the primary system language if supported, otherwise
   English; a saved language stays unchanged on relaunch
-- Onboarding has no Dock entry; completing it leaves the palette open and ready for typing.
+- The onboarding intro dims only the display where the wizard opens. The window is revealed from
+  the logo, at the launcher's default position on that display. The soft circular edge is the only
+  part of the window that fades. The logo stays visible throughout. The menu bar and the desktop
+  brighten together, and the native shadow becomes visible as the dimming clears. With Reduce
+  Motion or Tinycast animations disabled, the wizard appears directly with its shadow
+- Welcome leads straight to the pasting step. Without Accessibility there is no Skip: Grant Access is
+  the only way forward, and Return opens System Settings. Once access is granted, the button becomes
+  Next and continues to import. Each short page is centered between the top of the window and the
+  footer. Next and Back slide the pages in opposite directions.
+  Escape leaves the wizard open on every step. Closing the wizard opens the launcher, as Get
+  Started does, and onboarding does not return on relaunch. Quit Tinycast partway, during the intro
+  or on any step: the next launch shows onboarding again from the intro. Settings › General ›
+  Welcome guide › Show Again replays it from the intro, in front of the Settings window.
+- Try both the Raycast file picker and a Finder drop. A recognized export shows its passphrase field.
+  The passphrase field keeps the system focus ring, hidden and visible. Toggling the eye while
+  editing keeps the selection.
+  Before an export is chosen, Skip is violet and Return skips the step.
+  Return activates Import once a passphrase and at least one category are set.
+  Open and close the category row: check the chevron rotation and the scroll in both directions.
+  Click anywhere on a category tile to toggle it. Selected tiles and Select All use Tinycast violet.
+  Click the selected file row to replace the export. Its × clears the passphrase and selection.
+  The export stays on disk.
+  Choosing an invalid file hides the passphrase and categories.
+- On the last step, check Launch at login reflects the current setting after importing or skipping.
+  Without clicking anything, hold modifiers: the keys follow them. Type a shortcut: it is saved at
+  once and survives Back and Next. Type one Tinycast already uses: the card names its owner. A lone
+  modifier tap records nothing; a double tap does. Press the saved shortcut and verify the keys
+  respond before the palette opens, ready for typing. Onboarding has no Dock entry.
+  With no binding, check that ⌘ Space is offered when available. With Spotlight on ⌘ Space, Replace
+  Spotlight binds ⌘ Space and unticks Spotlight in System Settings › Keyboard › Keyboard Shortcuts;
+  it stays off after logging out and back in. Undo ticks it again and clears the binding. With
+  another app using ⌘ Space, Replace Spotlight leaves Spotlight on and shows the warning below the
+  keys; record a different shortcut. Return activates the violet Get Started button even without a
+  binding.
   Settings still adds a Dock entry while open and removes it when the last ordinary window closes
 - Palette opens and lists apps; clipboard, quicklinks, snippets and calculator history are all empty
   and all accept a first entry
