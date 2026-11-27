@@ -7,6 +7,15 @@ on:
     types: [opened, synchronize, reopened]
   workflow_dispatch:
     inputs:
+      command:
+        description: Try one command and its arguments as a JSON array
+        type: string
+        default: ''
+      os:
+        description: Runner system for a try
+        type: choice
+        options: [mac, linux, any]
+        default: mac
       base:
         description: Base commit the checks compare against, as a PR's base (notchcast/train.sh)
         default: ''
@@ -31,12 +40,35 @@ env:
 # One group per workflow and PR head: a dispatch and a pull_request run on one head never both run. A harness-only
 # run has a group of its own, so it never cancels the head's real run.
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref_name == github.event.repository.default_branch && github.run_id || github.event.pull_request.head.label || format('{0}:{1}', github.repository_owner, github.ref_name) }}${{ inputs.harness_runner && format('-{0}', inputs.harness_runner) || '' }}
+  group: ${{ github.workflow }}-${{ github.ref_name == github.event.repository.default_branch && github.run_id || github.event.pull_request.head.label || format('{0}:{1}', github.repository_owner, github.ref_name) }}${{ inputs.harness_runner && format('-{0}', inputs.harness_runner) || '' }}${{ inputs.command != '' && format('-try-{0}', inputs.os || 'mac') || '' }}
   cancel-in-progress: ${{ github.ref_name != github.event.repository.default_branch }}
 
 jobs:
+  try:
+    if: github.event_name == 'workflow_dispatch' && inputs.command != ''
+    runs-on: ${{ (inputs.os || 'mac') == 'mac' && 'xcode-27' || 'ubuntu-24.04' }}
+    timeout-minutes: 30
+    steps:
+      - name: Require a branch outside the landing train
+        if: startsWith(github.ref, 'refs/heads/train/')
+        run: |
+          echo '::error::A try cannot prove a landing train.'
+          exit 1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - uses: ./notchcast/actions/xcode
+        if: runner.os == 'macOS'
+      - name: Run the requested command
+        env:
+          TRY_COMMAND: ${{ inputs.command }}
+        run: |
+          python3 -c 'import json, os
+          argv = json.loads(os.environ.pop("TRY_COMMAND"))
+          os.execvp(argv[0], argv)'
   # On Linux: names the lanes the diff needs (notchcast/lanes.py): a skipped one still reports, and build accepts it.
   route:
+    if: inputs.command == ''
     runs-on: ubuntu-latest
     timeout-minutes: 5
     outputs:
@@ -304,8 +336,9 @@ jobs:
   # land.sh reads the check named build: green only when every lane the diff needs is. A harness-only run has none:
   # its skipped build check is no proof to land.sh, and a real run's check on that head still counts (merge.sh).
   build:
+    name: ${{ inputs.command != '' && 'Build proof not requested' || 'build' }}
     needs: [route, mac, linux-checks, linux-harnesses, script-tests]
-    if: ${{ !cancelled() && inputs.harness_runner == '' }}
+    if: ${{ !cancelled() && inputs.harness_runner == '' && inputs.command == '' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
