@@ -47,7 +47,9 @@ nonisolated enum RsrcPage {
             guard items.count > 1 else { return nil }
             body = items.map(post).filter { !$0.isEmpty }.joined(separator: "\n\n")
         } else {
-            body = discussion(first, comments: Array(items.dropFirst()))
+            // LinkedIn sends plain text, where a line end is a line end; the other two send Markdown.
+            let prose: (Any?) -> String? = site == .linkedIn ? { lines($0) } : { markdown($0) }
+            body = discussion(first, comments: Array(items.dropFirst()), prose: prose)
         }
         guard !body.isEmpty else { return nil }
         let host = source.host(percentEncoded: false) ?? source.absoluteString
@@ -58,31 +60,38 @@ nonisolated enum RsrcPage {
 
     private static func post(_ item: [String: Any]) -> String {
         let raw = item["raw"] as? [String: Any] ?? [:]
-        var parts = [text(item["text"]), media(raw["media"])].compactMap { $0 }
+        var parts = [lines(item["text"]), media(raw["media"])].compactMap { $0 }
         if let quoted = raw["quoted"] as? [String: Any] {
-            let lines = [text(quoted["author"]).map { "@\($0)" }, text(quoted["text"]), media(quoted["media"])]
+            let body = [handle(quoted), lines(quoted["text"]), media(quoted["media"])]
                 .compactMap { $0 }.joined(separator: "\n\n")
-            if !lines.isEmpty { parts.append(quote(lines, level: 1)) }
+            if !body.isEmpty { parts.append(quote(body, level: 1)) }
         }
         return parts.joined(separator: "\n\n")
     }
 
-    private static func media(_ value: Any?) -> String? {
-        let lines = (value as? [[String: Any]] ?? []).compactMap { entry -> String? in
-            guard let url = text(entry["url"]), URL(string: url)?.scheme == "https" else { return nil }
-            return entry["type"] as? String == "photo" ? "![](\(url))" : "<\(url)>"
-        }
-        return lines.isEmpty ? nil : lines.joined(separator: "\n\n")
+    /// The quoted author, linked to the quoted post when both names have the shape X gives them.
+    private static func handle(_ quoted: [String: Any]) -> String? {
+        guard let author = text(quoted["author"]), author.wholeMatch(of: /[A-Za-z0-9_]{1,15}/) != nil else { return nil }
+        guard let id = text(quoted["id"]), id.wholeMatch(of: /[0-9]{1,20}/) != nil else { return "@\(author)" }
+        return "[@\(author)](https://x.com/\(author)/status/\(id))"
     }
 
-    private static func discussion(_ post: [String: Any], comments: [[String: Any]]) -> String {
+    private static func media(_ value: Any?) -> String? {
+        let entries = (value as? [[String: Any]] ?? []).compactMap { entry -> String? in
+            guard let url = web(entry["url"]) else { return nil }
+            return entry["type"] as? String == "photo" ? "![](\(url))" : url
+        }
+        return entries.isEmpty ? nil : entries.joined(separator: "\n\n")
+    }
+
+    private static func discussion(_ post: [String: Any], comments: [[String: Any]], prose: (Any?) -> String?) -> String {
         let raw = post["raw"] as? [String: Any] ?? [:]
-        let link = text((raw["item"] as? [String: Any])?["url"]).flatMap { URL(string: $0)?.scheme == "https" ? "<\($0)>" : nil }
-        var parts = [link, text(post["text"])].compactMap { $0 }
+        var parts = [web((raw["item"] as? [String: Any])?["url"]), prose(post["text"])].compactMap { $0 }
         let replies = threaded(comments).compactMap { comment, level -> String? in
-            guard let body = text(comment["text"]) else { return nil }
+            guard let body = prose(comment["text"]) else { return nil }
             let day = text(comment["published_at"]).map { " · \($0.prefix(10))" } ?? ""
-            let entry = "**\(text(comment["author"]) ?? "[deleted]")**\(day)\n\n\(body)"
+            let author = text(comment["author"]).map { safe($0.replacing(/\s+/, with: " ")) } ?? "[deleted]"
+            let entry = "**\(author)**\(day)\n\n\(body)"
             return level > 0 ? quote(entry, level: min(level, 6)) : entry
         }
         if !replies.isEmpty { parts += ["## Comments"] + replies }
@@ -125,12 +134,38 @@ nonisolated enum RsrcPage {
 
     private static func quote(_ body: String, level: Int) -> String {
         let prefix = String(repeating: "> ", count: level)
-        return body.components(separatedBy: "\n").map { (prefix + $0).trimmingCharacters(in: .whitespaces) }
-            .joined(separator: "\n")
+        return body.components(separatedBy: "\n")
+            .map { $0.isEmpty ? prefix.trimmingCharacters(in: .whitespaces) : prefix + $0 }.joined(separator: "\n")
     }
 
     private static func text(_ value: Any?) -> String? {
         guard let text = (value as? String)?.trimmingCharacters(in: .whitespacesAndNewlines), !text.isEmpty else { return nil }
         return text
+    }
+
+    private static func markdown(_ value: Any?) -> String? { text(value).map(safe) }
+
+    /// Plain text keeps its line ends: two trailing spaces make Markdown break the line there.
+    private static func lines(_ value: Any?) -> String? {
+        guard let text = markdown(value) else { return nil }
+        let rows = text.components(separatedBy: "\n").map { $0.trimmingCharacters(in: .whitespaces) }
+        return rows.indices.map { index in
+            index + 1 < rows.count && !rows[index].isEmpty && !rows[index + 1].isEmpty ? rows[index] + "  " : rows[index]
+        }.joined(separator: "\n")
+    }
+
+    /// Text from the web is written as it came, except what could act when the note is opened: raw HTML,
+    /// and a link or link definition that leads anywhere but a web page, a mail address or a place on the site.
+    private static func safe(_ text: String) -> String {
+        text.replacingOccurrences(of: "<", with: "&lt;")
+            .replacing(/\]\((?!\s*(?:&lt;)?(?:https?:\/\/|mailto:|\/(?!\/)|#))/, with: "]\\(")
+            .replacing(/(?m)^( {0,3})\[(?=[^\]\n]*\]:)/) { "\($0.1)\\[" }
+    }
+
+    /// An https address in angle brackets, which Markdown reads as one link whatever the address holds.
+    private static func web(_ value: Any?) -> String? {
+        guard let url = text(value).flatMap(URL.init(string:)), url.scheme?.lowercased() == "https" else { return nil }
+        let address = url.absoluteString.replacingOccurrences(of: "<", with: "%3C").replacingOccurrences(of: ">", with: "%3E")
+        return "<\(address)>"
     }
 }

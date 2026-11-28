@@ -100,12 +100,32 @@ struct DownloadsRsrcTest {
         expect(article.title == "First post of the thread." && article.author == "somebody",
                "a thread is named by its first line and its author")
         expect(text.contains("published: 2026-11-27"), "a thread carries the first post's day")
-        let quote = "> @other\n>\n> The quoted post.\n> Second line.\n>\n> ![](https://img.example/q.jpg)"
+        let quote = "> @other\n>\n> The quoted post.  \n> Second line.\n>\n> ![](<https://img.example/q.jpg>)"
         expect(text.contains("Its second paragraph.\n\n\(quote)\n\nSecond post."),
                "a quoted post is a block quote under its post")
-        expect(text.contains("Second post.\n\n![](https://img.example/a.jpg)\n\n<https://video.example/b.mp4>\n\nThird post."),
+        expect(text.contains("Second post.\n\n![](<https://img.example/a.jpg>)\n\n<https://video.example/b.mp4>\n\nThird post."),
                "photos are images, other media are links, and posts keep their order")
         expect(!text.contains("javascript:"), "a media address that is not https is left out")
+
+        let linked: [String: Any] = ["author": "other", "id": "2126161398187389140", "text": "Quoted."]
+        let hostile = [
+            item("One <img src=\"https://bad.example/p.gif\"> two.\n"
+                 + "[open](obsidian://run) [js](&#106;avascript:x) [ok](https://ok.example)",
+                 raw: ["quoted": linked, "media": [["type": "photo", "url": "https://img.example/a.jpg)[x](<b>"]]]),
+            item("[ref]: javascript:alert(1)\nAfter."),
+        ]
+        let note = RsrcPage.decode(answer(hostile), site: .x, source: thread)?
+            .markdown(saved: Date(timeIntervalSince1970: 0), timeZone: utc) ?? ""
+        // The front matter and the heading come first; `WebpageArticle` quotes and escapes the title in them.
+        let guarded = note.components(separatedBy: "\n\n").dropFirst(2).joined(separator: "\n\n")
+        expect(note.contains("\n# One \\<img") && guarded.contains("One &lt;img src=") && !guarded.contains("<img"),
+               "raw HTML in a post is written as text")
+        expect(guarded.contains("[open]\\(obsidian://run) [js]\\(&#106;avascript:x) [ok](https://ok.example)"),
+               "a link that leaves the web is written as text, a web link is kept")
+        expect(guarded.contains("\\[ref]: javascript:alert(1)  \nAfter."), "a link definition is written as text")
+        expect(guarded.contains("![](<https://img.example/a.jpg)%5Bx%5D(%3Cb%3E>)"), "a media address cannot close its own link")
+        expect(guarded.contains("> [@other](https://x.com/other/status/2126161398187389140)\n>\n> Quoted."),
+               "a quoted post links to itself")
 
         let long = String(repeating: "word ", count: 30)
         let untitled = RsrcPage.decode(answer([item(long), item("More.")]), site: .x, source: thread)
@@ -167,6 +187,23 @@ struct DownloadsRsrcTest {
                    "LinkedIn comments, which carry no depth, are listed flat")
         } else { expect(false, "a LinkedIn post is an article") }
         expect(RsrcPage.decode(answer([update]), site: .linkedIn, source: linkedIn) != nil, "a post without comments is saved")
+        let lined = [item("Line one.\nLine two.\n\nNext."), item("<b>Hi</b>", author: "A <i>B</i>\nC")]
+        let plain = RsrcPage.decode(answer(lined), site: .linkedIn, source: linkedIn)?
+            .markdown(saved: Date(timeIntervalSince1970: 0), timeZone: utc) ?? ""
+        expect(plain.contains("Line one.  \nLine two.\n\nNext.\n\n## Comments\n\n"
+                              + "**A &lt;i>B&lt;/i> C** · 2026-11-27\n\n&lt;b>Hi&lt;/b>"),
+               "plain text keeps its line ends, and a comment's author and text carry no HTML")
+
+        var chain = [item("Self.", author: "self", raw: ["item": ["id": 1, "parent_id": 1]])]
+        chain += (2...9).map { item("Level \($0).", author: "deep", raw: ["item": ["id": $0, "parent_id": $0 - 1]]) }
+        chain.append(item("Twin.", author: "twin", raw: ["item": ["id": 9, "parent_id": 8]]))
+        let deep = RsrcPage.decode(answer([story] + chain), site: .hackerNews, source: hackerNews)?
+            .markdown(saved: Date(timeIntervalSince1970: 0), timeZone: utc) ?? ""
+        expect(deep.contains("**self** · 2026-11-27\n\nSelf.\n\n> **deep**"),
+               "a comment that names itself as parent stays on top")
+        expect(deep.contains("> > > > > > Level 9.") && !deep.contains("> > > > > > > "), "nesting stops at six levels")
+        expect(deep.components(separatedBy: "Twin.").count == 2 && deep.components(separatedBy: "Level 9.").count == 2,
+               "comments that share an id are each written once")
         expect(RsrcPage.decode(answer([item(nil)]), site: .reddit, source: reddit) == nil,
                "a post with no text and no comments is left to the page reader")
     }
