@@ -652,6 +652,7 @@
 		63874D0B52985449B0C77EB7 /* LowDiskAddon.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0418CB68AA81EEEBBE4017B /* LowDiskAddon.swift */; };
 		63D69E5915746E1E8C53DFC2 /* TaildropTarget.swift in Sources */ = {isa = PBXBuildFile; fileRef = C93C5526C82931DA94E40BA1 /* TaildropTarget.swift */; };
 		63F46F02031B021D4010B9B2 /* CleanerRunner.swift in Sources */ = {isa = PBXBuildFile; fileRef = 78B475685D28E61B10036D7B /* CleanerRunner.swift */; };
+		645424A8317AD7D6A5C0C996 /* RsrcPage.swift in Sources */ = {isa = PBXBuildFile; fileRef = C5A1D85A913FB60709D50790 /* RsrcPage.swift */; };
 		648D442C0C716DB622511436 /* AIChatWindowChrome.swift in Sources */ = {isa = PBXBuildFile; fileRef = 37A4A767EB3BD7219675B1A0 /* AIChatWindowChrome.swift */; };
 		64AD2324BDA6293464C98913 /* EmojiCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 45EB979ECD44738BCD9E2F90 /* EmojiCoordinator.swift */; };
 		64C9624EB859F6ADBF3128D0 /* BrightnessRecoveryPolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = 347CADE310C896B96840CA9C /* BrightnessRecoveryPolicy.swift */; };
@@ -2895,6 +2896,7 @@
 		C507875E3D765CD5B87886A3 /* PastePlainTextSystem+Live.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "PastePlainTextSystem+Live.swift"; sourceTree = "<group>"; };
 		C54C4540AD6F188A2455473F /* ExtensionRuntime.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExtensionRuntime.swift; sourceTree = "<group>"; };
 		C5941CE8F08FD5986FED12E9 /* QuickActionsSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuickActionsSettingsView.swift; sourceTree = "<group>"; };
+		C5A1D85A913FB60709D50790 /* RsrcPage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RsrcPage.swift; sourceTree = "<group>"; };
 		C5BA06E4CC7E8D40E3285F16 /* KeyCapChip.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeyCapChip.swift; sourceTree = "<group>"; };
 		C5C86E2D70216B50DB53D0A9 /* NotchcastMusicBlock.xcstrings */ = {isa = PBXFileReference; lastKnownFileType = text.json.xcstrings; path = NotchcastMusicBlock.xcstrings; sourceTree = "<group>"; };
 		C74ED35CDC7C46C7FCC5F27D /* FinderToolsFocus.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FinderToolsFocus.swift; sourceTree = "<group>"; };
@@ -6655,6 +6657,7 @@
 				25F2FFBD207A9A94E27D989E /* MediaArguments.swift */,
 				E727A765219FD06A22F77811 /* MediaFailure.swift */,
 				B8173FF2A1054B05D5AC7065 /* MediaOutput.swift */,
+				C5A1D85A913FB60709D50790 /* RsrcPage.swift */,
 				098DD9D7AD1219A22E4185D3 /* TorrentBencode.swift */,
 				61545BC1CAB67A751E10806C /* TorrentDefaultPolicy.swift */,
 				1DC120E8DBE5917841FA3D5A /* TorrentInput.swift */,
@@ -8765,6 +8768,7 @@
 				80E0A46F1C287491BC187322 /* RoomsSection.swift in Sources */,
 				47E13BC63F8BE11EDF25EA82 /* RootPaletteView.swift in Sources */,
 				B076DE322213FBD43C04B886 /* RowClick.swift in Sources */,
+				645424A8317AD7D6A5C0C996 /* RsrcPage.swift in Sources */,
 				9A80D2997DCF835AF225A586 /* RunningAppsMonitor.swift in Sources */,
 				30C5B58F3876A5B85BFBBDDF /* ScheduleScreen.swift in Sources */,
 				BAD4BEF8041665ACCF1CE460 /* ScheduleView.swift in Sources */,
