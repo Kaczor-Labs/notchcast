@@ -100,7 +100,8 @@ struct DownloadsRsrcTest {
         expect(article.title == "First post of the thread." && article.author == "somebody",
                "a thread is named by its first line and its author")
         expect(text.contains("published: 2026-11-27"), "a thread carries the first post's day")
-        expect(text.contains("Its second paragraph.\n\n> @other\n>\n> The quoted post.\n> Second line.\n>\n> ![](https://img.example/q.jpg)\n\nSecond post."),
+        let quote = "> @other\n>\n> The quoted post.\n> Second line.\n>\n> ![](https://img.example/q.jpg)"
+        expect(text.contains("Its second paragraph.\n\n\(quote)\n\nSecond post."),
                "a quoted post is a block quote under its post")
         expect(text.contains("Second post.\n\n![](https://img.example/a.jpg)\n\n<https://video.example/b.mp4>\n\nThird post."),
                "photos are images, other media are links, and posts keep their order")
