@@ -39,8 +39,8 @@ nonisolated enum RsrcPage {
 
     /// `nil` sends the link down the path it took before: a failed run, or one X post, which `XPost` reads whole.
     static func decode(_ data: Data, status: Int32 = 0, site: Site, source: URL) -> WebpageArticle? {
-        guard status == 0, let root = object(data), root["ok"] as? Bool == true, let items = root["items"] as? [[String: Any]], let first = items.first
-        else { return nil }
+        guard status == 0, let root = object(data), root["ok"] as? Bool == true,
+              let items = root["items"] as? [[String: Any]], let first = items.first else { return nil }
         let body: String
         if site == .x {
             guard items.count > 1 else { return nil }
