@@ -9,6 +9,8 @@ struct DownloadTool: Sendable, Hashable {
     static let ffmpeg = DownloadTool(name: "ffmpeg", installCommand: "brew install ffmpeg", versionArguments: ["-version"])
     static let aria2c = DownloadTool(name: "aria2c", installCommand: "brew install aria2")
     static let firecrawl = DownloadTool(name: "firecrawl-local", installCommand: "cargo install firecrawl-local")
+    static let rsrc = DownloadTool(
+        name: "rsrc", installCommand: "uv tool install git+https://github.com/SamuelZ12/research-sources")
 
     var missingDetail: String {
         String(localized: "\(name) is not installed. Install it with: \(installCommand)", table: "NotchcastDownloads")

@@ -39,6 +39,15 @@ struct WebpageArticle: Sendable {
         return result.isEmpty ? "article" : result
     }
 
+    /// The first line of a post that has no title of its own, cut at a word.
+    static func headline(_ text: String) -> String? {
+        guard let line = text.split(whereSeparator: \.isNewline).map({ $0.trimmingCharacters(in: .whitespaces) })
+            .first(where: { !$0.isEmpty }) else { return nil }
+        guard line.count > 80 else { return line }
+        let cut = line.prefix(80)
+        return String(cut.lastIndex(of: " ").map { cut[..<$0] } ?? cut) + "…"
+    }
+
     static func quoted(_ text: String) -> String {
         let encoder = JSONEncoder()
         encoder.outputFormatting = .withoutEscapingSlashes

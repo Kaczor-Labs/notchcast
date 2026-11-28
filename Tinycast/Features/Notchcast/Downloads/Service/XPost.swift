@@ -70,12 +70,7 @@ enum XPost {
     }
 
     static func title(of tweet: Tweet) -> String {
-        let line = (tweet.text ?? "").split(whereSeparator: \.isNewline)
-            .map { $0.trimmingCharacters(in: .whitespaces) }.first { !$0.isEmpty } ?? ""
-        guard !line.isEmpty else { return "Post \(tweet.id ?? "")" }
-        guard line.count > 80 else { return line }
-        let cut = line.prefix(80)
-        return String(cut.lastIndex(of: " ").map { cut[..<$0] } ?? cut) + "…"
+        WebpageArticle.headline(tweet.text ?? "") ?? "Post \(tweet.id ?? "")"
     }
 
     private static func html(of article: Article) -> String {
