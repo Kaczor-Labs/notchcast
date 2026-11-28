@@ -13,6 +13,7 @@
 // notchcast-sources: Tinycast/Features/Notchcast/Downloads/Model/DownloadsLinks.swift
 // notchcast-sources: Tinycast/Features/Notchcast/Downloads/Model/DownloadsWebRules.swift
 // notchcast-sources: Tinycast/Features/Notchcast/Downloads/Model/FirecrawlPage.swift
+// notchcast-sources: Tinycast/Features/Notchcast/Downloads/Model/RsrcPage.swift
 // notchcast-sources: Tinycast/Features/Notchcast/Downloads/Model/HTMLDocument.swift
 // notchcast-sources: Tinycast/Features/Notchcast/Downloads/Model/HTMLMarkdown.swift
 // notchcast-sources: Tinycast/Features/Notchcast/Downloads/Model/MediaArguments.swift
