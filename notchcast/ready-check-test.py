@@ -22,6 +22,10 @@ SWIFT_ACTION = ROOT / ".github/actions/linux-swift/action.yml"
 SCRIPT = ROOT / "notchcast/ready-check.sh"
 # Every step of pr.yml and of the local actions it uses, and how ready-check.sh covers it.
 COVERED = {
+    ("pr.yml:try", "Require a branch outside the landing train"): "manual tries only",
+    ("pr.yml:try", "actions/checkout"): "manual tries only",
+    ("pr.yml:try", "./notchcast/actions/xcode"): "manual tries only",
+    ("pr.yml:try", "Run the requested command"): "manual tries only",
     ("pr.yml:route", "A harness-only run is never a train's"): "dispatched harness-only runs only",
     ("pr.yml:route", "actions/checkout"): "lane planning; no gate",
     ("pr.yml:route", "Lanes the diff needs"): "picks the jobs below; ready-check.sh runs them all",
@@ -185,12 +189,14 @@ HARNESS_MAC = ("${{ github.event_name == 'workflow_dispatch' && (inputs.harness_
 POOL_MAC = ("${{ needs.mac-route.result == 'success' && needs.mac-route.outputs.mac-runner == 'notchcast-mbp' "
             "&& 'notchcast-mbp' || 'xcode-27' }}")
 HARNESS_ONLY, FULL_RUN = "inputs.harness_runner != ''", "inputs.harness_runner == ''"
+TRY_ONLY, FULL_PROOF = "inputs.command != ''", "inputs.command == ''"
+TRY_HOSTED = "${{ (inputs.os || 'mac') == 'mac' && 'xcode-27' || 'ubuntu-24.04' }}"
 # Labels a dispatch may name for a harness-only run (README Runners); free text names any runner.
 HARNESS_RUNNERS = ["", "notchcast-mba", "notchcast-mbp"]
 # Only jobs that hold no secret, sign with no identity and push nothing; a workflow outside this map is hosted-only.
 GATED_JOBS = {"pr.yml": 1, "main-harnesses.yml": 1, "proof.yml": 1}
 # Every macOS job (README Runners): it runs xcodebuild, compiles harnesses, signs or launches the app. Anything else is Linux.
-MAC_JOBS = {"pr.yml": 1, "main-harnesses.yml": 1, "delete-check.yml": 1, "proof.yml": 1, "snapshot.yml": 2, "sync.yml": 1,
+MAC_JOBS = {"pr.yml": 2, "main-harnesses.yml": 1, "delete-check.yml": 1, "proof.yml": 1, "snapshot.yml": 2, "sync.yml": 1,
             "sync-release.yml": 2, "test-build.yml": 2, "tester.yml": 1}
 
 
@@ -206,6 +212,10 @@ class RunnerTest(unittest.TestCase):
             if not match:
                 continue
             value = match[1].strip()
+            if (name, job) == ("pr.yml", "try"):
+                self.assertEqual(value, TRY_HOSTED)
+                mac += 1
+                continue
             if value in (gate, "xcode-27"):
                 mac += 1
             if value == gate:
@@ -360,12 +370,22 @@ class RunnerTest(unittest.TestCase):
         # No other job runs, the build check least of all: land.sh reads it, and train.sh a train run's conclusion.
         for job, lane in (("linux-checks", "build"), ("script-tests", "scripts"), ("linux-harnesses", "build")):
             self.assertIn(f"  {job}:\n    needs: route\n    if: needs.route.outputs.{lane} == 'true' && {FULL_RUN}\n", text)
-        self.assertIn(f"    if: ${{{{ !cancelled() && {FULL_RUN} }}}}\n", text)
+        self.assertIn(f"    if: ${{{{ !cancelled() && {FULL_RUN} && {FULL_PROOF} }}}}\n", text)
         refusal = found["route", "A harness-only run is never a train's"]
         self.assertEqual(field(refusal, "if"), f"{HARNESS_ONLY} && startsWith(github.ref, 'refs/heads/train/')")
         self.assertIn("exit 1", refusal)
         self.assertRegex(text, r"\nconcurrency:\n  group: .*\$\{\{ inputs\.harness_runner && format\('-\{0\}', "
                                r"inputs\.harness_runner\) \|\| '' \}\}\n")
+
+    def test_try_is_a_manual_run_with_no_build_proof(self):
+        text = WORKFLOW.read_text()
+        self.assertIn(f"  try:\n    if: github.event_name == 'workflow_dispatch' && {TRY_ONLY}\n", text)
+        self.assertIn(f"  route:\n    if: {FULL_PROOF}\n", text)
+        self.assertIn(f"    name: ${{{{ {TRY_ONLY} && 'Build proof not requested' || 'build' }}}}\n", text)
+        self.assertIn(f"{TRY_ONLY} && format('-try-{{0}}', inputs.os || 'mac')", text)
+        refusal = next(step for job, step in steps(WORKFLOW, 6) if job == "try")
+        self.assertEqual(field(refusal, "if"), "startsWith(github.ref, 'refs/heads/train/')")
+        self.assertIn("exit 1", refusal)
 
 
 class MacPoolTest(unittest.TestCase):
