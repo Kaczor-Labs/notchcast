@@ -123,10 +123,12 @@ struct DownloadsRsrcTest {
     static func discussions() {
         let story = item(nil, author: "poster", title: "A story", raw: ["item": ["url": "https://example.com/story"]])
         let comments = [
-            item("Top comment.", author: "first", published: "2026-06-30T16:03:26Z", raw: ["depth": 1]),
-            item("A reply.\nOn two lines.", author: "second", published: "2026-06-30T16:07:25Z", raw: ["depth": 2]),
-            item(nil, author: "empty", raw: ["depth": 1]),
-            item("Another top comment.", author: nil, raw: ["depth": 1]),
+            item("Top comment.", author: "first", published: "2026-06-30T16:03:26Z",
+                 raw: ["item": ["id": 2, "parent_id": 1]]),
+            item("A reply.\nOn two lines.", author: "second", published: "2026-06-30T16:07:25Z",
+                 raw: ["item": ["id": 3, "parent_id": 2]]),
+            item(nil, author: "empty", raw: ["item": ["id": 4, "parent_id": 1]]),
+            item("Another top comment.", author: nil, raw: ["item": ["id": 5, "parent_id": 1]]),
         ]
         if let article = RsrcPage.decode(answer([story] + comments), site: .hackerNews, source: hackerNews) {
             let text = article.markdown(saved: Date(timeIntervalSince1970: 0), timeZone: utc)
@@ -137,15 +139,23 @@ struct DownloadsRsrcTest {
                    "a reply is quoted under its parent and a comment without text is left out")
         } else { expect(false, "a Hacker News story is an article") }
 
-        let post = item("The question.", author: nil, title: nil, raw: ["attrs": ["depth": NSNull()]])
-        let replies = [item("An answer.", author: "helper", raw: ["attrs": ["depth": "0"]]),
-                       item("A follow-up.", author: "asker", raw: ["attrs": ["depth": "1"]])]
+        func attrs(_ id: String, under parent: String) -> [String: Any] { ["attrs": ["thingid": id, "parentid": parent]] }
+        let post = item("The question.", author: nil, title: nil, raw: ["attrs": ["id": "t3_post"]])
+        let replies = [item("A follow-up.", author: "asker", raw: attrs("t1_b", under: "t1_a")),
+                       item("An answer.", author: "helper", raw: attrs("t1_a", under: "t3_post")),
+                       item("A late reply.", author: "third", raw: attrs("t1_c", under: "t1_b")),
+                       item("Its parent was not returned.", author: "orphan", raw: attrs("t1_e", under: "t1_d")),
+                       item("Loop one.", author: "loop", raw: attrs("t1_f", under: "t1_g")),
+                       item("Loop two.", author: "loop", raw: attrs("t1_g", under: "t1_f"))]
         if let article = RsrcPage.decode(answer([post] + replies), site: .reddit, source: reddit) {
             let text = article.markdown(saved: Date(timeIntervalSince1970: 0), timeZone: utc)
             expect(article.title == "The question." && article.author == "www.reddit.com",
                    "a post without title or author is named by its text and its site")
-            expect(text.contains("**helper** · 2026-11-27\n\nAn answer.\n\n> **asker** · 2026-11-27\n>\n> A follow-up."),
-                   "Reddit depth, given as text from 0, nests the same way")
+            expect(text.contains("**helper** · 2026-11-27\n\nAn answer.\n\n> **asker** · 2026-11-27\n>\n> A follow-up.\n\n"
+                                 + "> > **third** · 2026-11-27\n> >\n> > A late reply.\n\n**orphan**"),
+                   "a Reddit reply listed before its parent is moved under it, and one without its parent stays on top")
+            expect(text.contains("**loop** · 2026-11-27\n\nLoop one.\n\n**loop** · 2026-11-27\n\nLoop two."),
+                   "comments that only name each other are kept, flat")
         } else { expect(false, "a Reddit post is an article") }
 
         let update = item("We shipped.", author: "A Company", title: "We shipped.")

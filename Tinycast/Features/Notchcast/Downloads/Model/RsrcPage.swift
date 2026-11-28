@@ -79,23 +79,48 @@ nonisolated enum RsrcPage {
         let raw = post["raw"] as? [String: Any] ?? [:]
         let link = text((raw["item"] as? [String: Any])?["url"]).flatMap { URL(string: $0)?.scheme == "https" ? "<\($0)>" : nil }
         var parts = [link, text(post["text"])].compactMap { $0 }
-        let depths = comments.map(depth)
-        let top = depths.min() ?? 0
-        let replies = zip(comments, depths).compactMap { comment, depth -> String? in
+        let replies = threaded(comments).compactMap { comment, level -> String? in
             guard let body = text(comment["text"]) else { return nil }
             let day = text(comment["published_at"]).map { " · \($0.prefix(10))" } ?? ""
             let entry = "**\(text(comment["author"]) ?? "[deleted]")**\(day)\n\n\(body)"
-            return depth > top ? quote(entry, level: min(depth - top, 6)) : entry
+            return level > 0 ? quote(entry, level: min(level, 6)) : entry
         }
         if !replies.isEmpty { parts += ["## Comments"] + replies }
         return parts.joined(separator: "\n\n")
     }
 
-    /// Hacker News counts depth from 1 as a number, Reddit from 0 as text, LinkedIn not at all.
-    private static func depth(_ comment: [String: Any]) -> Int {
+    /// Reddit lists comments by score, so a reply can come before its parent; each one is moved under the comment
+    /// it names as its parent. LinkedIn names none, so its comments stay a flat list.
+    private static func threaded(_ comments: [[String: Any]]) -> [(comment: [String: Any], level: Int)] {
+        let keys = comments.map(identity)
+        let known = Set(keys.compactMap(\.id))
+        var children: [String: [Int]] = [:]
+        var roots: [Int] = []
+        for (index, key) in keys.enumerated() {
+            if let parent = key.parent, parent != key.id, known.contains(parent) {
+                children[parent, default: []].append(index)
+            } else {
+                roots.append(index)
+            }
+        }
+        var result: [(comment: [String: Any], level: Int)] = []
+        var seen = Set<Int>()
+        var stack = roots.reversed().map { (index: $0, level: 0) }
+        while let next = stack.popLast() {
+            guard seen.insert(next.index).inserted else { continue }
+            result.append((comments[next.index], next.level))
+            let replies = keys[next.index].id.flatMap { children[$0] } ?? []
+            stack += replies.reversed().map { (index: $0, level: next.level + 1) }
+        }
+        // Comments that only name each other have no root; they are kept, flat.
+        return result + comments.indices.filter { !seen.contains($0) }.map { (comments[$0], 0) }
+    }
+
+    private static func identity(_ comment: [String: Any]) -> (id: String?, parent: String?) {
         let raw = comment["raw"] as? [String: Any] ?? [:]
-        if let depth = raw["depth"] as? Int { return depth }
-        return ((raw["attrs"] as? [String: Any])?["depth"] as? String).flatMap(Int.init) ?? 0
+        if let attrs = raw["attrs"] as? [String: Any] { return (text(attrs["thingid"]), text(attrs["parentid"])) }
+        let item = raw["item"] as? [String: Any] ?? [:]
+        return ((item["id"] as? Int).map(String.init), (item["parent_id"] as? Int).map(String.init))
     }
 
     private static func quote(_ body: String, level: Int) -> String {
