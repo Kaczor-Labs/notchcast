@@ -37,9 +37,15 @@ struct WebpageSaver: Sendable {
     private func rsrc(_ source: URL) async throws -> WebpageArticle? {
         try Task.checkCancellation()
         guard let tools, let request = RsrcPage.request(source), let tool = tools.find(.rsrc) else { return nil }
-        let answer = try? await capture(tool, arguments: request.arguments, limit: RsrcPage.outputLimit, with: tools)
+        let answer: (Int32, Data)
+        do {
+            answer = try await capture(tool, arguments: request.arguments, limit: RsrcPage.outputLimit, with: tools)
+        } catch {
+            // A cancelled save ends here; a run that failed, ran late or wrote too much does not.
+            try Task.checkCancellation()
+            return nil
+        }
         try Task.checkCancellation()
-        guard let answer else { return nil }
         return RsrcPage.decode(answer.1, status: answer.0, site: request.site, source: source)
     }
 

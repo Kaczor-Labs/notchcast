@@ -39,8 +39,7 @@ nonisolated enum RsrcPage {
 
     /// `nil` sends the link down the path it took before: a failed run, or one X post, which `XPost` reads whole.
     static func decode(_ data: Data, status: Int32 = 0, site: Site, source: URL) -> WebpageArticle? {
-        guard status == 0, let root = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-              root["ok"] as? Bool == true, let items = root["items"] as? [[String: Any]], let first = items.first
+        guard status == 0, let root = object(data), root["ok"] as? Bool == true, let items = root["items"] as? [[String: Any]], let first = items.first
         else { return nil }
         let body: String
         if site == .x {
@@ -56,6 +55,15 @@ nonisolated enum RsrcPage {
         let title = text(first["title"]) ?? WebpageArticle.headline(text(first["text"]) ?? "") ?? host
         return WebpageArticle(title: title, author: text(first["author"]) ?? host, published: text(first["published_at"]),
                               source: source, baseURL: source, html: "", markdownBody: body)
+    }
+
+    /// Output that is not one JSON object is a failed run.
+    private static func object(_ data: Data) -> [String: Any]? {
+        do {
+            return try JSONSerialization.jsonObject(with: data) as? [String: Any]
+        } catch {
+            return nil
+        }
     }
 
     private static func post(_ item: [String: Any]) -> String {
